@@ -13,6 +13,12 @@ dependencies = [
     "pydantic-settings>=2.12.0",
     "httpx>=0.28.0",
     "keyring>=25.0.0",
+    "pyyaml>=6.0.3",
+    "watchdog>=6.0.0",
+    "websockets>=17.0.1",
+    "pathspec>=0.12.1,<2.0.0",
+    "tomli-w>=1.2.0",
+    "pyarrow>=25.0.1",
 ]
 
 [project.optional-dependencies]
@@ -33,11 +39,17 @@ dev = [
     "keyring>=25.0.0",
     "textual>=8.2.7",
     "textual-plotext>=1.0.1",
+    "hatchling>=1.27.0",
     "mypy>=1.15.0",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.26.0",
     "ruff>=0.11.0",
     "pytest-cov>=7.1.0",
+    "pyyaml>=6.0.3",
+    "types-pyyaml>=6.0.12.20260724",
+    "pandas>=3.0.5",
+    "pyarrow>=25.0.1",
+    "polars>=1.0.0,<2.0.0",
 ]
 
 [project.scripts]
@@ -47,8 +59,26 @@ lumlflow = "lumlflow.cli:app"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# `lumlflow/static/` is the compiled web app — a build output, gitignored, and
+# so invisible to hatchling's VCS-aware file selection. `artifacts` is the
+# documented override for exactly that, and it applies to every target, so the
+# sdist and the wheel both carry the bundle. Without it the sdist ships no web
+# app and the wheel pip builds from that sdist silently serves an API-only UI.
+artifacts = ["/lumlflow/static/**"]
+
+[tool.hatch.build.targets.sdist]
+# The bundle above already makes the sdist self-contained, so it ships no
+# frontend sources: a source install has no npm workspace root to compile them
+# with, and their presence would only push the build hook onto its error path.
+exclude = ["/frontend", "/node_modules", "/examples"]
+
 [tool.hatch.build.targets.wheel]
-packages = ["lumlflow"]
+# The kernel is a separate top-level package in the same wheel: the daemon
+# path-injects it into the workspace venv, which holds no lumlflow code.
+# `lumlflow_typing` rides along — TYPE_CHECKING-only stubs a scaffolded cell's
+# conformance footer checks against, carrying no runtime code either.
+packages = ["lumlflow", "lumlflow_kernel", "lumlflow_typing"]
 
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
@@ -69,6 +99,15 @@ select = [
     "B",   # flake8-bugbear
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+# Typer declares CLI parameters as call-valued defaults; that is the framework's
+# spelling, not a mutable default waiting to bite.
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
+
+[tool.ruff.lint.isort]
+# The kernel is a second top-level package of this project, not a dependency.
+known-first-party = ["lumlflow_kernel"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -78,6 +117,21 @@ indent-style = "space"
 # untyped instead of erroring on every `from luml...` import.
 [[tool.mypy.overrides]]
 module = "luml.*"
+ignore_missing_imports = true
+
+# The optional libraries the kernel's kinds import lazily may not be installed.
+[[tool.mypy.overrides]]
+module = ["pyarrow.*", "polars.*", "cloudpickle.*", "PIL.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true
+
+# The build backend is a build-time dependency, absent from the runtime env
+# the checker runs in.
+[[tool.mypy.overrides]]
+module = "hatchling.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

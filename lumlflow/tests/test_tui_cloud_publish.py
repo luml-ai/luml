@@ -134,9 +134,7 @@ def _list_children(screen: CloudPublishScreen, list_id: str) -> list[Any]:
     return list(view.children)
 
 
-async def _walk_to_upload_step(
-    pilot: Any, screen: CloudPublishScreen
-) -> None:
+async def _walk_to_upload_step(pilot: Any, screen: CloudPublishScreen) -> None:
     """Drive org → orbit → collection, waiting out each fetch worker."""
 
     await _wait_until(pilot, lambda: screen._orgs, label="organizations")
@@ -205,9 +203,7 @@ class TestHelpers:
 class TestAuthGate:
     """The screen prompts for an API key when one is not stored."""
 
-    async def test_missing_key_lands_on_auth_step(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_missing_key_lands_on_auth_step(self, facade: DataFacade) -> None:
         with patch.object(facade.auth, "has_api_key", return_value=False):
             app = _make_app(facade)
             async with app.run_test() as pilot:
@@ -222,9 +218,7 @@ class TestAuthGate:
                 # The API key input is mounted.
                 assert screen.query_one("#publish-api-key-input", Input) is not None
 
-    async def test_existing_key_skips_to_org_step(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_existing_key_skips_to_org_step(self, facade: DataFacade) -> None:
         with (
             patch.object(facade.auth, "has_api_key", return_value=True),
             patch.object(
@@ -248,9 +242,7 @@ class TestAuthGate:
                 ids = [child.id for child in view.children]
                 assert any("publish-org-org-1" == i for i in ids), ids
 
-    async def test_invalid_key_shows_inline_error(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_invalid_key_shows_inline_error(self, facade: DataFacade) -> None:
         """A 401 from `set_api_key` becomes an inline error, not a crash."""
 
         with (
@@ -273,13 +265,13 @@ class TestAuthGate:
                 screen._submit_api_key("bad")
                 await _wait_until(
                     pilot,
-                    lambda: "Invalid API key"
-                    in str(screen.query_one("#publish-error", Static).render()),
+                    lambda: (
+                        "Invalid API key"
+                        in str(screen.query_one("#publish-error", Static).render())
+                    ),
                     label="the inline error",
                 )
-                rendered = str(
-                    screen.query_one("#publish-error", Static).render()
-                )
+                rendered = str(screen.query_one("#publish-error", Static).render())
                 assert "Invalid API key" in rendered
                 # Still on auth step — never advanced.
                 assert screen._step == "auth"
@@ -311,13 +303,13 @@ class TestAuthGate:
                 screen._submit_api_key("anything")
                 await _wait_until(
                     pilot,
-                    lambda: "Could not reach"
-                    in str(screen.query_one("#publish-error", Static).render()),
+                    lambda: (
+                        "Could not reach"
+                        in str(screen.query_one("#publish-error", Static).render())
+                    ),
                     label="the reachability error",
                 )
-                rendered = str(
-                    screen.query_one("#publish-error", Static).render()
-                )
+                rendered = str(screen.query_one("#publish-error", Static).render())
                 assert "Could not reach" in rendered
                 # The handler's diagnostic detail (URL + cause) must reach
                 # the screen unmangled — it's the only way the user can
@@ -326,9 +318,7 @@ class TestAuthGate:
                 assert "ConnectError" in rendered
                 assert screen._step == "auth"
 
-    async def test_valid_key_advances_to_org_step(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_valid_key_advances_to_org_step(self, facade: DataFacade) -> None:
         with (
             patch.object(facade.auth, "has_api_key", return_value=False),
             patch.object(facade.auth, "set_api_key", return_value=None),
@@ -368,8 +358,10 @@ class TestAuthGate:
                 screen._submit_api_key("   ")
                 await _wait_until(
                     pilot,
-                    lambda: "API key is required"
-                    in str(screen.query_one("#publish-error", Static).render()),
+                    lambda: (
+                        "API key is required"
+                        in str(screen.query_one("#publish-error", Static).render())
+                    ),
                     label="the empty-key error",
                 )
 
@@ -380,9 +372,7 @@ class TestAuthGate:
 
 
 class TestTargetSelection:
-    async def test_selecting_org_fetches_orbits(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_selecting_org_fetches_orbits(self, facade: DataFacade) -> None:
         with (
             patch.object(facade.auth, "has_api_key", return_value=True),
             patch.object(
@@ -401,16 +391,13 @@ class TestTargetSelection:
                 await pilot.pause()
                 screen = _push_publish(app, facade)
                 # Land on org step (auth check + org fetch run on workers).
-                await _wait_until(
-                    pilot, lambda: screen._orgs, label="organizations"
-                )
+                await _wait_until(pilot, lambda: screen._orgs, label="organizations")
                 assert screen._step == "org"
                 # Programmatically pick org index 0.
                 screen._select_org_at(0)
                 await _wait_until(
                     pilot,
-                    lambda: len(_list_children(screen, "publish-orbit-list"))
-                    == 2,
+                    lambda: len(_list_children(screen, "publish-orbit-list")) == 2,
                     label="the orbit list",
                 )
                 assert screen._step == "orbit"
@@ -448,20 +435,13 @@ class TestTargetSelection:
             async with app.run_test() as pilot:
                 await pilot.pause()
                 screen = _push_publish(app, facade)
-                await _wait_until(
-                    pilot, lambda: screen._orgs, label="organizations"
-                )
+                await _wait_until(pilot, lambda: screen._orgs, label="organizations")
                 screen._select_org_at(0)
-                await _wait_until(
-                    pilot, lambda: screen._orbits, label="orbits"
-                )
+                await _wait_until(pilot, lambda: screen._orbits, label="orbits")
                 screen._select_orbit_at(0)
                 await _wait_until(
                     pilot,
-                    lambda: len(
-                        _list_children(screen, "publish-collection-list")
-                    )
-                    == 2,
+                    lambda: len(_list_children(screen, "publish-collection-list")) == 2,
                     label="the collection list",
                 )
                 assert screen._step == "collection"
@@ -484,9 +464,7 @@ class TestTargetSelection:
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
         ):
             app = _make_app(facade)
@@ -512,9 +490,7 @@ class TestTargetSelection:
             patch.object(
                 facade.luml,
                 "get_luml_organizations",
-                side_effect=ApplicationError(
-                    "API key not configured", status_code=401
-                ),
+                side_effect=ApplicationError("API key not configured", status_code=401),
             ),
         ):
             app = _make_app(facade)
@@ -531,9 +507,7 @@ class TestTargetSelection:
                         return False
                     return "API key not configured" in str(err.render())
 
-                await _wait_until(
-                    pilot, _bounced_with_error, label="the auth bounce"
-                )
+                await _wait_until(pilot, _bounced_with_error, label="the auth bounce")
 
     async def test_back_from_collection_returns_to_orbit(
         self, facade: DataFacade
@@ -553,22 +527,16 @@ class TestTargetSelection:
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
         ):
             app = _make_app(facade)
             async with app.run_test() as pilot:
                 await pilot.pause()
                 screen = _push_publish(app, facade)
-                await _wait_until(
-                    pilot, lambda: screen._orgs, label="organizations"
-                )
+                await _wait_until(pilot, lambda: screen._orgs, label="organizations")
                 screen._select_org_at(0)
-                await _wait_until(
-                    pilot, lambda: screen._orbits, label="orbits"
-                )
+                await _wait_until(pilot, lambda: screen._orbits, label="orbits")
                 screen._select_orbit_at(0)
                 await _wait_until(
                     pilot,
@@ -620,20 +588,14 @@ class TestUploadProgress:
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
-            patch.object(
-                facade.artifacts, "upload_artifact", side_effect=fake_upload
-            ),
+            patch.object(facade.artifacts, "upload_artifact", side_effect=fake_upload),
         ):
             app = _make_app(facade)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                screen = _push_publish(
-                    app, facade, job_id_factory=lambda: "job-1"
-                )
+                screen = _push_publish(app, facade, job_id_factory=lambda: "job-1")
                 await pilot.pause()
                 await pilot.pause()
                 # Walk through the picker steps.
@@ -673,20 +635,14 @@ class TestUploadProgress:
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
-            patch.object(
-                facade.artifacts, "upload_artifact", side_effect=fake_upload
-            ),
+            patch.object(facade.artifacts, "upload_artifact", side_effect=fake_upload),
         ):
             app = _make_app(facade)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                screen = _push_publish(
-                    app, facade, job_id_factory=lambda: "job-err"
-                )
+                screen = _push_publish(app, facade, job_id_factory=lambda: "job-err")
                 await pilot.pause()
                 await pilot.pause()
                 await _walk_to_upload_step(pilot, screen)
@@ -700,9 +656,7 @@ class TestUploadProgress:
                 assert screen._ctx.final_success is False
                 assert "boom on upload" in (screen._ctx.final_message or "")
 
-    async def test_in_flight_progress_renders_bar(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_in_flight_progress_renders_bar(self, facade: DataFacade) -> None:
         """While the upload is running, the bar reflects `percent`."""
 
         # Block the fake upload so we can inspect mid-flight state.
@@ -728,20 +682,14 @@ class TestUploadProgress:
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
-            patch.object(
-                facade.artifacts, "upload_artifact", side_effect=fake_upload
-            ),
+            patch.object(facade.artifacts, "upload_artifact", side_effect=fake_upload),
         ):
             app = _make_app(facade)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                screen = _push_publish(
-                    app, facade, job_id_factory=lambda: "job-mid"
-                )
+                screen = _push_publish(app, facade, job_id_factory=lambda: "job-mid")
                 await pilot.pause()
                 await pilot.pause()
                 await _walk_to_upload_step(pilot, screen)
@@ -762,9 +710,7 @@ class TestUploadProgress:
                 # progress; both are acceptable for this assertion.
                 assert upload_started == ["job-mid"]
 
-    async def test_facade_failure_marks_done_failed(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_facade_failure_marks_done_failed(self, facade: DataFacade) -> None:
         """An unexpected facade-level exception still lands on done(failed)."""
 
         with (
@@ -782,9 +728,7 @@ class TestUploadProgress:
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
             patch.object(
                 facade.artifacts,
@@ -795,9 +739,7 @@ class TestUploadProgress:
             app = _make_app(facade)
             async with app.run_test() as pilot:
                 await pilot.pause()
-                screen = _push_publish(
-                    app, facade, job_id_factory=lambda: "job-2"
-                )
+                screen = _push_publish(app, facade, job_id_factory=lambda: "job-2")
                 await pilot.pause()
                 await pilot.pause()
                 await _walk_to_upload_step(pilot, screen)
@@ -820,9 +762,7 @@ class TestUploadProgress:
 class TestUploadForm:
     """`_read_upload_form` reads the per-step widgets into context."""
 
-    async def test_form_captures_upload_type_and_tags(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_form_captures_upload_type_and_tags(self, facade: DataFacade) -> None:
         with (
             patch.object(facade.auth, "has_api_key", return_value=True),
             patch.object(
@@ -838,9 +778,7 @@ class TestUploadForm:
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
         ):
             app = _make_app(facade)
@@ -852,16 +790,12 @@ class TestUploadForm:
                 await _walk_to_upload_step(pilot, screen)
                 assert screen._step == "upload"
                 # Set the form values directly.
-                type_view = screen.query_one(
-                    "#publish-upload-type-list", ListView
-                )
+                type_view = screen.query_one("#publish-upload-type-list", ListView)
                 type_view.index = 1  # "model"
                 await pilot.pause()
                 # The embed row is only shown for type=model; flip the
                 # radio to "yes".
-                embed_radio = screen.query_one(
-                    "#publish-embed-radio", RadioSet
-                )
+                embed_radio = screen.query_one("#publish-embed-radio", RadioSet)
                 assert screen.query_one("#publish-embed-row").display is True
                 buttons = list(embed_radio.query(RadioButton))
                 buttons[1].value = True
@@ -929,9 +863,7 @@ class TestWiringFromExperimentsScreen:
 
 
 class TestEscReturnsFromAuth:
-    async def test_back_on_auth_pops_screen(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_back_on_auth_pops_screen(self, facade: DataFacade) -> None:
         with patch.object(facade.auth, "has_api_key", return_value=False):
             app = _make_app(facade)
             async with app.run_test() as pilot:
@@ -956,15 +888,15 @@ class TestEscReturnsFromAuth:
 
 
 class TestDoneStep:
-    async def test_done_success_renders_message(
-        self, facade: DataFacade
-    ) -> None:
-        with patch.object(facade.auth, "has_api_key", return_value=True), \
+    async def test_done_success_renders_message(self, facade: DataFacade) -> None:
+        with (
+            patch.object(facade.auth, "has_api_key", return_value=True),
             patch.object(
                 facade.luml,
                 "get_luml_organizations",
                 return_value=[_org()],
-            ):
+            ),
+        ):
             app = _make_app(facade)
             async with app.run_test() as pilot:
                 await pilot.pause()
@@ -980,15 +912,15 @@ class TestDoneStep:
                 msg = screen.query_one("#publish-done-message", Static)
                 assert "All done." in str(msg.render())
 
-    async def test_done_failure_renders_error_title(
-        self, facade: DataFacade
-    ) -> None:
-        with patch.object(facade.auth, "has_api_key", return_value=True), \
+    async def test_done_failure_renders_error_title(self, facade: DataFacade) -> None:
+        with (
+            patch.object(facade.auth, "has_api_key", return_value=True),
             patch.object(
                 facade.luml,
                 "get_luml_organizations",
                 return_value=[_org()],
-            ):
+            ),
+        ):
             app = _make_app(facade)
             async with app.run_test() as pilot:
                 await pilot.pause()
@@ -1016,18 +948,12 @@ class TestManualUploadMode:
     def _cloud_patches(self, facade: DataFacade):
         return (
             patch.object(facade.auth, "has_api_key", return_value=True),
-            patch.object(
-                facade.luml, "get_luml_organizations", return_value=[_org()]
-            ),
-            patch.object(
-                facade.luml, "get_luml_orbits", return_value=[_orbit()]
-            ),
+            patch.object(facade.luml, "get_luml_organizations", return_value=[_org()]),
+            patch.object(facade.luml, "get_luml_orbits", return_value=[_orbit()]),
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
         )
 
@@ -1075,9 +1001,7 @@ class TestManualUploadMode:
             await pilot.pause()
             assert app.screen is screen
 
-    async def test_manual_upload_step_shows_file_form(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_manual_upload_step_shows_file_form(self, facade: DataFacade) -> None:
         p1, p2, p3, p4 = self._cloud_patches(facade)
         with p1, p2, p3, p4:
             app = _make_app(facade)
@@ -1093,9 +1017,7 @@ class TestManualUploadMode:
                 assert screen.query_one("#publish-file-path-input", Input)
                 assert not screen.query("#publish-upload-type-list")
 
-    async def test_manual_upload_rejects_missing_file(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_manual_upload_rejects_missing_file(self, facade: DataFacade) -> None:
         p1, p2, p3, p4 = self._cloud_patches(facade)
         with p1, p2, p3, p4:
             app = _make_app(facade)
@@ -1106,9 +1028,7 @@ class TestManualUploadMode:
                 await pilot.pause()
                 await pilot.pause()
                 await _walk_to_upload_step(pilot, screen)
-                path_input = screen.query_one(
-                    "#publish-file-path-input", Input
-                )
+                path_input = screen.query_one("#publish-file-path-input", Input)
                 path_input.value = "/definitely/not/a/file.luml"
                 assert screen._read_upload_form() is False
                 error = screen.query_one("#publish-error", Static)
@@ -1132,9 +1052,7 @@ class TestManualUploadMode:
             p2,
             p3,
             p4,
-            patch.object(
-                facade.artifacts, "upload_file", side_effect=fake_upload_file
-            ),
+            patch.object(facade.artifacts, "upload_file", side_effect=fake_upload_file),
         ):
             app = _make_app(facade)
             async with app.run_test() as pilot:
@@ -1146,9 +1064,9 @@ class TestManualUploadMode:
                 await pilot.pause()
                 await pilot.pause()
                 await _walk_to_upload_step(pilot, screen)
-                screen.query_one(
-                    "#publish-file-path-input", Input
-                ).value = str(artifact_file)
+                screen.query_one("#publish-file-path-input", Input).value = str(
+                    artifact_file
+                )
                 assert screen._read_upload_form() is True
                 screen._start_upload()
                 await _wait_until(
@@ -1167,9 +1085,7 @@ class TestManualUploadMode:
 class TestArtifactHandlerUploadFile:
     """Unit tests for `ArtifactHandler.upload_file` (no network)."""
 
-    def test_missing_file_writes_error_to_store(
-        self, facade: DataFacade
-    ) -> None:
+    def test_missing_file_writes_error_to_store(self, facade: DataFacade) -> None:
         from lumlflow.schemas.luml import ArtifactIn, UploadFileForm
 
         handler = facade.artifacts
@@ -1235,18 +1151,12 @@ class TestEmbedRadioVisibility:
     ) -> None:
         with (
             patch.object(facade.auth, "has_api_key", return_value=True),
-            patch.object(
-                facade.luml, "get_luml_organizations", return_value=[_org()]
-            ),
-            patch.object(
-                facade.luml, "get_luml_orbits", return_value=[_orbit()]
-            ),
+            patch.object(facade.luml, "get_luml_organizations", return_value=[_org()]),
+            patch.object(facade.luml, "get_luml_orbits", return_value=[_orbit()]),
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
         ):
             app = _make_app(facade)
@@ -1256,9 +1166,7 @@ class TestEmbedRadioVisibility:
                 await pilot.pause()
                 await pilot.pause()
                 await _walk_to_upload_step(pilot, screen)
-                type_view = screen.query_one(
-                    "#publish-upload-type-list", ListView
-                )
+                type_view = screen.query_one("#publish-upload-type-list", ListView)
                 embed_row = screen.query_one("#publish-embed-row")
                 # Default type is auto — embedding is derived, not asked.
                 assert embed_row.display is False
@@ -1283,24 +1191,16 @@ class TestModelPublishMode:
     def _cloud_patches(self, facade: DataFacade):
         return (
             patch.object(facade.auth, "has_api_key", return_value=True),
-            patch.object(
-                facade.luml, "get_luml_organizations", return_value=[_org()]
-            ),
-            patch.object(
-                facade.luml, "get_luml_orbits", return_value=[_orbit()]
-            ),
+            patch.object(facade.luml, "get_luml_organizations", return_value=[_org()]),
+            patch.object(facade.luml, "get_luml_orbits", return_value=[_orbit()]),
             patch.object(
                 facade.luml,
                 "get_luml_collections",
-                return_value=PaginatedCollections(
-                    items=[_collection()], cursor=None
-                ),
+                return_value=PaginatedCollections(items=[_collection()], cursor=None),
             ),
         )
 
-    async def test_model_mode_uploads_single_model(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_model_mode_uploads_single_model(self, facade: DataFacade) -> None:
         received: list[Any] = []
 
         def fake_upload_model(form: Any, job_id: str) -> None:
@@ -1337,15 +1237,11 @@ class TestModelPublishMode:
                 # Model mode: no type list, embed radio always visible,
                 # artifact name pre-filled with the model name.
                 assert not screen.query("#publish-upload-type-list")
-                embed_radio = screen.query_one(
-                    "#publish-embed-radio", RadioSet
-                )
+                embed_radio = screen.query_one("#publish-embed-radio", RadioSet)
                 buttons = list(embed_radio.query(RadioButton))
                 buttons[1].value = True  # embed the experiment
                 await pilot.pause()
-                name_input = screen.query_one(
-                    "#publish-artifact-name-input", Input
-                )
+                name_input = screen.query_one("#publish-artifact-name-input", Input)
                 assert name_input.value == "resnet"
                 assert screen._read_upload_form() is True
                 screen._start_upload()

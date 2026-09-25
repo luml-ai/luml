@@ -1,0 +1,26 @@
+class Evaluate:
+    """Score the fitted model on the held-out rows."""
+    uid = "01M28ECKBB4EHZMKCMY8GZQRDA"
+
+    consumes = {"model": "train_model.model", "test": "split.test"}
+    produces = {"metrics": "experiment"}
+
+    def materialize(self, ctx, model, test):
+        import numpy as np
+
+        x = test[model["features"]].to_numpy(dtype=float)
+        xs = (x - model["mean"]) / model["scale"]
+        preds = xs @ model["coef"] + model["intercept"]
+        y = test["target"].to_numpy(dtype=float)
+
+        errors = preds - y
+        rmse = float(np.sqrt(np.mean(errors**2)))
+        mae = float(np.mean(np.abs(errors)))
+        ss_res = float(np.sum(errors**2))
+        ss_tot = float(np.sum((y - y.mean()) ** 2))
+        r2 = 1.0 - ss_res / ss_tot
+
+        ctx.tracker.log_params({"alpha": model["alpha"]})
+        ctx.tracker.log_metrics({"rmse": rmse, "mae": mae, "r2": r2})
+
+        return {"metrics": ctx.tracker.record}

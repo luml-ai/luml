@@ -1,0 +1,1 @@
+{"blocks":[{"block":"table","columns":["feature","weight","abs_weight"],"dtypes":["str","float64","float64"],"rows":[["tenure_months",0.5144626128950947,0.5144626128950947],["monthly_charges",-0.3158754881755256,0.3158754881755256],["support_tickets",-0.21206863447129054,0.21206863447129054]],"total_columns":3,"total_rows":3}],"kind":"frame","schema":1,"truncated":false}

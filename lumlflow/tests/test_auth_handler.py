@@ -23,8 +23,8 @@ class _RaisingClient:
     def __enter__(self) -> "_RaisingClient":
         return self
 
-    def __exit__(self, *exc_info: object) -> bool:
-        return False
+    def __exit__(self, *exc_info: object) -> None:
+        return None
 
     def get(self, *args: Any, **kwargs: Any) -> httpx.Response:
         raise self._exc
@@ -37,9 +37,7 @@ class TestSetApiKeyUnreachable:
         monkeypatch.setattr(
             httpx,
             "Client",
-            lambda *a, **k: _RaisingClient(
-                httpx.ConnectError("connection refused")
-            ),
+            lambda *a, **k: _RaisingClient(httpx.ConnectError("connection refused")),
         )
         with pytest.raises(ApplicationError) as exc_info:
             AuthHandler().set_api_key(SetApiKey(api_key="luml_sk_test"))

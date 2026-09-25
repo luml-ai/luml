@@ -244,9 +244,7 @@ class TestExperiments:
 
 
 class TestModels:
-    def test_list_empty(
-        self, facade: DataFacade, tracker: ExperimentTracker
-    ) -> None:
+    def test_list_empty(self, facade: DataFacade, tracker: ExperimentTracker) -> None:
         exp_id = tracker.start_experiment(name="empty")
         res = facade.list_experiment_models(exp_id)
         assert res.ok
@@ -442,9 +440,7 @@ class TestAnnotations:
 
 
 class TestErrorMapping:
-    def test_application_error_maps_to_result_failure(
-        self, facade: DataFacade
-    ) -> None:
+    def test_application_error_maps_to_result_failure(self, facade: DataFacade) -> None:
         def raises_400() -> None:
             raise ApplicationError("bad input", status_code=400)
 
@@ -490,9 +486,7 @@ class TestTransientLockRetry:
         assert _is_transient_lock(Wrapped("database is locked while inserting"))
         assert not _is_transient_lock(Wrapped("plain error"))
 
-    def test_read_retries_then_succeeds(
-        self, tracker: ExperimentTracker
-    ) -> None:
+    def test_read_retries_then_succeeds(self, tracker: ExperimentTracker) -> None:
         sleeps: list[float] = []
         facade = DataFacade(
             tracker=tracker,
@@ -536,9 +530,7 @@ class TestTransientLockRetry:
         # Slept after attempts 1 and 2; no sleep after the final attempt.
         assert len(sleeps) == 2
 
-    def test_read_no_retry_on_non_transient(
-        self, tracker: ExperimentTracker
-    ) -> None:
+    def test_read_no_retry_on_non_transient(self, tracker: ExperimentTracker) -> None:
         sleeps: list[float] = []
         facade = DataFacade(
             tracker=tracker,
@@ -621,9 +613,7 @@ class TestRunInThread:
 
 
 class TestAuthCloudErrorMapping:
-    def test_set_api_key_validation_failure_maps_401(
-        self, facade: DataFacade
-    ) -> None:
+    def test_set_api_key_validation_failure_maps_401(self, facade: DataFacade) -> None:
         with patch.object(
             facade.auth,
             "set_api_key",

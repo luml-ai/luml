@@ -97,9 +97,7 @@ class TestPaletteEntryConstruction:
     def test_each_entry_invokes_its_command(self) -> None:
         registry = build_default_registry()
         invoked: list[str] = []
-        entries = entries_for_registry(
-            registry, runner=lambda c: invoked.append(c.id)
-        )
+        entries = entries_for_registry(registry, runner=lambda c: invoked.append(c.id))
         # Pick an entry and trigger it directly.
         first = entries[0]
         first.invoke()
@@ -367,7 +365,8 @@ class TestNoHiddenShortcuts:
             # rendered alongside the keybinding-backed ones).
             palette = await _open_palette(app, pilot)
             entries_by_label = {
-                e.label: e for e in palette._all_entries  # type: ignore[attr-defined]
+                e.label: e
+                for e in palette._all_entries  # type: ignore[attr-defined]
             }
             for cmd in app.keymap:
                 assert cmd.label in entries_by_label, (
@@ -379,9 +378,7 @@ class TestNoHiddenShortcuts:
             help_dialog = await _open_help(app, pilot)
             shown = {cmd.id for cmd, _ in help_dialog._row_widgets}  # type: ignore[attr-defined]
             for cmd in app.keymap:
-                assert cmd.id in shown, (
-                    f"Command not in help cheat-sheet: {cmd.id}"
-                )
+                assert cmd.id in shown, f"Command not in help cheat-sheet: {cmd.id}"
 
     async def test_inline_affordances_on_dialog_buttons(self) -> None:
         """Confirm dialogs render `[Enter]` / `[Esc]` inline affordances.
@@ -512,18 +509,16 @@ class TestFirstRunHint:
             await pilot.pause()
             # The toast host has at least one toast — the first-run hint.
             host = app.screen.query_one("#app-toasts")
-            assert any(
-                "?" in str(child.render()) for child in host.children
-            ), [str(c.render()) for c in host.children]
+            assert any("?" in str(child.render()) for child in host.children), [
+                str(c.render()) for c in host.children
+            ]
 
     async def test_hint_can_be_disabled(self) -> None:
         app = LumlflowApp(show_first_run_hint=False)
         async with app.run_test() as pilot:
             await pilot.pause()
             host = app.screen.query_one("#app-toasts")
-            assert all(
-                "?" not in str(child.render()) for child in host.children
-            )
+            assert all("?" not in str(child.render()) for child in host.children)
 
 
 # ---------------------------------------------------------------------------
@@ -542,7 +537,8 @@ class TestSurfaceConsistency:
             # commands are also rendered in the palette and the help.
             palette = await _open_palette(app, pilot)
             labels_palette = {
-                e.label for e in palette._all_entries  # type: ignore[attr-defined]
+                e.label
+                for e in palette._all_entries  # type: ignore[attr-defined]
             }
             assert "Help" in labels_palette
             assert "Command palette" in labels_palette
@@ -550,7 +546,8 @@ class TestSurfaceConsistency:
             await pilot.pause()
             help_dialog = await _open_help(app, pilot)
             labels_help = {
-                cmd.label for cmd, _ in help_dialog._row_widgets  # type: ignore[attr-defined]
+                cmd.label
+                for cmd, _ in help_dialog._row_widgets  # type: ignore[attr-defined]
             }
             assert "Help" in labels_help
             assert "Command palette" in labels_help

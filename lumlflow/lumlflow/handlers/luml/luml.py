@@ -1,6 +1,12 @@
+import httpx
 from luml_api import CollectionTypeFilter
+from luml_api._exceptions import LumlAPIError
 
-from lumlflow.handlers.luml.base_luml import BaseLumlHandler
+from lumlflow.handlers.luml.base_luml import (
+    BaseLumlHandler,
+    luml_refused,
+    unreachable_luml,
+)
 from lumlflow.infra.exceptions import ApplicationError
 from lumlflow.schemas.luml import (
     Orbit,
@@ -17,6 +23,10 @@ class LumlHandler(BaseLumlHandler):
                 Organization.model_validate(org.model_dump())
                 for org in luml.organizations.list()
             ]
+        except httpx.TransportError as e:
+            raise unreachable_luml(e) from e
+        except LumlAPIError as e:
+            raise luml_refused(e) from e
         except Exception as e:
             raise ApplicationError(f"Failed to get luml organizations: {str(e)}") from e
 
@@ -24,9 +34,12 @@ class LumlHandler(BaseLumlHandler):
         luml = self._get_luml_client(organization_id)
         try:
             return [
-                Orbit.model_validate(orbit.model_dump())
-                for orbit in luml.orbits.list()
+                Orbit.model_validate(orbit.model_dump()) for orbit in luml.orbits.list()
             ]
+        except httpx.TransportError as e:
+            raise unreachable_luml(e) from e
+        except LumlAPIError as e:
+            raise luml_refused(e) from e
         except Exception as e:
             raise ApplicationError(f"Failed to get luml orbits: {str(e)}") from e
 
@@ -44,6 +57,10 @@ class LumlHandler(BaseLumlHandler):
             result = luml.collections.list(
                 start_after=start_after, limit=limit, search=search, types=types
             )
+        except httpx.TransportError as e:
+            raise unreachable_luml(e) from e
+        except LumlAPIError as e:
+            raise luml_refused(e) from e
         except Exception as e:
             raise ApplicationError(f"Failed to get luml collections: {str(e)}") from e
         return PaginatedCollections.model_validate(result.model_dump())

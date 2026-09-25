@@ -164,9 +164,7 @@ class ArtifactHandler(BaseLumlHandler):
 
         try:
             models = self.tracker.get_models(data.experiment_id)
-            model = next(
-                (m for m in models if m.id == data.model_id), None
-            )
+            model = next((m for m in models if m.id == data.model_id), None)
             if model is None:
                 raise NotFound(f"Model not found: {data.model_id}")
             on_progress = self.progress_store.make_handler(job_id, 0, 1)

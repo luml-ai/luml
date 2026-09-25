@@ -98,9 +98,7 @@ class TestGroupsScreenPaletteEntries:
             await pilot.pause()
             palette = app.screen
             assert isinstance(palette, CommandPalette)
-            entry = next(
-                e for e in palette._all_entries if e.label == "alpha"
-            )
+            entry = next(e for e in palette._all_entries if e.label == "alpha")
             palette.dismiss(None)
             await pilot.pause()
             entry.invoke()
@@ -181,7 +179,8 @@ class TestPaletteActionDispatch:
             palette = app.screen
             assert isinstance(palette, CommandPalette)
             theme_entry = next(
-                e for e in palette._all_entries
+                e
+                for e in palette._all_entries
                 if e.label == "Theme" and e.kind == "command"
             )
             palette.dismiss(None)
@@ -212,7 +211,8 @@ class TestPaletteActionDispatch:
             palette = app.screen
             assert isinstance(palette, CommandPalette)
             edit_entry = next(
-                e for e in palette._all_entries
+                e
+                for e in palette._all_entries
                 if e.label == "Edit" and e.kind == "command"
             )
             palette.dismiss(None)
@@ -259,10 +259,7 @@ class TestAvailableHereSection:
             await pilot.pause()
             sheet = app.screen
             assert isinstance(sheet, HelpCheatsheet)
-            labels = [
-                str(w.render())
-                for w in sheet.query(".help-group-label")
-            ]
+            labels = [str(w.render()) for w in sheet.query(".help-group-label")]
             assert labels and "Available here" in labels[0]
             # The section holds contextual (non-global) commands.
             rows = sheet.query(".help-row")
@@ -282,9 +279,7 @@ class TestAvailableHereSection:
         from lumlflow.tui.widgets.help_cheatsheet import HelpCheatsheet
 
         registry = build_default_registry()
-        sheet = HelpCheatsheet(
-            registry, active_scopes=("global", "attachments")
-        )
+        sheet = HelpCheatsheet(registry, active_scopes=("global", "attachments"))
         groups = sheet._grouped_commands()
         here = groups.get("Available here")
         assert here is not None

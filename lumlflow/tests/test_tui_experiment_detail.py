@@ -542,9 +542,7 @@ class TestModelEdit:
             )
             await pilot.pause()
             await pilot.pause()
-            screen._on_model_edit_submitted(
-                model_id, EntityEditResult(name="renamed")
-            )
+            screen._on_model_edit_submitted(model_id, EntityEditResult(name="renamed"))
             await pilot.pause()
             await pilot.pause()
             updated = next(r for r in screen._model_rows if r.key == model_id)
@@ -604,9 +602,7 @@ class TestMetricsTab:
     async def test_metrics_listed_from_dynamic_params(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        exp_id = _seed_experiment_with_metrics(
-            tracker, metric_keys=("loss", "acc")
-        )
+        exp_id = _seed_experiment_with_metrics(tracker, metric_keys=("loss", "acc"))
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -1076,9 +1072,7 @@ class TestDrillInFromExperiments:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = ExperimentsScreen(
-                facade=facade, group_id=group.id, group_name="g"
-            )
+            screen = ExperimentsScreen(facade=facade, group_id=group.id, group_name="g")
             app.push_screen(screen)
             await pilot.pause()
             await pilot.pause()
@@ -1233,20 +1227,17 @@ class TestTabScopedFooter:
             )
             await pilot.pause()
             await pilot.pause()
-            assert screen.footer_scopes() == (
-                "global", "tabs", "models", "experiment"
-            )
+            assert screen.footer_scopes() == ("global", "tabs", "models", "experiment")
             screen.action_jump_tab("metrics")
-            assert screen.footer_scopes() == (
-                "global", "tabs", "metrics", "experiment"
-            )
+            assert screen.footer_scopes() == ("global", "tabs", "metrics", "experiment")
             screen.action_jump_tab("traces")
-            assert screen.footer_scopes() == (
-                "global", "tabs", "list", "experiment"
-            )
+            assert screen.footer_scopes() == ("global", "tabs", "list", "experiment")
             screen.action_jump_tab("attachments")
             assert screen.footer_scopes() == (
-                "global", "tabs", "attachments", "experiment"
+                "global",
+                "tabs",
+                "attachments",
+                "experiment",
             )
 
     async def test_footer_text_updates_on_tab_switch(

@@ -6,12 +6,20 @@ Lumlflow gives you a lightweight, self-hosted dashboard to track machine learnin
 
 ## Quickstart
 
+Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/) are required. Install lumlflow as an isolated tool, then create a project environment for flow cells before opening the UI:
+
 ```bash
-pip install lumlflow
+uv tool install lumlflow
+# or: pipx install lumlflow
+
+mkdir churn
+cd churn
+uv init
+uv add pandas pyarrow
 lumlflow ui
 ```
 
-This starts the web UI at [http://127.0.0.1:5000](http://127.0.0.1:5000) and opens it in your browser automatically.
+This starts the web UI at `http://127.0.0.1:5000` and opens it with an authenticated URL. The project environment supplies `pandas` and `pyarrow` to cells. Add `luml-sdk` to the project too when a cell declares or consumes an `experiment` output.
 
 ## Usage
 
@@ -165,6 +173,12 @@ Lumlflow consists of two parts:
 
 The server exposes a REST API that the UI consumes, so you can also integrate programmatically.
 
+## Workspace / flows
+
+The **Workspace** tab lists the `.flow` directories beneath the directory passed to `lumlflow ui`, or beneath the current directory by default. One daemon per user serves every flow opened by path. Each flow runs from the directory that contains it and resolves its interpreter from the nearest `.venv` or `pyproject.toml` above that directory.
+
+The [flow user guide](docs/user-guide.md) covers cells, lanes, reactivity, tracker outputs, agent setup, and the files to commit.
+
 ## CLI Reference
 
 ```bash
@@ -174,6 +188,8 @@ lumlflow ui --host 0.0.0.0           # Bind to all interfaces
 lumlflow ui --no-browser             # Don't open browser automatically
 lumlflow version                     # Show installed version
 ```
+
+The tracker API on this port is unauthenticated on a non-loopback bind. Use `--host 0.0.0.0` only on a network where that exposure is acceptable.
 
 ## Features
 
@@ -234,7 +250,10 @@ Use your API key to upload experiments and models from your local environment to
 
 This allows you to move from local experimentation to shared cloud storage, making it easier to collaborate, persist results, and manage models centrally.
 
+A model a flow cell produced goes the same way: expand the cell, and **upload to LUML** stands beside download on any output declared `model`. The kernel packages the stored value with `luml` (the flavor is detected from the model, as `log_model` does, and the frame the cell consumed supplies the input schema), so the flow's environment needs `luml` and the model's own library.
+
 
 ## Requirements
 
 - Python 3.12+
+- `uv`

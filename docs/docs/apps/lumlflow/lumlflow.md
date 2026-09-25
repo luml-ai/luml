@@ -18,6 +18,12 @@ lumlflow ui
 
 For experiments to surface correctly in Flow, the producing code must use the LUML SDK to record runs. See the [SDK documentation](../../sdk/experiments/tracker.md) for the logging API.
 
+## Workspace / flows
+
+The **Workspace** tab lists `.flow` directories beneath the directory passed to `lumlflow ui`, or beneath the current directory by default. One per-user daemon can serve flows from different projects. Each flow uses its containing directory as its workspace and resolves its Python environment from the nearest `.venv` or `pyproject.toml` above it.
+
+See the [flow user guide](https://github.com/luml-ai/luml/blob/main/lumlflow/docs/user-guide.md) for the cell format, lanes, reactivity, tracker-backed experiment outputs, agent setup, and Git behavior.
+
 ## Home Screen
 
 The home screen is the entry point of the application and consists of two regions: a row of informational cards at the top, and a list of experiment groups below.

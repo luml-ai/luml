@@ -13,6 +13,8 @@ and fast — no network, no real filesystem store, no wall-clock waits.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
@@ -31,6 +33,12 @@ from lumlflow.tui.widgets.dialogs import (
     SortChooserResult,
 )
 from textual.widgets import DataTable, Input, Static
+
+
+def _header_selected(event: SimpleNamespace) -> DataTable.HeaderSelected:
+    """The handler reads `data_table` and `label` and nothing else, so a
+    stand-in carrying those is the event as far as it is concerned."""
+    return cast(DataTable.HeaderSelected, event)
 
 
 @pytest.fixture
@@ -113,9 +121,7 @@ class TestStoreUriWiring:
         for name in ("alpha", "beta"):
             seed_tracker.create_group(name)
 
-        app = LumlflowApp(
-            store_uri=f"sqlite://{store}", show_first_run_hint=False
-        )
+        app = LumlflowApp(store_uri=f"sqlite://{store}", show_first_run_hint=False)
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.pause()
@@ -132,9 +138,7 @@ class TestStoreUriWiring:
         store = tmp_path / "experiments"
         ExperimentTracker(f"sqlite://{store}")  # create the (empty) store
 
-        app = LumlflowApp(
-            store_uri=f"sqlite://{store}", show_first_run_hint=False
-        )
+        app = LumlflowApp(store_uri=f"sqlite://{store}", show_first_run_hint=False)
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.pause()
@@ -341,9 +345,7 @@ class TestSort:
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.pause()
-            screen = next(
-                s for s in app.screen_stack if isinstance(s, GroupsScreen)
-            )
+            screen = next(s for s in app.screen_stack if isinstance(s, GroupsScreen))
             # Apply a sort change programmatically (the dialog is exercised
             # in its own test); confirm the screen state updates.
             screen._apply_sort_result(SortChooserResult(field="name", order="asc"))
@@ -524,9 +526,7 @@ class TestPagination:
 class TestPanelFrameReskin:
     """SPEC task: Reskin the groups screen as a framed panel."""
 
-    async def test_groups_table_is_wrapped_in_panel(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_groups_table_is_wrapped_in_panel(self, facade: DataFacade) -> None:
         """The groups list must live inside a titled ``PanelFrame``."""
 
         app = _make_app(facade)
@@ -592,9 +592,7 @@ class TestPanelFrameReskin:
             panel = screen.query_one("#groups-panel", PanelFrame)
             assert "alpha" in panel.subtitle
 
-    async def test_empty_state_lives_inside_panel(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_empty_state_lives_inside_panel(self, facade: DataFacade) -> None:
         """The first-run empty message renders centered in the panel."""
 
         app = _make_app(facade)
@@ -640,7 +638,6 @@ class TestHeaderClickSort:
     async def test_header_click_sorts_and_toggles(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        from types import SimpleNamespace
 
         from rich.text import Text
 
@@ -654,19 +651,19 @@ class TestHeaderClickSort:
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
             event = SimpleNamespace(data_table=table, label=Text("Name"))
-            screen.on_data_table_header_selected(event)
+            screen.on_data_table_header_selected(_header_selected(event))
             await pilot.pause()
             assert screen._sort_by == "name"
             assert screen._order == "asc"
             # Second click on the same column flips the order.
-            screen.on_data_table_header_selected(event)
+            screen.on_data_table_header_selected(_header_selected(event))
             await pilot.pause()
             assert screen._sort_by == "name"
             assert screen._order == "desc"
             # A non-sortable column is ignored.
             before = (screen._sort_by, screen._order)
             screen.on_data_table_header_selected(
-                SimpleNamespace(data_table=table, label=Text("Tags"))
+                _header_selected(SimpleNamespace(data_table=table, label=Text("Tags")))
             )
             await pilot.pause()
             assert (screen._sort_by, screen._order) == before

@@ -191,9 +191,7 @@ class TracesPanel(Widget):
                 id="traces-search",
             )
             yield Static(self._format_sort_status(), id="traces-sort-status")
-            yield Static(
-                "", id="traces-filter-status", classes="-empty"
-            )
+            yield Static("", id="traces-filter-status", classes="-empty")
             with Vertical():
                 yield Static(self._empty_state_text(), id="traces-empty")
                 yield DataTable(
@@ -359,14 +357,10 @@ class TracesPanel(Widget):
             id_text = Text(short_id, style="bold")
         else:
             id_text = Text(short_id)
-        duration = Text(
-            _format_execution_time(trace.execution_time), style="dim"
-        )
+        duration = Text(_format_execution_time(trace.execution_time), style="dim")
         spans = Text(str(trace.span_count), style="dim")
         annotations = self._format_annotation_summary(trace)
-        created = Text(
-            trace.created_at.strftime("%Y-%m-%d %H:%M"), style="dim"
-        )
+        created = Text(trace.created_at.strftime("%Y-%m-%d %H:%M"), style="dim")
         return id_text, state, duration, spans, annotations, created
 
     @staticmethod
@@ -591,9 +585,7 @@ class TracesPanel(Widget):
         label_by_id = {fid: label for fid, label in _SORT_FIELDS}
         field_label = label_by_id.get(self._sort_by, self._sort_by)
         arrow = "↓" if self._order == "desc" else "↑"
-        search_part = (
-            f" · search {self._search!r}" if self._search is not None else ""
-        )
+        search_part = f" · search {self._search!r}" if self._search is not None else ""
         return f"sort: {field_label} {arrow}{search_part}"
 
     def _update_sort_status(self) -> None:
@@ -616,9 +608,7 @@ class TracesPanel(Widget):
             status.update("")
             status.add_class("-empty")
 
-    def on_data_table_row_selected(
-        self, event: DataTable.RowSelected
-    ) -> None:
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable consumes Enter via its own `select_cursor` binding,
         # so the panel-level `Binding("enter", "open_focused")` never
         # fires while the table is focused. Routing through `RowSelected`
@@ -629,9 +619,7 @@ class TracesPanel(Widget):
 
     # ----- lazy pagination -----
 
-    def on_data_table_row_highlighted(
-        self, event: DataTable.RowHighlighted
-    ) -> None:
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if not self._has_more or self._loading:
             return
         prefetch_threshold = 5
@@ -733,9 +721,7 @@ class TracesPanel(Widget):
             or a.trace.span_count != b.trace.span_count
         )
 
-    def _pulse_changed_rows(
-        self, table: DataTable, changed_keys: list[str]
-    ) -> None:
+    def _pulse_changed_rows(self, table: DataTable, changed_keys: list[str]) -> None:
         if not changed_keys:
             return
         pulse_style = "reverse"

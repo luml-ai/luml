@@ -689,16 +689,12 @@ class DataFacade:
 
         return self._mutate(lambda: self.artifacts.upload_artifact(data, job_id))
 
-    def upload_model_artifact(
-        self, data: UploadModelForm, job_id: str
-    ) -> Result[None]:
+    def upload_model_artifact(self, data: UploadModelForm, job_id: str) -> Result[None]:
         """Upload one specific linked model as a cloud artifact."""
 
         return self._mutate(lambda: self.artifacts.upload_model(data, job_id))
 
-    def upload_file_artifact(
-        self, data: UploadFileForm, job_id: str
-    ) -> Result[None]:
+    def upload_file_artifact(self, data: UploadFileForm, job_id: str) -> Result[None]:
         """Upload an arbitrary file from disk as a cloud artifact.
 
         The manual counterpart of `upload_artifact` — nothing is derived
