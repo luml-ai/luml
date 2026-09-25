@@ -41,6 +41,7 @@ jobs:
       - name: Set up kind
         uses: helm/kind-action@v1.12.0
         with:
+          version: v0.33.0
           install_only: true
 
       - name: Set up Helm
