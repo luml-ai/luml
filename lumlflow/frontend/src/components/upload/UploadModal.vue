@@ -20,7 +20,9 @@
       class="flex flex-col gap-3"
       @submit="handleSubmit"
     >
+      <!-- Hidden, not unmounted: the form validates every field it registers, so `type` must stay one. -->
       <SelectButton
+        v-show="!publish"
         name="type"
         :options="selectTypeOptions"
         option-label="label"
@@ -79,7 +81,7 @@
         <UiTagsSelect id="tags" :items="existingTags" placeholder="Type to add tags" />
       </FormField>
       <FormField
-        v-show="$form['type']?.value === UploadTypeEnum.MODEL"
+        v-show="!publish && $form['type']?.value === UploadTypeEnum.MODEL"
         name="embedExperiment"
         class="flex items-center gap-2"
       >
@@ -113,6 +115,7 @@ import {
   type CollectionInfo,
   type OrbitInfo,
   type OrganizationInfo,
+  type PublishTarget,
   type UploadArtifactPayload,
   type UploadModalProps,
 } from './upload.interface'
@@ -144,14 +147,15 @@ const props = defineProps<UploadModalProps>()
 
 const authStore = useAuthStore()
 const toast = useToast()
-const { progress, loading: uploadLoading, error, complete, upload } = useUpload()
+const { progress, loading: uploadLoading, error, complete, upload, follow } = useUpload()
 
 const initialValues = reactive({
-  type: 'auto',
+  // A cell's model has no experiment to bundle; the file the host packages is the model.
+  type: props.publish ? UploadTypeEnum.MODEL : UploadTypeEnum.AUTO,
   organization: null,
   orbit: null,
   collection: null,
-  name: '',
+  name: props.defaultName ?? '',
   description: '',
   tags: [],
   embedExperiment: true,
@@ -185,10 +189,12 @@ watch(
 )
 
 const requiredKinds = computed(() =>
-  requiredArtifactKinds(
-    (formRef.value?.states['type']?.value as UploadTypeEnum | undefined) ?? UploadTypeEnum.AUTO,
-    models.value.length,
-  ),
+  props.publish
+    ? requiredArtifactKinds(UploadTypeEnum.MODEL, 1)
+    : requiredArtifactKinds(
+        (formRef.value?.states['type']?.value as UploadTypeEnum | undefined) ?? UploadTypeEnum.AUTO,
+        models.value.length,
+      ),
 )
 
 const lmlUrl = import.meta.env.VITE_LUML_URL
@@ -241,10 +247,27 @@ function handleChangeCollection(collection: CollectionInfo | undefined) {
 
 function handleSubmit(event: FormSubmitEvent) {
   if (!event.valid) return
+  if (props.publish) {
+    const target: PublishTarget = {
+      organization_id: event.values.organization,
+      orbit_id: event.values.orbit,
+      collection_id: event.values.collection,
+      artifact: {
+        name: event.values.name,
+        description: event.values.description,
+        tags: event.values.tags,
+      },
+    }
+    const publish = props.publish
+    follow(() => publish(target))
+    return
+  }
+  const experimentId = props.experimentId
+  if (!experimentId) return
   const payload: UploadArtifactPayload = {
     upload_type: event.values.type,
     embed_experiment: event.values.embedExperiment,
-    experiment_id: props.experimentId,
+    experiment_id: experimentId,
     organization_id: event.values.organization,
     orbit_id: event.values.orbit,
     collection_id: event.values.collection,
@@ -273,9 +296,10 @@ watch(
 
 watch(visible, async (value) => {
   if (value) {
-    if (!props.models) {
+    const experimentId = props.experimentId
+    if (!props.models && experimentId) {
       try {
-        models.value = await apiService.getExperimentModels(props.experimentId)
+        models.value = await apiService.getExperimentModels(experimentId)
       } catch (error) {
         toast.add(errorToast(error))
       }

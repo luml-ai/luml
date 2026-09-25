@@ -21,7 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
-from lumlflow_kernel import PROTOCOL_VERSION, repl
+from lumlflow_kernel import PROTOCOL_VERSION, publish, repl
 from lumlflow_kernel.executor import Executor
 from lumlflow_kernel.kinds import registry
 
@@ -55,6 +55,7 @@ class Kernel:
             "cancel": self.cancel,
             "eval": self.eval,
             "page": self.page,
+            "export_model": self.export_model,
             "evict_workspace_modules": self.evict_workspace_modules,
             "loaded_packages": self.loaded_packages,
             "shutdown": self.shutdown,
@@ -101,6 +102,18 @@ class Kernel:
             str(params.get("value_ref", "")),
             str(params.get("kind", "")),
             dict(params.get("query") or {}),
+        )
+
+    def export_model(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Package a stored model as the bundle LUML takes, at a path the
+        daemon named. Queued behind a run like paging: it reads values."""
+        return publish.export_model(
+            self.executor,
+            value_ref=str(params.get("value_ref", "")),
+            kind=str(params.get("kind", "")),
+            destination=str(params.get("destination", "")),
+            sample=dict(params["sample"]) if params.get("sample") else None,
+            flavor=str(params["flavor"]) if params.get("flavor") else None,
         )
 
     def evict_workspace_modules(self, params: dict[str, Any]) -> dict[str, Any]:

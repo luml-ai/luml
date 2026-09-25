@@ -92,6 +92,7 @@ def test_the_handshake_reports_the_protocol_the_interpreter_and_the_verbs(
         "cancel",
         "eval",
         "evict_workspace_modules",
+        "export_model",
         "handshake",
         "loaded_packages",
         "page",
@@ -238,6 +239,135 @@ def test_a_frame_without_pyarrow_names_the_package_to_install(
     assert record["state"] == "failed"
     assert "install `pyarrow`" in record["error"]["message"]
     assert "workspace environment" in record["error"]["message"]
+
+
+@pytest.fixture
+def fake_flavor(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    """A flavor luml packages the way sklearn's does: a save function that
+    takes the model, a sample of its inputs and a path, and hands back a
+    reference to what it wrote. What it saw is kept for the assertions."""
+    import types
+
+    from luml.experiments import tracker
+
+    seen: list[dict[str, Any]] = []
+
+    def save_fake(model: Any, inputs: Any = None, path: str | None = None) -> Any:
+        assert path is not None
+        seen.append({"model": model, "inputs": inputs, "path": path})
+        Path(path).write_bytes(b"bundle")
+        return types.SimpleNamespace(path=path)
+
+    module = types.ModuleType("fake_flavor")
+    module.save_fake = save_fake  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "fake_flavor", module)
+    monkeypatch.setitem(tracker._FLAVOR_REGISTRY, "fake", ("fake_flavor", "save_fake"))
+    return seen
+
+
+def test_exporting_a_model_packages_it_with_luml_at_the_named_path(
+    tmp_path: Path, fake_flavor: list[dict[str, Any]]
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"model": {"weights": [1, 2, 3]}}
+        """,
+        produces={"model": {"type": "model"}},
+    )
+    destination = tmp_path / "train.model.luml"
+
+    exported = kernel.export_model(
+        {
+            "value_ref": record["outputs"]["model"]["value_ref"],
+            "kind": record["outputs"]["model"]["kind"],
+            "destination": str(destination),
+            "flavor": "fake",
+        }
+    )
+
+    assert exported == {"path": str(destination), "flavor": "fake", "size": 6}
+    assert destination.read_bytes() == b"bundle"
+    assert fake_flavor[0]["model"] == {"weights": [1, 2, 3]}
+    assert fake_flavor[0]["inputs"] is None
+
+
+def test_exporting_a_model_hands_the_flavor_the_columns_it_trained_on(
+    tmp_path: Path, fake_flavor: list[dict[str, Any]]
+) -> None:
+    """The training frame still carries the target; a model that names its
+    features gets only those, so the target never enters the signature."""
+    pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    kernel, _ = make_kernel(tmp_path)
+    frame = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame(
+                {"age": range(20), "tenure": range(20), "target": [0, 1] * 10}
+            )}
+        """,
+        slug="rows",
+        produces={"rows": {"kind": "frame"}},
+    )
+    model = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            class Fitted:
+                feature_names_in_ = ["age", "tenure"]
+
+            return {"model": Fitted()}
+        """,
+        slug="train",
+        run_id="run2",
+        produces={"model": {"type": "model"}},
+    )
+
+    kernel.export_model(
+        {
+            "value_ref": model["outputs"]["model"]["value_ref"],
+            "kind": model["outputs"]["model"]["kind"],
+            "destination": str(tmp_path / "bundle.luml"),
+            "flavor": "fake",
+            "sample": {
+                "value_ref": frame["outputs"]["rows"]["value_ref"],
+                "kind": "frame",
+            },
+        }
+    )
+
+    inputs = fake_flavor[0]["inputs"]
+    assert list(inputs.columns) == ["age", "tenure"]
+    assert len(inputs) == 5
+
+
+def test_exporting_a_model_of_no_known_flavor_names_the_supported_ones(
+    tmp_path: Path,
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"model": "WEIGHTS"}
+        """,
+        produces={"model": {"type": "model"}},
+    )
+
+    with pytest.raises(CellError, match="Cannot auto-detect flavor.*sklearn"):
+        kernel.export_model(
+            {
+                "value_ref": record["outputs"]["model"]["value_ref"],
+                "kind": record["outputs"]["model"]["kind"],
+                "destination": str(tmp_path / "bundle.luml"),
+            }
+        )
 
 
 def test_paging_a_kind_that_has_no_pager_is_refused(tmp_path: Path) -> None:

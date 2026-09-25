@@ -33,6 +33,8 @@ import type {
   JournalPage,
   KernelReport,
   Preflight,
+  PublishTarget,
+  PublishedAsset,
   RunOutcome,
   StaleState,
   WorkspaceStatus,
@@ -212,6 +214,8 @@ export interface FlowMethods {
     BranchScoped & { target: string; query?: { offset?: number; limit?: number } },
     AssetPage
   >
+  /** Packages the model in the kernel, then uploads it as a job the tracker's progress route reports on. */
+  'asset.publish': Method<BranchScoped & { target: string } & PublishTarget, PublishedAsset>
   'cells.new': Method<
     Intentful & {
       slug?: string

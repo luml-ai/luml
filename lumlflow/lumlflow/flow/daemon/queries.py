@@ -603,6 +603,25 @@ def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
     return slug, name, (mat.outputs.get(name) if mat is not None else None)
 
 
+def training_frame(
+    session: "FlowSession", here: Slice, version: VersionRow
+) -> dict[str, str] | None:
+    """Where the bytes of the first frame a cell consumed are — the sample a
+    model's packaging infers its input schema from. None when the cell read
+    no stored frame: the flavor is then asked to package without one."""
+    for consumed in version.manifest.consumes.values():
+        if consumed.uid is None or consumed.output is None:
+            continue
+        mat = here.mats.get(consumed.uid)
+        record = mat.outputs.get(consumed.output) if mat is not None else None
+        if record is None or record.kind != "frame" or record.value_ref is None:
+            continue
+        if not session.store.values.exists(record.value_ref):
+            continue
+        return {"value_ref": record.value_ref, "kind": record.kind}
+    return None
+
+
 def repl_names(session: "FlowSession", here: Slice) -> dict[str, dict[str, str]]:
     """The names scratch code resolves on a branch, and where their bytes are.
 

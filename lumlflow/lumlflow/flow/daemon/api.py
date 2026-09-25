@@ -9,8 +9,11 @@ runtime's facts, derived here from what the store recorded, so no surface has
 to re-derive them and none can disagree.
 """
 
+import asyncio
 import os
 import shutil
+import tempfile
+import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from decimal import Decimal
 from pathlib import Path
@@ -65,6 +68,9 @@ class Api:
         self._stop = stop
         self._attachments = attachments
         self._harnesses = harness_service or harnesses.HarnessService()
+        # Upload jobs in flight. A task nothing references may be collected
+        # mid-upload; the set holds each until its done callback drops it.
+        self._uploads: set[asyncio.Task[None]] = set()
         self.methods: dict[str, Method] = {
             "ping": self.ping,
             "status": self.status,
@@ -92,6 +98,7 @@ class Api:
             "asset.preview": self.asset_preview,
             "asset.page": self.asset_page,
             "asset.download": self.asset_download,
+            "asset.publish": self.asset_publish,
             "export": self.export,
             "import": self.import_cells,
             "fork": self.fork,
@@ -537,6 +544,84 @@ class Api:
             "size": record.size,
             "path": str(destination),
         }
+
+    async def asset_publish(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Send a cell's model to LUML, the way an experiment's models go.
+
+        Two halves. The kernel packages the stored value as the bundle LUML
+        takes — that is awaited, so a model luml cannot package is refused
+        here, in the daemon's words. The upload then runs as a job in the
+        tracker's own progress store, and the browser follows it on the same
+        stream an experiment upload reports on.
+        """
+        session, branch, slug, output, record = await self.stored_output(params)
+        here = queries.read(session, branch)
+        version = here.versions[here.uid_of(slug)]
+        if version.manifest.produces[output].type != "model":
+            raise FlowError(
+                f"`{slug}.{output}` is not declared as a model. only outputs "
+                "declared `model` are published to LUML"
+            )
+        form = _publish_form(params)
+        value_ref = record.value_ref
+        assert value_ref is not None
+        # Named inside the daemon's own temp dir: the kernel writes it, the
+        # uploader reads it, and it is gone once the job has ended. One dot
+        # only: the LUML client reads the format as what follows the first.
+        handle, bundle = tempfile.mkstemp(prefix=f"{slug}_{output}-", suffix=".luml")
+        os.close(handle)
+        destination = Path(bundle)
+        try:
+            packaged = await session.kernel.export_model(
+                value_ref,
+                record.kind,
+                destination=destination,
+                sample=queries.training_frame(session, here, version),
+            )
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+        job_id = self._start_upload(destination, form)
+        return {
+            "flow": session.ref.name,
+            "branch": branch,
+            "slug": slug,
+            "output": output,
+            "job_id": job_id,
+            "flavor": packaged.get("flavor"),
+            "size": packaged.get("size"),
+        }
+
+    def _start_upload(self, bundle: Path, form: dict[str, Any]) -> str:
+        """Hand a packaged bundle to the tracker's uploader as a job.
+
+        The uploader is the one Experiments uses, imported late: the tracker
+        app sets its process settings on the way past `lumlflow ui`, and
+        its handlers are the singletons the progress route reads from.
+        """
+        from lumlflow.api.luml import artifact_handler, progress_store
+        from lumlflow.schemas.luml import ArtifactIn, UploadFileForm
+
+        upload = UploadFileForm(
+            file_path=str(bundle),
+            organization_id=str(form["organization_id"]),
+            orbit_id=str(form["orbit_id"]),
+            collection_id=str(form["collection_id"]),
+            artifact=ArtifactIn.model_validate(form["artifact"]),
+        )
+        job_id = str(uuid.uuid4())
+        progress_store.create(job_id)
+
+        async def send() -> None:
+            try:
+                await asyncio.to_thread(artifact_handler.upload_file, upload, job_id)
+            finally:
+                bundle.unlink(missing_ok=True)
+
+        task = asyncio.create_task(send())
+        self._uploads.add(task)
+        task.add_done_callback(self._uploads.discard)
+        return job_id
 
     async def stored_output(
         self, params: dict[str, Any]
@@ -1422,6 +1507,32 @@ def _leaves(session: FlowSession, branch: str) -> list[str]:
         for uid in reading_order(here.versions)
         if uid not in consumed and here.versions[uid].manifest.classification != "note"
     ]
+
+
+def _publish_form(params: dict[str, Any]) -> dict[str, Any]:
+    """Where in LUML the model goes, and what it is called there."""
+    missing = [
+        key
+        for key in ("organization_id", "orbit_id", "collection_id")
+        if not params.get(key)
+    ]
+    if missing:
+        raise FlowError(
+            "publishing to LUML needs " + ", ".join(f"`{key}`" for key in missing)
+        )
+    artifact = dict(params.get("artifact") or {})
+    if not str(artifact.get("name") or "").strip():
+        raise FlowError("publishing to LUML needs `artifact.name`")
+    return {
+        "organization_id": params["organization_id"],
+        "orbit_id": params["orbit_id"],
+        "collection_id": params["collection_id"],
+        "artifact": {
+            "name": str(artifact["name"]).strip(),
+            "description": artifact.get("description") or None,
+            "tags": [str(tag) for tag in artifact.get("tags") or []],
+        },
+    }
 
 
 def _target(params: dict[str, Any]) -> str:

@@ -1496,6 +1496,173 @@ async def test_asset_download_refuses_a_relative_socket_destination(
     assert list(daemon_cwd.iterdir()) == []
 
 
+async def test_publishing_a_non_model_output_is_refused_before_any_kernel(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "score"})
+        await api.hub.session("churn").kernel.stop()
+
+        with pytest.raises(FlowError, match="not declared as a model"):
+            await api.asset_publish(
+                {
+                    "flow": "churn",
+                    "target": "score",
+                    "organization_id": "org",
+                    "orbit_id": "orbit",
+                    "collection_id": "coll",
+                    "artifact": {"name": "score"},
+                }
+            )
+        assert api.hub.session("churn").kernel.state == "stopped"
+
+
+async def test_publishing_a_model_packages_it_in_the_kernel_and_uploads_the_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The kernel writes the bundle where the daemon says; the tracker's
+    uploader takes that file as a job the browser follows by id; and the
+    bundle is gone once the job has ended, whichever way it ended."""
+    from lumlflow.api import luml as luml_api
+    from lumlflow.flow.daemon.kernel_proc import KernelProcess
+
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_CELL)
+    packaged: list[dict[str, Any]] = []
+    uploaded: list[tuple[Any, str, bool]] = []
+
+    async def export_model(
+        self: KernelProcess,
+        value_ref: str,
+        kind: str,
+        *,
+        destination: Path,
+        sample: Any,
+    ) -> dict[str, Any]:
+        packaged.append({"value_ref": value_ref, "kind": kind, "sample": sample})
+        destination.write_bytes(b"bundle")
+        return {"path": str(destination), "flavor": "sklearn", "size": 6}
+
+    def upload_file(form: Any, job_id: str) -> None:
+        uploaded.append((form, job_id, Path(form.file_path).exists()))
+        luml_api.progress_store.set_complete(job_id, [])
+
+    monkeypatch.setattr(KernelProcess, "export_model", export_model)
+    monkeypatch.setattr(luml_api.artifact_handler, "upload_file", upload_file)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        published = await api.asset_publish(
+            {
+                "flow": "churn",
+                "target": "train",
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "churn forest", "tags": ["v1"]},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+
+    form, job_id, existed = uploaded[0]
+    assert (published["slug"], published["output"]) == ("train", "model")
+    assert (published["flavor"], published["size"]) == ("sklearn", 6)
+    assert published["job_id"] == job_id
+    assert packaged[0]["sample"] is None
+    assert (form.organization_id, form.orbit_id, form.collection_id) == (
+        "org",
+        "orbit",
+        "coll",
+    )
+    assert (form.artifact.name, form.artifact.tags) == ("churn forest", ["v1"])
+    # The uploader saw the bundle; nothing of it outlives the job. Its name
+    # carries one dot: the LUML client reads the format after the first.
+    assert existed is True
+    assert Path(form.file_path).name.count(".") == 1
+    assert Path(form.file_path).suffix == ".luml"
+    assert not Path(form.file_path).exists()
+
+
+async def test_publishing_hands_the_kernel_the_frame_the_model_trained_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lumlflow.api import luml as luml_api
+    from lumlflow.flow.daemon.kernel_proc import KernelProcess
+
+    pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "rows", FRAME_CELL)
+    write_cell(
+        root / "churn.flow",
+        "train",
+        """
+        class Train:
+            consumes = {"rows": "rows.rows"}
+            produces = {"model": "model"}
+
+            def materialize(self, ctx, rows):
+                return {"model": "WEIGHTS"}
+        """,
+    )
+    packaged: list[dict[str, Any]] = []
+
+    async def export_model(
+        self: KernelProcess,
+        value_ref: str,
+        kind: str,
+        *,
+        destination: Path,
+        sample: Any,
+    ) -> dict[str, Any]:
+        packaged.append({"sample": sample})
+        destination.write_bytes(b"bundle")
+        return {"path": str(destination), "flavor": "sklearn", "size": 6}
+
+    monkeypatch.setattr(KernelProcess, "export_model", export_model)
+    monkeypatch.setattr(
+        luml_api.artifact_handler,
+        "upload_file",
+        lambda form, job_id: luml_api.progress_store.set_complete(job_id, []),
+    )
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        session = api.hub.session("churn")
+        rows = queries.locate(queries.read(session, "main"), "rows.rows")[2]
+        await api.asset_publish(
+            {
+                "flow": "churn",
+                "target": "train.model",
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "forest"},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+
+    assert rows is not None
+    assert packaged[0]["sample"] == {"value_ref": rows.value_ref, "kind": "frame"}
+
+
+async def test_publishing_without_a_destination_in_luml_is_refused(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_CELL)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        with pytest.raises(FlowError, match="`orbit_id`, `collection_id`"):
+            await api.asset_publish(
+                {"flow": "churn", "target": "train", "organization_id": "org"}
+            )
+
+
 async def test_a_half_written_cell_never_stops_the_flow(tmp_path: Path):
     """Agents iterate through broken states; a rescan that refused one would
     stall the loop it exists to serve."""

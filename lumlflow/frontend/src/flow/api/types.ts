@@ -555,6 +555,28 @@ export interface AssetPage {
   }
 }
 
+/** Where in LUML a published model goes, and what it is called there. */
+export interface PublishTarget {
+  organization_id: string
+  orbit_id: string
+  collection_id: string
+  artifact: { name: string; description?: string; tags?: string[] }
+}
+
+/**
+ * `asset.publish`: the model is packaged in the kernel and handed to the
+ * tracker's uploader as a job; `job_id` is what the progress stream is read by.
+ */
+export interface PublishedAsset {
+  flow: string
+  branch: string
+  slug: string
+  output: string
+  job_id: string
+  flavor: string | null
+  size: number | null
+}
+
 /** `cells.logs`: the console of the run this branch observed, not the newest. */
 export interface CellLogs {
   flow: string

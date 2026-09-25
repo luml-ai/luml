@@ -134,6 +134,16 @@
               :download-url="selectedOutput.downloadUrl"
             />
           </div>
+          <!-- A stored model goes to LUML from the card face, as an experiment does from its own. -->
+          <div
+            v-if="publishModel && selectedOutput.declared === 'model' && selectedOutput.downloadUrl"
+            class="mt-2 flex justify-end"
+          >
+            <ModelUploadLink
+              :publish="(target) => publishModel!(selectedOutput!.name, target)"
+              :default-name="`${cell.slug}.${selectedOutput.name}`"
+            />
+          </div>
         </template>
         <CodeView
           v-else-if="activeTab === 'code'"
@@ -220,6 +230,8 @@ import KindBadge from '../../ui/KindBadge.vue'
 import MetaBadge from '../../ui/MetaBadge.vue'
 import StatusChip from '../../ui/StatusChip.vue'
 import RendererHost from '../../renderers/RendererHost.vue'
+import ModelUploadLink from '../../ui/ModelUploadLink.vue'
+import type { PublishTarget } from '@/components/upload/upload.interface'
 import CellOpRow from './CellOpRow.vue'
 import CellTabStrip, { type CellTab } from './CellTabStrip.vue'
 import CodeView from './CodeView.vue'
@@ -246,6 +258,8 @@ const props = withDefaults(
     canMoveUp?: boolean
     canMoveDown?: boolean
     detailLoaded?: boolean
+    /** Sends one stored model output to LUML. Absent on a gallery card, which has no session. */
+    publishModel?: (output: string, target: PublishTarget) => Promise<{ job_id: string }>
   }>(),
   { detailLoaded: true },
 )
