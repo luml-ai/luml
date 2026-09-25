@@ -2,7 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -109,6 +109,19 @@ class UserRepository(RepositoryBase, CrudMixin):
             return await self.delete_model_where(
                 session, UserOrm, UserOrm.email == email
             )
+
+    async def delete_signup(self, user_id: UUID) -> None:
+        async with self._get_session() as session, session.begin():
+            owned_organizations = select(OrganizationMemberOrm.organization_id).where(
+                OrganizationMemberOrm.user_id == user_id,
+                OrganizationMemberOrm.role == OrgRole.OWNER,
+            )
+            await session.execute(
+                delete(OrganizationOrm).where(
+                    OrganizationOrm.id.in_(owned_organizations)
+                )
+            )
+            await session.execute(delete(UserOrm).where(UserOrm.id == user_id))
 
     async def update_user(
         self,

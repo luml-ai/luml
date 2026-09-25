@@ -161,7 +161,7 @@ class AuthHandler:
                 user.email, confirmation_link, user.full_name
             )
         except Exception as error:
-            await self.__user_repository.delete_user(user.email)
+            await self.__user_repository.delete_signup(user.id)
             raise EmailDeliveryError(
                 "Error sending confirmation email. User is not created."
             ) from error
