@@ -439,9 +439,6 @@ changes only the external store boundary:
             - port: 53
               protocol: TCP
         - ports:
-            - port: 6443
-              protocol: TCP
-        - ports:
             - port: 80
               protocol: TCP
             - port: 443
@@ -878,9 +875,6 @@ matches the standalone store rendering:
             - port: 53
               protocol: UDP
             - port: 53
-              protocol: TCP
-        - ports:
-            - port: 6443
               protocol: TCP
         - ports:
             - port: 80

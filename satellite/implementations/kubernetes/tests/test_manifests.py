@@ -249,6 +249,19 @@ def _secret_hash(workload: dict[str, Any]) -> str:
     )
 
 
+def test_model_pods_never_mount_a_service_account_token() -> None:
+    config = configuration()
+    manifests = render_deployment_manifests(
+        config,
+        deployment(),
+        start_context(config),
+        TokenDeriver(config.SATELLITE_TOKEN, config.DERIVATION_KEY),
+    )
+
+    pod_spec = manifests.deployment["spec"]["template"]["spec"]
+    assert pod_spec["automountServiceAccountToken"] is False
+
+
 def test_model_and_sidecar_probes_carry_the_configured_tuning() -> None:
     config = configuration(PROBE_TIMEOUT_SEC=12, PROBE_FAILURE_THRESHOLD=7)
     manifests = render_deployment_manifests(

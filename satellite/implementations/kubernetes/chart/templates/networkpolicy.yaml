@@ -30,16 +30,6 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    {{- $policy := .Values.networkPolicy | default dict }}
-    {{- $apiServerPort := 6443 }}
-    {{- if hasKey $policy "apiServerPort" }}
-    {{- $apiServerPort = $policy.apiServerPort }}
-    {{- end }}
-    {{- if gt (int $apiServerPort) 0 }}
-    - ports:
-        - protocol: TCP
-          port: {{ $apiServerPort }}
-    {{- end }}
     - ports:
         - protocol: TCP
           port: 80

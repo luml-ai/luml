@@ -180,6 +180,7 @@ def render_deployment_manifests(
         "securityContext": configuration.container_security_context,
     }
     pod_spec: dict[str, Any] = {
+        "automountServiceAccountToken": False,
         "securityContext": configuration.pod_security_context,
         "initContainers": [init_container],
         "containers": [model_container, sidecar],
