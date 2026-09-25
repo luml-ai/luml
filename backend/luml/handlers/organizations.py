@@ -28,6 +28,7 @@ from luml.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
+    OrganizationMemberCreateIn,
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
@@ -161,16 +162,16 @@ class OrganizationHandler:
         return organization
 
     async def send_invite(
-        self, user_id: UUID, invite_: CreateOrganizationInviteIn
+        self, user_id: UUID, organization_id: UUID, invite_: CreateOrganizationInviteIn
     ) -> OrganizationInvite:
         await self.__permissions_handler.check_permissions(
-            invite_.organization_id,
+            organization_id,
             user_id,
             Resource.ORGANIZATION_INVITE,
             Action.CREATE,
         )
         user_role = await self.__user_repository.get_organization_member_role(
-            invite_.organization_id, user_id
+            organization_id, user_id
         )
 
         if user_role != OrgRole.OWNER and invite_.role == OrgRole.ADMIN:
@@ -184,7 +185,7 @@ class OrganizationHandler:
             raise InsufficientPermissionsError("You can't invite yourself")
 
         member = await self.__user_repository.get_organization_member_by_email(
-            invite_.organization_id, invite_.email
+            organization_id, invite_.email
         )
 
         if member:
@@ -194,17 +195,21 @@ class OrganizationHandler:
 
         existing_invite = (
             await self.__invites_repository.get_organization_invite_by_email(
-                invite_.organization_id, invite_.email
+                organization_id, invite_.email
             )
         )
 
         if existing_invite:
             raise OrganizationInviteAlreadyExistsError()
 
-        await self._check_org_members_limit(invite_.organization_id)
+        await self._check_org_members_limit(organization_id)
 
         db_created_invite = await self.__invites_repository.create_organization_invite(
-            CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
+            CreateOrganizationInvite(
+                **invite_.model_dump(),
+                organization_id=organization_id,
+                invited_by=user_id,
+            )
         )
         invite = await self.__invites_repository.get_invite(db_created_invite.id)
 
@@ -235,7 +240,9 @@ class OrganizationHandler:
             Action.DELETE,
         )
 
-        return await self.__invites_repository.delete_organization_invite(invite_id)
+        return await self.__invites_repository.delete_organization_invite(
+            organization_id, invite_id
+        )
 
     async def accept_invite(
         self, invite_id: UUID, user_id: UUID, user_email: EmailStr
@@ -275,7 +282,9 @@ class OrganizationHandler:
         if invite.email != user_email:
             raise InsufficientPermissionsError("This invite is not for you")
 
-        return await self.__invites_repository.delete_organization_invite(invite_id)
+        return await self.__invites_repository.delete_organization_invite(
+            invite.organization_id, invite_id
+        )
 
     async def get_organization_invites(
         self, user_id: UUID, organization_id: UUID
@@ -388,7 +397,7 @@ class OrganizationHandler:
         self,
         user_id: UUID,
         organization_id: UUID,
-        member: OrganizationMemberCreate,
+        member: OrganizationMemberCreateIn,
     ) -> OrganizationMember:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -408,7 +417,11 @@ class OrganizationHandler:
             )
         try:
             created_member = await self.__user_repository.create_organization_member(
-                member
+                OrganizationMemberCreate(
+                    user_id=member.user_id,
+                    organization_id=organization_id,
+                    role=member.role,
+                )
             )
         except DatabaseConstraintError as error:
             raise OrganizationMemberAlreadyExistsError() from error

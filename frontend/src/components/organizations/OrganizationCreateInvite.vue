@@ -137,8 +137,11 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
   loading.value = true
   try {
-    const payload = getPayload(values)
-    const invite = await invitationsStore.createInvite(payload)
+    if (!organizationStore.currentOrganization) throw new Error('Current organization not found')
+    const invite = await invitationsStore.createInvite(organizationStore.currentOrganization.id, {
+      email: values.email,
+      role: values.role,
+    })
     organizationStore.addInviteToCurrentOrganization(invite)
     visible.value = false
     toast.add(simpleSuccessToast('An email invitation was sent to the user.'))
@@ -146,15 +149,6 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create invite')))
   } finally {
     loading.value = false
-  }
-}
-
-function getPayload(values: FormSubmitEvent['values']) {
-  if (!organizationStore.currentOrganization) throw new Error('Current organization not found')
-  return {
-    email: values.email,
-    role: values.role,
-    organization_id: organizationStore.currentOrganization.id,
   }
 }
 </script>

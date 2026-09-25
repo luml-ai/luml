@@ -1,7 +1,7 @@
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from luml.schemas.auth import Token
 from luml.schemas.base import BaseOrmConfig
@@ -97,10 +97,10 @@ class DetailResponse(BaseModel):
 
 
 class UpdateUserIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     password: str | None = None
     full_name: str | None = Field(default=None, max_length=100)
-    disabled: bool | None = None
-    auth_method: AuthProvider | None = None
     photo: str | None = Field(default=None, max_length=2048)
 
     @field_validator("password")
@@ -125,6 +125,8 @@ class UpdateUserIn(BaseModel):
 
 class UpdateUser(UpdateUserIn):
     email: EmailStr = Field(max_length=254)
+    disabled: bool | None = None
+    auth_method: AuthProvider | None = None
     email_verified: bool | None = None
     hashed_password: str | None = None
 

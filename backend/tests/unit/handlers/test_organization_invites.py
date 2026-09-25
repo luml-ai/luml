@@ -84,7 +84,6 @@ async def test_send_invite(
     invite = CreateOrganizationInviteIn(
         email=invite_data.email,
         role=invite_role,
-        organization_id=invite_data.organization_id,
     )
     mocked_invite = OrganizationInvite(
         id=invite_id,
@@ -103,7 +102,9 @@ async def test_send_invite(
     mock_get_organization_member_role.return_value = inviter_role
     mock_get_organization_details.return_value = Mock(members_limit=50, total_members=0)
 
-    result = await handler.send_invite(test_user_out.id, invite)
+    result = await handler.send_invite(
+        test_user_out.id, invite_data.organization_id, invite
+    )
 
     assert result == mocked_invite
 
@@ -113,7 +114,14 @@ async def test_send_invite(
         "",
         f"{config.APP_EMAIL_URL.rstrip('/')}/invitations",
     )
-    mock_create_organization_invite.assert_awaited_once()
+    mock_create_organization_invite.assert_awaited_once_with(
+        CreateOrganizationInvite(
+            email=invite_data.email,
+            role=invite_role,
+            organization_id=invite_data.organization_id,
+            invited_by=test_user_out.id,
+        )
+    )
 
 
 @patch(
@@ -133,7 +141,6 @@ async def test_admin_cannot_invite_another_admin(
     invite = CreateOrganizationInviteIn(
         email=invite_data.email,
         role=OrgRole.ADMIN,
-        organization_id=invite_data.organization_id,
     )
     mock_get_organization_member_role.return_value = OrgRole.ADMIN
 
@@ -141,7 +148,9 @@ async def test_admin_cannot_invite_another_admin(
         InsufficientPermissionsError,
         match="Only Organization Owner can invite new admins.",
     ):
-        await handler.send_invite(invite_data.invited_by, invite)
+        await handler.send_invite(
+            invite_data.invited_by, invite_data.organization_id, invite
+        )
 
     mock_create_organization_invite.assert_not_awaited()
 
@@ -165,14 +174,13 @@ async def test_send_invite_to_yourself(
     invite = CreateOrganizationInviteIn(
         email=test_user_out.email,
         role=invite_data.role,
-        organization_id=invite_data.organization_id,
     )
 
     mock_get_public_user_by_id.return_value = test_user_out
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     with pytest.raises(ApplicationError, match="You can't invite yourself"):
-        await handler.send_invite(test_user_out.id, invite)
+        await handler.send_invite(test_user_out.id, invite_data.organization_id, invite)
 
 
 @patch(
@@ -196,7 +204,7 @@ async def test_cancel_invite(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     await handler.cancel_invite(user_id, organization_id, invite_id)
-    mock_delete_organization_invite.assert_awaited_once_with(invite_id)
+    mock_delete_organization_invite.assert_awaited_once_with(organization_id, invite_id)
 
 
 @patch(
@@ -270,12 +278,13 @@ async def test_reject_invite(
     mock_get_invite: AsyncMock,
 ) -> None:
     invite_id = UUID("0199c416-6117-7a3d-a91c-9b4037837882")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     mock_delete_organization_invite.return_value = None
     email = "test@example.com"
-    mock_get_invite.return_value = Mock(email=email)
+    mock_get_invite.return_value = Mock(email=email, organization_id=organization_id)
 
     await handler.reject_invite(invite_id, email)
-    mock_delete_organization_invite.assert_awaited_once_with(invite_id)
+    mock_delete_organization_invite.assert_awaited_once_with(organization_id, invite_id)
 
 
 @patch(

@@ -7,6 +7,7 @@ from luml.infra.exceptions import InsufficientPermissionsError
 from luml.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
+    OrganizationMemberCreateIn,
     OrgRole,
     UpdateOrganizationMember,
 )
@@ -141,7 +142,7 @@ async def test_delete_organization_member_by_id(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_add_organization_member(
+async def test_add_organization_member_uses_path_organization_id(
     mock_create_organization_member: AsyncMock,
     mock_get_organization_details: AsyncMock,
     mock_check_permissions: AsyncMock,
@@ -152,9 +153,8 @@ async def test_add_organization_member(
     user_to_create_member_for = UUID("0199c419-b7c1-71d6-8382-5697010cee46")
     organization_id = member_data.organization_id
 
-    member_create = OrganizationMemberCreate(
+    member_create = OrganizationMemberCreateIn(
         user_id=user_to_create_member_for,
-        organization_id=organization_id,
         role=OrgRole.MEMBER,
     )
 
@@ -163,14 +163,14 @@ async def test_add_organization_member(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     actual = await handler.add_organization_member(
-        user_id, member_create.organization_id, member_create
+        user_id, organization_id, member_create
     )
 
     assert actual == member_data
     mock_create_organization_member.assert_awaited_once_with(
         OrganizationMemberCreate(
             user_id=user_to_create_member_for,
-            organization_id=member_create.organization_id,
+            organization_id=organization_id,
             role=member_create.role,
         )
     )

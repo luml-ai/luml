@@ -48,7 +48,6 @@ class OrganizationSwitcher(Organization):
 class CreateOrganizationInviteIn(BaseModel):
     email: EmailStr = Field(max_length=254)
     role: OrgRole
-    organization_id: UUID
 
     @field_validator("role")
     @classmethod
@@ -108,9 +107,8 @@ class OrganizationMember(BaseModel, BaseOrmConfig):
     updated_at: datetime | None = None
 
 
-class OrganizationMemberCreate(BaseModel):
+class OrganizationMemberCreateIn(BaseModel):
     user_id: UUID
-    organization_id: UUID
     role: OrgRole
 
     @field_validator("role")
@@ -119,6 +117,10 @@ class OrganizationMemberCreate(BaseModel):
         if value == OrgRole.OWNER:
             raise ValueError("Role 'OWNER' cant be assigned")
         return value
+
+
+class OrganizationMemberCreate(OrganizationMemberCreateIn):
+    organization_id: UUID
 
 
 class OrganizationOwnerCreate(BaseModel):

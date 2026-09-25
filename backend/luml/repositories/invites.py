@@ -33,9 +33,16 @@ class InviteRepository(RepositoryBase, CrudMixin):
                 raise DatabaseConstraintError("Cannot create invite.") from error
             return db_invite.to_organization_invite_simple()
 
-    async def delete_organization_invite(self, invite_id: UUID) -> None:
+    async def delete_organization_invite(
+        self, organization_id: UUID, invite_id: UUID
+    ) -> None:
         async with self._get_session() as session, session.begin():
-            return await self.delete_model(session, OrganizationInviteOrm, invite_id)
+            return await self.delete_models_where(
+                session,
+                OrganizationInviteOrm,
+                OrganizationInviteOrm.id == invite_id,
+                OrganizationInviteOrm.organization_id == organization_id,
+            )
 
     async def get_organization_invite_by_email(
         self, organization_id: UUID, email: EmailStr

@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from luml.api.satellites import satellite_worker_router
 from luml.infra.exceptions import ApplicationError
@@ -50,6 +51,18 @@ def _client(satellite_id: UUID, orbit_id: UUID) -> TestClient:
         )
 
     return TestClient(app)
+
+
+def test_get_deployment_route_is_registered_once() -> None:
+    matching_routes = [
+        route
+        for route in satellite_worker_router.routes
+        if isinstance(route, APIRoute)
+        and route.path == "/satellites/v1/deployments/{deployment_id}"
+        and "GET" in route.methods
+    ]
+
+    assert len(matching_routes) == 1
 
 
 @patch(

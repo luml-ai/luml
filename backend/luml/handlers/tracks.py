@@ -19,6 +19,7 @@ from luml.repositories.tracks import (
     TrackStageRepository,
     stage_sync_error,
 )
+from luml.repositories.users import UserRepository
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.tracks import (
@@ -52,6 +53,7 @@ class TracksHandler:
     __orbit_repository = OrbitRepository(engine)
     __artifact_repository = ArtifactRepository(engine)
     __collection_repository = CollectionRepository(engine)
+    __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
     @staticmethod
@@ -319,10 +321,14 @@ class TracksHandler:
                     409,
                 )
 
+        user = await self.__user_repository.get_public_user_by_id(user_id)
+        if not user:
+            raise NotFoundError("User not found")
+
         entry_create = TrackEntryCreate(
             track_id=track_id,
             artifact_id=entry_in.artifact_id,
-            added_by=user_id,
+            added_by=user.full_name or user.email,
             stage_id=entry_in.stage_id,
         )
         try:
@@ -337,7 +343,7 @@ class TracksHandler:
         orbit_id: UUID,
         track_id: UUID,
         entry_id: UUID,
-    ) -> TrackEntry | None:
+    ) -> TrackEntry:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -353,7 +359,7 @@ class TracksHandler:
 
         entry = await self.__entry_repository.get_entry(entry_id)
 
-        if entry and entry.track_id != track_id:
+        if not entry or entry.track_id != track_id:
             raise NotFoundError("Entry not found")
 
         return entry
@@ -365,7 +371,7 @@ class TracksHandler:
         orbit_id: UUID,
         track_id: UUID,
         stage_id: UUID,
-    ) -> TrackEntry | None:
+    ) -> TrackEntry:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -384,7 +390,11 @@ class TracksHandler:
         if not stage or stage.track_id != track_id:
             raise NotFoundError("Stage not found")
 
-        return await self.__entry_repository.get_entry_by_stage(track_id, stage_id)
+        entry = await self.__entry_repository.get_entry_by_stage(track_id, stage_id)
+        if not entry:
+            raise NotFoundError("Entry not found")
+
+        return entry
 
     async def list_entries(
         self,

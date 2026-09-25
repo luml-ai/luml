@@ -133,7 +133,7 @@ class AuthHandler:
         if user.hashed_password is None:
             raise AuthError("Password is invalid", 400)
         if not self._verify_password(password, user.hashed_password):
-            raise AuthError("Invalid email or password", 400)
+            raise AuthError("Invalid email or password", 401)
         if not user.email_verified:
             raise AuthError("Email not verified", 400)
         return user

@@ -206,9 +206,7 @@ class SatelliteHandler:
 
         updated_satellite = await self.__sat_repo.update_satellite(
             SatelliteUpdate(
-                id=satellite_id,
-                name=satellite_update_in.name,
-                description=satellite_update_in.description,
+                id=satellite_id, **satellite_update_in.model_dump(exclude_unset=True)
             )
         )
 
