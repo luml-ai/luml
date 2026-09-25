@@ -202,6 +202,68 @@ async def test_a_duplicate_connect_is_confirmed_by_inspecting_the_endpoint(
 
 
 @pytest.mark.asyncio
+async def test_models_are_also_attached_to_the_stack_network_of_their_satellite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch, networks={"stack_default": ["agent"]})
+    await fake.networks.create({"Name": "stack_default"})
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.start(deployment(), start_context())
+
+    own = f"luml-satellite-{SATELLITE_ID}"
+    model = fake.containers.containers[f"sat-{DEPLOYMENT_ID}"]
+    assert fake.containers.created_configs[-1][1]["HostConfig"]["NetworkMode"] == own
+    assert [entry["Container"] for entry in fake.networks.networks["stack_default"].connected] == [
+        model.name
+    ]
+    assert "stack_default" in model.networks
+
+
+@pytest.mark.asyncio
+async def test_a_failed_attachment_stops_the_deployment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch)
+    expected = f"luml-satellite-{SATELLITE_ID}"
+    network = await fake.networks.create({"Name": expected})
+
+    async def failing_connect(config: dict[str, Any]) -> None:
+        raise DockerError(500, "daemon refused the endpoint")
+
+    monkeypatch.setattr(network, "connect", failing_connect)
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    with pytest.raises(DockerError):
+        await driver.start(deployment(), start_context())
+
+    assert fake.containers.created_configs == []
+
+
+@pytest.mark.asyncio
+async def test_an_attachment_that_leaves_no_endpoint_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch)
+    expected = f"luml-satellite-{SATELLITE_ID}"
+    network = await fake.networks.create({"Name": expected})
+
+    async def silent_connect(config: dict[str, Any]) -> None:
+        network.connected.append(config)
+
+    monkeypatch.setattr(network, "connect", silent_connect)
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    with pytest.raises(DriverError, match="could not attach"):
+        await driver.start(deployment(), start_context())
+
+    assert fake.containers.created_configs == []
+
+
+@pytest.mark.asyncio
 async def test_deployments_racing_for_a_first_network_prepare_it_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

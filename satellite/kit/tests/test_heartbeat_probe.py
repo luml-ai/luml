@@ -1,6 +1,8 @@
 import os
+import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -83,3 +85,45 @@ class TestHeartbeatProbe:
         )
 
         assert result.stdout.strip() == "False"
+
+    def test_the_installed_entry_point_answers_for_a_fresh_heartbeat(self, tmp_path: Path) -> None:
+        executable = shutil.which("luml-monitoring-probe")
+        assert executable is not None
+        heartbeat = tmp_path / "heartbeat"
+        heartbeat.touch()
+
+        result = subprocess.run(
+            [executable],
+            env={
+                **os.environ,
+                "MONITORING_HEARTBEAT_FILE": str(heartbeat),
+                "MONITORING_INTERVAL_SEC": "10",
+            },
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+
+    def test_the_wheel_ships_the_probe_module_and_entry_point(self, tmp_path: Path) -> None:
+        uv = shutil.which("uv")
+        if uv is None:
+            pytest.skip("uv is not available to build the wheel")
+        project = Path(__file__).resolve().parents[1]
+
+        subprocess.run(
+            [uv, "build", "--wheel", "--out-dir", str(tmp_path), str(project)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        wheels = list(tmp_path.glob("*.whl"))
+        assert len(wheels) == 1
+        with zipfile.ZipFile(wheels[0]) as wheel:
+            names = wheel.namelist()
+            entry_points = next(
+                wheel.read(name).decode() for name in names if name.endswith("entry_points.txt")
+            )
+        assert "luml_heartbeat.py" in names
+        assert "luml-monitoring-probe = luml_heartbeat:main" in entry_points
