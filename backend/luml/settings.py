@@ -41,6 +41,12 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
 
+    PLATFORM_ADMIN_EMAIL: str | None = None
+    PLATFORM_ADMIN_AUTH_METHODS: str = "GOOGLE"
+    PLATFORM_ADMIN_GOOGLE_REDIRECT_URI: str | None = None
+    PLATFORM_ADMIN_GOOGLE_HOSTED_DOMAIN: str | None = None
+    PLATFORM_ADMIN_TOKEN_EXPIRE: int = 3600
+
     # quickfix, to be refactored later
     model_config = SettingsConfigDict(
         env_file=".env.test" if "PYTEST_VERSION" in os.environ else ".env",

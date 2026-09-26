@@ -1,7 +1,7 @@
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, SQLColumnExpression, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from luml.infra.exceptions import NotFoundError, OrganizationLimitReachedError
@@ -23,8 +23,6 @@ class OrganizationResource(StrEnum):
     MEMBERS = "members"
 
 
-ORGANIZATION_MEMBERSHIP_LIMIT = 5
-
 MEMBERSHIP_LIMIT_MESSAGE = (
     "You’ve reached the limit of organizations you can join or create"
 )
@@ -39,8 +37,8 @@ _LIMIT_MESSAGES = {
 }
 
 
-def _usage_query(
-    resource: OrganizationResource, organization_id: UUID
+def organization_usage_query(
+    resource: OrganizationResource, organization_id: UUID | SQLColumnExpression[UUID]
 ) -> Select[tuple[int]]:
     if resource is OrganizationResource.ARTIFACTS:
         return (
@@ -75,19 +73,25 @@ async def reserve_organization_slot(
     )
     if limit is None:
         raise NotFoundError("Organization not found")
-    used = await session.scalar(_usage_query(resource, organization_id)) or 0
+    used = (
+        await session.scalar(organization_usage_query(resource, organization_id)) or 0
+    )
     if used >= limit:
         raise OrganizationLimitReachedError(_LIMIT_MESSAGES[resource])
 
 
 async def reserve_user_membership_slot(
-    session: AsyncSession, user_id: UUID, limit: int
+    session: AsyncSession, user_id: UUID, limit: int | None = None
 ) -> None:
-    locked = await session.scalar(
-        select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
+    user_limit = await session.scalar(
+        select(UserOrm.organizations_limit)
+        .where(UserOrm.id == user_id)
+        .with_for_update()
     )
-    if locked is None:
+    if user_limit is None:
         raise NotFoundError("User not found")
+    if limit is None:
+        limit = user_limit
     used = (
         await session.scalar(
             select(func.count(OrganizationMemberOrm.id)).where(

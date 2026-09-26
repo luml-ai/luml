@@ -94,3 +94,33 @@ def test_access_token_authenticates_api_requests(
     )
 
     assert response.status_code == 200
+
+
+def _api_key_client() -> TestClient:
+    app = FastAPI()
+
+    @app.get("/protected", dependencies=[Depends(UserAuthentication(["api_key"]))])
+    async def protected() -> dict[str, str]:
+        return {"detail": "ok"}
+
+    app.add_middleware(AuthenticationMiddleware, backend=JWTAuthenticationBackend())
+    return TestClient(app)
+
+
+@patch(
+    "luml.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
+    new_callable=AsyncMock,
+)
+@pytest.mark.parametrize(("disabled", "expected_status"), [(True, 401), (False, 200)])
+def test_api_key_of_disabled_user_does_not_authenticate(
+    mock_get_user_by_api_key_hash: AsyncMock, disabled: bool, expected_status: int
+) -> None:
+    mock_get_user_by_api_key_hash.return_value = UserOut(
+        id=USER_ID, email=EMAIL, disabled=disabled, has_api_key=True
+    )
+
+    response = _api_key_client().get(
+        "/protected", headers={"Authorization": "Bearer dfs_some-api-key"}
+    )
+
+    assert response.status_code == expected_status

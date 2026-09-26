@@ -23,7 +23,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
         self, token: str
     ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         user = await self.api_key_handler.authenticate_api_key(token)
-        if user:
+        if user and not user.disabled:
             auth_user = AuthUser(
                 user_id=user.id,
                 email=user.email,

@@ -1,7 +1,7 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import UUID, Boolean, String, case
+from sqlalchemy import UUID, Boolean, Integer, String, case
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from luml.models.base import Base, TimestampMixin
@@ -22,6 +22,9 @@ class UserOrm(TimestampMixin, Base):
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
     hashed_api_key: Mapped[str] = mapped_column(String, nullable=True)
+    organizations_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="5"
+    )
 
     memberships: Mapped[list[OrganizationMemberOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrganizationMemberOrm",
