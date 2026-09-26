@@ -65,7 +65,21 @@ function mountEditor() {
 describe('CollectionEditor', () => {
   beforeEach(() => {
     mocks.updateCollection.mockRejectedValue({
-      response: { data: { detail: 'Description should have at most 1000 characters' } },
+      message: 'Request failed with status code 422',
+      response: {
+        status: 422,
+        data: {
+          detail: [
+            {
+              type: 'string_too_long',
+              loc: ['body', 'description'],
+              msg: 'String should have at most 1000 characters',
+              input: 'a'.repeat(1500),
+              ctx: { max_length: 1000 },
+            },
+          ],
+        },
+      },
     })
   })
 
@@ -83,7 +97,7 @@ describe('CollectionEditor', () => {
     expect(mocks.toastAdd).toHaveBeenCalledWith({
       severity: 'error',
       summary: 'Error',
-      detail: 'Description should have at most 1000 characters',
+      detail: 'description: String should have at most 1000 characters',
       life: 3000,
     })
   })

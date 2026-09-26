@@ -173,15 +173,41 @@ export interface ApiError {
     status?: number
     detail?: { message?: string }
     data?: {
-      detail?: string
+      detail?: unknown
       conflicting_files?: string[]
     }
   }
 }
 
+const REQUEST_PARTS = ['body', 'query', 'path', 'header', 'cookie']
+
+const getValidationErrorText = (item: unknown) => {
+  if (typeof item === 'string') return item
+  const { loc, msg } = (item ?? {}) as { loc?: unknown; msg?: unknown }
+  if (typeof msg !== 'string' || !msg) return undefined
+  const path = Array.isArray(loc) ? loc : []
+  const field = (REQUEST_PARTS.includes(String(path[0])) ? path.slice(1) : path).join('.')
+  return field ? `${field}: ${msg}` : msg
+}
+
+export const getErrorDetail = (detail: unknown): string | undefined => {
+  if (typeof detail === 'string') return detail || undefined
+  if (Array.isArray(detail)) {
+    const messages = detail.map(getValidationErrorText).filter((text) => !!text)
+    return messages.length ? messages.join('; ') : undefined
+  }
+  const message = (detail as { message?: unknown } | null)?.message
+  return typeof message === 'string' && message ? message : undefined
+}
+
 export const getErrorMessage = (error: unknown, message = 'Something went wrong') => {
   const err = error as ApiError
-  return err?.response?.detail?.message || err?.response?.data?.detail || err?.message || message
+  return (
+    getErrorDetail(err?.response?.detail) ||
+    getErrorDetail(err?.response?.data?.detail) ||
+    err?.message ||
+    message
+  )
 }
 
 export const getNumberOrString = (string: string | number) => {

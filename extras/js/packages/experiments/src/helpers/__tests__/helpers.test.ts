@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   cutStringOnMiddle,
+  getErrorMessage,
   getFormattedExecutionTime,
   getFormattedTime,
 } from '@/helpers/helpers'
@@ -126,5 +127,36 @@ describe('getFormattedTime', () => {
 
   it('floors a negative float-rounding artifact to <1µs, never a negative value', () => {
     expect(getFormattedTime(1_000, 744)).toBe('<1µs')
+  })
+})
+
+describe('getErrorMessage', () => {
+  it('formats a FastAPI validation error list instead of [object Object]', () => {
+    const error = {
+      message: 'Request failed with status code 422',
+      response: {
+        data: {
+          detail: [
+            { loc: ['query', 'limit'], msg: 'Input should be less than or equal to 100' },
+            { loc: ['body'], msg: 'Field required' },
+          ],
+        },
+      },
+    }
+
+    expect(getErrorMessage(error)).toBe(
+      'limit: Input should be less than or equal to 100; Field required',
+    )
+  })
+
+  it('returns a string detail as is', () => {
+    expect(getErrorMessage({ response: { data: { detail: 'Experiment not found' } } })).toBe(
+      'Experiment not found',
+    )
+  })
+
+  it('falls back to the error message and then to the default', () => {
+    expect(getErrorMessage({ message: 'Network Error' })).toBe('Network Error')
+    expect(getErrorMessage({}, 'Failed to load')).toBe('Failed to load')
   })
 })

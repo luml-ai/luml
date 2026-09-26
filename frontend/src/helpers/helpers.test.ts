@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getSizeText } from './helpers'
+import { getErrorDetail, getErrorMessage, getSizeText } from './helpers'
 
 describe('getSizeText', () => {
   it.each([
@@ -21,5 +21,63 @@ describe('getSizeText', () => {
     [2000000000000000, '2000.00 TB'],
   ])('formats %i bytes as %s', (size, expected) => {
     expect(getSizeText(size)).toBe(expected)
+  })
+})
+
+describe('getErrorDetail', () => {
+  it('returns a string detail as is', () => {
+    expect(getErrorDetail('Collection not found')).toBe('Collection not found')
+  })
+
+  it('formats a FastAPI validation error list with field names', () => {
+    expect(
+      getErrorDetail([
+        {
+          type: 'string_too_long',
+          loc: ['body', 'description'],
+          msg: 'String should have at most 1000 characters',
+        },
+        {
+          type: 'string_too_long',
+          loc: ['body', 'tags', 0],
+          msg: 'String should have at most 64 characters',
+        },
+      ]),
+    ).toBe(
+      'description: String should have at most 1000 characters; tags.0: String should have at most 64 characters',
+    )
+  })
+
+  it('keeps only the message when the error is not tied to a field', () => {
+    expect(getErrorDetail([{ loc: ['body'], msg: 'Field required' }])).toBe('Field required')
+  })
+
+  it('reads the message of an object detail', () => {
+    expect(getErrorDetail({ message: 'Quota exceeded' })).toBe('Quota exceeded')
+  })
+
+  it.each([undefined, null, '', [], [{ loc: ['body', 'name'] }], { code: 1 }])(
+    'returns undefined for %j',
+    (detail) => {
+      expect(getErrorDetail(detail)).toBeUndefined()
+    },
+  )
+})
+
+describe('getErrorMessage', () => {
+  it('never renders a validation error list as [object Object]', () => {
+    const error = {
+      message: 'Request failed with status code 422',
+      response: {
+        data: { detail: [{ loc: ['body', 'name'], msg: 'Value error, name must not be empty' }] },
+      },
+    }
+
+    expect(getErrorMessage(error)).toBe('name: Value error, name must not be empty')
+  })
+
+  it('falls back to the error message and then to the default', () => {
+    expect(getErrorMessage({ message: 'Network Error' })).toBe('Network Error')
+    expect(getErrorMessage({}, 'Failed to update collection')).toBe('Failed to update collection')
   })
 })
