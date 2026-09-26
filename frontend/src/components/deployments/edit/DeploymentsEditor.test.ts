@@ -189,4 +189,20 @@ describe('DeploymentsEditor validation', () => {
 
     expect(deploymentsStore.update).not.toHaveBeenCalled()
   })
+
+  it('accepts a deployment without a description', async () => {
+    const result = await deploymentEditorResolver({
+      values: { name: 'prod-deployment', description: null, tags: [] },
+    } as never)
+
+    expect(result.errors).toEqual({})
+  })
+
+  it('rejects an empty name', async () => {
+    const result = await deploymentEditorResolver({
+      values: { name: '', description: null, tags: [] },
+    } as never)
+
+    expect(Object.keys(result.errors)).toEqual(['name'])
+  })
 })

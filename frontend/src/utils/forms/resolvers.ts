@@ -188,7 +188,7 @@ const valueSchema = z.object({
 export const deploymentEditorResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(1).max(100),
-    description: z.string().max(1000).optional(),
+    description: z.string().max(1000).nullable().optional(),
     tags: tagsSchema.optional().default([]),
     monitoringEnabled: z.boolean().optional(),
     secretDynamicAttributes: z.array(valueSchema).optional(),
