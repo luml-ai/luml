@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from luml.handlers.emails import EmailHandler
@@ -31,6 +32,8 @@ from luml.schemas.orbit import (
 from luml.schemas.organization import OrgRole
 from luml.schemas.permissions import Action, Resource
 from luml.settings import config
+
+logger = logging.getLogger(__name__)
 
 
 class OrbitHandler:
@@ -299,16 +302,21 @@ class OrbitHandler:
             member.orbit_id, organization_id
         )
 
-        self.__email_handler.send_added_to_orbit_email(
-            created_member.user.full_name
-            if created_member.user and created_member.user.full_name
-            else "",
-            created_member.user.email
-            if created_member.user and created_member.user.email
-            else "",
-            orbit.name if orbit else "",
-            config.APP_EMAIL_URL,
-        )
+        try:
+            self.__email_handler.send_added_to_orbit_email(
+                created_member.user.full_name
+                if created_member.user and created_member.user.full_name
+                else "",
+                created_member.user.email
+                if created_member.user and created_member.user.email
+                else "",
+                orbit.name if orbit else "",
+                config.APP_EMAIL_URL,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send added-to-orbit email for orbit %s", member.orbit_id
+            )
 
         return created_member
 
