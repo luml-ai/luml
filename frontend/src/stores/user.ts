@@ -29,7 +29,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const changePassword = async (data: IPostChangePasswordRequest) => {
-    await api.updateUser(data)
+    await api.changePassword(data)
   }
 
   const deleteAccount = async () => {
