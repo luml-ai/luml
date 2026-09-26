@@ -97,7 +97,7 @@ describe('CollectionEditor', () => {
     expect(mocks.toastAdd).toHaveBeenCalledWith({
       severity: 'error',
       summary: 'Error',
-      detail: 'description: String should have at most 1000 characters',
+      detail: 'description should have at most 1000 characters',
       life: 3000,
     })
   })

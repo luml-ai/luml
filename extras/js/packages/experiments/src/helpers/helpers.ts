@@ -90,13 +90,20 @@ export const getFormattedExecutionTime = (ns: number) => {
 
 const REQUEST_PARTS = ['body', 'query', 'path', 'header', 'cookie']
 
+const VALIDATION_SUBJECT =
+  /^(String|Input|Value|List|Dictionary|Tuple|Set|Number|Decimal|Date|Datetime|Time|UUID|URL)(?= should )/
+
 const getValidationErrorText = (item: unknown) => {
   if (typeof item === 'string') return item
   const { loc, msg } = (item ?? {}) as { loc?: unknown; msg?: unknown }
   if (typeof msg !== 'string' || !msg) return undefined
   const path = Array.isArray(loc) ? loc : []
   const field = (REQUEST_PARTS.includes(String(path[0])) ? path.slice(1) : path).join('.')
-  return field ? `${field}: ${msg}` : msg
+  const text = msg.replace(/^Value error, /, '')
+  if (!field) return text
+  if (text === 'Field required') return `${field} is required`
+  if (VALIDATION_SUBJECT.test(text)) return text.replace(VALIDATION_SUBJECT, field)
+  return text.startsWith(`${field} `) ? text : `${field}: ${text}`
 }
 
 export const getErrorDetail = (detail: unknown): string | undefined => {

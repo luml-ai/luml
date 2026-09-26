@@ -44,8 +44,22 @@ describe('getErrorDetail', () => {
         },
       ]),
     ).toBe(
-      'description: String should have at most 1000 characters; tags.0: String should have at most 64 characters',
+      'description should have at most 1000 characters; tags.0 should have at most 64 characters',
     )
+  })
+
+  it('names the missing field', () => {
+    expect(getErrorDetail([{ loc: ['body', 'name'], msg: 'Field required' }])).toBe(
+      'name is required',
+    )
+  })
+
+  it('prefixes a custom message that does not mention the field', () => {
+    expect(
+      getErrorDetail([
+        { loc: ['body', 'tags'], msg: 'Value error, duplicate tags are not allowed' },
+      ]),
+    ).toBe('tags: duplicate tags are not allowed')
   })
 
   it('keeps only the message when the error is not tied to a field', () => {
@@ -73,7 +87,7 @@ describe('getErrorMessage', () => {
       },
     }
 
-    expect(getErrorMessage(error)).toBe('name: Value error, name must not be empty')
+    expect(getErrorMessage(error)).toBe('name must not be empty')
   })
 
   it('falls back to the error message and then to the default', () => {

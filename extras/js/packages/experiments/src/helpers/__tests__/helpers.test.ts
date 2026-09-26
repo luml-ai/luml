@@ -144,9 +144,7 @@ describe('getErrorMessage', () => {
       },
     }
 
-    expect(getErrorMessage(error)).toBe(
-      'limit: Input should be less than or equal to 100; Field required',
-    )
+    expect(getErrorMessage(error)).toBe('limit should be less than or equal to 100; Field required')
   })
 
   it('returns a string detail as is', () => {
