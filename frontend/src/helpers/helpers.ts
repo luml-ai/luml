@@ -106,8 +106,15 @@ export const getSha256 = async (buffer: ArrayBuffer): Promise<string> => {
 }
 
 export const getSizeText = (size: number) => {
-  const value = size < 1000 ? size : size < 1000000 ? size / 1000 : size / 1000000
-  const symbol = size < 1000 ? 'B' : size < 1000000 ? 'KB' : 'MB'
+  const value =
+    size < 1000
+      ? size
+      : size < 1000000
+        ? size / 1000
+        : size < 1000000000
+          ? size / 1000000
+          : size / 1000000000
+  const symbol = size < 1000 ? 'B' : size < 1000000 ? 'KB' : size < 1000000000 ? 'MB' : 'GB'
   return value.toFixed(2) + ' ' + symbol
 }
 
