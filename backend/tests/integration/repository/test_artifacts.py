@@ -602,8 +602,11 @@ async def test_get_collection_artifacts_sort_extra_values_key_raises(
 
 
 @pytest.mark.asyncio
-async def test_get_collection_artifacts_invalid_metric_raises(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+@pytest.mark.parametrize("sort_by", ["nonexistent_zzz", "collection_name", "metadata"])
+async def test_get_collection_artifacts_invalid_sort_with_collection_ids_raises(
+    create_collection: CollectionFixtureData,
+    test_artifact: ArtifactCreate,
+    sort_by: str,
 ) -> None:
     data = create_collection
     repo = ArtifactRepository(data.engine)
@@ -616,7 +619,7 @@ async def test_get_collection_artifacts_invalid_metric_raises(
     with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
         await repo.get_collection_artifacts(
             data.orbit.id,
-            PaginationParams(limit=10, sort_by="nonexistent_metric"),
+            PaginationParams(limit=10, sort_by=sort_by),
             collection_ids=[data.collection.id],
         )
 
@@ -921,18 +924,16 @@ async def test_get_collection_artifacts_empty_orbit(
 
 
 @pytest.mark.asyncio
-async def test_get_collection_artifacts_metric_sort_without_collection_ids_falls_back(
+async def test_get_collection_artifacts_metric_sort_without_collection_ids_raises(
     create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> None:
-    # Metric sort only applies when collection_ids is provided. Without it the
-    # metric key is not validated and silently falls back to created_at order.
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    first = await _make_artifact(
+    await _make_artifact(
         repo, test_artifact, data.collection.id, name="first", extra_values={"acc": 0.1}
     )
-    second = await _make_artifact(
+    await _make_artifact(
         repo,
         test_artifact,
         data.collection.id,
@@ -940,13 +941,27 @@ async def test_get_collection_artifacts_metric_sort_without_collection_ids_falls
         extra_values={"acc": 0.9},
     )
 
-    items, _ = await repo.get_collection_artifacts(
-        data.orbit.id,
-        PaginationParams(limit=100, sort_by="acc", order=SortOrder.DESC),
-    )
+    with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
+        await repo.get_collection_artifacts(
+            data.orbit.id,
+            PaginationParams(limit=100, sort_by="acc", order=SortOrder.DESC),
+        )
 
-    # created_at DESC -> most recently created first (no InvalidSortingError raised).
-    assert [a.id for a in items] == [second.id, first.id]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sort_by", ["nonexistent_zzz", "collection_name", "metadata"])
+async def test_get_collection_artifacts_invalid_sort_without_collection_ids_raises(
+    create_collection: CollectionFixtureData,
+    sort_by: str,
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
+        await repo.get_collection_artifacts(
+            data.orbit.id,
+            PaginationParams(limit=100, sort_by=sort_by),
+        )
 
 
 async def _add_artifact_to_track(
