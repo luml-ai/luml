@@ -50,6 +50,36 @@ handler = ArtifactHandler()
 API_KEY_SCOPES = ["authenticated", "api_key"]
 JWT_SCOPES = ["authenticated", "jwt"]
 
+
+@pytest.mark.parametrize("cursor", ["garbage", "", "WzFd"])
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collections_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_rejects_invalid_cursor(
+    mock_check_permissions: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_repo: AsyncMock,
+    cursor: str,
+) -> None:
+    with pytest.raises(ApplicationError, match="^Invalid cursor$") as error:
+        await handler.get_collection_artifacts(
+            uuid7(), uuid7(), uuid7(), cursor_str=cursor
+        )
+
+    assert error.value.status_code == 400
+    mock_repo.assert_not_called()
+
+
 # Physical deletion runs in one lineage transaction; the stub hands every
 # repository call the same session and records an error that reaches it.
 DELETION_SESSION = cast(AsyncSession, Mock(spec=AsyncSession))
