@@ -4,7 +4,7 @@ import { Dialog, InputText, Button } from 'primevue'
 import { Plus } from 'lucide-vue-next'
 import FolderPicker from './FolderPicker.vue'
 import { api } from '@/lib/api'
-import type { AxiosError } from 'axios'
+import { getErrorMessage } from '@/helpers/helpers'
 
 defineProps<{
   visible: boolean
@@ -35,16 +35,7 @@ async function submit() {
     path.value = ''
     emit('created')
   } catch (e: unknown) {
-    const err = e as AxiosError
-    const data = err?.response?.data as { detail?: string }
-    const detail = data?.detail
-    if (typeof detail === 'string') {
-      error.value = detail
-    } else if (err?.message) {
-      error.value = err.message
-    } else {
-      error.value = 'Failed to create repository'
-    }
+    error.value = getErrorMessage(e, 'Failed to create repository')
   }
 }
 </script>
