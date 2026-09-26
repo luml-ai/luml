@@ -28,9 +28,10 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
   private filteredRow(row: Record<string, unknown>, filters: FilterItem[]) {
     return filters.every((filter) => {
       const columnValue = row[filter.column] as number | string
-      const parameter = isNaN(filter.parameter as unknown as number)
-        ? filter.parameter
-        : +filter.parameter
+      const parameter =
+        typeof columnValue === 'number' && filter.parameter !== ''
+          ? Number(filter.parameter)
+          : filter.parameter
 
       switch (filter.filterType) {
         case FilterType.Equals:
