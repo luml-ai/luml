@@ -576,6 +576,7 @@ async def test_get_collection_artifacts_sort_by_metric(
     assert len(first) == 1
     assert first[0].extra_values["accuracy"] == 0.1
     assert cursor is not None
+    assert cursor.sort_by == "accuracy"
 
     second, _ = await repo.get_collection_artifacts(
         data.orbit.id,

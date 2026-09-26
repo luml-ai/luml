@@ -376,7 +376,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         return Cursor(
             id=cursor_rec.id,
             value=value,
-            sort_by=pagination.sort_by,
+            sort_by=pagination.extra_sort_field or pagination.sort_by,
             order=pagination.order,
             scope_id=pagination.scope_id,
         )
