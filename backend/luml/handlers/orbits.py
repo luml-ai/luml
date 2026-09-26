@@ -54,7 +54,9 @@ class OrbitHandler:
     ) -> list[Orbit]:
         for orbit in orbits:
             orbit.permissions = (
-                self.__permissions_handler.get_orbit_permissions_by_role(org_role)
+                self.__permissions_handler.get_orbit_permissions_by_role(
+                    org_role, orbit.role
+                )
             )
         return orbits
 
@@ -159,7 +161,9 @@ class OrbitHandler:
             raise OrbitError("Some errors occurred when creating the orbit.")
 
         created_orbit.permissions = (
-            self.__permissions_handler.get_orbit_permissions_by_role(org_role, None)
+            self.__permissions_handler.get_orbit_permissions_by_role(
+                org_role, OrbitRole.ADMIN
+            )
         )
 
         return created_orbit
@@ -179,7 +183,7 @@ class OrbitHandler:
 
         if org_role in (OrgRole.OWNER, OrgRole.ADMIN):
             orbits = await self.__orbits_repository.get_organization_orbits(
-                organization_id
+                organization_id, user_id
             )
             return self._set_orbits_permissions(orbits, org_role)
 

@@ -23,6 +23,18 @@ ORBIT_V = UUID("0199c337-0a04-753e-9def-b27745e69be7")
 ORBIT_NOT_FOUND = (404, "Orbit not found")
 
 
+def test_get_orbit_permissions_include_orbit_role_for_org_admin() -> None:
+    permissions = handler.get_orbit_permissions_by_role(OrgRole.ADMIN, OrbitRole.ADMIN)
+
+    assert Action.DELETE.value in permissions[Resource.ORBIT.value]
+
+
+def test_get_orbit_permissions_do_not_grant_org_admin_orbit_delete() -> None:
+    permissions = handler.get_orbit_permissions_by_role(OrgRole.ADMIN)
+
+    assert Action.DELETE.value not in permissions[Resource.ORBIT.value]
+
+
 def scoped_orbit_lookup(
     orbit_id: UUID, organization_id: UUID
 ) -> Callable[[UUID, UUID], Awaitable[Mock | None]]:

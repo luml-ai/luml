@@ -18,6 +18,7 @@ from luml.schemas.orbit import (
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
+    OrbitMemberCreateSimple,
     OrbitRole,
     OrbitUpdate,
     UpdateOrbitMember,
@@ -182,6 +183,53 @@ async def test_create_organization_orbit(
     new_callable=AsyncMock,
 )
 @patch(
+    "luml.handlers.orbits.OrbitRepository.create_orbit",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_organization_orbit_makes_org_admin_creator_orbit_admin(
+    mock_get_bucket_secret: AsyncMock,
+    mock_create_orbit: AsyncMock,
+    mock_get_organization_details: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    test_orbit: Orbit,
+) -> None:
+    mock_get_bucket_secret.return_value = Mock(
+        id=test_orbit.bucket_secret_id,
+        organization_id=test_orbit.organization_id,
+    )
+    mock_create_orbit.return_value = test_orbit
+    mock_get_organization_member_role.return_value = OrgRole.ADMIN
+    mock_get_organization_details.return_value = Mock(orbits_limit=10, total_orbits=0)
+    orbit_to_create = OrbitCreateIn(
+        name=test_orbit.name, bucket_secret_id=test_orbit.bucket_secret_id
+    )
+
+    result = await handler.create_organization_orbit(
+        USER_ID, test_orbit.organization_id, orbit_to_create
+    )
+
+    created = mock_create_orbit.await_args.args[1]
+    assert created.members == [
+        OrbitMemberCreateSimple(user_id=USER_ID, role=OrbitRole.ADMIN)
+    ]
+    assert result.permissions is not None
+    assert "delete" in result.permissions["orbit"]
+
+
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.UserRepository.get_organization_details",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
@@ -305,7 +353,35 @@ async def test_get_organization_orbits(
 
     assert result == expected
 
-    mock_get_organization_orbits.assert_awaited_once_with(orbit.organization_id)
+    mock_get_organization_orbits.assert_awaited_once_with(
+        orbit.organization_id, user_id
+    )
+
+
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.OrbitRepository.get_organization_orbits",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_organization_orbits_adds_orbit_role_permissions_for_org_admin(
+    mock_get_organization_orbits: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    test_orbit: Orbit,
+) -> None:
+    own_orbit = test_orbit.model_copy(update={"id": uuid7(), "role": OrbitRole.ADMIN})
+    other_orbit = test_orbit.model_copy(update={"id": uuid7(), "role": None})
+    mock_get_organization_orbits.return_value = [own_orbit, other_orbit]
+    mock_get_organization_member_role.return_value = OrgRole.ADMIN
+
+    result = await handler.get_organization_orbits(USER_ID, test_orbit.organization_id)
+
+    permissions = {orbit.id: orbit.permissions for orbit in result}
+    assert "delete" in permissions[own_orbit.id]["orbit"]
+    assert "delete" not in permissions[other_orbit.id]["orbit"]
 
 
 @patch(
