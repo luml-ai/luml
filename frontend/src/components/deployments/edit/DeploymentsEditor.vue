@@ -18,7 +18,7 @@
       id="createDeploymentForm"
       class="content"
       :initial-values="initialValues"
-      :resolver="createDeploymentResolver"
+      :resolver="deploymentEditorResolver"
       @submit="saveChanges"
     >
       <DeploymentsFormBasicsSettings
@@ -167,8 +167,8 @@ import type { Var } from '@fnnx-ai/common/dist/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { ChevronDown, ChevronUp, HelpCircle, Info, Rocket } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { createDeploymentResolver } from '@/utils/forms/resolvers'
-import { Form, FormField } from '@primevue/forms'
+import { deploymentEditorResolver } from '@/utils/forms/resolvers'
+import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
 import { useCollectionsStore } from '@/stores/collections'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { useArtifactsStore } from '@/stores/artifacts'
@@ -260,7 +260,8 @@ const isForceDelete = computed(() => {
   return DeploymentStatusEnum.active !== props.data.status
 })
 
-async function saveChanges() {
+async function saveChanges({ valid }: FormSubmitEvent) {
+  if (!valid) return
   try {
     loading.value = true
     const dynamic_attributes_secrets = initialValues.value.secretDynamicAttributes.reduce(
