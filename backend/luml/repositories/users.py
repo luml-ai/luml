@@ -23,7 +23,6 @@ from luml.repositories.base import (
     violates,
 )
 from luml.repositories.limits import (
-    ORGANIZATION_MEMBERSHIP_LIMIT,
     OrganizationResource,
     reserve_organization_slot,
     reserve_user_membership_slot,
@@ -151,7 +150,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         user_id: UUID,
         organization: OrganizationCreateIn,
         *,
-        membership_limit: int = ORGANIZATION_MEMBERSHIP_LIMIT,
+        membership_limit: int | None = None,
     ) -> OrganizationOrm:
         async with self._get_session() as session:
             await reserve_user_membership_slot(session, user_id, membership_limit)
@@ -226,7 +225,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         self,
         member: OrganizationMemberCreate,
         *,
-        membership_limit: int = ORGANIZATION_MEMBERSHIP_LIMIT,
+        membership_limit: int | None = None,
     ) -> OrganizationMember:
         async with self._get_session() as session:
             await reserve_organization_slot(
@@ -437,6 +436,13 @@ class UserRepository(RepositoryBase, CrudMixin):
                 OrganizationMemberOrm.user_id.in_(user_ids),
             )
             return [member.to_organization_member() for member in db_members]
+
+    async def get_user_organizations_limit(self, user_id: UUID) -> int | None:
+        async with self._get_session() as session:
+            limit: int | None = await session.scalar(
+                select(UserOrm.organizations_limit).where(UserOrm.id == user_id)
+            )
+            return limit
 
     async def get_user_organizations_membership_count(self, user_id: UUID) -> int:
         async with self._get_session() as session:
