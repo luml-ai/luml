@@ -1,5 +1,6 @@
+import { fromCSV } from 'arquero'
 import { describe, expect, it } from 'vitest'
-import { getErrorDetail, getErrorMessage, getSizeText } from './helpers'
+import { convertObjectToCsvBlob, getErrorDetail, getErrorMessage, getSizeText } from './helpers'
 
 describe('getSizeText', () => {
   it.each([
@@ -93,5 +94,44 @@ describe('getErrorMessage', () => {
   it('falls back to the error message and then to the default', () => {
     expect(getErrorMessage({ message: 'Network Error' })).toBe('Network Error')
     expect(getErrorMessage({}, 'Failed to update collection')).toBe('Failed to update collection')
+  })
+})
+
+const readBlob = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(blob)
+  })
+
+describe('convertObjectToCsvBlob', () => {
+  it('preserves generated values containing commas when parsed as CSV', async () => {
+    const blob = convertObjectToCsvBlob({
+      feature: ['first', 'second'],
+      prediction: ['Yes, approved', 'No'],
+    })
+
+    expect(fromCSV(await readBlob(blob)).objects()).toEqual([
+      { feature: 'first', prediction: 'Yes, approved' },
+      { feature: 'second', prediction: 'No' },
+    ])
+  })
+
+  it('escapes quotes and line breaks in headers and values', async () => {
+    const blob = convertObjectToCsvBlob({ 'feature,name': ['He said "yes"\nthen left'] })
+
+    expect(fromCSV(await readBlob(blob)).objects()).toEqual([
+      { 'feature,name': 'He said "yes"\nthen left' },
+    ])
+  })
+
+  it('keeps missing values in their columns', async () => {
+    const blob = convertObjectToCsvBlob({ feature: ['first', 'second'], prediction: ['Yes'] })
+
+    expect(fromCSV(await readBlob(blob)).objects()).toEqual([
+      { feature: 'first', prediction: 'Yes' },
+      { feature: 'second', prediction: null },
+    ])
   })
 })
