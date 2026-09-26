@@ -231,32 +231,34 @@ test.describe('Deployments', () => {
       ).toBeVisible()
     })
 
-    test('does not save a deployment with an empty name', async ({ page, apiMocks }) => {
-      let patchCalled = false
-      await apiMocks.patch(
-        `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments/${DEPLOYMENT_ID}`,
-        () => {
-          patchCalled = true
-          return makeDeployment({ name: '' })
-        },
-      )
+    for (const name of ['', '   ']) {
+      test(`does not save a deployment with the blank name ${JSON.stringify(name)}`, async ({ page, apiMocks }) => {
+        let patchCalled = false
+        await apiMocks.patch(
+          `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments/${DEPLOYMENT_ID}`,
+          () => {
+            patchCalled = true
+            return makeDeployment({ name })
+          },
+        )
 
-      await page.goto(deploymentsUrl)
-      await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 15000 })
-      const row = page
-        .locator('.p-datatable-tbody tr')
-        .filter({ hasText: 'prod-deployment' })
-      await row.getByRole('button').last().click()
+        await page.goto(deploymentsUrl)
+        await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 15000 })
+        const row = page
+          .locator('.p-datatable-tbody tr')
+          .filter({ hasText: 'prod-deployment' })
+        await row.getByRole('button').last().click()
 
-      const dialog = page
-        .getByRole('dialog')
-        .filter({ has: page.getByText('deployment settings', { exact: true }) })
-      await dialog.getByLabel('Name').fill('')
-      await dialog.getByRole('button', { name: 'save changes' }).click()
+        const dialog = page
+          .getByRole('dialog')
+          .filter({ has: page.getByText('deployment settings', { exact: true }) })
+        await dialog.getByLabel('Name').fill(name)
+        await dialog.getByRole('button', { name: 'save changes' }).click()
 
-      await expect(dialog).toBeVisible()
-      expect(patchCalled).toBe(false)
-    })
+        await expect(dialog).toBeVisible()
+        expect(patchCalled).toBe(false)
+      })
+    }
   })
 
   test.describe('Soft delete', () => {

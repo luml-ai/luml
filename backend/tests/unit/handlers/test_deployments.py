@@ -1301,14 +1301,24 @@ def test_details_update_in_rejects_null_for_not_null_columns(field: str) -> None
         DeploymentDetailsUpdateIn.model_validate({field: None})
 
 
-def test_details_update_in_rejects_empty_name() -> None:
+@pytest.mark.parametrize("name", ["", "   "], ids=["empty", "whitespace"])
+def test_details_update_in_rejects_blank_name(name: str) -> None:
     with pytest.raises(ValidationError, match="at least 1 character"):
-        DeploymentDetailsUpdateIn(name="")
+        DeploymentDetailsUpdateIn(name=name)
 
 
-def test_create_deployment_rejects_empty_name() -> None:
+@pytest.mark.parametrize("name", ["", "   "], ids=["empty", "whitespace"])
+def test_create_deployment_rejects_blank_name(name: str) -> None:
     with pytest.raises(ValidationError, match="at least 1 character"):
-        DeploymentCreateIn(satellite_id=uuid7(), artifact_id=uuid7(), name="")
+        DeploymentCreateIn(satellite_id=uuid7(), artifact_id=uuid7(), name=name)
+
+
+def test_deployment_name_is_trimmed() -> None:
+    assert DeploymentDetailsUpdateIn(name="  prod  ").name == "prod"
+    created = DeploymentCreateIn(
+        satellite_id=uuid7(), artifact_id=uuid7(), name="  prod  "
+    )
+    assert created.name == "prod"
 
 
 @pytest.mark.parametrize(

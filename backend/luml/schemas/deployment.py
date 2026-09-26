@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import (
     BaseModel,
     Field,
+    StringConstraints,
     ValidationInfo,
     computed_field,
     field_validator,
@@ -14,6 +15,9 @@ from pydantic import (
 from luml.schemas.base import BaseOrmConfig
 
 TagList = Annotated[list[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
+DeploymentName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
 
 
 class DeploymentStatus(StrEnum):
@@ -78,7 +82,7 @@ class Deployment(DeploymentBase):
 class DeploymentCreateBase(BaseModel):
     satellite_id: UUID
     artifact_id: UUID
-    name: str = Field(min_length=1, max_length=100)
+    name: DeploymentName
     monitoring_mode: MonitoringMode = MonitoringMode.OFF
     satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = Field(default=None, max_length=1000)
@@ -121,7 +125,7 @@ class InferenceAccessOut(BaseModel):
 
 
 class DeploymentDetailsUpdateBase(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=100)
+    name: DeploymentName | None = None
     description: str | None = Field(default=None, max_length=1000)
     monitoring_mode: MonitoringMode | None = None
     schemas: dict[str, Any] | None = None

@@ -198,9 +198,9 @@ describe('DeploymentsEditor validation', () => {
     expect(result.errors).toEqual({})
   })
 
-  it('rejects an empty name', async () => {
+  it.each(['', '   '])('rejects the blank name %j', async (name) => {
     const result = await deploymentEditorResolver({
-      values: { name: '', description: null, tags: [] },
+      values: { name, description: null, tags: [] },
     } as never)
 
     expect(Object.keys(result.errors)).toEqual(['name'])
