@@ -105,17 +105,16 @@ export const getSha256 = async (buffer: ArrayBuffer): Promise<string> => {
   return [...new Uint8Array(hashBuffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
+
 export const getSizeText = (size: number) => {
-  const value =
-    size < 1000
-      ? size
-      : size < 1000000
-        ? size / 1000
-        : size < 1000000000
-          ? size / 1000000
-          : size / 1000000000
-  const symbol = size < 1000 ? 'B' : size < 1000000 ? 'KB' : size < 1000000000 ? 'MB' : 'GB'
-  return value.toFixed(2) + ' ' + symbol
+  let value = size
+  let unitIndex = 0
+  while (unitIndex < SIZE_UNITS.length - 1 && Number(value.toFixed(2)) >= 1000) {
+    value /= 1000
+    unitIndex++
+  }
+  return value.toFixed(2) + ' ' + SIZE_UNITS[unitIndex]
 }
 
 export const downloadFileFromBlob = (blob: Blob, fileName: string) => {
