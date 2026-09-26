@@ -12,7 +12,12 @@
             <div class="name">{{ orbitsStore.currentOrbit.name }}</div>
             <div class="meta-row">
               <div class="collections-count">
-                {{ orbitsStore.currentOrbitDetails?.total_collections ?? 0 }} collections
+                {{ orbitsStore.currentOrbitDetails?.total_collections ?? 0 }}
+                {{
+                  orbitsStore.currentOrbitDetails?.total_collections === 1
+                    ? 'collection'
+                    : 'collections'
+                }}
               </div>
               <div v-if="orbitsStore.currentOrbit.id" class="id-row">
                 <UiId :id="orbitsStore.currentOrbit.id" class="id-value" />
