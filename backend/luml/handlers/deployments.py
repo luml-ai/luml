@@ -559,7 +559,9 @@ class DeploymentHandler:
             deployment_id, satellite_id
         )
         if not deployment:
-            raise NotFoundError("Deployment not found")
+            if await self.__repo.deployment_exists(deployment_id):
+                raise NotFoundError("Deployment not found")
+            return None
         if deployment.status != DeploymentStatus.DELETION_PENDING:
             raise ApplicationError(
                 "Incorrect deployment status. Request deployment deletion first.",

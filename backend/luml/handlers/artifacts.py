@@ -578,9 +578,15 @@ class ArtifactHandler:
             raise ArtifactDeployedError()
         await self._delete_artifact(orbit_id, artifact_id)
 
-    async def _delete_artifact(self, orbit_id: UUID, artifact_id: UUID) -> None:
+    async def _delete_artifact(
+        self, orbit_id: UUID, artifact_id: UUID, *, undeploy: bool = False
+    ) -> None:
         async with self.__lineage_repository.transaction() as session:
             await self.__lineage_repository.lock_orbit(orbit_id, session)
+            if undeploy:
+                await self.__deployment_repository.undeploy_artifact_deployments(
+                    artifact_id, session
+                )
             await self.__lineage_repository.refresh_node_copy(artifact_id, session)
             await self.__repository.delete_artifact(artifact_id, session)
             await self.__lineage_repository.delete_unreachable_deleted_nodes(
@@ -673,16 +679,11 @@ class ArtifactHandler:
         collection_id: UUID,
         artifact_id: UUID,
     ) -> None:
-        artifact = await self._artifact_deletion_checks(
+        await self._artifact_deletion_checks(
             user_id, organization_id, orbit_id, collection_id, artifact_id
         )
 
-        if artifact.deployments:
-            await self.__deployment_repository.delete_deployments_by_artifact_id(
-                artifact_id
-            )
-
-        await self._delete_artifact(orbit_id, artifact_id)
+        await self._delete_artifact(orbit_id, artifact_id, undeploy=True)
 
     @staticmethod
     def _validate_cursor(

@@ -98,7 +98,13 @@ def test_delete_deployment_forwards_the_authenticated_satellite(
     "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.deployment_exists",
+    new_callable=AsyncMock,
+    return_value=True,
+)
 def test_delete_deployment_from_another_satellite_is_rejected(
+    mock_deployment_exists: AsyncMock,  # noqa: ARG001
     mock_get_satellite_deployment: AsyncMock,
     mock_delete_satellite_deployment: AsyncMock,
     mock_touch_last_seen: AsyncMock,

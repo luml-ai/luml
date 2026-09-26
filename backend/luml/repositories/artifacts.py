@@ -72,41 +72,56 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 raise DatabaseConstraintError("Cannot create artifact.") from error
             return db_artifact.to_artifact()
 
+    @staticmethod
+    async def _lock_artifact(
+        session: AsyncSession,
+        artifact_id: UUID,
+        collection_id: UUID | None = None,
+    ) -> ArtifactOrm | None:
+        conditions = [ArtifactOrm.id == artifact_id]
+        if collection_id is not None:
+            conditions.append(ArtifactOrm.collection_id == collection_id)
+
+        result = await session.execute(
+            select(ArtifactOrm)
+            .where(*conditions)
+            .options(
+                noload(ArtifactOrm.collection),
+                noload(ArtifactOrm.deployments),
+            )
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def _refuse_referenced_artifact(
+        session: AsyncSession, artifact_id: UUID
+    ) -> None:
+        deployments = await session.scalar(
+            select(func.count())
+            .select_from(DeploymentOrm)
+            .where(DeploymentOrm.artifact_id == artifact_id)
+        )
+        if deployments:
+            raise ArtifactDeployedError()
+
+        track_links = await session.scalar(
+            select(func.count())
+            .select_from(TrackArtifactOrm)
+            .where(TrackArtifactOrm.artifact_id == artifact_id)
+        )
+        if track_links:
+            raise ArtifactTrackedError()
+
     async def request_deletion(
         self, artifact_id: UUID, collection_id: UUID
     ) -> Artifact | None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(ArtifactOrm)
-                .where(
-                    ArtifactOrm.id == artifact_id,
-                    ArtifactOrm.collection_id == collection_id,
-                )
-                .options(
-                    noload(ArtifactOrm.collection),
-                    noload(ArtifactOrm.deployments),
-                )
-                .with_for_update()
-            )
-            artifact = result.scalar_one_or_none()
+            artifact = await self._lock_artifact(session, artifact_id, collection_id)
             if artifact is None:
                 return None
 
-            deployments = await session.scalar(
-                select(func.count())
-                .select_from(DeploymentOrm)
-                .where(DeploymentOrm.artifact_id == artifact_id)
-            )
-            if deployments:
-                raise ArtifactDeployedError()
-
-            track_links = await session.scalar(
-                select(func.count())
-                .select_from(TrackArtifactOrm)
-                .where(TrackArtifactOrm.artifact_id == artifact_id)
-            )
-            if track_links:
-                raise ArtifactTrackedError()
+            await self._refuse_referenced_artifact(session, artifact_id)
 
             artifact.status = ArtifactStatus.PENDING_DELETION.value
             record = artifact.to_artifact()
@@ -125,18 +140,27 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             )
             return db_artifact.to_artifact() if db_artifact else None
 
+    async def _delete_unreferenced_artifact(
+        self, session: AsyncSession, artifact_id: UUID
+    ) -> None:
+        artifact = await self._lock_artifact(session, artifact_id)
+        if artifact is None:
+            return
+
+        await self._refuse_referenced_artifact(session, artifact_id)
+        await session.delete(artifact)
+        await session.flush()
+
     async def delete_artifact(
         self, artifact_id: UUID, session: AsyncSession | None = None
     ) -> None:
         try:
             if session is not None:
-                artifact = await session.get(ArtifactOrm, artifact_id)
-                if artifact is not None:
-                    await session.delete(artifact)
-                    await session.flush()
+                await self._delete_unreferenced_artifact(session, artifact_id)
                 return
             async with self._get_session() as owned_session:
-                await self.delete_model(owned_session, ArtifactOrm, artifact_id)
+                await self._delete_unreferenced_artifact(owned_session, artifact_id)
+                await owned_session.commit()
         except IntegrityError as error:
             error_mess = "Cannot delete artifact."
             raise DatabaseConstraintError(

@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from luml.infra.exceptions import (
     ArtifactNotFoundError,
@@ -194,11 +195,39 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
                 DeploymentOrm.satellite_id == satellite_id,
             )
 
-    async def delete_deployments_by_artifact_id(self, artifact_id: UUID) -> None:
+    async def deployment_exists(self, deployment_id: UUID) -> bool:
         async with self._get_session() as session:
-            await self.delete_models_where(
-                session, DeploymentOrm, DeploymentOrm.artifact_id == artifact_id
+            found = await session.scalar(
+                select(DeploymentOrm.id).where(DeploymentOrm.id == deployment_id)
             )
+            return found is not None
+
+    @staticmethod
+    async def undeploy_artifact_deployments(
+        artifact_id: UUID, session: AsyncSession
+    ) -> None:
+        result = await session.execute(
+            select(DeploymentOrm)
+            .where(DeploymentOrm.artifact_id == artifact_id)
+            .with_for_update()
+        )
+        deployments = list(result.scalars().all())
+
+        session.add_all(
+            [
+                SatelliteQueueOrm(
+                    satellite_id=deployment.satellite_id,
+                    orbit_id=deployment.orbit_id,
+                    type=SatelliteTaskType.UNDEPLOY,
+                    payload={"deployment_id": str(deployment.id)},
+                )
+                for deployment in deployments
+            ]
+        )
+
+        for deployment in deployments:
+            await session.delete(deployment)
+        await session.flush()
 
     async def update_deployment_details(
         self,

@@ -1061,18 +1061,29 @@ async def test_delete_worker_deployment(
     "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.delete_satellite_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.deployment_exists",
+    new_callable=AsyncMock,
+    return_value=False,
+)
 @pytest.mark.asyncio
-async def test_delete_worker_deployment_not_found(
+async def test_delete_worker_deployment_already_deleted(
+    mock_deployment_exists: AsyncMock,
+    mock_delete_deployment: AsyncMock,
     mock_get_satellite_deployment: AsyncMock,
 ) -> None:
     satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
     deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
     mock_get_satellite_deployment.return_value = None
 
-    with pytest.raises(NotFoundError, match="Deployment not found"):
-        await handler.delete_worker_deployment(satellite_id, deployment_id)
+    await handler.delete_worker_deployment(satellite_id, deployment_id)
 
     mock_get_satellite_deployment.assert_awaited_once_with(deployment_id, satellite_id)
+    mock_delete_deployment.assert_not_awaited()
 
 
 @patch(
@@ -1083,8 +1094,14 @@ async def test_delete_worker_deployment_not_found(
     "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.deployment_exists",
+    new_callable=AsyncMock,
+    return_value=True,
+)
 @pytest.mark.asyncio
 async def test_delete_worker_deployment_from_another_satellite(
+    mock_deployment_exists: AsyncMock,  # noqa: ARG001
     mock_get_satellite_deployment: AsyncMock,
     mock_delete_deployment: AsyncMock,
 ) -> None:
