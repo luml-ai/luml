@@ -46,16 +46,32 @@ export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
 
   const activeTab = ref<string>(tabs.value[0]?.id ?? CODE_TAB_ID)
 
+  const cellSnapshot = computed(() => JSON.stringify(toValue(cell)))
+
   const cache = new Map<string, CellTabContent>()
+  const freshAt = new Map<string, string>()
   const content = ref<CellTabContent>({ status: 'idle' })
 
   async function loadOutput(tabId: string) {
+    const snapshot = cellSnapshot.value
     const cached = cache.get(tabId)
-    if (cached) {
+    if (cached && freshAt.get(tabId) === snapshot) {
       content.value = cached
       return
     }
-    content.value = { status: 'loading' }
+
+    if (toValue(cell).state === 'unmaterialized') {
+      const value: CellTabContent = {
+        status: 'error',
+        message: 'This output has not produced a value yet',
+      }
+      cache.set(tabId, value)
+      freshAt.set(tabId, snapshot)
+      content.value = value
+      return
+    }
+
+    content.value = cached ?? { status: 'loading' }
     try {
       const asset = await flowStore.fetchAssetPreview(
         toValue(cell).slug,
@@ -65,11 +81,14 @@ export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
         ? { status: 'ready', blocks: asset.preview.blocks, truncated: asset.preview.truncated }
         : { status: 'error', message: 'This output has not produced a value yet' }
       cache.set(tabId, loaded)
-      content.value = loaded
+      freshAt.set(tabId, snapshot)
+      if (activeTab.value === tabId) content.value = loaded
     } catch (error) {
-      content.value = {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Failed to load preview',
+      if (!cached && activeTab.value === tabId) {
+        content.value = {
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to load preview',
+        }
       }
     }
   }
@@ -92,8 +111,7 @@ export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
     { immediate: true },
   )
 
-  watch(cell, () => {
-    cache.clear()
+  watch(cellSnapshot, () => {
     if (activeTab.value !== CODE_TAB_ID && activeTab.value !== LOGS_TAB_ID) {
       void loadOutput(activeTab.value)
     }

@@ -64,6 +64,7 @@ import {
   Copy,
   Download,
   EllipsisVertical,
+  ExternalLink,
   Maximize2,
   Notebook,
   Pencil,
@@ -75,12 +76,14 @@ import {
 import { deleteCellConfirmOptions } from '@/confirm/confirm'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
+import { useAuthStore } from '@/store/auth'
 import { useDownload } from '@/hooks/useDownload'
 import { CELL_HEADER_MENU_PT, CELL_NAME_UNSAFE } from '@/components/notebooks/cell/cell.const'
 
 const props = defineProps<NotebookCellHeaderProps>()
 
 const flowStore = useFlowStore()
+const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
 const { download } = useDownload()
@@ -200,6 +203,40 @@ function onDelete() {
   confirm.require(deleteCellConfirmOptions(onDeleteConfirm, props.cell.slug))
 }
 
+function experimentOutputName(): string | undefined {
+  return Object.entries(props.cell.kinds).find(([, kind]) => kind === 'experiment')?.[0]
+}
+
+async function onOpenInExperiments() {
+  const output = experimentOutputName()
+  if (!output) return
+  try {
+    const asset = await flowStore.fetchAssetPreview(props.cell.slug, output)
+    if (!asset.tracker?.url) {
+      toast.add(errorToast(new Error('This experiment has not been tracked yet')))
+      return
+    }
+    window.open(asset.tracker.url, '_blank')
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
+}
+
+async function onPromoteToLuml() {
+  const output = experimentOutputName()
+  if (!output) return
+  try {
+    const asset = await flowStore.fetchAssetPreview(props.cell.slug, output)
+    if (asset.tracker?.state !== 'ok') {
+      toast.add(errorToast(new Error('This experiment has not been tracked yet')))
+      return
+    }
+    if (await authStore.ensureAuth()) flowStore.setUploadExperimentId(asset.tracker.id)
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
+}
+
 async function onDeleteConfirm() {
   try {
     await flowStore.deleteCell(props.cell.slug)
@@ -236,7 +273,18 @@ const menuItems: CellHeaderMenuItem[] = [
   },
   { separator: true },
   { label: 'Send to agent', glyph: Send, command: onSendToAgent },
-  { label: 'Promote to LUML', glyph: CloudUpload, command: () => console.log('Promote to LUML') },
+  {
+    label: 'Open in Experiments',
+    glyph: ExternalLink,
+    visible: () => experimentOutputName() !== undefined,
+    command: onOpenInExperiments,
+  },
+  {
+    label: 'Promote to LUML',
+    glyph: CloudUpload,
+    visible: () => experimentOutputName() !== undefined,
+    command: onPromoteToLuml,
+  },
   { label: 'Download', glyph: Download, command: onDownload },
   { separator: true },
   {

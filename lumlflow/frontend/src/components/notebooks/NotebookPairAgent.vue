@@ -1,7 +1,7 @@
 <template>
   <div class="pair-agent">
     <Tag :value="tagValue" :severity="tagSeverity" />
-    <button type="button" class="toolbar-pair-button" @click="openDialog">Pair an agent</button>
+    <button type="button" class="toolbar-pair-button" @click="openDialog">{{ buttonLabel }}</button>
 
     <Dialog
       v-model:visible="visible"
@@ -82,6 +82,11 @@ const tagValue = computed(() =>
   flowStore.pairedAgentLabel ? `${flowStore.pairedAgentLabel} paired` : 'Unpaired',
 )
 const tagSeverity = computed(() => (flowStore.pairedAgentLabel ? 'success' : 'secondary'))
+
+const buttonLabel = computed(() => {
+  if (flowStore.pairedAgentLabel) return 'Change agent'
+  return 'Pair an agent'
+})
 
 function openDialog() {
   selectedAgentId.value = agentIdForLabel(flowStore.pairedAgentLabel)

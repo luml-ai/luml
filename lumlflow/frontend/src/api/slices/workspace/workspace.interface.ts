@@ -189,6 +189,19 @@ export interface StoredPreview {
   truncated: boolean
 }
 
+export type AssetTrackerState = 'ok' | 'missing' | 'unreachable'
+
+export interface AssetTracker {
+  id: string
+  group: string
+  state: AssetTrackerState
+  url: string | null
+  store: string
+  tags: string[]
+  sentence: string
+  recorded_step: number | null
+}
+
 export interface AssetPreview {
   flow: string
   branch: string
@@ -199,6 +212,7 @@ export interface AssetPreview {
   size: number | null
   persisted: boolean | null
   preview: StoredPreview | null
+  tracker: AssetTracker | null
 }
 
 export interface CellSummary {

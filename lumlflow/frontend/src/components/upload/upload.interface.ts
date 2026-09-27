@@ -1,4 +1,3 @@
-import type { Model } from '@/store/experiments/experiments.interface'
 import type { FormInstance } from '@primevue/forms'
 
 export enum UploadTypeEnum {
@@ -56,7 +55,6 @@ export interface UploadedArtifactInfo {
 
 export interface UploadModalProps {
   experimentId: string
-  models: Model[]
 }
 
 export interface CollectionFieldProps {

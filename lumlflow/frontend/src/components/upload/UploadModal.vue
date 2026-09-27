@@ -1,9 +1,4 @@
 <template>
-  <Button label="Upload to LUML" severity="secondary" @click="uploadClick" :loading="loading">
-    <template #icon>
-      <CloudUploadIcon :size="14" />
-    </template>
-  </Button>
   <Dialog v-model:visible="visible" header="upload to LUML" modal :pt="DIALOG_PT">
     <Form
       id="upload-form"
@@ -120,12 +115,10 @@ import {
   useToast,
   ProgressBar,
 } from 'primevue'
-import { CloudUploadIcon } from 'lucide-vue-next'
 import { reactive, watch } from 'vue'
 import { ref } from 'vue'
 import { FormField, Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import { DIALOG_PT, resolver, selectTypeOptions } from './data'
-import { useAuthStore } from '@/store/auth'
 import { errorToast, successToast } from '@/toasts'
 import { apiService } from '@/api/api.service'
 import { useUpload } from '@/hooks/useUpload'
@@ -134,7 +127,6 @@ import CollectionField from './CollectionField.vue'
 
 const props = defineProps<UploadModalProps>()
 
-const authStore = useAuthStore()
 const toast = useToast()
 const { progress, loading: uploadLoading, error, complete, upload } = useUpload()
 
@@ -152,7 +144,6 @@ const initialValues = reactive({
 const formRef = ref<FormInstance>()
 
 const visible = defineModel<boolean>('visible')
-const loading = ref<boolean>(false)
 
 const organizations = ref<OrganizationInfo[]>([])
 const organizationsLoading = ref<boolean>(false)
@@ -163,23 +154,6 @@ const orbitsLoading = ref<boolean>(false)
 const existingTags = ref<string[]>([])
 
 const lmlUrl = import.meta.env.VITE_LUML_URL
-
-function openModal() {
-  visible.value = true
-}
-
-async function uploadClick() {
-  loading.value = true
-  try {
-    const isAuthenticated = await authStore.checkAuth()
-    if (isAuthenticated) openModal()
-    else authStore.showApiKeyModal()
-  } catch (error) {
-    toast.add(errorToast(error))
-  } finally {
-    loading.value = false
-  }
-}
 
 async function getOrganizations() {
   try {

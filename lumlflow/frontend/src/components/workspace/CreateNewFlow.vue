@@ -22,12 +22,10 @@
       >
         <FormField v-slot="$field" name="name">
           <label for="name" class="inline-block mb-2 required">Name</label>
-          <InputText
-            v-model="initialValues.name"
-            id="name"
-            fluid
-            :placeholder="`Name your flow ${FLOW_FILE_EXTENSION}`"
-          />
+          <InputGroup>
+            <InputText v-model="initialValues.name" id="name" fluid placeholder="Name your flow" />
+            <InputGroupAddon>{{ FLOW_FILE_EXTENSION }}</InputGroupAddon>
+          </InputGroup>
           <Message v-if="$field?.invalid" severity="error" size="small" variant="simple">
             {{ $field.error?.message }}
           </Message>
@@ -50,7 +48,7 @@
 
 <script setup lang="ts">
 import type { DialogPassThroughOptions } from 'primevue'
-import { Button, Dialog, InputText, Message } from 'primevue'
+import { Button, Dialog, InputGroup, InputGroupAddon, InputText, Message } from 'primevue'
 import { Plus } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
@@ -94,15 +92,12 @@ const resolver: ReturnType<typeof zodResolver> = zodResolver(
     name: z
       .string()
       .min(1)
-      .max(255)
-      .refine((name) => name.endsWith(FLOW_FILE_EXTENSION), {
-        message: `Name must end with ${FLOW_FILE_EXTENSION}`,
-      })
+      .max(255 - FLOW_FILE_EXTENSION.length)
       .superRefine((name, ctx) => {
-        if (props.existingNames.includes(name)) {
+        if (props.existingNames.includes(`${name}${FLOW_FILE_EXTENSION}`)) {
           ctx.addIssue({
             code: 'custom',
-            message: `"${name}" already exists`,
+            message: `"${name}${FLOW_FILE_EXTENSION}" already exists`,
           })
         }
       }),
@@ -132,7 +127,7 @@ function submit(event: FormSubmitEvent) {
   if (!event.valid) return
 
   const values = event.values as typeof initialValues.value
-  createFlow(values.name)
+  createFlow(`${values.name}${FLOW_FILE_EXTENSION}`)
 }
 
 async function createFlow(name: string) {

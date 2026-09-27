@@ -119,6 +119,7 @@ export const useFlowStore = defineStore('flow', () => {
 
   const selectedCellId = ref<string | null>(null)
   const expandedCellId = ref<string | null>(null)
+  const uploadExperimentId = ref<string | null>(null)
 
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
@@ -150,6 +151,10 @@ export const useFlowStore = defineStore('flow', () => {
 
   function setExpandedCellId(id: string | null) {
     expandedCellId.value = id
+  }
+
+  function setUploadExperimentId(id: string | null) {
+    uploadExperimentId.value = id
   }
 
   async function pairAgent(agent: PairableAgentInterface) {
@@ -210,11 +215,11 @@ export const useFlowStore = defineStore('flow', () => {
   let stopCascadeFrame: (() => void) | null = null
   let cascadeSettleTimer: ReturnType<typeof setTimeout> | null = null
 
-  function scheduleCellsRefetch() {
+  function scheduleLiveRefetch() {
     if (cascadeSettleTimer !== null) clearTimeout(cascadeSettleTimer)
     cascadeSettleTimer = setTimeout(() => {
       cascadeSettleTimer = null
-      void fetchCells()
+      void fetchBranches()
     }, 250)
   }
 
@@ -242,7 +247,7 @@ export const useFlowStore = defineStore('flow', () => {
         if (frame.type === 'lagged') return
         if (frame.flow !== opened.path) return
         if (frame.type === 'state') return
-        scheduleCellsRefetch()
+        scheduleLiveRefetch()
       })
       stream.connect()
       stream.watchJournal(opened.path, opened.flow_id)
@@ -349,7 +354,11 @@ export const useFlowStore = defineStore('flow', () => {
 
   async function fetchAssetPreview(slug: string, output?: string): Promise<AssetPreview> {
     const target = output ? `${slug}.${output}` : slug
-    return workspaceApi.assetPreview(target, currentFlow.value ?? undefined, currentBranch.value?.branch)
+    return workspaceApi.assetPreview(
+      target,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
   }
 
   async function fetchCellLogs(slug: string): Promise<string | null> {
@@ -486,6 +495,7 @@ export const useFlowStore = defineStore('flow', () => {
     isJournalLoading.value = false
     selectedCellId.value = null
     expandedCellId.value = null
+    uploadExperimentId.value = null
   }
 
   return {
@@ -539,6 +549,8 @@ export const useFlowStore = defineStore('flow', () => {
     selectCell,
     expandedCellId,
     setExpandedCellId,
+    uploadExperimentId,
+    setUploadExperimentId,
     pairedAgentLabel,
     pairAgent,
   }
