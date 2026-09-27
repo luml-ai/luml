@@ -26,8 +26,15 @@
       </Button>
     </div>
 
-    <UiCodeEditor v-if="isEditing" v-model="draftSource" :aria-label="`source of ${props.slug}`" />
-    <pre v-else class="code-output">{{ source }}</pre>
+    <UiCodeEditor
+      v-if="isEditing"
+      v-model="draftSource"
+      :aria-label="`source of ${props.slug}`"
+      :max-height="props.fullHeight ? 'none' : '18rem'"
+    />
+    <pre v-else class="code-output" :style="{ maxHeight: props.fullHeight ? 'none' : '18rem' }">
+      {{ source }}
+    </pre>
   </div>
 </template>
 

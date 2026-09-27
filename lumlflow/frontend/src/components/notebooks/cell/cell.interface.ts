@@ -51,6 +51,7 @@ export interface NotebookLogsProps {
 
 export interface NotebookCodeProps {
   slug: string
+  fullHeight?: boolean
 }
 
 export interface NotebookOutputProps {

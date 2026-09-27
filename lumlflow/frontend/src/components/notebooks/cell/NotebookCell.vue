@@ -7,7 +7,11 @@
           <AccordionPanel value="code" :pt="ACCORDION_PANEL_PT">
             <AccordionHeader :pt="ACCORDION_HEADER_PT">Code</AccordionHeader>
             <AccordionContent :pt="ACCORDION_CONTENT_PT">
-              <NotebookCode v-if="activePanels.includes('code')" :slug="cell.slug" />
+              <NotebookCode
+                v-if="activePanels.includes('code')"
+                :slug="cell.slug"
+                :full-height="true"
+              />
             </AccordionContent>
           </AccordionPanel>
           <AccordionPanel value="logs" :pt="ACCORDION_PANEL_PT">
@@ -16,7 +20,12 @@
               <NotebookLogs v-if="activePanels.includes('logs')" :slug="cell.slug" />
             </AccordionContent>
           </AccordionPanel>
-          <AccordionPanel v-for="output in outputs" :key="output.name" :value="output.name" :pt="ACCORDION_PANEL_PT">
+          <AccordionPanel
+            v-for="output in outputs"
+            :key="output.name"
+            :value="output.name"
+            :pt="ACCORDION_PANEL_PT"
+          >
             <AccordionHeader :pt="ACCORDION_HEADER_PT">{{ output.label }}</AccordionHeader>
             <AccordionContent :pt="ACCORDION_CONTENT_PT">
               <NotebookOutput
@@ -51,7 +60,7 @@ import NotebookLogs from '@/components/notebooks/cell/NotebookLogs.vue'
 
 const props = defineProps<NotebookCellProps>()
 
-const activePanels = ref<string[]>([])
+const activePanels = ref<string[]>(['code'])
 
 const outputs = computed(() =>
   Object.keys(props.cell.kinds).map((name) => ({ name, label: capitalize(name) })),
