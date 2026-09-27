@@ -2,6 +2,15 @@
   <div class="pair-agent">
     <Tag :value="tagValue" :severity="tagSeverity" />
     <button type="button" class="toolbar-pair-button" @click="openDialog">{{ buttonLabel }}</button>
+    <button
+      v-tooltip.bottom="COPY_COMMAND_TOOLTIP"
+      type="button"
+      class="toolbar-copy-button"
+      aria-label="Copy agent connection command"
+      @click="copyConnectCommand"
+    >
+      <Copy :size="14" />
+    </button>
 
     <Dialog
       v-model:visible="visible"
@@ -49,6 +58,7 @@ import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
 import { NOTEBOOK_PAIRABLE_AGENTS } from '@/components/notebooks/notebooks.const'
+import { Copy } from 'lucide-vue-next'
 
 function agentIdForLabel(label: string | null): string | null {
   if (!label) return null
@@ -69,6 +79,9 @@ const DIALOG_PT: DialogPassThroughOptions = {
     class: 'pb-7',
   },
 }
+
+const COPY_COMMAND_TOOLTIP =
+  'Copy the command to connect your agent to this flow. Replace {your_agent} with your agent name before running it.'
 
 const toast = useToast()
 
@@ -98,6 +111,19 @@ function onVisibleChange(value: boolean) {
   selectedAgentId.value = agentIdForLabel(flowStore.pairedAgentLabel)
 }
 
+const connectCommand = computed(
+  () => `lumlflow agent begin --label {your_agent} --flow ${flowStore.currentFlow ?? ''}`,
+)
+
+async function copyConnectCommand() {
+  try {
+    await navigator.clipboard.writeText(connectCommand.value)
+    toast.add(successToast('Agent connection command copied to clipboard'))
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
+}
+
 async function onPair() {
   const agent = NOTEBOOK_PAIRABLE_AGENTS.find((agent) => agent.id === selectedAgentId.value)
   if (!agent) return
@@ -122,6 +148,9 @@ async function onPair() {
   @apply flex items-center gap-2;
 }
 .toolbar-pair-button {
+  @apply text-primary cursor-pointer hover:text-primary-600 transition-colors p-1;
+}
+.toolbar-copy-button {
   @apply text-primary cursor-pointer hover:text-primary-600 transition-colors p-1;
 }
 .agent-option {
