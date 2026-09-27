@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import DeploymentsCreateModal from './DeploymentsCreateModal.vue'
 
 const deploymentsStore = {
@@ -28,10 +29,17 @@ const formStub = {
   template: '<form data-testid="deployment-form"><slot /></form>',
 }
 
+const modelSettingsStub = {
+  name: 'DeploymentsFormModelSettings',
+  props: ['modelId'],
+  emits: ['update:modelId', 'modelChanged'],
+  template: '<div />',
+}
+
 const satelliteSettingsStub = {
   name: 'DeploymentsFormSatelliteSettings',
-  props: ['fields'],
-  emits: ['update:fields'],
+  props: ['fields', 'satelliteId'],
+  emits: ['update:fields', 'update:satelliteId'],
   template: '<button data-testid="seed-fields" @click="$emit(\'update:fields\', seededFields)" />',
   data: () => ({ seededFields: [] }),
 }
@@ -45,7 +53,7 @@ function mountModal() {
         Button: { props: ['label'], template: '<button>{{ label }}</button>' },
         Form: formStub,
         DeploymentsFormBasicsSettings: true,
-        DeploymentsFormModelSettings: true,
+        DeploymentsFormModelSettings: modelSettingsStub,
         DeploymentsFormSatelliteSettings: satelliteSettingsStub,
       },
     },
@@ -54,7 +62,12 @@ function mountModal() {
 
 async function submitWithFields(fields: Record<string, unknown>[]) {
   const wrapper = mountModal()
+  const modelSettings = wrapper.getComponent(modelSettingsStub)
+  modelSettings.vm.$emit('update:modelId', 'model-1')
+  await nextTick()
+  modelSettings.vm.$emit('modelChanged', { id: 'model-1' })
   const settings = wrapper.getComponent(satelliteSettingsStub)
+  settings.vm.$emit('update:satelliteId', 'satellite-1')
   settings.vm.seededFields = fields
   await settings.get('[data-testid="seed-fields"]').trigger('click')
   wrapper.getComponent(formStub).vm.$emit('submit', { valid: true })
@@ -91,5 +104,67 @@ describe('DeploymentsCreateModal satellite parameters', () => {
       'orbit-1',
       expect.objectContaining({ satellite_parameters: {} }),
     )
+  })
+})
+
+function mountModalWithModelSettings() {
+  return mount(DeploymentsCreateModal, {
+    props: { visible: true },
+    global: {
+      stubs: {
+        Dialog: { template: '<div><slot name="header" /><slot /></div>' },
+        Form: {
+          name: 'Form',
+          data: () => ({ valid: true }),
+          template: '<form><slot /></form>',
+        },
+        Button: {
+          props: ['label', 'disabled'],
+          template: '<button :disabled="disabled">{{ label }}</button>',
+        },
+        DeploymentsFormBasicsSettings: true,
+        DeploymentsFormModelSettings: {
+          name: 'DeploymentsFormModelSettings',
+          props: ['modelId'],
+          template: '<div />',
+        },
+        DeploymentsFormSatelliteSettings: {
+          name: 'DeploymentsFormSatelliteSettings',
+          props: ['satelliteId', 'fields', 'monitoringEnabled', 'selectedModel'],
+          template: '<div />',
+        },
+      },
+    },
+  })
+}
+
+describe('DeploymentsCreateModal', () => {
+  it('clears the satellite and disables Deploy when the model changes', async () => {
+    const wrapper = mountModalWithModelSettings()
+    const modelSettings = wrapper.getComponent({ name: 'DeploymentsFormModelSettings' })
+    const satelliteSettings = wrapper.getComponent({ name: 'DeploymentsFormSatelliteSettings' })
+    const deployButton = () => wrapper.get('button[type="submit"]')
+
+    modelSettings.vm.$emit('update:modelId', 'model-a')
+    await nextTick()
+    modelSettings.vm.$emit('model-changed', { id: 'model-a' })
+    satelliteSettings.vm.$emit('update:satelliteId', 'satellite-a')
+    satelliteSettings.vm.$emit('update:fields', [{ key: 'field', value: 'old-value' }])
+    satelliteSettings.vm.$emit('update:monitoringEnabled', true)
+    await nextTick()
+
+    expect(satelliteSettings.props('satelliteId')).toBe('satellite-a')
+    expect(deployButton().attributes('disabled')).toBeUndefined()
+
+    modelSettings.vm.$emit('update:modelId', 'model-b')
+    await nextTick()
+
+    expect(satelliteSettings.props('satelliteId')).toBe('')
+    expect(satelliteSettings.props('fields')).toEqual([])
+    expect(satelliteSettings.props('monitoringEnabled')).toBe(false)
+    expect(satelliteSettings.props('selectedModel')).toBeNull()
+    expect(deployButton().attributes('disabled')).toBeDefined()
+
+    wrapper.unmount()
   })
 })

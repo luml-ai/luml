@@ -248,16 +248,17 @@ function addCustomVariable() {
   customVariables.value?.push({ key: '', value: '' })
 }
 
-async function onModelIdChange(modelId: string | null | undefined) {
+async function onModelIdChange(newModelId: string | null | undefined) {
   try {
-    if (modelId) {
+    if (newModelId) {
       if (!collectionId.value) throw new Error('Collection ID is required')
       const requestInfo = {
         organizationId: String(route.params.organizationId),
         orbitId: String(route.params.id),
         collectionId: collectionId.value,
       }
-      const model = await artifactsStore.getArtifact(modelId, requestInfo)
+      const model = await artifactsStore.getArtifact(newModelId, requestInfo)
+      if (modelId.value !== newModelId) return
       selectedModel.value = model
     } else {
       selectedModel.value = null
