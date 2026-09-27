@@ -71,6 +71,7 @@ onBeforeMount(async () => {
 })
 
 function onEdit() {
+  if (!flowStore.ensureOnLaneHead()) return
   draftSource.value = source.value
   isEditing.value = true
 }

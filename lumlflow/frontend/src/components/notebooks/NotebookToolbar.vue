@@ -48,6 +48,7 @@ const isRerunning = ref(false)
 const isStopping = ref(false)
 
 async function onRerunLane() {
+  if (!flowStore.ensureOnLaneHead()) return
   isRerunning.value = true
   try {
     const result = await flowStore.runLane()

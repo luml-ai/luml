@@ -109,6 +109,7 @@ function validateCellName(name: string): string | null {
 }
 
 async function onRename() {
+  if (!flowStore.ensureOnLaneHead()) return
   renameValue.value = props.cell.slug
   isRenaming.value = true
   await nextTick()
@@ -151,6 +152,7 @@ onClickOutside(headerRef, cancelRename)
 onKeyStroke('Escape', cancelRename)
 
 async function onDuplicate() {
+  if (!flowStore.ensureOnLaneHead()) return
   try {
     const newSlug = await flowStore.duplicateCell(props.cell.slug)
     flowStore.selectCell(newSlug)
@@ -161,6 +163,7 @@ async function onDuplicate() {
 }
 
 async function onAddCellDownstream() {
+  if (!flowStore.ensureOnLaneHead()) return
   try {
     const newSlug = await flowStore.addCellDownstream(props.cell.slug)
     flowStore.selectCell(newSlug)
@@ -200,6 +203,7 @@ async function onSendToAgent() {
 }
 
 function onDelete() {
+  if (!flowStore.ensureOnLaneHead()) return
   confirm.require(deleteCellConfirmOptions(onDeleteConfirm, props.cell.slug))
 }
 

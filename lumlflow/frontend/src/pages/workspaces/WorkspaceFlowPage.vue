@@ -21,6 +21,11 @@
       :cell="expandedCell"
       v-model:visible="isExpandedCellVisible"
     />
+    <CreateLaneDialog
+      :visible="flowStore.isLaneForkPromptVisible"
+      fork-required
+      @update:visible="flowStore.setLaneForkPromptVisible"
+    />
     <UploadModal
       v-model:visible="isUploadModalVisible"
       :experiment-id="flowStore.uploadExperimentId ?? ''"
@@ -41,6 +46,7 @@ import NotebookCanvasView from '@/components/notebooks/NotebookCanvasView.vue'
 import NotebookTerminalView from '@/components/notebooks/NotebookTerminalView.vue'
 import ExpandedCell from '@/components/notebooks/cell/ExpandedCell.vue'
 import UploadModal from '@/components/upload/UploadModal.vue'
+import CreateLaneDialog from '@/components/notebooks/lanes/CreateLaneDialog.vue'
 
 const route = useRoute()
 const flowStore = useFlowStore()

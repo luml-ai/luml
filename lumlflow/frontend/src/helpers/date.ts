@@ -24,3 +24,13 @@ export const dateToText = (dataString: string) => {
     pad(date.getSeconds())
   )
 }
+
+export const formatUpdatedAgo = (ts: string | null) => {
+  if (!ts) return ''
+  const elapsedMinutes = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000)
+  if (elapsedMinutes < 1) return 'just now'
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`
+  const elapsedHours = Math.floor(elapsedMinutes / 60)
+  if (elapsedHours < 24) return `${elapsedHours}h ago`
+  return `${Math.floor(elapsedHours / 24)}d ago`
+}

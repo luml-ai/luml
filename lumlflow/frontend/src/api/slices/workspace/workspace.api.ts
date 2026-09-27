@@ -5,6 +5,7 @@ import type {
   BranchTree,
   CancelledRun,
   CellContextPayload,
+  CheckpointedBranch,
   CellDetail,
   CellLogs,
   CellsPage,
@@ -24,6 +25,7 @@ import type {
   RanLane,
   RenamedCell,
   RenamedFlow,
+  RewoundBranch,
   SavedSettings,
   SwitchedBranch,
   WorkspaceListing,
@@ -134,6 +136,24 @@ export const workspaceApi = {
       name,
       from_branch: from,
       intent: `started ${name} from ${from}`,
+    }),
+
+  rewindBranch: (branch: string, toStep: number, flow?: string) =>
+    call<{ flow?: string; branch: string; to_step: number; intent: string }, RewoundBranch>(
+      'rewind',
+      {
+        ...(flow ? { flow } : {}),
+        branch,
+        to_step: toStep,
+        intent: `moved ${branch} to step ${toStep}`,
+      },
+    ),
+
+  checkpointBranch: (branch: string, intent: string, flow?: string) =>
+    call<{ flow?: string; branch: string; intent: string }, CheckpointedBranch>('checkpoint', {
+      ...(flow ? { flow } : {}),
+      branch,
+      intent,
     }),
 
   cellsList: (flow?: string, branch?: string) =>

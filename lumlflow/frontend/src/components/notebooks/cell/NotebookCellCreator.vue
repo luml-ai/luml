@@ -101,6 +101,7 @@ const visible = ref(false)
 const loading = ref(false)
 
 function openDialog() {
+  if (!flowStore.ensureOnLaneHead()) return
   visible.value = true
 }
 

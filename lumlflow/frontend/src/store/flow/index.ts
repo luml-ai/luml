@@ -18,22 +18,13 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useToast } from 'primevue'
 import { errorToast } from '@/toasts'
+import { formatUpdatedAgo } from '@/helpers/date'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FlowStream, streamToken } from '@/api/streams/flow'
 import type { StreamFrame } from '@/api/streams/flow'
 
 function formatStepCount(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
-
-function formatUpdatedAgo(ts: string | null): string {
-  if (!ts) return ''
-  const elapsedMinutes = Math.floor((Date.now() - new Date(ts).getTime()) / 60_000)
-  if (elapsedMinutes < 1) return 'just now'
-  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`
-  const elapsedHours = Math.floor(elapsedMinutes / 60)
-  if (elapsedHours < 24) return `${elapsedHours}h ago`
-  return `${Math.floor(elapsedHours / 24)}d ago`
 }
 
 function toLane(record: BranchRecord): INotebookLane {
@@ -46,6 +37,29 @@ function toLane(record: BranchRecord): INotebookLane {
     state: record.archived ? 'inactive' : 'active',
     current: record.checked_out,
   }
+}
+
+const NOT_A_POSITION_OPS = new Set([
+  'worktree_bound',
+  'cell_noted',
+  'flag_set',
+  'agent_begin',
+  'agent_end',
+  'workspace_code_changed',
+  'env_changed',
+  'branch_archived',
+  'checkpointed',
+  'rewound',
+])
+
+function isPosition(transaction: JournalTransaction): boolean {
+  if (transaction.actor === 'auto') return false
+  if (!transaction.ops.length) return true
+  return !transaction.ops.every((op) => NOT_A_POSITION_OPS.has(op.op))
+}
+
+function isPointMark(transaction: JournalTransaction): boolean {
+  return transaction.ops.length > 0 && transaction.ops.every((op) => op.op === 'checkpointed')
 }
 
 function assetTypeFromKind(kind: string | undefined): NotebookAssetType {
@@ -117,6 +131,8 @@ export const useFlowStore = defineStore('flow', () => {
   const journal = ref<JournalTransaction[]>([])
   const isJournalLoading = ref(false)
 
+  const isLaneForkPromptVisible = ref(false)
+
   const selectedCellId = ref<string | null>(null)
   const expandedCellId = ref<string | null>(null)
   const uploadExperimentId = ref<string | null>(null)
@@ -133,13 +149,51 @@ export const useFlowStore = defineStore('flow', () => {
       .sort((a, b) => b.step - a.step)
   })
 
+  const currentBranchSteps = computed(() => currentBranchActivities.value.filter(isPosition))
+
+  const currentBranchPoints = computed(() => {
+    const points = new Map<number, string>()
+    let lastPositionStep: number | undefined
+    for (const transaction of [...currentBranchActivities.value].reverse()) {
+      if (isPointMark(transaction)) {
+        // Marks written before they folded name no step and ride the position before them.
+        const step = transaction.ops[0]?.step ?? lastPositionStep
+        if (step !== undefined) points.set(step, transaction.intent)
+        continue
+      }
+      if (isPosition(transaction)) lastPositionStep = transaction.step
+    }
+    return points
+  })
+
+  const currentHeadStep = computed(() => {
+    console.log(currentBranch.value)
+    return currentBranch.value?.head_step ?? null
+  })
+
+  // After a rewind the lane stands behind its newest step; changing state there
+  // would rewrite its history, so a change has to go on a new lane instead.
+  const isBehindLaneHead = computed(() => {
+    const branch = currentBranch.value
+    return !!branch && branch.head_step < branch.newest_step
+  })
+
   const currentBranchFamilyLine = computed(() => {
     const branch = currentBranch.value
-    if (!branch) return ''
+    if (!branch || currentHeadStep.value === null) return ''
     if (branch.parent === null || branch.parent_step === null) return 'root lane'
-    const headStep = branch.last_intent?.step ?? branch.forked_at_step
-    return `started from ${branch.parent} · ${formatStepCount(headStep - branch.parent_step, 'step')} ago`
+    return `started from ${branch.parent} · ${formatStepCount(currentHeadStep.value - branch.parent_step, 'step')} ago`
   })
+
+  function ensureOnLaneHead(): boolean {
+    if (!isBehindLaneHead.value) return true
+    isLaneForkPromptVisible.value = true
+    return false
+  }
+
+  function setLaneForkPromptVisible(visible: boolean) {
+    isLaneForkPromptVisible.value = visible
+  }
 
   function toggleSidebar() {
     isSidebarOpened.value = !isSidebarOpened.value
@@ -442,11 +496,29 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchCells()
   }
 
-  async function createLane(name: string) {
+  async function createLane(name: string, options: { switchTo?: boolean } = {}) {
     const from = currentBranch.value?.branch
     if (!from) throw new Error('No branch to fork from')
     await workspaceApi.forkBranch(name, from, currentFlow.value ?? undefined)
+    if (options.switchTo) {
+      await switchBranch(name)
+    } else {
+      await fetchBranches()
+    }
+  }
+
+  async function rewindBranch(step: number) {
+    const branch = currentBranch.value?.branch
+    if (!branch) throw new Error('No branch to rewind')
+    await workspaceApi.rewindBranch(branch, step, currentFlow.value ?? undefined)
     await fetchBranches()
+  }
+
+  async function createPoint(name: string) {
+    const branch = currentBranch.value?.branch
+    if (!branch) throw new Error('No branch to mark')
+    await workspaceApi.checkpointBranch(branch, name, currentFlow.value ?? undefined)
+    await fetchJournal()
   }
 
   async function runLane(): Promise<RanLane> {
@@ -489,6 +561,7 @@ export const useFlowStore = defineStore('flow', () => {
     currentFlow.value = null
     isBranchesLoading.value = false
     isSwitchingBranch.value = false
+    isLaneForkPromptVisible.value = false
     cells.value = []
     isCellsLoading.value = false
     journal.value = []
@@ -518,11 +591,20 @@ export const useFlowStore = defineStore('flow', () => {
     laneTree,
     currentBranch,
     currentBranchFamilyLine,
+    currentHeadStep,
+    currentBranchSteps,
+    isBehindLaneHead,
+    isLaneForkPromptVisible,
+    ensureOnLaneHead,
+    setLaneForkPromptVisible,
+    currentBranchPoints,
     isBranchesLoading,
     isSwitchingBranch,
     fetchBranches,
     switchBranch,
     createLane,
+    rewindBranch,
+    createPoint,
     runLane,
     stopSession,
     reset,

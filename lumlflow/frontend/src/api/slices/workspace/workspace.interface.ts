@@ -45,6 +45,8 @@ export interface BranchRecord {
   archived: boolean
   checked_out: boolean
   cells: number
+  head_step: number
+  newest_step: number
   last_intent: BranchLastIntent | null
   agent: string | null
 }
@@ -62,6 +64,20 @@ export interface SwitchedBranch {
 export interface ForkedBranch {
   branch: string
   from_branch: string
+}
+
+export interface RewoundBranch {
+  rewound_branch: string
+  to_step: number
+  cells: number
+}
+
+export interface CheckpointedBranch {
+  branch: string
+  step: number
+  intent: string
+  ts: string
+  settled: boolean
 }
 
 export interface AgentSession {
@@ -180,7 +196,13 @@ export interface FileBlock {
   content_type: string
 }
 
-export type PreviewBlock = TableBlock | SeriesBlock | ImageBlock | MarkdownBlock | KvBlock | FileBlock
+export type PreviewBlock =
+  | TableBlock
+  | SeriesBlock
+  | ImageBlock
+  | MarkdownBlock
+  | KvBlock
+  | FileBlock
 
 export interface StoredPreview {
   schema: number
@@ -276,6 +298,7 @@ export interface DeletedCell {
 
 export interface JournalTransactionOp {
   op: string
+  step?: number | null
 }
 
 export interface JournalTransaction {

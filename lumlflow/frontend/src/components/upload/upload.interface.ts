@@ -67,8 +67,6 @@ export interface UploadModalProps {
   experimentId?: string
   /** Kept for the Experiments overview, which lists them; the upload itself reads them off the tracker. */
   models?: Model[]
-  /** The host renders its own trigger and calls the exposed `open()`. */
-  hideTrigger?: boolean
   /**
    * A model that is not on the tracker: a flow cell's. The host packages and
    * sends it; the dialog only asks where in LUML it goes. The type switch and

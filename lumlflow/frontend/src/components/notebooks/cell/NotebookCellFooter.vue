@@ -55,6 +55,7 @@ const subtitle = computed(() => {
 const isRunning = ref(false)
 
 async function onRunCell() {
+  if (!flowStore.ensureOnLaneHead()) return
   isRunning.value = true
   try {
     const result = await flowStore.runCell(props.cell.slug)
