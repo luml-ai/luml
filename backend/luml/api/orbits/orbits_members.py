@@ -33,7 +33,12 @@ async def get_orbit_members(
     )
 
 
-@orbit_members_router.post("", responses=endpoint_responses, response_model=OrbitMember)
+@orbit_members_router.post(
+    "",
+    responses=endpoint_responses,
+    response_model=OrbitMember,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_member_to_orbit(
     request: Request, organization_id: UUID, member: OrbitMemberCreate
 ) -> OrbitMember:
