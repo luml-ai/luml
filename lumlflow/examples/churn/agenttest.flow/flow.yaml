@@ -1,0 +1,17 @@
+flow_id: 01M36THVMCV04SXFMWK4SNFJ9E
+name: agenttest
+language: python
+cells:
+  load_data: 01M36TK77ZV7D7J2J952KZ55VN
+  split: 01M36TK791T6KY1F3RX65QC78J
+  features: 01M36TK79XXJY52X4Q95GAZ55H
+  train_model: 01M36TK7ATD6Z1RER02GED8YP0
+  evaluate: 01M36TK7BS5TC26E92RQWD26V1
+  feature_importance: 01M36TNFS0D0TGAF6KK9PX632E
+  untitled_1: 01M36TX0QFZ45E5AFSPAZSDQZC
+  trace_inference: 01M36VS713F4JW29MD0SJ741RB
+  eval_predictions: 01M372T067TDD3BN60GKVGXF0H
+settings:
+  eager_cost_threshold_s: 5.0
+  reactivity: auto
+  eager: []

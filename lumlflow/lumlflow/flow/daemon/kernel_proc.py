@@ -205,6 +205,33 @@ class KernelProcess:
         )
         return dict(result or {})
 
+    async def export_model(
+        self,
+        value_ref: str,
+        kind: str,
+        *,
+        destination: Path,
+        sample: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Package a stored model as the bundle LUML takes.
+
+        Only the kernel can: the flavor that trained the model lives in the
+        flow's venv, not the daemon's. No deadline — capturing a model's
+        dependencies takes as long as the environment is large.
+        """
+        await self.ensure_started()
+        result = await self._call(
+            "export_model",
+            {
+                "value_ref": value_ref,
+                "kind": kind,
+                "destination": str(destination),
+                "sample": sample,
+            },
+            timeout=None,
+        )
+        return dict(result or {})
+
     async def eval(
         self,
         branch_slice: dict[str, dict[str, str]],
@@ -679,6 +706,9 @@ def spawn_environment(
         "PYTHONUNBUFFERED": "1",
         "LUMLFLOW_DAEMON_SDK_VERSION": DAEMON_SDK_VERSION,
     }
+    # Cells run on a worker thread; a GUI matplotlib backend (macOS, Tk) can only
+    # draw on the main thread. A backend the workspace sets explicitly wins.
+    environment.setdefault("MPLBACKEND", "Agg")
     if tracker_store is not None:
         store = str(tracker_store.resolve())
         environment["BACKEND_STORE_URI"] = store

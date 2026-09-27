@@ -27,6 +27,8 @@ import type {
   CellSummary,
   MaterializedOutput,
   OutputSpec,
+  PublishedAsset,
+  PublishTarget,
 } from '@/flow/api/types'
 import type {
   ActorRef,
@@ -80,6 +82,12 @@ export interface LiveCellHandle {
   /** Pull the run's log artifact even when the reader is not on the logs tab. */
   readLogs: () => void
   downloadUrl: (output: string) => string
+  /**
+   * Send a stored model output to LUML. The daemon packages it in the kernel
+   * and answers with the upload job; a refusal is thrown to the caller, whose
+   * dialog is the one place it can be read.
+   */
+  publish: (output: string, target: PublishTarget) => Promise<PublishedAsset>
   /** The last refusal a gesture on this card met, in the daemon's words. */
   refusal: Ref<string | null>
 }
@@ -322,6 +330,15 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
     return session.downloadUrl(branch.value, `${slug.value}.${output}`)
   }
 
+  function publish(output: string, target: PublishTarget): Promise<PublishedAsset> {
+    return session.request('asset.publish', {
+      flow: flow(),
+      branch: branch.value,
+      target: `${slug.value}.${output}`,
+      ...target,
+    })
+  }
+
   const cell = computed<FlowCell>(() => {
     const built = build({
       summary: summary.value,
@@ -359,6 +376,7 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
       pull()
     },
     downloadUrl,
+    publish,
     refusal,
   }
 }

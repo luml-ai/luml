@@ -24,6 +24,10 @@
           />
         </span>
         <span class="text-sm font-normal text-muted-color">{{ familyLine }}</span>
+        <!-- Rewound and left there: the next change asks where it should go. -->
+        <span v-if="behind" data-testid="behind" class="text-sm font-normal text-muted-color">
+          at step {{ branch.headStep }} · {{ aheadLine }} · a change from here offers a new lane
+        </span>
         <span v-if="viewingOnly" class="text-sm font-normal text-muted-color">
           viewing · the files stay on <code class="font-mono">{{ worktreeBranch }}</code>
         </span>
@@ -118,7 +122,7 @@ const emit = defineEmits<{
   open: []
   'new-branch': []
   rewind: [step: number]
-  checkpoint: [intent: string]
+  checkpoint: [intent: string, step: number]
 }>()
 
 const ROOT_PT = { root: { class: 'w-full justify-start px-1.5 py-1 font-normal' } }
@@ -135,6 +139,23 @@ const familyLine = computed(() => {
 })
 
 const stepsLabel = computed(() => formatCount(props.branch.headStep, 'step'))
+
+/** Rewound and left there: the branch stands behind its newest step. */
+const behind = computed(
+  () => (props.branch.newestStep ?? props.branch.headStep) > props.branch.headStep,
+)
+
+/**
+ * The steps ahead of where it stands, counted from the timeline's own rows
+ * rather than from step numbers — those are flow-global and count every other
+ * lane's lines in between.
+ */
+const aheadLine = computed(() => {
+  const ahead = props.journal.filter((entry) => entry.step > props.branch.headStep).length
+  return ahead > 0
+    ? `${formatCount(ahead, 'step')} ahead`
+    : `behind its newest step ${props.branch.newestStep}`
+})
 
 const viewingOnly = computed(() => props.branch.name !== props.worktreeBranch)
 
@@ -162,8 +183,8 @@ function onRewind(step: number): void {
   emit('rewind', step)
 }
 
-function onCheckpoint(intent: string): void {
+function onCheckpoint(intent: string, step: number): void {
   steps.value?.hide()
-  emit('checkpoint', intent)
+  emit('checkpoint', intent, step)
 }
 </script>

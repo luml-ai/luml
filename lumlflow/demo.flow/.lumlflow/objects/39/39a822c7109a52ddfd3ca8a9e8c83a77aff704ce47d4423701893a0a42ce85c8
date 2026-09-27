@@ -1,0 +1,19 @@
+class Split:
+    """Hold out a test fraction of the rows."""
+    uid = "01M28ECKBZGF6543H8J7DABP66"
+
+    consumes = {"data": "load_data.data"}
+    produces = {"train": "asset", "test": "asset"}
+    params = {"test_size": 0.4, "seed": 42}
+
+    def materialize(self, ctx, data):
+        import numpy as np
+
+        ctx.seed()
+        rng = np.random.default_rng(self.params["seed"])
+        order = rng.permutation(len(data))
+        cut = int(len(data) * (1.0 - self.params["test_size"]))
+
+        train = data.iloc[order[:cut]].reset_index(drop=True)
+        test = data.iloc[order[cut:]].reset_index(drop=True)
+        return {"train": train, "test": test}

@@ -9,7 +9,9 @@
       class="flex flex-col gap-3"
       @submit="handleSubmit"
     >
+      <!-- Hidden, not unmounted: the form validates every field it registers, so `type` must stay one. -->
       <SelectButton
+        v-show="!publish"
         name="type"
         :options="selectTypeOptions"
         option-label="label"
@@ -52,6 +54,7 @@
         :organization-id="$form['organization']?.value"
         :orbit-id="$form['orbit']?.value"
         :form-ref="formRef"
+        :required-kinds="requiredKinds"
         @change-collection="handleChangeCollection"
       />
       <FormField name="name" class="flex flex-col gap-2">
@@ -67,7 +70,7 @@
         <UiTagsSelect id="tags" :items="existingTags" placeholder="Type to add tags" />
       </FormField>
       <FormField
-        v-show="$form['type']?.value === UploadTypeEnum.MODEL"
+        v-show="!publish && $form['type']?.value === UploadTypeEnum.MODEL"
         name="embedExperiment"
         class="flex items-center gap-2"
       >
@@ -101,6 +104,7 @@ import {
   type CollectionInfo,
   type OrbitInfo,
   type OrganizationInfo,
+  type PublishTarget,
   type UploadArtifactPayload,
   type UploadModalProps,
 } from './upload.interface'
@@ -115,8 +119,7 @@ import {
   useToast,
   ProgressBar,
 } from 'primevue'
-import { reactive, watch } from 'vue'
-import { ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { FormField, Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import { DIALOG_PT, resolver, selectTypeOptions } from './data'
 import { errorToast, successToast } from '@/toasts'
@@ -124,18 +127,21 @@ import { apiService } from '@/api/api.service'
 import { useUpload } from '@/hooks/useUpload'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 import CollectionField from './CollectionField.vue'
+import { requiredArtifactKinds } from './collectionTypes'
+import type { Model } from '@/store/experiments/experiments.interface'
 
 const props = defineProps<UploadModalProps>()
 
 const toast = useToast()
-const { progress, loading: uploadLoading, error, complete, upload } = useUpload()
+const { progress, loading: uploadLoading, error, complete, upload, follow } = useUpload()
 
 const initialValues = reactive({
-  type: 'auto',
+  // A cell's model has no experiment to bundle; the file the host packages is the model.
+  type: props.publish ? UploadTypeEnum.MODEL : UploadTypeEnum.AUTO,
   organization: null,
   orbit: null,
   collection: null,
-  name: '',
+  name: props.defaultName ?? '',
   description: '',
   tags: [],
   embedExperiment: true,
@@ -152,6 +158,29 @@ const orbits = ref<OrbitInfo[]>([])
 const orbitsLoading = ref<boolean>(false)
 
 const existingTags = ref<string[]>([])
+
+/**
+ * The tracker models decide what `auto` sends, so the dialog needs them
+ * before it can say which collections fit. The Experiments overview passes
+ * them in; a host that has only the experiment id (a flow cell) lets the
+ * dialog fetch them when it opens.
+ */
+const models = ref<Model[]>(props.models ?? [])
+watch(
+  () => props.models,
+  (value) => {
+    if (value) models.value = value
+  },
+)
+
+const requiredKinds = computed(() =>
+  props.publish
+    ? requiredArtifactKinds(UploadTypeEnum.MODEL, 1)
+    : requiredArtifactKinds(
+        (formRef.value?.states['type']?.value as UploadTypeEnum | undefined) ?? UploadTypeEnum.AUTO,
+        models.value.length,
+      ),
+)
 
 const lmlUrl = import.meta.env.VITE_LUML_URL
 
@@ -183,10 +212,27 @@ function handleChangeCollection(collection: CollectionInfo | undefined) {
 
 function handleSubmit(event: FormSubmitEvent) {
   if (!event.valid) return
+  if (props.publish) {
+    const target: PublishTarget = {
+      organization_id: event.values.organization,
+      orbit_id: event.values.orbit,
+      collection_id: event.values.collection,
+      artifact: {
+        name: event.values.name,
+        description: event.values.description,
+        tags: event.values.tags,
+      },
+    }
+    const publish = props.publish
+    follow(() => publish(target))
+    return
+  }
+  const experimentId = props.experimentId
+  if (!experimentId) return
   const payload: UploadArtifactPayload = {
     upload_type: event.values.type,
     embed_experiment: event.values.embedExperiment,
-    experiment_id: props.experimentId,
+    experiment_id: experimentId,
     organization_id: event.values.organization,
     orbit_id: event.values.orbit,
     collection_id: event.values.collection,
@@ -215,6 +261,14 @@ watch(
 
 watch(visible, async (value) => {
   if (value) {
+    const experimentId = props.experimentId
+    if (!props.models && experimentId) {
+      try {
+        models.value = await apiService.getExperimentModels(experimentId)
+      } catch (error) {
+        toast.add(errorToast(error))
+      }
+    }
     await getOrganizations()
   } else {
     organizations.value = []

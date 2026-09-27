@@ -1,0 +1,1 @@
+{"blocks":[{"block":"kv","entries":{"serialized with":"cloudpickle","type":"dict","value":"{'features': ['tenure_months', 'monthly_charges', 'support_tickets'], 'mean': array([29.91083333, 69.57954824,  1.16333…"}}],"kind":"pickle","schema":1,"truncated":false}

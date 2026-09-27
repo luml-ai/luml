@@ -11,6 +11,7 @@
       :can-move-up="canMoveUp"
       :can-move-down="canMoveDown"
       :detail-loaded="live.detailLoaded.value"
+      :publish-model="live.publish"
       @copy-context="onCopyContext"
       @tab="live.showing.value = $event"
       @expand="onExpand"
@@ -55,6 +56,7 @@
       :paging="live.paging.value"
       :downloading="downloading"
       :notice="notice"
+      :publish-model="live.publish"
       @tab="live.showing.value = `out:${$event}`"
       @page="onPage"
       @download="onDownload"
@@ -81,7 +83,7 @@ import type { CellSummary } from '@/flow/api/types'
 import { useCell } from '../../live/useCell'
 import type { PageMove } from '../../live/useCell'
 import type { FlowSessionHandle } from '../../live/useFlowSession'
-import { useFlowOps } from '../../live/useFlowOps'
+import { MoveCancelled, useFlowOps } from '../../live/useFlowOps'
 import type { FlowCell, Preflight } from '../../model/types'
 import NewBranchDialog from '../branch/NewBranchDialog.vue'
 import KernelStartHint from '../session/KernelStartHint.vue'
@@ -345,6 +347,12 @@ async function land(source: string, options: { force?: boolean }): Promise<void>
       notice.value = refused.message
       return
     }
+    // Stepped back from the change: the draft stays open, nothing to say.
+    if (refused instanceof MoveCancelled) {
+      editing.value = true
+      notice.value = null
+      return
+    }
     notice.value = said(refused)
   }
 }
@@ -356,6 +364,7 @@ async function onDelete(): Promise<void> {
       ? `${gone.dangling.join(', ')} now point at nothing on ${props.branch}`
       : null
   } catch (refused) {
+    if (refused instanceof MoveCancelled) return
     notice.value = said(refused)
   }
 }

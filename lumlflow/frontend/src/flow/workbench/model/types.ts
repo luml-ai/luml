@@ -430,7 +430,10 @@ export interface BranchInfo {
   forkedAtStep: number | null
   /** The parent's own step this branch copied; null on a root branch. */
   parentStep: number | null
+  /** The step the branch stands on. After a rewind, behind its newest one. */
   headStep: number
+  /** The branch's newest own step. Above `headStep` only while rewound. */
+  newestStep?: number
   lastIntent: string
   /** Fully materialized and consistent — a quality badge, never a gate. */
   settled: boolean
@@ -453,8 +456,11 @@ export type JournalKind =
   | 'edit'
   | 'note'
   | 'run'
-  | 'checkpoint'
   | 'fork'
+  /** The branch moved to a step. Read in the feed, never a position in the timeline. */
+  | 'rewind'
+  /** The files were bound to the branch. History, not a place in it. */
+  | 'checkout'
   | 'adopt'
   | 'rename'
   | 'delete'
@@ -475,6 +481,18 @@ export interface JournalEntry {
   /** Folded failed attempts: 'v3→v4 · 1 failed attempt'. */
   failedAttempts?: number
   settled?: boolean
+  /**
+   * The words somebody marked this step under. A mark rides on the step like
+   * a commit message on its commit: it is not a step of its own, and the
+   * entry's intent stays what it was.
+   */
+  mark?: string
+  /**
+   * Whether the branch can stand here: the line changed what the branch
+   * selects. A checkout, a note, a flag or an agent checking in is history
+   * the feed reads, not a row the timeline offers to move to.
+   */
+  position: boolean
 }
 
 // ---------------------------------------------------------------------------

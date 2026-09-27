@@ -224,6 +224,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'retrain on the bucketed features',
     kind: 'run',
+    position: true,
     summary: 'running `train_model` · epoch 21/24',
   },
   {
@@ -233,6 +234,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'retrain on the bucketed features',
     kind: 'edit',
+    position: true,
     summary: 'edited `train_model` · v6→v7',
   },
   {
@@ -242,6 +244,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'add tenure buckets to the feature set',
     kind: 'run',
+    position: true,
     summary: 'ran `features` · 4 cells marked stale',
     failedAttempts: 1,
   },
@@ -252,6 +255,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'add tenure buckets to the feature set',
     kind: 'edit',
+    position: true,
     summary: 'edited `features` · v11→v12',
   },
   {
@@ -261,6 +265,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'summarize the sweep outcome',
     kind: 'edit',
+    position: true,
     summary: 'wrote note `summary`',
     settled: true,
   },
@@ -271,6 +276,7 @@ export const journal: JournalEntry[] = [
     actor: user,
     intent: 'inspect the confident mistakes',
     kind: 'edit',
+    position: true,
     summary: 'created `error_analysis`',
   },
   {
@@ -280,6 +286,7 @@ export const journal: JournalEntry[] = [
     actor: user,
     intent: 'edits while lumlflow was stopped',
     kind: 'offline',
+    position: true,
     summary: 'offline window · the fine-grained edit sequence was not recorded',
   },
   {
@@ -289,6 +296,7 @@ export const journal: JournalEntry[] = [
     actor: user,
     intent: 'bump the tree budget before sweeping',
     kind: 'edit',
+    position: true,
     summary: 'edited `sweep_config` · v2→v3',
   },
   {
@@ -298,6 +306,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'sweep the learning rate',
     kind: 'fork',
+    position: true,
     summary: 'started exp/lr-3e4, exp/lr-1e3, exp/lr-3e3 from main',
   },
   {
@@ -307,6 +316,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'evaluate on holdout',
     kind: 'run',
+    position: true,
     summary: 'ran `holdout_eval`, `roc_curve` · settled',
     settled: true,
   },
@@ -317,6 +327,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'first full training pass',
     kind: 'run',
+    position: true,
     summary: 'ran `train_model` · val_auc 0.833',
     failedAttempts: 2,
   },
@@ -327,6 +338,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'wire the training cell',
     kind: 'rename',
+    position: true,
     summary: 'renamed `train` → `train_model` · 3 references rewired',
   },
   {
@@ -336,6 +348,7 @@ export const journal: JournalEntry[] = [
     actor: claude,
     intent: 'session start',
     kind: 'agent-begin',
+    position: true,
     summary: 'claude-1 registered on main',
   },
 ]

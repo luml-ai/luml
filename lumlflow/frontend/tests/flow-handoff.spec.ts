@@ -65,6 +65,8 @@ const BRANCHES = [
     archived: false,
     checked_out: true,
     agent: null,
+    head_step: 8,
+    newest_step: 8,
     last_intent: { step: 8, intent: 'ran features', actor: 'user', settled: true, ts: '' },
   },
   {
@@ -75,6 +77,8 @@ const BRANCHES = [
     archived: false,
     checked_out: false,
     agent: null,
+    head_step: 9,
+    newest_step: 9,
     last_intent: { step: 9, intent: 'forked sweep', actor: 'user', settled: false, ts: '' },
   },
 ]

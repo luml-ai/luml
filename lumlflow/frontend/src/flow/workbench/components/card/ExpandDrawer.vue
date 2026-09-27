@@ -90,6 +90,11 @@
             <ExternalLink :size="14" />
             open in Experiments
           </RouterLink>
+          <!-- The tracker record is what LUML takes; the cell is only where it was made. -->
+          <TrackerUploadLink
+            v-if="tracker.url && tracker.state === 'ok'"
+            :experiment-id="tracker.id"
+          />
         </div>
         <p v-if="trackerStateLine" class="text-muted-color">{{ trackerStateLine }}</p>
       </div>
@@ -114,6 +119,12 @@
           >
             <template #icon><Download :size="14" /></template>
           </Button>
+          <!-- A stored model goes to LUML from here, the way an experiment's does from its card. -->
+          <ModelUploadLink
+            v-if="publishModel && selectedOutput?.declared === 'model' && downloadUrl && !needsRun"
+            :publish="(target) => publishModel!(outputName, target)"
+            :default-name="`${cell.slug}.${outputName}`"
+          />
           <p v-if="selectedOutput?.neverPersisted" class="text-sm text-muted-color">
             declared not to persist. nothing stored to download.
           </p>
@@ -150,6 +161,9 @@ import { KIND_ICONS } from '../../ui/kinds'
 import TrackerStateBadge from '../../ui/TrackerStateBadge.vue'
 import RendererHost from '../../renderers/RendererHost.vue'
 import CellTabStrip, { type CellTab } from './CellTabStrip.vue'
+import TrackerUploadLink from '../../ui/TrackerUploadLink.vue'
+import ModelUploadLink from '../../ui/ModelUploadLink.vue'
+import type { PublishTarget } from '@/components/upload/upload.interface'
 
 /**
  * The card expanded into a full-height right drawer: the selected output at
@@ -168,6 +182,11 @@ const props = defineProps<{
   downloading?: boolean
   /** Where a download landed, or why one could not — the daemon's words. */
   notice?: string | null
+  /**
+   * Sends one stored model output to LUML. Absent on a gallery drawer, which
+   * has no session to package the value in.
+   */
+  publishModel?: (output: string, target: PublishTarget) => Promise<{ job_id: string }>
 }>()
 
 const emit = defineEmits<{

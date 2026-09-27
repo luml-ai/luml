@@ -1,0 +1,11 @@
+class Coefficients:
+    """Rank the fitted weights so the model reads at a glance."""
+    uid = '01M28ECKB9FNB48AB3BMZF3CRW'
+    consumes = {'model': 'train_model.model'}
+    produces = {'weights': 'asset'}
+
+    def materialize(self, ctx, model):
+        import pandas as pd
+        frame = pd.DataFrame({'feature': model['features'], 'weight': model['coef']})
+        frame['abs_weight'] = frame['weight'].abs()
+        return {'weights': frame.sort_values('abs_weight', ascending=False).reset_index(drop=True)}

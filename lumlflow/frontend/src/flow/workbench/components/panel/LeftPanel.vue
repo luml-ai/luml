@@ -11,7 +11,7 @@
         @open="emit('open-graph')"
         @new-branch="emit('new-branch')"
         @rewind="emit('rewind', $event)"
-        @checkpoint="emit('checkpoint', $event)"
+        @checkpoint="(intent, step) => emit('checkpoint', intent, step)"
       />
       <AgentTaskLine :paired="session.paired" :viewed-branch="viewedBranch" @pair="emit('pair')" />
     </div>
@@ -187,8 +187,8 @@ const emit = defineEmits<{
   'new-branch': []
   /** Move this branch back to a step it recorded — nothing recomputes. */
   rewind: [step: number]
-  /** Mark this point under the user's own words. */
-  checkpoint: [intent: string]
+  /** Mark the current step under the user's own words. */
+  checkpoint: [intent: string, step: number]
   pair: []
   'open-agents': []
   'setup-agents': [ids: string[], consent: boolean]
@@ -256,13 +256,14 @@ const sinceCursor = computed(() => props.journal.slice(0, split.value).filter(on
 const beforeCursor = computed(() => props.journal.slice(split.value).filter(onBranch))
 
 /**
- * What the timeline navigates: the steps that landed *on* this branch. The
- * feed below folds in the workspace-scoped lines too, because an env change is
- * context for a branch — but it is not a place this branch can be moved back
- * to, so it is not a row in a list of positions.
+ * What the timeline navigates: the places on this branch — the steps that
+ * changed what it selects. The feed below reads the whole history, this
+ * branch's and the workspace's: an env change, a checkout, a note or a rewind
+ * are context for the branch, not somewhere it can stand, so they are not rows
+ * in a list of positions.
  */
 const onThisBranch = computed(() =>
-  props.journal.filter((entry) => entry.branch === props.viewedBranch),
+  props.journal.filter((entry) => entry.branch === props.viewedBranch && entry.position),
 )
 
 const cellRows = computed<InventoryRow[]>(() =>

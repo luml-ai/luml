@@ -9,8 +9,10 @@
  * you are on**, at its head, and the screen lands on the new one, because
  * minting a branch and then leaving the user looking at its parent is a state
  * with nothing to say which is which. And **a checkpoint is a marker, not a
- * snapshot**: the store already keeps every version the step resolved to, so
- * the only thing the gesture carries is the user's own sentence.
+ * snapshot and not a step**: the store already keeps every version the step
+ * resolved to, so the only thing the gesture carries is the user's own
+ * sentence — and the sentence goes on the current step, the way a commit
+ * message rides on its commit, rather than adding a row to the timeline.
  */
 
 import { afterEach, describe, expect, it } from 'vitest'
@@ -45,6 +47,8 @@ function branchRecord(overrides: Partial<BranchRecord> & { branch: string }): Br
     cells: 1,
     states: { synced: 1 },
     checkpoint: null,
+    head_step: overrides.last_intent?.step ?? 14,
+    newest_step: overrides.last_intent?.step ?? 14,
     last_intent: {
       step: 14,
       ts: '2026-08-13T09:14:00Z',
@@ -151,8 +155,7 @@ function overlay(): string {
 
 async function clickOverlayButton(label: string): Promise<void> {
   const found = [...document.body.querySelectorAll('button')].find(
-    (node) =>
-      (node.textContent ?? '').includes(label) || node.getAttribute('aria-label') === label,
+    (node) => (node.textContent ?? '').includes(label) || node.getAttribute('aria-label') === label,
   )
   expect(found, `no overlay button reading "${label}"`).toBeTruthy()
   found?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -281,9 +284,7 @@ describe('the branch switcher is a shortcut, not a checkout', () => {
     await clickOverlayButton('use exp/lr-sweep here')
     await clickOverlayButton('use here')
 
-    expect(asked(live, 'switch')).toEqual([
-      expect.objectContaining({ branch: 'exp/lr-sweep' }),
-    ])
+    expect(asked(live, 'switch')).toEqual([expect.objectContaining({ branch: 'exp/lr-sweep' })])
     expect(asked(live, 'switch')[0]).not.toHaveProperty('force')
     wrapper.unmount()
   })
@@ -327,9 +328,10 @@ describe('a branch is created from the one being viewed', () => {
       },
     })
 
-    await wrapper.findAll('button').find((node) => node.text().includes('new lane'))?.trigger(
-      'click',
-    )
+    await wrapper
+      .findAll('button')
+      .find((node) => node.text().includes('new lane'))
+      ?.trigger('click')
     await settle()
     await typeInto('lane name', 'exp/from-panel')
     await clickOverlayButton('create lane')
@@ -423,8 +425,8 @@ describe('the step timeline is where a branch moves through its own history', ()
     await openTimeline(wrapper)
     await clickOverlayButton('step 12 · added features')
 
-    expect(overlay()).toContain('restores the cells')
-    expect(overlay()).toContain('rewrites the files to match')
+    expect(overlay()).toContain('stands at step 12 with the cells')
+    expect(overlay()).toContain('the files are rewritten to match')
     expect(asked(live, 'rewind')).toEqual([])
 
     await clickOverlayButton('rewind to step 12')
@@ -605,7 +607,7 @@ describe('a lane fork is visible from both sides', () => {
 
     await openTimeline(wrapper)
     await clickOverlayButton('step 12 · added features')
-    expect(overlay()).toContain('restores the cells')
+    expect(overlay()).toContain('stands at step 12 with the cells')
     await clickOverlayButton('rewind to step 12')
 
     expect(asked(live, 'rewind')).toEqual([
@@ -630,14 +632,61 @@ describe('a lane fork is visible from both sides', () => {
   })
 })
 
-describe('a checkpoint is a marker with the user words on it', () => {
-  it('marks from the lane identifier and reads the flagged row back from the stream', async () => {
+describe('a checkpoint is words on the current step, not a step of its own', () => {
+  /** `main`'s own steps as the stream served them, before anything was marked. */
+  const OWN = [
+    transaction(12, { branch: 'branch-main', actor: 'user', intent: 'added features' }),
+    transaction(14, { branch: 'branch-main', actor: 'user', intent: 'edited features' }),
+  ]
+
+  async function withOwnSteps(
+    options: { handlers?: Handlers } = {},
+  ): Promise<{ wrapper: VueWrapper; live: Attached }> {
+    const bench = await workbench(options)
+    for (const entry of OWN) {
+      bench.live.socket.deliver({
+        channel: 'journal',
+        type: 'transaction',
+        flow: FLOW,
+        step: entry.step,
+        transaction: entry,
+      })
+    }
+    await settle()
+    return bench
+  }
+
+  function stepRow(step: number): Element | null {
+    return (
+      [...document.body.querySelectorAll('[data-testid="step-row"]')].find((row) =>
+        row.getAttribute('aria-label')?.startsWith(`step ${step} ·`),
+      ) ?? null
+    )
+  }
+
+  /** The stream's line for a mark: it names the step, and its intent is the words. */
+  function markLine(step: number, onStep: number, intent: string) {
+    return {
+      channel: 'journal' as const,
+      type: 'transaction' as const,
+      flow: FLOW,
+      step,
+      transaction: transaction(step, {
+        branch: 'branch-main',
+        actor: 'user',
+        intent,
+        ops: [{ op: 'checkpointed' as const, branch_id: 'branch-main', step: onStep }],
+      }),
+    }
+  }
+
+  it('marks the current step from the lane identifier and reads the words back on that row', async () => {
     const intent = 'before I rewrite the scorer'
-    const { wrapper, live } = await workbench({
+    const { wrapper, live } = await withOwnSteps({
       handlers: {
         checkpoint: (params) => ({
           branch: 'main',
-          step: 15,
+          step: Number(params.step),
           intent: String(params.intent),
           ts: '2026-08-13T09:15:00Z',
           settled: false,
@@ -649,32 +698,27 @@ describe('a checkpoint is a marker with the user words on it', () => {
     expect(mark.exists()).toBe(true)
     await mark.trigger('click')
     await settle()
+    expect(overlay()).toContain('step 14')
+    expect(overlay()).toContain('adds no step')
     await typeInto('what this point is', intent)
     await clickOverlayButton('mark this point')
 
+    // The current step is what gets the words.
     expect(asked(live, 'checkpoint')).toEqual([
-      expect.objectContaining({ branch: 'main', intent }),
+      expect.objectContaining({ branch: 'main', intent, step: 14 }),
     ])
 
-    live.socket.deliver({
-      channel: 'journal',
-      type: 'transaction',
-      flow: FLOW,
-      step: 15,
-      transaction: transaction(15, {
-        branch: 'branch-main',
-        actor: 'user',
-        intent,
-        ops: [{ op: 'checkpointed', branch_id: 'branch-main' }],
-      }),
-    })
+    live.socket.deliver(markLine(15, 14, intent))
     await settle()
     await openTimeline(wrapper)
 
-    const row = document.body.querySelector(
-      `[data-testid="step-row"][aria-label="step 15 · ${intent}"]`,
-    )
-    expect(row).toBeTruthy()
+    // No row for step 15: the words sit on step 14, which reads under them and
+    // keeps what it did underneath.
+    expect(stepRow(15)).toBeNull()
+    const row = stepRow(14)
+    expect(row?.getAttribute('aria-label')).toBe(`step 14 · ${intent}`)
+    expect(row?.querySelector('[data-testid="step-mark"]')?.textContent).toBe(intent)
+    expect(row?.textContent).toContain('edited features')
     expect(row?.querySelector('.lucide-flag')).toBeTruthy()
     wrapper.unmount()
   })
@@ -684,7 +728,7 @@ describe('a checkpoint is a marker with the user words on it', () => {
       handlers: {
         checkpoint: (params) => ({
           branch: String(params.branch),
-          step: 15,
+          step: Number(params.step),
           intent: String(params.intent),
           ts: '2026-08-13T09:15:00Z',
           settled: false,
@@ -702,7 +746,7 @@ describe('a checkpoint is a marker with the user words on it', () => {
     await clickOverlayButton('mark this point')
 
     expect(asked(live, 'checkpoint')).toEqual([
-      expect.objectContaining({ branch: 'exp/lr-sweep', intent: 'baseline' }),
+      expect.objectContaining({ branch: 'exp/lr-sweep', intent: 'baseline', step: 10 }),
     ])
     expect(asked(live, 'switch')).toEqual([])
     wrapper.unmount()
@@ -720,8 +764,8 @@ describe('a checkpoint is a marker with the user words on it', () => {
     const field = document.body.querySelector<HTMLInputElement>(
       'input[aria-label="what this point is"]',
     )
-    const confirm = [...(field?.parentElement?.querySelectorAll('button') ?? [])].find(
-      (button) => button.textContent?.includes('mark this point'),
+    const confirm = [...(field?.parentElement?.querySelectorAll('button') ?? [])].find((button) =>
+      button.textContent?.includes('mark this point'),
     )
     expect(confirm).toBeInstanceOf(HTMLButtonElement)
     expect((confirm as HTMLButtonElement).disabled).toBe(true)
@@ -737,7 +781,7 @@ describe('a checkpoint is a marker with the user words on it', () => {
       handlers: {
         checkpoint: (params) => ({
           branch: 'main',
-          step: 15,
+          step: Number(params.step),
           intent: String(params.intent),
           ts: '2026-08-13T09:15:00Z',
           settled: false,
@@ -751,7 +795,7 @@ describe('a checkpoint is a marker with the user words on it', () => {
     await clickOverlayButton('mark this point')
 
     expect(asked(live, 'checkpoint')).toEqual([
-      expect.objectContaining({ branch: 'main', intent: 'before I rewrite the scorer' }),
+      expect.objectContaining({ branch: 'main', intent: 'before I rewrite the scorer', step: 14 }),
     ])
     wrapper.unmount()
   })
@@ -768,9 +812,110 @@ describe('a checkpoint is a marker with the user words on it', () => {
     wrapper.unmount()
   })
 
-  it('reads a marked step back as a flagged row in the timeline', async () => {
-    const { wrapper, live } = await workbench()
+  it('reads a mark on an older step back on that row, and the newest words win', async () => {
+    const { wrapper, live } = await withOwnSteps()
 
+    live.socket.deliver(markLine(15, 14, 'first words'))
+    live.socket.deliver(markLine(16, 14, 'before I rewrite the scorer'))
+    await settle()
+
+    await openTimeline(wrapper)
+
+    expect(stepRow(15)).toBeNull()
+    expect(stepRow(16)).toBeNull()
+    expect(stepRow(14)?.querySelector('[data-testid="step-mark"]')?.textContent).toBe(
+      'before I rewrite the scorer',
+    )
+    expect(overlay()).not.toContain('first words')
+    // Still the current step: the marking added nothing after it.
+    expect(stepRow(14)?.textContent).toContain('current')
+    wrapper.unmount()
+  })
+
+  it('rewinds to a marked step by clicking its row', async () => {
+    const { wrapper, live } = await withOwnSteps()
+
+    live.socket.deliver(markLine(15, 12, 'the one that scored'))
+    await settle()
+
+    await openTimeline(wrapper)
+    await clickOverlayButton('step 12 · the one that scored')
+    expect(overlay()).toContain('stands at step 12 with the cells')
+    await clickOverlayButton('rewind to step 12')
+
+    expect(asked(live, 'rewind')).toEqual([
+      expect.objectContaining({ branch: 'main', to_step: 12 }),
+    ])
+    wrapper.unmount()
+  })
+})
+
+describe('a rewound lane stands behind its newest step', () => {
+  const HISTORY = [
+    transaction(12, { branch: 'branch-main', actor: 'user', intent: 'added features' }),
+    transaction(13, { branch: 'branch-main', actor: 'claude-1', intent: 'ran features' }),
+    transaction(14, { branch: 'branch-main', actor: 'user', intent: 'edited features' }),
+  ]
+
+  /** `main` moved back to step 12; steps 13 and 14 are still its history. */
+  const REWOUND: BranchRecord[] = [
+    branchRecord({
+      branch: 'main',
+      checked_out: true,
+      head_step: 12,
+      newest_step: 14,
+      last_intent: {
+        step: 12,
+        ts: '2026-08-13T09:12:00Z',
+        actor: 'user',
+        intent: 'added features',
+        offline: false,
+        settled: false,
+      },
+    }),
+  ]
+
+  async function behind(handlers: Handlers = {}) {
+    const bench = await workbench({
+      branches: REWOUND,
+      handlers: {
+        fork: (params) => ({
+          branch: String(params.name),
+          from_branch: String(params.from_branch),
+          forked_at_step: 15,
+          parent_step: 12,
+          cells: 1,
+        }),
+        'cells.new': (params) => ({
+          slug: 'untitled_1',
+          branch: String(params.branch),
+          definition_hash: 'def-new',
+          written_to_files: true,
+          flags: [],
+        }),
+        ...handlers,
+      },
+    })
+    for (const entry of HISTORY) {
+      bench.live.socket.deliver({
+        channel: 'journal',
+        type: 'transaction',
+        flow: FLOW,
+        step: entry.step,
+        transaction: entry,
+      })
+    }
+    await settle()
+    return bench
+  }
+
+  function dialog(): string {
+    return document.body.querySelector('[role="dialog"]')?.textContent ?? ''
+  }
+
+  it('says so in the lane identifier and reads the later steps as ahead', async () => {
+    const { wrapper, live } = await behind()
+    // The line that moved it is in the journal, and is not a position.
     live.socket.deliver({
       channel: 'journal',
       type: 'transaction',
@@ -779,16 +924,194 @@ describe('a checkpoint is a marker with the user words on it', () => {
       transaction: transaction(15, {
         branch: 'branch-main',
         actor: 'user',
-        intent: 'before I rewrite the scorer',
-        ops: [{ op: 'checkpointed', branch_id: 'branch-main' }],
+        intent: 'rewound main to step 12',
+        ops: [
+          {
+            op: 'rewound',
+            branch_id: 'branch-main',
+            to_step: 12,
+            selections: {},
+            baselines: {},
+          },
+        ],
+      }),
+    })
+    await settle()
+
+    expect(wrapper.find('[data-testid="behind"]').text()).toContain('at step 12 · 2 steps ahead')
+    await openTimeline(wrapper)
+
+    const rows = [...document.body.querySelectorAll('[data-testid="step-row"]')]
+    const byStep = (step: number) =>
+      rows.find((row) => row.getAttribute('aria-label')?.startsWith(`step ${step} ·`))
+    expect(byStep(12)?.textContent).toContain('current')
+    expect(byStep(13)?.querySelector('[data-testid="ahead"]')).toBeTruthy()
+    expect(byStep(14)?.querySelector('[data-testid="ahead"]')).toBeTruthy()
+    expect(byStep(12)?.querySelector('[data-testid="ahead"]')).toBeNull()
+    expect(byStep(15)).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('does not read what reactivity did on its own as a step', async () => {
+    const { wrapper, live } = await behind()
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 17,
+      transaction: transaction(17, {
+        branch: 'branch-main',
+        actor: 'auto',
+        intent: 'reused a cached features',
+        ops: [
+          {
+            op: 'memo_hit',
+            branch_id: 'branch-main',
+            uid: 'uid-features',
+            version_id: 'v2',
+            memo_key: 'k',
+            mat_id: 'mat-1',
+          },
+        ],
       }),
     })
     await settle()
 
     await openTimeline(wrapper)
 
-    expect(overlay()).toContain('before I rewrite the scorer')
-    expect(overlay()).toContain('step 15')
+    const labels = [...document.body.querySelectorAll('[data-testid="step-row"]')].map((row) =>
+      row.getAttribute('aria-label'),
+    )
+    expect(labels).not.toContain('step 17 · reused a cached features')
+    wrapper.unmount()
+  })
+
+  it('does not read a checkout after the rewind as a step ahead', async () => {
+    const { wrapper, live } = await behind()
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 16,
+      transaction: transaction(16, {
+        branch: 'branch-main',
+        actor: 'user',
+        intent: 'put main on disk',
+        ops: [
+          {
+            op: 'worktree_bound',
+            path: '/tmp/churn.flow',
+            branch_id: 'branch-main',
+            actor: 'user',
+          },
+        ],
+      }),
+    })
+    await settle()
+
+    await openTimeline(wrapper)
+
+    const labels = [...document.body.querySelectorAll('[data-testid="step-row"]')].map((row) =>
+      row.getAttribute('aria-label'),
+    )
+    expect(labels).toEqual([
+      'step 14 · edited features',
+      'step 13 · ran features',
+      'step 12 · added features',
+    ])
+    wrapper.unmount()
+  })
+
+  it('offers to go forward to a step ahead, under the same confirm', async () => {
+    const { wrapper, live } = await behind()
+
+    await openTimeline(wrapper)
+    await clickOverlayButton('step 14 · edited features')
+    expect(overlay()).toContain('stands at step 14 with the cells')
+    expect(overlay()).not.toContain('rewind to step 14')
+    await clickOverlayButton('go to step 14')
+
+    expect(asked(live, 'rewind')).toEqual([
+      expect.objectContaining({ branch: 'main', to_step: 14 }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('asks where a change should go, and lands it on a lane started from here', async () => {
+    const { wrapper, live } = await behind()
+
+    const add = wrapper.findAll('button').find((button) => button.text() === 'add a cell')
+    expect(add).toBeTruthy()
+    await add?.trigger('click')
+    await settle()
+
+    // Nothing lands until the reader answers.
+    expect(dialog()).toContain('main stands at step 12')
+    expect(dialog()).toContain('behind its newest step 14')
+    expect(asked(live, 'cells.new')).toEqual([])
+
+    const field = document.body.querySelector<HTMLInputElement>('input[aria-label="lane name"]')
+    expect(field?.value).toBe('main-at-12')
+    await clickOverlayButton('new lane from here')
+    await settle()
+
+    expect(asked(live, 'fork')).toEqual([
+      expect.objectContaining({ name: 'main-at-12', from_branch: 'main' }),
+    ])
+    expect(asked(live, 'cells.new')).toEqual([expect.objectContaining({ branch: 'main-at-12' })])
+    expect(dialog()).toBe('')
+    wrapper.unmount()
+  })
+
+  it('lands the change on the lane itself when told to continue', async () => {
+    const { wrapper, live } = await behind()
+
+    const add = wrapper.findAll('button').find((button) => button.text() === 'add a cell')
+    await add?.trigger('click')
+    await settle()
+    await clickOverlayButton('continue on main')
+    await settle()
+
+    expect(asked(live, 'fork')).toEqual([])
+    expect(asked(live, 'cells.new')).toEqual([expect.objectContaining({ branch: 'main' })])
+    wrapper.unmount()
+  })
+
+  it('drops the change quietly when the reader steps back', async () => {
+    const { wrapper, live } = await behind()
+
+    const add = wrapper.findAll('button').find((button) => button.text() === 'add a cell')
+    await add?.trigger('click')
+    await settle()
+    await clickOverlayButton('cancel')
+    await settle()
+
+    expect(asked(live, 'fork')).toEqual([])
+    expect(asked(live, 'cells.new')).toEqual([])
+    expect(dialog()).toBe('')
+    expect(document.body.textContent).not.toContain('lumlflow refused this')
+    wrapper.unmount()
+  })
+
+  it('asks nothing on a lane standing on its newest step', async () => {
+    const { wrapper, live } = await workbench({
+      handlers: {
+        'cells.new': (params) => ({
+          slug: 'untitled_1',
+          branch: String(params.branch),
+          definition_hash: 'def-new',
+          written_to_files: true,
+          flags: [],
+        }),
+      },
+    })
+
+    const add = wrapper.findAll('button').find((button) => button.text() === 'add a cell')
+    await add?.trigger('click')
+    await settle()
+
+    expect(dialog()).toBe('')
+    expect(asked(live, 'cells.new')).toEqual([expect.objectContaining({ branch: 'main' })])
     wrapper.unmount()
   })
 })

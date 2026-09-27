@@ -1,0 +1,19 @@
+class LoadData:
+    """Synthesise a small tabular regression dataset."""
+    uid = '01M28ECKBXG5HWC1BNH79ZVEV7'
+    produces = {'data': 'dataset'}
+    params = {'rows': 2000, 'noise': 1.2, 'seed': 42}
+
+    def materialize(self, ctx):
+        import numpy as np
+        import pandas as pd
+        rng = np.random.default_rng(self.params['seed'])
+        rows = self.params['rows']
+        tenure = rng.integers(1, 60, size=rows).astype(float)
+        monthly = rng.normal(70.0, 20.0, size=rows).clip(10.0, 150.0)
+        support = rng.poisson(1.2, size=rows).astype(float)
+        signal = 0.03 * tenure - 0.015 * monthly - 0.2 * support
+        target = signal + rng.normal(0.0, self.params['noise'], size=rows)
+        df = pd.DataFrame({'tenure_months': tenure, 'monthly_charges': monthly, 'support_tickets': support, 'target': target})
+        df.attrs['target_name'] = 'target'
+        return {'data': df}

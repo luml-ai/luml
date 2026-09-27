@@ -1,0 +1,1 @@
+{"experiment_id":"3d0edd0e-1094-42fa-943e-24b0dd2afd5f","group":"demo","store":"/Users/olha/dev/si-sku/pipeline/experiments","snapshot":{"params":{"alpha":1.0},"metrics":{"rmse":1.1831138222605433,"mae":0.952873984521821,"r2":0.16978407485050806}}}

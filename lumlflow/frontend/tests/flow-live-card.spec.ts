@@ -15,12 +15,13 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { defineComponent, ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { DOWNLOAD_PATH } from '@/flow/api/client'
 import type { CellDetail, CellSummary, StoredPreview, TrackerExperiment } from '@/flow/api/types'
 import LiveCellCard from '@/flow/workbench/components/card/LiveCellCard.vue'
+import { useCell } from '@/flow/workbench/live/useCell'
 import { NEWER_FORMAT_NOTE, previewFrom } from '@/flow/workbench/live/preview'
 import type { BlocksPreview, KvPreview } from '@/flow/workbench/model/types'
 import {
@@ -779,6 +780,142 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     expect(asked(made.live, 'asset.download')).toEqual([])
     expect(document.body.textContent).not.toContain('saved to')
     made.wrapper.unmount()
+  })
+
+  it('offers a stored model to LUML from the card face, as an experiment card does', async () => {
+    const made = await card({
+      summary: trainer({ outputs: ['model'], primary: 'model' }),
+      detail: trainerDetail({
+        outputs: ['model'],
+        primary: 'model',
+        produces: { model: { type: 'model', kind: null, persist: true } },
+        materialized: [
+          {
+            name: 'model',
+            kind: 'pickle',
+            kind_source: 'fallback',
+            declared: 'model',
+            size: 128,
+            persisted: true,
+          },
+        ],
+      }),
+    })
+
+    expect(made.wrapper.text()).toContain('upload to LUML')
+    made.wrapper.unmount()
+  })
+
+  it('offers a stored model to LUML from the drawer, and nothing else', async () => {
+    const made = await card({
+      summary: trainer({ outputs: ['model', 'checkpoint'], primary: 'model' }),
+      detail: trainerDetail({
+        outputs: ['model', 'checkpoint'],
+        primary: 'model',
+        produces: {
+          model: { type: 'model', kind: null, persist: true },
+          checkpoint: { type: 'asset', kind: null, persist: true },
+        },
+        materialized: [
+          {
+            name: 'model',
+            kind: 'pickle',
+            kind_source: 'fallback',
+            declared: 'model',
+            size: 128,
+            persisted: true,
+          },
+          {
+            name: 'checkpoint',
+            kind: 'file',
+            kind_source: 'matcher',
+            declared: 'asset',
+            size: 2048,
+            persisted: true,
+          },
+        ],
+      }),
+    })
+
+    await expand(made)
+    // The model is what LUML takes; the link stands beside download, where
+    // the experiment card's own upload link stands beside its tracker link.
+    expect(document.body.textContent).toContain('upload to LUML')
+
+    const checkpointTab = [...document.body.querySelectorAll('[role="tab"]')].find(
+      (tab) => tab.textContent?.trim() === 'checkpoint',
+    ) as HTMLElement | undefined
+    checkpointTab?.click()
+    await settle()
+    expect(document.body.textContent).not.toContain('upload to LUML')
+    made.wrapper.unmount()
+  })
+
+  it('does not offer a model LUML cannot have yet: one this branch never materialized', async () => {
+    const made = await card({
+      summary: trainer({
+        outputs: ['model'],
+        primary: 'model',
+        state: 'unmaterialized',
+        cost_seconds: null,
+      }),
+      detail: trainerDetail({
+        outputs: ['model'],
+        primary: 'model',
+        state: 'unmaterialized',
+        cost_seconds: null,
+        produces: { model: { type: 'model', kind: null, persist: true } },
+        materialized: [],
+      }),
+    })
+
+    await expand(made)
+    expect(document.body.textContent).toContain('materialize and download')
+    expect(document.body.textContent).not.toContain('upload to LUML')
+    made.wrapper.unmount()
+  })
+
+  it('publishes through asset.publish, naming the output and where in LUML it goes', async () => {
+    const live = await attach({
+      status: flowStatus({ path: FLOW }),
+      handlers: {
+        'asset.publish': () => ({
+          flow: 'churn',
+          branch: 'main',
+          slug: 'train_model',
+          output: 'model',
+          job_id: 'job-1',
+          flavor: 'sklearn',
+          size: 4096,
+        }),
+      },
+    })
+    const cell = useCell({
+      session: live.session,
+      stream: live.stream,
+      branch: ref('main'),
+      summary: ref(trainer({ outputs: ['model'], primary: 'model' })),
+    })
+
+    const published = await cell.publish('model', {
+      organization_id: 'org',
+      orbit_id: 'orbit',
+      collection_id: 'coll',
+      artifact: { name: 'churn forest', description: '', tags: ['v1'] },
+    })
+
+    expect(published.job_id).toBe('job-1')
+    expect(asked(live, 'asset.publish')).toEqual([
+      {
+        flow: FLOW,
+        branch: 'main',
+        target: 'train_model.model',
+        organization_id: 'org',
+        orbit_id: 'orbit',
+        collection_id: 'coll',
+        artifact: { name: 'churn forest', description: '', tags: ['v1'] },
+      },
+    ])
   })
 
   it('wires the file renderer download link to the output route', async () => {

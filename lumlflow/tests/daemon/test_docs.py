@@ -37,7 +37,7 @@ def test_the_served_guide_names_the_current_agent_surface() -> None:
     assert "lumlflow guide" in guide
     assert "lumlflow mcp" in guide
     assert "`checkpoint`" in guide
-    assert 'lumlflow checkpoint -m "why"' in guide
+    assert 'lumlflow checkpoint -m "why" [--step <step>]' in guide
     assert "worth finding again" in guide
     assert "--workspace" not in guide
     assert "lane" in guide

@@ -17,6 +17,7 @@ from typing import Literal
 
 from lumlflow.flow.hashing import canonical_json
 from lumlflow.flow.store.models import (
+    AUTO_ACTOR,
     Adopted,
     AgentBegin,
     AgentEnd,
@@ -46,7 +47,7 @@ from lumlflow.flow.store.models import (
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 10
+INDEX_SCHEMA_VERSION = 15
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -77,7 +78,14 @@ CREATE TABLE branches (
     name TEXT NOT NULL UNIQUE,
     parent_branch_id TEXT,
     fork_step INTEGER NOT NULL,
-    archived INTEGER NOT NULL DEFAULT 0
+    parent_step INTEGER,
+    archived INTEGER NOT NULL DEFAULT 0,
+    -- Where the branch stands. NULL means its newest own step; a rewind sets
+    -- it, and the next change on the branch clears it.
+    head_step INTEGER,
+    -- The last verb that rewrote this branch's files, and the line it landed on.
+    rewrite_verb TEXT,
+    rewrite_step INTEGER
 );
 
 CREATE TABLE selections (
@@ -131,6 +139,11 @@ CREATE TABLE transactions (
     offline INTEGER NOT NULL,
     settled INTEGER NOT NULL,
     marker INTEGER NOT NULL DEFAULT 0,
+    mark TEXT,
+    -- A step the branch can stand on: the line changed what the branch
+    -- selects. Binding the files, noting a cell or an agent checking in
+    -- are lines of the branch's history, not places in it.
+    position INTEGER NOT NULL DEFAULT 1,
     branch TEXT,
     ops TEXT NOT NULL
 );
@@ -182,6 +195,11 @@ class BranchRow:
     parent_branch_id: str | None
     fork_step: int
     archived: bool
+    #: The parent's own step this branch copied, when the fork line recorded it.
+    parent_step: int | None = None
+    #: Where the branch stands when that is not its newest own step: a rewind
+    #: sets it, the next change on the branch clears it.
+    head_step: int | None = None
 
 
 @dataclass(frozen=True)
@@ -234,6 +252,11 @@ class TransactionRow:
     # Somebody marked this step on purpose, as opposed to `settled`, which the
     # commit computes. The two answer the same question from opposite ends.
     marker: bool = False
+    #: The words the step was marked under; the intent stays what it was.
+    mark: str | None = None
+    #: Whether the branch can stand on this line — it changed what the branch
+    #: selects. A checkout or a note is history, not a place.
+    position: bool = True
 
 
 CellsRewriteVerb = Literal["use", "rewind", "adopt"]
@@ -563,30 +586,65 @@ class Index:
         ]
 
     def last_cells_rewrite(self, branch_id: str) -> CellsRewriteRow | None:
-        verbs: dict[str, CellsRewriteVerb] = {
-            "worktree_bound": "use",
-            "rewound": "rewind",
-            "adopted": "adopt",
-        }
-        rows = self._conn.execute(
-            "SELECT step, ops FROM transactions WHERE branch = ? ORDER BY step DESC",
+        row = self._conn.execute(
+            "SELECT rewrite_verb, rewrite_step FROM branches WHERE branch_id = ?",
             (branch_id,),
-        )
-        for row in rows:
-            for operation in json.loads(row["ops"]):
-                verb = verbs.get(operation.get("op"))
-                if verb is not None:
-                    return CellsRewriteRow(verb=verb, step=int(row["step"]))
-        return None
+        ).fetchone()
+        if row is None or row["rewrite_verb"] is None:
+            return None
+        verb: CellsRewriteVerb = row["rewrite_verb"]
+        return CellsRewriteRow(verb=verb, step=int(row["rewrite_step"]))
+
+    def head(self, branch_id: str) -> TransactionRow | None:
+        """The step the branch stands on: its own line at its position.
+
+        The newest own line unless a rewind moved the branch back — then the
+        line it was moved to, or the branch's newest own line before it when
+        the target was not one of its own.
+        """
+        branch = self.branch_by_id(branch_id)
+        if branch is None:
+            return None
+        if branch.head_step is not None:
+            found = self.transaction(branch.head_step)
+            if found is not None and found.branch == branch_id and found.position:
+                return found
+            step = self.last_step_on(branch_id, at_or_before=branch.head_step)
+            return self.transaction(step) if step is not None else None
+        return self._newest_position(branch_id)
+
+    def _newest_position(self, branch_id: str) -> TransactionRow | None:
+        row = self._conn.execute(
+            "SELECT * FROM transactions WHERE branch = ? AND position = 1 "
+            "ORDER BY step DESC LIMIT 1",
+            (branch_id,),
+        ).fetchone()
+        return _transaction(row) if row is not None else None
+
+    def head_step(self, branch_id: str) -> int:
+        """Where the branch stands, as a step: its fork step with no own line."""
+        found = self.head(branch_id)
+        if found is not None:
+            return found.step
+        branch = self.branch_by_id(branch_id)
+        return branch.fork_step if branch is not None else 0
+
+    def newest_step(self, branch_id: str) -> int:
+        """The branch's newest own position — where it would stand if not rewound."""
+        newest = self._newest_position(branch_id)
+        if newest is not None:
+            return newest.step
+        branch = self.branch_by_id(branch_id)
+        return branch.fork_step if branch is not None else 0
 
     def last_step_on(self, branch_id: str, *, at_or_before: int) -> int | None:
-        """The branch's newest own line at or before a global step.
+        """The branch's newest own position at or before a global step.
 
         This is the state a fork copied from the branch.
         """
         row = self._conn.execute(
             "SELECT step FROM transactions WHERE branch = ? AND step <= ? "
-            "ORDER BY step DESC LIMIT 1",
+            "AND position = 1 ORDER BY step DESC LIMIT 1",
             (branch_id, at_or_before),
         ).fetchone()
         return int(row["step"]) if row is not None else None
@@ -788,24 +846,39 @@ class Index:
         )
 
     def _apply(self, transaction: Transaction) -> None:
-        self._conn.execute(
-            "INSERT OR REPLACE INTO transactions "
-            "(step, ts, actor, intent, offline, settled, marker, branch, ops) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                transaction.step,
-                transaction.ts,
-                transaction.actor,
-                transaction.intent,
-                int(transaction.offline),
-                int(transaction.settled),
-                int(any(isinstance(op, Checkpointed) for op in transaction.ops)),
-                transaction.branch,
-                _dump([op.model_dump(mode="json") for op in transaction.ops]),
-            ),
-        )
+        # A line that only marks another step, or moves the branch to one, is
+        # not a step: it gets no row of its own, and what it says folds onto the
+        # branch or the row it names.
+        if not is_annotation(transaction):
+            self._conn.execute(
+                "INSERT OR REPLACE INTO transactions "
+                "(step, ts, actor, intent, offline, settled, position, branch, ops) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    transaction.step,
+                    transaction.ts,
+                    transaction.actor,
+                    transaction.intent,
+                    int(transaction.offline),
+                    int(transaction.settled),
+                    int(is_position(transaction)),
+                    transaction.branch,
+                    _dump([op.model_dump(mode="json") for op in transaction.ops]),
+                ),
+            )
         for op in transaction.ops:
             self._apply_op(op, transaction)
+        # A change lands on the branch's newest position, so that is where it
+        # stands now — whatever a rewind had set before.
+        if (
+            transaction.branch is not None
+            and is_position(transaction)
+            and any(isinstance(op, _MOVING) for op in transaction.ops)
+        ):
+            self._conn.execute(
+                "UPDATE branches SET head_step = NULL WHERE branch_id = ?",
+                (transaction.branch,),
+            )
         self._set_meta("last_step", str(transaction.step))
 
     def _apply_op(self, op: Op, transaction: Transaction) -> None:
@@ -855,12 +928,23 @@ class Index:
                     pinned=False,
                     slug=str(incoming["slug"]) if incoming is not None else None,
                 )
+                self._conn.execute(
+                    "UPDATE branches SET rewrite_verb = 'adopt', rewrite_step = ? "
+                    "WHERE branch_id = ?",
+                    (step, op.branch_id),
+                )
             case BranchCreated():
                 self._conn.execute(
                     "INSERT OR REPLACE INTO branches "
-                    "(branch_id, name, parent_branch_id, fork_step, archived) "
-                    "VALUES (?, ?, ?, ?, 0)",
-                    (op.branch_id, op.name, op.parent_branch_id, op.fork_step),
+                    "(branch_id, name, parent_branch_id, fork_step, parent_step, "
+                    "archived) VALUES (?, ?, ?, ?, ?, 0)",
+                    (
+                        op.branch_id,
+                        op.name,
+                        op.parent_branch_id,
+                        op.fork_step,
+                        op.parent_step,
+                    ),
                 )
                 if op.parent_branch_id is not None:
                     self._dense_copy(op.branch_id, op.parent_branch_id)
@@ -877,8 +961,18 @@ class Index:
                     "branch_id = excluded.branch_id, actor = excluded.actor",
                     (op.flow_id, op.branch_id, op.actor),
                 )
+                self._conn.execute(
+                    "UPDATE branches SET rewrite_verb = 'use', rewrite_step = ? "
+                    "WHERE branch_id = ?",
+                    (step, op.branch_id),
+                )
             case Rewound():
                 self._rewind(op)
+                self._conn.execute(
+                    "UPDATE branches SET head_step = ?, rewrite_verb = 'rewind', "
+                    "rewrite_step = ? WHERE branch_id = ?",
+                    (op.to_step, step, op.branch_id),
+                )
             case RunRecorded():
                 self._record_run(op)
             case MemoHit():
@@ -910,15 +1004,27 @@ class Index:
                 self._conn.execute(
                     "DELETE FROM agent_sessions WHERE actor = ?", (op.actor,)
                 )
-            # The marker rides the transaction row itself — there is no state
-            # for it to fold into, which is the whole point of a marker.
             case Renamed():
                 self._conn.execute(
                     "UPDATE selections SET slug = ? WHERE branch_id = ? AND uid = ?",
                     (op.new_slug, op.branch_id, op.uid),
                 )
+            # The mark rides the row it names, under the marking line's own
+            # words. Marking the same step again replaces the words. A line
+            # from before marks folded names no step: it rides the position
+            # the branch stood on when it was written.
             case Checkpointed():
-                pass
+                target = (
+                    op.step
+                    if op.step is not None
+                    else self.last_step_on(op.branch_id, at_or_before=step)
+                )
+                if target is not None:
+                    self._conn.execute(
+                        "UPDATE transactions SET marker = 1, mark = ? "
+                        "WHERE step = ? AND branch = ?",
+                        (transaction.intent, target, op.branch_id),
+                    )
 
     def _accept_cell(self, op: CellAccepted, step: int) -> None:
         self._conn.execute(
@@ -1088,6 +1194,8 @@ def _branch(row: sqlite3.Row) -> BranchRow:
         parent_branch_id=row["parent_branch_id"],
         fork_step=row["fork_step"],
         archived=bool(row["archived"]),
+        parent_step=row["parent_step"],
+        head_step=row["head_step"],
     )
 
 
@@ -1117,6 +1225,57 @@ def _transaction(row: sqlite3.Row) -> TransactionRow:
         settled=bool(row["settled"]),
         branch=row["branch"],
         marker=bool(row["marker"]),
+        mark=row["mark"],
+        position=bool(row["position"]),
+    )
+
+
+#: The ops that move a branch: after one lands, the branch stands on its newest
+#: line. Binding the files, noting a cell or flagging a version leave it where
+#: it was, which after a rewind is somewhere behind.
+_MOVING = (
+    CellAccepted,
+    CellRemoved,
+    SelectionSet,
+    Adopted,
+    Renamed,
+    RunRecorded,
+    MemoHit,
+)
+
+
+#: Lines that are a branch's history without being places in it: nothing the
+#: branch selects changed, so there is nothing there to stand on or go back to.
+_NOT_A_PLACE = (
+    WorktreeBound,
+    CellNoted,
+    FlagSet,
+    AgentBegin,
+    AgentEnd,
+    WorkspaceCodeChanged,
+    EnvChanged,
+    BranchArchived,
+    Checkpointed,
+    Rewound,
+)
+
+
+def is_position(transaction: Transaction) -> bool:
+    """Whether a branch can stand on this line: somebody changed what it
+    selects or holds. What reactivity did on its own keeps the branch synced
+    where it stands and is not a place it moved to."""
+    if transaction.actor == AUTO_ACTOR:
+        return False
+    if not transaction.ops:
+        return True
+    return not all(isinstance(op, _NOT_A_PLACE) for op in transaction.ops)
+
+
+def is_annotation(transaction: Transaction) -> bool:
+    """A line that is not a step: it marks a step or moves the branch to one,
+    and is folded onto what it names rather than listed."""
+    return bool(transaction.ops) and all(
+        isinstance(op, (Checkpointed, Rewound)) for op in transaction.ops
     )
 
 

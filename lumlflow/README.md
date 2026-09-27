@@ -250,6 +250,8 @@ Use your API key to upload experiments and models from your local environment to
 
 This allows you to move from local experimentation to shared cloud storage, making it easier to collaborate, persist results, and manage models centrally.
 
+A model a flow cell produced goes the same way: expand the cell, and **upload to LUML** stands beside download on any output declared `model`. The kernel packages the stored value with `luml` (the flavor is detected from the model, as `log_model` does, and the frame the cell consumed supplies the input schema), so the flow's environment needs `luml` and the model's own library.
+
 
 ## Requirements
 

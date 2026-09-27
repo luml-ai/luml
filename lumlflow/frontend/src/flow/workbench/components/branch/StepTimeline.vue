@@ -1,8 +1,8 @@
 <template>
   <div class="flex w-96 max-w-[92vw] min-w-0 flex-col gap-2">
     <!--
-      Marking is the one thing here that adds to the history; everything below
-      it moves within the history that already exists.
+      Marking writes on the current step; nothing here adds to the history, and
+      everything below moves within the history that already exists.
     -->
     <div v-if="marking" class="flex flex-col gap-2">
       <InputText
@@ -13,6 +13,10 @@
         @keyup.enter="confirmMark"
         @keyup.escape="marking = false"
       />
+      <p class="px-1.5 text-sm text-muted-color">
+        goes on <span class="font-mono">step {{ headStep }}</span
+        >, where <code class="font-mono">{{ branch }}</code> stands. it adds no step.
+      </p>
       <div class="flex justify-end gap-2">
         <Button text severity="secondary" label="cancel" @click="marking = false" />
         <Button label="mark this point" :disabled="!markIntent.trim()" @click="confirmMark" />
@@ -30,9 +34,7 @@
       <template #icon><Flag :size="14" /></template>
     </Button>
 
-    <p v-if="!entries.length" class="px-1.5 text-sm text-muted-color">
-      nothing on this lane yet
-    </p>
+    <p v-if="!entries.length" class="px-1.5 text-sm text-muted-color">nothing on this lane yet</p>
 
     <ol v-else class="flex max-h-96 min-w-0 flex-col overflow-y-auto">
       <li v-for="entry in entries" :key="entry.step" class="min-w-0">
@@ -41,26 +43,50 @@
           severity="secondary"
           size="small"
           data-testid="step-row"
-          :aria-label="`step ${entry.step} · ${entry.intent}`"
+          :aria-label="`step ${entry.step} · ${entry.mark ?? entry.intent}`"
           :aria-expanded="entry.step === pending"
           :pt="ROW_PT"
           @click="onPick(entry.step)"
         >
           <component
-            :is="entry.kind === 'checkpoint' ? Flag : Dot"
+            :is="entry.mark ? Flag : Dot"
             :size="14"
             class="mt-1 shrink-0"
-            :class="entry.kind === 'checkpoint' ? 'text-(--p-primary-color)' : 'text-muted-color'"
+            :class="[
+              entry.mark ? 'text-(--p-primary-color)' : 'text-muted-color',
+              entry.step > headStep ? 'opacity-60' : '',
+            ]"
           />
           <span class="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+            <!--
+              A marked step reads under its mark, the way a commit reads under
+              its message; what the step did stays on the line below it.
+            -->
             <span class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span class="min-w-0 break-words text-base">{{ entry.intent }}</span>
+              <span
+                v-if="entry.mark"
+                data-testid="step-mark"
+                class="min-w-0 break-words text-base font-medium"
+                >{{ entry.mark }}</span
+              >
+              <span v-else class="min-w-0 break-words text-base">{{ entry.intent }}</span>
               <Tag
                 v-if="entry.step === headStep"
                 value="current"
                 severity="secondary"
                 :pt="TAG_PT"
               />
+              <!-- A step the lane was moved back from: still in its history, not where it stands. -->
+              <Tag
+                v-else-if="entry.step > headStep"
+                value="ahead"
+                severity="secondary"
+                data-testid="ahead"
+                :pt="TAG_PT"
+              />
+            </span>
+            <span v-if="entry.mark" class="min-w-0 break-words text-sm text-muted-color">
+              {{ entry.intent }}
             </span>
             <span class="text-sm text-muted-color">
               <span class="font-mono">step {{ entry.step }}</span>
@@ -79,20 +105,21 @@
 
         <!--
           The confirm names what moves rather than asking whether you are sure:
-          rewinding recomputes nothing, and the only thing it costs is the
-          files, on the branch that happens to be holding them.
+          moving recomputes nothing and adds no step, and the only thing it
+          costs is the files, on the branch that happens to be holding them.
         -->
         <div v-if="entry.step === pending" class="flex flex-col gap-2 px-1.5 pt-1 pb-2">
           <p class="text-sm text-muted-color">
-            restores the cells <code class="font-mono">{{ branch }}</code> selected at step
-            {{ entry.step
-            }}<template v-if="checkedOut">, and rewrites the files to match</template>. nothing
-            recomputes. nothing is lost. later steps stay in the history.
+            <code class="font-mono">{{ branch }}</code> stands at step {{ entry.step }} with the
+            cells it selected there<template v-if="checkedOut"
+              >, and the files are rewritten to match</template
+            >. nothing recomputes. nothing is lost. no step is added. the other steps stay in the
+            history.
           </p>
           <div class="flex justify-end gap-2">
             <Button text severity="secondary" label="stay here" @click="pending = null" />
             <Button
-              :label="`rewind to step ${entry.step}`"
+              :label="`${entry.step < headStep ? 'rewind' : 'go'} to step ${entry.step}`"
               :disabled="busy"
               @click="confirmRewind(entry.step)"
             />
@@ -111,7 +138,9 @@ import type { BranchInfo, JournalEntry } from '../../model/types'
 
 /**
  * Where a branch stands and where it can go: its steps, newest first, with the
- * one it is on marked and every older one offering a rewind.
+ * one it stands on marked and every other one offering to move there. Moving
+ * adds no step: a rewound branch stands behind its newest step, the steps
+ * ahead of it read as such, and the next change on it is what moves it on.
  *
  * This is navigation, not history. The panel's activity section reads the
  * journal — what happened, with its summaries, its offline windows and its
@@ -121,9 +150,10 @@ import type { BranchInfo, JournalEntry } from '../../model/types'
  * here.
  *
  * Marking is the other half of the same idea. The journal already records every
- * change, so a checkpoint copies nothing and freezes nothing: it is a line
- * saying this point was worth naming, and the name is what the timeline reads
- * back.
+ * change, so a checkpoint copies nothing and freezes nothing — and adds no step
+ * either. It is words written on the current step, the way a commit message
+ * rides on its commit, and the marked row reads under them; a later click on
+ * that row offers the rewind back to it like any other.
  */
 const props = withDefaults(
   defineProps<{
@@ -143,10 +173,13 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   rewind: [step: number]
-  checkpoint: [intent: string]
+  /** Mark the current step under these words. */
+  checkpoint: [intent: string, step: number]
 }>()
 
-const ROW_PT = { root: { class: 'w-full items-start justify-start gap-2 px-1.5 py-1.5 font-normal' } }
+const ROW_PT = {
+  root: { class: 'w-full items-start justify-start gap-2 px-1.5 py-1.5 font-normal' },
+}
 const TAG_PT = { root: { class: 'text-sm font-normal px-1.5 py-0 shrink-0' } }
 
 /** The step whose confirm is open. One at a time — this is a decision, not a list. */
@@ -192,6 +225,6 @@ function confirmMark(): void {
   if (!intent) return
   marking.value = false
   markIntent.value = ''
-  emit('checkpoint', intent)
+  emit('checkpoint', intent, props.headStep)
 }
 </script>

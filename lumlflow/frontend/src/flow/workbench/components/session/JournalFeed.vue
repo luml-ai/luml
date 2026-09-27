@@ -17,6 +17,15 @@
       <div v-else class="flex min-w-0 items-start gap-2.5">
         <component :is="glyphOf(entry.kind)" :size="14" class="shrink-0 mt-1 text-muted-color" />
         <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+          <!-- The words somebody wrote on this step, above what the step did. -->
+          <div
+            v-if="entry.mark"
+            data-testid="journal-mark"
+            class="flex min-w-0 items-start gap-1.5 text-base font-medium"
+          >
+            <Flag :size="14" class="mt-1 shrink-0 text-(--p-primary-color)" aria-hidden="true" />
+            <span class="min-w-0 break-words">{{ entry.mark }}</span>
+          </div>
           <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
             <span class="font-mono text-sm text-muted-color shrink-0">{{ entry.time }}</span>
             <ActorChip :actor="entry.actor" muted />
@@ -45,6 +54,7 @@ import {
   Bot,
   BotOff,
   Flag,
+  HardDrive,
   Package,
   Pencil,
   Play,
@@ -53,6 +63,7 @@ import {
   TextCursorInput,
   Trash2,
   TriangleAlert,
+  Undo2,
   WifiOff,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -72,7 +83,8 @@ const GLYPHS: Record<JournalKind, LucideIcon> = {
   edit: Pencil,
   note: TriangleAlert,
   run: Play,
-  checkpoint: Flag,
+  rewind: Undo2,
+  checkout: HardDrive,
   fork: Split,
   adopt: Replace,
   rename: TextCursorInput,

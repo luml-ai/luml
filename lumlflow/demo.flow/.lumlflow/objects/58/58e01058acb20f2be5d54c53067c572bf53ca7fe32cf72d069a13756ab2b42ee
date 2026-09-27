@@ -1,0 +1,21 @@
+class TrainModel:
+    """Fit a ridge regression with numpy's least squares."""
+    uid = '01M28ECKC1265EJ1EAE0B46S8E'
+    consumes = {'train': '01M28ECKBZGF6543H8J7DABP66.train'}
+    produces = {'model': 'model'}
+    params = {'alpha': 1.0, 'seed': 42}
+
+    def materialize(self, ctx, train):
+        import numpy as np
+        ctx.seed()
+        features = [c for c in train.columns if c != 'target']
+        x = train[features].to_numpy(dtype=float)
+        y = train['target'].to_numpy(dtype=float)
+        mean = x.mean(axis=0)
+        scale = x.std(axis=0)
+        scale[scale == 0.0] = 1.0
+        xs = (x - mean) / scale
+        alpha = float(self.params['alpha'])
+        gram = xs.T @ xs + alpha * np.eye(xs.shape[1])
+        coef = np.linalg.solve(gram, xs.T @ (y - y.mean()))
+        return {'model': {'features': features, 'mean': mean, 'scale': scale, 'coef': coef, 'intercept': float(y.mean()), 'alpha': alpha}}
