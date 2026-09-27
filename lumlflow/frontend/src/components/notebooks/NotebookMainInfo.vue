@@ -37,14 +37,15 @@
     <SidebarTooltipPlug
       v-else
       class="border-t border-surface"
-      tooltip="What is this?"
+      :icon="ListTree"
+      :tooltip="`Lanes (${flowStore.branches.length})`"
       label="Lanes"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ArrowRightToLine, CircleQuestionMark } from 'lucide-vue-next'
+import { ArrowRightToLine, CircleQuestionMark, ListTree } from 'lucide-vue-next'
 import { Tag } from 'primevue'
 import { useFlowStore } from '@/store/flow'
 import NotebooksLanes from '@/components/notebooks/lanes/NotebooksLanes.vue'

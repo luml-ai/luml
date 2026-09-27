@@ -41,6 +41,7 @@ export interface NotebooksCanvasToolbarEmits {
 export interface SidebarTooltipPlugProps {
   tooltip: string
   label: string
+  icon?: LucideIcon
 }
 
 export interface PairableAgentInterface {

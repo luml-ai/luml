@@ -7,7 +7,7 @@
       class="sidebar-tooltip-plug"
       :aria-label="label"
     >
-      <CircleQuestionMark :size="14" />
+      <component :is="icon ?? CircleQuestionMark" :size="14" />
     </Button>
   </div>
 </template>
