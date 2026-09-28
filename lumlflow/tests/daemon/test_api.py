@@ -1540,9 +1540,9 @@ async def test_publishing_a_model_packages_it_in_the_kernel_and_uploads_the_bund
         kind: str,
         *,
         destination: Path,
-        sample: Any,
+        samples: Any,
     ) -> dict[str, Any]:
-        packaged.append({"value_ref": value_ref, "kind": kind, "sample": sample})
+        packaged.append({"value_ref": value_ref, "kind": kind, "samples": samples})
         destination.write_bytes(b"bundle")
         return {"path": str(destination), "flavor": "sklearn", "size": 6}
 
@@ -1571,7 +1571,7 @@ async def test_publishing_a_model_packages_it_in_the_kernel_and_uploads_the_bund
     assert (published["slug"], published["output"]) == ("train", "model")
     assert (published["flavor"], published["size"]) == ("sklearn", 6)
     assert published["job_id"] == job_id
-    assert packaged[0]["sample"] is None
+    assert packaged[0]["samples"] == []
     assert (form.organization_id, form.orbit_id, form.collection_id) == (
         "org",
         "orbit",
@@ -1616,9 +1616,9 @@ async def test_publishing_hands_the_kernel_the_frame_the_model_trained_on(
         kind: str,
         *,
         destination: Path,
-        sample: Any,
+        samples: Any,
     ) -> dict[str, Any]:
-        packaged.append({"sample": sample})
+        packaged.append({"samples": samples})
         destination.write_bytes(b"bundle")
         return {"path": str(destination), "flavor": "sklearn", "size": 6}
 
@@ -1646,7 +1646,7 @@ async def test_publishing_hands_the_kernel_the_frame_the_model_trained_on(
         await asyncio.gather(*api._uploads)
 
     assert rows is not None
-    assert packaged[0]["sample"] == {"value_ref": rows.value_ref, "kind": "frame"}
+    assert packaged[0]["samples"] == [{"value_ref": rows.value_ref, "kind": "frame"}]
 
 
 async def test_publishing_without_a_destination_in_luml_is_refused(

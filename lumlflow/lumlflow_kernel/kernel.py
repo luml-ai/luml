@@ -112,7 +112,7 @@ class Kernel:
             value_ref=str(params.get("value_ref", "")),
             kind=str(params.get("kind", "")),
             destination=str(params.get("destination", "")),
-            sample=dict(params["sample"]) if params.get("sample") else None,
+            samples=_samples(params),
             flavor=str(params["flavor"]) if params.get("flavor") else None,
         )
 
@@ -203,3 +203,13 @@ def _enable_copy_on_write() -> None:
         # setting it is a no-op worth no warning of ours.
         warnings.simplefilter("ignore")
         pandas.options.mode.copy_on_write = True
+
+
+def _samples(params: dict[str, Any]) -> list[dict[str, Any]]:
+    """The frames named for the input sample: `samples` as a list, or the
+    single `sample` an older daemon sends."""
+    named = params.get("samples")
+    if named:
+        return [dict(sample) for sample in named]
+    single = params.get("sample")
+    return [dict(single)] if single else []

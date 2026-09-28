@@ -212,7 +212,8 @@ async function onDownload(request: { output: string; materialize: boolean }): Pr
     startDownload(live.downloadUrl(request.output))
     notice.value = null
   } catch (refused) {
-    notice.value = said(refused)
+    // Stepped back from materializing on a rewound lane: nothing to say.
+    notice.value = refused instanceof MoveCancelled ? null : said(refused)
   } finally {
     downloading.value = false
   }

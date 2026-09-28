@@ -13,6 +13,7 @@ the kind an experiment would have logged.
 from __future__ import annotations
 
 import importlib
+import inspect
 import shutil
 from pathlib import Path
 from typing import Any
@@ -29,15 +30,17 @@ def export_model(
     value_ref: str,
     kind: str,
     destination: str,
-    sample: dict[str, Any] | None = None,
+    samples: list[dict[str, Any]] | None = None,
     flavor: str | None = None,
 ) -> dict[str, Any]:
     """Write the fnnx bundle for a stored model at `destination`.
 
-    `sample` names a stored frame — the one the cell trained on — whose head
-    gives the flavor its input schema. A model that names its own features
-    (`feature_names_in_`) is handed only those columns, so a training frame
-    still carrying the target column does not leak it into the signature.
+    `samples` name the stored frames the cell consumed, in manifest order.
+    The head of one gives the flavor its input schema: the first whose
+    columns cover the features the model names (`feature_names_in_`), or
+    the first frame when the model names none. A model that names its
+    features is handed only those columns, so a training frame still
+    carrying the target column does not leak it into the signature.
     """
     registry, detect = _luml_flavors()
     model = executor.value(value_ref, kind)
@@ -55,10 +58,17 @@ def export_model(
             f"packaging a `{chosen}` model needs `{failure.name}` in this flow's "
             "environment"
         ) from failure
-    inputs = _sample_inputs(model, _sample_value(executor, sample))
+    inputs = _sample_inputs(model, _sample_value(executor, model, samples))
     target = Path(destination)
+    takes_inputs, needs_inputs = _inputs_parameter(save)
+    if inputs is None and needs_inputs:
+        raise CellError(
+            f"packaging a `{chosen}` model needs a sample of its inputs, and the "
+            "cell read no stored frame to take one from. consume the frame the "
+            "model trained on as a cell input"
+        )
     try:
-        if inputs is not None:
+        if takes_inputs:
             reference = save(model, inputs, path=str(target))
         else:
             reference = save(model, path=str(target))
@@ -93,14 +103,43 @@ def _detect(model: Any, detect: Any) -> str:
         raise CellError(str(failure)) from failure
 
 
-def _sample_value(executor: Executor, sample: dict[str, Any] | None) -> Any:
-    if not sample:
+def _inputs_parameter(save: Any) -> tuple[bool, bool]:
+    """Whether the flavor's save function takes a sample, and whether it
+    insists on one: sklearn does, xgboost and lightgbm take it or not,
+    catboost and langgraph never ask."""
+    try:
+        parameters = inspect.signature(save).parameters
+    except (TypeError, ValueError):
+        return True, False
+    parameter = parameters.get("inputs")
+    if parameter is None:
+        return False, False
+    return True, parameter.default is inspect.Parameter.empty
+
+
+def _sample_value(
+    executor: Executor, model: Any, samples: list[dict[str, Any]] | None
+) -> Any:
+    """The stored frame to take the sample from: the first one whose columns
+    cover the features the model names, or the first frame when it names
+    none or none of them fits."""
+    loaded: list[Any] = []
+    for sample in samples or []:
+        value_ref = str(sample.get("value_ref") or "")
+        kind = str(sample.get("kind") or "")
+        if not value_ref or not kind:
+            continue
+        loaded.append(executor.value(value_ref, kind))
+    if not loaded:
         return None
-    value_ref = str(sample.get("value_ref") or "")
-    kind = str(sample.get("kind") or "")
-    if not value_ref or not kind:
-        return None
-    return executor.value(value_ref, kind)
+    names = getattr(model, "feature_names_in_", None)
+    if names is not None:
+        wanted = [str(name) for name in list(names)]
+        for value in loaded:
+            frame = _as_pandas(value)
+            if frame is not None and all(name in frame.columns for name in wanted):
+                return value
+    return loaded[0]
 
 
 def _sample_inputs(model: Any, sample: Any) -> Any:

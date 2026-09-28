@@ -347,6 +347,112 @@ def test_exporting_a_model_hands_the_flavor_the_columns_it_trained_on(
     assert len(inputs) == 5
 
 
+def test_exporting_a_model_picks_the_frame_that_carries_its_features(
+    tmp_path: Path, fake_flavor: list[dict[str, Any]]
+) -> None:
+    """A cell consumes more than one frame; the one the model trained on is
+    the one whose columns cover the features it names, wherever it sits in
+    the manifest."""
+    pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    kernel, _ = make_kernel(tmp_path)
+    labels = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame({"target": [0, 1] * 10})}
+        """,
+        slug="labels",
+        produces={"rows": {"kind": "frame"}},
+    )
+    features = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame(
+                {"age": range(20), "tenure": range(20)}
+            )}
+        """,
+        slug="features",
+        run_id="run2",
+        produces={"rows": {"kind": "frame"}},
+    )
+    model = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            class Fitted:
+                feature_names_in_ = ["age", "tenure"]
+
+            return {"model": Fitted()}
+        """,
+        slug="train",
+        run_id="run3",
+        produces={"model": {"type": "model"}},
+    )
+
+    kernel.export_model(
+        {
+            "value_ref": model["outputs"]["model"]["value_ref"],
+            "kind": model["outputs"]["model"]["kind"],
+            "destination": str(tmp_path / "bundle.luml"),
+            "flavor": "fake",
+            "samples": [
+                {"value_ref": labels["outputs"]["rows"]["value_ref"], "kind": "frame"},
+                {
+                    "value_ref": features["outputs"]["rows"]["value_ref"],
+                    "kind": "frame",
+                },
+            ],
+        }
+    )
+
+    assert list(fake_flavor[0]["inputs"].columns) == ["age", "tenure"]
+
+
+def test_exporting_without_a_sample_to_a_flavor_that_needs_one_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """sklearn's save insists on a sample. With no stored frame to take one
+    from, the refusal names what to do rather than a missing argument."""
+    import types
+
+    from luml.experiments import tracker
+
+    def save_strict(model: Any, inputs: Any, path: str | None = None) -> Any:
+        raise AssertionError("must not be called without a sample")
+
+    module = types.ModuleType("strict_flavor")
+    module.save_strict = save_strict  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "strict_flavor", module)
+    monkeypatch.setitem(
+        tracker._FLAVOR_REGISTRY, "strict", ("strict_flavor", "save_strict")
+    )
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"model": "WEIGHTS"}
+        """,
+        produces={"model": {"type": "model"}},
+    )
+
+    with pytest.raises(CellError, match="needs a sample of its inputs"):
+        kernel.export_model(
+            {
+                "value_ref": record["outputs"]["model"]["value_ref"],
+                "kind": record["outputs"]["model"]["kind"],
+                "destination": str(tmp_path / "bundle.luml"),
+                "flavor": "strict",
+            }
+        )
+
+
 def test_exporting_a_model_of_no_known_flavor_names_the_supported_ones(
     tmp_path: Path,
 ) -> None:

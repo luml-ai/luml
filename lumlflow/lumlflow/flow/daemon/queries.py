@@ -603,12 +603,16 @@ def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
     return slug, name, (mat.outputs.get(name) if mat is not None else None)
 
 
-def training_frame(
+def training_frames(
     session: "FlowSession", here: Slice, version: VersionRow
-) -> dict[str, str] | None:
-    """Where the bytes of the first frame a cell consumed are — the sample a
-    model's packaging infers its input schema from. None when the cell read
-    no stored frame: the flavor is then asked to package without one."""
+) -> list[dict[str, str]]:
+    """Where the bytes of every stored frame a cell consumed are, in manifest
+    order — the candidates a model's packaging takes its input sample from.
+    The kernel picks the one whose columns cover the model's features, so a
+    test frame or a frame still carrying the target does not win by being
+    consumed first. Empty when the cell read no stored frame: the flavor is
+    then asked to package without one."""
+    found: list[dict[str, str]] = []
     for consumed in version.manifest.consumes.values():
         if consumed.uid is None or consumed.output is None:
             continue
@@ -618,8 +622,8 @@ def training_frame(
             continue
         if not session.store.values.exists(record.value_ref):
             continue
-        return {"value_ref": record.value_ref, "kind": record.kind}
-    return None
+        found.append({"value_ref": record.value_ref, "kind": record.kind})
+    return found
 
 
 def repl_names(session: "FlowSession", here: Slice) -> dict[str, dict[str, str]]:

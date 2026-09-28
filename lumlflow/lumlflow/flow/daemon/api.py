@@ -552,7 +552,8 @@ class Api:
         takes — that is awaited, so a model luml cannot package is refused
         here, in the daemon's words. The upload then runs as a job in the
         tracker's own progress store, and the browser follows it on the same
-        stream an experiment upload reports on.
+        stream an experiment upload reports on. The bundle is the job's to
+        remove; until the job exists, a refusal removes it here.
         """
         session, branch, slug, output, record = await self.stored_output(params)
         here = queries.read(session, branch)
@@ -576,12 +577,16 @@ class Api:
                 value_ref,
                 record.kind,
                 destination=destination,
-                sample=queries.training_frame(session, here, version),
+                samples=queries.training_frames(session, here, version),
             )
         except Exception:
             destination.unlink(missing_ok=True)
             raise
-        job_id = self._start_upload(destination, form)
+        try:
+            job_id = self._start_upload(destination, form)
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
         return {
             "flow": session.ref.name,
             "branch": branch,
