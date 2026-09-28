@@ -1,4 +1,5 @@
 import { api } from '@/api/client'
+import type { PublishedAsset, PublishTarget } from '@/flow/api/types'
 import type {
   AgentSession,
   AssetPreview,
@@ -169,6 +170,17 @@ export const workspaceApi = {
       target,
     }),
 
+  publishAsset: (target: string, destination: PublishTarget, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; target: string } & PublishTarget, PublishedAsset>(
+      'asset.publish',
+      {
+        ...(flow ? { flow } : {}),
+        ...(branch ? { branch } : {}),
+        target,
+        ...destination,
+      },
+    ),
+
   journalSince: (flow?: string, cursor = 0) =>
     call<{ flow?: string; cursor: number }, JournalPage>('journal.since', {
       ...(flow ? { flow } : {}),
@@ -253,14 +265,11 @@ export const workspaceApi = {
     }),
 
   agentPayload: (slug: string, flow?: string, branch?: string) =>
-    call<{ flow?: string; branch?: string; slug: string }, CellContextPayload>(
-      'agent.payload',
-      {
-        ...(flow ? { flow } : {}),
-        ...(branch ? { branch } : {}),
-        slug,
-      },
-    ),
+    call<{ flow?: string; branch?: string; slug: string }, CellContextPayload>('agent.payload', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      slug,
+    }),
 
   runLane: (flow?: string, branch?: string) =>
     call<{ flow?: string; branch?: string }, RanLane>('run', {

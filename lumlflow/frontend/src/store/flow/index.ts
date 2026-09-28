@@ -8,6 +8,7 @@ import type {
   RanCell,
   RanLane,
 } from '@/api/slices/workspace/workspace.interface'
+import type { PublishedAsset, PublishTarget } from '@/flow/api/types'
 import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/lanes/interface'
 import type {
   NotebookAssetInterface,
@@ -136,6 +137,7 @@ export const useFlowStore = defineStore('flow', () => {
   const selectedCellId = ref<string | null>(null)
   const expandedCellId = ref<string | null>(null)
   const uploadExperimentId = ref<string | null>(null)
+  const uploadModelTarget = ref<{ slug: string; output: string } | null>(null)
 
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
@@ -209,6 +211,21 @@ export const useFlowStore = defineStore('flow', () => {
 
   function setUploadExperimentId(id: string | null) {
     uploadExperimentId.value = id
+  }
+
+  function setUploadModelTarget(target: { slug: string; output: string } | null) {
+    uploadModelTarget.value = target
+  }
+
+  async function publishModel(destination: PublishTarget): Promise<PublishedAsset> {
+    const target = uploadModelTarget.value
+    if (!target) throw new Error('No model selected to promote')
+    return workspaceApi.publishAsset(
+      `${target.slug}.${target.output}`,
+      destination,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
   }
 
   async function pairAgent(agent: PairableAgentInterface) {
@@ -569,6 +586,7 @@ export const useFlowStore = defineStore('flow', () => {
     selectedCellId.value = null
     expandedCellId.value = null
     uploadExperimentId.value = null
+    uploadModelTarget.value = null
   }
 
   return {
@@ -633,6 +651,9 @@ export const useFlowStore = defineStore('flow', () => {
     setExpandedCellId,
     uploadExperimentId,
     setUploadExperimentId,
+    uploadModelTarget,
+    setUploadModelTarget,
+    publishModel,
     pairedAgentLabel,
     pairAgent,
   }

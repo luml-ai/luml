@@ -207,8 +207,16 @@ function onDelete() {
   confirm.require(deleteCellConfirmOptions(onDeleteConfirm, props.cell.slug))
 }
 
+function outputNameOfKind(kind: string): string | undefined {
+  return Object.entries(props.cell.kinds).find(([, declared]) => declared === kind)?.[0]
+}
+
 function experimentOutputName(): string | undefined {
-  return Object.entries(props.cell.kinds).find(([, kind]) => kind === 'experiment')?.[0]
+  return outputNameOfKind('experiment')
+}
+
+function modelOutputName(): string | undefined {
+  return outputNameOfKind('model')
 }
 
 async function onOpenInExperiments() {
@@ -227,6 +235,30 @@ async function onOpenInExperiments() {
 }
 
 async function onPromoteToLuml() {
+  if (modelOutputName()) return promoteModel()
+  return promoteExperiment()
+}
+
+async function promoteModel() {
+  const output = modelOutputName()
+  if (!output) return
+  try {
+    const asset = await flowStore.fetchAssetPreview(props.cell.slug, output)
+    if (!asset.persisted) {
+      toast.add(
+        errorToast(new Error('This model has not been materialized yet. Run the cell first')),
+      )
+      return
+    }
+    if (await authStore.ensureAuth()) {
+      flowStore.setUploadModelTarget({ slug: props.cell.slug, output })
+    }
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
+}
+
+async function promoteExperiment() {
   const output = experimentOutputName()
   if (!output) return
   try {
@@ -286,7 +318,7 @@ const menuItems: CellHeaderMenuItem[] = [
   {
     label: 'Promote to LUML',
     glyph: CloudUpload,
-    visible: () => experimentOutputName() !== undefined,
+    visible: () => modelOutputName() !== undefined || experimentOutputName() !== undefined,
     command: onPromoteToLuml,
   },
   { label: 'Download', glyph: Download, command: onDownload },

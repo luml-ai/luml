@@ -269,6 +269,7 @@ watch(visible, async (value) => {
         toast.add(errorToast(error))
       }
     }
+    if (props.defaultName) formRef.value?.setFieldValue('name', props.defaultName)
     await getOrganizations()
   } else {
     organizations.value = []

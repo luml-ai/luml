@@ -30,6 +30,11 @@
       v-model:visible="isUploadModalVisible"
       :experiment-id="flowStore.uploadExperimentId ?? ''"
     />
+    <UploadModal
+      v-model:visible="isModelUploadModalVisible"
+      :publish="flowStore.publishModel"
+      :default-name="modelUploadName"
+    />
   </div>
 </template>
 
@@ -76,6 +81,18 @@ const isUploadModalVisible = computed({
   set: (visible: boolean) => {
     if (!visible) flowStore.setUploadExperimentId(null)
   },
+})
+
+const isModelUploadModalVisible = computed({
+  get: () => flowStore.uploadModelTarget !== null,
+  set: (visible: boolean) => {
+    if (!visible) flowStore.setUploadModelTarget(null)
+  },
+})
+
+const modelUploadName = computed(() => {
+  const target = flowStore.uploadModelTarget
+  return target ? `${target.slug}.${target.output}` : ''
 })
 </script>
 
