@@ -64,7 +64,7 @@ const { setRequestInfo, getInitialPage, collectionsList, reset, onLazyLoad, addC
 
 const virtualScrollerOptions = computed(() => {
   if (collectionsList.value.length < 10) return undefined
-  return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 107 }
+  return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 109 }
 })
 
 const modelValue = defineModel<string | null>()
@@ -114,8 +114,11 @@ watch(() => [props.organizationId, props.orbitId], onRequestInfoChange, {
 
 <style>
 .collections-select-overlay .p-select-option {
-  padding: 0;
+  padding: 0 0 2px;
   background-color: transparent !important;
+}
+.collections-select-overlay .p-select-list {
+  gap: 0;
 }
 .collections-select-overlay .p-select-header {
   padding-left: 4px;

@@ -51,6 +51,6 @@ describe('CollectionSelect', () => {
 
     const select = mountSelect().findComponent({ name: 'PrimeSelectStub' })
 
-    expect(select.props('virtualScrollerOptions')).toMatchObject({ itemSize: 107 })
+    expect(select.props('virtualScrollerOptions')).toMatchObject({ itemSize: 109 })
   })
 })
