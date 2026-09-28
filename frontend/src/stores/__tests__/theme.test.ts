@@ -1,4 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../auth', async () => {
@@ -58,8 +59,9 @@ describe('theme store', () => {
     expect(store.getCurrentTheme).toBe('dark')
   })
 
-  it('keeps an authenticated user preference when the OS theme changes', () => {
-    useAuthStore().isAuth = true
+  it('keeps an authenticated user preference when the OS theme changes', async () => {
+    const authStore = useAuthStore()
+    authStore.isAuth = true
     localStorage.setItem('theme', 'light')
     const store = useThemeStore()
     store.checkTheme()
@@ -67,10 +69,34 @@ describe('theme store', () => {
     dispatchThemeChange(true)
     expect(store.getCurrentTheme).toBe('light')
 
-    localStorage.removeItem('theme')
+    authStore.isAuth = false
+    await nextTick()
+    expect(store.getCurrentTheme).toBe('dark')
     dispatchThemeChange(false)
+    expect(store.getCurrentTheme).toBe('light')
+  })
+
+  it('keeps a theme chosen while logged out when the OS theme changes', () => {
+    const store = useThemeStore()
+    store.checkTheme()
+    store.changeTheme()
+    expect(store.getCurrentTheme).toBe('dark')
+
+    dispatchThemeChange(true)
+    dispatchThemeChange(false)
+    expect(store.getCurrentTheme).toBe('dark')
+  })
+
+  it('follows the OS for a logged out user with a previously saved theme', () => {
+    localStorage.setItem('theme', 'dark')
+    const store = useThemeStore()
+    store.checkTheme()
+    expect(store.getCurrentTheme).toBe('light')
+
     dispatchThemeChange(true)
     expect(store.getCurrentTheme).toBe('dark')
+    dispatchThemeChange(false)
+    expect(store.getCurrentTheme).toBe('light')
   })
 
   it('removes the OS listener when the store is disposed', () => {

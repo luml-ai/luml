@@ -10,11 +10,10 @@ export const useThemeStore = defineStore('theme', () => {
 
   const theme = ref<Theme>('light')
   const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  let followsSystemTheme = true
 
   const syncSystemTheme = (event: MediaQueryListEvent) => {
-    if (!localStorage.getItem('theme') || !isAuth.value) {
-      theme.value = event.matches ? 'dark' : 'light'
-    }
+    if (followsSystemTheme) theme.value = event.matches ? 'dark' : 'light'
   }
 
   darkModeQuery.addEventListener('change', syncSystemTheme)
@@ -28,6 +27,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   const changeTheme = () => {
     toggleTheme()
+    followsSystemTheme = false
 
     localStorage.setItem('theme', theme.value)
   }
@@ -37,8 +37,10 @@ export const useThemeStore = defineStore('theme', () => {
 
     if (themeInLocalstorage && isAuth.value) {
       theme.value = themeInLocalstorage as Theme
+      followsSystemTheme = false
     } else {
       theme.value = darkModeQuery.matches ? 'dark' : 'light'
+      followsSystemTheme = true
     }
   }
 
