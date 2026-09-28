@@ -7,6 +7,7 @@ describe('getFormattedMetric', () => {
     expect(getFormattedMetric(0)).toBe('0')
     expect(getFormattedMetric(null)).toBe('—')
     expect(getFormattedMetric(undefined)).toBe('—')
+    expect(getFormattedMetric(NaN)).toBe('—')
   })
 
   it('uses scientific notation when two decimals would hide a small metric', () => {
@@ -27,5 +28,6 @@ describe('fixNumber', () => {
     expect(fixNumber(0, 2)).toBe('0')
     expect(fixNumber(null, 2)).toBe('—')
     expect(fixNumber(undefined, 2)).toBe('—')
+    expect(fixNumber(NaN, 2)).toBe('—')
   })
 })

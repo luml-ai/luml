@@ -29,7 +29,7 @@ export const getMetrics = (
 }
 
 export const getFormattedMetric = (num: number | null | undefined) => {
-  if (num === null || num === undefined) return '—'
+  if (num === null || num === undefined || Number.isNaN(num)) return '—'
   if (num === 0) return '0'
   const orderOfMagnitude = Math.log10(Math.abs(num))
   if (orderOfMagnitude > 5 || orderOfMagnitude < -2) return formatNumberScientific(num)
@@ -59,7 +59,7 @@ export const getMetricsCards = (
 export const toPercent = (float: number) => Number((float * 100).toFixed())
 
 export const fixNumber = (float: number | null | undefined, decimals: number) => {
-  if (float === null || float === undefined) return '—'
+  if (float === null || float === undefined || Number.isNaN(float)) return '—'
   return float === 0 ? '0' : float.toFixed(decimals)
 }
 
