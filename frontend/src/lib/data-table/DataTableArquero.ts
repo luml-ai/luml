@@ -32,6 +32,10 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
         typeof columnValue === 'number' && filter.parameter !== ''
           ? Number(filter.parameter)
           : filter.parameter
+      const orderedParameter =
+        filter.parameter !== '' && !isNaN(Number(filter.parameter))
+          ? Number(filter.parameter)
+          : filter.parameter
 
       switch (filter.filterType) {
         case FilterType.Equals:
@@ -39,13 +43,13 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
         case FilterType.NotEquals:
           return columnValue !== parameter
         case FilterType.LessThan:
-          return columnValue < parameter
+          return columnValue < orderedParameter
         case FilterType.LessThanOrEqualTo:
-          return columnValue <= parameter
+          return columnValue <= orderedParameter
         case FilterType.GreaterThan:
-          return columnValue > parameter
+          return columnValue > orderedParameter
         case FilterType.GreaterThanOrEqualTo:
-          return columnValue >= parameter
+          return columnValue >= orderedParameter
         default:
           return true
       }
