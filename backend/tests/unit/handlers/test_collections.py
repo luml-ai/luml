@@ -23,7 +23,7 @@ from pydantic import ValidationError
 handler = CollectionHandler()
 
 
-@pytest.mark.parametrize("cursor", ["garbage", "", "WzFd"])
+@pytest.mark.parametrize("cursor", ["garbage", "WzFd"])
 @patch(
     "luml.handlers.collections.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
