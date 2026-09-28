@@ -434,3 +434,38 @@ describe('artifacts store', () => {
     expect(store.artifactsList.map(({ id }) => id)).toEqual(['artifact-a'])
   })
 })
+
+describe('artifacts store experiment snapshot provider', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('releases the previous provider after it is replaced', () => {
+    const store = useArtifactsStore()
+    const firstProvider = {}
+    const secondProvider = {}
+    const releaseFirst = vi.fn(() => {
+      expect(store.experimentSnapshotProvider).toStrictEqual(secondProvider)
+    })
+    const releaseSecond = vi.fn()
+
+    store.setExperimentSnapshotProvider(firstProvider, releaseFirst)
+    store.setExperimentSnapshotProvider(secondProvider, releaseSecond)
+
+    expect(releaseFirst).toHaveBeenCalledOnce()
+    expect(releaseSecond).not.toHaveBeenCalled()
+  })
+
+  it('releases the current provider once when it is reset', () => {
+    const store = useArtifactsStore()
+    const release = vi.fn(() => {
+      expect(store.experimentSnapshotProvider).toBeNull()
+    })
+
+    store.setExperimentSnapshotProvider({}, release)
+    store.resetExperimentSnapshotProvider()
+    store.resetExperimentSnapshotProvider()
+
+    expect(release).toHaveBeenCalledOnce()
+  })
+})

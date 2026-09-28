@@ -60,6 +60,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
   const currentModelHtmlBlobUrl = ref<string | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const experimentSnapshotProvider = ref<any>(null)
+  let releaseExperimentSnapshotProvider: (() => void) | null = null
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -143,12 +144,21 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     currentModelHtmlBlobUrl.value = null
   }
 
-  function setExperimentSnapshotProvider(provider: ExperimentSnapshotProvider) {
+  function setExperimentSnapshotProvider(
+    provider: ExperimentSnapshotProvider,
+    onRelease?: () => void,
+  ) {
+    const releasePrevious = releaseExperimentSnapshotProvider
     experimentSnapshotProvider.value = provider
+    releaseExperimentSnapshotProvider = onRelease ?? null
+    releasePrevious?.()
   }
 
   function resetExperimentSnapshotProvider() {
+    const releasePrevious = releaseExperimentSnapshotProvider
     experimentSnapshotProvider.value = null
+    releaseExperimentSnapshotProvider = null
+    releasePrevious?.()
   }
 
   async function updateArtifact(payload: UpdateArtifactPayload) {

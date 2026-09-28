@@ -4,11 +4,27 @@ import { defineComponent, h } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useExperimentSnapshotsDatabaseProvider } from './useExperimentSnapshotsDatabaseProvider'
 
-const mocks = vi.hoisted(() => ({
-  getDownloadUrl: vi.fn(),
-  setExperimentSnapshotProvider: vi.fn(),
-  getFileFromBucket: vi.fn(),
-}))
+const mocks = vi.hoisted(() => {
+  const store = {
+    experimentSnapshotProvider: null as unknown,
+    releaseProvider: null as (() => void) | null,
+    getDownloadUrl: vi.fn(),
+    getFileFromBucket: vi.fn(),
+    setExperimentSnapshotProvider: vi.fn((provider: unknown, onRelease?: () => void) => {
+      const releasePrevious = store.releaseProvider
+      store.experimentSnapshotProvider = provider
+      store.releaseProvider = onRelease ?? null
+      releasePrevious?.()
+    }),
+    resetExperimentSnapshotProvider: vi.fn(() => {
+      const releasePrevious = store.releaseProvider
+      store.experimentSnapshotProvider = null
+      store.releaseProvider = null
+      releasePrevious?.()
+    }),
+  }
+  return store
+})
 
 vi.mock('@/stores/artifacts', () => ({
   useArtifactsStore: () => mocks,
@@ -61,6 +77,8 @@ const Harness = defineComponent({
 describe('experiment snapshot worker lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.experimentSnapshotProvider = null
+    mocks.releaseProvider = null
     workers = []
     vi.stubGlobal(
       'Worker',
@@ -75,19 +93,50 @@ describe('experiment snapshot worker lifecycle', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
-  it('terminates the worker when the view unmounts after initialization', async () => {
-    const wrapper = mount(Harness)
-    const initialized = init([])
+  async function initialize(worker: MockWorker, initialized: Promise<void>) {
     await Promise.resolve()
-
-    const worker = workers[0]
-    const message = worker.postMessage.mock.calls[0][0]
+    const message = worker.postMessage.mock.calls.at(-1)![0]
     worker.emit({ requestId: message.requestId, data: null })
     await initialized
+  }
+
+  it('keeps the worker alive while its provider stays in the store after unmount', async () => {
+    const wrapper = mount(Harness)
+    await initialize(workers[0], init([]))
+    const worker = workers[0]
 
     expect(mocks.setExperimentSnapshotProvider).toHaveBeenCalledOnce()
     wrapper.unmount()
+    expect(worker.terminate).not.toHaveBeenCalled()
+
+    mocks.resetExperimentSnapshotProvider()
     expect(worker.terminate).toHaveBeenCalledOnce()
+  })
+
+  it('terminates the worker of an unmounted view when another provider replaces it', async () => {
+    const first = mount(Harness)
+    await initialize(workers[0], init([]))
+    first.unmount()
+
+    const second = mount(Harness)
+    await initialize(workers[1], init([]))
+
+    expect(workers[0].terminate).toHaveBeenCalledOnce()
+    expect(workers[1].terminate).not.toHaveBeenCalled()
+    second.unmount()
+  })
+
+  it('reuses the worker when the provider is reset while the view is mounted', async () => {
+    const wrapper = mount(Harness)
+    const worker = workers[0]
+    await initialize(worker, init([]))
+
+    mocks.resetExperimentSnapshotProvider()
+    await initialize(worker, init([]))
+
+    expect(worker.terminate).not.toHaveBeenCalled()
+    expect(mocks.experimentSnapshotProvider).not.toBeNull()
+    wrapper.unmount()
   })
 
   it('settles an in-flight worker request and removes its listener on unmount', async () => {

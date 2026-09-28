@@ -3,7 +3,7 @@ import { ModelDownloader } from '@/lib/bucket-service'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { ExperimentSnapshotWorkerProxy } from '@luml/experiments'
 import { useArtifactsStore } from '@/stores/artifacts'
-import { onUnmounted } from 'vue'
+import { onUnmounted, toRaw } from 'vue'
 
 export const useExperimentSnapshotsDatabaseProvider = () => {
   const artifactsStore = useArtifactsStore()
@@ -11,6 +11,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
   const abortControllers: Record<string, AbortController> = {}
   const pendingWorkerCalls = new Map<(e: MessageEvent) => void, (reason: Error) => void>()
   let unmounted = false
+  let provider: ExperimentSnapshotWorkerProxy | null = null
 
   const worker = new Worker(new URL('@/workers/experiment-snapshot', import.meta.url), {
     type: 'module',
@@ -60,8 +61,14 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     })
 
     if (unmounted) return
-    const provider = new ExperimentSnapshotWorkerProxy(worker)
-    artifactsStore.setExperimentSnapshotProvider(provider)
+    provider = new ExperimentSnapshotWorkerProxy(worker)
+    artifactsStore.setExperimentSnapshotProvider(provider, terminateWorkerIfUnused)
+  }
+
+  function terminateWorkerIfUnused() {
+    if (!unmounted) return
+    if (provider && toRaw(artifactsStore.experimentSnapshotProvider) === provider) return
+    worker.terminate()
   }
 
   async function loadArchiveBuffer(model: ModelArtifact) {
@@ -94,7 +101,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
       reject(new Error('Experiment snapshot view was unmounted'))
     })
     pendingWorkerCalls.clear()
-    worker.terminate()
+    terminateWorkerIfUnused()
   })
 
   return {
