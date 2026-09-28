@@ -134,3 +134,17 @@ describe('DeploymentsTable progress notes', () => {
     expect(wrapper.find('[data-testid="deployment-progress-note"]').exists()).toBe(false)
   })
 })
+
+describe('DeploymentsTable count label', () => {
+  it.each([
+    [0, '0 Deployments'],
+    [1, '1 Deployment'],
+    [2, '2 Deployments'],
+  ])('renders %s deployments as %s', (count, label) => {
+    const data = Array.from({ length: count }, (_, index) =>
+      deployment(DeploymentStatusEnum.active, String(index)),
+    )
+
+    expect(mountTable(data).get('.title').text()).toBe(label)
+  })
+})

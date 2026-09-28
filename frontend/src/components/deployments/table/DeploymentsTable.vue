@@ -2,7 +2,9 @@
   <div>
     <DataTable :value="data" v-model:filters="filters">
       <template #header>
-        <h4 class="title">{{ data.length }} Deployments</h4>
+        <h4 class="title">
+          {{ data.length }} {{ data.length === 1 ? 'Deployment' : 'Deployments' }}
+        </h4>
         <IconField>
           <InputText v-model="filters['global'].value" size="small" placeholder="Search" />
           <InputIcon>
