@@ -88,7 +88,13 @@ export const useArtifactsStore = defineStore('artifacts', () => {
       payload.id,
       payload,
     )
-    setArtifactsList([...artifactsList.value, result])
+    if (
+      route.params.organizationId === info.organizationId &&
+      route.params.id === info.orbitId &&
+      route.params.collectionId === info.collectionId
+    ) {
+      setArtifactsList([...artifactsList.value, result])
+    }
   }
 
   async function cancelArtifactUpload(payload: UpdateArtifactPayload, requestData?: RequestInfo) {
