@@ -71,7 +71,11 @@ export const convertObjectToCsvBlob = (data: object) => {
     const row = headers.map((header) => data[header as keyof typeof data][i] ?? '')
     rows.push(row)
   }
-  const csvContent = [headers, ...rows]
+  return new Blob([rowsToCsv([headers, ...rows])], { type: 'text/csv;charset=utf-8;' })
+}
+
+export const rowsToCsv = (rows: unknown[][]) => {
+  return rows
     .map((row) =>
       row
         .map((item) => {
@@ -81,7 +85,6 @@ export const convertObjectToCsvBlob = (data: object) => {
         .join(','),
     )
     .join('\n')
-  return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
 }
 
 export const formatNumberScientific = (num: number, significantDigits = 3) => {
