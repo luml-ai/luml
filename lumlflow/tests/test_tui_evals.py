@@ -318,9 +318,7 @@ class TestEvalsPanelListing:
             # number of pause cycles.
             assert await _wait_until(
                 pilot,
-                lambda: any(
-                    cid.startswith("score.") for cid, _ in panel._column_order
-                ),
+                lambda: any(cid.startswith("score.") for cid, _ in panel._column_order),
             )
             col_ids = {cid for cid, _ in panel._column_order}
             assert "score.accuracy" in col_ids
@@ -487,23 +485,17 @@ class TestEvalsDatasetSelector:
                 pilot, lambda: len(panel._rows) == 3 and len(panel._dataset_ids) == 2
             )
             panel.action_next_dataset()
-            assert await _wait_until(
-                pilot, lambda: panel._selected_dataset == "ds-1"
-            )
+            assert await _wait_until(pilot, lambda: panel._selected_dataset == "ds-1")
             assert await _wait_until(
                 pilot, lambda: {r.key for r in panel._rows} == {"e-1", "e-2"}
             )
             panel.action_next_dataset()
-            assert await _wait_until(
-                pilot, lambda: panel._selected_dataset == "ds-2"
-            )
+            assert await _wait_until(pilot, lambda: panel._selected_dataset == "ds-2")
             assert await _wait_until(
                 pilot, lambda: {r.key for r in panel._rows} == {"e-3"}
             )
             panel.action_next_dataset()
-            assert await _wait_until(
-                pilot, lambda: panel._selected_dataset is None
-            )
+            assert await _wait_until(pilot, lambda: panel._selected_dataset is None)
             assert await _wait_until(pilot, lambda: len(panel._rows) == 3)
 
     async def test_prev_dataset_key_wraps_to_last(
@@ -524,9 +516,7 @@ class TestEvalsDatasetSelector:
                 pilot, lambda: len(panel._rows) == 3 and len(panel._dataset_ids) == 2
             )
             panel.action_prev_dataset()
-            assert await _wait_until(
-                pilot, lambda: panel._selected_dataset == "ds-2"
-            )
+            assert await _wait_until(pilot, lambda: panel._selected_dataset == "ds-2")
 
     async def test_average_scores_label_renders(
         self, facade: DataFacade, tracker: ExperimentTracker
@@ -542,9 +532,7 @@ class TestEvalsDatasetSelector:
             await pilot.pause()
             screen.action_jump_tab("evals")
             panel = screen.query_one("#pane-evals-panel", EvalsPanel)
-            assert await _wait_until(
-                pilot, lambda: "accuracy" in panel._average_scores
-            )
+            assert await _wait_until(pilot, lambda: "accuracy" in panel._average_scores)
             label = panel.query_one("#evals-avg-scores", Static)
             text = str(label.render())
             assert "accuracy" in text
@@ -818,9 +806,7 @@ class TestEvalAnnotationCrud:
                 lambda: any(
                     a.name == "quality"
                     for a in (
-                        facade.list_eval_annotations(
-                            exp_id, "ds-1", "e-1"
-                        ).unwrap()
+                        facade.list_eval_annotations(exp_id, "ds-1", "e-1").unwrap()
                         or []
                     )
                 ),
@@ -897,9 +883,7 @@ class TestEvalAnnotationCrud:
                 lambda: all(
                     a.id != created.id
                     for a in (
-                        facade.list_eval_annotations(
-                            exp_id, "ds-1", "e-1"
-                        ).unwrap()
+                        facade.list_eval_annotations(exp_id, "ds-1", "e-1").unwrap()
                         or []
                     )
                 ),

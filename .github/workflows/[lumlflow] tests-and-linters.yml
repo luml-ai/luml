@@ -1,0 +1,118 @@
+name: Lumlflow Tests and Linters
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'lumlflow/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'lumlflow/**'
+  workflow_dispatch:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend dependencies
+        run: |
+          npm run build --workspace=@luml/experiments
+          npm run build --workspace=@luml/attachments
+
+      - name: Type checking
+        working-directory: lumlflow/frontend
+        run: npx vue-tsc --build
+
+      - name: Linting
+        working-directory: lumlflow/frontend
+        run: npx eslint .
+
+      - name: Running tests
+        working-directory: lumlflow/frontend
+        run: npx vitest run --config vitest.config.ts
+
+      - name: Build frontend
+        working-directory: lumlflow/frontend
+        run: npx vite build
+
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies with uv
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --group dev
+
+      - name: Check formatting
+        run: uv run ruff format --check lumlflow lumlflow_kernel lumlflow_typing tests
+
+      - name: Linting
+        run: uv run ruff check lumlflow lumlflow_kernel lumlflow_typing tests
+
+      - name: Type checking
+        run: uv run mypy lumlflow/flow lumlflow_kernel lumlflow_typing
+
+      - name: Running tests
+        run: uv run pytest
+
+  # Portability is a v1 requirement, not a port at the end. The store and the
+  # watcher are where the platform's differences land — atomic replace, sharing
+  # violations, path legality, and events a filesystem delivers its own way.
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies with uv
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --group dev
+
+      - name: Running store and watcher tests
+        run: uv run pytest tests/flow tests/daemon/test_watcher.py
+
+  # The kernel is path-injected into the workspace venv, whose floor is 3.10 —
+  # so it is tested on 3.10, with no project install, exactly as it ships.
+  kernel-floor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Running kernel tests under the venv floor
+        run: uv run --python 3.10 --no-project --with pytest pytest tests/kernel

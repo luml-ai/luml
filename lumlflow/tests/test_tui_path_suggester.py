@@ -41,9 +41,7 @@ class TestPathSuggester:
         value = str(tmp_path / "no" / "such" / "dir" / "x")
         assert await suggester.get_suggestion(value) is None
 
-    async def test_empty_and_trailing_slash_return_none(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_empty_and_trailing_slash_return_none(self, tmp_path: Path) -> None:
         suggester = PathSuggester()
         assert await suggester.get_suggestion("") is None
         assert await suggester.get_suggestion(str(tmp_path) + "/") is None
@@ -52,7 +50,4 @@ class TestPathSuggester:
         # Nothing left to complete — no ghost text.
         (tmp_path / "model.luml").write_bytes(b"x")
         suggester = PathSuggester()
-        assert (
-            await suggester.get_suggestion(str(tmp_path / "model.luml"))
-            is None
-        )
+        assert await suggester.get_suggestion(str(tmp_path / "model.luml")) is None

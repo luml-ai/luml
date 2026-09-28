@@ -766,9 +766,7 @@ class TestSpanAnnotationCrud:
             names = {a.name for a in screen._span_annotations}
             assert "quality" in names
             # The handler persisted it: a fresh read confirms.
-            annotations = facade.list_span_annotations(
-                exp_id, "tr-1", root_id
-            ).unwrap()
+            annotations = facade.list_span_annotations(exp_id, "tr-1", root_id).unwrap()
             assert any(a.name == "quality" for a in annotations)
 
     async def test_delete_annotation_confirm_dialog(
@@ -850,13 +848,9 @@ class TestSpanAnnotationCrud:
             screen._on_annotation_delete_confirmed(created.id, True)
             await pilot.pause()
             await pilot.pause()
-            assert all(
-                a.id != created.id for a in screen._span_annotations
-            )
+            assert all(a.id != created.id for a in screen._span_annotations)
             # And the handler-side state reflects it too.
-            remaining = facade.list_span_annotations(
-                exp_id, "tr-1", root_id
-            ).unwrap()
+            remaining = facade.list_span_annotations(exp_id, "tr-1", root_id).unwrap()
             assert all(a.id != created.id for a in remaining)
 
 
@@ -869,9 +863,7 @@ class TestDrillInToTraceDetail:
     async def test_open_focused_pushes_trace_detail(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        exp_id = _seed_experiment_with_traces(
-            tracker, traces=[("tr-only", 1)]
-        )
+        exp_id = _seed_experiment_with_traces(tracker, traces=[("tr-only", 1)])
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -909,9 +901,7 @@ class TestErrorStateRendering:
         `error` trace state (SDK behaviour); the panel renders the row
         with the error palette so it stands out at a glance."""
 
-        exp_id = _seed_experiment_with_traces(
-            tracker, traces=[("tr-err", 2)]
-        )
+        exp_id = _seed_experiment_with_traces(tracker, traces=[("tr-err", 2)])
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()

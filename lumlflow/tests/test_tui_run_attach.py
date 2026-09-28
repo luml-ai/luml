@@ -347,6 +347,13 @@ class TestRunAttachSuccess:
                 pilot=pilot,
                 timeout=10.0,
             )
+            await _wait_until(
+                lambda: isinstance(app.screen, ExperimentDetailScreen),
+                pilot=pilot,
+                timeout=10.0,
+            )
+            for _ in range(8):
+                await pilot.pause()
 
     async def test_status_indicator_shows_attached_id(
         self,

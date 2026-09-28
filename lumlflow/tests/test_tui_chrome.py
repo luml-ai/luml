@@ -323,9 +323,7 @@ class TestBaseScreenPanelFocus:
     """`BaseScreen` marks the panel frame enclosing the focused widget."""
 
     async def test_focused_widget_marks_enclosing_panel(self) -> None:
-        app = LumlflowApp(
-            show_first_run_hint=False, home_screen_factory=_TwoPaneScreen
-        )
+        app = LumlflowApp(show_first_run_hint=False, home_screen_factory=_TwoPaneScreen)
         async with app.run_test() as pilot:
             await pilot.pause()
             screen = app.screen
@@ -345,9 +343,7 @@ class TestBaseScreenPanelFocus:
             assert right_frame.focused is True
 
     async def test_tab_cycles_focusable_panes(self) -> None:
-        app = LumlflowApp(
-            show_first_run_hint=False, home_screen_factory=_TwoPaneScreen
-        )
+        app = LumlflowApp(show_first_run_hint=False, home_screen_factory=_TwoPaneScreen)
         async with app.run_test() as pilot:
             await pilot.pause()
             screen = app.screen
@@ -367,9 +363,7 @@ class TestBaseScreenPanelFocus:
             assert app.focused is left_input
 
     async def test_shift_tab_cycles_focusable_panes_backwards(self) -> None:
-        app = LumlflowApp(
-            show_first_run_hint=False, home_screen_factory=_TwoPaneScreen
-        )
+        app = LumlflowApp(show_first_run_hint=False, home_screen_factory=_TwoPaneScreen)
         async with app.run_test() as pilot:
             await pilot.pause()
             screen = app.screen
@@ -405,9 +399,7 @@ class TestBaseScreenPanelFocus:
             assert app.focused is not None
 
     async def test_active_panel_is_only_one_at_a_time(self) -> None:
-        app = LumlflowApp(
-            show_first_run_hint=False, home_screen_factory=_TwoPaneScreen
-        )
+        app = LumlflowApp(show_first_run_hint=False, home_screen_factory=_TwoPaneScreen)
         async with app.run_test() as pilot:
             await pilot.pause()
             screen = app.screen
@@ -418,9 +410,7 @@ class TestBaseScreenPanelFocus:
             screen.query_one("#right-input", Input).focus()
             await pilot.pause()
             # Only the right is focused after the switch.
-            focused_count = sum(
-                1 for f in (left_frame, right_frame) if f.focused
-            )
+            focused_count = sum(1 for f in (left_frame, right_frame) if f.focused)
             assert focused_count == 1
 
 

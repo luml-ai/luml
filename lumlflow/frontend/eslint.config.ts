@@ -38,6 +38,7 @@ export default defineConfigWithVueTs(
     '**/coverage/**',
     'eslint.config.ts',
     'vite.config.*',
+    'vitest.config.*',
     'style-dictionary.config.*',
   ]),
 

@@ -67,6 +67,7 @@ def _render_tag_chips(tags: list[str]) -> Text:
         out.append(f" {tag} ", style=f"bold $tag-{color_index} on $panel")
     return out
 
+
 # Default page size for lazy pagination. Kept modest so even on giant
 # stores the first page renders quickly; subsequent pages load as the
 # user scrolls past the last visible row.
@@ -632,9 +633,7 @@ class GroupsScreen(BaseScreen):
         self._order = result.order
         self.load_first_page()
 
-    def on_data_table_header_selected(
-        self, event: DataTable.HeaderSelected
-    ) -> None:
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
         """Clicking a column header sorts by it (click again to flip).
 
         Mouse counterpart of the `s` sort dialog — both route through
@@ -657,9 +656,7 @@ class GroupsScreen(BaseScreen):
         label_by_id = {fid: label for fid, label in _SORT_FIELDS}
         field_label = label_by_id.get(self._sort_by, self._sort_by)
         arrow = "↓" if self._order == "desc" else "↑"
-        search_part = (
-            f" · filter {self._search!r}" if self._search is not None else ""
-        )
+        search_part = f" · filter {self._search!r}" if self._search is not None else ""
         return f"sort: {field_label} {arrow}{search_part}"
 
     def _panel_title(self) -> str:
@@ -710,11 +707,7 @@ class GroupsScreen(BaseScreen):
             tags=result.tags,
         )
         # Only call the facade if at least one field was actually changed.
-        if (
-            body.name is None
-            and body.description is None
-            and body.tags is None
-        ):
+        if body.name is None and body.description is None and body.tags is None:
             return
         self._run_update(group_id, body)
 
@@ -730,9 +723,7 @@ class GroupsScreen(BaseScreen):
         if not result.ok:
             err = result.error
             msg = err.message if err else "update failed"
-            self._lumlflow_app.show_toast(
-                f"Edit failed: {msg}", severity="error"
-            )
+            self._lumlflow_app.show_toast(f"Edit failed: {msg}", severity="error")
             return
         # Replace the row in-place rather than reloading the whole page.
         updated_group: Group = result.unwrap()
@@ -760,18 +751,14 @@ class GroupsScreen(BaseScreen):
             return
         dialog = ConfirmDialog(
             title="Delete group",
-            message=(
-                f"Delete group {row.name!r}? This action cannot be undone."
-            ),
+            message=(f"Delete group {row.name!r}? This action cannot be undone."),
             confirm_label="Delete",
             destructive=True,
         )
         group_id = row.key
         self.app.push_screen(
             dialog,
-            callback=lambda confirmed: self._on_delete_confirmed(
-                group_id, confirmed
-            ),
+            callback=lambda confirmed: self._on_delete_confirmed(group_id, confirmed),
         )
 
     def _on_delete_confirmed(self, group_id: str, confirmed: bool | None) -> None:
@@ -957,16 +944,12 @@ class GroupsScreen(BaseScreen):
             or a.created_at != b.created_at
         )
 
-    def _rebuild_table_rows(
-        self, table: DataTable, rows: list[_GroupRow]
-    ) -> None:
+    def _rebuild_table_rows(self, table: DataTable, rows: list[_GroupRow]) -> None:
         table.clear()
         for row in rows:
             table.add_row(*self._render_row_cells(row), key=row.key)
 
-    def _pulse_changed_rows(
-        self, table: DataTable, changed_keys: list[str]
-    ) -> None:
+    def _pulse_changed_rows(self, table: DataTable, changed_keys: list[str]) -> None:
         """Briefly mark changed rows so the user notices them.
 
         Implementation is minimal: the row's first cell is re-rendered

@@ -46,12 +46,12 @@ const compareDisabled = computed(() => {
 })
 
 function onDelete() {
-  const ids = experimentsStore.selectedExperiments.map((experiment) => experiment.id)
-  const isMultiple = ids.length > 1
+  const selectedExperiments = experimentsStore.selectedExperiments
+  const ids = selectedExperiments.map((experiment) => experiment.id)
   confirm.require(
     deleteExperimentConfirmOptions(() => {
       onDeleteConfirm(ids)
-    }, isMultiple),
+    }, selectedExperiments),
   )
 }
 

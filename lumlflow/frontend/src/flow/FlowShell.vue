@@ -1,72 +1,41 @@
 <template>
-  <div class="h-full flex flex-col">
-    <header class="flex items-center gap-4 pb-3 border-b border-surface-200 dark:border-surface-700">
-      <div>
-        <p class="text-xs text-muted-color">{{ session.projectName }}</p>
-        <h2 class="font-medium">{{ session.name }}</h2>
-      </div>
-
-      <nav class="flex gap-1 ml-4">
-        <RouterLink
-          v-for="concept in concepts"
-          :key="concept.path"
-          :to="concept.path"
-          class="px-3 py-1 rounded text-sm border"
-          :class="
-            route.path === concept.path
-              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-muted-color hover:border-surface-300 dark:hover:border-surface-600'
-          "
-        >
-          {{ concept.label }}
-        </RouterLink>
-      </nav>
-
-      <div class="ml-auto flex items-center gap-3">
-        <select
-          v-model="fixtureId"
-          class="bg-transparent border border-surface-300 dark:border-surface-600 rounded px-2 py-1 text-sm"
-        >
-          <option v-for="entry in fixtures" :key="entry.id" :value="entry.id">
-            {{ entry.label }}
-          </option>
-        </select>
-        <div class="flex -space-x-1.5">
-          <span
-            v-for="agent in Object.values(session.agents)"
-            :key="agent.agentId"
-            class="w-6 h-6 rounded-full border-2 border-surface-0 dark:border-surface-900 flex items-center justify-center text-[10px] text-white"
-            :style="{ background: agent.color }"
-            :title="`${agent.label} — ${agent.activeBranchId ?? 'idle'}`"
-          >
-            {{ agent.label.slice(0, 2) }}
-          </span>
-        </div>
-      </div>
+  <div class="flex h-full flex-col">
+    <!--
+      The flow's own strip, and only where nothing else carries it: on the
+      workbench the tabs ride in `WorkbenchTopBar`, which already names the open
+      flow — a second chrome bar there was 60 px of nothing on every screen.
+    -->
+    <header v-if="showTabs" class="border-b border-surface-200 dark:border-surface-700">
+      <FlowTabs class="min-w-0 flex-1" />
     </header>
 
-    <p class="text-xs text-muted-color py-2">{{ activeFixture?.description }}</p>
-
-    <div class="flex-1 min-h-0 overflow-auto">
-      <!-- Remount on fixture change so each concept rebuilds its playback state. -->
-      <RouterView :key="fixtureId" />
+    <div class="min-h-0 flex-1 overflow-auto" :class="showTabs ? 'pt-3' : ''">
+      <RouterView :key="route.fullPath" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { useWorkspace } from './composables/useWorkspace'
+import { RouterView, useRoute } from 'vue-router'
+import FlowTabs, { flowNavEntries } from './FlowTabs.vue'
+
+/**
+ * The flow surface's shell. Branding and the top-level Experiments/Workspace
+ * switch belong to `MainHeader.vue` above it; the open flow's own views belong
+ * to whichever bar is already naming that flow.
+ */
 
 const route = useRoute()
-const { fixtureId, fixtures, session } = useWorkspace()
 
-const activeFixture = computed(() => fixtures.find((entry) => entry.id === fixtureId.value))
+/**
+ * The workbench carries the tabs itself, in the bar that names the flow. Read
+ * off the path rather than the route name so the rule holds wherever the
+ * component is mounted: a flow is open and this is not its comparison.
+ */
+const onWorkbench = computed(
+  () => Boolean(route.params.flowId) && !route.path.endsWith('/compare'),
+)
 
-const concepts = [
-  { path: '/flow/railroad', label: '1 · Canvas + railroad' },
-  { path: '/flow/compare', label: '2 · Compare & compose' },
-  { path: '/flow/catchup', label: '3 · Catch-up first' },
-]
+const showTabs = computed(() => !onWorkbench.value && flowNavEntries(route).length > 0)
 </script>

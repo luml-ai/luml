@@ -1,0 +1,11 @@
+[project]
+name = "lumlflow-churn-example"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "luml-sdk>=0.2.0,<0.3.0",
+    "matplotlib>=3.11.1",
+    "pandas>=3.0.5",
+    "pyarrow>=25.0.1",
+    "scikit-learn>=1.9.0",
+]

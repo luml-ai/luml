@@ -1,55 +1,193 @@
 import os
-import threading
-import time
 import webbrowser
+from pathlib import Path
+from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 import typer
-import uvicorn
+
+from lumlflow.flow import cli as flow_cli
+from lumlflow.flow.daemon import workspace as daemon_workspace
+
+if TYPE_CHECKING:
+    from lumlflow.flow.daemon.workspace import DaemonRecord
+
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 5000
+NON_LOOPBACK_WARNING = daemon_workspace.NON_LOOPBACK_WARNING
 
 app = typer.Typer(
     name="lumlflow",
     help="Local ML experiment tracking",
 )
 
+flow_cli.register(app)
+
 
 @app.command()
 def ui(
+    directory: Path | None = typer.Argument(
+        None,
+        exists=True,
+        file_okay=False,
+        resolve_path=True,
+        help="Directory whose flows to list.",
+    ),
     path: str | None = typer.Option(
         None,
         "--path",
         help="Backend store URI (e.g. sqlite://./experiments)",
     ),
-    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
-    port: int = typer.Option(5000, "--port", "-p", help="Port to bind to"),
+    host: str = typer.Option(
+        DEFAULT_HOST,
+        "--host",
+        help=f"Host to serve on. {NON_LOOPBACK_WARNING}",
+    ),
+    port: int = typer.Option(DEFAULT_PORT, "--port", "-p", help="Port to serve on."),
     no_browser: bool = typer.Option(
-        False, "--no-browser", help="Don't open browser automatically"
+        False, "--no-browser", help="Do not open the browser."
     ),
 ) -> None:
+    """Open lumlflow on DIRECTORY's flows, starting the daemon when needed.
+
+    With no daemon running, it serves http://127.0.0.1:5000 until Ctrl+C. When
+    one is already running, it opens that daemon and exits.
+    """
+    from lumlflow.flow.daemon import client
+    from lumlflow.flow.daemon import main as server
+    from lumlflow.flow.errors import FlowError
+
+    previous_store_environment: dict[str, str | None] = {}
     if path is not None:
-        os.environ["BACKEND_STORE_URI"] = path
+        # The legacy alias has higher settings precedence, so an explicit CLI
+        # value must override both aliases while this server is alive.
+        for name in ("BACKEND_STORE_URI", "LUML_BACKEND_STORE_URI"):
+            previous_store_environment[name] = os.environ.get(name)
+            os.environ[name] = path
 
-    from lumlflow.settings import get_config
+    launch_directory = (directory or Path.cwd()).resolve()
+    try:
+        tracker_store = _tracker_store()
+        warning = daemon_workspace.network_filesystem_warning()
+        if warning is not None:
+            typer.echo(warning)
+        serving = client.discover()
+        if serving is not None:
+            _attach(
+                serving,
+                directory=launch_directory,
+                host=host,
+                port=port,
+                tracker_store=tracker_store,
+                no_browser=no_browser,
+            )
+            return
+        code = server.serve_here(
+            launch_directory,
+            web_host=host,
+            web_port=port,
+            announce=lambda record: _serving(
+                record, directory=launch_directory, no_browser=no_browser
+            ),
+        )
+        if code == server.ALREADY_RUNNING:
+            serving = client.discover()
+            if serving is not None:
+                _attach(
+                    serving,
+                    directory=launch_directory,
+                    host=host,
+                    port=port,
+                    tracker_store=tracker_store,
+                    no_browser=no_browser,
+                )
+                return
+    except FlowError as failure:
+        typer.echo(str(failure), err=True)
+        raise typer.Exit(1) from failure
+    finally:
+        for name, value in previous_store_environment.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+    if code:
+        raise typer.Exit(code)
 
-    typer.echo(f"Using experiment store: {get_config().BACKEND_STORE_URI}")
-    url = f"http://{host}:{port}"
 
-    def open_browser_delayed() -> None:
-        time.sleep(1.0)
-        webbrowser.open(url)
-
+def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> None:
+    """Said once this process is answering, from inside its own event loop."""
+    _warn_if_non_loopback(record.web_host)
+    typer.echo(f"directory: {directory}")
+    typer.echo(f"lumlflow at {_url(record, directory)}")
+    _show_log_path()
+    typer.echo("press Ctrl+C to stop")
     if not no_browser:
-        typer.echo(f"Opening {url} in browser...")
-        thread = threading.Thread(target=open_browser_delayed, daemon=True)
-        thread.start()
-    else:
-        typer.echo(f"Lumlflow UI available at {url}")
+        webbrowser.open(_url(record, directory))
 
-    uvicorn.run(
-        "lumlflow.server:app",
-        host=host,
-        port=port,
-        reload=False,
+
+def _attach(
+    record: "DaemonRecord",
+    *,
+    directory: Path,
+    host: str,
+    port: int,
+    tracker_store: str,
+    no_browser: bool,
+) -> None:
+    """Point the browser at the daemon that is already serving.
+
+    A port belongs to the process that bound it, so one that answers on
+    another is said plainly rather than papered over — and never taken from
+    a session somebody is using or a run somebody is waiting on.
+    """
+    from lumlflow.flow.errors import FlowError
+
+    if record.tracker_store != tracker_store or record.web_host != host:
+        raise FlowError(
+            "lumlflow is already serving tracker store "
+            f"`{record.tracker_store}` on host `{record.web_host}`. "
+            "run `lumlflow daemon stop` before changing either setting"
+        )
+    if not record.web_port:
+        typer.echo(
+            "lumlflow is already running without a browser endpoint",
+            err=True,
+        )
+        raise typer.Exit(1)
+    _warn_if_non_loopback(record.web_host)
+    typer.echo(f"lumlflow already at {_url(record, directory)}")
+    _show_log_path()
+    if record.web_port != port:
+        typer.echo(f"it is serving port {record.web_port}, not {port}")
+    if not no_browser:
+        webbrowser.open(_url(record, directory))
+
+
+def _tracker_store() -> str:
+    from lumlflow.settings import Settings
+
+    return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
+
+
+def _url(record: "DaemonRecord", directory: Path) -> str:
+    query = urlencode(
+        {
+            "token": record.token,
+            "directory": str(directory.resolve()),
+            "log": str(daemon_workspace.log_path()),
+        }
     )
+    return f"http://{record.web_host}:{record.web_port}/flow?{query}"
+
+
+def _show_log_path() -> None:
+    typer.echo(f"daemon log: {daemon_workspace.log_path()}")
+
+
+def _warn_if_non_loopback(host: str) -> None:
+    if not daemon_workspace.is_loopback_host(host):
+        typer.echo(f"warning: {NON_LOOPBACK_WARNING}")
 
 
 @app.command(

@@ -5,3 +5,13 @@
 .p-datatable-tbody .p-row-even {
   background-color: var(--p-card-background);
 }
+
+/*
+ * Preview tables inside a cell card separate rows with a stripe, not a rule:
+ * nine previews on one canvas would otherwise be most of the lines on screen.
+ * The card's own frame is what says where a table ends.
+ */
+.preview-table .p-datatable-tbody > tr > td,
+.preview-table .p-datatable-thead > tr > th {
+  border-width: 0;
+}
