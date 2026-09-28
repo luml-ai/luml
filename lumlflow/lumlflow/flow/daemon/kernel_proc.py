@@ -211,7 +211,7 @@ class KernelProcess:
         kind: str,
         *,
         destination: Path,
-        sample: dict[str, str] | None = None,
+        samples: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Package a stored model as the bundle LUML takes.
 
@@ -226,7 +226,7 @@ class KernelProcess:
                 "value_ref": value_ref,
                 "kind": kind,
                 "destination": str(destination),
-                "sample": sample,
+                "samples": samples or [],
             },
             timeout=None,
         )

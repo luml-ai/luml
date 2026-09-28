@@ -80,6 +80,17 @@ class Fanout:
 """
 
 
+@pytest.fixture(autouse=True)
+def plain_shell(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shell the tests run in is not the shell under test. An agent harness
+    running pytest marks its environment, and the CLI would attribute every
+    verb to it instead of `user`; a narrow terminal folds `--help` so the
+    words asserted on wrap out of sight."""
+    for marker in ("CLAUDECODE", "CURSOR_AGENT", "GEMINI_CLI"):
+        monkeypatch.delenv(marker, raising=False)
+    monkeypatch.setenv("COLUMNS", "200")
+
+
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
     return make_workspace(tmp_path / "project", flows=())
