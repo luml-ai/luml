@@ -4,7 +4,7 @@ from uuid import UUID, uuid7
 
 import pytest
 from luml.handlers.collections import CollectionHandler
-from luml.infra.exceptions import CollectionDeleteError, NotFoundError
+from luml.infra.exceptions import ApplicationError, CollectionDeleteError, NotFoundError
 from luml.schemas.collections import (
     Collection,
     CollectionCreate,
@@ -21,6 +21,38 @@ from luml.schemas.permissions import Action, Resource
 from pydantic import ValidationError
 
 handler = CollectionHandler()
+
+
+@pytest.mark.parametrize("cursor", ["garbage", "", "WzFd"])
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_rejects_invalid_cursor(
+    mock_get_collections: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+    cursor: str,
+) -> None:
+    user_id, organization_id, orbit_id = uuid7(), uuid7(), uuid7()
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
+
+    with pytest.raises(ApplicationError, match="^Invalid cursor$") as error:
+        await handler.get_orbit_collections(
+            user_id, organization_id, orbit_id, cursor_str=cursor
+        )
+
+    assert error.value.status_code == 400
+    mock_get_collections.assert_not_called()
 
 
 def test_collection_update_in_name_empty_string() -> None:

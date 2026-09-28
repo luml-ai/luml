@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
+from luml.infra.exceptions import ApplicationError
 from luml.schemas.general import Cursor, SortOrder
 
 EXTRA_VALUES_SORT_KEY = "extra_values"
@@ -46,14 +47,18 @@ def encode_cursor(cursor: Cursor | None) -> str | None:
 
 
 def decode_cursor(cursor_str: str | None) -> None | Cursor:
-    if not cursor_str:
+    if cursor_str is None:
         return None
 
     try:
-        parts = json.loads(base64.urlsafe_b64decode(cursor_str.encode()).decode())
+        parts = json.loads(
+            base64.b64decode(cursor_str, altchars=b"-_", validate=True).decode()
+        )
+        if not isinstance(parts, list) or len(parts) != 5:
+            raise ValueError("Invalid cursor shape")
         cursor_id, cursor_value, sort_by = parts[0], parts[1], parts[2]
-        order = SortOrder(parts[3]) if len(parts) > 3 else SortOrder.DESC
-        scope_id = UUID(parts[4]) if len(parts) > 4 and parts[4] else None
+        order = SortOrder(parts[3])
+        scope_id = UUID(parts[4]) if parts[4] else None
 
         if sort_by == CREATED_AT_SORT_KEY and isinstance(cursor_value, str):
             cursor_value = datetime.fromisoformat(cursor_value)
@@ -65,5 +70,5 @@ def decode_cursor(cursor_str: str | None) -> None | Cursor:
             order=order,
             scope_id=scope_id,
         )
-    except Exception:
-        return None
+    except Exception as exc:
+        raise ApplicationError("Invalid cursor") from exc
