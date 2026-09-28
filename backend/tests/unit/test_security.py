@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from luml.handlers.auth import AuthHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.security import JWTAuthenticationBackend
-from luml.schemas.user import UserOut
+from luml.schemas.user import AuthProvider, CurrentUserOut
 from luml.settings import config
 from starlette.middleware.authentication import AuthenticationMiddleware
 
@@ -48,13 +48,13 @@ def _client() -> TestClient:
     "luml.handlers.auth.TokenBlackListRepository.is_token_blacklisted",
     new_callable=AsyncMock,
 )
-@patch("luml.handlers.auth.UserRepository.get_public_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_current_user", new_callable=AsyncMock)
 @pytest.mark.parametrize(
     "purpose",
     ["refresh", "email_confirmation", "password_reset", "legacy_typeless"],
 )
 def test_only_access_tokens_authenticate_api_requests(
-    mock_get_public_user: AsyncMock,
+    mock_get_current_user: AsyncMock,
     mock_is_token_blacklisted: AsyncMock,
     purpose: str,
     bearer_tokens: dict[str, str],
@@ -66,27 +66,28 @@ def test_only_access_tokens_authenticate_api_requests(
     )
 
     assert response.status_code == 401
-    mock_get_public_user.assert_not_awaited()
+    mock_get_current_user.assert_not_awaited()
 
 
 @patch(
     "luml.handlers.auth.TokenBlackListRepository.is_token_blacklisted",
     new_callable=AsyncMock,
 )
-@patch("luml.handlers.auth.UserRepository.get_public_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_current_user", new_callable=AsyncMock)
 def test_access_token_authenticates_api_requests(
-    mock_get_public_user: AsyncMock,
+    mock_get_current_user: AsyncMock,
     mock_is_token_blacklisted: AsyncMock,
     bearer_tokens: dict[str, str],
 ) -> None:
     mock_is_token_blacklisted.return_value = False
-    mock_get_public_user.return_value = UserOut(
+    mock_get_current_user.return_value = CurrentUserOut(
         id=USER_ID,
         email=EMAIL,
         full_name="Caller",
         disabled=False,
         photo=None,
         has_api_key=False,
+        auth_method=AuthProvider.EMAIL,
     )
 
     response = _client().get(

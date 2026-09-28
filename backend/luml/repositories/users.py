@@ -43,6 +43,7 @@ from luml.schemas.organization import (
 )
 from luml.schemas.user import (
     CreateUser,
+    CurrentUserOut,
     UpdateUser,
     UpdateUserAPIKey,
     User,
@@ -92,12 +93,12 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return db_user.to_user() if db_user else None
 
-    async def get_public_user(self, email: EmailStr) -> UserOut | None:
+    async def get_current_user(self, email: EmailStr) -> CurrentUserOut | None:
         async with self._get_session() as session:
             db_user = await self.get_model_where(
                 session, UserOrm, UserOrm.email == email
             )
-            return db_user.to_public_user() if db_user else None
+            return db_user.to_current_user() if db_user else None
 
     async def get_public_user_by_id(self, user_id: UUID) -> UserOut | None:
         async with self._get_session() as session:

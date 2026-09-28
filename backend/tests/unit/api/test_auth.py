@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from luml.api.auth import auth_router
 from luml.models import AuthUser
-from luml.schemas.user import ChangePasswordIn
+from luml.schemas.user import AuthProvider, ChangePasswordIn, CurrentUserOut
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.requests import HTTPConnection
@@ -91,3 +91,22 @@ def test_change_password_rejects_short_passwords(
 
     assert response.status_code == 422
     mock_change_password.assert_not_awaited()
+
+
+@patch("luml.api.auth.auth_handler.handle_get_current_user", new_callable=AsyncMock)
+def test_get_current_user_returns_auth_method(mock_get_current_user: AsyncMock) -> None:
+    mock_get_current_user.return_value = CurrentUserOut(
+        id=USER_ID,
+        email="caller@example.com",
+        full_name="Caller",
+        disabled=False,
+        photo=None,
+        has_api_key=False,
+        auth_method=AuthProvider.EMAIL,
+    )
+
+    response = _client().get(UPDATE_PROFILE_PATH)
+
+    assert response.status_code == 200
+    assert response.json()["auth_method"] == "EMAIL"
+    mock_get_current_user.assert_awaited_once_with("caller@example.com")

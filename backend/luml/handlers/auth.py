@@ -27,12 +27,12 @@ from luml.schemas.user import (
     ChangePasswordIn,
     CreateUser,
     CreateUserIn,
+    CurrentUserOut,
     SignInResponse,
     SignInUser,
     UpdateUser,
     UpdateUserIn,
     User,
-    UserOut,
 )
 from luml.settings import config
 
@@ -242,8 +242,8 @@ class AuthHandler:
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
-    async def handle_get_current_user(self, email: EmailStr) -> UserOut:
-        user = await self.__user_repository.get_public_user(email)
+    async def handle_get_current_user(self, email: EmailStr) -> CurrentUserOut:
+        user = await self.__user_repository.get_current_user(email)
         if user is None:
             raise AuthError("User not found", 404)
 

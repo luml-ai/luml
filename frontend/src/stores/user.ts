@@ -19,7 +19,7 @@ export const useUserStore = defineStore('user', () => {
   const getUserFullName = computed(() => user.value?.full_name)
   const isUserDisabled = computed(() => user.value?.disabled)
   const getUserAvatar = computed(() => user.value?.photo)
-  const isUserLoggedWithSSO = computed(() => user.value?.auth_method !== 'email')
+  const isUserLoggedWithSSO = computed(() => user.value?.auth_method !== 'EMAIL')
   const getUserId = computed(() => user.value?.id)
   const isUserApiKeyExist = computed(() => !!user.value?.has_api_key)
 

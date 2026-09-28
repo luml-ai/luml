@@ -13,11 +13,11 @@ from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
     ChangePasswordIn,
     CreateUserIn,
+    CurrentUserOut,
     DetailResponse,
     SignInAPIResponse,
     SignInUser,
     UpdateUserIn,
-    UserOut,
 )
 from luml.settings import config
 
@@ -114,11 +114,11 @@ async def forgot_password(data: ForgotPasswordIn) -> dict[str, str]:
     return {"detail": "Password reset email has been sent"}
 
 
-@auth_router.get("/users/me", response_model=UserOut)
+@auth_router.get("/users/me", response_model=CurrentUserOut)
 async def get_current_user_info(
     request: Request,
     _: Annotated[None, Depends(is_user_authenticated)],
-) -> UserOut:
+) -> CurrentUserOut:
     return await auth_handler.handle_get_current_user(request.user.email)
 
 

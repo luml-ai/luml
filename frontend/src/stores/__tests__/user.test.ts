@@ -75,4 +75,17 @@ describe('user store', () => {
     expect(apiMocks.changePassword).toHaveBeenCalledWith(passwords)
     expect(apiMocks.updateUser).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['EMAIL', false],
+    ['GOOGLE', true],
+    ['MICROSOFT', true],
+  ] as const)('treats %s sign-in as SSO: %s', async (authMethod, expected) => {
+    apiMocks.getMe.mockResolvedValue({ ...user, auth_method: authMethod })
+    const store = useUserStore()
+
+    await store.loadUser()
+
+    expect(store.isUserLoggedWithSSO).toBe(expected)
+  })
 })

@@ -40,6 +40,10 @@ class UserOut(BaseModel, BaseOrmConfig):
     has_api_key: bool = False
 
 
+class CurrentUserOut(UserOut):
+    auth_method: AuthProvider
+
+
 class CreateUserIn(BaseModel):
     email: EmailStr = Field(max_length=254)
     password: str
