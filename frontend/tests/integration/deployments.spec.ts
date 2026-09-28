@@ -78,7 +78,7 @@ test.describe('Deployments', () => {
         page.getByRole('heading', { name: 'Deployments', exact: true }),
       ).toBeVisible({ timeout: 15000 })
       await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 10000 })
-      await expect(page.getByText(/^1 Deployments$/)).toBeVisible()
+      await expect(page.getByText(/^1 Deployment$/)).toBeVisible()
     })
 
     test('shows empty state with "Add new Deployment" card when there are no deployments', async ({
@@ -362,7 +362,7 @@ test.describe('Deployments', () => {
 
       await page.locator('.orbit-popover-wrapper .menu-link').click()
       await expect(
-        page.locator('.orbit-popover-wrapper').getByText('1 collections'),
+        page.locator('.orbit-popover-wrapper').getByText('1 collection', { exact: true }),
       ).toBeVisible({ timeout: 5000 })
     })
   })
