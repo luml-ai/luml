@@ -78,3 +78,49 @@ def test_list_rejects_invalid_cursor(
     assert response.status_code == 400
     assert response.json() == {"detail": "Invalid cursor"}
     mock_get_collections.assert_not_awaited()
+
+
+@pytest.mark.parametrize("route", ["artifacts", "collections"])
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collections_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+def test_list_treats_empty_cursor_as_first_page(
+    mock_check_permissions: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collections: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_get_artifacts: AsyncMock,
+    route: str,
+) -> None:
+    mock_get_orbit_simple.return_value = Mock(organization_id=ORGANIZATION_ID)
+    mock_get_collections.return_value = ([], None)
+    mock_get_artifacts.return_value = ([], None)
+
+    response = _client().get(
+        f"/v1/organizations/{ORGANIZATION_ID}/orbits/{ORBIT_ID}/{route}",
+        params={"cursor": ""},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "cursor": None}
+    repository_mock = (
+        mock_get_artifacts if route == "artifacts" else mock_get_collections
+    )
+    assert repository_mock.await_args.kwargs["pagination"].cursor is None

@@ -47,7 +47,7 @@ def encode_cursor(cursor: Cursor | None) -> str | None:
 
 
 def decode_cursor(cursor_str: str | None) -> None | Cursor:
-    if cursor_str is None:
+    if not cursor_str:
         return None
 
     try:

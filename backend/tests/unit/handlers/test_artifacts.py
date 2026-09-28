@@ -51,7 +51,7 @@ API_KEY_SCOPES = ["authenticated", "api_key"]
 JWT_SCOPES = ["authenticated", "jwt"]
 
 
-@pytest.mark.parametrize("cursor", ["garbage", "", "WzFd"])
+@pytest.mark.parametrize("cursor", ["garbage", "WzFd"])
 @patch(
     "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts",
     new_callable=AsyncMock,
