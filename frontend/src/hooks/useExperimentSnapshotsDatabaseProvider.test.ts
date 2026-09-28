@@ -95,7 +95,7 @@ describe('experiment snapshot worker lifecycle', () => {
 
   async function initialize(worker: MockWorker, initialized: Promise<void>) {
     await Promise.resolve()
-    const message = worker.postMessage.mock.calls.at(-1)![0]
+    const [message] = worker.postMessage.mock.calls[worker.postMessage.mock.calls.length - 1]
     worker.emit({ requestId: message.requestId, data: null })
     await initialized
   }
