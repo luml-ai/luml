@@ -59,7 +59,7 @@ const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
     size: !!(size && size > 50 * 1024 * 1024),
     columns: !!(columns && columns <= 1),
-    rows: !!(rows && rows <= 10),
+    rows: !!(rows && rows < 10),
   }
 }
 

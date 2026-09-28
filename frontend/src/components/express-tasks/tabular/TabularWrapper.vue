@@ -122,8 +122,8 @@ const props = defineProps<TProps>()
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {
     size: !!(size && size > 50 * 1024 * 1024),
-    columns: !!(columns && columns <= 3),
-    rows: !!(rows && rows <= 100),
+    columns: !!(columns && columns < 3),
+    rows: !!(rows && rows < 100),
   }
 }
 
