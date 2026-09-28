@@ -51,6 +51,11 @@ jobs:
       - name: Install Linux Rollup binding
         run: npm install @rollup/rollup-linux-x64-gnu --workspace=frontend
 
+      - name: Build workspace packages
+        run: |
+          npm run build-only --workspace=@luml/attachments
+          npm run build-only --workspace=@luml/experiments
+
       - name: Run unit tests
         working-directory: frontend
         run: npm run test:ci
