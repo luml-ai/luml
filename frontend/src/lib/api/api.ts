@@ -9,6 +9,7 @@ import type {
   IPostSignupResponse,
   TDeleteAccountResponse,
   IPostChangePasswordResponse,
+  IPostChangePasswordRequest,
   TPostLogoutResponse,
   IUpdateUserRequest,
   IPostForgotPasswordRequest,
@@ -141,6 +142,14 @@ export class ApiClass {
 
   public async getMe(): Promise<IGetUserResponse> {
     const { data: responseData } = await this.api.get('/v1/auth/users/me')
+
+    return responseData
+  }
+
+  public async changePassword(
+    data: IPostChangePasswordRequest,
+  ): Promise<IPostChangePasswordResponse> {
+    const { data: responseData } = await this.api.post('/v1/auth/change-password', data)
 
     return responseData
   }

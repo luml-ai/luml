@@ -54,6 +54,7 @@ from luml.schemas.user import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
+    CurrentUserOut,
     User,
     UserOut,
 )
@@ -289,6 +290,20 @@ async def test_user_out(test_user: User) -> AsyncGenerator[UserOut]:
         disabled=user.disabled,
         photo=user.photo,
         has_api_key=False,
+    )
+
+
+@pytest_asyncio.fixture(scope="function")
+async def test_current_user_out(test_user: User) -> AsyncGenerator[CurrentUserOut]:
+    user = test_user.model_copy()
+    yield CurrentUserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        disabled=user.disabled,
+        photo=user.photo,
+        has_api_key=False,
+        auth_method=user.auth_method,
     )
 
 

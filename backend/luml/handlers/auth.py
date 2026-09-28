@@ -24,14 +24,15 @@ from luml.repositories.users import UserRepository
 from luml.schemas.auth import OAuthLogin, Token
 from luml.schemas.user import (
     AuthProvider,
+    ChangePasswordIn,
     CreateUser,
     CreateUserIn,
+    CurrentUserOut,
     SignInResponse,
     SignInUser,
     UpdateUser,
     UpdateUserIn,
     User,
-    UserOut,
 )
 from luml.settings import config
 
@@ -220,11 +221,29 @@ class AuthHandler:
             update_user.hashed_password = hashed_password
         return await self.__user_repository.update_user(update_user)
 
+    async def handle_change_password(
+        self, email: EmailStr, passwords: ChangePasswordIn
+    ) -> None:
+        user = await self.__user_repository.get_user(email)
+        if user is None:
+            raise AuthError("User not found", 404)
+        if user.auth_method != AuthProvider.EMAIL or user.hashed_password is None:
+            raise AuthError("Invalid auth method", 400)
+        if not self._verify_password(passwords.current_password, user.hashed_password):
+            raise AuthError("Invalid current password", 400)
+
+        await self.__user_repository.update_user(
+            UpdateUser(
+                email=email,
+                hashed_password=self._get_password_hash(passwords.new_password),
+            )
+        )
+
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
-    async def handle_get_current_user(self, email: EmailStr) -> UserOut:
-        user = await self.__user_repository.get_public_user(email)
+    async def handle_get_current_user(self, email: EmailStr) -> CurrentUserOut:
+        user = await self.__user_repository.get_current_user(email)
         if user is None:
             raise AuthError("User not found", 404)
 

@@ -13,9 +13,9 @@ from luml.schemas.tracks import TrackCreate, TrackEntryCreate
 from luml.schemas.user import (
     AuthProvider,
     CreateUser,
+    CurrentUserOut,
     UpdateUser,
     User,
-    UserOut,
 )
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -124,14 +124,15 @@ async def test_get_user(get_created_user: UserFixtureData) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_public_user(get_created_user: UserFixtureData) -> None:
+async def test_get_current_user(get_created_user: UserFixtureData) -> None:
     data = get_created_user
     repo, user = data.repo, data.user
 
-    fetched_user = await repo.get_public_user(user.email)
+    fetched_user = await repo.get_current_user(user.email)
 
     assert fetched_user
-    assert isinstance(fetched_user, UserOut)
+    assert isinstance(fetched_user, CurrentUserOut)
+    assert fetched_user.auth_method == user.auth_method
     assert fetched_user.id
     assert fetched_user.email
     assert hasattr(fetched_user, "full_name")

@@ -52,7 +52,7 @@ export interface IGetUserResponse {
   email: string
   full_name: string
   disabled: boolean
-  auth_method: 'email' | 'google'
+  auth_method: 'EMAIL' | 'GOOGLE' | 'MICROSOFT'
   photo: string
   id: string
   has_api_key: boolean

@@ -14,14 +14,15 @@ from luml.infra.exceptions import AuthError, EmailDeliveryError
 from luml.schemas.auth import OAuthLogin, Token, UserInfo
 from luml.schemas.user import (
     AuthProvider,
+    ChangePasswordIn,
     CreateUser,
     CreateUserIn,
+    CurrentUserOut,
     SignInResponse,
     SignInUser,
     UpdateUser,
     UpdateUserIn,
     User,
-    UserOut,
 )
 from pydantic import ValidationError
 
@@ -613,6 +614,59 @@ async def test_update_user_not_found(mock_get_user: AsyncMock) -> None:
     mock_get_user.assert_awaited_once_with(email)
 
 
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_handle_change_password(
+    mock_update_user: AsyncMock,
+    mock_get_user: AsyncMock,
+    test_user: User,
+) -> None:
+    mock_get_user.return_value = test_user
+    passwords = ChangePasswordIn(
+        current_password="current-password", new_password="new-password"
+    )
+
+    with (
+        patch.object(AuthHandler, "_verify_password", return_value=True) as mock_verify,
+        patch.object(
+            AuthHandler, "_get_password_hash", return_value="new-password-hash"
+        ) as mock_hash,
+    ):
+        await handler.handle_change_password(test_user.email, passwords)
+
+    mock_verify.assert_called_once_with(
+        passwords.current_password, test_user.hashed_password
+    )
+    mock_hash.assert_called_once_with(passwords.new_password)
+    mock_update_user.assert_awaited_once_with(
+        UpdateUser(email=test_user.email, hashed_password="new-password-hash")
+    )
+
+
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_handle_change_password_rejects_invalid_current_password(
+    mock_update_user: AsyncMock,
+    mock_get_user: AsyncMock,
+    test_user: User,
+) -> None:
+    mock_get_user.return_value = test_user
+    passwords = ChangePasswordIn(
+        current_password="invalid-password", new_password="new-password"
+    )
+
+    with (
+        patch.object(AuthHandler, "_verify_password", return_value=False),
+        pytest.raises(AuthError, match="Invalid current password") as exc,
+    ):
+        await handler.handle_change_password(test_user.email, passwords)
+
+    assert exc.value.status_code == 400
+    mock_update_user.assert_not_awaited()
+
+
 @patch("luml.handlers.auth.UserRepository.delete_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_delete_account(mock_delete_user: AsyncMock) -> None:
@@ -623,50 +677,50 @@ async def test_handle_delete_account(mock_delete_user: AsyncMock) -> None:
     mock_delete_user.assert_awaited_once_with(email)
 
 
-@patch("luml.handlers.auth.UserRepository.get_public_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_current_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_get_current_user(
-    mock_get_public_user: AsyncMock, test_user_out: UserOut
+    mock_get_current_user: AsyncMock, test_current_user_out: CurrentUserOut
 ) -> None:
-    user = test_user_out
-    mock_get_public_user.return_value = user
+    user = test_current_user_out
+    mock_get_current_user.return_value = user
 
     result = await handler.handle_get_current_user(user.email)
 
     assert result == user
-    mock_get_public_user.assert_awaited_once_with(user.email)
+    mock_get_current_user.assert_awaited_once_with(user.email)
 
 
-@patch("luml.handlers.auth.UserRepository.get_public_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_current_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_get_current_user_not_found(
-    mock_get_public_user: AsyncMock, test_user_out: UserOut
+    mock_get_current_user: AsyncMock, test_current_user_out: CurrentUserOut
 ) -> None:
-    user = test_user_out
-    mock_get_public_user.return_value = None
+    user = test_current_user_out
+    mock_get_current_user.return_value = None
 
     with pytest.raises(AuthError, match="User not found") as error:
         await handler.handle_get_current_user(user.email)
 
     assert error.value.status_code == 404
-    mock_get_public_user.assert_awaited_once_with(user.email)
+    mock_get_current_user.assert_awaited_once_with(user.email)
 
 
-@patch("luml.handlers.auth.UserRepository.get_public_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.get_current_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_get_current_account_is_disabled(
-    mock_get_public_user: AsyncMock, test_user_out: UserOut
+    mock_get_current_user: AsyncMock, test_current_user_out: CurrentUserOut
 ) -> None:
-    user = test_user_out.model_copy()
+    user = test_current_user_out.model_copy()
     user.disabled = True
 
-    mock_get_public_user.return_value = user
+    mock_get_current_user.return_value = user
 
     with pytest.raises(AuthError, match="Account is disabled") as error:
         await handler.handle_get_current_user(user.email)
 
     assert error.value.status_code == 400
-    mock_get_public_user.assert_awaited_once_with(user.email)
+    mock_get_current_user.assert_awaited_once_with(user.email)
 
 
 @patch("luml.handlers.auth.jwt.decode")

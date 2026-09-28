@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const apiMocks = vi.hoisted(() => ({
   getMe: vi.fn(),
+  changePassword: vi.fn(),
+  updateUser: vi.fn(),
 }))
 const invitationsStore = vi.hoisted(() => ({
   getInvitations: vi.fn(),
@@ -59,5 +61,31 @@ describe('user store', () => {
     await vi.waitFor(() =>
       expect(organizationStore.getAvailableOrganizations).toHaveBeenCalledOnce(),
     )
+  })
+
+  it('changes the password through the dedicated endpoint', async () => {
+    const store = useUserStore()
+    const passwords = {
+      current_password: 'current-password',
+      new_password: 'new-password',
+    }
+
+    await store.changePassword(passwords)
+
+    expect(apiMocks.changePassword).toHaveBeenCalledWith(passwords)
+    expect(apiMocks.updateUser).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['EMAIL', false],
+    ['GOOGLE', true],
+    ['MICROSOFT', true],
+  ] as const)('treats %s sign-in as SSO: %s', async (authMethod, expected) => {
+    apiMocks.getMe.mockResolvedValue({ ...user, auth_method: authMethod })
+    const store = useUserStore()
+
+    await store.loadUser()
+
+    expect(store.isUserLoggedWithSSO).toBe(expected)
   })
 })

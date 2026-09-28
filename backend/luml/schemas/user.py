@@ -40,6 +40,10 @@ class UserOut(BaseModel, BaseOrmConfig):
     has_api_key: bool = False
 
 
+class CurrentUserOut(UserOut):
+    auth_method: AuthProvider
+
+
 class CreateUserIn(BaseModel):
     email: EmailStr = Field(max_length=254)
     password: str
@@ -94,6 +98,11 @@ class SignInAPIResponse(BaseModel):
 
 class DetailResponse(BaseModel):
     detail: str
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class UpdateUserIn(BaseModel):
