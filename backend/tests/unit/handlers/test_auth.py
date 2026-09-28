@@ -601,7 +601,7 @@ async def test_handle_change_password_rejects_invalid_current_password(
     ):
         await handler.handle_change_password(test_user.email, passwords)
 
-    assert exc.value.status_code == 401
+    assert exc.value.status_code == 400
     mock_update_user.assert_not_awaited()
 
 

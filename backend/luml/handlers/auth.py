@@ -230,7 +230,7 @@ class AuthHandler:
         if user.auth_method != AuthProvider.EMAIL or user.hashed_password is None:
             raise AuthError("Invalid auth method", 400)
         if not self._verify_password(passwords.current_password, user.hashed_password):
-            raise AuthError("Invalid current password", 401)
+            raise AuthError("Invalid current password", 400)
 
         await self.__user_repository.update_user(
             UpdateUser(
