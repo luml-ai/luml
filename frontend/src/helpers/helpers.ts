@@ -71,13 +71,20 @@ export const convertObjectToCsvBlob = (data: object) => {
     const row = headers.map((header) => data[header as keyof typeof data][i] ?? '')
     rows.push(row)
   }
-  const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => {
-      return row.map((item) => (typeof item === 'object' ? JSON.stringify(item) : item))
-    }),
-  ].join('\n')
-  return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  return new Blob([rowsToCsv([headers, ...rows])], { type: 'text/csv;charset=utf-8;' })
+}
+
+export const rowsToCsv = (rows: unknown[][]) => {
+  return rows
+    .map((row) =>
+      row
+        .map((item) => {
+          const value = typeof item === 'object' ? JSON.stringify(item) : String(item)
+          return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+        })
+        .join(','),
+    )
+    .join('\n')
 }
 
 export const formatNumberScientific = (num: number, significantDigits = 3) => {
