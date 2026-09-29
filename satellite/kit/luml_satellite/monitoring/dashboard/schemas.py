@@ -5,7 +5,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from luml_satellite.workload import ProfileStatus as ProfileStatus
+from luml_satellite.workload import (
+    ProfileStatus as ProfileStatus,
+    RecordingStatus,
+)
 
 
 class Window(StrEnum):
@@ -453,6 +456,7 @@ class WorkerHealthResponse(BaseModel):
 
     state: SectionState
     running: bool = False
+    recording: RecordingStatus | None = None
     last_tick_at: datetime | None = None
     windows_processed: int = 0
     last_window_end: datetime | None = None
