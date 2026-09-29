@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from collections.abc import Sequence
 from datetime import timedelta
@@ -14,6 +15,9 @@ from luml_tunnel.tokens import TokenKind
 PRIVATE_KEY_FILE = "private-key.pem"
 KEY_SET_FILE = "jwks.json"
 TOKEN_ENV = "LUML_TUNNEL_TOKEN"
+COOKIE_SECRET_ENV = "LUML_TUNNEL_COOKIE_SECRET"
+
+_ORIGIN = re.compile(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?")
 
 
 def _dev_keygen(arguments: argparse.Namespace) -> int:
@@ -93,6 +97,8 @@ def _relay(arguments: argparse.Namespace) -> int:
             max_request_body_bytes=arguments.max_request_body_bytes,
             idle_timeout_seconds=arguments.idle_timeout,
         ),
+        app_origins=tuple(arguments.app_origins),
+        cookie_secret=os.environ.get(COOKIE_SECRET_ENV, "").encode() or None,
     )
     verifier = JwksTokenVerifier(
         IssuerKeys(settings.issuer_keys), settings.issuer, settings.relay_id
@@ -131,6 +137,12 @@ def _positive_float(value: str) -> float:
     if not number > 0:
         raise argparse.ArgumentTypeError(f"{value!r} is not a positive number")
     return number
+
+
+def _origin(value: str) -> str:
+    if not _ORIGIN.fullmatch(value):
+        raise argparse.ArgumentTypeError(f"{value!r} is not an origin like https://app.example")
+    return value
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -172,6 +184,14 @@ def _build_parser() -> argparse.ArgumentParser:
         type=_positive_float,
         default=default_limits.idle_timeout_seconds,
         help="Seconds a request may pass without any data before the relay ends it",
+    )
+    relay.add_argument(
+        "--app-origin",
+        dest="app_origins",
+        type=_origin,
+        action="append",
+        default=[],
+        help="Origin of the LUML app that may show sessions in a frame; may be repeated",
     )
     relay.set_defaults(handler=_relay)
 

@@ -21,6 +21,7 @@ from websockets.asyncio.client import connect
 from websockets.typing import Subprotocol
 
 from luml_tunnel.agent import Agent, FixedToken, LoopbackService, ReconnectPolicy
+from luml_tunnel.cookies import ViewerCookies
 from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
 from luml_tunnel.headers import TOKEN_HEADER
 from luml_tunnel.relay import CONNECT_PATH, Relay, RelayServer, RelaySettings
@@ -68,6 +69,8 @@ class EchoService:
                 WebSocketRoute("/ws/refuse", self._websocket_refuse),
                 Route("/large", self._large),
                 Route("/stall", self._stall),
+                Route("/no-frames", self._no_frames),
+                Route("/domain-cookie", self._domain_cookie),
                 Route("/{path:path}", self._echo, methods=["GET", "POST", "PUT", "DELETE"]),
             ]
         )
@@ -129,6 +132,18 @@ class EchoService:
 
         return StreamingResponse(chunks(), media_type="application/octet-stream")
 
+    async def _no_frames(self, request: Request) -> Response:
+        headers = {
+            "x-frame-options": "DENY",
+            "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+        }
+        return Response("no frames", headers=headers)
+
+    async def _domain_cookie(self, request: Request) -> Response:
+        response = Response("cookie")
+        response.set_cookie("service", "1", domain=BASE_DOMAIN, path="/", httponly=True)
+        return response
+
     async def _stall(self, request: Request) -> Response:
         await self.stall_released.wait()
         return Response("released")
@@ -176,16 +191,22 @@ async def until(condition: Callable[[], bool], timeout: float = 5.0) -> None:
             await asyncio.sleep(0.01)
 
 
-def create_relay(key_file: Path, limits: RelayLimits | None = None) -> Relay:
+def create_relay(
+    key_file: Path,
+    limits: RelayLimits | None = None,
+    app_origins: tuple[str, ...] = (),
+    cookies: ViewerCookies | None = None,
+) -> Relay:
     settings = RelaySettings(
         base_domain=BASE_DOMAIN,
         relay_id=RELAY_ID,
         issuer=ISSUER,
         issuer_keys=str(key_file),
         limits=limits or RelayLimits(),
+        app_origins=app_origins,
     )
     verifier = JwksTokenVerifier(IssuerKeys(str(key_file)), ISSUER, RELAY_ID)
-    return Relay(settings, verifier)
+    return Relay(settings, verifier, cookies=cookies)
 
 
 def sign(

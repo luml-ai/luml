@@ -648,14 +648,14 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Pass a close from either side to the other
   - [x] Cover the scenario for a WebSocket connection, and a request for a WebSocket when the service refuses it
 
-- [ ] Add browser access to tunnel sessions
-  - [ ] Add the launch address, which checks the `view` token, accepts it once, sets the cookie and redirects to the root of the service
-  - [ ] Sign the cookie in the relay and bind it to one session and one user, with the lifetimes of the monitoring dashboard's session in `satellite/kit/luml_satellite/monitoring/dashboard/session.py`
-  - [ ] Accept a request authenticated by cookie only from the session's own pages or as a plain navigation
-  - [ ] Add the two relay pages: access is needed, and the session is not connected
-  - [ ] Make the relay page for missing access tell an embedding page, so the LUML app can launch again
-  - [ ] Apply the changes to responses from the Design section on what the relay and the agent change, with a relay setting for the origins of the LUML app
-  - [ ] Cover the scenarios: the launch address, a launch token accepted once, both ends of the cookie, a cookie for one session only, requests started by other sites, a request without access, framing, cookies of the service
+- [x] Add browser access to tunnel sessions
+  - [x] Add the launch address, which checks the `view` token, accepts it once, sets the cookie and redirects to the root of the service
+  - [x] Sign the cookie in the relay and bind it to one session and one user, with the lifetimes of the monitoring dashboard's session in `satellite/kit/luml_satellite/monitoring/dashboard/session.py`
+  - [x] Accept a request authenticated by cookie only from the session's own pages or as a plain navigation
+  - [x] Add the two relay pages: access is needed, and the session is not connected
+  - [x] Make the relay page for missing access tell an embedding page, so the LUML app can launch again
+  - [x] Apply the changes to responses from the Design section on what the relay and the agent change, with a relay setting for the origins of the LUML app
+  - [x] Cover the scenarios: the launch address, a launch token accepted once, both ends of the cookie, a cookie for one session only, requests started by other sites, a request without access, framing, cookies of the service
 
 - [ ] Add live session records to the backend
   - [ ] Add the model in `backend/luml/models/` with the fields from the Design section LUML backend as issuer, and register it in `backend/luml/models/__init__.py`

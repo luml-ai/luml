@@ -137,7 +137,7 @@ async def test_large_body_does_not_block_other_viewers(
     assert small.json()["path"] == "/small"
 
 
-@pytest.mark.parametrize("path", ["/.luml-tunnel/launch", "/.luml-tunnel"])
+@pytest.mark.parametrize("path", ["/.luml-tunnel/other", "/.luml-tunnel", "/a/../.luml-tunnel/x"])
 async def test_relay_paths_are_not_forwarded(
     connected: None, relay_port: int, view_token: str, echo: EchoService, path: str
 ) -> None:

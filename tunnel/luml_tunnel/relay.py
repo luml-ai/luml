@@ -4,14 +4,17 @@ import logging
 import posixpath
 import socket
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from urllib.parse import parse_qs, urlsplit
 
 import uvicorn
-from starlette.responses import JSONResponse, PlainTextResponse
-from starlette.types import Receive, Scope, Send
+from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from starlette.types import Message, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from luml_tunnel.cookies import COOKIE_NAME, ViewerCookie, ViewerCookies
 from luml_tunnel.frames import (
     REPLACED_CLOSE_CODE,
     SUBPROTOCOL,
@@ -25,11 +28,15 @@ from luml_tunnel.frames import (
 from luml_tunnel.headers import (
     TOKEN_HEADER,
     USER_HEADER,
+    cookie_value,
     decode_raw_headers,
     encode_raw_headers,
     header_value,
+    rewrite_response_headers,
+    without_cookie,
     without_hop_by_hop,
 )
+from luml_tunnel.pages import access_needed_page, not_connected_page
 from luml_tunnel.protocol import (
     PeerClosed,
     RelayConnection,
@@ -51,6 +58,8 @@ logger = logging.getLogger(__name__)
 CONNECT_PATH = "/connect"
 HEALTH_PATH = "/health"
 RELAY_PATH_PREFIX = "/.luml-tunnel/"
+LAUNCH_PATH = RELAY_PATH_PREFIX + "launch"
+LAUNCH_TOKEN_PARAMETER = "token"
 
 _BODY_TOO_LARGE = "request body too large"
 _IDLE = "stream idle"
@@ -72,6 +81,8 @@ class RelaySettings:
     issuer: str
     issuer_keys: str
     limits: RelayLimits = field(default_factory=RelayLimits)
+    app_origins: tuple[str, ...] = ()
+    cookie_secret: bytes | None = None
 
 
 class Relay:
@@ -87,11 +98,14 @@ class Relay:
         verifier: TokenVerifier,
         sessions: SessionResolver | None = None,
         agents: AgentRegistry | None = None,
+        cookies: ViewerCookies | None = None,
     ) -> None:
         self.settings = settings
         self.agents = agents or InMemoryAgentRegistry()
         self._verifier = verifier
         self._sessions = sessions or HostnameSessionResolver(settings.base_domain)
+        self._cookies = cookies or ViewerCookies(settings.cookie_secret)
+        self._used_launch_tokens: dict[str, datetime] = {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
@@ -101,6 +115,11 @@ class Relay:
         session = self._sessions.session_for(host)
         if session is None:
             await self._serve_own_endpoint(scope, receive, send)
+            return
+        app_origins = self.settings.app_origins
+        send = _with_response_headers(send, lambda h: rewrite_response_headers(h, app_origins))
+        if scope["type"] == "http" and scope["path"] == LAUNCH_PATH:
+            await self._launch(scope, receive, send, session)
         elif _is_relay_path(scope["path"]):
             await _respond_text(scope, receive, send, "Not found", 404)
         else:
@@ -171,20 +190,84 @@ class Relay:
             with contextlib.suppress(StreamResetError):
                 await connection.ask_to_reconnect()
 
-    async def _serve_viewer(self, scope: Scope, receive: Receive, send: Send, session: str) -> None:
-        token = _header(scope, TOKEN_HEADER)
+    async def _launch(self, scope: Scope, receive: Receive, send: Send, session: str) -> None:
+        """Exchange a view token, accepted once, for the relay's cookie."""
+        query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
+        tokens = query.get(LAUNCH_TOKEN_PARAMETER, [])
         try:
-            if token is None:
-                raise TokenRejectedError("no token")
-            claims = await self._verifier.verify(token, TokenKind.VIEW, session)
-        except TokenRejectedError:
-            await _respond_text(scope, receive, send, "Access is needed", 401)
+            if scope["method"] != "GET" or len(tokens) != 1:
+                raise TokenRejectedError("no launch token")
+            claims = await self._verifier.verify(tokens[0], TokenKind.VIEW, session)
+            self._accept_launch_token_once(claims)
+        except TokenRejectedError as error:
+            logger.info("Refused a launch of session %s: %s", session, error)
+            await self._access_needed(scope, receive, send, session)
             return
+        cookie = self._cookies.issue(session, claims.user)
+        response = RedirectResponse("/", 303)
+        response.headers.append("set-cookie", self._cookies.set_cookie_header(cookie))
+        # The address carries the token, so it must not be cached or sent on as a referrer.
+        response.headers["cache-control"] = "no-store"
+        response.headers["referrer-policy"] = "no-referrer"
+        await response(scope, receive, send)
+
+    def _accept_launch_token_once(self, claims: TunnelClaims) -> None:
+        now = datetime.now(UTC)
+        self._used_launch_tokens = {
+            token_id: expires_at
+            for token_id, expires_at in self._used_launch_tokens.items()
+            if expires_at > now
+        }
+        if claims.token_id in self._used_launch_tokens:
+            raise TokenRejectedError("the launch token was used before")
+        self._used_launch_tokens[claims.token_id] = claims.expires_at
+
+    async def _authorize(self, scope: Scope, session: str) -> tuple[str, ViewerCookie | None]:
+        """Return the viewer's user and, when access is by cookie, the renewed cookie.
+
+        Raises TokenRejectedError without valid access and _CrossSiteError for a request
+        with a cookie that another site started.
+        """
+        token = _header(scope, TOKEN_HEADER)
+        if token is not None:
+            claims = await self._verifier.verify(token, TokenKind.VIEW, session)
+            return claims.user, None
+        value = cookie_value(decode_raw_headers(scope["headers"]), COOKIE_NAME)
+        cookie = self._cookies.renew(value, session) if value is not None else None
+        if cookie is None:
+            raise TokenRejectedError("no token and no valid cookie")
+        if not _started_by_own_pages_or_navigation(scope):
+            raise _CrossSiteError
+        return cookie.user, cookie
+
+    async def _access_needed(
+        self, scope: Scope, receive: Receive, send: Send, session: str
+    ) -> None:
+        if scope["type"] == "http" and _is_navigation(scope):
+            page = access_needed_page(session, self.settings.app_origins)
+            await HTMLResponse(page, 401, headers={"cache-control": "no-store"})(
+                scope, receive, send
+            )
+        else:
+            await _respond_text(scope, receive, send, "Access is needed", 401)
+
+    async def _serve_viewer(self, scope: Scope, receive: Receive, send: Send, session: str) -> None:
+        try:
+            user, cookie = await self._authorize(scope, session)
+        except TokenRejectedError:
+            await self._access_needed(scope, receive, send, session)
+            return
+        except _CrossSiteError:
+            await _respond_text(scope, receive, send, "Requests from other sites are refused", 403)
+            return
+        if cookie is not None:
+            renewal = self._cookies.set_cookie_header(cookie)
+            send = _with_response_headers(send, lambda h: [*h, ("set-cookie", renewal)])
         limits = self.settings.limits
         if _declared_length(scope) > limits.max_request_body_bytes:
             await PlainTextResponse(*_REFUSALS[_BODY_TOO_LARGE])(scope, receive, send)
             return
-        stream = await self._open_stream(scope, receive, send, session, claims)
+        stream = await self._open_stream(scope, receive, send, session, user)
         if stream is None:
             return
         if scope["type"] == "websocket":
@@ -197,11 +280,11 @@ class Relay:
             watching_idle.cancel()
 
     async def _open_stream(
-        self, scope: Scope, receive: Receive, send: Send, session: str, claims: TunnelClaims
+        self, scope: Scope, receive: Receive, send: Send, session: str, user: str
     ) -> Stream | None:
         """Open a stream for the viewer's request, or answer it when that is not possible."""
         connection = self.agents.get(session)
-        target, headers = _request_target(scope), _forwarded_headers(scope, claims)
+        target, headers = _request_target(scope), _forwarded_headers(scope, user)
         try:
             if connection is None:
                 raise StreamResetError("no agent")
@@ -326,8 +409,27 @@ async def _send_response(
     await send({"type": body_type, "body": b"", "more_body": False})
 
 
+class _CrossSiteError(Exception):
+    pass
+
+
 async def _not_connected(scope: Scope, receive: Receive, send: Send) -> None:
-    await _respond_text(scope, receive, send, "The session is not connected", 502)
+    if scope["type"] == "websocket":
+        await _respond_text(scope, receive, send, "The session is not connected", 502)
+    else:
+        await HTMLResponse(not_connected_page(), 502)(scope, receive, send)
+
+
+def _with_response_headers(send: Send, adjust: Callable[[Headers], Headers]) -> Send:
+    """Wrap `send` so the headers of every response pass through `adjust`."""
+
+    async def adjusted_send(message: Message) -> None:
+        if message["type"] in ("http.response.start", "websocket.http.response.start"):
+            headers = adjust(decode_raw_headers(message.get("headers", [])))
+            message = {**message, "headers": encode_raw_headers(headers)}
+        await send(message)
+
+    return adjusted_send
 
 
 async def _respond_text(scope: Scope, receive: Receive, send: Send, text: str, status: int) -> None:
@@ -424,6 +526,28 @@ def _declared_length(scope: Scope) -> int:
     return int(length) if length is not None and length.isdigit() else 0
 
 
+def _is_navigation(scope: Scope) -> bool:
+    mode = _header(scope, "sec-fetch-mode")
+    if mode is not None:
+        return mode == "navigate"
+    return scope.get("method") == "GET" and "text/html" in (_header(scope, "accept") or "")
+
+
+def _started_by_own_pages_or_navigation(scope: Scope) -> bool:
+    """Whether a request that carries the cookie comes from the session's own pages or is a
+    plain navigation; browsers without Fetch Metadata are judged by their Origin header."""
+    site = _header(scope, "sec-fetch-site")
+    if site is None:
+        origin = _header(scope, "origin")
+        return origin is None or urlsplit(origin).netloc == _header(scope, "host")
+    if site in ("same-origin", "none"):
+        return True
+    return _header(scope, "sec-fetch-mode") == "navigate" and scope.get("method") in (
+        "GET",
+        "HEAD",
+    )
+
+
 def _is_relay_path(path: str) -> bool:
     # Dot segments are resolved first, because the service may resolve them too.
     normalized = posixpath.normpath("/" + path.lstrip("/"))
@@ -438,11 +562,12 @@ def _request_target(scope: Scope) -> str:
     return target
 
 
-def _forwarded_headers(scope: Scope, claims: TunnelClaims) -> Headers:
+def _forwarded_headers(scope: Scope, user: str) -> Headers:
     # Transfer-Encoding is kept so the agent knows a body follows without a length.
     headers = without_hop_by_hop(
         decode_raw_headers(scope["headers"]), keep=frozenset({"transfer-encoding"})
     )
+    headers = without_cookie(headers, COOKIE_NAME)
     removed = _FORWARDING_HEADERS | {TOKEN_HEADER, USER_HEADER}
     headers = [(name, value) for name, value in headers if name.lower() not in removed]
     client = scope.get("client")
@@ -452,5 +577,5 @@ def _forwarded_headers(scope: Scope, claims: TunnelClaims) -> Headers:
     headers.append(("x-forwarded-proto", {"ws": "http", "wss": "https"}.get(scheme, scheme)))
     if host := _header(scope, "host"):
         headers.append(("x-forwarded-host", host))
-    headers.append((USER_HEADER, claims.user))
+    headers.append((USER_HEADER, user))
     return headers

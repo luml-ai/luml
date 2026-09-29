@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from luml_tunnel.cli import KEY_SET_FILE, PRIVATE_KEY_FILE, main
+from luml_tunnel.cli import COOKIE_SECRET_ENV, KEY_SET_FILE, PRIVATE_KEY_FILE, main
 from luml_tunnel.frames import RelayLimits
 from luml_tunnel.relay import Relay, RelayServer
 from luml_tunnel.tokens import TokenKind
@@ -126,5 +126,30 @@ def test_relay_takes_its_limits_from_options(monkeypatch: pytest.MonkeyPatch) ->
 def test_relay_refuses_limits_that_are_not_positive(limit: list[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
         main([*RELAY_ARGUMENTS, *limit])
+
+    assert exit_info.value.code == 2
+
+
+def test_relay_takes_app_origins_and_cookie_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    started: list[RelayServer] = []
+    monkeypatch.setattr(RelayServer, "run", lambda server, sockets=None: started.append(server))
+    monkeypatch.setenv(COOKIE_SECRET_ENV, "shared-secret")
+
+    origins = ["--app-origin", "https://app.luml.ai", "--app-origin", "http://localhost:5173"]
+    assert main([*RELAY_ARGUMENTS, *origins]) == 0
+
+    [server] = started
+    assert isinstance(server.config.app, Relay)
+    settings = server.config.app.settings
+    assert settings.app_origins == ("https://app.luml.ai", "http://localhost:5173")
+    assert settings.cookie_secret == b"shared-secret"
+
+
+@pytest.mark.parametrize(
+    "origin", ["app.luml.ai", "https://app.luml.ai/", "https://app.luml.ai; script-src *"]
+)
+def test_relay_refuses_an_app_origin_that_is_not_an_origin(origin: str) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main([*RELAY_ARGUMENTS, "--app-origin", origin])
 
     assert exit_info.value.code == 2
