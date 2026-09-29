@@ -718,6 +718,6 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Add unit tests for the scenarios from opening a live session to the browser that does not keep the cookie
   - [x] Run the type check, the linter and the unit tests in `frontend/`
 
-- [ ] Add release workflows for the tunnel package and relay image
-  - [ ] Add a tag for `luml-tunnel` to `.github/workflows/publish-sdk-python.yml`
-  - [ ] Add a workflow that publishes the relay image, following `.github/workflows/publish-monitoring-image.yml`
+- [x] Add release workflows for the tunnel package and relay image
+  - [x] Add a tag for `luml-tunnel` to `.github/workflows/publish-sdk-python.yml`
+  - [x] Add a workflow that publishes the relay image, following `.github/workflows/publish-monitoring-image.yml`
