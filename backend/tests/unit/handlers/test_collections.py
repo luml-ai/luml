@@ -4,7 +4,7 @@ from uuid import UUID, uuid7
 
 import pytest
 from luml.handlers.collections import CollectionHandler
-from luml.infra.exceptions import CollectionDeleteError, NotFoundError
+from luml.infra.exceptions import ApplicationError, CollectionDeleteError, NotFoundError
 from luml.schemas.collections import (
     Collection,
     CollectionCreate,
@@ -21,6 +21,38 @@ from luml.schemas.permissions import Action, Resource
 from pydantic import ValidationError
 
 handler = CollectionHandler()
+
+
+@pytest.mark.parametrize("cursor", ["garbage", "WzFd"])
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_rejects_invalid_cursor(
+    mock_get_collections: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+    cursor: str,
+) -> None:
+    user_id, organization_id, orbit_id = uuid7(), uuid7(), uuid7()
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
+
+    with pytest.raises(ApplicationError, match="^Invalid cursor$") as error:
+        await handler.get_orbit_collections(
+            user_id, organization_id, orbit_id, cursor_str=cursor
+        )
+
+    assert error.value.status_code == 400
+    mock_get_collections.assert_not_called()
 
 
 def test_collection_update_in_name_empty_string() -> None:
@@ -492,17 +524,12 @@ async def test_delete_collection_empty(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_count",
-    new_callable=AsyncMock,
-)
-@patch(
     "luml.handlers.collections.CollectionRepository.delete_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_collection_not_empty(
     mock_delete: AsyncMock,
-    mock_get_count: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_check_permissions: AsyncMock,
@@ -535,7 +562,9 @@ async def test_delete_collection_not_empty(
         created_at=datetime.now(),
         updated_at=None,
     )
-    mock_get_count.return_value = 1
+    mock_delete.side_effect = CollectionDeleteError(
+        "Collection has artifacts and cant be deleted"
+    )
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
 
     with pytest.raises(CollectionDeleteError, match="cant be deleted"):
@@ -543,7 +572,7 @@ async def test_delete_collection_not_empty(
             user_id, organization_id, orbit_id, collection_id
         )
 
-    mock_delete.assert_not_called()
+    mock_delete.assert_awaited_once_with(collection_id, orbit_id)
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,

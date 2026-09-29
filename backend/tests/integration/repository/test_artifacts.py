@@ -150,6 +150,7 @@ async def test_get_collection_artifacts_returns_only_active_deployments(
 
     model = test_artifact.model_copy()
     model.collection_id = collection.id
+    model.status = ArtifactStatus.UPLOADED
     created_model = await repo.create_artifact(model)
 
     satellite = await satellite_repo.create_satellite(
@@ -399,6 +400,7 @@ async def test_delete_artifact_with_deployment_constraint(
 
     model = test_artifact.model_copy()
     model.collection_id = collection.id
+    model.status = ArtifactStatus.UPLOADED
 
     created_model = await repo.create_artifact(model)
     peer_model = await _make_artifact(
@@ -574,6 +576,7 @@ async def test_get_collection_artifacts_sort_by_metric(
     assert len(first) == 1
     assert first[0].extra_values["accuracy"] == 0.1
     assert cursor is not None
+    assert cursor.sort_by == "accuracy"
 
     second, _ = await repo.get_collection_artifacts(
         data.orbit.id,
@@ -600,8 +603,11 @@ async def test_get_collection_artifacts_sort_extra_values_key_raises(
 
 
 @pytest.mark.asyncio
-async def test_get_collection_artifacts_invalid_metric_raises(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+@pytest.mark.parametrize("sort_by", ["nonexistent_zzz", "collection_name", "metadata"])
+async def test_get_collection_artifacts_invalid_sort_with_collection_ids_raises(
+    create_collection: CollectionFixtureData,
+    test_artifact: ArtifactCreate,
+    sort_by: str,
 ) -> None:
     data = create_collection
     repo = ArtifactRepository(data.engine)
@@ -614,7 +620,7 @@ async def test_get_collection_artifacts_invalid_metric_raises(
     with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
         await repo.get_collection_artifacts(
             data.orbit.id,
-            PaginationParams(limit=10, sort_by="nonexistent_metric"),
+            PaginationParams(limit=10, sort_by=sort_by),
             collection_ids=[data.collection.id],
         )
 
@@ -919,18 +925,16 @@ async def test_get_collection_artifacts_empty_orbit(
 
 
 @pytest.mark.asyncio
-async def test_get_collection_artifacts_metric_sort_without_collection_ids_falls_back(
+async def test_get_collection_artifacts_metric_sort_without_collection_ids_raises(
     create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> None:
-    # Metric sort only applies when collection_ids is provided. Without it the
-    # metric key is not validated and silently falls back to created_at order.
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    first = await _make_artifact(
+    await _make_artifact(
         repo, test_artifact, data.collection.id, name="first", extra_values={"acc": 0.1}
     )
-    second = await _make_artifact(
+    await _make_artifact(
         repo,
         test_artifact,
         data.collection.id,
@@ -938,20 +942,34 @@ async def test_get_collection_artifacts_metric_sort_without_collection_ids_falls
         extra_values={"acc": 0.9},
     )
 
-    items, _ = await repo.get_collection_artifacts(
-        data.orbit.id,
-        PaginationParams(limit=100, sort_by="acc", order=SortOrder.DESC),
-    )
+    with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
+        await repo.get_collection_artifacts(
+            data.orbit.id,
+            PaginationParams(limit=100, sort_by="acc", order=SortOrder.DESC),
+        )
 
-    # created_at DESC -> most recently created first (no InvalidSortingError raised).
-    assert [a.id for a in items] == [second.id, first.id]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sort_by", ["nonexistent_zzz", "collection_name", "metadata"])
+async def test_get_collection_artifacts_invalid_sort_without_collection_ids_raises(
+    create_collection: CollectionFixtureData,
+    sort_by: str,
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
+        await repo.get_collection_artifacts(
+            data.orbit.id,
+            PaginationParams(limit=100, sort_by=sort_by),
+        )
 
 
 async def _add_artifact_to_track(
     engine: AsyncEngine,
     orbit_id: uuid.UUID,
     artifact_id: uuid.UUID,
-    added_by: uuid.UUID,
+    added_by: str,
     name: str = "track",
 ) -> uuid.UUID:
     track = await TrackRepository(engine).create_track(
@@ -976,7 +994,7 @@ async def test_get_collection_artifacts_excludes_tracks(
     free = await _make_artifact(repo, test_artifact, data.collection.id, name="free")
 
     track_id = await _add_artifact_to_track(
-        data.engine, data.orbit.id, in_track.id, data.user.id
+        data.engine, data.orbit.id, in_track.id, data.user.email
     )
 
     # Without the filter both artifacts are returned.
@@ -1003,10 +1021,10 @@ async def test_get_collection_artifacts_excludes_only_listed_tracks(
     a_in_t2 = await _make_artifact(repo, test_artifact, data.collection.id, name="t2")
 
     t1 = await _add_artifact_to_track(
-        data.engine, data.orbit.id, a_in_t1.id, data.user.id, name="track-1"
+        data.engine, data.orbit.id, a_in_t1.id, data.user.email, name="track-1"
     )
     await _add_artifact_to_track(
-        data.engine, data.orbit.id, a_in_t2.id, data.user.id, name="track-2"
+        data.engine, data.orbit.id, a_in_t2.id, data.user.email, name="track-2"
     )
 
     # Only t1 is excluded -> the artifact in t2 stays.

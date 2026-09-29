@@ -1,6 +1,8 @@
 <template>
   <div v-if="tags.length" class="tags">
-    <Tag v-for="(tag, index) in visibleTags" :key="index" class="tag">{{ tag }}</Tag>
+    <Tag v-for="(tag, index) in visibleTags" :key="index" class="tag" :title="tag">
+      <span class="tag-label">{{ tag }}</span>
+    </Tag>
     <span v-if="visibleTags.length < tags.length" class="more-tags">
       +{{ tags.length - visibleTags.length }}
     </span>
@@ -29,7 +31,7 @@ const visibleTags = computed(() => {
   const { tags } = props.tags.reduce(
     (acc, tag) => {
       const tagWidth = tag.length * LETTER_WIDTH + TAG_PADDING * 2
-      if (acc.width + tagWidth > AVAILABLE_WIDTH) {
+      if (acc.tags.length && acc.width + tagWidth > AVAILABLE_WIDTH) {
         return acc
       }
       acc.width += tagWidth + GAP
@@ -53,10 +55,20 @@ const visibleTags = computed(() => {
 
 .tag {
   font-weight: 400;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .more-tags {
   color: var(--p-tag-primary-color);
   font-size: 12px;
+  flex-shrink: 0;
 }
 </style>

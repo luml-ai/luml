@@ -5,9 +5,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from luml.infra.exceptions import DatabaseConstraintError
-from luml.models import SatelliteOrm, SatelliteQueueOrm
+from luml.infra.exceptions import DatabaseConstraintError, NotFoundError
+from luml.models import OrbitOrm, SatelliteOrm, SatelliteQueueOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.satellite import (
     Satellite,
     SatelliteCreate,
@@ -22,6 +23,16 @@ from luml.schemas.satellite import (
 class SatelliteRepository(RepositoryBase, CrudMixin):
     async def create_satellite(self, satellite: SatelliteCreate) -> Satellite:
         async with self._get_session() as session:
+            organization_id = await session.scalar(
+                select(OrbitOrm.organization_id).where(
+                    OrbitOrm.id == satellite.orbit_id
+                )
+            )
+            if organization_id is None:
+                raise NotFoundError("Orbit not found")
+            await reserve_organization_slot(
+                session, organization_id, OrganizationResource.SATELLITES
+            )
             db_sat = await self.create_model(session, SatelliteOrm, satellite)
             return db_sat.to_satellite()
 

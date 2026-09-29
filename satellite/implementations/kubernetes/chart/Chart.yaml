@@ -1,0 +1,7 @@
+apiVersion: v2
+name: luml-satellite-kubernetes
+description: LUML satellite for Kubernetes and OpenShift
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.27.0-0"

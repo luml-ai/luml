@@ -1,10 +1,6 @@
 <template>
   <div class="scalar">
-    <ApiReference
-      class="api-reference"
-      :configuration="configuration"
-      :server="'http://localhost:8000'"
-    />
+    <ApiReference class="api-reference" :configuration="configuration" />
   </div>
 </template>
 
@@ -23,7 +19,7 @@ const theme = computed(() => themeStore.getCurrentTheme)
 
 type Props = {
   content: ApiReferenceConfigurationWithSource['content']
-  serverUrl: string
+  serverUrl?: string | null
 }
 
 const props = defineProps<Props>()
@@ -37,11 +33,7 @@ const configuration = computed<AnyApiReferenceConfiguration>(() => {
     hideDarkModeToggle: true,
     baseServerURL: 'https://scalar.com',
     showToolbar: 'never',
-    servers: [
-      {
-        url: props.serverUrl,
-      },
-    ],
+    servers: props.serverUrl ? [{ url: props.serverUrl }] : [],
   }
 })
 

@@ -1,0 +1,17 @@
+{{- if and .Values.sharedCache.enabled (not .Values.sharedCache.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "luml.sharedCacheClaimName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "model-cache") | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.sharedCache.accessModes | nindent 4 }}
+  {{- if .Values.sharedCache.storageClass }}
+  storageClassName: {{ .Values.sharedCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.sharedCache.size | quote }}
+{{- end }}

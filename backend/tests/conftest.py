@@ -3,7 +3,7 @@ import random
 import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from uuid import uuid7
+from uuid import UUID, uuid7
 
 import asyncpg  # type: ignore[import-untyped]
 import pytest_asyncio
@@ -54,14 +54,21 @@ from luml.schemas.user import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
+    CurrentUserOut,
     User,
     UserOut,
 )
 from luml.settings import config
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
+    AsyncEngine,
+    AsyncSession,
+    create_async_engine,
+)
 from utils.db import migrate_db
 
-TEST_DB_NAME = "luml_studio_test"
+TEST_DB_NAME = "df_studio_test"
 TEST_PASSWORD = "test_password"
 
 
@@ -287,6 +294,20 @@ async def test_user_out(test_user: User) -> AsyncGenerator[UserOut]:
 
 
 @pytest_asyncio.fixture(scope="function")
+async def test_current_user_out(test_user: User) -> AsyncGenerator[CurrentUserOut]:
+    user = test_user.model_copy()
+    yield CurrentUserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        disabled=user.disabled,
+        photo=user.photo,
+        has_api_key=False,
+        auth_method=user.auth_method,
+    )
+
+
+@pytest_asyncio.fixture(scope="function")
 async def test_org() -> AsyncGenerator[Organization]:
     yield Organization(
         id=uuid7(),
@@ -398,6 +419,24 @@ async def test_artifact(
     )
 
 
+TEST_ORGANIZATION_LIMITS = {
+    "members_limit": 1000,
+    "orbits_limit": 1000,
+    "satellites_limit": 1000,
+    "artifacts_limit": 1000,
+}
+
+
+async def lift_organization_limits(engine: AsyncEngine, organization_id: UUID) -> None:
+    async with AsyncSession(engine) as session:
+        await session.execute(
+            update(OrganizationOrm)
+            .where(OrganizationOrm.id == organization_id)
+            .values(**TEST_ORGANIZATION_LIMITS)
+        )
+        await session.commit()
+
+
 @pytest_asyncio.fixture(scope="function")
 async def create_organization_with_user(
     create_database_and_apply_migrations: str, test_user_create: CreateUser
@@ -415,6 +454,7 @@ async def create_organization_with_user(
     created_organization = await repo.create_organization(
         user.id, OrganizationCreateIn(name="test org")
     )
+    await lift_organization_limits(engine, created_organization.id)
 
     assert created_organization is not None, (
         "Organization should not be None in create_organization_with_user fixture"
@@ -517,6 +557,7 @@ async def create_orbit(
     organization = await user_repo.create_organization(
         user.id, OrganizationCreateIn(name="test org")
     )
+    await lift_organization_limits(engine, organization.id)
     assert organization is not None, (
         "Organization should not be None in create_orbit fixture"
     )
@@ -630,6 +671,7 @@ async def create_satellite(
 
     artifact_data = test_artifact.model_copy()
     artifact_data.collection_id = collection.id
+    artifact_data.status = ArtifactStatus.UPLOADED
 
     artifact = await artifact_repo.create_artifact(artifact_data)
     assert artifact is not None, (

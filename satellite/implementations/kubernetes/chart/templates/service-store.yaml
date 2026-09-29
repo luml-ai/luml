@@ -1,0 +1,19 @@
+{{- if and .Values.monitoring.enabled (eq .Values.monitoring.store.mode "standalone") }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "luml.storeName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "store") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "luml.selectorLabels" (dict "root" . "component" "store") | nindent 4 }}
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+    - name: grpc
+      port: 4001
+      targetPort: grpc
+{{- end }}

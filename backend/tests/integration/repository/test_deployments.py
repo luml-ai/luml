@@ -1,6 +1,11 @@
 import uuid
+from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
+from luml.handlers.deployments import DeploymentHandler
+from luml.infra.db import engine as shared_engine
 from luml.infra.exceptions import InvalidStatusTransitionError
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
@@ -9,6 +14,7 @@ from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
     DeploymentDetailsUpdate,
+    DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
     MonitoringMode,
@@ -41,6 +47,13 @@ async def _create_satellite_in(
             orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="sibling satellite"
         )
     )
+
+
+@pytest_asyncio.fixture
+async def deployment_handler() -> AsyncGenerator[DeploymentHandler]:
+    await shared_engine.dispose()
+    yield DeploymentHandler()
+    await shared_engine.dispose()
 
 
 async def _create_deployment(data: SatelliteFixtureData) -> Deployment:
@@ -230,6 +243,86 @@ async def test_update_deployment(create_satellite: SatelliteFixtureData) -> None
     assert updated_deployment.status == update_data.status
     assert updated_deployment.tags == update_data.tags
     assert updated_deployment.collection_id == model.collection_id
+    assert updated_deployment.provider_ref is None
+    assert updated_deployment.progress_note is None
+
+
+@pytest.mark.asyncio
+async def test_provider_ref_and_progress_note_round_trip(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="provider-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+        )
+    )
+
+    pending = await repo.update_deployment(
+        deployment.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=deployment.id,
+            provider_ref="provider-job-123",
+            progress_note="Creating workload",
+        ),
+    )
+    active = await repo.update_deployment(
+        deployment.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=deployment.id,
+            status=DeploymentStatus.ACTIVE,
+            progress_note=None,
+        ),
+    )
+
+    assert pending is not None
+    assert pending.provider_ref == "provider-job-123"
+    assert pending.progress_note == "Creating workload"
+    assert active is not None
+    assert active.provider_ref == "provider-job-123"
+    assert active.progress_note is None
+
+
+@pytest.mark.asyncio
+async def test_two_deployments_can_share_an_inference_url(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployments = [
+        (
+            await repo.create_deployment(
+                DeploymentCreate(
+                    name=f"shared-address-{index}",
+                    orbit_id=data.orbit.id,
+                    satellite_id=data.satellite.id,
+                    artifact_id=data.model.id,
+                )
+            )
+        )[0]
+        for index in range(2)
+    ]
+    inference_url = "https://multi-model.example/inference"
+
+    updated = [
+        await repo.update_deployment(
+            deployment.id,
+            data.satellite.id,
+            DeploymentUpdate(id=deployment.id, inference_url=inference_url),
+        )
+        for deployment in deployments
+    ]
+
+    assert [deployment.inference_url for deployment in updated if deployment] == [
+        inference_url,
+        inference_url,
+    ]
 
 
 @pytest.mark.asyncio
@@ -726,3 +819,85 @@ async def test_delete_deployments_by_artifact_id(
     await repo.delete_deployments_by_artifact_id(data.model.id)
 
     assert await repo.list_deployments(data.orbit.id) == []
+
+
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_partial_details_update_preserves_untouched_columns(
+    mock_check_permissions: AsyncMock,  # noqa: ARG001
+    create_satellite: SatelliteFixtureData,
+    deployment_handler: DeploymentHandler,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    secret_id = str(uuid.uuid7())
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="original",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+            description="keep me",
+            tags=["keep"],
+            dynamic_attributes_secrets={"token": secret_id},
+            env_variables={"LEVEL": "debug"},
+        )
+    )
+
+    await deployment_handler.update_deployment_details(
+        data.user.id,
+        data.organization.id,
+        data.orbit.id,
+        created.id,
+        DeploymentDetailsUpdateIn(name="renamed"),
+    )
+
+    reloaded = await repo.get_deployment(created.id, data.orbit.id)
+    assert reloaded is not None
+    assert reloaded.name == "renamed"
+    assert reloaded.description == "keep me"
+    assert reloaded.tags == ["keep"]
+    assert reloaded.dynamic_attributes_secrets == {"token": secret_id}
+    assert reloaded.env_variables == {"LEVEL": "debug"}
+
+
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_details_update_treats_explicit_null_secrets_as_cleared(
+    mock_check_permissions: AsyncMock,  # noqa: ARG001
+    create_satellite: SatelliteFixtureData,
+    deployment_handler: DeploymentHandler,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="original",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+            dynamic_attributes_secrets={"token": str(uuid.uuid7())},
+        )
+    )
+
+    await deployment_handler.update_deployment_details(
+        data.user.id,
+        data.organization.id,
+        data.orbit.id,
+        created.id,
+        DeploymentDetailsUpdateIn.model_validate({"dynamic_attributes_secrets": None}),
+    )
+
+    reloaded = await repo.get_deployment(created.id, data.orbit.id)
+    assert reloaded is not None
+    assert reloaded.dynamic_attributes_secrets == {}

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, status
 from luml.handlers.organizations import OrganizationHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.schemas.organization import UserInvite
+from luml.schemas.user import DetailResponse
 
 user_invites_router = APIRouter(
     prefix="/invitations",
@@ -20,11 +21,14 @@ async def get_user_invites(request: Request) -> list[UserInvite]:
     return await organization_handler.get_user_invites(request.user.email)
 
 
-@user_invites_router.post("/{invite_id}/accept")
-async def accept_invite_to_organization(request: Request, invite_id: UUID) -> None:
-    return await organization_handler.accept_invite(
+@user_invites_router.post("/{invite_id}/accept", response_model=DetailResponse)
+async def accept_invite_to_organization(
+    request: Request, invite_id: UUID
+) -> DetailResponse:
+    await organization_handler.accept_invite(
         invite_id, request.user.id, request.user.email
     )
+    return DetailResponse(detail="Invitation accepted successfully")
 
 
 @user_invites_router.post("/{invite_id}/reject", status_code=status.HTTP_204_NO_CONTENT)

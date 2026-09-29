@@ -87,6 +87,15 @@ async def test_get_organization_members(
     repo = UserRepository(data.engine)
     organization, members = (data.organization, data.members)
 
+    await repo.update_organization_member(
+        data.member.id, UpdateOrganizationMember(role=OrgRole.MEMBER)
+    )
+    await repo.update_organization_member(
+        members[-2].id, UpdateOrganizationMember(role=OrgRole.ADMIN)
+    )
+    await repo.delete_organization_member(members[-1].id)
+    await repo.create_owner(members[-1].user.id, organization.id)
+
     db_members = await repo.get_organization_members(organization.id)
 
     assert db_members
@@ -94,3 +103,8 @@ async def test_get_organization_members(
     assert db_members[0].id
     assert db_members[0].organization_id == organization.id
     assert db_members[0].user.id
+    assert [member.role for member in db_members] == [
+        OrgRole.OWNER,
+        OrgRole.ADMIN,
+        *([OrgRole.MEMBER] * (len(members) - 2)),
+    ]

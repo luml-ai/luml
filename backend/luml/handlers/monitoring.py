@@ -1,6 +1,7 @@
 import time
 import uuid
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import jwt
@@ -46,16 +47,27 @@ class MonitoringHandler:
         self.launch_token_expire = launch_token_expire
 
     @staticmethod
+    def _launch_base(deployment: Deployment, satellite: Satellite) -> str | None:
+        monitoring_url = deployment.monitoring_url
+        if isinstance(monitoring_url, str):
+            parsed = urlsplit(monitoring_url)
+            if parsed.scheme and parsed.netloc:
+                return monitoring_url
+        return satellite.base_url
+
+    @classmethod
     def _eligibility(
-        deployment: Deployment, satellite: Satellite
+        cls, deployment: Deployment, satellite: Satellite
     ) -> MonitoringIneligibilityReason | None:
         if deployment.monitoring_mode == MonitoringMode.OFF:
             return MonitoringIneligibilityReason.MONITORING_OFF
-        if MONITORING_CAPABILITY in satellite.present_capabilities:
-            return None
-        if MONITORING_CAPABILITY in satellite.capabilities:
+        if MONITORING_CAPABILITY not in satellite.present_capabilities:
+            if MONITORING_CAPABILITY not in satellite.capabilities:
+                return MonitoringIneligibilityReason.CAPABILITY_MISSING
             return MonitoringIneligibilityReason.CAPABILITY_VERSION_UNSUPPORTED
-        return MonitoringIneligibilityReason.CAPABILITY_MISSING
+        if cls._launch_base(deployment, satellite) is None:
+            return MonitoringIneligibilityReason.NO_DASHBOARD_ADDRESS
+        return None
 
     async def _load_deployment_and_satellite(
         self,
@@ -108,14 +120,21 @@ class MonitoringHandler:
         deployment, satellite = await self._load_deployment_and_satellite(
             user_id, organization_id, orbit_id, deployment_id
         )
-        if self._eligibility(deployment, satellite) is not None:
+        reason = self._eligibility(deployment, satellite)
+        if reason == MonitoringIneligibilityReason.NO_DASHBOARD_ADDRESS:
+            raise ApplicationError(
+                "Monitoring dashboard address is not configured",
+                status.HTTP_409_CONFLICT,
+            )
+        if reason is not None:
             raise ApplicationError(
                 "Monitoring is not enabled for this deployment",
                 status.HTTP_409_CONFLICT,
             )
-        if not satellite.base_url:
+        launch_base = self._launch_base(deployment, satellite)
+        if launch_base is None:
             raise ApplicationError(
-                "Satellite base URL is not configured",
+                "Monitoring dashboard address is not configured",
                 status.HTTP_409_CONFLICT,
             )
 
@@ -132,6 +151,7 @@ class MonitoringHandler:
         return MonitoringLaunchToken(
             token=token,
             satellite_base_url=satellite.base_url,
+            launch_url=(f"{launch_base.rstrip('/')}/monitoring/launch?token={token}"),
             expires_at=expires_at,
         )
 

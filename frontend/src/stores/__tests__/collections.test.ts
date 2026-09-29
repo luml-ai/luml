@@ -50,4 +50,30 @@ describe('collections store', () => {
 
     expect(store.currentCollection?.id).toBe('datasets')
   })
+
+  it('keeps a response that arrives after the registry view reset the store', async () => {
+    const load = deferred<OrbitCollection>()
+    getCollection.mockReturnValueOnce(load.promise)
+    const store = useCollectionsStore()
+
+    const loading = store.setCurrentCollection('models')
+    store.reset()
+    load.resolve(collection('models'))
+    await loading
+
+    expect(store.currentCollection?.id).toBe('models')
+  })
+
+  it('drops a response once the collection page itself moved on', async () => {
+    const load = deferred<OrbitCollection>()
+    getCollection.mockReturnValueOnce(load.promise)
+    const store = useCollectionsStore()
+
+    const loading = store.setCurrentCollection('models')
+    store.resetCurrentCollection()
+    load.resolve(collection('models'))
+    await loading
+
+    expect(store.currentCollection).toBeNull()
+  })
 })

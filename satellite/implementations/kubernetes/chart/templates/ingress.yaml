@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "luml.fullname" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "ingress") | nindent 4 }}
+  {{- $annotations := include "luml.ingressAnnotations" . | fromYaml }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if include "luml.ingressClassName" . }}
+  ingressClassName: {{ include "luml.ingressClassName" . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls.secretName }}
+  tls:
+    - hosts:
+        - {{ .Values.satellite.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.satellite.host | quote }}
+      http:
+        paths:
+          {{- if .Values.monitoring.enabled }}
+          - path: /monitoring
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "luml.dashboardName" . | quote }}
+                port:
+                  name: http
+          {{- end }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "luml.satelliteName" . | quote }}
+                port:
+                  name: http

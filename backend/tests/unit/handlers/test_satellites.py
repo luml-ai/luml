@@ -18,6 +18,7 @@ from luml.schemas.satellite import (
     MAX_OPENAPI_DOCUMENT_SIZE_BYTES,
     MONITORING_FACETS,
     MONITORING_FEATURES,
+    KitInfo,
     Satellite,
     SatelliteCreateIn,
     SatelliteCreateOut,
@@ -152,6 +153,7 @@ async def test_get_satellite_openapi(
     mock_get_satellite.return_value = Satellite(
         id=satellite_id,
         orbit_id=orbit_id,
+        name="test-satellite",
         paired=True,
         capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
@@ -416,6 +418,70 @@ async def test_pair_satellite(
     pair_call = mock_pair_satellite.await_args
     assert pair_call is not None
     assert pair_call.args[0].openapi == openapi
+    assert pair_call.args[0].kit_info is None
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_without_address_stores_kit_info(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    kit = KitInfo(
+        name="luml-satellite",
+        version="1.2.3",
+        kind="kubernetes",
+        api_version=1,
+    )
+    mock_get_satellite.return_value = Mock()
+    mock_pair_satellite.return_value = Mock()
+
+    await handler.pair_satellite(
+        satellite_id,
+        SatellitePairIn(
+            capabilities={"deploy": {"version": 1}},
+            kit=kit,
+        ),
+    )
+
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    paired = pair_call.args[0]
+    assert paired.base_url is None
+    assert paired.kit_info == kit
+
+
+@pytest.mark.parametrize(
+    "kit",
+    [
+        {"name": "", "version": "1", "kind": "docker", "api_version": 1},
+        {
+            "name": "luml-satellite",
+            "version": "1",
+            "kind": "docker",
+            "api_version": 0,
+        },
+        {
+            "name": "luml-satellite",
+            "version": "1",
+            "kind": "docker",
+            "api_version": "1",
+        },
+    ],
+)
+def test_pair_satellite_rejects_invalid_kit_info(kit: dict[str, object]) -> None:
+    with pytest.raises(ValidationError, match="kit"):
+        SatellitePairIn.model_validate(
+            {"capabilities": {"deploy": {"version": 1}}, "kit": kit}
+        )
 
 
 @patch(
@@ -512,6 +578,7 @@ async def test_pair_satellite_normalizes_reserved_capabilities(
                 "supported_variants": ["pyfunc"],
                 "supported_tags_combinations": [["luml.ai::kind_tabular:v1"]],
                 "extra_fields_form_spec": [],
+                "future_deploy_field": {"enabled": True},
             },
             "monitoring": {"version": 1, "ignored": "value"},
         },
@@ -530,12 +597,14 @@ async def test_pair_satellite_normalizes_reserved_capabilities(
             "supported_variants": ["pyfunc"],
             "supported_tags_combinations": [["luml.ai::kind_tabular:v1"]],
             "extra_fields_form_spec": [],
+            "future_deploy_field": {"enabled": True},
         },
         "monitoring": {
             "version": 1,
             "api_versions": [1],
             "facets": MONITORING_FACETS,
             "features": MONITORING_FEATURES,
+            "ignored": "value",
         },
     }
 
@@ -555,6 +624,7 @@ def test_bare_monitoring_declaration_is_complete_in_satellite_payload() -> None:
     satellite = Satellite(
         id=UUID("0199c418-8be4-737c-a5e4-997685950d42"),
         orbit_id=UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+        name="test-satellite",
         paired=True,
         capabilities=capabilities,
         created_at=datetime.datetime.now(),
@@ -575,6 +645,7 @@ def test_satellite_payload_does_not_include_openapi() -> None:
         {
             "id": UUID("0199c418-8be4-737c-a5e4-997685950d42"),
             "orbit_id": UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+            "name": "test-satellite",
             "paired": True,
             "capabilities": {"deploy": {"version": 1}},
             "openapi": {"openapi": "3.1.0", "paths": {}},
@@ -703,6 +774,7 @@ async def test_pair_satellite_rejects_invalid_custom_facet(
 @pytest.mark.parametrize(
     ("capability", "declaration"),
     [
+        ("deploy", {"version": "1"}),
         ("monitoring", {"version": 1, "features": "runtime"}),
         ("monitoring", {"version": 1, "facets": ["satellite:future"]}),
         ("deploy", {"version": 1, "supported_variants": "pyfunc"}),
@@ -740,6 +812,7 @@ def test_present_capabilities_respects_reserved_versions() -> None:
     satellite = Satellite(
         id=satellite_id,
         orbit_id=orbit_id,
+        name="test-satellite",
         paired=True,
         capabilities=capabilities,
         created_at=datetime.datetime.now(),
@@ -1262,6 +1335,54 @@ async def test_update_satellite(
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
     mock_update_satellite.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"description": "updated-desc"}, {"name": "updated-name"}],
+    ids=["description-only", "name-only"],
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.update_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_satellite_sends_only_provided_fields(
+    mock_check_permissions: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_satellite: AsyncMock,
+    body: dict[str, str],
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+
+    mock_get_satellite.return_value = Mock(orbit_id=orbit_id)
+
+    await handler.update_satellite(
+        user_id,
+        organization_id,
+        orbit_id,
+        satellite_id,
+        SatelliteUpdateIn.model_validate(body),
+    )
+
+    mock_update_satellite.assert_awaited_once()
+    update_call = mock_update_satellite.await_args
+    assert update_call is not None
+    assert update_call.args[0].model_dump(exclude_unset=True) == {
+        "id": satellite_id,
+        **body,
+    }
 
 
 @patch(

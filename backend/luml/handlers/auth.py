@@ -24,14 +24,15 @@ from luml.repositories.users import UserRepository
 from luml.schemas.auth import OAuthLogin, Token
 from luml.schemas.user import (
     AuthProvider,
+    ChangePasswordIn,
     CreateUser,
     CreateUserIn,
+    CurrentUserOut,
     SignInResponse,
     SignInUser,
     UpdateUser,
     UpdateUserIn,
     User,
-    UserOut,
 )
 from luml.settings import config
 
@@ -133,7 +134,7 @@ class AuthHandler:
         if user.hashed_password is None:
             raise AuthError("Password is invalid", 400)
         if not self._verify_password(password, user.hashed_password):
-            raise AuthError("Invalid email or password", 400)
+            raise AuthError("Invalid email or password", 401)
         if not user.email_verified:
             raise AuthError("Email not verified", 400)
         return user
@@ -161,7 +162,7 @@ class AuthHandler:
                 user.email, confirmation_link, user.full_name
             )
         except Exception as error:
-            await self.__user_repository.delete_user(user.email)
+            await self.__user_repository.delete_signup(user.id)
             raise EmailDeliveryError(
                 "Error sending confirmation email. User is not created."
             ) from error
@@ -185,18 +186,16 @@ class AuthHandler:
             if email is None:
                 raise AuthError("Invalid token", 400)
 
-            if await self.__token_black_list_repository.is_token_blacklisted(
-                refresh_token
-            ):
-                raise AuthError("Token has been revoked", 400)
-
             service_user = await self.__user_repository.get_user(email)
             if service_user is None:
                 raise AuthError("User not found", 404)
 
             exp = int(payload.get("exp"))
 
-            await self.__token_black_list_repository.add_token(refresh_token, exp)
+            if not await self.__token_black_list_repository.add_token(
+                refresh_token, exp
+            ):
+                raise AuthError("Token has been revoked", 400)
 
             return self._create_tokens(service_user.email)
 
@@ -222,11 +221,29 @@ class AuthHandler:
             update_user.hashed_password = hashed_password
         return await self.__user_repository.update_user(update_user)
 
+    async def handle_change_password(
+        self, email: EmailStr, passwords: ChangePasswordIn
+    ) -> None:
+        user = await self.__user_repository.get_user(email)
+        if user is None:
+            raise AuthError("User not found", 404)
+        if user.auth_method != AuthProvider.EMAIL or user.hashed_password is None:
+            raise AuthError("Invalid auth method", 400)
+        if not self._verify_password(passwords.current_password, user.hashed_password):
+            raise AuthError("Invalid current password", 400)
+
+        await self.__user_repository.update_user(
+            UpdateUser(
+                email=email,
+                hashed_password=self._get_password_hash(passwords.new_password),
+            )
+        )
+
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
-    async def handle_get_current_user(self, email: EmailStr) -> UserOut:
-        user = await self.__user_repository.get_public_user(email)
+    async def handle_get_current_user(self, email: EmailStr) -> CurrentUserOut:
+        user = await self.__user_repository.get_current_user(email)
         if user is None:
             raise AuthError("User not found", 404)
 
@@ -240,21 +257,22 @@ class AuthHandler:
             payload = jwt.decode(
                 refresh_token, self.secret_key, algorithms=[self.algorithm]
             )
-            exp = payload.get("exp")
+            refresh_exp = payload.get("exp")
 
             if access_token:
                 try:
                     access_payload = jwt.decode(
                         access_token, self.secret_key, algorithms=[self.algorithm]
                     )
-                    exp = access_payload.get("exp")
                     await self.__token_black_list_repository.add_token(
-                        access_token, exp
+                        access_token, access_payload.get("exp")
                     )
                 except InvalidTokenError:
                     pass
 
-            await self.__token_black_list_repository.add_token(refresh_token, exp)
+            await self.__token_black_list_repository.add_token(
+                refresh_token, refresh_exp
+            )
 
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
@@ -334,7 +352,7 @@ class AuthHandler:
             raise AuthError("User not found", 404)
 
         if service_user.email_verified:
-            raise AuthError("Email already verified", 400)
+            return
 
         await self.__user_repository.update_user(
             UpdateUser(email=email, email_verified=True)

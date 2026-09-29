@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from luml.api.satellites import satellite_worker_router
 from luml.infra.exceptions import ApplicationError
@@ -50,6 +51,18 @@ def _client(satellite_id: UUID, orbit_id: UUID) -> TestClient:
         )
 
     return TestClient(app)
+
+
+def test_get_deployment_route_is_registered_once() -> None:
+    matching_routes = [
+        route
+        for route in satellite_worker_router.routes
+        if isinstance(route, APIRoute)
+        and route.path == "/satellites/v1/deployments/{deployment_id}"
+        and "GET" in route.methods
+    ]
+
+    assert len(matching_routes) == 1
 
 
 @patch(
@@ -104,3 +117,20 @@ def test_delete_deployment_from_another_satellite_is_rejected(
     assert response.status_code == 404
     assert response.json() == {"detail": "Deployment not found"}
     mock_delete_satellite_deployment.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentHandler.update_worker_deployment",
+    new_callable=AsyncMock,
+)
+def test_progress_note_over_the_limit_is_rejected(
+    mock_update_worker_deployment: AsyncMock,
+) -> None:
+    response = _client(OWNER_SATELLITE_ID, OWNER_ORBIT_ID).patch(
+        DEPLOYMENT_PATH,
+        json={"progress_note": "n" * 1001},
+    )
+
+    assert response.status_code == 422
+    assert "progress_note" in response.text
+    mock_update_worker_deployment.assert_not_awaited()

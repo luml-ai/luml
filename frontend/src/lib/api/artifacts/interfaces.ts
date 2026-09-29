@@ -1,5 +1,5 @@
 import type { Manifest } from '@fnnx-ai/common/dist/interfaces'
-import type { Deployment } from '../deployments/interfaces'
+import type { Deployment, DeploymentStatusEnum } from '../deployments/interfaces'
 
 export type FileIndex = Record<string, [number, number]>
 
@@ -68,6 +68,56 @@ export interface UpdateArtifactPayload {
   description?: string
   tags?: string[]
   status?: ArtifactStatusEnum
+}
+
+export type ArtifactDeleteReason =
+  | 'not_found'
+  | 'deployments'
+  | 'tracks'
+  | 'not_pending_deletion'
+  | 'storage_error'
+
+export interface ArtifactDeleteDeployment {
+  id: string
+  name: string
+  status: DeploymentStatusEnum
+}
+
+export interface ArtifactDeleteTrack {
+  id: string
+  name: string
+}
+
+export interface ArtifactDeleteFailure {
+  artifact_id: string
+  name: string | null
+  reason: ArtifactDeleteReason
+  deployments: ArtifactDeleteDeployment[]
+  tracks: ArtifactDeleteTrack[]
+}
+
+export interface ArtifactDeleteUrl {
+  artifact_id: string
+  name: string
+  url: string
+}
+
+export interface ArtifactsDeleteRequest {
+  artifact_ids: string[]
+}
+
+export interface ArtifactsDeleteConfirmRequest extends ArtifactsDeleteRequest {
+  force: boolean
+}
+
+export interface ArtifactsDeleteUrlsResponse {
+  urls: ArtifactDeleteUrl[]
+  failed: ArtifactDeleteFailure[]
+}
+
+export interface ArtifactsDeleteResponse {
+  deleted: string[]
+  failed: ArtifactDeleteFailure[]
 }
 
 export interface CreateArtifactResponse {

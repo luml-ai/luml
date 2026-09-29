@@ -1,0 +1,13 @@
+LUML Kubernetes satellite {{ .Release.Name }} is installed.
+
+Public URL: {{ include "luml.baseUrl" . }}
+Security preset: {{ .Values.podSecurity.preset }}
+Monitoring store: {{ .Values.monitoring.store.mode }}
+
+{{- if not (or .Values.satellite.token .Values.satellite.existingSecret) }}
+WARNING: set satellite.token or satellite.existingSecret before the satellite starts.
+{{- end }}
+{{- if .Values.satellite.existingSecret }}
+Token rotation through an existing Secret requires a manual restart of the satellite,
+dashboard and worker Deployments.
+{{- end }}

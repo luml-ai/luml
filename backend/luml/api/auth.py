@@ -11,12 +11,13 @@ from luml.handlers.auth import AuthHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
+    ChangePasswordIn,
     CreateUserIn,
+    CurrentUserOut,
     DetailResponse,
     SignInAPIResponse,
     SignInUser,
     UpdateUserIn,
-    UserOut,
 )
 from luml.settings import config
 
@@ -113,11 +114,11 @@ async def forgot_password(data: ForgotPasswordIn) -> dict[str, str]:
     return {"detail": "Password reset email has been sent"}
 
 
-@auth_router.get("/users/me", response_model=UserOut)
+@auth_router.get("/users/me", response_model=CurrentUserOut)
 async def get_current_user_info(
     request: Request,
     _: Annotated[None, Depends(is_user_authenticated)],
-) -> UserOut:
+) -> CurrentUserOut:
     return await auth_handler.handle_get_current_user(request.user.email)
 
 
@@ -128,6 +129,16 @@ async def delete_account(
 ) -> dict[str, str]:
     await auth_handler.handle_delete_account(request.user.email)
     return {"detail": "Account deleted successfully"}
+
+
+@auth_router.post("/change-password", response_model=DetailResponse)
+async def change_password(
+    request: Request,
+    passwords: ChangePasswordIn,
+    _: Annotated[None, Depends(is_user_authenticated)],
+) -> dict[str, str]:
+    await auth_handler.handle_change_password(request.user.email, passwords)
+    return {"detail": "Password changed successfully"}
 
 
 @auth_router.patch("/users/me", response_model=DetailResponse)

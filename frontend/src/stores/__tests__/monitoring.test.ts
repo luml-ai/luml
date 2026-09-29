@@ -31,6 +31,13 @@ const eligible: MonitoringEligibility = {
 
 const token: MonitoringLaunchToken = {
   token: 'header.payload.sig',
+  satellite_base_url: null,
+  launch_url: 'https://dashboard.example.com/monitoring/launch?token=header.payload.sig',
+  expires_at: 1_800_000_000,
+}
+
+const legacyToken: MonitoringLaunchToken = {
+  token: 'header.payload.sig',
   satellite_base_url: 'https://sat.example.com',
   expires_at: 1_800_000_000,
 }
@@ -95,7 +102,7 @@ describe('monitoring store', () => {
   })
 
   describe('active (eligible)', () => {
-    it('mints a token and builds the launch URL with the token', async () => {
+    it('uses the ready-made launch URL and derives its origin', async () => {
       mockApi.monitoring.getEligibility.mockResolvedValueOnce(eligible)
       mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce(token)
 
@@ -103,15 +110,13 @@ describe('monitoring store', () => {
 
       expect(store.status).toBe('active')
       expect(store.launchToken).toEqual(token)
-      expect(store.launchUrl).toBe(
-        'https://sat.example.com/monitoring/launch?token=header.payload.sig',
-      )
-      expect(store.satelliteOrigin).toBe('https://sat.example.com')
+      expect(store.launchUrl).toBe(token.launch_url)
+      expect(store.satelliteOrigin).toBe('https://dashboard.example.com')
     })
 
     it('scopes every call to the given deployment', async () => {
       mockApi.monitoring.getEligibility.mockResolvedValueOnce(eligible)
-      mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce(token)
+      mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce(legacyToken)
 
       await store.launch(ORG, ORBIT, DEPLOYMENT)
 
@@ -119,10 +124,10 @@ describe('monitoring store', () => {
       expect(mockApi.monitoring.mintLaunchToken).toHaveBeenCalledWith(ORG, ORBIT, DEPLOYMENT)
     })
 
-    it('strips a trailing slash from the Satellite base URL', async () => {
+    it('falls back to the legacy Satellite base URL', async () => {
       mockApi.monitoring.getEligibility.mockResolvedValueOnce(eligible)
       mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce({
-        ...token,
+        ...legacyToken,
         satellite_base_url: 'https://sat.example.com/',
       })
 
@@ -135,11 +140,27 @@ describe('monitoring store', () => {
 
     it('URL-encodes the token', async () => {
       mockApi.monitoring.getEligibility.mockResolvedValueOnce(eligible)
-      mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce({ ...token, token: 'a b&c' })
+      mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce({
+        ...legacyToken,
+        token: 'a b&c',
+      })
 
       await store.launch(ORG, ORBIT, DEPLOYMENT)
 
       expect(store.launchUrl).toBe('https://sat.example.com/monitoring/launch?token=a%20b%26c')
+    })
+
+    it('returns no URL or origin when an old response has no Satellite address', async () => {
+      mockApi.monitoring.getEligibility.mockResolvedValueOnce(eligible)
+      mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce({
+        ...legacyToken,
+        satellite_base_url: null,
+      })
+
+      await store.launch(ORG, ORBIT, DEPLOYMENT)
+
+      expect(store.launchUrl).toBeNull()
+      expect(store.satelliteOrigin).toBeNull()
     })
   })
 
@@ -182,9 +203,11 @@ describe('monitoring store', () => {
 
     it('re-launching after expiry mints a fresh token', async () => {
       mockApi.monitoring.getEligibility.mockResolvedValue(eligible)
-      mockApi.monitoring.mintLaunchToken
-        .mockResolvedValueOnce(token)
-        .mockResolvedValueOnce({ ...token, token: 'fresh.token.sig' })
+      mockApi.monitoring.mintLaunchToken.mockResolvedValueOnce(token).mockResolvedValueOnce({
+        ...token,
+        token: 'fresh.token.sig',
+        launch_url: 'https://dashboard.example.com/monitoring/launch?token=fresh.token.sig',
+      })
       await store.launch(ORG, ORBIT, DEPLOYMENT)
       store.markExpired()
 

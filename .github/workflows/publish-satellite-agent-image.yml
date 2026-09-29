@@ -6,10 +6,9 @@ on:
     tags:
       - "satellite/agent/v*"
     paths:
-      - satellite/Dockerfile
-      - satellite/pyproject.toml
-      - satellite/uv.lock
-      - satellite/agent/**
+      - satellite/implementations/docker/**
+      - satellite/kit/**
+      - .github/workflows/publish-satellite-agent-image.yml
   workflow_dispatch:
 
 concurrency:
@@ -80,7 +79,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: satellite
-          file: satellite/Dockerfile
+          file: satellite/implementations/docker/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}

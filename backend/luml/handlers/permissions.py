@@ -129,8 +129,10 @@ class PermissionsHandler:
     def get_orbit_permissions_by_role(
         self, org_role: str | None = None, role: str | None = None
     ) -> dict[str, list[str]]:
+        permissions: dict[str, list[str]] = {}
+
         if org_role and org_role in (OrgRole.OWNER, OrgRole.ADMIN):
-            return self._get_organization_permissions_for_role_and_resources(
+            permissions = self._get_organization_permissions_for_role_and_resources(
                 OrgRole(org_role),
                 [
                     Resource.ORBIT,
@@ -144,19 +146,23 @@ class PermissionsHandler:
                 ],
             )
 
-        if not role:
-            return {}
+        if role:
+            orbit_role_permissions = self.get_orbit_permissions_for_role_and_resources(
+                OrbitRole(role),
+                [
+                    Resource.ORBIT,
+                    Resource.ORBIT_USER,
+                    Resource.ARTIFACT,
+                    Resource.COLLECTION,
+                    Resource.TRACK,
+                    Resource.SATELLITE,
+                    Resource.ORBIT_SECRET,
+                    Resource.DEPLOYMENT,
+                ],
+            )
+            for resource, actions in orbit_role_permissions.items():
+                permissions[resource] = list(
+                    dict.fromkeys([*permissions.get(resource, []), *actions])
+                )
 
-        return self.get_orbit_permissions_for_role_and_resources(
-            OrbitRole(role),
-            [
-                Resource.ORBIT,
-                Resource.ORBIT_USER,
-                Resource.ARTIFACT,
-                Resource.COLLECTION,
-                Resource.TRACK,
-                Resource.SATELLITE,
-                Resource.ORBIT_SECRET,
-                Resource.DEPLOYMENT,
-            ],
-        )
+        return permissions

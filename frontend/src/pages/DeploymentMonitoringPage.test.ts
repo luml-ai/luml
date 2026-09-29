@@ -117,6 +117,18 @@ describe('DeploymentMonitoringPage', () => {
     expect(wrapper.find('[data-testid="monitoring-iframe"]').exists()).toBe(false)
   })
 
+  it('explains when no dashboard address is available', async () => {
+    store.status = 'disabled'
+    store.reason = MonitoringIneligibilityReason.no_dashboard_address
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="monitoring-disabled"]').text()).toContain(
+      'This satellite has no dashboard address.',
+    )
+    expect(wrapper.find('[data-testid="monitoring-iframe"]').exists()).toBe(false)
+  })
+
   it('shows the unavailable state with a retry that re-launches, and no iframe', async () => {
     store.status = 'unavailable'
     const wrapper = mountPage()

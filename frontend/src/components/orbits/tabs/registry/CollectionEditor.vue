@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
 import { computed, ref, watch } from 'vue'
 import {
@@ -137,8 +138,8 @@ async function saveChanges({ valid }: FormSubmitEvent) {
     await collectionsStore.updateCollection(props.data.id, { ...initialValues.value })
     toast.add(simpleSuccessToast('Collection successfully updated'))
     visible.value = false
-  } catch {
-    toast.add(simpleErrorToast('Failed to update collection'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to update collection')))
   } finally {
     loading.value = false
   }

@@ -3,7 +3,12 @@ import uuid
 import pytest
 from luml.models import OrganizationOrm
 from luml.repositories.invites import InviteRepository
-from luml.schemas.organization import CreateOrganizationInvite, OrgRole
+from luml.repositories.users import UserRepository
+from luml.schemas.organization import (
+    CreateOrganizationInvite,
+    OrganizationCreateIn,
+    OrgRole,
+)
 from luml.schemas.user import User
 
 from tests.conftest import OrganizationFixtureData
@@ -49,10 +54,30 @@ async def test_delete_organization_invite(
     created_invite = await repo.create_organization_invite(invite)
     assert created_invite
 
-    await repo.delete_organization_invite(created_invite.id)
+    await repo.delete_organization_invite(organization.id, created_invite.id)
 
     result = await repo.get_invite(created_invite.id)
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_delete_organization_invite_from_other_organization(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    engine, user, organization = data.engine, data.user, data.organization
+    repo = InviteRepository(engine)
+    other_organization = await UserRepository(engine).create_organization(
+        user.id, OrganizationCreateIn(name="other org")
+    )
+
+    created_invite = await repo.create_organization_invite(
+        get_invite_obj(organization, user)
+    )
+
+    await repo.delete_organization_invite(other_organization.id, created_invite.id)
+
+    assert await repo.get_invite(created_invite.id) is not None
 
 
 @pytest.mark.asyncio

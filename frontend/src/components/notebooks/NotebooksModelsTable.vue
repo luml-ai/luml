@@ -5,13 +5,7 @@
     <Column field="size" header="Size">
       <template #body="slotProps">
         <div>
-          {{
-            slotProps.data.size < 1000
-              ? slotProps.data.size + ' B'
-              : slotProps.data.size < 10000000
-                ? slotProps.data.size / 1000 + ' KB'
-                : slotProps.data.size / 10000000 + ' MB'
-          }}
+          {{ getSizeText(slotProps.data.size) }}
         </div>
       </template>
     </Column>
@@ -32,6 +26,7 @@
 
 <script setup lang="ts">
 import { DataTable, Column } from 'primevue'
+import { getSizeText } from '@/helpers/helpers'
 import NotebooksModelAction from './NotebooksModelAction.vue'
 
 type Props = {

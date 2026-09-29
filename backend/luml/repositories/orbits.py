@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from luml.infra.exceptions import DatabaseConstraintError
 from luml.models import CollectionOrm, OrbitMembersOrm, OrbitOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.orbit import (
     Orbit,
     OrbitCreate,
@@ -23,12 +24,25 @@ from luml.utils.organizations import convert_orbit_simple_members
 
 
 class OrbitRepository(RepositoryBase, CrudMixin):
-    async def get_organization_orbits(self, organization_id: UUID) -> list[Orbit]:
+    async def get_organization_orbits(
+        self, organization_id: UUID, user_id: UUID
+    ) -> list[Orbit]:
         async with self._get_session() as session:
-            db_orbits = await self.get_models_where(
-                session, OrbitOrm, OrbitOrm.organization_id == organization_id
+            result = await session.execute(
+                select(OrbitOrm, OrbitMembersOrm.role)
+                .outerjoin(
+                    OrbitMembersOrm,
+                    (OrbitMembersOrm.orbit_id == OrbitOrm.id)
+                    & (OrbitMembersOrm.user_id == user_id),
+                )
+                .where(OrbitOrm.organization_id == organization_id)
             )
-            return OrbitOrm.to_orbits_list(db_orbits)
+            return [
+                orbit.to_orbit().model_copy(
+                    update={"role": OrbitRole(role) if role else None}
+                )
+                for orbit, role in result.all()
+            ]
 
     async def get_organization_orbits_for_user(
         self, organization_id: UUID, user_id: UUID
@@ -118,6 +132,9 @@ class OrbitRepository(RepositoryBase, CrudMixin):
         self, organization_id: UUID, orbit: OrbitCreateIn
     ) -> OrbitDetails | None:
         async with self._get_session() as session:
+            await reserve_organization_slot(
+                session, organization_id, OrganizationResource.ORBITS
+            )
             db_orbit = await self.create_model(
                 session,
                 OrbitOrm,

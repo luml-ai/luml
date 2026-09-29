@@ -43,7 +43,7 @@
             </div>
           </div>
           <Select
-            :options="OPTIONS"
+            :options="roleOptions"
             option-label="label"
             option-value="value"
             name="role"
@@ -73,7 +73,7 @@ import { useInvitationsStore } from '@/stores/invitations'
 import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 
-const INITIAL_DATA = { email: '', role: OrganizationRoleEnum.admin }
+const INITIAL_ROLE = OrganizationRoleEnum.member
 
 const dialogPT = {
   root: {
@@ -95,11 +95,20 @@ const OPTIONS = [
   },
 ]
 
+type Props = {
+  isOwner: boolean
+}
+
+const props = defineProps<Props>()
+
 const invitationsStore = useInvitationsStore()
 const organizationStore = useOrganizationStore()
 const toast = useToast()
 
-const initialValues = ref({ ...INITIAL_DATA })
+const initialValues = ref({ email: '', role: INITIAL_ROLE })
+const roleOptions = computed(() =>
+  props.isOwner ? OPTIONS : OPTIONS.filter((option) => option.value !== OrganizationRoleEnum.admin),
+)
 
 const isMemberLimitExceeded = computed(() => {
   if (!organizationStore.organizationDetails) return false
@@ -128,8 +137,11 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
   loading.value = true
   try {
-    const payload = getPayload(values)
-    const invite = await invitationsStore.createInvite(payload)
+    if (!organizationStore.currentOrganization) throw new Error('Current organization not found')
+    const invite = await invitationsStore.createInvite(organizationStore.currentOrganization.id, {
+      email: values.email,
+      role: values.role,
+    })
     organizationStore.addInviteToCurrentOrganization(invite)
     visible.value = false
     toast.add(simpleSuccessToast('An email invitation was sent to the user.'))
@@ -137,15 +149,6 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create invite')))
   } finally {
     loading.value = false
-  }
-}
-
-function getPayload(values: FormSubmitEvent['values']) {
-  if (!organizationStore.currentOrganization) throw new Error('Current organization not found')
-  return {
-    email: values.email,
-    role: values.role,
-    organization_id: organizationStore.currentOrganization.id,
   }
 }
 </script>

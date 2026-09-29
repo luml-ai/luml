@@ -1,0 +1,62 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "luml.dashboardName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "dashboard") | nindent 4 }}
+spec:
+  replicas: {{ .Values.monitoring.dashboard.replicas }}
+  selector:
+    matchLabels:
+      {{- include "luml.selectorLabels" (dict "root" . "component" "dashboard") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "luml.selectorLabels" (dict "root" . "component" "dashboard") | nindent 8 }}
+      annotations:
+        checksum/satellite-token: {{ include "luml.tokenChecksum" . | quote }}
+        checksum/derivation-key: {{ include "luml.derivationChecksum" . | quote }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "luml.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.satellite.imagePullSecrets }}
+      imagePullSecrets:
+        {{- include "luml.imagePullSecrets" $ | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dashboard
+          image: {{ include "luml.image" .Values.monitoring.image | quote }}
+          imagePullPolicy: {{ .Values.monitoring.image.pullPolicy }}
+          command: ["luml-monitoring-dashboard"]
+          securityContext:
+            {{- include "luml.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            {{- include "luml.monitoringEnv" . | nindent 12 }}
+            - name: AGENT_PORT
+              value: "8000"
+          resources:
+            {{- toYaml .Values.monitoring.dashboard.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 10
+            {{- include "luml.probeTuning" . | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 5
+            {{- include "luml.probeTuning" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

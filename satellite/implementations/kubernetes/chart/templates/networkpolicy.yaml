@@ -1,0 +1,43 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "luml.fullname" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "network-policy") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      luml.ai/satellite-id: {{ .Release.Name | quote }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              luml.ai/satellite-id: {{ .Release.Name | quote }}
+    - ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              luml.ai/satellite-id: {{ .Release.Name | quote }}
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    {{- if and .Values.monitoring.enabled (eq .Values.monitoring.store.mode "external") }}
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.monitoring.store.port }}
+    {{- end }}
+{{- end }}

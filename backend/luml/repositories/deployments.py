@@ -2,9 +2,14 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from luml.infra.exceptions import InvalidStatusTransitionError
-from luml.models import DeploymentOrm, SatelliteQueueOrm
+from luml.infra.exceptions import (
+    ArtifactNotFoundError,
+    ArtifactStatusMismatchError,
+    InvalidStatusTransitionError,
+)
+from luml.models import ArtifactOrm, DeploymentOrm, SatelliteQueueOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.schemas.artifacts import ArtifactStatus
 from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
@@ -24,6 +29,17 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
         self, deployment: DeploymentCreate
     ) -> tuple[Deployment, SatelliteQueueTask]:
         async with self._get_session() as session:
+            artifact_result = await session.execute(
+                select(ArtifactOrm)
+                .where(ArtifactOrm.id == deployment.artifact_id)
+                .with_for_update()
+            )
+            artifact = artifact_result.scalar_one_or_none()
+            if artifact is None:
+                raise ArtifactNotFoundError()
+            if artifact.status != ArtifactStatus.UPLOADED:
+                raise ArtifactStatusMismatchError(artifact.status)
+
             db_dep = DeploymentOrm(**deployment.model_dump())
             session.add(db_dep)
             await session.flush()

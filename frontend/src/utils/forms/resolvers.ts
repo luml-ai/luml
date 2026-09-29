@@ -185,10 +185,20 @@ const valueSchema = z.object({
   ]),
 })
 
+export const deploymentEditorResolver: Resolver = zodResolver(
+  z.object({
+    name: z.string().trim().min(1).max(100),
+    description: z.string().max(1000).nullable().optional(),
+    tags: tagsSchema.optional().default([]),
+    monitoringEnabled: z.boolean().optional(),
+    secretDynamicAttributes: z.array(valueSchema).optional(),
+  }),
+)
+
 export const createDeploymentResolver = (formData: Ref<CreateDeploymentForm>): Resolver =>
   zodResolver(
     z.object({
-      name: z.string().min(1).max(100),
+      name: z.string().trim().min(1).max(100),
       description: z.string().max(1000).optional(),
       tags: tagsSchema.optional().default([]),
       collectionId: z.string().min(1),

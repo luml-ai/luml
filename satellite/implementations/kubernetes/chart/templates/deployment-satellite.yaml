@@ -1,0 +1,178 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "luml.satelliteName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "satellite") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "luml.selectorLabels" (dict "root" . "component" "satellite") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "luml.selectorLabels" (dict "root" . "component" "satellite") | nindent 8 }}
+      annotations:
+        checksum/satellite-token: {{ include "luml.tokenChecksum" . | quote }}
+        checksum/derivation-key: {{ include "luml.derivationChecksum" . | quote }}
+    spec:
+      serviceAccountName: {{ include "luml.serviceAccountName" . | quote }}
+      securityContext:
+        {{- include "luml.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.satellite.imagePullSecrets }}
+      imagePullSecrets:
+        {{- include "luml.imagePullSecrets" $ | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: satellite
+          image: {{ include "luml.image" .Values.satellite.image | quote }}
+          imagePullPolicy: {{ .Values.satellite.image.pullPolicy }}
+          securityContext:
+            {{- include "luml.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8000
+            - name: internal
+              containerPort: 8001
+          env:
+            {{- include "luml.tokenEnv" . | nindent 12 }}
+            {{- include "luml.derivationEnv" . | nindent 12 }}
+            - name: PLATFORM_URL
+              value: {{ .Values.satellite.platformUrl | quote }}
+            - name: BASE_URL
+              value: {{ include "luml.baseUrl" . | quote }}
+            - name: SATELLITE_SLUG
+              value: {{ .Values.satellite.slug | quote }}
+            - name: POLL_INTERVAL_SEC
+              value: {{ .Values.satellite.pollIntervalSeconds | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.satellite.logLevel | quote }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SATELLITE_NAME
+              value: {{ .Release.Name | quote }}
+            - name: SATELLITE_INTERNAL_URL
+              value: {{ printf "http://%s:8001" (include "luml.satelliteName" .) | quote }}
+            - name: INTERNAL_PORT
+              value: "8001"
+            - name: MODEL_IMAGE
+              value: {{ include "luml.image" .Values.model.image | quote }}
+            - name: MODEL_IMAGE_PULL_POLICY
+              value: {{ .Values.model.image.pullPolicy | quote }}
+            - name: SERVING_IMAGE
+              value: {{ include "luml.image" .Values.sidecar.image | quote }}
+            - name: SERVING_IMAGE_PULL_POLICY
+              value: {{ .Values.sidecar.image.pullPolicy | quote }}
+            - name: INGRESS_HOST
+              value: {{ .Values.satellite.host | quote }}
+            {{- if include "luml.ingressClassName" . }}
+            - name: INGRESS_CLASS
+              value: {{ include "luml.ingressClassName" . | quote }}
+            {{- end }}
+            - name: INGRESS_ANNOTATIONS
+              value: {{ include "luml.ingressAnnotations" . | fromYaml | toJson | quote }}
+            {{- if .Values.ingress.tls.secretName }}
+            - name: INGRESS_TLS_SECRET
+              value: {{ .Values.ingress.tls.secretName | quote }}
+            {{- end }}
+            - name: MONITORING_PATHS_ROUTED
+              value: {{ .Values.monitoring.enabled | quote }}
+            {{- if .Values.monitoring.enabled }}
+            - name: MONITORING_DASHBOARD_SERVICE
+              value: {{ include "luml.dashboardName" . | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ printf "http://%s:4317" (include "luml.collectorName" .) | quote }}
+            {{- end }}
+            - name: MONITORING_ENABLED
+              value: {{ .Values.monitoring.enabled | quote }}
+            - name: MONITORING_FRAME_ANCESTORS
+              value: {{ .Values.monitoring.frameAncestors | quote }}
+            - name: DEPLOYMENT_REPLICAS_MAX
+              value: {{ .Values.deploymentLimits.replicas.maximum | quote }}
+            - name: DEPLOYMENT_REPLICAS_DEFAULT
+              value: {{ .Values.deploymentLimits.replicas.default | quote }}
+            - name: DEPLOYMENT_CPU_MIN_MILLICORES
+              value: {{ .Values.deploymentLimits.cpuMillicores.minimum | quote }}
+            - name: DEPLOYMENT_CPU_MAX_MILLICORES
+              value: {{ .Values.deploymentLimits.cpuMillicores.maximum | quote }}
+            - name: DEPLOYMENT_CPU_DEFAULT_MILLICORES
+              value: {{ .Values.deploymentLimits.cpuMillicores.default | quote }}
+            - name: DEPLOYMENT_MEMORY_VALUES
+              value: {{ .Values.deploymentLimits.memory.values | toJson | quote }}
+            - name: DEPLOYMENT_MEMORY_DEFAULT
+              value: {{ .Values.deploymentLimits.memory.default | quote }}
+            - name: DEPLOYMENT_HEALTH_TIMEOUT_MIN
+              value: {{ .Values.deploymentLimits.healthCheckTimeoutSeconds.minimum | quote }}
+            - name: DEPLOYMENT_HEALTH_TIMEOUT_MAX
+              value: {{ .Values.deploymentLimits.healthCheckTimeoutSeconds.maximum | quote }}
+            - name: DEPLOYMENT_HEALTH_TIMEOUT_DEFAULT
+              value: {{ .Values.deploymentLimits.healthCheckTimeoutSeconds.default | quote }}
+            - name: GPU_OFFERED
+              value: {{ .Values.gpu.enabled | quote }}
+            - name: GPU_COUNT_MAX
+              value: {{ .Values.gpu.maximumCount | quote }}
+            - name: GPU_RESOURCE_NAMES
+              value: {{ .Values.gpu.resourceNames | toJson | quote }}
+            - name: GPU_NODE_SELECTOR
+              value: {{ .Values.gpu.nodeSelector | toJson | quote }}
+            - name: GPU_TOLERATIONS
+              value: {{ .Values.gpu.tolerations | toJson | quote }}
+            {{- if .Values.gpu.runtimeClassName }}
+            - name: GPU_RUNTIME_CLASS
+              value: {{ .Values.gpu.runtimeClassName | quote }}
+            {{- end }}
+            {{- if .Values.sharedCache.enabled }}
+            - name: SHARED_CACHE_CLAIM_NAME
+              value: {{ include "luml.sharedCacheClaimName" . | quote }}
+            {{- end }}
+            - name: SECURITY_PRESET
+              value: {{ .Values.podSecurity.preset | quote }}
+            - name: POD_SECURITY_CONTEXT
+              value: {{ include "luml.podSecurityContext" . | fromYaml | toJson | quote }}
+            - name: CONTAINER_SECURITY_CONTEXT
+              value: {{ include "luml.containerSecurityContext" . | fromYaml | toJson | quote }}
+            - name: IMAGE_PULL_SECRETS
+              value: {{ .Values.satellite.imagePullSecrets | toJson | quote }}
+            - name: SIDECAR_RESOURCES
+              value: {{ .Values.sidecar.resources | toJson | quote }}
+            - name: SIDECAR_CACHE_TTL_SEC
+              value: {{ .Values.sidecar.cacheTtlSeconds | quote }}
+            - name: SIDECAR_STALE_ALLOWANCE_SEC
+              value: {{ .Values.sidecar.staleAllowanceSeconds | quote }}
+            - name: RECORDING_SAMPLE_RATE
+              value: {{ .Values.sidecar.recording.sampleRate | quote }}
+            - name: RECORDING_BODY_MAX_BYTES
+              value: {{ .Values.sidecar.recording.bodyMaxBytes | quote }}
+            - name: RECORDING_KEEP_INPUTS
+              value: {{ .Values.sidecar.recording.keepInputs | quote }}
+            - name: RECORDING_KEEP_OUTPUTS
+              value: {{ .Values.sidecar.recording.keepOutputs | quote }}
+            - name: PROBE_TIMEOUT_SEC
+              value: {{ include "luml.probeTimeout" . | quote }}
+            - name: PROBE_FAILURE_THRESHOLD
+              value: {{ include "luml.probeFailureThreshold" . | quote }}
+          resources:
+            {{- toYaml .Values.satellite.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 10
+            {{- include "luml.probeTuning" . | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 5
+            {{- include "luml.probeTuning" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

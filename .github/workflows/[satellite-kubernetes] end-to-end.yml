@@ -1,0 +1,53 @@
+name: Kubernetes Satellite End-to-End
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'satellite/kit/**'
+      - 'satellite/implementations/kubernetes/**'
+      - 'model_servers/default/**'
+      - '.github/workflows/*satellite-kubernetes*end-to-end.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'satellite/kit/**'
+      - 'satellite/implementations/kubernetes/**'
+      - 'model_servers/default/**'
+      - '.github/workflows/*satellite-kubernetes*end-to-end.yml'
+  workflow_dispatch:
+
+jobs:
+  kind:
+    name: kind (${{ matrix.preset }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: kubernetes-e2e-${{ github.workflow }}-${{ github.ref }}-${{ matrix.preset }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [vanilla, openshift]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Set up kind
+        uses: helm/kind-action@v1.12.0
+        with:
+          version: v0.33.0
+          install_only: true
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+
+      - name: Run the kind scenario
+        run: bash satellite/implementations/kubernetes/e2e/run.sh "${{ matrix.preset }}"

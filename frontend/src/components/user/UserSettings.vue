@@ -213,8 +213,9 @@ watch(
 }
 
 .change-password-link {
-  align-self: flex-start;
+  align-self: flex-end;
   padding: 10px 0;
+  font-size: 12px;
 }
 
 .footer {

@@ -1,0 +1,73 @@
+name: Publish Kubernetes Satellite Chart
+
+on:
+  push:
+    tags:
+      - "satellite/kubernetes/chart/v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic chart version
+        required: true
+        type: string
+
+concurrency:
+  group: publish-kubernetes-satellite-chart-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish-chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+
+      - name: Resolve version
+        id: version
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="$DISPATCH_VERSION"
+          else
+            TAG="$REF_NAME"
+            if [[ ! "$TAG" =~ ^satellite/kubernetes/chart/v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+              echo "Unsupported release tag: $TAG" >&2
+              exit 1
+            fi
+            VERSION="${BASH_REMATCH[1]}"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semantic version: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Package and publish chart
+        env:
+          OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          OWNER_LOWER="${OWNER,,}"
+          mkdir -p "$RUNNER_TEMP/luml-chart"
+          helm package satellite/implementations/kubernetes/chart \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination "$RUNNER_TEMP/luml-chart"
+          helm push \
+            "$RUNNER_TEMP/luml-chart/luml-satellite-kubernetes-$VERSION.tgz" \
+            "oci://ghcr.io/$OWNER_LOWER/charts"

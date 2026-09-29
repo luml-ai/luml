@@ -10,12 +10,6 @@ from luml.repositories.base import RepositoryBase
 
 class MonitoringLaunchTokenRepository(RepositoryBase):
     async def consume(self, jti: UUID, expire_at: int) -> bool:
-        """Mark a launch-token ``jti`` consumed.
-
-        Returns ``True`` if this is the first time the ``jti`` is consumed and
-        ``False`` if it was already consumed. Atomicity relies on the unique
-        constraint on ``jti`` so concurrent introspections cannot both succeed.
-        """
         async with self._get_session() as session:
             session.add(MonitoringLaunchTokenOrm(jti=jti, expire_at=expire_at))
             try:

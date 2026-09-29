@@ -18,7 +18,7 @@
       id="createDeploymentForm"
       class="content"
       :initial-values="initialValues"
-      :resolver="createDeploymentResolver"
+      :resolver="deploymentEditorResolver"
       @submit="saveChanges"
     >
       <DeploymentsFormBasicsSettings
@@ -28,6 +28,14 @@
         :showTitle="false"
         class="base-settings"
       ></DeploymentsFormBasicsSettings>
+      <div
+        v-if="data.provider_ref"
+        class="provider-reference"
+        data-testid="deployment-provider-reference"
+      >
+        <span class="label">Provider handle</span>
+        <span class="provider-reference__value">{{ data.provider_ref }}</span>
+      </div>
       <div v-if="showMonitoringField" class="monitoring-field">
         <div class="monitoring-header">
           <label class="label">Live monitoring</label>
@@ -159,8 +167,8 @@ import type { Var } from '@fnnx-ai/common/dist/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { ChevronDown, ChevronUp, HelpCircle, Info, Rocket } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { createDeploymentResolver } from '@/utils/forms/resolvers'
-import { Form, FormField } from '@primevue/forms'
+import { deploymentEditorResolver } from '@/utils/forms/resolvers'
+import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
 import { useCollectionsStore } from '@/stores/collections'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { useArtifactsStore } from '@/stores/artifacts'
@@ -252,7 +260,8 @@ const isForceDelete = computed(() => {
   return DeploymentStatusEnum.active !== props.data.status
 })
 
-async function saveChanges() {
+async function saveChanges({ valid }: FormSubmitEvent) {
+  if (!valid) return
   try {
     loading.value = true
     const dynamic_attributes_secrets = initialValues.value.secretDynamicAttributes.reduce(
@@ -373,6 +382,19 @@ onBeforeMount(async () => {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
+}
+
+.provider-reference {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.provider-reference__value {
+  overflow-wrap: anywhere;
+  color: var(--p-text-muted-color);
+  text-align: right;
 }
 
 .monitoring-header {

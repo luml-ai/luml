@@ -84,7 +84,7 @@ export const useCollectionsStore = defineStore('collections', () => {
 
   function reset() {
     collectionsList.value = []
-    resetCurrentCollection()
+    currentCollection.value = null
     collectionsTags.value = []
   }
 

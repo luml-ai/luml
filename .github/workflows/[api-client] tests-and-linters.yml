@@ -5,10 +5,12 @@ on:
     branches: [ main ]
     paths:
       - 'sdk/python/api/**'
+      - 'satellite/implementations/docker/tests/snapshots/static_openapi.json'
   pull_request:
     branches: [ main ]
     paths:
       - 'sdk/python/api/**'
+      - 'satellite/implementations/docker/tests/snapshots/static_openapi.json'
   workflow_dispatch:
 
 jobs:

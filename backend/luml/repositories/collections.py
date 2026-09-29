@@ -1,9 +1,10 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import String, cast, or_, select
+from sqlalchemy import String, cast, func, or_, select
 
-from luml.models import CollectionOrm
+from luml.infra.exceptions import CollectionDeleteError
+from luml.models import ArtifactOrm, CollectionOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.collections import (
     Collection,
@@ -107,11 +108,30 @@ class CollectionRepository(RepositoryBase, CrudMixin):
             )
             return db_collection.to_collection() if db_collection else None
 
-    async def delete_collection(self, collection_id: UUID, orbit_id: UUID) -> None:
+    async def delete_collection(self, collection_id: UUID, orbit_id: UUID) -> bool:
         async with self._get_session() as session:
-            await self.delete_model_where(
-                session,
-                CollectionOrm,
-                CollectionOrm.id == collection_id,
-                CollectionOrm.orbit_id == orbit_id,
+            result = await session.execute(
+                select(CollectionOrm)
+                .where(
+                    CollectionOrm.id == collection_id,
+                    CollectionOrm.orbit_id == orbit_id,
+                )
+                .with_for_update()
             )
+            collection = result.scalar_one_or_none()
+            if collection is None:
+                return False
+
+            artifacts = await session.scalar(
+                select(func.count())
+                .select_from(ArtifactOrm)
+                .where(ArtifactOrm.collection_id == collection_id)
+            )
+            if artifacts:
+                raise CollectionDeleteError(
+                    "Collection has artifacts and cant be deleted"
+                )
+
+            await session.delete(collection)
+            await session.commit()
+            return True

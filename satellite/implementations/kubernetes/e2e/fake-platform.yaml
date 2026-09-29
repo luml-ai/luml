@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-platform
+  labels:
+    app: fake-platform
+    luml.ai/satellite-id: luml-e2e
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fake-platform
+  template:
+    metadata:
+      labels:
+        app: fake-platform
+        luml.ai/satellite-id: luml-e2e
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: __RUN_AS_USER__
+        fsGroup: __FS_GROUP__
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: platform
+          image: luml-e2e/serving:local
+          imagePullPolicy: Never
+          command: ["luml-fake-platform"]
+          args: ["--host", "0.0.0.0", "--port", "8090", "--state", "/state/state.json"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: __RUN_AS_USER__
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8090
+          readinessProbe:
+            httpGet:
+              path: /satellites/v1/contract
+              port: http
+            periodSeconds: 2
+          volumeMounts:
+            - name: state
+              mountPath: /state
+              readOnly: true
+      volumes:
+        - name: state
+          configMap:
+            name: fake-platform-state
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-platform
+  labels:
+    app: fake-platform
+    luml.ai/satellite-id: luml-e2e
+spec:
+  selector:
+    app: fake-platform
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http

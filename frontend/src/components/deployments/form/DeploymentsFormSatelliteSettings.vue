@@ -277,7 +277,7 @@ function updateFields() {
 function getFieldInfo(data: SatelliteField) {
   return {
     key: data.name,
-    value: null,
+    value: data.default ?? null,
     label: data.name,
     required: data.required,
     validators: data.validators,

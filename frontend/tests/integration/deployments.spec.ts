@@ -78,7 +78,7 @@ test.describe('Deployments', () => {
         page.getByRole('heading', { name: 'Deployments', exact: true }),
       ).toBeVisible({ timeout: 15000 })
       await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 10000 })
-      await expect(page.getByText(/^1 Deployments$/)).toBeVisible()
+      await expect(page.getByText(/^1 Deployment$/)).toBeVisible()
     })
 
     test('shows empty state with "Add new Deployment" card when there are no deployments', async ({
@@ -194,6 +194,71 @@ test.describe('Deployments', () => {
         page.getByText('Deployment changes saved successfully.'),
       ).toBeVisible()
     })
+
+    test('saves a deployment without a description', async ({ page, apiMocks }) => {
+      await apiMocks.get(
+        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments(\\?|$)`),
+        [makeDeployment({ description: null })],
+      )
+      let patchPayload: unknown = null
+      await apiMocks.patch(
+        `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments/${DEPLOYMENT_ID}`,
+        (req: { postDataJSON: () => unknown }) => {
+          patchPayload = req.postDataJSON()
+          return makeDeployment({ name: 'renamed-deployment', description: null })
+        },
+      )
+
+      await page.goto(deploymentsUrl)
+      await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 15000 })
+      const row = page
+        .locator('.p-datatable-tbody tr')
+        .filter({ hasText: 'prod-deployment' })
+      await row.getByRole('button').last().click()
+
+      const dialog = page
+        .getByRole('dialog')
+        .filter({ has: page.getByText('deployment settings', { exact: true }) })
+      await dialog.getByLabel('Name').fill('renamed-deployment')
+      await dialog.getByRole('button', { name: 'save changes' }).click()
+
+      await expect.poll(() => patchPayload).toMatchObject({
+        name: 'renamed-deployment',
+        description: null,
+      })
+      await expect(
+        page.getByText('Deployment changes saved successfully.'),
+      ).toBeVisible()
+    })
+
+    for (const name of ['', '   ']) {
+      test(`does not save a deployment with the blank name ${JSON.stringify(name)}`, async ({ page, apiMocks }) => {
+        let patchCalled = false
+        await apiMocks.patch(
+          `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments/${DEPLOYMENT_ID}`,
+          () => {
+            patchCalled = true
+            return makeDeployment({ name })
+          },
+        )
+
+        await page.goto(deploymentsUrl)
+        await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 15000 })
+        const row = page
+          .locator('.p-datatable-tbody tr')
+          .filter({ hasText: 'prod-deployment' })
+        await row.getByRole('button').last().click()
+
+        const dialog = page
+          .getByRole('dialog')
+          .filter({ has: page.getByText('deployment settings', { exact: true }) })
+        await dialog.getByLabel('Name').fill(name)
+        await dialog.getByRole('button', { name: 'save changes' }).click()
+
+        await expect(dialog).toBeVisible()
+        expect(patchCalled).toBe(false)
+      })
+    }
   })
 
   test.describe('Soft delete', () => {
@@ -362,7 +427,7 @@ test.describe('Deployments', () => {
 
       await page.locator('.orbit-popover-wrapper .menu-link').click()
       await expect(
-        page.locator('.orbit-popover-wrapper').getByText('1 collections'),
+        page.locator('.orbit-popover-wrapper').getByText('1 collection', { exact: true }),
       ).toBeVisible({ timeout: 5000 })
     })
   })

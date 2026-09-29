@@ -8,9 +8,11 @@ from fastapi import status
 from luml.handlers.deployments import DeploymentHandler
 from luml.infra.exceptions import (
     ApplicationError,
+    ArtifactStatusMismatchError,
     InsufficientPermissionsError,
     NotFoundError,
 )
+from luml.schemas.artifacts import ArtifactStatus
 from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
@@ -30,6 +32,7 @@ from luml.schemas.satellite import (
     get_present_capabilities,
     normalize_capabilities,
 )
+from pydantic import ValidationError
 
 handler = DeploymentHandler()
 
@@ -75,9 +78,11 @@ def _artifact(
     *,
     variant: str = "pyfunc",
     producer_tags: list[str] | None = None,
+    status: ArtifactStatus = ArtifactStatus.UPLOADED,
 ) -> Mock:
     return Mock(
         collection_id=collection_id,
+        status=status,
         manifest=Mock(
             variant=variant,
             producer_tags=producer_tags or [],
@@ -138,6 +143,10 @@ async def test_create_deployment(
         satellite_id=satellite_id,
         artifact_id=artifact_id,
         monitoring_mode=MonitoringMode.FULL,
+        satellite_parameters={
+            "health_check_timeout": 60,
+            "future_setting": "kept",
+        },
         tags=["tag"],
     )
     deployment_create_data = DeploymentCreate(
@@ -146,6 +155,7 @@ async def test_create_deployment(
         satellite_id=satellite_id,
         artifact_id=artifact_id,
         monitoring_mode=MonitoringMode.FULL,
+        satellite_parameters=deployment_create_data_in.satellite_parameters,
         tags=deployment_create_data_in.tags,
         created_by_user=user_name,
     )
@@ -203,6 +213,137 @@ async def test_create_deployment(
         Action.CREATE,
         orbit_id,
     )
+
+
+@pytest.mark.parametrize(
+    "artifact_status",
+    [
+        ArtifactStatus.PENDING_UPLOAD,
+        ArtifactStatus.UPLOAD_FAILED,
+        ArtifactStatus.PENDING_DELETION,
+        ArtifactStatus.DELETION_FAILED,
+    ],
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.create_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_deployment_rejects_non_uploaded_artifact(
+    mock_check_permissions: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
+    mock_create_deployment: AsyncMock,
+    artifact_status: ArtifactStatus,
+) -> None:
+    user_id = uuid7()
+    organization_id = uuid7()
+    orbit_id = uuid7()
+    collection_id = uuid7()
+    artifact_id = uuid7()
+    data = DeploymentCreateIn(
+        name="deployment",
+        satellite_id=uuid7(),
+        artifact_id=artifact_id,
+    )
+    mock_get_orbit_simple.return_value = Mock()
+    mock_get_satellite.return_value = _satellite(orbit_id, _capabilities())
+    mock_get_artifact.return_value = _artifact(collection_id, status=artifact_status)
+    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
+    mock_get_public_user_by_id.return_value = Mock(full_name="User")
+    mock_create_deployment.side_effect = ArtifactStatusMismatchError(
+        artifact_status.value
+    )
+
+    with pytest.raises(ApplicationError, match=artifact_status.value) as error:
+        await handler.create_deployment(user_id, organization_id, orbit_id, data)
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    mock_create_deployment.assert_awaited_once()
+    mock_check_permissions.assert_awaited_once()
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.create_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_deployment_does_not_disclose_foreign_artifact_status(
+    mock_check_permissions: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_create_deployment: AsyncMock,
+) -> None:
+    orbit_id = uuid7()
+    collection_id = uuid7()
+    data = DeploymentCreateIn(
+        name="deployment",
+        satellite_id=uuid7(),
+        artifact_id=uuid7(),
+    )
+    mock_get_orbit_simple.return_value = Mock()
+    mock_get_satellite.return_value = _satellite(orbit_id, _capabilities())
+    mock_get_artifact.return_value = _artifact(
+        collection_id, status=ArtifactStatus.PENDING_DELETION
+    )
+    mock_get_collection.return_value = Mock(orbit_id=uuid7())
+
+    with pytest.raises(NotFoundError, match="Collection not found") as error:
+        await handler.create_deployment(uuid7(), uuid7(), orbit_id, data)
+
+    assert error.value.status_code == status.HTTP_404_NOT_FOUND
+    assert ArtifactStatus.PENDING_DELETION.value not in error.value.message
+    mock_create_deployment.assert_not_awaited()
+    mock_check_permissions.assert_awaited_once()
 
 
 @pytest.mark.parametrize(
@@ -1112,6 +1253,81 @@ async def test_update_deployment_details(
     )
 
 
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_deployment_details_forwards_only_the_fields_sent(
+    mock_check_permissions: AsyncMock,
+    mock_update_deployment_details: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    await handler.update_deployment_details(
+        user_id,
+        organization_id,
+        orbit_id,
+        deployment_id,
+        DeploymentDetailsUpdateIn(name="new-name"),
+    )
+
+    update_call = mock_update_deployment_details.await_args
+    assert update_call is not None
+    forwarded = update_call.args[2]
+    assert forwarded.model_fields_set == {"name"}
+    assert forwarded.model_dump(exclude_unset=True) == {"name": "new-name"}
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        pytest.param({"dynamic_attributes_secrets": None}, {}, id="explicit-null"),
+        pytest.param({"dynamic_attributes_secrets": {}}, {}, id="explicit-empty"),
+    ],
+)
+def test_details_update_in_reads_null_secrets_as_cleared(
+    payload: dict[str, Any], expected: dict[str, Any]
+) -> None:
+    details = DeploymentDetailsUpdateIn.model_validate(payload)
+
+    assert details.dynamic_attributes_secrets == expected
+    assert "dynamic_attributes_secrets" in details.model_fields_set
+
+
+@pytest.mark.parametrize("field", ["name", "monitoring_mode"])
+def test_details_update_in_rejects_null_for_not_null_columns(field: str) -> None:
+    with pytest.raises(ValidationError, match=f"{field} cannot be null"):
+        DeploymentDetailsUpdateIn.model_validate({field: None})
+
+
+@pytest.mark.parametrize("name", ["", "   "], ids=["empty", "whitespace"])
+def test_details_update_in_rejects_blank_name(name: str) -> None:
+    with pytest.raises(ValidationError, match="at least 1 character"):
+        DeploymentDetailsUpdateIn(name=name)
+
+
+@pytest.mark.parametrize("name", ["", "   "], ids=["empty", "whitespace"])
+def test_create_deployment_rejects_blank_name(name: str) -> None:
+    with pytest.raises(ValidationError, match="at least 1 character"):
+        DeploymentCreateIn(satellite_id=uuid7(), artifact_id=uuid7(), name=name)
+
+
+def test_deployment_name_is_trimmed() -> None:
+    assert DeploymentDetailsUpdateIn(name="  prod  ").name == "prod"
+    created = DeploymentCreateIn(
+        satellite_id=uuid7(), artifact_id=uuid7(), name="  prod  "
+    )
+    assert created.name == "prod"
+
+
 @pytest.mark.parametrize(
     "capabilities",
     [
@@ -1438,6 +1654,58 @@ async def test_update_worker_deployment(
     "luml.handlers.deployments.DeploymentRepository.update_deployment",
     new_callable=AsyncMock,
 )
+@pytest.mark.asyncio
+async def test_provider_ref_and_progress_note_are_forwarded_and_clearable(
+    mock_update_deployment: AsyncMock,
+) -> None:
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    mock_update_deployment.return_value = Mock(spec=Deployment)
+
+    await handler.update_worker_deployment(
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(
+            provider_ref="provider-job-123",
+            progress_note="Creating workload",
+        ),
+    )
+    await handler.update_worker_deployment(
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(status=DeploymentStatus.ACTIVE, progress_note=None),
+    )
+
+    first_update = mock_update_deployment.await_args_list[0].args[2]
+    second_update = mock_update_deployment.await_args_list[1].args[2]
+    assert first_update.model_dump(exclude_unset=True) == {
+        "id": deployment_id,
+        "provider_ref": "provider-job-123",
+        "progress_note": "Creating workload",
+    }
+    assert second_update.model_dump(exclude_unset=True) == {
+        "id": deployment_id,
+        "status": DeploymentStatus.ACTIVE,
+        "progress_note": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"provider_ref": "p" * 513},
+        {"progress_note": "n" * 1001},
+    ],
+)
+def test_worker_deployment_metadata_is_bounded(data: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        DeploymentUpdateIn.model_validate(data)
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
+    new_callable=AsyncMock,
+)
 @pytest.mark.parametrize(
     "monitoring_url",
     ["/deployments/dep-1/monitoring", None],
@@ -1459,7 +1727,9 @@ async def test_update_worker_deployment_preserves_partial_fields(
     )
 
     assert result is expected
-    update = mock_update_deployment.await_args.args[2]
+    update_call = mock_update_deployment.await_args
+    assert update_call is not None
+    update = update_call.args[2]
     assert update.model_dump(exclude_unset=True) == {
         "id": deployment_id,
         "monitoring_url": monitoring_url,
@@ -1490,7 +1760,9 @@ async def test_update_worker_deployment_leaves_unsent_fields_alone(
         DeploymentUpdateIn(status=DeploymentStatus.ACTIVE),
     )
 
-    sent = mock_update_deployment.await_args.args[2]
+    update_call = mock_update_deployment.await_args
+    assert update_call is not None
+    sent = update_call.args[2]
     assert sent.model_dump(exclude_unset=True) == {
         "id": deployment_id,
         "status": DeploymentStatus.ACTIVE,
@@ -1516,7 +1788,9 @@ async def test_update_worker_deployment_can_clear_error_message_explicitly(
         DeploymentUpdateIn(status=DeploymentStatus.ACTIVE, error_message=None),
     )
 
-    sent = mock_update_deployment.await_args.args[2]
+    update_call = mock_update_deployment.await_args
+    assert update_call is not None
+    sent = update_call.args[2]
     assert sent.model_dump(exclude_unset=True) == {
         "id": deployment_id,
         "status": DeploymentStatus.ACTIVE,

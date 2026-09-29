@@ -26,7 +26,7 @@
       <Form id="editOrganizationForm" :initialValues :resolver @submit="onFormSubmit" class="body">
         <label for="role" class="label">Role</label>
         <Select
-          :options="OPTIONS"
+          :options="roleOptions"
           option-label="label"
           option-value="value"
           name="role"
@@ -66,9 +66,14 @@ const OPTIONS = [
 
 type Props = {
   member: Member
+  isOwner: boolean
 }
 
 const props = defineProps<Props>()
+
+const roleOptions = computed(() =>
+  props.isOwner ? OPTIONS : OPTIONS.filter((option) => option.value !== OrganizationRoleEnum.admin),
+)
 
 const organizationStore = useOrganizationStore()
 const confirm = useConfirm()

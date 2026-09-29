@@ -13,6 +13,7 @@ from luml.schemas.orbit import (
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
+    OrbitMemberCreateSimple,
     OrbitRole,
     OrbitUpdate,
     UpdateOrbitMember,
@@ -307,13 +308,27 @@ async def test_get_organization_orbits(
             organization.id,
             OrbitCreateIn(name=f"orbit #{i}", bucket_secret_id=secret.id),
         )
+    own_orbit = await repo.create_orbit(
+        organization.id,
+        OrbitCreateIn(
+            name="own orbit",
+            bucket_secret_id=secret.id,
+            members=[
+                OrbitMemberCreateSimple(user_id=data.user.id, role=OrbitRole.ADMIN)
+            ],
+        ),
+    )
+    assert own_orbit
 
-    orbits = await repo.get_organization_orbits(organization.id)
+    orbits = await repo.get_organization_orbits(organization.id, data.user.id)
 
-    assert orbits
-    assert isinstance(orbits, list)
-    assert len(orbits) == 5
-    assert isinstance(orbits[0], Orbit)
+    assert len(orbits) == 6
+    assert all(isinstance(orbit, Orbit) for orbit in orbits)
+    roles = {orbit.id: orbit.role for orbit in orbits}
+    assert roles.pop(own_orbit.id) == OrbitRole.ADMIN
+    assert set(roles.values()) == {None}
+    assert all(orbit.total_satellites == 0 for orbit in orbits)
+    assert next(o for o in orbits if o.id == own_orbit.id).total_members == 1
 
 
 @pytest.mark.asyncio

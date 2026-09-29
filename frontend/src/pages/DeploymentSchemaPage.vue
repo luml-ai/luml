@@ -1,7 +1,7 @@
 <template>
   <div class="deployment-schema-page">
     <UiPageLoader v-if="loading" />
-    <OpenApi v-else-if="schema && serverUrl" :content="schema" :server-url="serverUrl" />
+    <OpenApi v-else-if="schema" :content="schema" :server-url="serverUrl" />
     <Ui404 v-else />
   </div>
 </template>
@@ -89,20 +89,18 @@ async function getSatellite(deployment: Deployment) {
 }
 
 async function getServerUrl(deployment: Deployment) {
-  const satellite = await getSatellite(deployment)
   const inferenceUrl = deployment.inference_url
 
   if (!inferenceUrl) {
     return null
   }
 
-  if (
-    inferenceUrl.startsWith('http://') ||
-    inferenceUrl.startsWith('https://') ||
-    !satellite?.base_url
-  ) {
+  if (inferenceUrl.startsWith('http://') || inferenceUrl.startsWith('https://')) {
     return inferenceUrl
   }
+
+  const satellite = await getSatellite(deployment)
+  if (!satellite.base_url) return null
 
   const baseUrl = satellite.base_url.replace(/\/$/, '')
   const normalizedPath = inferenceUrl.replace(/^(\.\/|\/)+/, '')

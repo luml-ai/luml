@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from luml.handlers.emails import EmailHandler
@@ -32,6 +33,8 @@ from luml.schemas.organization import OrgRole
 from luml.schemas.permissions import Action, Resource
 from luml.settings import config
 
+logger = logging.getLogger(__name__)
+
 
 class OrbitHandler:
     __email_handler = EmailHandler()
@@ -54,7 +57,9 @@ class OrbitHandler:
     ) -> list[Orbit]:
         for orbit in orbits:
             orbit.permissions = (
-                self.__permissions_handler.get_orbit_permissions_by_role(org_role)
+                self.__permissions_handler.get_orbit_permissions_by_role(
+                    org_role, orbit.role
+                )
             )
         return orbits
 
@@ -159,7 +164,9 @@ class OrbitHandler:
             raise OrbitError("Some errors occurred when creating the orbit.")
 
         created_orbit.permissions = (
-            self.__permissions_handler.get_orbit_permissions_by_role(org_role, None)
+            self.__permissions_handler.get_orbit_permissions_by_role(
+                org_role, OrbitRole.ADMIN
+            )
         )
 
         return created_orbit
@@ -179,7 +186,7 @@ class OrbitHandler:
 
         if org_role in (OrgRole.OWNER, OrgRole.ADMIN):
             orbits = await self.__orbits_repository.get_organization_orbits(
-                organization_id
+                organization_id, user_id
             )
             return self._set_orbits_permissions(orbits, org_role)
 
@@ -299,16 +306,21 @@ class OrbitHandler:
             member.orbit_id, organization_id
         )
 
-        self.__email_handler.send_added_to_orbit_email(
-            created_member.user.full_name
-            if created_member.user and created_member.user.full_name
-            else "",
-            created_member.user.email
-            if created_member.user and created_member.user.email
-            else "",
-            orbit.name if orbit else "",
-            config.APP_EMAIL_URL,
-        )
+        try:
+            self.__email_handler.send_added_to_orbit_email(
+                created_member.user.full_name
+                if created_member.user and created_member.user.full_name
+                else "",
+                created_member.user.email
+                if created_member.user and created_member.user.email
+                else "",
+                orbit.name if orbit else "",
+                config.APP_EMAIL_URL,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send added-to-orbit email for orbit %s", member.orbit_id
+            )
 
         return created_member
 

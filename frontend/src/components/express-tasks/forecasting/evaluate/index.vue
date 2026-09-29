@@ -162,7 +162,7 @@ import ModelTabularPerformance from '@/components/model/ModelTabularPerformance.
 import { useOrganizationStore } from '@/stores/organization'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
-import { downloadFileFromBlob } from '@/helpers/helpers'
+import { downloadFileFromBlob, rowsToCsv } from '@/helpers/helpers'
 import { normalizeForecastRecords } from '@/lib/data-processing/forecasting'
 import { Tasks } from '@/lib/data-processing/interfaces'
 import {
@@ -324,8 +324,8 @@ function downloadPredictions(): void {
 
 function recordsToCsv(records: ForecastPredictedRecord[]): string {
   const headers = Object.keys(records[0])
-  const rows = records.map((record) => headers.map((header) => record[header]).join(','))
-  return [headers.join(','), ...rows].join('\n')
+  const rows = records.map((record) => headers.map((header) => record[header] ?? ''))
+  return rowsToCsv([headers, ...rows])
 }
 
 function onDownloadClick(): void {

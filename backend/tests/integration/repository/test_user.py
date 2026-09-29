@@ -4,15 +4,25 @@ from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
+from luml.models import OrganizationOrm
+from luml.repositories.artifacts import ArtifactRepository
+from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.repositories.users import UserRepository
+from luml.schemas.artifacts import ArtifactCreate, ArtifactStatus
+from luml.schemas.tracks import TrackCreate, TrackEntryCreate
 from luml.schemas.user import (
     AuthProvider,
     CreateUser,
+    CurrentUserOut,
     UpdateUser,
     User,
-    UserOut,
 )
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+
+from tests.conftest import CollectionFixtureData
+
+TRACK_ENTRY_AUTHOR = "Track Author"
 
 
 @dataclass
@@ -64,6 +74,45 @@ async def test_create_user_and_organization(
 
 
 @pytest.mark.asyncio
+async def test_delete_signup_removes_user_and_organization(
+    create_database_and_apply_migrations: str,
+) -> None:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    repo = UserRepository(engine)
+    signup, other = (
+        CreateUser(
+            email=f"test_{uuid.uuid4()}@example.com",
+            full_name=full_name,
+            disabled=False,
+            email_verified=False,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
+        )
+        for full_name in ("Signup User", "Other User")
+    )
+    signup_user = await repo.create_user(signup)
+    other_user = await repo.create_user(other)
+    signup_org = (await repo.get_user_organizations(signup_user.id))[0]
+    other_org = (await repo.get_user_organizations(other_user.id))[0]
+
+    await repo.delete_signup(signup_user.id)
+
+    assert await repo.get_user(signup.email) is None
+    assert await repo.get_organization_users(signup_org.id) == []
+    async with AsyncSession(engine) as session:
+        remaining = set(
+            await session.scalars(
+                select(OrganizationOrm.id).where(
+                    OrganizationOrm.id.in_([signup_org.id, other_org.id])
+                )
+            )
+        )
+    assert remaining == {other_org.id}
+    assert await repo.get_user(other.email) is not None
+
+
+@pytest.mark.asyncio
 async def test_get_user(get_created_user: UserFixtureData) -> None:
     data = get_created_user
     repo, user = data.repo, data.user
@@ -75,14 +124,15 @@ async def test_get_user(get_created_user: UserFixtureData) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_public_user(get_created_user: UserFixtureData) -> None:
+async def test_get_current_user(get_created_user: UserFixtureData) -> None:
     data = get_created_user
     repo, user = data.repo, data.user
 
-    fetched_user = await repo.get_public_user(user.email)
+    fetched_user = await repo.get_current_user(user.email)
 
     assert fetched_user
-    assert isinstance(fetched_user, UserOut)
+    assert isinstance(fetched_user, CurrentUserOut)
+    assert fetched_user.auth_method == user.auth_method
     assert fetched_user.id
     assert fetched_user.email
     assert hasattr(fetched_user, "full_name")
@@ -100,6 +150,47 @@ async def test_delete_user(get_created_user: UserFixtureData) -> None:
     fetch_deleted_user = await repo.get_user(user.email)
 
     assert fetch_deleted_user is None
+
+
+@pytest.mark.asyncio
+async def test_delete_user_with_track_entry(
+    create_collection: CollectionFixtureData,
+    test_artifact: ArtifactCreate,
+) -> None:
+    data = create_collection
+    user_repo = UserRepository(data.engine)
+    artifact_repo = ArtifactRepository(data.engine)
+    track_repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    artifact_data = test_artifact.model_copy(
+        update={
+            "collection_id": data.collection.id,
+            "status": ArtifactStatus.UPLOADED,
+        }
+    )
+    artifact = await artifact_repo.create_artifact(artifact_data)
+    track = await track_repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="account-deletion-track",
+            artifact_type=artifact.type,
+        )
+    )
+    entry = await entry_repo.create_entry(
+        TrackEntryCreate(
+            track_id=track.id,
+            artifact_id=artifact.id,
+            added_by=TRACK_ENTRY_AUTHOR,
+        )
+    )
+
+    await user_repo.delete_user(data.user.email)
+
+    assert await user_repo.get_user(data.user.email) is None
+    persisted_entry = await entry_repo.get_entry(entry.id)
+    assert persisted_entry is not None
+    assert persisted_entry.added_by == TRACK_ENTRY_AUTHOR
 
 
 @pytest.mark.asyncio

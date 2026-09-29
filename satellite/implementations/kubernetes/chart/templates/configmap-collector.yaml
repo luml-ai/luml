@@ -1,0 +1,69 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "luml.collectorName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "collector") | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    {{- if include "luml.storeCredentialsConfigured" . }}
+    extensions:
+      basicauth/client:
+        client_auth:
+          username: ${env:GREPTIMEDB_USERNAME}
+          password: ${env:GREPTIMEDB_PASSWORD}
+    {{- end }}
+    exporters:
+      otlphttp/traces:
+        endpoint: {{ printf "http://%s:%v/v1/otlp" (include "luml.storeHost" .) .Values.monitoring.store.port | quote }}
+        tls:
+          insecure: true
+        {{- if include "luml.storeCredentialsConfigured" . }}
+        auth:
+          authenticator: basicauth/client
+        {{- end }}
+        headers:
+          x-greptime-db-name: {{ .Values.monitoring.store.database | quote }}
+          x-greptime-trace-table-name: otel_traces
+      otlphttp/events:
+        endpoint: {{ printf "http://%s:%v/v1/otlp" (include "luml.storeHost" .) .Values.monitoring.store.port | quote }}
+        tls:
+          insecure: true
+        {{- if include "luml.storeCredentialsConfigured" . }}
+        auth:
+          authenticator: basicauth/client
+        {{- end }}
+        headers:
+          x-greptime-db-name: {{ .Values.monitoring.store.database | quote }}
+          x-greptime-trace-table-name: inference_events
+    processors:
+      filter/traces_main:
+        error_mode: ignore
+        traces:
+          span:
+            - 'resource.attributes["service.name"] == "satellite-agent.events"'
+      filter/traces_events:
+        error_mode: ignore
+        traces:
+          span:
+            - 'resource.attributes["service.name"] != "satellite-agent.events"'
+    service:
+      {{- if include "luml.storeCredentialsConfigured" . }}
+      extensions: [basicauth/client]
+      {{- end }}
+      pipelines:
+        traces/main:
+          receivers: [otlp]
+          processors: [filter/traces_main]
+          exporters: [otlphttp/traces]
+        traces/events:
+          receivers: [otlp]
+          processors: [filter/traces_events]
+          exporters: [otlphttp/events]
+{{- end }}

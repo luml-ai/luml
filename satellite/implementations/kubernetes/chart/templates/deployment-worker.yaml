@@ -1,0 +1,57 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "luml.workerName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "luml.selectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "luml.selectorLabels" (dict "root" . "component" "worker") | nindent 8 }}
+      annotations:
+        checksum/satellite-token: {{ include "luml.tokenChecksum" . | quote }}
+        checksum/derivation-key: {{ include "luml.derivationChecksum" . | quote }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "luml.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.satellite.imagePullSecrets }}
+      imagePullSecrets:
+        {{- include "luml.imagePullSecrets" $ | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: worker
+          image: {{ include "luml.image" .Values.monitoring.image | quote }}
+          imagePullPolicy: {{ .Values.monitoring.image.pullPolicy }}
+          command: ["luml-monitoring-worker"]
+          securityContext:
+            {{- include "luml.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "luml.monitoringEnv" . | nindent 12 }}
+            - name: MONITORING_HEARTBEAT_FILE
+              value: /var/run/luml-monitoring/heartbeat
+          resources:
+            {{- toYaml .Values.monitoring.worker.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["luml-monitoring-probe"]
+            initialDelaySeconds: 180
+            periodSeconds: 60
+            {{- include "luml.probeTuning" . | nindent 12 }}
+          volumeMounts:
+            - name: heartbeat
+              mountPath: /var/run/luml-monitoring
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: heartbeat
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

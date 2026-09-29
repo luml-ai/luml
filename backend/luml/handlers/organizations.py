@@ -10,7 +10,6 @@ from luml.infra.exceptions import (
     EmailDeliveryError,
     InsufficientPermissionsError,
     NotFoundError,
-    OrganizationDeleteError,
     OrganizationInviteAlreadyExistsError,
     OrganizationInviteNotFoundError,
     OrganizationLimitReachedError,
@@ -18,6 +17,7 @@ from luml.infra.exceptions import (
     OrganizationMemberNotFoundError,
 )
 from luml.repositories.invites import InviteRepository
+from luml.repositories.limits import ORGANIZATION_MEMBERSHIP_LIMIT
 from luml.repositories.users import UserRepository
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -28,6 +28,7 @@ from luml.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
+    OrganizationMemberCreateIn,
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
@@ -48,7 +49,7 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __organization_membership_limit = 5
+    __organization_membership_limit = ORGANIZATION_MEMBERSHIP_LIMIT
 
     def _set_organizations_permissions(
         self, organizations: list[OrganizationSwitcher]
@@ -121,19 +122,8 @@ class OrganizationHandler:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
         )
-        organization = await self.__user_repository.get_organization_details(
-            organization_id
-        )
-
-        if not organization:
+        if not await self.__user_repository.delete_organization(organization_id):
             raise NotFoundError("Organization not found")
-
-        if len(organization.members) > 1:
-            raise OrganizationDeleteError(
-                "Organization has members and cant be deleted"
-            )
-
-        return await self.__user_repository.delete_organization(organization_id)
 
     async def leave_from_organization(
         self, user_id: UUID, organization_id: UUID
@@ -172,14 +162,22 @@ class OrganizationHandler:
         return organization
 
     async def send_invite(
-        self, user_id: UUID, invite_: CreateOrganizationInviteIn
+        self, user_id: UUID, organization_id: UUID, invite_: CreateOrganizationInviteIn
     ) -> OrganizationInvite:
         await self.__permissions_handler.check_permissions(
-            invite_.organization_id,
+            organization_id,
             user_id,
             Resource.ORGANIZATION_INVITE,
             Action.CREATE,
         )
+        user_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
+
+        if user_role != OrgRole.OWNER and invite_.role == OrgRole.ADMIN:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can invite new admins."
+            )
 
         user_info = await self.__user_repository.get_public_user_by_id(user_id)
 
@@ -187,7 +185,7 @@ class OrganizationHandler:
             raise InsufficientPermissionsError("You can't invite yourself")
 
         member = await self.__user_repository.get_organization_member_by_email(
-            invite_.organization_id, invite_.email
+            organization_id, invite_.email
         )
 
         if member:
@@ -197,17 +195,21 @@ class OrganizationHandler:
 
         existing_invite = (
             await self.__invites_repository.get_organization_invite_by_email(
-                invite_.organization_id, invite_.email
+                organization_id, invite_.email
             )
         )
 
         if existing_invite:
             raise OrganizationInviteAlreadyExistsError()
 
-        await self._check_org_members_limit(invite_.organization_id)
+        await self._check_org_members_limit(organization_id)
 
         db_created_invite = await self.__invites_repository.create_organization_invite(
-            CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
+            CreateOrganizationInvite(
+                **invite_.model_dump(),
+                organization_id=organization_id,
+                invited_by=user_id,
+            )
         )
         invite = await self.__invites_repository.get_invite(db_created_invite.id)
 
@@ -219,7 +221,7 @@ class OrganizationHandler:
                 invite.email if invite else "",
                 get_invited_by_name(invite),
                 get_organization_email_name(invite),
-                config.APP_EMAIL_URL,
+                f"{config.APP_EMAIL_URL.rstrip('/')}/invitations",
             )
         except Exception as error:
             raise EmailDeliveryError(
@@ -238,7 +240,9 @@ class OrganizationHandler:
             Action.DELETE,
         )
 
-        return await self.__invites_repository.delete_organization_invite(invite_id)
+        return await self.__invites_repository.delete_organization_invite(
+            organization_id, invite_id
+        )
 
     async def accept_invite(
         self, invite_id: UUID, user_id: UUID, user_email: EmailStr
@@ -278,7 +282,9 @@ class OrganizationHandler:
         if invite.email != user_email:
             raise InsufficientPermissionsError("This invite is not for you")
 
-        return await self.__invites_repository.delete_organization_invite(invite_id)
+        return await self.__invites_repository.delete_organization_invite(
+            invite.organization_id, invite_id
+        )
 
     async def get_organization_invites(
         self, user_id: UUID, organization_id: UUID
@@ -333,9 +339,19 @@ class OrganizationHandler:
         if user_id == member_to_update.user.id:
             raise InsufficientPermissionsError("You can not update your own data.")
 
+        if member_to_update.role == OrgRole.OWNER:
+            raise InsufficientPermissionsError(
+                "Organization Owner role can not be changed."
+            )
+
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
             raise InsufficientPermissionsError(
                 "Only Organization Owner can assign new admins."
+            )
+
+        if user_role != OrgRole.OWNER and member_to_update.role == OrgRole.ADMIN:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can change admin roles."
             )
 
         return await self.__user_repository.update_organization_member(
@@ -351,6 +367,9 @@ class OrganizationHandler:
             Resource.ORGANIZATION_USER,
             Action.DELETE,
         )
+        user_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
 
         member_to_delete = await self.__user_repository.get_organization_member_by_id(
             member_id
@@ -364,8 +383,13 @@ class OrganizationHandler:
                 "You can not remove yourself from organization."
             )
 
-        if member_to_delete and member_to_delete.role == OrgRole.OWNER:
+        if member_to_delete.role == OrgRole.OWNER:
             raise InsufficientPermissionsError("Organization Owner can not be removed.")
+
+        if user_role != OrgRole.OWNER and member_to_delete.role == OrgRole.ADMIN:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can remove admins."
+            )
 
         return await self.__user_repository.delete_organization_member(member_id)
 
@@ -373,7 +397,7 @@ class OrganizationHandler:
         self,
         user_id: UUID,
         organization_id: UUID,
-        member: OrganizationMemberCreate,
+        member: OrganizationMemberCreateIn,
     ) -> OrganizationMember:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -393,7 +417,11 @@ class OrganizationHandler:
             )
         try:
             created_member = await self.__user_repository.create_organization_member(
-                member
+                OrganizationMemberCreate(
+                    user_id=member.user_id,
+                    organization_id=organization_id,
+                    role=member.role,
+                )
             )
         except DatabaseConstraintError as error:
             raise OrganizationMemberAlreadyExistsError() from error

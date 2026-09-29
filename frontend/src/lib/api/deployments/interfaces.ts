@@ -4,6 +4,7 @@ export enum DeploymentStatusEnum {
   failed = 'failed',
   deleted = 'deleted',
   deletion_pending = 'deletion_pending',
+  deletion_failed = 'deletion_failed',
   not_responding = 'not_responding',
 }
 
@@ -46,6 +47,8 @@ export interface Deployment {
   artifact_name: string
   error_message: DeploymentErrorMessage | null
   schemas: object
+  provider_ref?: string | null
+  progress_note?: string | null
 }
 
 export interface UpdateDeploymentPayload {
