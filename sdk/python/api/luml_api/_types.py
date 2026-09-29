@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
@@ -463,6 +464,57 @@ class Deployment(BaseModel):
     tags: list[str] | None = None
     created_at: str
     updated_at: str | None = None
+
+
+class LiveSessionStatus(StrEnum):
+    """
+    Options: "live", "disconnected", "ended".
+    """
+
+    LIVE = "live"
+    DISCONNECTED = "disconnected"
+    ENDED = "ended"
+
+
+class LiveSession(BaseModel):
+    """A service exposed through the tunnel, as the Platform records it."""
+
+    id: str
+    orbit_id: str
+    user_id: str
+    name: str
+    relay_id: str
+    started_at: str
+    last_heartbeat_at: str | None = None
+    connected: bool
+    ended_at: str | None = None
+    status: LiveSessionStatus
+
+
+class LiveSessionStart(BaseModel):
+    """What an agent needs to connect a newly started session to its relay."""
+
+    id: str
+    public_url: str
+    app_url: str
+    agent_url: str
+    expose_token: str
+    token_expires_at: datetime
+    heartbeat_interval: int
+
+
+class LiveSessionHeartbeat(BaseModel):
+    """Answer to a heartbeat; carries a renewed `expose` token when one is due."""
+
+    status: LiveSessionStatus
+    expose_token: str | None = None
+    token_expires_at: datetime | None = None
+
+
+class LiveSessionViewToken(BaseModel):
+    token: str
+    launch_url: str
+    expires_at: datetime
 
 
 def _satellite_origin(url: URL) -> tuple[str, str, int | None]:

@@ -677,12 +677,12 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Add unit tests in `backend/tests/unit/handlers/` and `backend/tests/unit/api/` for the backend scenarios
   - [x] Run ruff, mypy and pytest in `backend/`
 
-- [ ] Add live sessions resource to the API client
-  - [ ] Add the resource in `sdk/python/api/luml_api/resources/` in a synchronous and an asynchronous form, following `satellites.py`
-  - [ ] Add the types to `sdk/python/api/luml_api/_types.py`
-  - [ ] Add the resource to the base client and to both clients in `sdk/python/api/luml_api/_client.py`
-  - [ ] Add tests in `sdk/python/api/tests/unit/`, following `test_satellite_resources.py`
-  - [ ] Run ruff, mypy and pytest in `sdk/python/api/`
+- [x] Add live sessions resource to the API client
+  - [x] Add the resource in `sdk/python/api/luml_api/resources/` in a synchronous and an asynchronous form, following `satellites.py`
+  - [x] Add the types to `sdk/python/api/luml_api/_types.py`
+  - [x] Add the resource to the base client and to both clients in `sdk/python/api/luml_api/_client.py`
+  - [x] Add tests in `sdk/python/api/tests/unit/`, following `test_satellite_resources.py`
+  - [x] Run ruff, mypy and pytest in `sdk/python/api/`
 
 - [ ] Add LUML registration to the expose command
   - [ ] Make the LUML extra in `tunnel/pyproject.toml` depend on `luml-api`, with a local source for development as in `lumlflow/pyproject.toml`

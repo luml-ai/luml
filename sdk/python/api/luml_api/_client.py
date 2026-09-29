@@ -32,6 +32,10 @@ if TYPE_CHECKING:
         AsyncDeploymentResource,
         DeploymentResource,
     )
+    from luml_api.resources.live_sessions import (
+        AsyncLiveSessionResource,
+        LiveSessionResource,
+    )
     from luml_api.resources.orbits import AsyncOrbitResource, OrbitResource
     from luml_api.resources.organizations import (
         AsyncOrganizationResource,
@@ -177,6 +181,11 @@ class LumlClientBase(ABC):
     @cached_property
     @abstractmethod
     def satellites(self) -> "SatelliteResource | AsyncSatelliteResource":
+        raise NotImplementedError()
+
+    @cached_property
+    @abstractmethod
+    def live_sessions(self) -> "LiveSessionResource | AsyncLiveSessionResource":
         raise NotImplementedError()
 
 
@@ -418,6 +427,13 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
         return AsyncSatelliteResource(self)
 
+    @cached_property
+    def live_sessions(self) -> "AsyncLiveSessionResource":
+        """Live sessions exposed through the tunnel."""
+        from luml_api.resources.live_sessions import AsyncLiveSessionResource
+
+        return AsyncLiveSessionResource(self)
+
 
 class LumlClient(LumlClientBase, SyncBaseClient):
     def __init__(
@@ -642,3 +658,10 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         from luml_api.resources.satellites import SatelliteResource
 
         return SatelliteResource(self)
+
+    @cached_property
+    def live_sessions(self) -> "LiveSessionResource":
+        """Live sessions exposed through the tunnel."""
+        from luml_api.resources.live_sessions import LiveSessionResource
+
+        return LiveSessionResource(self)
