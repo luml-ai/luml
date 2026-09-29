@@ -699,15 +699,15 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Add a signing key for development and the relay description to `dev/backend.env`
   - [x] Check the compose file with `docker compose config`, then run the stack and walk through the scenario for a session in the dev stack up to the point where the session is served with a token header
 
-- [ ] List live sessions on the Flow page
-  - [ ] Add the API module in `frontend/src/lib/api/`, following `satellites/`, and register it in `frontend/src/lib/api/api.ts`
-  - [ ] Add a store in `frontend/src/stores/`, following `satellites.ts`
-  - [ ] Remove the `/flow` route from `frontend/src/router/index.ts` and add the list and the session page under the orbit route; the session identifier is not a UUID, so it stays out of the checks in `RouteIdsMiddleware.ts`
-  - [ ] Make the sidebar entry resolve the organization and the orbit like the other orbit entries, in `frontend/src/constants/orbit-navigation.ts`, `frontend/src/constants/constants.ts` and `frontend/src/components/layout/LayoutSidebar.vue`
-  - [ ] Add a Flow tab to `frontend/src/pages/orbits/SetupPage.vue` that keeps the instructions for running lumlflow locally
-  - [ ] Replace `frontend/src/pages/FlowPage.vue` with a view in `frontend/src/pages/orbits/` that shows the list, the empty state with both sets of instructions, and the notice for a deployment with the feature off
-  - [ ] Add unit tests next to the new files for the scenarios about the sidebar entry, sign-in, the old address, the list, the empty state and the feature being off
-  - [ ] Run the type check, the linter and the unit tests in `frontend/`
+- [x] List live sessions on the Flow page
+  - [x] Add the API module in `frontend/src/lib/api/`, following `satellites/`, and register it in `frontend/src/lib/api/api.ts`
+  - [x] Add a store in `frontend/src/stores/`, following `satellites.ts`
+  - [x] Remove the `/flow` route from `frontend/src/router/index.ts` and add the list and the session page under the orbit route; the session identifier is not a UUID, so it stays out of the checks in `RouteIdsMiddleware.ts`
+  - [x] Make the sidebar entry resolve the organization and the orbit like the other orbit entries, in `frontend/src/constants/orbit-navigation.ts`, `frontend/src/constants/constants.ts` and `frontend/src/components/layout/LayoutSidebar.vue`
+  - [x] Add a Flow tab to `frontend/src/pages/orbits/SetupPage.vue` that keeps the instructions for running lumlflow locally
+  - [x] Replace `frontend/src/pages/FlowPage.vue` with a view in `frontend/src/pages/orbits/` that shows the list, the empty state with both sets of instructions, and the notice for a deployment with the feature off
+  - [x] Add unit tests next to the new files for the scenarios about the sidebar entry, sign-in, the old address, the list, the empty state and the feature being off
+  - [x] Run the type check, the linter and the unit tests in `frontend/`
 
 - [ ] Show a live session on the Flow page
   - [ ] Add the session page, following `frontend/src/pages/DeploymentMonitoringPage.vue`, with the frame that loads the launch address with a new `view` token

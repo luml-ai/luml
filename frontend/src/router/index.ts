@@ -150,6 +150,16 @@ const router = createRouter({
           name: 'orbit-secrets',
           component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
         },
+        {
+          path: 'flow',
+          name: 'orbit-flow',
+          component: () => import('../pages/orbits/OrbitFlowView.vue'),
+        },
+        {
+          path: 'flow/:sessionId',
+          name: 'orbit-flow-session',
+          component: () => import('../pages/orbits/OrbitFlowSessionView.vue'),
+        },
       ],
     },
     {
@@ -239,11 +249,6 @@ const router = createRouter({
       path: '/notebooks',
       name: 'notebooks',
       component: () => import('../pages/NotebooksPage.vue'),
-    },
-    {
-      path: '/flow',
-      name: 'flow',
-      component: () => import('../pages/FlowPage.vue'),
     },
     {
       path: '/prisma',

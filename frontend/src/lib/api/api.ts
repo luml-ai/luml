@@ -47,6 +47,7 @@ import { MonitoringApi } from './monitoring'
 import { OrbitTracksApi } from './orbit-tracks'
 import { PrismaApi } from './prisma'
 import { LineageApi } from './lineage'
+import { LiveSessionsApi } from './live-sessions'
 
 export class ApiClass {
   private api: AxiosInstance
@@ -61,6 +62,7 @@ export class ApiClass {
   public orbitTracks: OrbitTracksApi
   public dataAgent: PrismaApi
   public lineage: LineageApi
+  public liveSessions: LiveSessionsApi
 
   constructor() {
     this.api = axios.create({
@@ -82,6 +84,7 @@ export class ApiClass {
     this.orbitTracks = new OrbitTracksApi(this.api)
     this.dataAgent = new PrismaApi()
     this.lineage = new LineageApi(this.api)
+    this.liveSessions = new LiveSessionsApi(this.api)
   }
 
   public async signUp(data: IPostSignupRequest): Promise<IPostSignupResponse> {

@@ -49,6 +49,14 @@
             <p class="text">{{ card.description }}</p>
           </div>
         </div>
+
+        <div v-if="currentTab === TABS.flow" class="card card--flow">
+          <FlowCommandCard
+            title="Run Flow locally"
+            :hints="RUN_LOCALLY_HINTS"
+            :commands="RUN_LOCALLY_COMMANDS"
+          />
+        </div>
       </div>
 
       <OrbitCreator
@@ -64,7 +72,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Folders, Rocket, Satellite } from 'lucide-vue-next'
+import { ChartSpline, Folders, Rocket, Satellite } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useOrganizationStore } from '@/stores/organization'
 import { useOrbitsStore } from '@/stores/orbits'
@@ -72,6 +80,8 @@ import OrbitCreator from '@/components/orbits/creator/OrbitCreator.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import type { Orbit } from '@/lib/api/api.interfaces'
 import { TAB_TO_ROUTE } from '@/constants/orbit-navigation'
+import FlowCommandCard from '@/components/flow/FlowCommandCard.vue'
+import { RUN_LOCALLY_COMMANDS, RUN_LOCALLY_HINTS } from '@/components/flow/flow-commands'
 
 const route = useRoute()
 const router = useRouter()
@@ -170,6 +180,17 @@ const TABS: Record<
       },
     ],
   },
+  flow: {
+    title: 'Flow',
+    icon: ChartSpline,
+    cards: [
+      {
+        title: 'Live sessions',
+        description:
+          'Expose lumlflow or any other web app from wherever it runs, and open it from the Flow page of your orbit.',
+      },
+    ],
+  },
 }
 
 const currentTab = computed(() => {
@@ -238,6 +259,10 @@ function onOrbitCreated(orbit: Orbit) {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.card--flow {
+  align-items: center;
 }
 
 .title {

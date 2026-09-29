@@ -1,51 +1,37 @@
 <script setup lang="ts">
 import { ChartSpline } from 'lucide-vue-next'
+
+export interface FlowCommand {
+  label: string
+  code: string
+}
+
+defineProps<{
+  title: string
+  hints: string[]
+  commands: FlowCommand[]
+}>()
 </script>
 
 <template>
-  <div class="flow-page">
-    <div class="flow-container">
-      <div class="flow-card">
-        <ChartSpline :size="48" class="flow-icon" />
+  <div class="flow-card">
+    <ChartSpline :size="48" class="flow-icon" />
 
-        <h3 class="flow-title">Run Flow locally</h3>
-        <div class="flow-hint">
-          <p>Flow is a local live tracker for ML experiments.</p>
-          <p>Log parameters, metrics, and artifacts as they stream in.</p>
-          <p>Compare them side by side in a browser UI.</p>
-        </div>
+    <h3 class="flow-title">{{ title }}</h3>
+    <div class="flow-hint">
+      <p v-for="hint in hints" :key="hint">{{ hint }}</p>
+    </div>
 
-        <div class="flow-commands">
-          <div class="flow-command">
-            <span class="flow-command-label">Install</span>
-            <code class="flow-command-code">pip install lumlflow</code>
-          </div>
-          <div class="flow-command">
-            <span class="flow-command-label">Run</span>
-            <code class="flow-command-code">lumlflow ui</code>
-          </div>
-        </div>
+    <div class="flow-commands">
+      <div v-for="command in commands" :key="command.label" class="flow-command">
+        <span class="flow-command-label">{{ command.label }}</span>
+        <code class="flow-command-code">{{ command.code }}</code>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.flow-page {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 130px);
-  padding-top: 32px;
-}
-
-.flow-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  padding: 2rem;
-}
-
 .flow-card {
   display: flex;
   flex-direction: column;
