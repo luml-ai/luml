@@ -178,6 +178,17 @@ describe('artifact page attachment tab', () => {
     )
   })
 
+  it('does not show the tab before attachment availability is known', async () => {
+    apiMocks.getDownloadUrl.mockImplementation(() => new Promise(() => {}))
+    const wrapper = mountPage()
+
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'ArtifactTabs' }).props('showModelAttachments')).toBe(
+      false,
+    )
+  })
+
   it('keeps the tab available when index inspection fails', async () => {
     apiMocks.getDownloadUrl.mockRejectedValue(new Error('temporary failure'))
     const wrapper = mountPage()

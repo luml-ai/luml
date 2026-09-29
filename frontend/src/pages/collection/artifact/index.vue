@@ -141,7 +141,12 @@ const isModelAttachmentsAvailable = computed(() => {
   const fileIndex = artifact.file_index
   const archivePath = FnnxService.findAttachmentsTarPath(fileIndex)
   const indexPath = FnnxService.findAttachmentsIndexPath(fileIndex)
-  return !!archivePath && !!indexPath && artifactsStore.attachmentsStatus !== 'empty'
+  return (
+    !!archivePath &&
+    !!indexPath &&
+    (artifactsStore.attachmentsStatus === 'available' ||
+      artifactsStore.attachmentsStatus === 'error')
+  )
 })
 
 function initDeploy() {

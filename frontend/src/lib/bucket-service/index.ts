@@ -5,7 +5,10 @@ export class ModelDownloader {
   url: string
   private hasFetched = false
 
-  constructor(url: string, private refreshUrl?: () => Promise<string>) {
+  constructor(
+    url: string,
+    private refreshUrl?: () => Promise<string>,
+  ) {
     this.url = url
   }
 
