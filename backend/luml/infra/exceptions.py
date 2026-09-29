@@ -250,3 +250,16 @@ class BucketConnectionError(ApplicationError):
             message=message,
             status_code=status_code,
         )
+
+
+class LiveSessionsNotConfiguredError(ApplicationError):
+    def __init__(
+        self,
+        message: str = "Live sessions are not set up in this deployment",
+    ) -> None:
+        super().__init__(message, status.HTTP_501_NOT_IMPLEMENTED)
+
+
+class LiveSessionEndedError(ApplicationError):
+    def __init__(self, message: str = "Live session has ended") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)

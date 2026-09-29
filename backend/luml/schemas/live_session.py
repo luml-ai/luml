@@ -2,13 +2,14 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, Field, computed_field
 
 from luml.schemas.base import BaseOrmConfig
 
 LIVE_SESSION_DISCONNECTED_AFTER = timedelta(seconds=90)
 LIVE_SESSION_ENDED_AFTER = timedelta(hours=1)
 LIVE_SESSION_LIST_RETENTION = timedelta(hours=24)
+LIVE_SESSION_HEARTBEAT_INTERVAL_SECONDS = 30
 
 
 class LiveSessionStatus(StrEnum):
@@ -47,3 +48,34 @@ class LiveSessionCreate(BaseModel):
     user_id: UUID
     name: str
     relay_id: str
+
+
+class LiveSessionStartIn(BaseModel):
+    name: str = Field(min_length=1)
+
+
+class LiveSessionStartOut(BaseModel):
+    id: str
+    public_url: str
+    app_url: str
+    agent_url: str
+    expose_token: str
+    token_expires_at: datetime
+    heartbeat_interval: int = LIVE_SESSION_HEARTBEAT_INTERVAL_SECONDS
+
+
+class LiveSessionHeartbeatIn(BaseModel):
+    connected: bool
+    token_expires_at: datetime
+
+
+class LiveSessionHeartbeatOut(BaseModel):
+    status: LiveSessionStatus
+    expose_token: str | None = None
+    token_expires_at: datetime | None = None
+
+
+class LiveSessionViewTokenOut(BaseModel):
+    token: str
+    launch_url: str
+    expires_at: datetime

@@ -667,15 +667,15 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Add integration tests in `backend/tests/integration/repository/` and unit tests for the status and the permissions
   - [x] Run ruff, mypy and pytest in `backend/`
 
-- [ ] Add live session operations and token issuing to the backend
-  - [ ] Add the optional settings to `backend/luml/settings.py`: the signing key, the relay identifier, its base domain, the address agents connect to, and the two token lifetimes; add them to `backend/.env.example` and `backend/.env.test`
-  - [ ] Publish the public keys at `/.well-known/jwks.json` without authentication, registered in `backend/luml/service.py` outside the `/v1` prefix
-  - [ ] Add the handler in `backend/luml/handlers/` with the operations from the Design table, signing tokens with ES256 and the claims that `tunnel/luml_tunnel` checks
-  - [ ] Check the rule that only the starting user may see or change a session in one place, and answer not found for everyone else
-  - [ ] Fail every operation in the same way when the feature is off, with an error the frontend can tell apart from other failures
-  - [ ] Add the routes in `backend/luml/api/orbits/`, following `orbit_satellites.py`, and register them in `backend/luml/api/organization_routes.py`
-  - [ ] Add unit tests in `backend/tests/unit/handlers/` and `backend/tests/unit/api/` for the backend scenarios
-  - [ ] Run ruff, mypy and pytest in `backend/`
+- [x] Add live session operations and token issuing to the backend
+  - [x] Add the optional settings to `backend/luml/settings.py`: the signing key, the relay identifier, its base domain, the address agents connect to, and the two token lifetimes; add them to `backend/.env.example` and `backend/.env.test`
+  - [x] Publish the public keys at `/.well-known/jwks.json` without authentication, registered in `backend/luml/service.py` outside the `/v1` prefix
+  - [x] Add the handler in `backend/luml/handlers/` with the operations from the Design table, signing tokens with ES256 and the claims that `tunnel/luml_tunnel` checks
+  - [x] Check the rule that only the starting user may see or change a session in one place, and answer not found for everyone else
+  - [x] Fail every operation in the same way when the feature is off, with an error the frontend can tell apart from other failures
+  - [x] Add the routes in `backend/luml/api/orbits/`, following `orbit_satellites.py`, and register them in `backend/luml/api/organization_routes.py`
+  - [x] Add unit tests in `backend/tests/unit/handlers/` and `backend/tests/unit/api/` for the backend scenarios
+  - [x] Run ruff, mypy and pytest in `backend/`
 
 - [ ] Add live sessions resource to the API client
   - [ ] Add the resource in `sdk/python/api/luml_api/resources/` in a synchronous and an asynchronous form, following `satellites.py`

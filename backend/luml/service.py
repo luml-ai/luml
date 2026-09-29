@@ -13,6 +13,7 @@ from luml.api.organization.organization import organization_router
 from luml.api.organization_routes import organization_all_routers
 from luml.api.satellites import satellite_contract_router, satellite_worker_router
 from luml.api.user_routes import users_routers
+from luml.api.well_known import well_known_router
 from luml.infra.error_handlers import request_validation_error_handler
 from luml.infra.exceptions import ApplicationError
 from luml.infra.middleware import SecurityHeadersMiddleware
@@ -32,6 +33,7 @@ class AppService(FastAPI):
         self.include_router(router=satellite_contract_router)
         self.include_router(router=satellite_worker_router)
         self.include_router(router=bucket_secret_urls_router, prefix="/v1")
+        self.include_router(router=well_known_router)
         self.include_authentication()
         self.include_error_handlers()
         self.custom_openapi()

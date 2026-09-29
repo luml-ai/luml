@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL: str
     TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL: str
 
+    # Live sessions are off unless the signing key and the relay are all set.
+    LIVE_SESSION_SIGNING_KEY: str | None = None
+    LIVE_SESSION_RELAY_ID: str | None = None
+    LIVE_SESSION_RELAY_BASE_DOMAIN: str | None = None
+    LIVE_SESSION_RELAY_AGENT_URL: str | None = None
+    LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS: int = 600
+    LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS: int = 300
+
     CORS_ORIGINS: str = "https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
 
     # quickfix, to be refactored later
