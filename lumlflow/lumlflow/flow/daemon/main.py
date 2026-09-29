@@ -63,6 +63,7 @@ class Daemon:
             directory=self.directory,
             stop=self.stop,
             attachments=self._attachments,
+            leases=self._leases,
             instance_id=self.instance_id,
         )
         self.watcher = Watcher(self.hub)
@@ -294,20 +295,36 @@ class Daemon:
         """
         if self._stopped.is_set():
             return
-        for flow, actor, _ in sorted(
-            leased, key=lambda lease: (lease[0] or "", lease[1])
-        ):
+        ended = sorted(leased, key=lambda lease: (lease[0] or "", lease[1]))
+        # Dropped before the ends are committed: the watchers reading the
+        # announcement must not see a lease this connection no longer holds.
+        leased.clear()
+        for flow, actor, _ in ended:
             with contextlib.suppress(FlowError, OSError):
                 await self.api.agent_end({"flow": flow, "actor": actor})
-        leased.clear()
+            self._announce_agents(flow)
+
+    def _leases(self) -> Leases:
+        """Every agent session a live connection is carrying right now."""
+        return {
+            lease
+            for client_leases in self._client_leases.values()
+            for lease in client_leases
+        }
+
+    def _announce_agents(self, flow: str | None) -> None:
+        """Tell a flow's watchers who is really there, once a lease changed hands.
+
+        The registration itself announced when it committed, but without the
+        lease — that is only taken on the reply. This is the second, complete
+        word; on a dropped connection it is the only one.
+        """
+        with contextlib.suppress(FlowError, OSError):
+            self.api.announce_agents(flow)
 
     def _report_attached(self) -> None:
         leases = sorted(
-            {
-                lease
-                for client_leases in self._client_leases.values()
-                for lease in client_leases
-            },
+            self._leases(),
             key=lambda lease: (lease[2].casefold(), lease[0] or ""),
         )
         outside_flows = sorted(
@@ -335,11 +352,7 @@ class Daemon:
 
     def _attachments(self, flow_path: str) -> dict[str, Any]:
         excluded = Path(flow_path).resolve() if flow_path else None
-        leases = {
-            lease
-            for client_leases in self._client_leases.values()
-            for lease in client_leases
-        }
+        leases = self._leases()
         open_flows = sorted(
             session.ref.address
             for session in self.hub.opened()
@@ -410,7 +423,14 @@ class Daemon:
             _reply(writer, request_id, error=_error(INTERNAL_ERROR, str(failure)))
         else:
             _reply(writer, request_id, result=result)
-            _leased(leased, str(message["method"]), message.get("params") or {}, result)
+            name = str(message["method"])
+            _leased(leased, name, message.get("params") or {}, result)
+            if (
+                name == "agent.begin"
+                and isinstance(result, dict)
+                and result.get("leased")
+            ):
+                self._announce_agents(result.get("flow"))
         # The caller may already be gone — an answer nobody is there for is not
         # a daemon-level failure.
         with contextlib.suppress(OSError):

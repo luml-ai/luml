@@ -1,7 +1,6 @@
 import { api } from '@/api/client'
-import type { PublishedAsset, PublishTarget } from '@/flow/api/types'
+import type { AgentHarness, PublishedAsset, PublishTarget } from '@/flow/api/types'
 import type {
-  AgentSession,
   AssetPreview,
   BranchTree,
   CancelledRun,
@@ -251,18 +250,28 @@ export const workspaceApi = {
       slug,
     }),
 
-  pairAgent: (actor: string, label: string, flow?: string) =>
-    call<{ flow?: string; actor: string; label: string }, AgentSession>('agent.begin', {
+  /**
+   * End one registered session by its actor. Nothing here begins one: an agent
+   * is paired by connecting over MCP, and the browser has no connection to
+   * lend. What it can do is clear a registration nobody is behind.
+   */
+  endAgentSession: (actor: string, flow?: string) =>
+    call<{ flow?: string; actor: string }, EndedAgentSession>('agent.end', {
       ...(flow ? { flow } : {}),
       actor,
-      label,
     }),
 
-  unpairAgent: (flow?: string, actor?: string) =>
-    call<{ flow?: string; actor?: string }, EndedAgentSession>('agent.end', {
-      ...(flow ? { flow } : {}),
-      ...(actor ? { actor } : {}),
+  agentHarnesses: () =>
+    call<Record<string, never>, { harnesses: AgentHarness[] }>('agents.harnesses', {}),
+
+  setupAgentHarness: (harness: string, consent: boolean) =>
+    call<{ harness: string; consent: boolean }, AgentHarness>('agents.setup', {
+      harness,
+      consent,
     }),
+
+  removeAgentHarness: (harness: string) =>
+    call<{ harness: string }, AgentHarness>('agents.remove', { harness }),
 
   agentPayload: (slug: string, flow?: string, branch?: string) =>
     call<{ flow?: string; branch?: string; slug: string }, CellContextPayload>('agent.payload', {

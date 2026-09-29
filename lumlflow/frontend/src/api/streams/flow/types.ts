@@ -1,3 +1,5 @@
+import type { AgentSessionRecord } from '@/flow/api/types'
+
 export type MaterializationState = 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 export interface Transaction {
@@ -45,6 +47,18 @@ export interface StateFrame {
   cell?: string
 }
 
+/**
+ * Who is registered on the flow, and who is really connected. Pushed whenever
+ * a registration commits or a leased connection drops; never replayed.
+ */
+export interface AgentsFrame {
+  channel: 'journal'
+  type: 'agents'
+  flow: string
+  step: number
+  sessions: AgentSessionRecord[]
+}
+
 export interface CaughtUpFrame {
   channel: 'journal'
   type: 'caught_up'
@@ -76,6 +90,7 @@ export type StreamFrame =
   | TransactionFrame
   | KernelFrame
   | StateFrame
+  | AgentsFrame
   | CaughtUpFrame
   | LaggedFrame
   | LogFrame

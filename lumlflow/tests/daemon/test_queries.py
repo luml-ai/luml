@@ -706,3 +706,38 @@ class Score:
 
 def _branch(tree: dict[str, Any], name: str) -> dict[str, Any]:
     return next(entry for entry in tree["branches"] if entry["branch"] == name)
+
+
+async def test_the_fork_tree_says_which_registered_agents_are_really_there(
+    tmp_path: Path,
+):
+    """A row in `agent_sessions` is a registration; a lease is a connection.
+    The tree carries both and marks the difference, because "paired" is the
+    second and a surface must not read it off the first.
+    """
+    from lumlflow.flow.daemon.api import Api
+    from lumlflow.flow.daemon.hub import Hub
+
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    address = str(root / "churn.flow")
+    held = {(address, "codex", "Codex"), (str(root / "other.flow"), "gemini", "G")}
+
+    hub = Hub()
+    try:
+        api = Api(hub, directory=root, leases=lambda: held)
+        await api.flow_open({"flow": "churn"})
+        await api.agent_begin({"flow": "churn", "actor": "codex", "label": "Codex"})
+        await api.agent_begin({"flow": "churn", "label": "claude-1"})
+        tree = await api.tree({"flow": "churn"})
+        status = await api.status({"flow": "churn"})
+    finally:
+        await hub.close()
+
+    by_actor = {row["actor"]: row for row in tree["agent_sessions"]}
+    assert by_actor["codex"]["leased"] is True
+    assert by_actor["claude-1"]["leased"] is False
+    assert "gemini" not in by_actor
+    # The branch's `agent` keeps its old meaning — the newest registration.
+    assert _branch(tree, "main")["agent"] == "claude-1"
+    assert status["flows"][0]["agent_sessions"] == tree["agent_sessions"]

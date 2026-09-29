@@ -331,6 +331,35 @@ export interface StateFrame {
 }
 
 /**
+ * One registered agent session, and whether anybody is on the other end.
+ *
+ * The journal knows who registered. Only the daemon knows whose connection is
+ * still there, and `leased` is that knowledge: a surface reads "paired" off it,
+ * never off the row's existence. A row without it was registered by hand —
+ * `lumlflow agent begin` — and exists for attribution only.
+ */
+export interface AgentSessionRecord {
+  actor: string
+  label: string
+  begun_step: number
+  leased: boolean
+}
+
+/**
+ * Who is registered on a flow right now, lease state included. Pushed when a
+ * registration commits, and when a leased connection drops — the one change
+ * no journal frame carries. The list is whole; a client replaces, not merges.
+ * Never replayed: a late joiner reads the same list off `flow.open`.
+ */
+export interface AgentsFrame {
+  channel: 'journal'
+  type: 'agents'
+  flow: string
+  step: number
+  sessions: AgentSessionRecord[]
+}
+
+/**
  * The end of a catch-up. `running` is how a tab that opened mid-run learns
  * which console it can still ask for — an event it was not there for.
  */
@@ -367,6 +396,7 @@ export type StreamFrame =
   | TransactionFrame
   | KernelFrame
   | StateFrame
+  | AgentsFrame
   | CaughtUpFrame
   | LaggedFrame
   | LogFrame
@@ -711,7 +741,10 @@ export interface FlowBrief {
   path: string
   branch: string
   checked_out: boolean
+  /** The newest registration's label, leased or not — attribution, not pairing. */
   agent: string | null
+  /** Every registration, newest first; `leased` is the one that means paired. */
+  agent_sessions: AgentSessionRecord[]
   kernel: KernelReport
   settings: FlowSettingsReport
 }

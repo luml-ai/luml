@@ -192,6 +192,25 @@ class Streams:
             frame["cell"] = cell
         self._deliver(lambda subscription: flow in subscription.journals, frame)
 
+    def agents(self, flow: str, sessions: list[dict[str, Any]], *, step: int) -> None:
+        """Who is registered on a flow, and which of them are actually connected.
+
+        A lease is the daemon's memory, never the journal's: the connection is
+        the session, so the only honest source of "paired" is the daemon saying
+        so when a lease opens or drops. Like a state hint, this moves no cursor
+        and is never replayed — a late joiner reads the same list off `flow.open`.
+        """
+        self._deliver(
+            lambda subscription: flow in subscription.journals,
+            {
+                "channel": "journal",
+                "type": "agents",
+                "flow": flow,
+                "step": step,
+                "sessions": sessions,
+            },
+        )
+
     def kernel(
         self, flow: str, event: str, params: dict[str, Any], *, step: int
     ) -> None:

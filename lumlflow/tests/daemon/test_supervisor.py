@@ -845,3 +845,58 @@ def _wait_for_kernel(root: Path, timeout: float = 30.0) -> int:
                 return int(pid)
         time.sleep(0.05)
     raise AssertionError("the kernel did not start")
+
+
+def test_a_browser_learns_who_is_paired_when_the_lease_opens_and_when_it_drops(
+    tmp_path: Path, start: Starter
+) -> None:
+    """The connection is the session. A browser watching the flow is told the
+    moment an agent registers over a leased socket, and told again — without
+    anybody saying so — when that socket is gone.
+    """
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    address = str(root / "churn.flow")
+
+    with start(root) as live:
+        live.call("flow.open", {"flow": "churn"})
+        live.call("agent.begin", {"flow": "churn", "label": "manual"})
+        with _watch(live.record, address) as socket:
+            _caught_up(socket)
+            paired = client.attach(live.record, timeout=30)
+            paired.call(
+                "agent.begin",
+                {"flow": "churn", "actor": "codex", "label": "Codex", "lease": True},
+            )
+            live_frame = _until(
+                socket,
+                lambda frame: (
+                    frame.get("type") == "agents"
+                    and any(row["leased"] for row in frame["sessions"])
+                ),
+            )
+            seen_by_tree = live.call("tree", {"flow": "churn"})["agent_sessions"]
+            paired.close()
+            dropped = _until(
+                socket,
+                lambda frame: (
+                    frame.get("type") == "agents"
+                    and not any(row["leased"] for row in frame["sessions"])
+                ),
+            )
+        after = live.call("tree", {"flow": "churn"})["agent_sessions"]
+
+    assert {(row["actor"], row["leased"]) for row in live_frame["sessions"]} == {
+        ("codex", True),
+        ("manual", False),
+    }
+    assert {(row["actor"], row["leased"]) for row in seen_by_tree} == {
+        ("codex", True),
+        ("manual", False),
+    }
+    # The end was committed for the dropped connection; the manual registration
+    # is nobody's connection and stays, unleased.
+    assert [(row["actor"], row["leased"]) for row in dropped["sessions"]] == [
+        ("manual", False)
+    ]
+    assert [(row["actor"], row["leased"]) for row in after] == [("manual", False)]

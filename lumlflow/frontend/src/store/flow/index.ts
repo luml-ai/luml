@@ -8,12 +8,11 @@ import type {
   RanCell,
   RanLane,
 } from '@/api/slices/workspace/workspace.interface'
-import type { PublishedAsset, PublishTarget } from '@/flow/api/types'
+import type { AgentSessionRecord, PublishedAsset, PublishTarget } from '@/flow/api/types'
 import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/lanes/interface'
 import type {
   NotebookAssetInterface,
   NotebookAssetType,
-  PairableAgentInterface,
 } from '@/components/notebooks/notebooks.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -141,7 +140,22 @@ export const useFlowStore = defineStore('flow', () => {
 
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
-  const pairedAgentLabel = computed(() => currentBranch.value?.agent ?? null)
+  /**
+   * Every registration on the flow, newest first. Read off `tree`, then kept
+   * current by the daemon's `agents` frames — the lease is the daemon's memory,
+   * and only it can say when a connection is gone.
+   */
+  const agentSessions = ref<AgentSessionRecord[]>([])
+  /**
+   * Paired means somebody is on the other end: a leased session. A row without
+   * a lease was registered by hand for attribution, and nobody is behind it.
+   */
+  const pairedAgent = computed(() =>
+    currentBranch.value?.checked_out
+      ? (agentSessions.value.find((session) => session.leased) ?? null)
+      : null,
+  )
+  const pairedAgentLabel = computed(() => pairedAgent.value?.label ?? null)
   const notebookCells = computed(() => cells.value.map(toNotebookCell))
   const currentBranchActivities = computed(() => {
     const branchId = currentBranch.value?.branch_id
@@ -228,12 +242,9 @@ export const useFlowStore = defineStore('flow', () => {
     )
   }
 
-  async function pairAgent(agent: PairableAgentInterface) {
-    const flow = currentFlow.value ?? undefined
-    if (pairedAgentLabel.value) {
-      await workspaceApi.unpairAgent(flow).catch(() => undefined)
-    }
-    await workspaceApi.pairAgent(agent.id, agent.name, flow)
+  /** Clear a registration nobody is behind. The daemon announces the new list. */
+  async function endAgentSession(actor: string) {
+    await workspaceApi.endAgentSession(actor, currentFlow.value ?? undefined)
     await fetchBranches()
   }
 
@@ -318,6 +329,12 @@ export const useFlowStore = defineStore('flow', () => {
         if (frame.type === 'lagged') return
         if (frame.flow !== opened.path) return
         if (frame.type === 'state') return
+        if (frame.type === 'agents') {
+          // The whole list at that moment, lease state included — replace it.
+          // Nothing else in the tree moved, so no refetch is owed for it.
+          agentSessions.value = frame.sessions
+          return
+        }
         scheduleLiveRefetch()
       })
       stream.connect()
@@ -352,6 +369,7 @@ export const useFlowStore = defineStore('flow', () => {
     try {
       const tree = await workspaceApi.tree(currentFlow.value ?? undefined)
       branches.value = tree.branches
+      agentSessions.value = tree.agent_sessions ?? []
     } catch (error) {
       toast.add(errorToast(error, 'Failed to load branches'))
     } finally {
@@ -575,6 +593,7 @@ export const useFlowStore = defineStore('flow', () => {
     isTerminalOpen.value = false
     terminalHistory.value = []
     branches.value = []
+    agentSessions.value = []
     currentFlow.value = null
     isBranchesLoading.value = false
     isSwitchingBranch.value = false
@@ -654,7 +673,9 @@ export const useFlowStore = defineStore('flow', () => {
     uploadModelTarget,
     setUploadModelTarget,
     publishModel,
+    agentSessions,
+    pairedAgent,
     pairedAgentLabel,
-    pairAgent,
+    endAgentSession,
   }
 })

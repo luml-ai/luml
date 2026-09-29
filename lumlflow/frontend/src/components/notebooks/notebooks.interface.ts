@@ -44,10 +44,4 @@ export interface SidebarTooltipPlugProps {
   icon?: LucideIcon
 }
 
-export interface PairableAgentInterface {
-  id: string
-  name: string
-  icon: LucideIcon
-}
-
 export type NotebookHealthState = CellStaleState | 'empty'

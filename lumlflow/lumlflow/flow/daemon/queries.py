@@ -417,7 +417,29 @@ def hygiene(session: "FlowSession") -> list[str]:
     return [stray_note(path) for path in sorted(tree.files) if path.startswith(prefix)]
 
 
-def tree(session: "FlowSession") -> dict[str, Any]:
+def agent_sessions(
+    session: "FlowSession", *, leased: frozenset[str] = frozenset()
+) -> list[dict[str, Any]]:
+    """Registered agent sessions, newest first, each saying whether it is live.
+
+    The journal knows who registered; only the daemon knows whose connection is
+    still there, and `leased` is that knowledge handed in. A surface reads
+    "paired" off the flag, never off the row's mere existence.
+    """
+    return [
+        {
+            "actor": row.actor,
+            "label": row.label,
+            "begun_step": row.begun_step,
+            "leased": row.actor in leased,
+        }
+        for row in session.store.index.agent_sessions()
+    ]
+
+
+def tree(
+    session: "FlowSession", *, leased: frozenset[str] = frozenset()
+) -> dict[str, Any]:
     """The fork tree: every branch, where it split, and how it stands.
 
     Read from the store rather than from any session's memory, so a branch
@@ -430,6 +452,7 @@ def tree(session: "FlowSession") -> dict[str, Any]:
     return {
         "flow": session.ref.name,
         "branch": session.branch,
+        "agent_sessions": agent_sessions(session, leased=leased),
         "branches": [
             _branch(session, record, checked_out=_same(bound, record), agent=agent)
             for record in index.branches()

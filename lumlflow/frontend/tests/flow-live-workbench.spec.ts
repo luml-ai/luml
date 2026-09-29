@@ -458,6 +458,17 @@ describe('agent setup', () => {
         ops: [{ op: 'agent_begin', actor: 'claude-code-1', label: 'Claude Code agent' }],
       }),
     })
+    // The registration alone pairs nobody; the daemon's word that the MCP
+    // connection holds a lease on it is what flips the label.
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'agents',
+      flow: FLOW,
+      step: 3,
+      sessions: [
+        { actor: 'claude-code-1', label: 'Claude Code agent', begun_step: 3, leased: true },
+      ],
+    })
     await settle()
 
     expect(wrapper.text()).toContain('Claude Code agent')
@@ -1090,6 +1101,13 @@ describe('the left panel is scoped to the viewed branch', () => {
         ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
       }),
     })
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'agents',
+      flow: FLOW,
+      step: 18,
+      sessions: [{ actor: 'claude-1', label: 'claude-1', begun_step: 18, leased: true }],
+    })
     await settle()
 
     expect(wrapper.findComponent(AgentTaskLine).text()).toContain('main')
@@ -1307,7 +1325,7 @@ describe('the session is a journal subscription', () => {
     wrapper.unmount()
   })
 
-  it('flips to the paired agent the moment its registration arrives', async () => {
+  it('flips to the paired agent the moment the daemon says its connection holds', async () => {
     const { wrapper, live } = await workbench()
 
     expect(wrapper.text()).toContain('not paired')
@@ -1321,6 +1339,13 @@ describe('the session is a journal subscription', () => {
         intent: 'session start',
         ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
       }),
+    })
+    live.socket.deliver({
+      channel: 'journal',
+      type: 'agents',
+      flow: FLOW,
+      step: 16,
+      sessions: [{ actor: 'claude-1', label: 'claude-1', begun_step: 16, leased: true }],
     })
     await settle()
 

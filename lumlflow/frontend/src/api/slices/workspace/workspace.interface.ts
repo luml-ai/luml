@@ -1,3 +1,5 @@
+import type { AgentSessionRecord } from '@/flow/api/types'
+
 export interface WorkspaceFlow {
   name: string
   path: string
@@ -54,6 +56,8 @@ export interface BranchRecord {
 export interface BranchTree {
   flow: string
   branch: string
+  /** Every registration on the flow, newest first; `leased` is what "paired" means. */
+  agent_sessions: AgentSessionRecord[]
   branches: BranchRecord[]
 }
 
@@ -78,13 +82,6 @@ export interface CheckpointedBranch {
   intent: string
   ts: string
   settled: boolean
-}
-
-export interface AgentSession {
-  flow: string
-  actor: string
-  label: string
-  leased: boolean
 }
 
 export interface EndedAgentSession {
