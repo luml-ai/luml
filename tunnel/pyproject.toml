@@ -14,7 +14,9 @@ relay = [
     "starlette>=0.47.0,<1.0.0",
     "uvicorn>=0.38.0,<1.0.0",
 ]
-luml = []
+luml = [
+    "luml-api>=0.4.0,<0.5.0",
+]
 
 [project.scripts]
 luml-tunnel = "luml_tunnel.cli:main"
@@ -25,6 +27,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["luml_tunnel"]
+
+[tool.uv.sources]
+luml-api = { path = "../sdk/python/api", editable = true }
 
 [dependency-groups]
 dev = [

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import signal
 import sys
 from collections.abc import Sequence
 from datetime import timedelta
@@ -56,6 +57,23 @@ def _dev_token(arguments: argparse.Namespace) -> int:
 
 
 def _expose(arguments: argparse.Namespace) -> int:
+    registration = (arguments.name, arguments.organization, arguments.orbit)
+    if arguments.relay_url is not None and any(registration):
+        print("Give either --relay-url or --name, --organization and --orbit", file=sys.stderr)
+        return 2
+    if arguments.relay_url is None:
+        if not all(registration):
+            print(
+                "Give --name, --organization and --orbit to register with LUML, "
+                "or --relay-url and a token to connect directly",
+                file=sys.stderr,
+            )
+            return 2
+        return _expose_through_luml(arguments)
+    return _expose_directly(arguments)
+
+
+def _expose_directly(arguments: argparse.Namespace) -> int:
     from luml_tunnel.agent import Agent, AgentRefusedError, FixedToken, LoopbackService
 
     token = arguments.token or os.environ.get(TOKEN_ENV)
@@ -78,6 +96,33 @@ def _expose(arguments: argparse.Namespace) -> int:
         return 1
     except KeyboardInterrupt:
         return 130
+    return 0
+
+
+def _expose_through_luml(arguments: argparse.Namespace) -> int:
+    from luml_tunnel.agent import AgentRefusedError, LoopbackService
+    from luml_tunnel.luml import LumlSessionError, expose_through_luml
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    async def run() -> None:
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for stop_signal in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(stop_signal, stop.set)
+        service = LoopbackService(arguments.port, arguments.present_loopback_host)
+        try:
+            await expose_through_luml(
+                arguments.name, arguments.organization, arguments.orbit, service, stop
+            )
+        finally:
+            await service.aclose()
+
+    try:
+        asyncio.run(run())
+    except (LumlSessionError, AgentRefusedError) as error:
+        print(error, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -151,8 +196,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
     expose = commands.add_parser("expose", help="Expose a service on a loopback port")
     expose.add_argument("port", type=_port, help="Port of the service on the loopback address")
-    expose.add_argument("--relay-url", required=True, help="Address agents connect to")
-    expose.add_argument("--token", help=f"Expose token; defaults to ${TOKEN_ENV}")
+    expose.add_argument("--name", help="Name of the session in LUML")
+    expose.add_argument("--organization", help="Organization in LUML, by id or name")
+    expose.add_argument("--orbit", help="Orbit in LUML, by id or name")
+    expose.add_argument("--relay-url", help="Address agents connect to, to connect without LUML")
+    expose.add_argument(
+        "--token", help=f"Expose token when connecting without LUML; defaults to ${TOKEN_ENV}"
+    )
     expose.add_argument(
         "--present-loopback-host",
         action="store_true",
@@ -220,8 +270,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
     try:
         return int(parsed.handler(parsed))
     except ModuleNotFoundError as error:
+        extra = "luml" if (error.name or "").startswith("luml_api") else "relay"
         print(
-            f"{error.name} is missing; install luml-tunnel[relay] for this command",
+            f"{error.name} is missing; install luml-tunnel[{extra}] for this command",
             file=sys.stderr,
         )
         return 1

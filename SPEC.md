@@ -684,14 +684,14 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Add tests in `sdk/python/api/tests/unit/`, following `test_satellite_resources.py`
   - [x] Run ruff, mypy and pytest in `sdk/python/api/`
 
-- [ ] Add LUML registration to the expose command
-  - [ ] Make the LUML extra in `tunnel/pyproject.toml` depend on `luml-api`, with a local source for development as in `lumlflow/pyproject.toml`
-  - [ ] Add LUML as a second implementation of where the agent gets its token
-  - [ ] Let `luml-tunnel expose` take a name, the organization and the orbit, and read the API key and the address of LUML from the environment variables the API client uses
-  - [ ] Start the session, connect, print the address of the session in the LUML app, and send heartbeats that report the state of the connection
-  - [ ] Present a renewed token to the relay when a heartbeat returns one
-  - [ ] Implement the behavior for every event in the Design table of the section The agent command
-  - [ ] Test against a faked LUML and the relay in one process, covering the agent command scenarios
+- [x] Add LUML registration to the expose command
+  - [x] Make the LUML extra in `tunnel/pyproject.toml` depend on `luml-api`, with a local source for development as in `lumlflow/pyproject.toml`
+  - [x] Add LUML as a second implementation of where the agent gets its token
+  - [x] Let `luml-tunnel expose` take a name, the organization and the orbit, and read the API key and the address of LUML from the environment variables the API client uses
+  - [x] Start the session, connect, print the address of the session in the LUML app, and send heartbeats that report the state of the connection
+  - [x] Present a renewed token to the relay when a heartbeat returns one
+  - [x] Implement the behavior for every event in the Design table of the section The agent command
+  - [x] Test against a faked LUML and the relay in one process, covering the agent command scenarios
 
 - [ ] Add the relay to the dev stack
   - [ ] Add `tunnel/Dockerfile` for the relay, following `satellite/kit/Dockerfile.monitoring`

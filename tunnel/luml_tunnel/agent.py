@@ -245,6 +245,14 @@ class Agent:
         self._service = service
         self._reconnect = reconnect or ReconnectPolicy()
         self._connection: AgentConnection | None = None
+        self._connected = asyncio.Event()
+
+    @property
+    def connected(self) -> bool:
+        return self._connected.is_set()
+
+    async def wait_connected(self) -> None:
+        await self._connected.wait()
 
     async def run(self) -> None:
         """Serve streams from the relay and reconnect whenever the connection ends.
@@ -291,9 +299,11 @@ class Agent:
                 raise AgentRefusedError("the relay does not speak " + SUBPROTOCOL)
             logger.info("Connected to the relay")
             self._connection = AgentConnection(_ClientWebSocketTransport(websocket))
+            self._connected.set()
             try:
                 await self._serve(self._connection)
             finally:
+                self._connected.clear()
                 self._connection = None
         if websocket.close_code == REPLACED_CLOSE_CODE:
             raise AgentRefusedError("another agent took over the session")
