@@ -459,6 +459,13 @@ def _select_recorder(
         )
     try:
         telemetry = create_telemetry(endpoint=endpoint)
+        if not telemetry.active:
+            logger.error("sidecar recording is off: telemetry initialization failed")
+            return (
+                NoOpRecorder(),
+                telemetry,
+                RecordingStatus(state="fault", reason="Telemetry initialization failed"),
+            )
         return InferenceInstrumentation(telemetry), telemetry, RecordingStatus(state="recording")
     except Exception:
         logger.exception("sidecar recording is off: telemetry initialization failed")
