@@ -634,13 +634,13 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Build the test setup that runs the relay, the agent and a small test service in one process, in `tunnel/tests/`
   - [x] Cover the scenarios: the package works without LUML, a request and its response, a large body, relay paths, loopback only, the public hostname, no connected agent, the service does not answer, what the service sees of the viewer
 
-- [ ] Add limits, reconnection and token renewal to the tunnel
-  - [ ] Enforce the limits on concurrent streams, request body size and idle time as relay settings, and announce them to the agent when it connects
-  - [ ] Replace the old connection when a second agent connects for the same session
-  - [ ] Close a connection whose token has expired; accept a renewed token on the open connection
-  - [ ] Ask agents to reconnect before the relay shuts down
-  - [ ] Reconnect from the agent with growing pauses between failed attempts
-  - [ ] Cover the scenarios: a second agent, the relay restarts, a token expires, a renewed token, a request over a limit
+- [x] Add limits, reconnection and token renewal to the tunnel
+  - [x] Enforce the limits on concurrent streams, request body size and idle time as relay settings, and announce them to the agent when it connects
+  - [x] Replace the old connection when a second agent connects for the same session
+  - [x] Close a connection whose token has expired; accept a renewed token on the open connection
+  - [x] Ask agents to reconnect before the relay shuts down
+  - [x] Reconnect from the agent with growing pauses between failed attempts
+  - [x] Cover the scenarios: a second agent, the relay restarts, a token expires, a renewed token, a request over a limit
 
 - [ ] Forward WebSocket connections through the tunnel
   - [ ] Accept WebSocket connections from viewers on a session's hostname and open a stream for each

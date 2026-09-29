@@ -6,6 +6,7 @@ import socket
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 
 import httpx
@@ -16,10 +17,12 @@ from starlette.responses import Response, StreamingResponse
 from starlette.routing import Route
 from starlette.types import ASGIApp
 
-from luml_tunnel.agent import Agent, FixedToken, LoopbackService
+from luml_tunnel.agent import Agent, FixedToken, LoopbackService, ReconnectPolicy
 from luml_tunnel.frames import RelayLimits
 from luml_tunnel.headers import TOKEN_HEADER
-from luml_tunnel.relay import CONNECT_PATH, Relay, RelaySettings
+from luml_tunnel.relay import CONNECT_PATH, Relay, RelayServer, RelaySettings
+from luml_tunnel.signing import TokenSigner
+from luml_tunnel.tokens import TokenKind
 from luml_tunnel.verification import IssuerKeys, JwksTokenVerifier
 
 ISSUER = "https://luml.example"
@@ -31,6 +34,8 @@ USER = "user-1"
 
 LARGE_BODY_CHUNK = 64 * 1024
 LARGE_BODY_CHUNKS = 8192
+
+FAST_RECONNECT = ReconnectPolicy(initial_delay=0.05, max_delay=0.4)
 
 
 @dataclass
@@ -49,11 +54,13 @@ class RecordedRequest:
 class EchoService:
     requests: list[RecordedRequest] = field(default_factory=list)
     large_body_produced: int = 0
+    stall_released: asyncio.Event = field(default_factory=asyncio.Event)
 
     def app(self) -> Starlette:
         return Starlette(
             routes=[
                 Route("/large", self._large),
+                Route("/stall", self._stall),
                 Route("/{path:path}", self._echo, methods=["GET", "POST", "PUT", "DELETE"]),
             ]
         )
@@ -85,12 +92,16 @@ class EchoService:
 
         return StreamingResponse(chunks(), media_type="application/octet-stream")
 
+    async def _stall(self, request: Request) -> Response:
+        await self.stall_released.wait()
+        return Response("released")
 
-def bound_socket() -> socket.socket:
-    """A socket bound to a free loopback port; connections are refused until it serves."""
+
+def bound_socket(port: int = 0) -> socket.socket:
+    """A socket bound to a loopback port; connections are refused until it serves."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("127.0.0.1", 0))
+    sock.bind(("127.0.0.1", port))
     return sock
 
 
@@ -109,7 +120,7 @@ async def serve(app: ASGIApp, sock: socket.socket | None = None) -> AsyncGenerat
         timeout_graceful_shutdown=1,
         proxy_headers=False,
     )
-    server = uvicorn.Server(config)
+    server = RelayServer(app, config) if isinstance(app, Relay) else uvicorn.Server(config)
     serving = asyncio.create_task(server.serve(sockets=[sock]))
     await until(lambda: server.started or serving.done())
     if serving.done():
@@ -139,6 +150,16 @@ def create_relay(key_file: Path, limits: RelayLimits | None = None) -> Relay:
     return Relay(settings, verifier)
 
 
+def sign(
+    signer: TokenSigner,
+    kind: TokenKind,
+    session: str = SESSION,
+    user: str = USER,
+    lifetime: timedelta = timedelta(minutes=10),
+) -> str:
+    return signer.sign(kind, RELAY_ID, session, user, lifetime)
+
+
 def relay_url(relay_port: int) -> str:
     return f"ws://127.0.0.1:{relay_port}{CONNECT_PATH}"
 
@@ -150,15 +171,16 @@ async def running_agent(
     token: str,
     service_port: int,
     present_loopback_host: bool = False,
-) -> AsyncGenerator[asyncio.Task[None]]:
+) -> AsyncGenerator[Agent]:
     service = LoopbackService(service_port, present_loopback_host)
-    agent = Agent(relay_url(relay_port), FixedToken(token), service)
+    agent = Agent(relay_url(relay_port), FixedToken(token), service, FAST_RECONNECT)
+    previous = relay.agents.get(SESSION)
     running = asyncio.create_task(agent.run())
     try:
-        await until(lambda: relay.agents.get(SESSION) is not None or running.done())
+        await until(lambda: relay.agents.get(SESSION) not in (None, previous) or running.done())
         if running.done():
             running.result()
-        yield running
+        yield agent
     finally:
         running.cancel()
         await asyncio.gather(running, return_exceptions=True)

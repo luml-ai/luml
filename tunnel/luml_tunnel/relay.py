@@ -2,13 +2,26 @@ import asyncio
 import contextlib
 import logging
 import posixpath
+import socket
+import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
+import uvicorn
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.types import Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from luml_tunnel.frames import SUBPROTOCOL, Data, End, Headers, RelayLimits, ResponseHead
+from luml_tunnel.frames import (
+    REPLACED_CLOSE_CODE,
+    SUBPROTOCOL,
+    TOKEN_EXPIRED_CLOSE_CODE,
+    Data,
+    End,
+    Headers,
+    RelayLimits,
+    ResponseHead,
+)
 from luml_tunnel.headers import (
     TOKEN_HEADER,
     USER_HEADER,
@@ -16,7 +29,12 @@ from luml_tunnel.headers import (
     encode_raw_headers,
     without_hop_by_hop,
 )
-from luml_tunnel.protocol import RelayConnection, Stream, StreamResetError
+from luml_tunnel.protocol import (
+    RelayConnection,
+    Stream,
+    StreamResetError,
+    TooManyStreamsError,
+)
 from luml_tunnel.routing import (
     AgentRegistry,
     HostnameSessionResolver,
@@ -30,6 +48,13 @@ logger = logging.getLogger(__name__)
 CONNECT_PATH = "/connect"
 HEALTH_PATH = "/health"
 RELAY_PATH_PREFIX = "/.luml-tunnel/"
+
+_BODY_TOO_LARGE = "request body too large"
+_IDLE = "stream idle"
+_REFUSALS = {
+    _BODY_TOO_LARGE: ("The request body is too large", 413),
+    _IDLE: ("The session did not answer in time", 504),
+}
 
 # Set by the relay from the connection itself, so values a viewer sends are dropped.
 _FORWARDING_HEADERS = frozenset(
@@ -105,14 +130,45 @@ class Relay:
             return
         await websocket.accept(SUBPROTOCOL)
         connection = RelayConnection(_AsgiWebSocketTransport(websocket), self.settings.limits)
+        previous = self.agents.get(claims.session)
         self.agents.register(claims.session, connection)
+        if previous is not None:
+            logger.info("A new agent replaces the one of session %s", claims.session)
+            await previous.close(REPLACED_CLOSE_CODE, "replaced by another agent")
+        watching_expiry = asyncio.create_task(self._close_on_expiry(connection, claims))
         try:
             await connection.announce_limits()
             await connection.run()
         except StreamResetError:
             pass
         finally:
+            watching_expiry.cancel()
             self.agents.unregister(claims.session, connection)
+
+    async def _close_on_expiry(self, connection: RelayConnection, claims: TunnelClaims) -> None:
+        """Close the connection when its token expires, unless the agent renews it first."""
+        expires_at = claims.expires_at
+        while True:
+            remaining = (expires_at - datetime.now(UTC)).total_seconds()
+            try:
+                async with asyncio.timeout(max(remaining, 0)):
+                    token = await connection.receive_renewed_token()
+            except TimeoutError:
+                await connection.close(TOKEN_EXPIRED_CLOSE_CODE, "token expired")
+                return
+            if token is None:
+                return
+            try:
+                renewed = await self._verifier.verify(token, TokenKind.EXPOSE, claims.session)
+            except TokenRejectedError as error:
+                logger.info("Ignored a renewed token for session %s: %s", claims.session, error)
+                continue
+            expires_at = max(expires_at, renewed.expires_at)
+
+    async def ask_agents_to_reconnect(self) -> None:
+        for connection in self.agents.connections():
+            with contextlib.suppress(StreamResetError):
+                await connection.ask_to_reconnect()
 
     async def _serve_viewer(self, scope: Scope, receive: Receive, send: Send, session: str) -> None:
         token = _header(scope, TOKEN_HEADER)
@@ -123,6 +179,10 @@ class Relay:
         except TokenRejectedError:
             await PlainTextResponse("Access is needed", 401)(scope, receive, send)
             return
+        limits = self.settings.limits
+        if _declared_length(scope) > limits.max_request_body_bytes:
+            await PlainTextResponse(*_REFUSALS[_BODY_TOO_LARGE])(scope, receive, send)
+            return
         connection = self.agents.get(session)
         try:
             if connection is None:
@@ -130,18 +190,36 @@ class Relay:
             stream = await connection.open_http(
                 scope["method"], _request_target(scope), _forwarded_headers(scope, claims)
             )
+        except TooManyStreamsError:
+            response = PlainTextResponse("The session has too many open requests", 503)
+            await response(scope, receive, send)
+            return
         except StreamResetError:
             await _not_connected(scope, receive, send)
             return
-        await _exchange(stream, scope, receive, send)
+        watching_idle = asyncio.create_task(_reset_when_idle(stream, limits.idle_timeout_seconds))
+        try:
+            await _exchange(stream, scope, receive, send, limits.max_request_body_bytes)
+        finally:
+            watching_idle.cancel()
 
 
-async def _exchange(stream: Stream, scope: Scope, receive: Receive, send: Send) -> None:
+async def _reset_when_idle(stream: Stream, idle_timeout: float) -> None:
+    while (idle := time.monotonic() - stream.last_activity) < idle_timeout:
+        await asyncio.sleep(idle_timeout - idle)
+    with contextlib.suppress(StreamResetError):
+        await stream.reset(_IDLE)
+
+
+async def _exchange(
+    stream: Stream, scope: Scope, receive: Receive, send: Send, max_body_bytes: int
+) -> None:
     """Stream the viewer's request to the agent and the agent's response back."""
     request_sent = False
 
     async def upload() -> None:
         nonlocal request_sent
+        body_bytes = 0
         try:
             while True:
                 message = await receive()
@@ -149,6 +227,10 @@ async def _exchange(stream: Stream, scope: Scope, receive: Receive, send: Send) 
                     await stream.reset("viewer disconnected")
                     return
                 if body := message.get("body", b""):
+                    body_bytes += len(body)
+                    if body_bytes > max_body_bytes:
+                        await stream.reset(_BODY_TOO_LARGE)
+                        return
                     await stream.send_data(body)
                 if not message.get("more_body", False):
                     break
@@ -178,9 +260,12 @@ async def _exchange(stream: Stream, scope: Scope, receive: Receive, send: Send) 
             if isinstance(frame, Data):
                 await send({"type": "http.response.body", "body": frame.data, "more_body": True})
         await send({"type": "http.response.body", "body": b"", "more_body": False})
-    except StreamResetError:
+    except StreamResetError as error:
         if not response_started:
-            await _not_connected(scope, receive, send)
+            if refusal := _REFUSALS.get(str(error)):
+                await PlainTextResponse(*refusal)(scope, receive, send)
+            else:
+                await _not_connected(scope, receive, send)
     finally:
         uploading.cancel()
         if not request_sent:
@@ -210,6 +295,22 @@ class _AsgiWebSocketTransport:
             if message.get("bytes") is not None:
                 return bytes(message["bytes"])
 
+    async def close(self, code: int, reason: str) -> None:
+        with contextlib.suppress(RuntimeError, OSError):
+            await self._websocket.close(code, reason)
+
+
+class RelayServer(uvicorn.Server):
+    """Asks connected agents to reconnect before the server shuts down."""
+
+    def __init__(self, relay: Relay, config: uvicorn.Config) -> None:
+        super().__init__(config)
+        self._relay = relay
+
+    async def shutdown(self, sockets: list[socket.socket] | None = None) -> None:
+        await self._relay.ask_agents_to_reconnect()
+        await super().shutdown(sockets)
+
 
 async def _run_lifespan(receive: Receive, send: Send) -> None:
     while True:
@@ -227,6 +328,11 @@ def _header(scope: Scope, name: str) -> str | None:
         if raw_name.lower() == encoded:
             return str(raw_value.decode("latin-1"))
     return None
+
+
+def _declared_length(scope: Scope) -> int:
+    length = _header(scope, "content-length")
+    return int(length) if length is not None and length.isdigit() else 0
 
 
 def _is_relay_path(path: str) -> bool:

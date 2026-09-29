@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
 
+from luml_tunnel.frames import RelayLimits
 from luml_tunnel.tokens import TokenKind
 
 PRIVATE_KEY_FILE = "private-key.pem"
@@ -79,7 +80,7 @@ def _expose(arguments: argparse.Namespace) -> int:
 def _relay(arguments: argparse.Namespace) -> int:
     import uvicorn
 
-    from luml_tunnel.relay import Relay, RelaySettings
+    from luml_tunnel.relay import Relay, RelayServer, RelaySettings
     from luml_tunnel.verification import IssuerKeys, JwksTokenVerifier
 
     settings = RelaySettings(
@@ -87,13 +88,18 @@ def _relay(arguments: argparse.Namespace) -> int:
         relay_id=arguments.relay_id,
         issuer=arguments.issuer,
         issuer_keys=arguments.issuer_keys,
+        limits=RelayLimits(
+            max_concurrent_streams=arguments.max_concurrent_streams,
+            max_request_body_bytes=arguments.max_request_body_bytes,
+            idle_timeout_seconds=arguments.idle_timeout,
+        ),
     )
     verifier = JwksTokenVerifier(
         IssuerKeys(settings.issuer_keys), settings.issuer, settings.relay_id
     )
-    uvicorn.run(
-        Relay(settings, verifier), host=arguments.host, port=arguments.port, ws="websockets-sansio"
-    )
+    relay = Relay(settings, verifier)
+    config = uvicorn.Config(relay, host=arguments.host, port=arguments.port, ws="websockets-sansio")
+    RelayServer(relay, config).run()
     return 0
 
 
@@ -103,6 +109,22 @@ def _port(value: str) -> int:
             f"{value!r} is not a port; the agent reaches only the loopback address"
         )
     return int(value)
+
+
+def _positive_int(value: str) -> int:
+    if not value.isdigit() or int(value) == 0:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a positive integer")
+    return int(value)
+
+
+def _positive_float(value: str) -> float:
+    try:
+        number = float(value)
+    except ValueError:
+        number = 0.0
+    if not number > 0:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a positive number")
+    return number
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -127,6 +149,24 @@ def _build_parser() -> argparse.ArgumentParser:
     relay.add_argument("--issuer-keys", required=True, help="Address or file of the issuer's JWKS")
     relay.add_argument("--host", default="0.0.0.0")
     relay.add_argument("--port", type=int, default=8080)
+    default_limits = RelayLimits()
+    relay.add_argument(
+        "--max-concurrent-streams",
+        type=_positive_int,
+        default=default_limits.max_concurrent_streams,
+        help="Open requests allowed per session",
+    )
+    relay.add_argument(
+        "--max-request-body-bytes",
+        type=_positive_int,
+        default=default_limits.max_request_body_bytes,
+    )
+    relay.add_argument(
+        "--idle-timeout",
+        type=_positive_float,
+        default=default_limits.idle_timeout_seconds,
+        help="Seconds a request may pass without any data before the relay ends it",
+    )
     relay.set_defaults(handler=_relay)
 
     dev = commands.add_parser("dev", help="Create keys and tokens for use without LUML")

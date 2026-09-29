@@ -2,14 +2,15 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
 from websockets.asyncio.client import ClientConnection, connect
-from websockets.exceptions import ConnectionClosed, InvalidHandshake
+from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidStatus
 from websockets.typing import Subprotocol
 
-from luml_tunnel.frames import SUBPROTOCOL, Data, End, Headers, OpenHttp
+from luml_tunnel.frames import REPLACED_CLOSE_CODE, SUBPROTOCOL, Data, End, Headers, OpenHttp
 from luml_tunnel.headers import decode_raw_headers, has_body, without_hop_by_hop
 from luml_tunnel.protocol import AgentConnection, Stream, StreamResetError
 
@@ -40,6 +41,15 @@ class FixedToken:
 
 class AgentRefusedError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class ReconnectPolicy:
+    initial_delay: float = 1.0
+    max_delay: float = 60.0
+
+    def delay(self, failed_attempts: int) -> float:
+        return min(self.initial_delay * 2.0**failed_attempts, self.max_delay)
 
 
 class LoopbackService:
@@ -122,13 +132,43 @@ class LoopbackService:
 
 
 class Agent:
-    def __init__(self, relay_url: str, tokens: TokenSource, service: LocalService) -> None:
+    def __init__(
+        self,
+        relay_url: str,
+        tokens: TokenSource,
+        service: LocalService,
+        reconnect: ReconnectPolicy | None = None,
+    ) -> None:
         self._relay_url = relay_url
         self._tokens = tokens
         self._service = service
+        self._reconnect = reconnect or ReconnectPolicy()
+        self._connection: AgentConnection | None = None
 
     async def run(self) -> None:
-        """Serve streams over one connection to the relay until it closes."""
+        """Serve streams from the relay and reconnect whenever the connection ends.
+
+        Runs until cancelled, or raises AgentRefusedError when the relay refuses the agent
+        or another agent takes over the session.
+        """
+        failed_attempts = 0
+        while True:
+            if await self._connect_and_serve():
+                failed_attempts = 0
+            else:
+                failed_attempts += 1
+            delay = self._reconnect.delay(failed_attempts)
+            logger.info("Reconnecting to the relay in %.1f s", delay)
+            await asyncio.sleep(delay)
+
+    async def renew_token(self, token: str) -> None:
+        """Present a renewed token on the open connection, if there is one."""
+        if self._connection is not None:
+            with contextlib.suppress(StreamResetError):
+                await self._connection.renew_token(token)
+
+    async def _connect_and_serve(self) -> bool:
+        """Serve one connection until it ends; False when it could not be opened."""
         token = await self._tokens.token()
         try:
             websocket = await connect(
@@ -136,13 +176,27 @@ class Agent:
                 subprotocols=[Subprotocol(SUBPROTOCOL)],
                 additional_headers={"Authorization": f"Bearer {token}"},
             )
-        except (OSError, InvalidHandshake) as error:
-            raise AgentRefusedError(f"could not connect to the relay: {error}") from error
+        except InvalidStatus as error:
+            if 400 <= error.response.status_code < 500:
+                raise AgentRefusedError(f"the relay refused the agent: {error}") from error
+            logger.warning("Could not connect to the relay: %s", error)
+            return False
+        except (OSError, TimeoutError, InvalidHandshake) as error:
+            logger.warning("Could not connect to the relay: %s", error)
+            return False
         async with websocket:
             if websocket.subprotocol != SUBPROTOCOL:
                 raise AgentRefusedError("the relay does not speak " + SUBPROTOCOL)
             logger.info("Connected to the relay")
-            await self._serve(AgentConnection(_ClientWebSocketTransport(websocket)))
+            self._connection = AgentConnection(_ClientWebSocketTransport(websocket))
+            try:
+                await self._serve(self._connection)
+            finally:
+                self._connection = None
+        if websocket.close_code == REPLACED_CLOSE_CODE:
+            raise AgentRefusedError("another agent took over the session")
+        logger.warning("The connection to the relay ended")
+        return True
 
     async def _serve(self, connection: AgentConnection) -> None:
         handlers: set[asyncio.Task[None]] = set()
@@ -152,7 +206,10 @@ class Agent:
                 handler = asyncio.create_task(self._handle(stream))
                 handlers.add(handler)
                 handler.add_done_callback(handlers.discard)
-            await reading
+            if connection.reconnect_requested.is_set():
+                logger.info("The relay asked the agent to reconnect")
+            else:
+                await reading
         finally:
             for handler in [reading, *handlers]:
                 handler.cancel()
@@ -186,3 +243,6 @@ class _ClientWebSocketTransport:
                 return None
             if isinstance(message, bytes):
                 return message
+
+    async def close(self, code: int, reason: str) -> None:
+        await self._websocket.close(code, reason)

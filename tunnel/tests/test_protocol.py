@@ -24,6 +24,7 @@ from luml_tunnel.protocol import (
     RelayConnection,
     Stream,
     StreamResetError,
+    TooManyStreamsError,
 )
 
 WINDOW = 1024
@@ -41,6 +42,10 @@ class MemoryTransport:
 
     async def receive(self) -> bytes | None:
         return await self.inbox.get()
+
+    async def close(self, code: int, reason: str) -> None:
+        self.inbox.put_nowait(None)
+        self.outbox.put_nowait(None)
 
     def sent_data_bytes(self, stream_id: int) -> int:
         return sum(
@@ -286,6 +291,29 @@ async def test_request_to_reconnect_reaches_the_agent(tunnel: Tunnel) -> None:
     await tunnel.relay.ask_to_reconnect()
 
     await asyncio.wait_for(tunnel.agent.reconnect_requested.wait(), 1)
+    assert await asyncio.wait_for(tunnel.agent.accept_stream(), 1) is None
+
+
+async def test_relay_opens_no_more_streams_than_its_limit() -> None:
+    relay = RelayConnection(
+        MemoryTransport(inbox=asyncio.Queue(), outbox=asyncio.Queue()),
+        RelayLimits(max_concurrent_streams=2),
+    )
+    first = await relay.open_http("GET", "/", [])
+    await relay.open_http("GET", "/", [])
+
+    with pytest.raises(TooManyStreamsError):
+        await relay.open_http("GET", "/", [])
+
+    await first.reset("done")
+    await relay.open_http("GET", "/", [])
+
+
+async def test_closing_the_relay_side_ends_both_peers(tunnel: Tunnel) -> None:
+    await tunnel.relay.close(1000, "done")
+
+    assert await asyncio.wait_for(tunnel.agent.accept_stream(), 1) is None
+    assert await asyncio.wait_for(tunnel.relay.receive_renewed_token(), 1) is None
 
 
 async def test_finished_streams_are_forgotten(tunnel: Tunnel) -> None:

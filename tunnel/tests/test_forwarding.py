@@ -1,24 +1,20 @@
 import asyncio
-import json
 import os
 import subprocess
 import sys
-from collections.abc import AsyncGenerator, AsyncIterator
-from datetime import timedelta
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric import ec
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
 from websockets.typing import Subprotocol
 
 from luml_tunnel.agent import AgentRefusedError
 from luml_tunnel.cli import KEY_SET_FILE, PRIVATE_KEY_FILE, TOKEN_ENV, main
-from luml_tunnel.frames import RelayLimits
 from luml_tunnel.headers import TOKEN_HEADER, USER_HEADER
 from luml_tunnel.relay import Relay
-from luml_tunnel.signing import TokenSigner, generate_private_key, key_set
+from luml_tunnel.signing import TokenSigner
 from luml_tunnel.tokens import TokenKind
 from tests.harness import (
     BASE_DOMAIN,
@@ -36,72 +32,10 @@ from tests.harness import (
     relay_url,
     running_agent,
     serve,
+    sign,
     until,
     viewer,
 )
-
-WINDOW = 64 * 1024
-
-
-@pytest.fixture()
-def issuer_key() -> ec.EllipticCurvePrivateKey:
-    return generate_private_key()
-
-
-@pytest.fixture()
-def signer(issuer_key: ec.EllipticCurvePrivateKey) -> TokenSigner:
-    return TokenSigner(issuer_key, ISSUER)
-
-
-@pytest.fixture()
-def key_file(tmp_path: Path, issuer_key: ec.EllipticCurvePrivateKey) -> Path:
-    path = tmp_path / "jwks.json"
-    path.write_text(json.dumps(key_set(issuer_key.public_key())))
-    return path
-
-
-def _sign(signer: TokenSigner, kind: TokenKind, session: str = SESSION, user: str = USER) -> str:
-    return signer.sign(kind, RELAY_ID, session, user, timedelta(minutes=10))
-
-
-@pytest.fixture()
-def expose_token(signer: TokenSigner) -> str:
-    return _sign(signer, TokenKind.EXPOSE)
-
-
-@pytest.fixture()
-def view_token(signer: TokenSigner) -> str:
-    return _sign(signer, TokenKind.VIEW)
-
-
-@pytest.fixture()
-def echo() -> EchoService:
-    return EchoService()
-
-
-@pytest.fixture()
-async def service_port(echo: EchoService) -> AsyncGenerator[int]:
-    async with serve(echo.app()) as port:
-        yield port
-
-
-@pytest.fixture()
-def relay(key_file: Path) -> Relay:
-    return create_relay(key_file, RelayLimits(stream_window_bytes=WINDOW))
-
-
-@pytest.fixture()
-async def relay_port(relay: Relay) -> AsyncGenerator[int]:
-    async with serve(relay) as port:
-        yield port
-
-
-@pytest.fixture()
-async def connected(
-    relay: Relay, relay_port: int, expose_token: str, service_port: int
-) -> AsyncGenerator[None]:
-    async with running_agent(relay, relay_port, expose_token, service_port):
-        yield
 
 
 async def test_package_works_without_luml(
@@ -270,7 +204,7 @@ async def test_service_that_does_not_answer(
 async def test_service_sees_the_viewer_but_not_its_credentials(
     connected: None, relay_port: int, signer: TokenSigner, echo: EchoService
 ) -> None:
-    token = _sign(signer, TokenKind.VIEW, user="U")
+    token = sign(signer, TokenKind.VIEW, user="U")
     async with viewer(relay_port, token) as client:
         await client.get("/", headers={USER_HEADER: "someone-else", "x-forwarded-for": "10.0.0.1"})
 
@@ -292,8 +226,8 @@ async def test_viewer_without_a_fitting_view_token_is_refused(
 ) -> None:
     token = {
         None: None,
-        TokenKind.EXPOSE: _sign(signer, TokenKind.EXPOSE),
-        "other-session": _sign(signer, TokenKind.VIEW, session="other1"),
+        TokenKind.EXPOSE: sign(signer, TokenKind.EXPOSE),
+        "other-session": sign(signer, TokenKind.VIEW, session="other1"),
     }[token_kind]
     async with viewer(relay_port, token) as client:
         response = await client.get("/")

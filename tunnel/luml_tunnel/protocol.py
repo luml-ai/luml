@@ -1,5 +1,6 @@
 import asyncio
 import itertools
+import time
 from typing import Protocol
 
 from luml_tunnel.frames import (
@@ -35,8 +36,14 @@ class FrameTransport(Protocol):
         """Return the next message, or None once the connection is closed."""
         ...
 
+    async def close(self, code: int, reason: str) -> None: ...
+
 
 class StreamResetError(Exception):
+    pass
+
+
+class TooManyStreamsError(Exception):
     pass
 
 
@@ -61,6 +68,7 @@ class Stream:
         self._reset_reason: str | None = None
         self._sent_last = False
         self._received_last = False
+        self.last_activity = time.monotonic()
 
     async def send_head(self, status: int, headers: Headers) -> None:
         await self._send(ResponseHead(self.id, status, headers))
@@ -121,6 +129,7 @@ class Stream:
 
     async def _send(self, frame: Frame) -> None:
         self._raise_if_reset()
+        self.last_activity = time.monotonic()
         await self._connection.send(frame)
 
     def _raise_if_reset(self) -> None:
@@ -133,6 +142,7 @@ class Stream:
             self._connection.forget(self)
 
     async def _deliver(self, frame: InboundFrame) -> None:
+        self.last_activity = time.monotonic()
         if isinstance(frame, Data | WebSocketMessage):
             # The sender only sends while it holds credit, and its view of the credit never
             # exceeds ours, so a frame arriving without credit breaks the protocol.
@@ -147,6 +157,7 @@ class Stream:
         self._inbound.put_nowait(frame)
 
     def _add_credit(self, increment: int) -> None:
+        self.last_activity = time.monotonic()
         self._send_credit += increment
         self._credit_changed.set()
 
@@ -232,6 +243,10 @@ class RelayConnection(_Connection):
     async def ask_to_reconnect(self) -> None:
         await self.send(Reconnect())
 
+    async def close(self, code: int, reason: str) -> None:
+        async with self._send_lock:
+            await self._transport.close(code, reason)
+
     async def open_http(self, method: str, target: str, headers: Headers) -> Stream:
         return await self._open(OpenHttp(next(self._stream_ids), method, target, headers))
 
@@ -245,6 +260,8 @@ class RelayConnection(_Connection):
     async def _open(self, opening: OpenFrame) -> Stream:
         if self._closed:
             raise StreamResetError("connection closed")
+        if len(self._streams) >= self.limits.max_concurrent_streams:
+            raise TooManyStreamsError(f"{len(self._streams)} streams are open")
         stream = Stream(self, opening, self.limits.stream_window_bytes)
         self._streams[stream.id] = stream
         await self.send(opening)
@@ -276,7 +293,10 @@ class AgentConnection(_Connection):
         await self.send(RenewToken(token))
 
     async def accept_stream(self) -> Stream | None:
-        """Return the next stream the relay opens, or None once the connection is closed."""
+        """Return the next stream the relay opens.
+
+        Returns None once the connection is closed or the relay asks to reconnect.
+        """
         return await self._accepted.get()
 
     def _on_connection_frame(self, frame: ConnectionFrame) -> None:
@@ -284,6 +304,7 @@ class AgentConnection(_Connection):
             self.limits = frame
         elif isinstance(frame, Reconnect):
             self._reconnect_requested.set()
+            self._accepted.put_nowait(None)
 
     def _on_open(self, frame: OpenFrame) -> None:
         if frame.stream_id in self._streams:

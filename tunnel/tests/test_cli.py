@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from luml_tunnel.cli import KEY_SET_FILE, PRIVATE_KEY_FILE, main
+from luml_tunnel.frames import RelayLimits
+from luml_tunnel.relay import Relay, RelayServer
 from luml_tunnel.tokens import TokenKind
 from luml_tunnel.verification import IssuerKeys, JwksTokenVerifier
 
@@ -83,3 +85,46 @@ def test_expose_without_a_token_names_the_cause(
 
     assert main(["expose", "5000", "--relay-url", "ws://relay.example/connect"]) == 1
     assert "LUML_TUNNEL_TOKEN" in capsys.readouterr().err
+
+
+RELAY_ARGUMENTS = [
+    "relay",
+    "--base-domain",
+    "tunnel.example",
+    "--relay-id",
+    "dev-relay",
+    "--issuer",
+    "dev-issuer",
+    "--issuer-keys",
+    "jwks.json",
+]
+
+
+def test_relay_takes_its_limits_from_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    started: list[RelayServer] = []
+    monkeypatch.setattr(RelayServer, "run", lambda server, sockets=None: started.append(server))
+
+    limits = ["--max-concurrent-streams", "5", "--max-request-body-bytes", "2048"]
+    assert main([*RELAY_ARGUMENTS, *limits, "--idle-timeout", "1.5"]) == 0
+
+    [server] = started
+    assert isinstance(server.config.app, Relay)
+    assert server.config.app.settings.limits == RelayLimits(
+        max_concurrent_streams=5, max_request_body_bytes=2048, idle_timeout_seconds=1.5
+    )
+
+
+@pytest.mark.parametrize(
+    "limit",
+    [
+        ["--max-concurrent-streams", "0"],
+        ["--max-request-body-bytes", "-1"],
+        ["--idle-timeout", "0"],
+        ["--idle-timeout", "soon"],
+    ],
+)
+def test_relay_refuses_limits_that_are_not_positive(limit: list[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main([*RELAY_ARGUMENTS, *limit])
+
+    assert exit_info.value.code == 2

@@ -21,6 +21,8 @@ class AgentRegistry(Protocol):
 
     def get(self, session: str) -> RelayConnection | None: ...
 
+    def connections(self) -> list[RelayConnection]: ...
+
 
 class HostnameSessionResolver:
     def __init__(self, base_domain: str) -> None:
@@ -47,3 +49,6 @@ class InMemoryAgentRegistry:
 
     def get(self, session: str) -> RelayConnection | None:
         return self._connections.get(session)
+
+    def connections(self) -> list[RelayConnection]:
+        return list(self._connections.values())
