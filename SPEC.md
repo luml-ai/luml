@@ -30,6 +30,7 @@ the decisions that must be made by the reviewer before the work starts.
 | Test cases collected (with parametrization) | 1 054 (777 unit, 277 integration) |
 | Unit suite result / time | 777 passed, 11 s |
 | Integration suite result / time | 277 passed, 265 s (4 min 25 s) |
+| Backend CI workflow | one job, 6 to 7 minutes |
 | Files that use test classes | 10 of 62 (78 of 906 test functions) |
 | `@patch` decorators | 1 394 |
 | `@pytest.mark.asyncio` markers | 766 |
@@ -391,6 +392,14 @@ path. Deprecation warnings are printed on every run and nobody sees them: 4 in t
 unit run from the bucket secrets handler, 281 in the integration run from the alembic
 configuration.
 
+**F-30 (H) One sequential CI job, dominated by the integration tests.** The backend
+workflow is a single job that runs formatting, linting, type checking and then the
+whole test suite in one step. A run takes six to seven minutes; about four and a half
+of them are the integration tests, and nearly all of that is the database being
+rebuilt for each test (F-21). Everything before the test step takes about a minute and
+the unit tests take 11 seconds, but their result is reported only after the whole job
+ends. Dependencies are installed from scratch on every run.
+
 **F-29 (L) Type checking skips the tests.** The project configuration lists `tests`
 for mypy, CI runs mypy on `luml` only. The tests carry type annotations and 6
 `type: ignore` comments that nothing verifies.
@@ -507,10 +516,8 @@ A test belongs to the layer of the outermost thing it calls.
 
 - The test database name comes from one place. The fixture refuses to run when the
   configured connection string does not name that database.
-- The database is created and migrated once per run; tests are isolated from each
-  other without re-running migrations (decision D3 chooses the mechanism).
-- Tests that change the schema (migration tests, the migration part of the concurrency
-  guards) get a database of their own.
+- Migrations run once per test run; tests are isolated from each other without
+  re-running them (decision D3 chooses the mechanism).
 - Every engine created by a fixture is disposed by that fixture.
 
 ### 6.7 Configuration
@@ -518,8 +525,10 @@ A test belongs to the layer of the outermost thing it calls.
 - Pytest settings live in the project configuration: test paths, automatic asyncio
   mode, registered markers `unit` and `integration` applied by folder, warnings from
   project code turned into errors.
-- CI runs the two layers as separate steps so that a unit failure is reported in
-  seconds.
+- CI runs three parallel jobs in one workflow: static checks, unit tests, integration
+  tests. Only the integration job starts a database. Installed dependencies are cached
+  between runs.
+- All three jobs are required for a merge.
 
 ## 7. Target layout
 
@@ -654,11 +663,13 @@ Per handler file, largest first:
 - Stale names are fixed.
 - Outcome: `integration/repositories/` contains only repository tests.
 
-### Phase 8. Database lifecycle (F-21)
+### Phase 8. Database lifecycle and CI (F-21, F-30)
 
-- Implemented per decision D3.
+- The database lifecycle is implemented per decision D3.
+- The workflow is split into the three jobs of 6.7, per decision D9.
 - Outcome: integration run time drops from 265 seconds to under one minute, with the
-  same collected count and no order dependence.
+  same collected count and no order dependence; the whole workflow finishes in about
+  two minutes, and a lint or unit failure is reported in about one.
 
 ### Phase 9. Comments and leftovers (F-17, F-18, F-19)
 
@@ -667,8 +678,9 @@ Per handler file, largest first:
 - The shared condition cases file is handled per decision D4.
 - Outcome: no comment other than lint or type suppressions remains in `tests/`.
 
-Phases 1 and 2 are independent of everything else and can be merged first. Phases 5,
-6 and 7 depend on phase 3 and are independent of each other. Phase 8 depends on 4.
+Phases 1, 2 and 8 touch only the database fixture, the configuration and the workflow,
+are independent of everything else and can be merged first. Phases 5, 6 and 7 depend
+on phase 3 and are independent of each other.
 
 ## 9. Decisions for the reviewer
 
@@ -688,12 +700,18 @@ Recommended: yes, all 906 test functions become methods, done file by file insid
 phases 5, 6 and 7 rather than as one mechanical change, so that grouping is decided
 while the file is being read.
 
-**D3. How tests are isolated once the database is created only once.**
-Recommended: create and migrate once per run, empty all tables between tests.
-Migration tests and concurrency tests keep a private database. Alternative: wrap each
-test in a transaction that is rolled back, which is faster but does not work for the
-tests that open several connections or commit on purpose (concurrency guards, batch
-deletion, lineage), so two mechanisms would coexist.
+**D3. How tests are isolated once migrations run only once.**
+Recommended: migrate one template database at the start of the run and give every
+test its own database cloned from that template. Cloning takes about 50 milliseconds
+on the local Postgres against about one second for a migrated database today. Every
+test still starts from a fresh database, so no test has to change, and the tests that
+change the schema or open several connections need no special treatment.
+Alternative A: one database for the run, all tables emptied between tests. Slightly
+faster, but migration tests and the migration part of the concurrency guards need a
+private database, and any table missed by the cleanup leaks state.
+Alternative B: each test in a transaction that is rolled back. Fastest, but does not
+work for the tests that open several connections or commit on purpose (concurrency
+guards, batch deletion, lineage), so two mechanisms would coexist.
 
 **D4. The shared condition cases file (F-19).**
 Recommended: keep it as a data file, move it to a folder that says what it is
@@ -719,8 +737,24 @@ folder named after the module with one file and one class per area
 Alternative: keep one file per module and allow several classes in it, grouped by the
 method under test, as `test_platform_admin_auth.py` does today.
 
+**D9. How to shorten the backend workflow (F-30).**
+Splitting alone does not shorten it: the integration tests would still take four and a
+half minutes in their own job or workflow, only the lint and unit results would arrive
+earlier. The time is in the database fixture.
+Recommended: fix the fixture first (D3), then split the single job into three parallel
+jobs inside the same workflow. One workflow keeps one entry in the pull request checks
+and one trigger definition.
+Alternative A: two separate workflows, unit and integration. Same effect on time, two
+files to keep in sync.
+Alternative B: run the integration tests only when repositories, models, migrations
+or the integration tests themselves change. Not recommended: a handler change can
+break a handler-with-database test, and a skipped required check blocks the merge.
+Alternative C: run the integration tests in parallel workers. Not needed once the
+fixture is fixed, and it requires a database per worker.
+
 **D8. Order and size of the work.**
-Recommended: phases 1 and 2 immediately (small, remove a real hazard), then phase 3,
+Recommended: phases 1, 2 and 8 immediately (small, remove a real hazard and the slow
+workflow), then phase 3,
 then 5, 6, 7 as separate pull requests per folder. Phase 6 is the largest, about
 21 000 lines, and is best split into one pull request per handler file.
 
