@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -11,13 +12,24 @@ from luml.api.auth import api_key_validate_router, auth_router
 from luml.api.bucket_secret_urls import bucket_secret_urls_router
 from luml.api.organization.organization import organization_router
 from luml.api.organization_routes import organization_all_routers
+from luml.api.platform_admin import (
+    PLATFORM_ADMIN_PREFIX,
+    platform_admin_config,
+    platform_admin_routers,
+)
 from luml.api.satellites import satellite_contract_router, satellite_worker_router
 from luml.api.user_routes import users_routers
+from luml.handlers.platform_admin import (
+    PLATFORM_ADMIN_LOGGER,
+    configure_platform_admin_logging,
+)
 from luml.infra.error_handlers import request_validation_error_handler
 from luml.infra.exceptions import ApplicationError
-from luml.infra.middleware import SecurityHeadersMiddleware
+from luml.infra.middleware import CrossOriginBlockMiddleware, SecurityHeadersMiddleware
 from luml.infra.security import JWTAuthenticationBackend
 from luml.settings import config
+
+platform_admin_logger = logging.getLogger(PLATFORM_ADMIN_LOGGER)
 
 
 class AppService(FastAPI):
@@ -32,6 +44,8 @@ class AppService(FastAPI):
         self.include_router(router=satellite_contract_router)
         self.include_router(router=satellite_worker_router)
         self.include_router(router=bucket_secret_urls_router, prefix="/v1")
+        if platform_admin_config.enabled:
+            self.include_router(router=platform_admin_routers, prefix="/v1")
         self.include_authentication()
         self.include_error_handlers()
         self.custom_openapi()
@@ -45,6 +59,20 @@ class AppService(FastAPI):
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
+        )
+
+        if platform_admin_config.enabled:
+            self.enable_platform_admin()
+
+    def enable_platform_admin(self) -> None:
+        self.add_middleware(
+            CrossOriginBlockMiddleware, path_prefix=f"/v1{PLATFORM_ADMIN_PREFIX}"
+        )
+        configure_platform_admin_logging()
+        platform_admin_logger.info(
+            "Platform admin enabled for %s via %s",
+            platform_admin_config.admin_email,
+            ", ".join(sorted(platform_admin_config.auth_methods)),
         )
 
     def include_authentication(self) -> None:

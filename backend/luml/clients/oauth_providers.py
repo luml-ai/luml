@@ -45,12 +45,16 @@ class OAuthGoogleProvider(OAuthProvider):
         return config.GOOGLE_AUTH_URL + "?" + urlencode(params)
 
     @staticmethod
-    async def exchange_code_for_token(client: httpx.AsyncClient, code: str) -> str:
+    async def exchange_code_for_token(
+        client: httpx.AsyncClient,
+        code: str,
+        redirect_uri: str = config.GOOGLE_REDIRECT_URI,
+    ) -> str:
         data = {
             "code": code,
             "client_id": config.GOOGLE_CLIENT_ID,
             "client_secret": config.GOOGLE_CLIENT_SECRET,
-            "redirect_uri": config.GOOGLE_REDIRECT_URI,
+            "redirect_uri": redirect_uri,
             "grant_type": "authorization_code",
         }
 
@@ -85,6 +89,8 @@ class OAuthGoogleProvider(OAuthProvider):
             email=result.get("email"),
             full_name=result.get("name"),
             photo_url=result.get("picture"),
+            email_verified=result.get("verified_email"),
+            hosted_domain=result.get("hd"),
         )
 
 

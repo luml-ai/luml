@@ -145,6 +145,11 @@ async def test_get_organization_not_found(
 
 
 @patch(
+    "luml.handlers.organizations.UserRepository.get_user_organizations_limit",
+    new_callable=AsyncMock,
+    return_value=5,
+)
+@patch(
     "luml.handlers.organizations.UserRepository.get_user_organizations_membership_count",
     new_callable=AsyncMock,
 )
@@ -156,6 +161,7 @@ async def test_get_organization_not_found(
 async def test_create_organization(
     mock_create_organization: AsyncMock,
     mock_get_user_organizations_membership_count: AsyncMock,
+    mock_get_user_organizations_limit: AsyncMock,
     test_org: Organization,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -390,3 +396,46 @@ def test_organization_name_length() -> None:
         OrganizationCreateIn(name=long_name)
 
     assert "String should have at most" in str(excinfo.value)
+
+
+@patch(
+    "luml.handlers.organizations.UserRepository.create_organization",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.get_user_organizations_membership_count",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.get_user_organizations_limit",
+    new_callable=AsyncMock,
+)
+@pytest.mark.parametrize(
+    ("user_limit", "memberships", "allowed"),
+    [(5, 4, True), (5, 5, False), (8, 6, True), (1, 1, False)],
+)
+@pytest.mark.asyncio
+async def test_create_organization_respects_user_specific_limit(
+    mock_get_user_organizations_limit: AsyncMock,
+    mock_get_user_organizations_membership_count: AsyncMock,
+    mock_create_organization: AsyncMock,
+    user_limit: int,
+    memberships: int,
+    allowed: bool,
+    test_org: Organization,
+) -> None:
+    mock_get_user_organizations_limit.return_value = user_limit
+    mock_get_user_organizations_membership_count.return_value = memberships
+    mock_create_organization.return_value = OrganizationOrm(
+        id=test_org.id, name=test_org.name, created_at=test_org.created_at
+    )
+    org_to_create = OrganizationCreateIn(name=test_org.name)
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+
+    if allowed:
+        await handler.create_organization(user_id, org_to_create)
+        mock_create_organization.assert_awaited_once()
+    else:
+        with pytest.raises(OrganizationLimitReachedError):
+            await handler.create_organization(user_id, org_to_create)
+        mock_create_organization.assert_not_awaited()

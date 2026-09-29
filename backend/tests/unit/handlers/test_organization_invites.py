@@ -208,6 +208,11 @@ async def test_cancel_invite(
 
 
 @patch(
+    "luml.handlers.organizations.UserRepository.get_user_organizations_limit",
+    new_callable=AsyncMock,
+    return_value=5,
+)
+@patch(
     "luml.handlers.organizations.UserRepository.get_user_organizations_membership_count",
     new_callable=AsyncMock,
 )
@@ -239,6 +244,7 @@ async def test_accept_invite(
     mock_get_organization_members_count: AsyncMock,
     mock_get_organization_details: AsyncMock,
     mock_get_user_organizations_membership_count: AsyncMock,
+    mock_get_user_organizations_limit: AsyncMock,
     invite_accept_data: CreateOrganizationInvite,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
