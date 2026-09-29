@@ -18,8 +18,6 @@ import { ModelDownloader } from '@/lib/bucket-service'
 
 export type ArtifactAttachmentsStatus = 'idle' | 'loading' | 'available' | 'empty' | 'error'
 
-const MAX_ATTACHMENTS_INDEX_SIZE = 1024 * 1024
-
 export const useArtifactsStore = defineStore('artifacts', () => {
   const route = useRoute()
 
@@ -88,7 +86,6 @@ export const useArtifactsStore = defineStore('artifacts', () => {
         !Number.isSafeInteger(indexSize) ||
         indexOffset < 0 ||
         indexSize <= 0 ||
-        indexSize > MAX_ATTACHMENTS_INDEX_SIZE ||
         !Number.isSafeInteger(indexEnd) ||
         indexEnd > artifact.size ||
         !Number.isSafeInteger(tarOffset) ||
@@ -102,7 +99,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
       }
 
       const url = await getDownloadUrl(artifact.id)
-      const downloader = new ModelDownloader(url)
+      const downloader = new ModelDownloader(url, () => getDownloadUrl(artifact.id))
       const index = await downloader.getFileFromBucket<unknown>(fileIndex, indexPath)
 
       if (!FnnxService.isValidAttachmentsIndex(index, tarSize)) {

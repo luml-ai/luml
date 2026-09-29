@@ -126,18 +126,18 @@ describe('artifact attachment loading', () => {
     expect(store.attachmentsError).toContain('invalid content')
   })
 
-  it('rejects an oversized attachment index before requesting it', async () => {
+  it('accepts an attachment index larger than one MiB', async () => {
     const store = useArtifactsStore()
     const model = artifact()
     model.size = 2_000_000
     model.file_index['attachments.index.json'] = [100, 1_048_577]
+    mockedAxios.get.mockResolvedValue({ data: { 'attachments/report.pdf': [0, 42] } })
     store.setCurrentArtifact(model)
 
     await store.loadCurrentArtifactAttachments(model)
 
-    expect(store.attachmentsStatus).toBe('error')
-    expect(store.attachmentsError).toContain('invalid range')
-    expect(apiMocks.getDownloadUrl).not.toHaveBeenCalled()
+    expect(store.attachmentsStatus).toBe('available')
+    expect(apiMocks.getDownloadUrl).toHaveBeenCalledOnce()
   })
 
   it('ignores stale results after navigating to another artifact', async () => {
@@ -181,5 +181,28 @@ describe('artifact attachment loading', () => {
 
     expect(store.attachmentsStatus).toBe('available')
     expect(apiMocks.getDownloadUrl).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes the download URL before a later attachment read', async () => {
+    mockedAxios.get.mockResolvedValue({ data: { 'attachments/report.pdf': [0, 42] } })
+    apiMocks.getDownloadUrl
+      .mockResolvedValueOnce({ url: 'https://download.test/initial' })
+      .mockResolvedValueOnce({ url: 'https://download.test/refreshed' })
+    const store = useArtifactsStore()
+    const model = artifact()
+    store.setCurrentArtifact(model)
+
+    await store.loadCurrentArtifactAttachments(model)
+    await store.attachmentsDownloader!.getFileFromBucket(
+      store.attachmentsIndex!,
+      'attachments/report.pdf',
+      true,
+      0,
+    )
+
+    expect(mockedAxios.get).toHaveBeenLastCalledWith(
+      'https://download.test/refreshed',
+      expect.objectContaining({ headers: { Range: 'bytes=0-41' } }),
+    )
   })
 })

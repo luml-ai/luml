@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
 import { ArtifactStatusEnum, ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
 import ArtifactPage from '../index.vue'
+import { useArtifactsStore } from '@/stores/artifacts'
 
 const apiMocks = vi.hoisted(() => ({
   getArtifact: vi.fn(),
@@ -192,6 +193,23 @@ describe('artifact page attachment tab', () => {
     mockedAxios.get.mockResolvedValue({ data: {} })
     mountPage()
 
+    await flushPromises()
+
+    expect(routerHarness.replace).toHaveBeenCalledWith({ name: 'artifact' })
+  })
+
+  it('redirects when a retry finds an empty attachment index', async () => {
+    if (!routerHarness.route) throw new Error('Route harness was not initialized')
+    routerHarness.route.name = 'attachments'
+    apiMocks.getDownloadUrl.mockRejectedValueOnce(new Error('temporary failure'))
+    mockedAxios.get.mockResolvedValue({ data: {} })
+    mountPage()
+
+    await flushPromises()
+    expect(routerHarness.replace).not.toHaveBeenCalled()
+
+    const store = useArtifactsStore()
+    await store.loadCurrentArtifactAttachments(store.currentArtifact!)
     await flushPromises()
 
     expect(routerHarness.replace).toHaveBeenCalledWith({ name: 'artifact' })

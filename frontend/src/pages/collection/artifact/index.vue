@@ -210,13 +210,6 @@ async function onArtifactIdChange(artifactId: string | string[] | null) {
     const artifact = await artifactsStore.getArtifact(artifactId, requestInfo)
     artifactsStore.setCurrentArtifact(artifact)
     await artifactsStore.loadCurrentArtifactAttachments(artifact)
-    if (
-      artifactsStore.currentArtifact?.id === artifact.id &&
-      artifactsStore.attachmentsStatus === 'empty' &&
-      route.name === 'attachments'
-    ) {
-      await router.replace({ name: 'artifact' })
-    }
   } catch (e) {
     const message = getErrorMessage(e, 'Failed to set current artifact')
     toast.add(simpleErrorToast(message))
@@ -232,6 +225,15 @@ async function onTracksChanged() {
 }
 
 watch(() => route.params.artifactId, onArtifactIdChange, { immediate: true })
+
+watch(
+  () => artifactsStore.attachmentsStatus,
+  (status) => {
+    if (status === 'empty' && route.name === 'attachments') {
+      void router.replace({ name: 'artifact' })
+    }
+  },
+)
 
 onUnmounted(() => {
   artifactsStore.resetCurrentArtifact()
