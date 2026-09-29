@@ -615,13 +615,13 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Add `.github/workflows/[tunnel] tests-and-linters.yml`, following the satellite kit workflow, on Python 3.12
   - [x] Run ruff, mypy and pytest in `tunnel/`
 
-- [ ] Add tunnel protocol frames and flow control
-  - [ ] Choose the byte layout of the frames and implement encoding and decoding in `tunnel/luml_tunnel/`
-  - [ ] Implement streams for an HTTP request with its response and for a WebSocket connection, opened by the relay only
-  - [ ] Implement the credit window per stream, with a sender that stops when the window is used up
-  - [ ] Add the frames for the relay's limits, a renewed token and the request to reconnect
-  - [ ] Ignore frame types that are not known
-  - [ ] Test the protocol in memory, without a network: round trips of every frame, the credit window, unknown frame types
+- [x] Add tunnel protocol frames and flow control
+  - [x] Choose the byte layout of the frames and implement encoding and decoding in `tunnel/luml_tunnel/`
+  - [x] Implement streams for an HTTP request with its response and for a WebSocket connection, opened by the relay only
+  - [x] Implement the credit window per stream, with a sender that stops when the window is used up
+  - [x] Add the frames for the relay's limits, a renewed token and the request to reconnect
+  - [x] Ignore frame types that are not known
+  - [x] Test the protocol in memory, without a network: round trips of every frame, the credit window, unknown frame types
 
 - [ ] Add relay and agent with HTTP forwarding
   - [ ] Add the relay's web server behind the relay extra, and the `luml-tunnel relay` subcommand with settings for the base domain, the relay identifier, the issuer and the location of its keys
