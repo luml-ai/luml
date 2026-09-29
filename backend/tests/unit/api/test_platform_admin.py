@@ -141,11 +141,11 @@ def test_admin_token_in_cookie_is_ignored(client: TestClient, admin_token: str) 
     assert client.get(STATS_PATH).status_code == 401
 
 
-@patch("luml.handlers.auth.UserRepository.get_public_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.AuthHandler.handle_get_current_user", new_callable=AsyncMock)
 def test_user_session_token_is_rejected(
-    mock_get_public_user: AsyncMock, client: TestClient
+    mock_handle_get_current_user: AsyncMock, client: TestClient
 ) -> None:
-    mock_get_public_user.return_value = UserOut(id=USER_ID, email=ADMIN_EMAIL)
+    mock_handle_get_current_user.return_value = UserOut(id=USER_ID, email=ADMIN_EMAIL)
     user_token = AuthHandler(secret_key=config.AUTH_SECRET_KEY)._create_tokens(
         ADMIN_EMAIL
     )
