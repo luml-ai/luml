@@ -63,3 +63,23 @@ def test_keygen_does_not_overwrite_an_existing_key(tmp_path: Path) -> None:
 
     assert main(["dev", "keygen", "--directory", str(tmp_path)]) == 1
     assert (tmp_path / PRIVATE_KEY_FILE).read_text() == original
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [["localhost:5000"], ["10.0.0.5:5000"], ["5000", "--host", "10.0.0.5"], ["0"]],
+)
+def test_expose_accepts_only_a_port(arguments: list[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["expose", *arguments, "--relay-url", "ws://relay.example/connect", "--token", "t"])
+
+    assert exit_info.value.code == 2
+
+
+def test_expose_without_a_token_names_the_cause(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("LUML_TUNNEL_TOKEN", raising=False)
+
+    assert main(["expose", "5000", "--relay-url", "ws://relay.example/connect"]) == 1
+    assert "LUML_TUNNEL_TOKEN" in capsys.readouterr().err

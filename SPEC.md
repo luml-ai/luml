@@ -623,16 +623,16 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Ignore frame types that are not known
   - [x] Test the protocol in memory, without a network: round trips of every frame, the credit window, unknown frame types
 
-- [ ] Add relay and agent with HTTP forwarding
-  - [ ] Add the relay's web server behind the relay extra, and the `luml-tunnel relay` subcommand with settings for the base domain, the relay identifier, the issuer and the location of its keys
-  - [ ] Serve the address agents connect to and a health check on the base domain; agree the version through the subprotocol `luml-tunnel.v1`
-  - [ ] Find the session for a request by its hostname, keep connected agents in memory, and put both behind the interfaces listed in the Design section The tunnel package
-  - [ ] Accept viewers by the `X-Luml-Tunnel-Token` header; browser access comes in a later task
-  - [ ] Add the agent and the `luml-tunnel expose` subcommand with a relay address and a token given directly; forward to a port on the loopback address only; add the option that presents the loopback address as the host
-  - [ ] Apply the changes to incoming requests from the Design section on what the relay and the agent change
-  - [ ] Answer with status 502 when no agent is connected and when the service does not answer; never forward paths under `/.luml-tunnel/`
-  - [ ] Build the test setup that runs the relay, the agent and a small test service in one process, in `tunnel/tests/`
-  - [ ] Cover the scenarios: the package works without LUML, a request and its response, a large body, relay paths, loopback only, the public hostname, no connected agent, the service does not answer, what the service sees of the viewer
+- [x] Add relay and agent with HTTP forwarding
+  - [x] Add the relay's web server behind the relay extra, and the `luml-tunnel relay` subcommand with settings for the base domain, the relay identifier, the issuer and the location of its keys
+  - [x] Serve the address agents connect to and a health check on the base domain; agree the version through the subprotocol `luml-tunnel.v1`
+  - [x] Find the session for a request by its hostname, keep connected agents in memory, and put both behind the interfaces listed in the Design section The tunnel package
+  - [x] Accept viewers by the `X-Luml-Tunnel-Token` header; browser access comes in a later task
+  - [x] Add the agent and the `luml-tunnel expose` subcommand with a relay address and a token given directly; forward to a port on the loopback address only; add the option that presents the loopback address as the host
+  - [x] Apply the changes to incoming requests from the Design section on what the relay and the agent change
+  - [x] Answer with status 502 when no agent is connected and when the service does not answer; never forward paths under `/.luml-tunnel/`
+  - [x] Build the test setup that runs the relay, the agent and a small test service in one process, in `tunnel/tests/`
+  - [x] Cover the scenarios: the package works without LUML, a request and its response, a large body, relay paths, loopback only, the public hostname, no connected agent, the service does not answer, what the service sees of the viewer
 
 - [ ] Add limits, reconnection and token renewal to the tunnel
   - [ ] Enforce the limits on concurrent streams, request body size and idle time as relay settings, and announce them to the agent when it connects

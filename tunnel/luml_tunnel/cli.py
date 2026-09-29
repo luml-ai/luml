@@ -1,5 +1,8 @@
 import argparse
+import asyncio
 import json
+import logging
+import os
 import sys
 from collections.abc import Sequence
 from datetime import timedelta
@@ -9,6 +12,7 @@ from luml_tunnel.tokens import TokenKind
 
 PRIVATE_KEY_FILE = "private-key.pem"
 KEY_SET_FILE = "jwks.json"
+TOKEN_ENV = "LUML_TUNNEL_TOKEN"
 
 
 def _dev_keygen(arguments: argparse.Namespace) -> int:
@@ -46,9 +50,84 @@ def _dev_token(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _expose(arguments: argparse.Namespace) -> int:
+    from luml_tunnel.agent import Agent, AgentRefusedError, FixedToken, LoopbackService
+
+    token = arguments.token or os.environ.get(TOKEN_ENV)
+    if not token:
+        print(f"Give an expose token with --token or {TOKEN_ENV}", file=sys.stderr)
+        return 1
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    async def run() -> None:
+        service = LoopbackService(arguments.port, arguments.present_loopback_host)
+        try:
+            await Agent(arguments.relay_url, FixedToken(token), service).run()
+        finally:
+            await service.aclose()
+
+    try:
+        asyncio.run(run())
+    except AgentRefusedError as error:
+        print(error, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+    return 0
+
+
+def _relay(arguments: argparse.Namespace) -> int:
+    import uvicorn
+
+    from luml_tunnel.relay import Relay, RelaySettings
+    from luml_tunnel.verification import IssuerKeys, JwksTokenVerifier
+
+    settings = RelaySettings(
+        base_domain=arguments.base_domain,
+        relay_id=arguments.relay_id,
+        issuer=arguments.issuer,
+        issuer_keys=arguments.issuer_keys,
+    )
+    verifier = JwksTokenVerifier(
+        IssuerKeys(settings.issuer_keys), settings.issuer, settings.relay_id
+    )
+    uvicorn.run(
+        Relay(settings, verifier), host=arguments.host, port=arguments.port, ws="websockets-sansio"
+    )
+    return 0
+
+
+def _port(value: str) -> int:
+    if not value.isdigit() or not 0 < int(value) < 65536:
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is not a port; the agent reaches only the loopback address"
+        )
+    return int(value)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="luml-tunnel")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    expose = commands.add_parser("expose", help="Expose a service on a loopback port")
+    expose.add_argument("port", type=_port, help="Port of the service on the loopback address")
+    expose.add_argument("--relay-url", required=True, help="Address agents connect to")
+    expose.add_argument("--token", help=f"Expose token; defaults to ${TOKEN_ENV}")
+    expose.add_argument(
+        "--present-loopback-host",
+        action="store_true",
+        help="Send the loopback address as the host instead of the public hostname",
+    )
+    expose.set_defaults(handler=_expose)
+
+    relay = commands.add_parser("relay", help="Run the relay")
+    relay.add_argument("--base-domain", required=True)
+    relay.add_argument("--relay-id", required=True)
+    relay.add_argument("--issuer", required=True)
+    relay.add_argument("--issuer-keys", required=True, help="Address or file of the issuer's JWKS")
+    relay.add_argument("--host", default="0.0.0.0")
+    relay.add_argument("--port", type=int, default=8080)
+    relay.set_defaults(handler=_relay)
 
     dev = commands.add_parser("dev", help="Create keys and tokens for use without LUML")
     dev_commands = dev.add_subparsers(dest="dev_command", required=True)
