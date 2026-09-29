@@ -108,6 +108,33 @@ services:
     ports:
       - "8000:8000"
 
+  # Browsers resolve every name under localhost to this machine, so sessions
+  # are served at http://<session>.tunnel.localhost:8080 without DNS.
+  relay:
+    build:
+      context: ../tunnel
+    image: dataforce-dev-relay:latest
+    command:
+      - --base-domain
+      - tunnel.localhost
+      - --relay-id
+      - dev
+      - --issuer
+      - luml
+      - --issuer-keys
+      - http://backend:8000/.well-known/jwks.json
+      - --app-origin
+      - http://localhost:5173
+      - --app-origin
+      - http://127.0.0.1:5173
+    environment:
+      LUML_TUNNEL_COOKIE_SECRET: dev-relay-cookie-secret
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_started
+
   seed:
     <<: *backend-base
     depends_on:

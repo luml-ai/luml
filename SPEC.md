@@ -693,11 +693,11 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Implement the behavior for every event in the Design table of the section The agent command
   - [x] Test against a faked LUML and the relay in one process, covering the agent command scenarios
 
-- [ ] Add the relay to the dev stack
-  - [ ] Add `tunnel/Dockerfile` for the relay, following `satellite/kit/Dockerfile.monitoring`
-  - [ ] Add the relay as a service in `dev/docker-compose.yml`, with a base domain under `localhost`, the backend as issuer and the local frontend as the origin of the LUML app
-  - [ ] Add a signing key for development and the relay description to `dev/backend.env`
-  - [ ] Check the compose file with `docker compose config`, then run the stack and walk through the scenario for a session in the dev stack up to the point where the session is served with a token header
+- [x] Add the relay to the dev stack
+  - [x] Add `tunnel/Dockerfile` for the relay, following `satellite/kit/Dockerfile.monitoring`
+  - [x] Add the relay as a service in `dev/docker-compose.yml`, with a base domain under `localhost`, the backend as issuer and the local frontend as the origin of the LUML app
+  - [x] Add a signing key for development and the relay description to `dev/backend.env`
+  - [x] Check the compose file with `docker compose config`, then run the stack and walk through the scenario for a session in the dev stack up to the point where the session is served with a token header
 
 - [ ] List live sessions on the Flow page
   - [ ] Add the API module in `frontend/src/lib/api/`, following `satellites/`, and register it in `frontend/src/lib/api/api.ts`
