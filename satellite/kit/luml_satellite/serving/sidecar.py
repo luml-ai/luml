@@ -5,6 +5,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import suppress
+from importlib.metadata import PackageNotFoundError, version
 from typing import Annotated, Any, Protocol, Self, cast
 
 import httpx
@@ -21,6 +22,7 @@ from luml_satellite.workload import (
     NoOpRecorder,
     Recorder,
     RecordingPolicy,
+    RecordingStatus,
 )
 
 from .application import StartingGate, create_serving_application
@@ -187,12 +189,16 @@ class Sidecar:
         )
         self._telemetry: _Telemetry | None = None
         if recorder is None:
-            self.recorder, self._telemetry = _select_recorder(
+            self.recorder, self._telemetry, self._recording_status = _select_recorder(
                 configuration.OTEL_EXPORTER_OTLP_ENDPOINT,
                 self._logger,
             )
         else:
             self.recorder = recorder
+            self._recording_status = RecordingStatus(
+                state="unavailable" if isinstance(recorder, NoOpRecorder) else "recording",
+                reason="No recorder is configured" if isinstance(recorder, NoOpRecorder) else None,
+            )
         self._registry = _SidecarRegistry(
             configuration.DEPLOYMENT_ID,
             str(configuration.UPSTREAM_MODEL_URL),
@@ -204,6 +210,7 @@ class Sidecar:
             self.authorizer,
             self.secret_source,
             recorder=self.recorder,
+            recording_result=self._recording_result,
             upstream_client=self._upstream,
             starting_gate=self._metadata_gate,
             single_deployment_id=configuration.DEPLOYMENT_ID,
@@ -216,7 +223,8 @@ class Sidecar:
         self.internal_application = create_sidecar_internal_application(
             configuration.COMPANION_TOKEN,
             description=lambda: self._description,
-            health=self._upstream_is_healthy,
+            health=self._is_healthy,
+            recording=self.recording_status,
         )
         self._metadata_task: asyncio.Task[None] | None = None
         self._started = False
@@ -252,6 +260,28 @@ class Sidecar:
             await self._upstream.aclose()
         if self._telemetry is not None:
             self._telemetry.shutdown()
+
+    def recording_status(self) -> RecordingStatus:
+        if self.deployment is not None and not self.deployment.monitoring_enabled:
+            return RecordingStatus(state="disabled", reason="Deployment monitoring is disabled")
+        return self._recording_status
+
+    def _recording_result(self, succeeded: bool) -> None:
+        if not succeeded:
+            self._recording_status = RecordingStatus(
+                state="fault", reason="Inference recording failed"
+            )
+        elif not isinstance(self.recorder, NoOpRecorder):
+            self._recording_status = RecordingStatus(state="recording")
+
+    async def _is_healthy(self) -> bool:
+        if (
+            self.deployment is not None
+            and self.deployment.monitoring_enabled
+            and self.recording_status().state != "recording"
+        ):
+            return False
+        return await self._upstream_is_healthy()
 
     async def _wait_for_upstream(self) -> None:
         delay = 0.25
@@ -332,6 +362,7 @@ def create_sidecar_internal_application(
     *,
     description: Callable[[], ModelDescription],
     health: Callable[[], Awaitable[bool]],
+    recording: Callable[[], RecordingStatus] | None = None,
 ) -> FastAPI:
     application = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
     security = HTTPBearer(auto_error=False)
@@ -346,10 +377,18 @@ def create_sidecar_internal_application(
     dependencies = [Depends(verify_token)]
 
     @application.get("/healthz", dependencies=dependencies)
-    async def healthz() -> dict[str, str]:
-        if not await health():
-            raise HTTPException(status_code=503, detail="Model server unavailable")
-        return {"status": "healthy"}
+    async def healthz() -> JSONResponse:
+        healthy = await health()
+        body: dict[str, Any] = {"status": "healthy" if healthy else "unhealthy"}
+        if recording is not None:
+            body["recording"] = recording().model_dump()
+        return JSONResponse(body, status_code=200 if healthy else 503)
+
+    @application.get("/recording", dependencies=dependencies)
+    async def recording_status() -> RecordingStatus:
+        if recording is None:
+            raise HTTPException(status_code=404, detail="Recording status unavailable")
+        return recording()
 
     @application.get("/manifest", dependencies=dependencies)
     async def manifest() -> JSONResponse:
@@ -383,17 +422,51 @@ def _expected_boot_refusal(error: CompanionUnavailableError) -> bool:
 def _select_recorder(
     endpoint: str | None,
     logger: logging.Logger,
-) -> tuple[Recorder, _Telemetry | None]:
+) -> tuple[Recorder, _Telemetry | None, RecordingStatus]:
     if not endpoint:
         logger.warning("sidecar monitoring is disabled because no telemetry endpoint is configured")
-        return NoOpRecorder(), None
+        return (
+            NoOpRecorder(),
+            None,
+            RecordingStatus(state="unavailable", reason="No telemetry endpoint is configured"),
+        )
     try:
         from luml_satellite.monitoring import InferenceInstrumentation, create_telemetry
-    except ImportError:
-        logger.warning("sidecar monitoring is disabled because the monitoring extra is unavailable")
-        return NoOpRecorder(), None
-    telemetry = create_telemetry(endpoint=endpoint)
-    return InferenceInstrumentation(telemetry), telemetry
+    except ImportError as error:
+        absent_extra = False
+        if isinstance(error, ModuleNotFoundError) and (error.name or "").startswith(
+            "opentelemetry"
+        ):
+            installed = []
+            for dependency in ("opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-grpc"):
+                try:
+                    version(dependency)
+                except PackageNotFoundError:
+                    installed.append(False)
+                else:
+                    installed.append(True)
+            absent_extra = not any(installed)
+        reason = (
+            "The monitoring extra is not installed"
+            if absent_extra
+            else "The monitoring package failed to load"
+        )
+        logger.error("sidecar recording is off: %s", reason, exc_info=not absent_extra)
+        return (
+            NoOpRecorder(),
+            None,
+            RecordingStatus(state="unavailable" if absent_extra else "fault", reason=reason),
+        )
+    try:
+        telemetry = create_telemetry(endpoint=endpoint)
+        return InferenceInstrumentation(telemetry), telemetry, RecordingStatus(state="recording")
+    except Exception:
+        logger.exception("sidecar recording is off: telemetry initialization failed")
+        return (
+            NoOpRecorder(),
+            None,
+            RecordingStatus(state="fault", reason="Telemetry initialization failed"),
+        )
 
 
 async def run_sidecar(configuration: SidecarConfiguration) -> None:

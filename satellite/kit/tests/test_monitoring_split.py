@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+import pytest
 from fastapi import FastAPI
 
 from luml_satellite.authorization import AuthorizationVerdict
@@ -389,6 +390,8 @@ async def test_platform_source_caches_active_deployments_and_uses_companion_toke
         sidecar_requests.append(request)
         if request.url.path.endswith("/manifest"):
             return httpx.Response(200, json={"producer_tags": []})
+        if request.url.path.endswith("/recording"):
+            return httpx.Response(200, json={"state": "recording"})
         return httpx.Response(
             200,
             json={
@@ -419,11 +422,12 @@ async def test_platform_source_caches_active_deployments_and_uses_companion_toke
     assert second == first
     assert third == first
     assert len([request for request in fake.requests if request.path.endswith("/deployments")]) == 2
-    assert len(sidecar_requests) == 4
+    assert len(sidecar_requests) == 6
     assert sidecar_requests[0].url.path == f"/{DEPLOYMENT_ID}/reference_profile"
-    assert {request.url.path for request in sidecar_requests[:2]} == {
+    assert {request.url.path for request in sidecar_requests[:3]} == {
         f"/{DEPLOYMENT_ID}/reference_profile",
         f"/{DEPLOYMENT_ID}/manifest",
+        f"/{DEPLOYMENT_ID}/recording",
     }
     assert {request.headers["Authorization"] for request in sidecar_requests} == {
         f"Bearer {deriver.companion_token(DEPLOYMENT_ID)}"
@@ -437,3 +441,53 @@ async def test_platform_source_caches_active_deployments_and_uses_companion_toke
             "feature_summaries": {"numerical_features": {"x": {}}},
         }
     )
+
+
+@pytest.mark.parametrize("state", ["recording", "fault", "unavailable", "disabled"])
+async def test_split_dashboard_reports_recording_independently_of_worker(state: str) -> None:
+    fake = FakePlatform(token="satellite-token")
+    fake.add_deployment(deployment_record(status="not_responding", monitoring_mode="full"))
+    healthy_id = "10000000-0000-0000-0000-000000000002"
+    fake.add_deployment(deployment_record(id=healthy_id, status="active", monitoring_mode="full"))
+
+    def sidecar(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/recording"):
+            if healthy_id in request.url.path:
+                return httpx.Response(200, json={"state": "recording", "reason": None})
+            return httpx.Response(200, json={"state": state, "reason": "test state"})
+        return httpx.Response(200, json={})
+
+    async with (
+        PlatformClient("http://platform", "satellite-token", transport=fake.transport) as platform,
+        httpx.AsyncClient(transport=httpx.MockTransport(sidecar)) as sidecar_client,
+    ):
+        source = PlatformDeploymentSource(
+            platform,
+            "http://sidecar/{deployment_id}",
+            TokenDeriver("satellite-token"),
+            client=sidecar_client,
+        )
+        bundle = MonitoringBundle(
+            _configuration(),
+            platform,
+            role=MonitoringRole.DASHBOARD,
+            deployment_source=source,
+            query_store=QueryMemoryStore(),
+            authorizer=AllowingAuthorizer(),
+        )
+        application = FastAPI()
+        bundle.mount(application)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=application), base_url="http://dashboard"
+        ) as client:
+            response = await client.get(
+                f"/deployments/{DEPLOYMENT_ID}/monitoring/worker",
+                headers={"Authorization": "Bearer key"},
+            )
+        assert response.status_code == 200
+        assert response.json()["state"] == "unavailable"
+        assert response.json()["recording"] == {"state": state, "reason": "test state"}
+        healthy = await source.local_deployment(UUID(healthy_id))
+        assert healthy is not None and healthy.recording_status is not None
+        assert healthy.recording_status.state == "recording"
+        await bundle.aclose()

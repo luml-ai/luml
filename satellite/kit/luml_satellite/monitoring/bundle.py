@@ -39,7 +39,7 @@ from luml_satellite.monitoring.storage.query_store import (
 from luml_satellite.monitoring.storage.store import MonitoringStore as WorkerStore
 from luml_satellite.tokens import TokenDeriver, TokenPurpose
 from luml_satellite.wire import Deployment, PlatformClient
-from luml_satellite.workload import NoOpRecorder, Recorder
+from luml_satellite.workload import NoOpRecorder, Recorder, RecordingStatus
 
 type DeploymentProvider = Callable[[], Iterable[LocalDeployment]]
 type MonitoringLinkProvider = Callable[[Deployment], str | None]
@@ -188,6 +188,7 @@ class MonitoringBundle:
             ),
             data_store=query_store,
             health_source=(self._health_source if self.role is MonitoringRole.ALL else None),
+            recording_source=self._recording_status,
         )
         security = HTTPBearer(auto_error=False)
 
@@ -300,6 +301,14 @@ class MonitoringBundle:
         if self._deployment_source is not None:
             return await self._deployment_source.local_deployment(deployment_id)
         return self._find_deployment(deployment_id)
+
+    async def _recording_status(self, deployment_id: UUID) -> RecordingStatus | None:
+        deployment = await self._source_deployment(deployment_id)
+        if deployment is None:
+            return None
+        if not deployment.monitoring_enabled:
+            return RecordingStatus(state="disabled", reason="Deployment monitoring is disabled")
+        return deployment.recording_status
 
     def _health_source(self, deployment_id: UUID) -> tuple[HealthSnapshot, tuple[float, float]]:
         return (
