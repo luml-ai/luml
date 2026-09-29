@@ -556,6 +556,38 @@ async def test_sidecar_reports_telemetry_initialization_failure(
         await sidecar.aclose()
 
 
+async def test_sidecar_reports_inactive_telemetry_after_exporter_initialization_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_TIMEOUT", "invalid")
+    sleeper = ControlledSleep()
+    sidecar = Sidecar(
+        configuration(OTEL_EXPORTER_OTLP_ENDPOINT="http://collector:4317"),
+        companion=FakeCompanion(metadata()),
+        upstream_transport=upstream_transport(),
+        sleep=sleeper,
+    )
+    try:
+        await sidecar.start()
+        await sleeper.next_delay()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.internal_application),
+            base_url="http://sidecar",
+            headers={"Authorization": f"Bearer {COMPANION_TOKEN}"},
+        ) as client:
+            health = await client.get("/healthz")
+            recording = await client.get("/recording")
+        assert health.status_code == 503
+        assert health.json()["recording"] == {
+            "state": "fault",
+            "reason": "Telemetry initialization failed",
+        }
+        assert recording.json() == health.json()["recording"]
+        assert isinstance(sidecar.recorder, NoOpRecorder)
+    finally:
+        await sidecar.aclose()
+
+
 async def test_noop_recording_does_not_clear_unavailable_state_after_inference() -> None:
     sleeper = ControlledSleep()
     sidecar = Sidecar(
