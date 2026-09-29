@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
 
-from luml_tunnel.frames import RelayLimits
+from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
 from luml_tunnel.tokens import TokenKind
 
 PRIVATE_KEY_FILE = "private-key.pem"
@@ -98,7 +98,13 @@ def _relay(arguments: argparse.Namespace) -> int:
         IssuerKeys(settings.issuer_keys), settings.issuer, settings.relay_id
     )
     relay = Relay(settings, verifier)
-    config = uvicorn.Config(relay, host=arguments.host, port=arguments.port, ws="websockets-sansio")
+    config = uvicorn.Config(
+        relay,
+        host=arguments.host,
+        port=arguments.port,
+        ws="websockets-sansio",
+        ws_max_size=MAX_FRAME_BYTES,
+    )
     RelayServer(relay, config).run()
     return 0
 

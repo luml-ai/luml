@@ -1,9 +1,11 @@
 import asyncio
 import itertools
 import time
+from dataclasses import dataclass
 from typing import Protocol
 
 from luml_tunnel.frames import (
+    MAX_MESSAGE_BYTES,
     ConnectionFrame,
     Data,
     End,
@@ -35,6 +37,25 @@ class FrameTransport(Protocol):
     async def receive(self) -> bytes | None:
         """Return the next message, or None once the connection is closed."""
         ...
+
+    async def close(self, code: int, reason: str) -> None: ...
+
+
+@dataclass(frozen=True)
+class PeerClosed:
+    code: int
+    reason: str
+
+
+class WebSocketPeer(Protocol):
+    """The WebSocket at one end of a stream: the viewer's at the relay, the service's at the agent.
+
+    Implementations tolerate `send` and `close` after the peer has gone away.
+    """
+
+    async def receive(self) -> str | bytes | PeerClosed: ...
+
+    async def send(self, data: str | bytes) -> None: ...
 
     async def close(self, code: int, reason: str) -> None: ...
 
@@ -315,6 +336,52 @@ class AgentConnection(_Connection):
 
     def _on_closed(self) -> None:
         self._accepted.put_nowait(None)
+
+
+async def pass_messages(stream: Stream, peer: WebSocketPeer) -> None:
+    """Pass WebSocket messages between a stream and its peer until either side closes.
+
+    The first close, from either side, is passed on to the other, so both ends of the stream
+    send exactly one close and the stream is forgotten on both sides of the connection.
+    """
+
+    async def to_stream() -> PeerClosed:
+        while not isinstance(message := await peer.receive(), PeerClosed):
+            if _credited_size(message) > MAX_MESSAGE_BYTES:
+                too_big = PeerClosed(1009, "message too big")
+                await peer.close(too_big.code, too_big.reason)
+                return too_big
+            await stream.send_message(message)
+        return message
+
+    async def from_stream() -> WebSocketClose:
+        while not isinstance(frame := await stream.receive(), WebSocketClose):
+            if isinstance(frame, WebSocketMessage):
+                await peer.send(frame.data)
+        return frame
+
+    outbound = asyncio.create_task(to_stream())
+    inbound = asyncio.create_task(from_stream())
+    try:
+        done, _ = await asyncio.wait({outbound, inbound}, return_when=asyncio.FIRST_COMPLETED)
+        if inbound in done:
+            close = inbound.result()
+            await peer.close(_sendable_close_code(close.code), close.reason)
+            await stream.send_close(close.code, close.reason)
+        else:
+            closed = outbound.result()
+            await stream.send_close(closed.code, closed.reason)
+    except StreamResetError:
+        await peer.close(1011, "tunnel stream reset")
+    finally:
+        outbound.cancel()
+        inbound.cancel()
+        await asyncio.gather(outbound, inbound, return_exceptions=True)
+
+
+def _sendable_close_code(code: int) -> int:
+    # 1005, 1006 and 1015 report how a connection ended and must not appear in a close frame.
+    return 1000 if code in (1005, 1006, 1015) else code
 
 
 def _credited_size(data: str | bytes) -> int:

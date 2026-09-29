@@ -13,12 +13,15 @@ import httpx
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import Response, StreamingResponse
-from starlette.routing import Route
+from starlette.responses import PlainTextResponse, Response, StreamingResponse
+from starlette.routing import Route, WebSocketRoute
 from starlette.types import ASGIApp
+from starlette.websockets import WebSocket
+from websockets.asyncio.client import connect
+from websockets.typing import Subprotocol
 
 from luml_tunnel.agent import Agent, FixedToken, LoopbackService, ReconnectPolicy
-from luml_tunnel.frames import RelayLimits
+from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
 from luml_tunnel.headers import TOKEN_HEADER
 from luml_tunnel.relay import CONNECT_PATH, Relay, RelayServer, RelaySettings
 from luml_tunnel.signing import TokenSigner
@@ -55,10 +58,14 @@ class EchoService:
     requests: list[RecordedRequest] = field(default_factory=list)
     large_body_produced: int = 0
     stall_released: asyncio.Event = field(default_factory=asyncio.Event)
+    websocket_requests: list[RecordedRequest] = field(default_factory=list)
+    websocket_closes: list[tuple[int, str]] = field(default_factory=list)
 
     def app(self) -> Starlette:
         return Starlette(
             routes=[
+                WebSocketRoute("/ws/echo", self._websocket_echo),
+                WebSocketRoute("/ws/refuse", self._websocket_refuse),
                 Route("/large", self._large),
                 Route("/stall", self._stall),
                 Route("/{path:path}", self._echo, methods=["GET", "POST", "PUT", "DELETE"]),
@@ -83,6 +90,36 @@ class EchoService:
         response.set_cookie("first", "1")
         response.set_cookie("second", "2")
         return response
+
+    async def _websocket_echo(self, websocket: WebSocket) -> None:
+        """Greets, echoes every message, and closes with code 4321 when told `close`."""
+        self.websocket_requests.append(
+            RecordedRequest(
+                method="GET",
+                path=websocket.url.path,
+                query=websocket.url.query,
+                headers=[(key.decode(), value.decode()) for key, value in websocket.headers.raw],
+                body=b"",
+            )
+        )
+        offered = websocket.scope.get("subprotocols", [])
+        await websocket.accept(offered[0] if offered else None)
+        await websocket.send_text("hello")
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                self.websocket_closes.append((message["code"], message.get("reason") or ""))
+                return
+            if message.get("text") == "close":
+                await websocket.close(4321, "service closed")
+                return
+            if message.get("text") is not None:
+                await websocket.send_text(message["text"])
+            else:
+                await websocket.send_bytes(message["bytes"])
+
+    async def _websocket_refuse(self, websocket: WebSocket) -> None:
+        await websocket.send_denial_response(PlainTextResponse("no WebSockets here", 403))
 
     async def _large(self, request: Request) -> StreamingResponse:
         async def chunks() -> AsyncIterator[bytes]:
@@ -117,6 +154,7 @@ async def serve(app: ASGIApp, sock: socket.socket | None = None) -> AsyncGenerat
         lifespan="on",
         log_level="warning",
         ws="websockets-sansio",
+        ws_max_size=MAX_FRAME_BYTES,
         timeout_graceful_shutdown=1,
         proxy_headers=False,
     )
@@ -185,6 +223,20 @@ async def running_agent(
         running.cancel()
         await asyncio.gather(running, return_exceptions=True)
         await service.aclose()
+
+
+def viewer_websocket(
+    relay_port: int, token: str | None, path: str, subprotocols: list[str] | None = None
+) -> connect:
+    headers = {TOKEN_HEADER: token} if token is not None else {}
+    return connect(
+        f"ws://{SESSION_HOST}{path}",
+        host="127.0.0.1",
+        port=relay_port,
+        proxy=None,
+        additional_headers=headers,
+        subprotocols=[Subprotocol(offered) for offered in subprotocols or []] or None,
+    )
 
 
 def viewer(relay_port: int, token: str | None, host: str = SESSION_HOST) -> httpx.AsyncClient:

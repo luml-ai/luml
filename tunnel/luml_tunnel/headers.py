@@ -34,6 +34,10 @@ def has_body(headers: Headers) -> bool:
     return any(name.lower() in ("content-length", "transfer-encoding") for name, _ in headers)
 
 
+def header_value(headers: Headers, name: str) -> str | None:
+    return next((value for key, value in headers if key.lower() == name), None)
+
+
 def decode_raw_headers(raw: list[tuple[bytes, bytes]]) -> Headers:
     return [(name.decode("latin-1"), value.decode("latin-1")) for name, value in raw]
 

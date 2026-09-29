@@ -27,13 +27,16 @@ from luml_tunnel.headers import (
     USER_HEADER,
     decode_raw_headers,
     encode_raw_headers,
+    header_value,
     without_hop_by_hop,
 )
 from luml_tunnel.protocol import (
+    PeerClosed,
     RelayConnection,
     Stream,
     StreamResetError,
     TooManyStreamsError,
+    pass_messages,
 )
 from luml_tunnel.routing import (
     AgentRegistry,
@@ -98,10 +101,8 @@ class Relay:
         session = self._sessions.session_for(host)
         if session is None:
             await self._serve_own_endpoint(scope, receive, send)
-        elif scope["type"] == "websocket":
-            await WebSocket(scope, receive, send).close()
         elif _is_relay_path(scope["path"]):
-            await PlainTextResponse("Not found", 404)(scope, receive, send)
+            await _respond_text(scope, receive, send, "Not found", 404)
         else:
             await self._serve_viewer(scope, receive, send, session)
 
@@ -177,31 +178,75 @@ class Relay:
                 raise TokenRejectedError("no token")
             claims = await self._verifier.verify(token, TokenKind.VIEW, session)
         except TokenRejectedError:
-            await PlainTextResponse("Access is needed", 401)(scope, receive, send)
+            await _respond_text(scope, receive, send, "Access is needed", 401)
             return
         limits = self.settings.limits
         if _declared_length(scope) > limits.max_request_body_bytes:
             await PlainTextResponse(*_REFUSALS[_BODY_TOO_LARGE])(scope, receive, send)
             return
-        connection = self.agents.get(session)
-        try:
-            if connection is None:
-                raise StreamResetError("no agent")
-            stream = await connection.open_http(
-                scope["method"], _request_target(scope), _forwarded_headers(scope, claims)
-            )
-        except TooManyStreamsError:
-            response = PlainTextResponse("The session has too many open requests", 503)
-            await response(scope, receive, send)
+        stream = await self._open_stream(scope, receive, send, session, claims)
+        if stream is None:
             return
-        except StreamResetError:
-            await _not_connected(scope, receive, send)
+        if scope["type"] == "websocket":
+            await _pass_websocket(stream, scope, receive, send, limits.idle_timeout_seconds)
             return
         watching_idle = asyncio.create_task(_reset_when_idle(stream, limits.idle_timeout_seconds))
         try:
             await _exchange(stream, scope, receive, send, limits.max_request_body_bytes)
         finally:
             watching_idle.cancel()
+
+    async def _open_stream(
+        self, scope: Scope, receive: Receive, send: Send, session: str, claims: TunnelClaims
+    ) -> Stream | None:
+        """Open a stream for the viewer's request, or answer it when that is not possible."""
+        connection = self.agents.get(session)
+        target, headers = _request_target(scope), _forwarded_headers(scope, claims)
+        try:
+            if connection is None:
+                raise StreamResetError("no agent")
+            if scope["type"] == "websocket":
+                return await connection.open_websocket(target, headers)
+            return await connection.open_http(scope["method"], target, headers)
+        except TooManyStreamsError:
+            await _respond_text(scope, receive, send, "The session has too many open requests", 503)
+        except StreamResetError:
+            await _not_connected(scope, receive, send)
+        return None
+
+
+async def _pass_websocket(
+    stream: Stream, scope: Scope, receive: Receive, send: Send, handshake_timeout: float
+) -> None:
+    """Answer the viewer's handshake as the service answered the agent's, then pass messages."""
+    try:
+        async with asyncio.timeout(handshake_timeout):
+            head = await stream.receive()
+        if not isinstance(head, ResponseHead):
+            raise StreamResetError("expected a response head")
+    except (StreamResetError, TimeoutError) as error:
+        with contextlib.suppress(StreamResetError):
+            await stream.reset("handshake failed")
+        if isinstance(error, TimeoutError):
+            await _respond_text(scope, receive, send, *_REFUSALS[_IDLE])
+        else:
+            await _not_connected(scope, receive, send)
+        return
+    if head.status == 101:
+        websocket = WebSocket(scope, receive, send)
+        await websocket.accept(header_value(head.headers, "sec-websocket-protocol"))
+        await pass_messages(stream, _ViewerWebSocket(websocket))
+        return
+    try:
+        if _supports_denial_response(scope):
+            await _send_response(stream, head, send, "websocket.")
+        else:
+            await WebSocket(scope, receive, send).close()
+    except StreamResetError:
+        pass
+    finally:
+        with contextlib.suppress(StreamResetError):
+            await stream.reset("handshake refused")
 
 
 async def _reset_when_idle(stream: Stream, idle_timeout: float) -> None:
@@ -248,18 +293,8 @@ async def _exchange(
         head = await stream.receive()
         if not isinstance(head, ResponseHead):
             raise StreamResetError("expected a response head")
-        await send(
-            {
-                "type": "http.response.start",
-                "status": head.status,
-                "headers": encode_raw_headers(head.headers),
-            }
-        )
         response_started = True
-        while not isinstance(frame := await stream.receive(), End):
-            if isinstance(frame, Data):
-                await send({"type": "http.response.body", "body": frame.data, "more_body": True})
-        await send({"type": "http.response.body", "body": b"", "more_body": False})
+        await _send_response(stream, head, send)
     except StreamResetError as error:
         if not response_started:
             if refusal := _REFUSALS.get(str(error)):
@@ -273,8 +308,62 @@ async def _exchange(
                 await stream.reset("exchange ended")
 
 
+async def _send_response(
+    stream: Stream, head: ResponseHead, send: Send, message_prefix: str = ""
+) -> None:
+    """Send the response the agent streams; a WebSocket refusal uses the prefix `websocket.`."""
+    await send(
+        {
+            "type": message_prefix + "http.response.start",
+            "status": head.status,
+            "headers": encode_raw_headers(head.headers),
+        }
+    )
+    body_type = message_prefix + "http.response.body"
+    while not isinstance(frame := await stream.receive(), End):
+        if isinstance(frame, Data):
+            await send({"type": body_type, "body": frame.data, "more_body": True})
+    await send({"type": body_type, "body": b"", "more_body": False})
+
+
 async def _not_connected(scope: Scope, receive: Receive, send: Send) -> None:
-    await PlainTextResponse("The session is not connected", 502)(scope, receive, send)
+    await _respond_text(scope, receive, send, "The session is not connected", 502)
+
+
+async def _respond_text(scope: Scope, receive: Receive, send: Send, text: str, status: int) -> None:
+    """Answer with a text page; a WebSocket request gets it as the refusal of its handshake."""
+    if scope["type"] == "websocket" and not _supports_denial_response(scope):
+        await WebSocket(scope, receive, send).close()
+    else:
+        await PlainTextResponse(text, status)(scope, receive, send)
+
+
+def _supports_denial_response(scope: Scope) -> bool:
+    return "websocket.http.response" in scope.get("extensions", {})
+
+
+class _ViewerWebSocket:
+    def __init__(self, websocket: WebSocket) -> None:
+        self._websocket = websocket
+
+    async def receive(self) -> str | bytes | PeerClosed:
+        message = await self._websocket.receive()
+        if message["type"] == "websocket.disconnect":
+            return PeerClosed(message.get("code", 1005), message.get("reason") or "")
+        if message.get("text") is not None:
+            return str(message["text"])
+        return bytes(message.get("bytes") or b"")
+
+    async def send(self, data: str | bytes) -> None:
+        with contextlib.suppress(WebSocketDisconnect, RuntimeError, OSError):
+            if isinstance(data, str):
+                await self._websocket.send_text(data)
+            else:
+                await self._websocket.send_bytes(data)
+
+    async def close(self, code: int, reason: str) -> None:
+        with contextlib.suppress(RuntimeError, OSError):
+            await self._websocket.close(code, reason)
 
 
 class _AsgiWebSocketTransport:
@@ -359,7 +448,8 @@ def _forwarded_headers(scope: Scope, claims: TunnelClaims) -> Headers:
     client = scope.get("client")
     if client:
         headers.append(("x-forwarded-for", client[0]))
-    headers.append(("x-forwarded-proto", scope.get("scheme", "http")))
+    scheme: str = scope.get("scheme", "http")
+    headers.append(("x-forwarded-proto", {"ws": "http", "wss": "https"}.get(scheme, scheme)))
     if host := _header(scope, "host"):
         headers.append(("x-forwarded-host", host))
     headers.append((USER_HEADER, claims.user))

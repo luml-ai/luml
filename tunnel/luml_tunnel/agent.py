@@ -7,12 +7,38 @@ from typing import Protocol
 
 import httpx
 from websockets.asyncio.client import ClientConnection, connect
-from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidStatus
+from websockets.exceptions import (
+    ConnectionClosed,
+    InvalidHandshake,
+    InvalidStatus,
+    WebSocketException,
+)
 from websockets.typing import Subprotocol
 
-from luml_tunnel.frames import REPLACED_CLOSE_CODE, SUBPROTOCOL, Data, End, Headers, OpenHttp
-from luml_tunnel.headers import decode_raw_headers, has_body, without_hop_by_hop
-from luml_tunnel.protocol import AgentConnection, Stream, StreamResetError
+from luml_tunnel.frames import (
+    MAX_FRAME_BYTES,
+    MAX_MESSAGE_BYTES,
+    REPLACED_CLOSE_CODE,
+    SUBPROTOCOL,
+    Data,
+    End,
+    Headers,
+    OpenHttp,
+    OpenWebSocket,
+)
+from luml_tunnel.headers import (
+    decode_raw_headers,
+    has_body,
+    header_value,
+    without_hop_by_hop,
+)
+from luml_tunnel.protocol import (
+    AgentConnection,
+    PeerClosed,
+    Stream,
+    StreamResetError,
+    pass_messages,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +90,15 @@ class LoopbackService:
         await self._transport.aclose()
 
     async def handle(self, stream: Stream) -> None:
-        if not isinstance(stream.opening, OpenHttp):
-            await stream.reset("unsupported stream")
-            return
         opening = stream.opening
         if not opening.target.startswith("/"):
             await stream.reset("request target is not a path")
-            return
+        elif isinstance(opening, OpenWebSocket):
+            await self._pass_websocket(stream, opening)
+        else:
+            await self._forward_http(stream, opening)
+
+    async def _forward_http(self, stream: Stream, opening: OpenHttp) -> None:
         request_complete = False
 
         async def request_body() -> AsyncIterator[bytes]:
@@ -106,10 +134,7 @@ class LoopbackService:
         try:
             response = await self._transport.handle_async_request(request)
         except httpx.HTTPError as error:
-            logger.warning("The service did not answer: %s", error)
-            await stream.send_head(502, [("content-type", "text/plain; charset=utf-8")])
-            await stream.send_data(b"The service did not answer")
-            await stream.send_end()
+            await _answer_unanswered(stream, error)
             return
         try:
             response_headers = without_hop_by_hop(decode_raw_headers(response.headers.raw))
@@ -122,6 +147,49 @@ class LoopbackService:
         finally:
             await response.aclose()
 
+    async def _pass_websocket(self, stream: Stream, opening: OpenWebSocket) -> None:
+        headers = self._request_headers(opening.headers)
+        host = header_value(headers, "host") or f"{LOOPBACK_HOST}:{self._port}"
+        subprotocols = [
+            Subprotocol(offered.strip())
+            for offered in (header_value(headers, "sec-websocket-protocol") or "").split(",")
+            if offered.strip()
+        ]
+        # The client builds the handshake itself, including the host from the URI; the
+        # connection still goes to the loopback port given as host and port.
+        handshake_headers = [
+            (name, value)
+            for name, value in headers
+            if name.lower() != "host" and not name.lower().startswith("sec-websocket-")
+        ]
+        try:
+            websocket = await _ConnectWithoutRedirects(
+                f"ws://{host}{opening.target}",
+                host=LOOPBACK_HOST,
+                port=self._port,
+                proxy=None,
+                subprotocols=subprotocols or None,
+                additional_headers=handshake_headers,
+                user_agent_header=None,
+                max_size=MAX_MESSAGE_BYTES,
+            )
+        except InvalidStatus as refusal:
+            response = refusal.response
+            await stream.send_head(
+                response.status_code, without_hop_by_hop(list(response.headers.raw_items()))
+            )
+            await stream.send_data(bytes(response.body))
+            await stream.send_end()
+            return
+        except (OSError, TimeoutError, WebSocketException, ValueError) as error:
+            await _answer_unanswered(stream, error)
+            return
+        async with websocket:
+            subprotocol = websocket.subprotocol
+            accepted = [("sec-websocket-protocol", str(subprotocol))] if subprotocol else []
+            await stream.send_head(101, accepted)
+            await pass_messages(stream, _ServiceWebSocket(websocket))
+
     def _request_headers(self, headers: Headers) -> Headers:
         # Transfer-Encoding tells httpx to send the body in chunks, as the viewer did.
         forwarded = without_hop_by_hop(headers, keep=frozenset({"transfer-encoding"}))
@@ -129,6 +197,39 @@ class LoopbackService:
             return forwarded
         without_host = [(name, value) for name, value in forwarded if name.lower() != "host"]
         return [("host", f"{LOOPBACK_HOST}:{self._port}"), *without_host]
+
+
+async def _answer_unanswered(stream: Stream, error: Exception) -> None:
+    logger.warning("The service did not answer: %s", error)
+    await stream.send_head(502, [("content-type", "text/plain; charset=utf-8")])
+    await stream.send_data(b"The service did not answer")
+    await stream.send_end()
+
+
+class _ConnectWithoutRedirects(connect):
+    """Hands a redirect of the service to the viewer instead of following it."""
+
+    def process_redirect(self, exc: Exception) -> Exception | str:
+        return exc
+
+
+class _ServiceWebSocket:
+    def __init__(self, websocket: ClientConnection) -> None:
+        self._websocket = websocket
+
+    async def receive(self) -> str | bytes | PeerClosed:
+        try:
+            return await self._websocket.recv()
+        except ConnectionClosed:
+            websocket = self._websocket
+            return PeerClosed(websocket.close_code or 1006, websocket.close_reason or "")
+
+    async def send(self, data: str | bytes) -> None:
+        with contextlib.suppress(ConnectionClosed):
+            await self._websocket.send(data)
+
+    async def close(self, code: int, reason: str) -> None:
+        await self._websocket.close(code, reason)
 
 
 class Agent:
@@ -175,6 +276,7 @@ class Agent:
                 self._relay_url,
                 subprotocols=[Subprotocol(SUBPROTOCOL)],
                 additional_headers={"Authorization": f"Bearer {token}"},
+                max_size=MAX_FRAME_BYTES,
             )
         except InvalidStatus as error:
             if 400 <= error.response.status_code < 500:

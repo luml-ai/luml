@@ -642,11 +642,11 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Reconnect from the agent with growing pauses between failed attempts
   - [x] Cover the scenarios: a second agent, the relay restarts, a token expires, a renewed token, a request over a limit
 
-- [ ] Forward WebSocket connections through the tunnel
-  - [ ] Accept WebSocket connections from viewers on a session's hostname and open a stream for each
-  - [ ] Connect from the agent to the service's WebSocket endpoint and pass messages in both directions under the credit window
-  - [ ] Pass a close from either side to the other
-  - [ ] Cover the scenario for a WebSocket connection, and a request for a WebSocket when the service refuses it
+- [x] Forward WebSocket connections through the tunnel
+  - [x] Accept WebSocket connections from viewers on a session's hostname and open a stream for each
+  - [x] Connect from the agent to the service's WebSocket endpoint and pass messages in both directions under the credit window
+  - [x] Pass a close from either side to the other
+  - [x] Cover the scenario for a WebSocket connection, and a request for a WebSocket when the service refuses it
 
 - [ ] Add browser access to tunnel sessions
   - [ ] Add the launch address, which checks the `view` token, accepts it once, sets the cookie and redirects to the root of the service

@@ -25,6 +25,9 @@ streams. Payloads by type:
 Frames of an unknown type are ignored, and so are unknown keys in JSON payloads, so
 frames and fields can be added within the version.
 
+A WebSocket message is carried whole in one frame, so a stream passes messages of up to
+MAX_MESSAGE_BYTES, and peers accept frames of up to MAX_FRAME_BYTES.
+
 The relay closes the connection with code 4000 when another agent takes over the
 session, and with code 4001 when the token has expired.
 """
@@ -39,6 +42,8 @@ SUBPROTOCOL = "luml-tunnel.v1"
 CONNECTION_STREAM_ID = 0
 REPLACED_CLOSE_CODE = 4000
 TOKEN_EXPIRED_CLOSE_CODE = 4001
+MAX_MESSAGE_BYTES = 16 * 1024 * 1024
+MAX_FRAME_BYTES = MAX_MESSAGE_BYTES + 1024
 
 _HEADER = struct.Struct(">BI")
 _CLOSE_CODE = struct.Struct(">H")
