@@ -115,7 +115,9 @@ def _api_key_client() -> TestClient:
 def test_api_key_of_disabled_user_does_not_authenticate(
     mock_get_user_by_api_key_hash: AsyncMock, disabled: bool, expected_status: int
 ) -> None:
-    mock_get_user_by_api_key_hash.return_value = UserOut(
+    from luml.schemas import user as user_schemas
+
+    mock_get_user_by_api_key_hash.return_value = user_schemas.UserOut(
         id=USER_ID, email=EMAIL, disabled=disabled, has_api_key=True
     )
 
