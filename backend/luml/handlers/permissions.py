@@ -143,6 +143,7 @@ class PermissionsHandler:
                     Resource.SATELLITE,
                     Resource.ORBIT_SECRET,
                     Resource.DEPLOYMENT,
+                    Resource.LIVE_SESSION,
                 ],
             )
 
@@ -158,6 +159,7 @@ class PermissionsHandler:
                     Resource.SATELLITE,
                     Resource.ORBIT_SECRET,
                     Resource.DEPLOYMENT,
+                    Resource.LIVE_SESSION,
                 ],
             )
             for resource, actions in orbit_role_permissions.items():

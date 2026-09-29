@@ -657,15 +657,15 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Apply the changes to responses from the Design section on what the relay and the agent change, with a relay setting for the origins of the LUML app
   - [x] Cover the scenarios: the launch address, a launch token accepted once, both ends of the cookie, a cookie for one session only, requests started by other sites, a request without access, framing, cookies of the service
 
-- [ ] Add live session records to the backend
-  - [ ] Add the model in `backend/luml/models/` with the fields from the Design section LUML backend as issuer, and register it in `backend/luml/models/__init__.py`
-  - [ ] Add the migration `042` in `backend/migrations/versions/`
-  - [ ] Add the schemas in `backend/luml/schemas/` with the status computed on read, as `Satellite.status` is in `backend/luml/schemas/satellite.py`
-  - [ ] Add the repository in `backend/luml/repositories/`: create, read, list for one user and orbit without sessions that ended more than 24 hours ago, record a heartbeat, end
-  - [ ] Create session identifiers that are random, made of lower-case letters and digits, and never reused
-  - [ ] Add live sessions as a resource in `backend/luml/schemas/permissions.py` for every role that may work in an orbit, and to the resource lists in `backend/luml/handlers/permissions.py` that the frontend reads
-  - [ ] Add integration tests in `backend/tests/integration/repository/` and unit tests for the status and the permissions
-  - [ ] Run ruff, mypy and pytest in `backend/`
+- [x] Add live session records to the backend
+  - [x] Add the model in `backend/luml/models/` with the fields from the Design section LUML backend as issuer, and register it in `backend/luml/models/__init__.py`
+  - [x] Add the migration `042` in `backend/migrations/versions/`
+  - [x] Add the schemas in `backend/luml/schemas/` with the status computed on read, as `Satellite.status` is in `backend/luml/schemas/satellite.py`
+  - [x] Add the repository in `backend/luml/repositories/`: create, read, list for one user and orbit without sessions that ended more than 24 hours ago, record a heartbeat, end
+  - [x] Create session identifiers that are random, made of lower-case letters and digits, and never reused
+  - [x] Add live sessions as a resource in `backend/luml/schemas/permissions.py` for every role that may work in an orbit, and to the resource lists in `backend/luml/handlers/permissions.py` that the frontend reads
+  - [x] Add integration tests in `backend/tests/integration/repository/` and unit tests for the status and the permissions
+  - [x] Run ruff, mypy and pytest in `backend/`
 
 - [ ] Add live session operations and token issuing to the backend
   - [ ] Add the optional settings to `backend/luml/settings.py`: the signing key, the relay identifier, its base domain, the address agents connect to, and the two token lifetimes; add them to `backend/.env.example` and `backend/.env.test`

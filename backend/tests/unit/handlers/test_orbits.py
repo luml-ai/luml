@@ -216,6 +216,7 @@ async def test_create_organization_orbit_makes_org_admin_creator_orbit_admin(
         USER_ID, test_orbit.organization_id, orbit_to_create
     )
 
+    assert mock_create_orbit.await_args is not None
     created = mock_create_orbit.await_args.args[1]
     assert created.members == [
         OrbitMemberCreateSimple(user_id=USER_ID, role=OrbitRole.ADMIN)
@@ -382,7 +383,7 @@ async def test_get_organization_orbits_adds_orbit_role_permissions_for_org_admin
 
     result = await handler.get_organization_orbits(USER_ID, test_orbit.organization_id)
 
-    permissions = {orbit.id: orbit.permissions for orbit in result}
+    permissions = {orbit.id: orbit.permissions or {} for orbit in result}
     assert "delete" in permissions[own_orbit.id]["orbit"]
     assert "delete" not in permissions[other_orbit.id]["orbit"]
 

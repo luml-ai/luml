@@ -123,4 +123,5 @@ def test_list_treats_empty_cursor_as_first_page(
     repository_mock = (
         mock_get_artifacts if route == "artifacts" else mock_get_collections
     )
+    assert repository_mock.await_args is not None
     assert repository_mock.await_args.kwargs["pagination"].cursor is None
