@@ -709,14 +709,14 @@ Tasks one to six build the tunnel package, which runs without LUML. The backend,
   - [x] Add unit tests next to the new files for the scenarios about the sidebar entry, sign-in, the old address, the list, the empty state and the feature being off
   - [x] Run the type check, the linter and the unit tests in `frontend/`
 
-- [ ] Show a live session on the Flow page
-  - [ ] Add the session page, following `frontend/src/pages/DeploymentMonitoringPage.vue`, with the frame that loads the launch address with a new `view` token
-  - [ ] Keep the `credentialless` attribute on the frame, which the app needs because it is cross-origin isolated
-  - [ ] Add the actions to open in a new tab, with a token of its own, and to stop the session
-  - [ ] Show the notices for the `disconnected` and the `ended` state in place of the frame
-  - [ ] Listen for the message of the relay page and launch again, with the guard against repeated launches that the monitoring page has; when the guard stops a launch, offer to open the session in a new tab
-  - [ ] Add unit tests for the scenarios from opening a live session to the browser that does not keep the cookie
-  - [ ] Run the type check, the linter and the unit tests in `frontend/`
+- [x] Show a live session on the Flow page
+  - [x] Add the session page, following `frontend/src/pages/DeploymentMonitoringPage.vue`, with the frame that loads the launch address with a new `view` token
+  - [x] Keep the `credentialless` attribute on the frame, which the app needs because it is cross-origin isolated
+  - [x] Add the actions to open in a new tab, with a token of its own, and to stop the session
+  - [x] Show the notices for the `disconnected` and the `ended` state in place of the frame
+  - [x] Listen for the message of the relay page and launch again, with the guard against repeated launches that the monitoring page has; when the guard stops a launch, offer to open the session in a new tab
+  - [x] Add unit tests for the scenarios from opening a live session to the browser that does not keep the cookie
+  - [x] Run the type check, the linter and the unit tests in `frontend/`
 
 - [ ] Add release workflows for the tunnel package and relay image
   - [ ] Add a tag for `luml-tunnel` to `.github/workflows/publish-sdk-python.yml`

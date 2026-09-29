@@ -6,6 +6,9 @@ import { ref } from 'vue'
 // The backend answers every live session operation with 501 when the deployment has no relay.
 const NOT_CONFIGURED_STATUS = 501
 
+// Posted by the relay's page for missing access when it is shown in a frame.
+export const LIVE_SESSION_ACCESS_NEEDED_MESSAGE = 'luml-tunnel:access-needed'
+
 export function isLiveSessionsNotConfigured(error: unknown): boolean {
   if (typeof error !== 'object' || error === null || !('response' in error)) return false
   const response = (error as { response?: { status?: unknown } }).response
