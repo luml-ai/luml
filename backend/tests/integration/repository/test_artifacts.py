@@ -1,4 +1,5 @@
 import uuid
+from contextlib import nullcontext
 
 import pytest
 from luml.infra.exceptions import (
@@ -461,9 +462,12 @@ async def test_delete_artifact_refuses_deployed_artifact(
     assert await lineage_repo.get_edges_by_ids(orbit.id, [edge.id])
 
 
+@pytest.mark.parametrize("tracked", [False, True])
 @pytest.mark.asyncio
 async def test_forced_deletion_undeploys_then_removes_the_artifact(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    create_collection: CollectionFixtureData,
+    test_artifact: ArtifactCreate,
+    tracked: bool,
 ) -> None:
     data = create_collection
     engine, orbit, collection = data.engine, data.orbit, data.collection
@@ -491,21 +495,38 @@ async def test_forced_deletion_undeploys_then_removes_the_artifact(
         )
     )
 
-    async with lineage_repo.transaction() as session:
-        await lineage_repo.lock_orbit(orbit.id, session)
-        await deployment_repo.undeploy_artifact_deployments(created_model.id, session)
-        await lineage_repo.refresh_node_copy(created_model.id, session)
-        await repo.delete_artifact(created_model.id, session)
-        await lineage_repo.delete_unreachable_deleted_nodes(orbit.id, session)
+    if tracked:
+        await _add_artifact_to_track(
+            engine, orbit.id, created_model.id, data.user.email
+        )
 
-    assert await repo.get_artifact(created_model.id) is None
-    assert await deployment_repo.list_deployments(orbit.id) == []
+    with pytest.raises(ArtifactTrackedError) if tracked else nullcontext():
+        async with lineage_repo.transaction() as session:
+            await lineage_repo.lock_orbit(orbit.id, session)
+            await deployment_repo.undeploy_artifact_deployments(
+                created_model.id, session
+            )
+            await lineage_repo.refresh_node_copy(created_model.id, session)
+            await repo.delete_artifact(created_model.id, session)
+            await lineage_repo.delete_unreachable_deleted_nodes(orbit.id, session)
+
+    stored = await repo.get_artifact(created_model.id)
+    remaining = await deployment_repo.list_deployments(orbit.id)
 
     tasks = await SatelliteRepository(engine).list_tasks(
         satellite.id, status=SatelliteTaskStatus.PENDING
     )
     undeploys = [task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY]
-    assert [task.payload["deployment_id"] for task in undeploys] == [str(deployment.id)]
+    if tracked:
+        assert stored is not None
+        assert [item.id for item in remaining] == [deployment.id]
+        assert undeploys == []
+    else:
+        assert stored is None
+        assert remaining == []
+        assert [task.payload["deployment_id"] for task in undeploys] == [
+            str(deployment.id)
+        ]
 
 
 @pytest.mark.asyncio
