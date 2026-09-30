@@ -72,7 +72,7 @@ watch(
 )
 
 watch(
-  () => [route.params.organizationId, route.params.id, route.params.collectionId] as const,
+  [() => route.params.organizationId, () => route.params.id, () => route.params.collectionId],
   async ([organizationId, orbitId, collectionId]) => {
     await init(ensureString(organizationId), ensureString(orbitId), ensureString(collectionId))
   },
