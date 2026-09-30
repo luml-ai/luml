@@ -3,8 +3,12 @@ import type { FileIndex } from '../api/artifacts/interfaces'
 
 export class ModelDownloader {
   url: string
+  private hasFetched = false
 
-  constructor(url: string) {
+  constructor(
+    url: string,
+    private refreshUrl?: () => Promise<string>,
+  ) {
     this.url = url
   }
 
@@ -16,7 +20,9 @@ export class ModelDownloader {
     signal?: AbortSignal,
   ): Promise<T> {
     const range = this.getRangeHeader(fileIndex, fileName, outerOffset)
-    const file = await axios.get(this.url, {
+    const url = this.hasFetched && this.refreshUrl ? await this.refreshUrl() : this.url
+    this.hasFetched = true
+    const file = await axios.get(url, {
       headers: { Range: range },
       responseType: buffer ? 'arraybuffer' : 'json',
       signal,

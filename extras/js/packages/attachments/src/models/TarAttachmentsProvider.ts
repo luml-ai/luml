@@ -19,6 +19,7 @@ interface ModelDownloader {
 export interface TarAttachmentsProviderConfig {
   downloader: ModelDownloader
   fileIndex: FileIndex
+  attachmentsIndex?: FileIndex
   findAttachmentsTarPath: (fileIndex: FileIndex) => string | undefined
   findAttachmentsIndexPath: (fileIndex: FileIndex) => string | undefined
 }
@@ -28,6 +29,7 @@ export class TarAttachmentsProvider implements ModelAttachmentsProvider {
   private fileIndex: FileIndex
   private findAttachmentsTarPath: (fileIndex: FileIndex) => string | undefined
   private findAttachmentsIndexPath: (fileIndex: FileIndex) => string | undefined
+  private initialAttachmentsIndex?: FileIndex
 
   private tree: FileNode[] = []
   private tarBaseOffset: number = 0
@@ -38,6 +40,7 @@ export class TarAttachmentsProvider implements ModelAttachmentsProvider {
     this.fileIndex = config.fileIndex
     this.findAttachmentsTarPath = config.findAttachmentsTarPath
     this.findAttachmentsIndexPath = config.findAttachmentsIndexPath
+    this.initialAttachmentsIndex = config.attachmentsIndex
   }
 
   async init(): Promise<void> {
@@ -46,7 +49,9 @@ export class TarAttachmentsProvider implements ModelAttachmentsProvider {
       return
     }
 
-    const indexData = await this.downloader.getFileFromBucket<FileIndex>(this.fileIndex, indexPath)
+    const indexData =
+      this.initialAttachmentsIndex ??
+      (await this.downloader.getFileFromBucket<FileIndex>(this.fileIndex, indexPath))
 
     const tarPath = this.findAttachmentsTarPath(this.fileIndex)
     if (!tarPath) {

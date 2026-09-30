@@ -40,7 +40,6 @@ type Props = {
 
   cardDisabled: boolean
   experimentSnapshotDisabled: boolean
-  modelAttachmentsDisabled: boolean
 }
 
 const tabsListPT = {
@@ -83,7 +82,6 @@ const items = computed(() => [
     routeName: 'attachments',
     icon: Paperclip,
     visible: props.showModelAttachments,
-    disabled: props.modelAttachmentsDisabled,
   },
   {
     label: 'Lineage',

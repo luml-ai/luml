@@ -42,11 +42,10 @@
     <ArtifactTabs
       :card-disabled="!isCardAvailable"
       :experiment-snapshot-disabled="!isExperimentSnapshotCardAvailable"
-      :model-attachments-disabled="!isModelAttachmentsAvailable"
       :show-data-tab="isDataTabVisible"
       :show-card="true"
       :show-experiment-snapshot="isExperimentSnapshotVisible"
-      :show-model-attachments="isModelAttachmentsVisible"
+      :show-model-attachments="isModelAttachmentsAvailable"
     ></ArtifactTabs>
     <div class="view-wrapper">
       <RouterView></RouterView>
@@ -120,14 +119,6 @@ const isExperimentSnapshotVisible = computed(() => {
   )
 })
 
-const isModelAttachmentsVisible = computed(() => {
-  if (!artifactsStore.currentArtifact) return false
-  return (
-    artifactsStore.currentArtifact.type === ArtifactTypeEnum.model ||
-    artifactsStore.currentArtifact.type === ArtifactTypeEnum.experiment
-  )
-})
-
 const isCardAvailable = computed(() => {
   if (!artifactsStore.currentArtifact) return false
   const fileIndex = artifactsStore.currentArtifact.file_index
@@ -142,10 +133,20 @@ const isExperimentSnapshotCardAvailable = computed(() => {
 })
 
 const isModelAttachmentsAvailable = computed(() => {
-  if (!artifactsStore.currentArtifact) return false
-  const fileIndex = artifactsStore.currentArtifact.file_index
-  if (!fileIndex) return false
-  return FnnxService.hasAttachments(fileIndex)
+  const artifact = artifactsStore.currentArtifact
+  if (!artifact) return false
+  if (artifact.type !== ArtifactTypeEnum.model && artifact.type !== ArtifactTypeEnum.experiment) {
+    return false
+  }
+  const fileIndex = artifact.file_index
+  const archivePath = FnnxService.findAttachmentsTarPath(fileIndex)
+  const indexPath = FnnxService.findAttachmentsIndexPath(fileIndex)
+  return (
+    !!archivePath &&
+    !!indexPath &&
+    (artifactsStore.attachmentsStatus === 'available' ||
+      artifactsStore.attachmentsStatus === 'error')
+  )
 })
 
 function initDeploy() {
@@ -219,6 +220,7 @@ async function onArtifactIdChange(artifactId: string | string[] | null) {
     }
     const artifact = await artifactsStore.getArtifact(artifactId, requestInfo)
     artifactsStore.setCurrentArtifact(artifact)
+    await artifactsStore.loadCurrentArtifactAttachments(artifact)
   } catch (e) {
     const message = getErrorMessage(e, 'Failed to set current artifact')
     toast.add(simpleErrorToast(message))
@@ -234,6 +236,15 @@ async function onTracksChanged() {
 }
 
 watch(() => route.params.artifactId, onArtifactIdChange, { immediate: true })
+
+watch(
+  () => artifactsStore.attachmentsStatus,
+  (status) => {
+    if (status === 'empty' && route.name === 'attachments') {
+      void router.replace({ name: 'artifact' })
+    }
+  },
+)
 
 onUnmounted(() => {
   artifactsStore.resetCurrentArtifact()

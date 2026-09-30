@@ -1,50 +1,67 @@
 <template>
-  <UiPageLoader v-if="loading" />
+  <UiPageLoader v-if="artifactsStore.attachmentsStatus === 'loading' || loading" />
+  <div v-else-if="artifactsStore.attachmentsStatus === 'error' || error" class="attachments-error">
+    <p>{{ error ?? artifactsStore.attachmentsError }}</p>
+    <Button label="Try again" severity="secondary" @click="retry" />
+  </div>
   <ModelAttachments v-else-if="provider" :provider="provider" class="attachments" />
 </template>
 
 <script setup lang="ts">
 import { ModelAttachments } from '@luml/attachments'
-import { onMounted } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
-import { useTarAttachmentsProvider } from '@/hooks/useTarAttachmentsProvider'
-import { ModelDownloader } from '@/lib/bucket-service'
-import { FnnxService } from '@/lib/fnnx/FnnxService'
-import { getErrorMessage } from '@/helpers/helpers'
-import { useToast } from 'primevue'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { Button } from 'primevue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
+import { useTarAttachmentsProvider } from '@/hooks/useTarAttachmentsProvider'
+import { FnnxService } from '@/lib/fnnx/FnnxService'
+import { watch } from 'vue'
 
 const artifactsStore = useArtifactsStore()
-const { provider, loading, init } = useTarAttachmentsProvider()
-const toast = useToast()
+const { provider, loading, error, init } = useTarAttachmentsProvider()
 
-onMounted(async () => {
-  if (provider.value) return
+async function initializeProvider() {
+  const artifact = artifactsStore.currentArtifact
+  const downloader = artifactsStore.attachmentsDownloader
+  const attachmentsIndex = artifactsStore.attachmentsIndex
+  if (!artifact || !downloader || !attachmentsIndex || provider.value) return
 
   try {
-    if (!artifactsStore.currentArtifact?.file_index) {
-      throw new Error('Artifact or file index does not exist')
-    }
-
-    const url = await artifactsStore.getDownloadUrl(artifactsStore.currentArtifact.id)
-    const downloader = new ModelDownloader(url)
-
     await init({
       downloader,
-      fileIndex: artifactsStore.currentArtifact.file_index,
+      fileIndex: artifact.file_index,
+      attachmentsIndex,
       findAttachmentsTarPath: FnnxService.findAttachmentsTarPath,
       findAttachmentsIndexPath: FnnxService.findAttachmentsIndexPath,
     })
-  } catch (e) {
-    const message = getErrorMessage(e, 'Failed to initialize attachments')
-    toast.add(simpleErrorToast(message))
+  } catch {
+    // the provider exposes the initialization error for an in-page retry
   }
-})
+}
+
+watch(
+  () => artifactsStore.attachmentsStatus,
+  (status) => {
+    if (status === 'available') void initializeProvider()
+  },
+  { immediate: true },
+)
+
+async function retry() {
+  if (artifactsStore.currentArtifact) {
+    await artifactsStore.loadCurrentArtifactAttachments(artifactsStore.currentArtifact)
+  }
+}
 </script>
 
 <style scoped>
 .attachments {
   height: calc(100vh - 320px);
+}
+
+.attachments-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
 }
 </style>
