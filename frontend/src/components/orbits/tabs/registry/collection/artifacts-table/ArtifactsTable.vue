@@ -4,6 +4,7 @@
       <TableToolbar
         :selected-metrics="visibleMetrics"
         :selected-artifacts="selectedArtifacts"
+        :loading-selection="pickAll && isLoading"
         :metrics="allMetricsKeys"
         @update:selected-metrics="(val) => updateSelectedMetrics(val)"
         @clear-selected-artifacts="resetSelectedArtifacts"
@@ -11,7 +12,8 @@
       ></TableToolbar>
       <div>
         <DataTable
-          v-model:selection="selectedArtifacts"
+          :selection="selectedArtifacts"
+          :select-all="pickAll"
           v-model:filters="filters"
           filter-display="menu"
           :value="list"
@@ -25,6 +27,8 @@
           :virtualScrollerOptions="virtualScrollerOptions"
           @row-click="onRowClick"
           @sort="onSort"
+          @update:selection="setSelectedArtifacts"
+          @select-all-change="onSelectAllChange"
         >
           <template #empty>
             <div v-if="!isLoading" class="placeholder">
@@ -152,6 +156,7 @@ import {
   useToast,
   type DataTableRowClickEvent,
   type DataTableSortEvent,
+  type DataTableSelectAllChangeEvent,
   type VirtualScrollerProps,
 } from 'primevue'
 import { DataTable, Column } from 'primevue'
@@ -160,7 +165,7 @@ import {
   type GetArtifactsListParams,
   type Artifact,
 } from '@/lib/api/artifacts/interfaces'
-import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeMount, onUnmounted, reactive, ref, watch } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useRouter, useRoute } from 'vue-router'
@@ -168,7 +173,7 @@ import { useCollectionsStore } from '@/stores/collections'
 import { columnBodyStyle, TABLE_PT, TYPE_COLUMN_PT } from './models-table.data'
 import { useArtifactsList } from '@/hooks/useArtifactsList'
 import { getErrorMessage, getSizeText } from '@/helpers/helpers'
-import { useDebounceFn } from '@vueuse/core'
+import { until, useDebounceFn } from '@vueuse/core'
 import { FilterMatchMode } from '@primevue/core/api'
 import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import TableToolbar from './TableToolbar.vue'
@@ -188,6 +193,8 @@ const collectionsStore = useCollectionsStore()
 const {
   setRequestInfo,
   getInitialPage,
+  getNextPage,
+  hasNextPage,
   list,
   reset,
   onLazyLoad,
@@ -198,6 +205,8 @@ const {
 } = useArtifactsList()
 
 const selectedArtifacts = ref<Artifact[]>([])
+const pickAll = ref(false)
+let selectionVersion = 0
 const allMetricsKeys = ref<string[]>([])
 const visibleMetrics = ref<string[]>([])
 const filters = reactive({
@@ -230,11 +239,34 @@ function onRowClick(event: DataTableRowClickEvent) {
 }
 
 function resetSelectedArtifacts() {
+  pickAll.value = false
+  selectionVersion += 1
   selectedArtifacts.value = []
 }
 
 function setSelectedArtifacts(artifacts: Artifact[]): void {
+  pickAll.value = false
+  selectionVersion += 1
   selectedArtifacts.value = artifacts
+}
+
+async function onSelectAllChange(event: DataTableSelectAllChangeEvent): Promise<void> {
+  resetSelectedArtifacts()
+  if (!event.checked) return
+  pickAll.value = true
+  selectedArtifacts.value = [...list.value]
+  const version = selectionVersion
+  try {
+    while (pickAll.value && version === selectionVersion) {
+      await until(isLoading).toBe(false)
+      if (!pickAll.value || version !== selectionVersion || !hasNextPage.value) break
+      await getNextPage()
+    }
+  } catch (e) {
+    if (version !== selectionVersion) return
+    pickAll.value = false
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to select all artifacts')))
+  }
 }
 
 async function getMetricsKeys() {
@@ -283,17 +315,27 @@ function onSort(event: DataTableSortEvent) {
 }
 
 watch(list, (data) => {
-  if (!selectedArtifacts.value.length) return
+  if (!selectedArtifacts.value.length && !pickAll.value) return
+  const artifactsById = new Map(data.map((artifact) => [artifact.id, artifact]))
   selectedArtifacts.value = selectedArtifacts.value.map(
-    (artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id) || artifact,
+    (artifact) => artifactsById.get(artifact.id) || artifact,
   )
+  if (pickAll.value) {
+    const selectedIds = new Set(selectedArtifacts.value.map((artifact) => artifact.id))
+    selectedArtifacts.value = [
+      ...selectedArtifacts.value,
+      ...data.filter((artifact) => !selectedIds.has(artifact.id)),
+    ]
+  }
 })
 
 watch(filters, (newFilters) => {
+  resetSelectedArtifacts()
   setTypesQuery(newFilters.type.value)
 })
 
 onBeforeMount(initList)
+onUnmounted(resetSelectedArtifacts)
 </script>
 
 <style scoped>

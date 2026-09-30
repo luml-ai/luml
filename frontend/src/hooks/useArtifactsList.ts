@@ -120,6 +120,8 @@ export const useArtifactsList = (
     return savedCursors.value[savedCursors.value.length - 1] ?? null
   }
 
+  const hasNextPage = computed(() => getNextPageCursor() !== null)
+
   function reset() {
     setList([])
     savedCursors.value = []
@@ -194,6 +196,7 @@ export const useArtifactsList = (
     getInitialPage,
     list,
     getNextPage,
+    hasNextPage,
     isLoading,
     pageIndex,
     reset,
