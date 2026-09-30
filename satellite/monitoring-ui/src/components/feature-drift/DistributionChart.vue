@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
 import type { FeatureDistribution } from '@/api/types'
 
@@ -23,8 +23,8 @@ function formatShare(value: number | null): string {
 }
 
 const options = computed(() => ({
-  chart: { toolbar: { show: false }, fontFamily: 'inherit' },
-  colors: ['#94a3b8', '#2673fd'],
+  chart: { toolbar: { show: false }, fontFamily: 'inherit', foreColor: chartTextColor.value },
+  colors: [chartTextColor.value, chartSeriesColors.value[0]],
   dataLabels: { enabled: false },
   legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px' },
   plotOptions: { bar: { columnWidth: '68%', borderRadius: 3 } },
@@ -39,7 +39,7 @@ const options = computed(() => ({
       return edges.map((edge) => formatChartNumber(Number(edge))).join('–')
     }),
     labels: {
-      style: { colors: '#94a3b8', fontSize: '11px' },
+      style: { colors: chartTextColor.value, fontSize: '11px' },
       rotate: 0,
       hideOverlappingLabels: true,
     },
@@ -48,7 +48,7 @@ const options = computed(() => ({
   },
   yaxis: {
     labels: {
-      style: { colors: '#94a3b8', fontSize: '11px' },
+      style: { colors: chartTextColor.value, fontSize: '11px' },
       formatter: formatShare,
     },
   },

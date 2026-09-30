@@ -4,13 +4,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartTooltipTheme, chartColor } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
 import type { Series } from '@/api/types'
 
 const props = withDefaults(
   defineProps<{ series: Series; color?: string; threshold?: number; height?: number | string }>(),
-  { color: '#2673fd', threshold: undefined, height: 180 },
+  { color: 'var(--luml-chart-1)', threshold: undefined, height: 180 },
 )
 
 const hasBaseline = computed(() => (props.series.baseline?.length ?? 0) > 0)
@@ -26,7 +26,10 @@ const chartSeries = computed(() => {
     main,
     {
       name: 'Compared period',
-      data: (props.series.baseline ?? []).map((point) => [new Date(point.t).getTime(), point.value]),
+      data: (props.series.baseline ?? []).map((point) => [
+        new Date(point.t).getTime(),
+        point.value,
+      ]),
     },
   ]
 })
@@ -48,9 +51,7 @@ const hasIsolatedPoints = computed(() => {
   const points = props.series.points
   return points.some(
     (point, index) =>
-      point.value != null &&
-      points[index - 1]?.value == null &&
-      points[index + 1]?.value == null,
+      point.value != null && points[index - 1]?.value == null && points[index + 1]?.value == null,
   )
 })
 
@@ -96,9 +97,12 @@ const options = computed(() => ({
     toolbar: { show: false },
     zoom: { enabled: false },
     fontFamily: 'inherit',
+    foreColor: chartTextColor.value,
     sparkline: { enabled: false },
   },
-  colors: hasBaseline.value ? [props.color, '#94a3b8'] : [props.color],
+  colors: hasBaseline.value
+    ? [chartColor(props.color), chartTextColor.value]
+    : [chartColor(props.color)],
   dataLabels: { enabled: false },
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
   // Baseline: dashed, grey, no fill.
@@ -106,20 +110,24 @@ const options = computed(() => ({
     ? { curve: 'smooth', width: [2, 2], dashArray: [0, 5] }
     : { curve: 'smooth', width: 2 },
   fill: hasBaseline.value
-    ? { type: ['gradient', 'solid'], gradient: { opacityFrom: 0.25, opacityTo: 0.02 }, opacity: [1, 0] }
+    ? {
+        type: ['gradient', 'solid'],
+        gradient: { opacityFrom: 0.25, opacityTo: 0.02 },
+        opacity: [1, 0],
+      }
     : { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
   grid: { borderColor: chartGridColor.value, strokeDashArray: 4 },
   xaxis: {
     type: 'datetime',
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#94a3b8', fontSize: '11px' } },
+    labels: { style: { colors: chartTextColor.value, fontSize: '11px' } },
   },
   yaxis: {
     min: flatZero.value ? 0 : undefined,
     max: flatZero.value ? 0.01 : undefined,
     labels: {
-      style: { colors: '#94a3b8', fontSize: '11px' },
+      style: { colors: chartTextColor.value, fontSize: '11px' },
       formatter: (value: number) => formatTick(value),
     },
   },
@@ -135,11 +143,11 @@ const options = computed(() => ({
         yaxis: [
           {
             y: props.threshold,
-            borderColor: '#94a3b8',
+            borderColor: chartTextColor.value,
             strokeDashArray: 4,
             label: {
               text: 'threshold',
-              style: { fontSize: '10px', color: '#64748b', background: 'transparent' },
+              style: { fontSize: '10px', color: chartTextColor.value, background: 'transparent' },
             },
           },
         ],

@@ -74,19 +74,3 @@ body {
   max-height: max(640px, calc(100vh - 380px));
   overflow-y: auto;
 }
-
-/* Dark theme: the components address the raw slate steps directly (row hovers,
-   chips, dividers), so the steps themselves are remapped instead of chasing every
-   usage. The semantic tokens flip in the design-system file; this covers the rest. */
-[data-theme='dark'] {
-  --luml-surface-0: #1e293b;
-  --luml-surface-50: #253044;
-  --luml-surface-100: #2c3a52;
-  --luml-surface-200: #334155;
-  --luml-surface-300: #475569;
-  --luml-surface-400: #64748b;
-  --luml-success-tint-fg: #4ade80;
-  --luml-warn-tint-fg: #fb923c;
-  --luml-danger-tint-fg: #f87171;
-  --luml-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5);
-}

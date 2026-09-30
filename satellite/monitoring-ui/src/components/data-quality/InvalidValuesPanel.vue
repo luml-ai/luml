@@ -111,14 +111,14 @@ const props = withDefaults(
 
 // Each check keeps the colour of the severity it usually raises.
 const TREND_COLORS: Record<string, string> = {
-  missing: '#f97316',
-  type_mismatch: '#ef4444',
-  range_violation: '#2673fd',
-  unseen_category: '#8b5cf6',
+  missing: 'var(--luml-chart-3)',
+  type_mismatch: 'var(--luml-chart-5)',
+  range_violation: 'var(--luml-chart-1)',
+  unseen_category: 'var(--luml-chart-12)',
 }
 
 function trendColor(key: string): string {
-  return TREND_COLORS[key] ?? '#2673fd'
+  return TREND_COLORS[key] ?? 'var(--luml-chart-1)'
 }
 
 const invalid = computed(() => props.row.invalid ?? null)

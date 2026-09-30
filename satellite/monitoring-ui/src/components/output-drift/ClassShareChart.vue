@@ -4,15 +4,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
 import type { Series } from '@/api/types'
 
 /** Each drifted class's live share across the windows — one line per class. */
-const props = withDefaults(
-  defineProps<{ series: Series[]; height?: number | string }>(),
-  { height: 230 },
-)
+const props = withDefaults(defineProps<{ series: Series[]; height?: number | string }>(), {
+  height: 230,
+})
 
 // Isolated points need markers, same as the runtime series.
 const measured = computed(() =>
@@ -35,8 +34,13 @@ function formatShare(value: number | null): string {
 }
 
 const options = computed(() => ({
-  chart: { toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit' },
-  colors: ['#2673fd', '#f97316', '#a855f7', '#059669', '#e11d48', '#64748b'],
+  chart: {
+    toolbar: { show: false },
+    zoom: { enabled: false },
+    fontFamily: 'inherit',
+    foreColor: chartTextColor.value,
+  },
+  colors: chartSeriesColors.value,
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
@@ -46,11 +50,11 @@ const options = computed(() => ({
     type: 'datetime',
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#94a3b8', fontSize: '11px' } },
+    labels: { style: { colors: chartTextColor.value, fontSize: '11px' } },
   },
   yaxis: {
     labels: {
-      style: { colors: '#94a3b8', fontSize: '11px' },
+      style: { colors: chartTextColor.value, fontSize: '11px' },
       formatter: formatShare,
     },
   },
