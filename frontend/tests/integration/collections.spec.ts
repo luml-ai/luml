@@ -78,6 +78,114 @@ test.describe('Collections', () => {
   })
 
   test.describe('Create collection', () => {
+    test('selects existing and new tags and persists only selected tags', async ({
+      page,
+      apiMocks,
+    }) => {
+      await apiMocks.get(
+        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections(\\?|$)`),
+        makeCollectionsListResponse([
+          makeCollection(),
+          makeCollection({ id: COLLECTION_ID_2, name: 'Untagged collection', tags: null }),
+        ]),
+      )
+      let createPayload: unknown = null
+      await apiMocks.post(
+        `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections`,
+        (req: { postDataJSON: () => unknown }) => {
+          createPayload = req.postDataJSON()
+          return makeCollection({
+            id: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+            name: 'Tagged collection',
+            tags: ['production', 'new-tag'],
+          })
+        },
+      )
+
+      await page.goto(orbitRegistryUrl)
+      await page.getByRole('button', { name: /Create collection/i }).click()
+
+      const dialog = page.getByRole('dialog').filter({
+        has: page.getByText('Create a new collection', { exact: true }),
+      })
+      await dialog.getByLabel('Name').fill('Tagged collection')
+      const tags = dialog.getByPlaceholder('Type to add tags')
+
+      await tags.fill('prod')
+      await page
+        .locator('.p-autocomplete-overlay')
+        .getByRole('option', { name: 'production', exact: true })
+        .click()
+      await expect(page.locator('.p-autocomplete-overlay')).not.toBeVisible()
+      await expect(dialog.locator('.p-chip')).toHaveText(['production'])
+
+      await tags.fill('discarded-tag')
+      await page
+        .locator('.p-autocomplete-overlay')
+        .getByRole('option', { name: 'discarded-tag', exact: true })
+        .click()
+      await expect(page.locator('.p-autocomplete-overlay')).not.toBeVisible()
+      await dialog
+        .locator('.p-chip')
+        .filter({ hasText: 'discarded-tag' })
+        .locator('.p-chip-remove-icon')
+        .click()
+
+      await tags.fill('new-tag')
+      await page
+        .locator('.p-autocomplete-overlay')
+        .getByRole('option', { name: 'new-tag', exact: true })
+        .click()
+      await expect(page.locator('.p-autocomplete-overlay')).not.toBeVisible()
+      await expect(dialog.locator('.p-chip')).toHaveText(['production', 'new-tag'])
+
+      await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+
+      await expect
+        .poll(() => createPayload)
+        .toMatchObject({
+          name: 'Tagged collection',
+          tags: ['production', 'new-tag'],
+        })
+      await expect(dialog).not.toBeVisible()
+      const card = page.getByRole('link').filter({ hasText: 'Tagged collection' }).locator('.tags')
+      await expect(card.getByText('production', { exact: true })).toBeVisible()
+      await expect(card.getByText('new-tag', { exact: true })).toBeVisible()
+    })
+
+    test('keeps selected tags after creation fails and clears them when reopened', async ({
+      page,
+      apiMocks,
+    }) => {
+      await apiMocks.post(`**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections`, {
+        status: 500,
+        body: { detail: 'Creation failed' },
+      })
+
+      await page.goto(orbitRegistryUrl)
+      await page.getByRole('button', { name: /Create collection/i }).click()
+
+      const dialog = page.getByRole('dialog').filter({
+        has: page.getByText('Create a new collection', { exact: true }),
+      })
+      await dialog.getByLabel('Name').fill('Tagged collection')
+      await dialog.getByPlaceholder('Type to add tags').fill('new-tag')
+      await page
+        .locator('.p-autocomplete-overlay')
+        .getByRole('option', { name: 'new-tag', exact: true })
+        .click()
+      await expect(page.locator('.p-autocomplete-overlay')).not.toBeVisible()
+      await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+
+      await expect(page.getByText('Creation failed', { exact: true })).toBeVisible()
+      await expect(dialog).toBeVisible()
+      await expect(dialog.locator('.p-chip')).toHaveText(['new-tag'])
+
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      await page.getByRole('button', { name: /Create collection/i }).click()
+      await expect(dialog.locator('.p-chip')).toHaveCount(0)
+    })
+
     const TYPE_CASES = [
       { type: CollectionType.dataset, optionLabel: 'Dataset', name: 'New Dataset Collection' },
       { type: CollectionType.model, optionLabel: 'Model', name: 'New Model Collection' },
