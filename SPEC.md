@@ -1,846 +1,590 @@
-# Backend test suite: audit and restructuring spec
+# Proposals
 
-Status: draft for review. Nothing in the test suite has been changed yet.
-Audited revision: `458001c4` (branch `oleh/26q3/platform-admin`), 2026-09-29.
-Scope: `backend/tests/` only.
+## Problem
 
-## 1. Purpose
+The backend test suite (`backend/tests/`, 62 files, 1 054 collected cases) grew from
+several hands without a shared convention. A full audit was done on 2026-09-29 and is
+kept in this branch's history (commit `dc84cd40`, file `SPEC.md`). The findings that
+block everyday work, in the order they hurt:
 
-The backend test suite grew from several hands (people and coding agents) without a
-shared convention. This document records what the suite looks like today, what is wrong
-with it, which conventions it should follow, and the ordered work needed to get there.
+1. **The test run can write into the development database.** The database fixture
+   always drops and recreates a database named `df_studio_test`, but then migrates and
+   runs every test against whatever database the configured connection string names.
+   The checked-in `backend/.env.test`, which the settings load under pytest, names the
+   local development database `df_studio`. A plain `uv run pytest` on a developer
+   machine therefore migrates `df_studio` and fills it with test data. CI is safe only
+   because it sets the connection string explicitly.
+2. **A new database is built for every integration test.** Drop, create and all 42
+   migrations, about one second per test; 277 tests take 265 seconds while the 777
+   unit tests take 11. The backend CI workflow is one sequential job of six to seven
+   minutes, and the lint and unit results arrive only when the whole job ends.
+3. **No pytest configuration** exists: no test paths, no asyncio mode (766 identical
+   `asyncio` markers), no way to run one layer other than by path.
+4. **One 698-line `conftest.py` serves two layers that share almost nothing**, holds
+   dataclasses that 17 files import from it, duplicates the seeding of user,
+   organization and bucket secret in two fixtures, and picks roles and inviters at
+   random. Engines are created in 25 places and disposed in 4.
+5. **The same builders are rewritten in every integration file**: create an artifact
+   (4 copies), create a sibling orbit (3 identical), create a sibling organization (2
+   identical), run an alembic command (2).
+6. **Route tests copy their scaffolding into every file**: the authentication stub is
+   declared 12 times under four names, the application factory 13 times under five
+   names, the production error handler is re-implemented three times, routers are
+   mounted under prefixes that differ from production, and two tests call route
+   functions directly instead of going through HTTP. Two route tests mock the
+   repository and run the route and the handler together.
+7. **Files sit in the wrong layer**: three handler-with-database tests hide among
+   repository tests, migration tests have no folder, infrastructure tests sit in the
+   root of `unit/`.
 
-It is written so that a separate agent can execute it phase by phase. Section 9 lists
-the decisions that must be made by the reviewer before the work starts.
+## Solution
 
-### Non-goals
+This spec is the **foundation** half of the clean-up: everything that touches the
+fixtures, the configuration, the folder layout, the CI workflow and the route-test
+layer. It leaves every handler and repository test body as it is. The second half —
+converting each handler, repository and integration file to classes with per-handler
+collaborator fixtures, shared identifiers, renamed fixtures, no comments — is
+`SPEC-2.md` on this branch; it assumes every task of this spec is done.
 
-- No change to production code under `backend/luml/`.
-- No change to what is tested: every existing test case keeps its behaviour and its
-  assertions. The refactor moves, renames, groups and de-duplicates.
-- No new coverage. Coverage gaps are listed in section 5.9 for information only.
+At a glance:
 
-## 2. Snapshot
+- The database fixture refuses any connection string that does not name the test
+  database, migrates one **template database** once per run and gives every test a
+  clone of it (`CREATE DATABASE … TEMPLATE`, about 50 ms instead of about 1 s).
+- Pytest gets a configuration with automatic asyncio mode; the CI workflow becomes
+  three parallel jobs (static checks, unit, integration), with dependency caching and
+  the type checker covering the tests.
+- Files move into a layout where the folder says the layer and the file says the
+  module: `integration/repositories/`, `integration/handlers/`,
+  `integration/migrations/`, `unit/infra/`.
+- Shared code moves to an importable `tests/support/` package; `conftest.py` is split
+  per layer; seed fixtures chain, are deterministic and own their engines.
+- Route tests get one application fixture built from the production application with
+  a replaceable authentication principal, one file per router, classes, production
+  URLs, and no direct calls of route functions.
 
-| Metric | Value |
+## Why this approach
+
+- Template cloning keeps the strongest isolation the suite has today — a fresh
+  database per test — so no test changes, including the ones that run migrations up
+  and down or open several connections on purpose. Emptying tables between tests or
+  rolling back a transaction would be marginally faster but needs exceptions for
+  exactly those tests.
+- Splitting the CI job alone would not shorten it: the integration job would still
+  take four and a half minutes. The fixture is the cause; the split only makes lint
+  and unit failures visible earlier.
+- Doing the foundation first and the file-by-file conversion second keeps each pull
+  request reviewable and lets the conversion assume a stable layout, support package
+  and fixture set.
+
+## Decisions taken
+
+| Question | Decision |
 | --- | --- |
-| Test files | 62 |
-| Lines in `tests/` (incl. `conftest.py`, JSON) | 32 888 |
-| Test functions defined | 906 |
-| Test cases collected (with parametrization) | 1 054 (777 unit, 277 integration) |
-| Unit suite result / time | 777 passed, 11 s |
-| Integration suite result / time | 277 passed, 265 s (4 min 25 s) |
-| Backend CI workflow | one job, 6 to 7 minutes |
-| Files that use test classes | 10 of 62 (78 of 906 test functions) |
-| `@patch` decorators | 1 394 |
-| `@pytest.mark.asyncio` markers | 766 |
-| Hard-coded `UUID("…")` literals | 861, of which 728 are declared inside test bodies |
-| Comment lines / docstrings in tests | 107 / 22 |
-| `conftest.py` files | 1 (root, 698 lines) |
-| Pytest configuration | none (no `[tool.pytest.ini_options]`, no `pytest.ini`) |
+| Isolation of integration tests | Template database, clone per test |
+| Large test files (1 000–3 800 lines) | A folder per module, one file and one class per area — applied in the second spec |
+| Route tests that run the handler | Split: the route test mocks the handler, the rule moves to the handler test; an end-to-end layer is a later task |
+| CI | Three jobs in one workflow |
+| Scope of this spec | Foundation only; file-by-file conversion in a second spec |
+| `satellite_field_condition_cases.json` | Stays where it is (shared with the frontend test) |
+| Tests of private methods and mangled attributes | Stay; listed in the task report |
+| Type checking of tests | Added to CI (it already passes) |
+| `@pytest.mark.asyncio` markers | Left in place; removed file by file in the second spec |
+| Fixture renames (`test_user`, `create_orbit`, …) | Second spec, file by file |
+| `unit/api/` | Fully reworked in this spec: fixture, merge per router, classes, production URLs |
 
-Layout today:
+## Out of scope
+
+- Any file under `backend/luml/`, `backend/migrations/`, `backend/alembic.ini`.
+- Handler, repository and integration test bodies, apart from moving files and
+  replacing the duplicated builders and engine creation with the shared ones.
+- Deprecation warnings printed by the run (one from `luml/handlers/bucket_secrets.py`,
+  one from alembic's configuration); both need changes outside the tests.
+- Branch protection settings on GitHub (which checks are required) — done by hand
+  after the workflow is merged.
+
+# Design
+
+## Database fixture
+
+Names: the test database is `df_studio_test`; the template is `df_studio_test_template`;
+both names are constants next to the fixture and nowhere else.
+
+**Connection string guard.** The integration session reads the configured
+`POSTGRESQL_DSN`, parses it as a SQLAlchemy URL and stops with an error naming the
+expected database when the URL's database is not `df_studio_test`. The check runs at the
+start of the integration session, not at import, so `pytest tests/unit` never touches
+it and needs no database. The administrative connection is the same URL with the
+database replaced by `postgres` and the driver marker removed, built through URL
+manipulation, not text replacement.
+
+**Session preparation** (once per run, before the first integration test):
+
+1. Terminate every other session connected to `df_studio_test` or
+   `df_studio_test_template`, drop both if they exist.
+2. Create `df_studio_test_template` and run the existing migration helper
+   (`utils/db.py`) against it up to head. The helper disposes its engine; nothing
+   else may stay connected to the template, or the clone step fails.
+3. At the end of the session drop the template.
+
+The preparation runs to completion inside a synchronous session-scoped fixture (its
+async work is driven to completion there) so that no connection or engine bound to the
+session's event loop outlives it; per-test fixtures keep pytest-asyncio's default
+function loop scope.
+
+**Per test** (the existing `create_database_and_apply_migrations` fixture keeps its
+name and still yields the test database's connection string):
+
+1. Terminate other sessions on `df_studio_test`, drop it if a previous test or an
+   interrupted run left it behind.
+2. `CREATE DATABASE df_studio_test TEMPLATE df_studio_test_template`.
+3. Yield the connection string.
+4. Terminate other sessions on `df_studio_test` and drop it.
+
+Consequences that need no special handling: migration tests that downgrade the
+schema work on their private clone; tests that open several connections and commit
+work as before; `alembic current` from the CLI test sees the template's
+`alembic_version`; the application's global engine (`luml/infra/db.py`), used by the
+handler-with-database tests, is bound to the same connection string and therefore to
+the test database.
+
+`backend/.env.test` names `df_studio_test`. The CI workflow keeps passing the connection
+string explicitly.
+
+## Pytest configuration
+
+`[tool.pytest.ini_options]` in `backend/pyproject.toml`:
+
+| Option | Value | Effect |
+| --- | --- | --- |
+| `testpaths` | `tests` | `uv run pytest` from `backend/` collects the suite |
+| `asyncio_mode` | `auto` | async tests and fixtures need no marker; existing markers stay valid |
+
+Layers are selected by path (`tests/unit`, `tests/integration`); no markers are
+registered.
+
+## CI workflow
+
+`.github/workflows/[backend] tests-and-linters.yml` keeps its triggers and path filters
+and gets three jobs that run in parallel:
+
+| Job | Steps | Database |
+| --- | --- | --- |
+| `checks` | `ruff format --check`, `ruff check`, `mypy luml utils tests` | no |
+| `unit-tests` | `pytest tests/unit` | no |
+| `integration-tests` | Postgres 15 as a service container with a readiness check, `pytest tests/integration` | yes |
+
+All three install dependencies with uv through the official setup action with its
+cache enabled. The environment variables of the current test step (`PYTEST_VERSION`,
+`POSTGRESQL_DSN`, `AUTH_SECRET_KEY`, `BUCKET_SECRET_KEY`) move to the two test jobs.
+The type check now covers everything the mypy configuration lists (`luml`, `utils`,
+`tests`); it passes today with no changes.
+
+## Layout
 
 ```
-tests/
-  conftest.py                          698 lines, all fixtures for all layers
+backend/tests/
+  conftest.py                         data fixtures used by both layers
   satellite_field_condition_cases.json
-  unit/
-    test_security.py
-    test_security_headers.py
-    api/            16 files   route tests, handlers mocked
-    handlers/       20 files   handler tests, repositories mocked
-    repositories/    3 files   repository helpers, no database
-  integration/
-    test_migrations_env.py
-    test_satellite_contract_migration.py
-    repository/     19 files   repositories against a real Postgres
-```
-
-## 3. History: when each layer appeared
-
-Authors are the squash-merge authors of the pull request, i.e. the PR owner, not
-necessarily the person or agent who typed the test.
-
-| Date | Commit | Author | What appeared |
-| --- | --- | --- | --- |
-| 2025-04-21 | `239eecff` | Nikita Gonchar | The layout itself: `conftest.py`, `integration/repository/`, `unit/handlers/`. Integration and unit tests exist from the very first test commit. |
-| 2025-05 … 2025-12 | #24, #29, #34, #52, #89, #109, #165, #197 | Kate Krut, Nikita | Growth of the two original layers: repository integration tests and handler unit tests. |
-| 2026-06-17 | #572 | Kate Krut | Tracks: the two largest files of the suite (`unit/handlers/test_tracks.py`, `integration/repository/test_tracks.py`). |
-| 2026-08-17 | `ab71e185` (#630) | Oleh Kostromin | **`unit/api/` is created** (`test_organization_bucket_secrets.py`, `test_satellites.py`, `test_stats_removed.py`) together with `unit/test_security.py`. |
-| 2026-08-27 … 2026-09-18 | #633, #612, #643, #654, #670 | Kate Krut | More `unit/api/` files: tags, orbit satellites, lineage routes, artifact routes, batch deletion routes, organization invites. |
-| 2026-09-10 | `be68bd86` (#643) | Kate Krut | **`unit/repositories/` is created** (`test_lineage.py`), then `test_base.py` (#655) and `test_artifacts.py` (#686, orbie-dfs). |
-| 2026-09-14 | #655, #659 | Kate Krut | `test_concurrency_guards.py`, `test_migrations_env.py`. |
-| 2026-09-18 … 2026-09-28 | #666, #671, #674, #676, #686, #687, #692, #701, #702 | orbie-dfs | One small `unit/api/` file per bug fix. |
-| 2026-09-25 | #679 | Oleh Kostromin | `satellite_field_condition_cases.json`, `test_satellite_parameters.py`, `test_satellite_contract*.py`. |
-| 2026-09-29 | #706 | Oleh Kostromin | Platform admin tests in all three layers. |
-
-Line ownership by `git blame`:
-
-| Directory | Kate Krut | Oleh Kostromin | Nikita | orbie-dfs | Others |
-| --- | --- | --- | --- | --- | --- |
-| `unit/api` | 959 | 626 | 0 | 475 | 0 |
-| `unit/handlers` | 14 193 | 3 271 | 2 813 | 657 | 91 |
-| `unit/repositories` | 104 | 0 | 0 | 84 | 0 |
-| `integration` | 6 317 | 916 | 972 | 212 | 95 |
-| `conftest.py` | 231 | 0 | 441 | 15 | 11 |
-
-## 4. Answers to the questions that started the audit
-
-**Are the files in `integration/` really integration tests?**
-Yes. Every file in `integration/repository/` runs a repository against a real Postgres
-with all migrations applied. `test_invites.py` is a plain example of that. Two groups
-do not belong to the folder they sit in: tests that drive a handler (section 5.5) and
-two migration tests that sit one level up.
-
-**Are unit tests on the API needed? It looks odd.**
-They are legitimate, but the name hides what they are. They start a FastAPI application
-in process, replace the handler with a mock, and check the HTTP contract of a route:
-request validation, authentication and scopes, that path and body values reach the
-handler, the response status and shape, that a route is or is not registered. None of
-that can be checked by a handler unit test, and none of it needs a database, so the
-unit layer is the right place. What is wrong is how they are written (section 5.2).
-
-**Should the API be covered by integration tests instead?**
-There is currently no test that goes through HTTP, handler, repository and database in
-one run. That is a real gap, but a different task. See decision D1.
-
-**Are unit tests on repositories needed?**
-The three files test pure logic that lives in the repository layer and needs no
-database: translation of a database integrity error into an application error,
-validation of a sort field, building a pagination cursor. That is a valid unit test.
-The folder is fine; it is small and should stay small.
-
-**What are `DELETION_SESSION` and `_deletion_transaction` in `unit/handlers/test_artifacts.py`?**
-Physical deletion of an artifact runs several repository calls inside one database
-transaction. The handler opens that transaction through the lineage repository. In a
-unit test there is no database, so the test replaces the transaction with a fake one:
-a context manager that hands out one fake session and remembers any exception that
-passes through it. `DELETION_SESSION` is that fake session; the tests use it to assert
-that every repository call received the same session, which proves the calls share one
-transaction. `DELETION_TRANSACTION_ERRORS` is the list of remembered exceptions; one
-test uses it to assert that a failure reached the transaction, which means a rollback.
-The idea is sound. The implementation is two module-level mutable globals in a module
-of 74 tests (finding F-14).
-
-**What are `HandlerMocks`, `lineage_mocks` and the async context manager in `unit/handlers/test_lineage.py`?**
-The same idea done properly: a fixture that patches every collaborator of the lineage
-handler once (fifteen mocks and a fake transaction) and gives the test one object with
-named mocks. It replaces a stack of sixteen `@patch` decorators on each of the 31
-tests. This is the best pattern in the handler layer and the model for the rest
-(section 6.4). Its weakness is that it is local to one file.
-
-**Patches that the test never uses.**
-Confirmed: 184 mock parameters in 163 tests are never referenced in the test body.
-Most of them are needed to keep the code from reaching a real dependency (the
-permission check is the typical case), but they are repeated as decorators on every
-test instead of being set up once. Some are left over and patch something the tested
-path never calls. Details in F-11.
-
-**`create_test_client`, `StubAuthBackend`: should they be in `conftest.py`?**
-Yes. The same authentication stub is declared 12 times in 11 files under four
-different names, and the application factory 13 times under five names (F-06).
-
-**`satellite_field_condition_cases.json`: should it be a fixture?**
-No. The file is a contract shared by two languages: the backend test
-`unit/handlers/test_satellite_parameters.py` and the frontend test
-`frontend/src/hooks/satellites/useSatelliteFields.test.ts` both read it, so that the
-backend and the frontend evaluate field conditions the same way. It has to stay a data
-file. Only its location is questionable (F-19, decision D4).
-
-## 5. Findings
-
-Severity: **H** blocks reliable work or can damage data, **M** costs time on every
-change, **L** cosmetic or local.
-
-### 5.1 Structure and naming
-
-**F-01 (M) Two styles in one suite.** 52 files use module-level test functions, 10 use
-classes. The class files are the recent ones. The team preference is one class per
-module.
-
-**F-02 (M) Files that are too large to navigate.**
-
-| File | Lines | Tests |
-| --- | --- | --- |
-| `unit/handlers/test_artifacts.py` | 3 832 | 74 |
-| `unit/handlers/test_tracks.py` | 2 469 | 80 |
-| `unit/handlers/test_deployments.py` | 2 352 | 53 |
-| `unit/handlers/test_satellites.py` | 1 941 | 49 |
-| `integration/repository/test_tracks.py` | 1 652 | 51 |
-| `unit/handlers/test_lineage.py` | 1 380 | 31 |
-| `unit/handlers/test_bucket_secrets.py` | 1 298 | 28 |
-| `unit/handlers/test_auth.py` | 1 260 | 57 |
-| `unit/handlers/test_orbits.py` | 1 200 | 28 |
-| `unit/handlers/test_collections.py` | 1 072 | 24 |
-| `integration/repository/test_artifacts.py` | 1 035 | 35 |
-
-Several of them already mark their internal sections with divider comments
-(`# ---- TrackStagesHandler ----`, `# --- Mint ---`), 20 dividers in total. Each
-divider is a class that was not written.
-
-**F-03 (M) No rule for what a file is named after.** Three schemes are mixed:
-
-- after the module under test (`test_orbits.py`, `test_collections.py`);
-- after a feature that cuts across modules (`test_concurrency_guards.py`,
-  `test_pagination_routes.py`, `test_artifacts_batch_deletion.py`,
-  `test_satellite_parameters.py`, which tests functions of the deployments handler);
-- after a bug fix (`test_stats_removed.py`, `test_user_invites.py`).
-
-In `unit/api/` some files carry the suffix `_routes` and some do not
-(`test_orbit_tags_routes.py` next to `test_orbit_satellites.py`), and the file name
-does not tell which router is tested (`test_satellites.py` tests the satellite worker
-router, `test_orbit_satellites.py` the orbit satellites router).
-
-**F-04 (L) One handler, three files.** The organization handler is tested in
-`test_organizations.py`, `test_organization_invites.py` and
-`test_organization_members.py`. The user repository is tested in `test_user.py`,
-`test_organizations.py`, `test_organization_members.py` and `test_api_keys.py`. This is
-a reasonable split by topic, but it is not written down anywhere, so new tests land at
-random.
-
-**F-05 (L) Test names that do not describe the behaviour.** Examples in
-`integration/repository/test_invites.py`: `test_get_invite_where` tests listing the
-invites of an organization, `test_delete_invite_where` tests deleting all invites of an
-organization. Neither name matches the repository method it exercises.
-
-### 5.2 Route tests (`unit/api/`)
-
-**F-06 (M) The same scaffolding is copied into every file.**
-
-| Duplicated item | Copies | Names in use |
-| --- | --- | --- |
-| Authentication stub for a signed-in user | 12 classes in 11 files | `_SignedInBackend`, `StubAuthBackend`, `_SatelliteBackend`, `_NoCredentialsBackend`, plus one `Mock` of the backend |
-| Application and client factory | 13 | `_client`, `_create_test_client`, `create_test_client`, `_app`, a `client` fixture, and one inline construction |
-| Handler of application errors re-implemented in the test | 3 | in `test_lineage_routes.py`, `test_pagination_routes.py`, `test_satellites.py` |
-| `USER_ID`, `ORGANIZATION_ID`, `ORBIT_ID` constants | 23, 13, 11 declarations across the suite | the same three UUID values everywhere, also as `ORG_ID` |
-
-**F-07 (M) Three different ways to reach a route, chosen at random.**
-
-1. A bare application with one router and a stub backend (most files).
-2. The full production application (`test_stats_removed.py`,
-   `test_satellite_contract.py`, `test_platform_admin.py`).
-3. A direct call of the route function with a mocked request, without HTTP
-   (`test_artifact_routes.py`, one test in `test_orbit_satellites.py`).
-
-Way 3 skips validation, authentication and serialization, which are the reasons a
-route test exists. Way 1 mounts routers with different prefixes in different files
-(some with `/v1/organizations`, some without), so the URL in the test is not the URL
-of the product. Way 1 also does not install the production error handlers, which is
-why three files re-implement one (F-06), and the re-implementation can drift from the
-real one.
-
-**F-08 (M) Route tests that are not route tests.** `test_pagination_routes.py` and one
-test in `test_satellites.py` mock the repository instead of the handler, so they run
-the route and the handler together. They need up to five patches each and break when
-the handler internals change. They are valuable, but they are a different kind of test
-and are not marked as such.
-
-**F-09 (L) One file per bug fix.** Seven files contain one or two tests each
-(`test_artifact_routes.py`, `test_orbit_members_routes.py`,
-`test_organization_bucket_secrets.py`, `test_organization_invites.py`,
-`test_organization_members.py`, `test_satellite_contract.py`,
-`test_user_invites.py`). Each of them pays the full
-scaffolding cost of F-06 for one test.
-
-### 5.3 Handler tests (`unit/handlers/`)
-
-**F-10 (H) Patch stacks instead of fixtures.** Handlers keep their repositories as
-private class attributes, so a test cannot pass a fake in; it has to patch by dotted
-string path. The result is 1 394 decorators, up to 11 on one test, and the order of
-the mock parameters must mirror the decorators bottom-up. A mistake in the order is
-silent: the test receives the wrong mock and may still pass. Two files already avoid
-this (`test_lineage.py` with the `lineage_mocks` fixture,
-`test_artifacts_batch_deletion.py` with the `context` fixture) and are several times
-shorter per test.
-
-**F-11 (M) Mocks that the test does not use.** 184 mock parameters in 163 tests are
-never referenced in the body.
-
-| File | Tests with an unused mock | Unused mocks |
-| --- | --- | --- |
-| `unit/handlers/test_tracks.py` | 68 of 80 | 68 |
-| `unit/handlers/test_artifacts.py` | 29 of 74 | 48 |
-| `unit/handlers/test_orbits.py` | 17 of 28 | 17 |
-| `unit/handlers/test_monitoring.py` | 12 of 20 | 12 |
-| `unit/handlers/test_bucket_secrets.py` | 9 of 28 | 9 |
-| `unit/handlers/test_deployments.py` | 7 of 53 | 7 |
-| `unit/handlers/test_satellites.py` | 6 of 49 | 6 |
-| others (8 files) | 15 | 17 |
-
-Two different cases hide behind the number. A mock that silences a dependency the
-tested path does call (mostly the permission check) is needed but belongs in a shared
-fixture. A mock for something the tested path never calls is dead and should go. They
-can only be told apart by removing the patch and running the test.
-
-**F-12 (M) One object, ten patch paths.** The permission check is patched through ten
-different dotted paths (`luml.handlers.permissions.…` 108 times,
-`luml.handlers.artifacts.…` 41 times, and eight more). All of them resolve to the same
-method, so the choice is arbitrary.
-
-**F-13 (M) Identifiers re-declared in every test.** 728 of the 861 UUID literals are
-local variables inside test bodies, the same five or six values repeated
-(`0199c337-09f1-…` 189 times). Files written later declare module constants instead;
-both styles coexist, sometimes in one file.
-
-**F-14 (H) Shared mutable state between tests.** `unit/handlers/test_artifacts.py`
-keeps the fake session and the list of transaction errors as module globals. The list
-is appended to by every test that fails inside the transaction and is cleared by
-exactly one test, by hand, before it asserts. Any new test that asserts on the list
-without clearing it depends on execution order. The handler objects themselves are
-module-level singletons in 17 files, which is harmless only as long as handlers keep
-no state.
-
-**F-15 (M) A unit test that depends on the integration suite.**
-`unit/handlers/test_platform_admin.py` re-enables the audit logger by hand, with a
-comment explaining that the migration step of the integration tests disables existing
-loggers. The unit test therefore behaves differently depending on whether integration
-tests ran earlier in the same process.
-
-**F-16 (M) Tests of private methods and private attributes.** About 55 calls go to
-underscore-prefixed handler methods, and 10 places reach private attributes through
-the mangled name (`_ArtifactHandler__repository` and similar). These tests break on
-any internal rename and pin the implementation rather than the behaviour.
-
-**F-17 (L) Comments and docstrings.** 107 comment lines in 13 files and 22 docstrings
-in 11 files, against the project rule that tests carry no explanatory comments. Three
-kinds: section dividers (20, see F-02), restatements of the next line (`# Sort by
-version DESC.`), and genuine reasons for the test (`# An empty list would skip
-resolving the source artifact…`). The third kind is information that the test name
-should carry.
-
-**F-18 (L) Small inconsistencies.** Imports inside test bodies (6 places). Fixtures
-whose names start with `test_` (`test_orbit`, `test_user`, `test_bucket`,
-`test_artifact`, `test_org`), which read as tests. Fixtures named as actions
-(`create_orbit`, `get_created_user`, `get_tokens`) although they return data. Fixtures
-declared async although they only build an object (every data fixture in
-`conftest.py`). 120 naive `datetime.now()` calls next to timezone-aware ones.
-
-### 5.4 Shared fixtures and the database
-
-**F-20 (H) The test run can write into the development database.** The fixture that
-prepares the database always drops and creates a database with a fixed name,
-`df_studio_test`, but then applies migrations to, and runs every test against,
-whatever database the configured connection string names. The two are equal only by
-convention. The checked-in test environment file names the local development database
-`df_studio`, so a plain `uv run pytest` on a developer machine creates an unused
-`df_studio_test`, then migrates `df_studio` and fills it with test data. CI is safe
-because it sets the connection string explicitly. The administrative connection is
-derived by replacing the text `df_studio_test` inside the connection string, which
-silently does nothing for any other database name.
-
-**F-21 (H) A new database for every test.** The database is dropped, created and
-migrated through all 42 migrations for each of the 277 integration tests.
-The integration run takes 265 seconds, about one second per test, and nearly all of
-it is fixture setup: nine of the ten slowest phases in the run are setup, each between
-1.1 and 1.4 seconds. The unit suite, three times larger, runs in 11 seconds.
-
-**F-22 (M) One `conftest.py` for two layers that share nothing.** Usage by layer:
-
-| Fixture group | Used by unit tests | Used by integration tests |
-| --- | --- | --- |
-| Database and seeded entities (7 fixtures) | 0 | 259 |
-| Plain data objects (15 fixtures) | 95 | 71, of which 59 are one fixture (`test_artifact`) |
-
-The file also holds the seven result dataclasses, which 17 test files import with
-`from tests.conftest import …`. Importing from `conftest.py` is fragile: the module can
-be loaded twice under two names.
-
-**F-23 (M) Seed fixtures duplicate each other and hide failures.** The fixture that
-creates an organization and the fixture that creates an orbit each create the user,
-the organization and the bucket secret on their own, line for line, instead of one
-building on the other. They contain assertions, two of them duplicated, so a failed
-seed is reported as a failed test. Two invite fixtures are identical. Two seed
-fixtures pick roles and inviters with `random`, so the data differs between runs.
-
-**F-24 (M) Database engines are never closed.** Engines are created in 25 places and
-disposed in 4. The fixture compensates by forcibly terminating all connections to the
-test database before dropping it.
-
-**F-25 (M) The same builder is written again in each integration file.**
-
-| Helper | Copies | Files |
-| --- | --- | --- |
-| Create an artifact from a template | 4 (`_create_artifact` ×3, `_make_artifact`, plus `_artifact`) | artifacts, batch deletion, lineage, tracks, concurrency guards |
-| Create a sibling orbit | 3, identical | collections, deployments, orbit secrets |
-| Create a sibling organization | 2, identical | bucket secrets, orbits |
-| Run an alembic command on an engine | 2 | concurrency guards, satellite contract migration |
-| Artifact manifest | 2 | `conftest.py`, tracks |
-
-Every integration test also starts with the same three lines that unpack the fixture
-and construct the repository.
-
-### 5.5 Tests in the wrong layer
-
-**F-26 (M) Handler tests inside `integration/repository/`.** Two tests in
-`test_deployments.py` and one in `test_lineage.py` drive a handler against the real
-database. The first two use the application's global engine, so they work only when
-the configured connection string is the test database. The third swaps private
-attributes of the handler class. They are the only handler-with-database tests in the
-suite and they are hidden among repository tests.
-
-**F-27 (L) Migration tests have no home.** `test_migrations_env.py` and
-`test_satellite_contract_migration.py` sit in the root of `integration/`;
-`test_concurrency_guards.py` also runs migrations up and down but sits in
-`repository/`. The satellite contract test hard-codes revision `040`.
-
-### 5.6 Configuration
-
-**F-28 (M) No pytest configuration.** No test paths, no asyncio mode (hence 766
-identical markers), no registered markers, no way to select a layer other than by
-path. Deprecation warnings are printed on every run and nobody sees them: 4 in the
-unit run from the bucket secrets handler, 281 in the integration run from the alembic
-configuration.
-
-**F-30 (H) One sequential CI job, dominated by the integration tests.** The backend
-workflow is a single job that runs formatting, linting, type checking and then the
-whole test suite in one step. A run takes six to seven minutes; about four and a half
-of them are the integration tests, and nearly all of that is the database being
-rebuilt for each test (F-21). Everything before the test step takes about a minute and
-the unit tests take 11 seconds, but their result is reported only after the whole job
-ends. Dependencies are installed from scratch on every run.
-
-**F-29 (L) Type checking skips the tests.** The project configuration lists `tests`
-for mypy, CI runs mypy on `luml` only. The tests carry type annotations and 6
-`type: ignore` comments that nothing verifies.
-
-### 5.7 Data files
-
-**F-19 (L) The shared condition cases live in the root of the backend tests.** The
-frontend test imports the file through a relative path that climbs out of the frontend
-into `backend/tests/`. Nothing in the file or next to it says that it has a second
-consumer, so it looks like a stray backend fixture and is easy to move or delete by
-mistake.
-
-### 5.8 Tests without assertions
-
-Four tests contain no assertion and no expected exception; they pass as long as
-nothing raises:
-
-- `integration/repository/test_lineage.py`: `test_refresh_node_copy_ignores_an_unknown_artifact`
-- `unit/handlers/test_satellite_parameters.py`:
-  `test_unknown_condition_and_validator_types_are_skipped`,
-  `test_empty_field_list_accepts_parameters_as_before`,
-  `test_required_field_hidden_by_a_condition_may_be_absent`
-
-This is acceptable for "does not raise" tests, but the intent should be visible in the
-name. No change required beyond the rename rule in 6.2.
-
-### 5.9 Coverage gaps (information only)
-
-Modules with no test that imports or patches them:
-
-- Routes: `bucket_secret_urls`, `orbit_deployments`, `orbit_secrets`, `orbits`,
-  `organization`, `user`, `user_api_keys`.
-- Repositories: `limits`, `permissions` (may be exercised indirectly).
-- Infrastructure: `encryption`, `utils/organizations`; storage clients are touched by
-  two files only.
-- No end-to-end test through HTTP, handler, repository and database.
-
-## 6. Target conventions
-
-### 6.1 Layers
-
-| Layer | Folder | Real database | What is mocked | What it proves |
-| --- | --- | --- | --- | --- |
-| Route | `unit/api/` | no | the handler | HTTP contract of a route |
-| Handler | `unit/handlers/` | no | repositories, clients, other handlers | business rules |
-| Repository logic | `unit/repositories/` | no | the session | pure logic inside a repository |
-| Infrastructure | `unit/infra/` | no | as needed | security backend, middleware |
-| Repository | `integration/repositories/` | yes | nothing | queries, constraints, locking |
-| Handler with database | `integration/handlers/` | yes | permission check only | a handler and its repositories together |
-| Migrations | `integration/migrations/` | yes | nothing | upgrade, downgrade, CLI |
-
-A test belongs to the layer of the outermost thing it calls.
-
-### 6.2 Files, classes, names
-
-- One test file per module under test, named after the module:
-  `luml/handlers/tracks.py` is tested by `unit/handlers/test_tracks.py`,
-  `luml/api/orbits/orbit_lineage.py` by `unit/api/test_orbit_lineage.py`. No `_routes`
-  suffix; the folder already says it.
-- Every test is a method of a class. A file has one class named after the module
-  (`TestTracksHandler`) unless decision D7 allows grouping by the method under test.
-- A cross-cutting topic (concurrency guards, pagination) is a class inside the file of
-  the module it exercises, not a file of its own. If it exercises several modules, it
-  is split between their files.
-- A test name states the behaviour and the condition:
-  `test_<action>_<expected outcome>[_when_<condition>]`. A test that only checks that
-  nothing is raised says so in its name.
-- No comments and no docstrings. A reason that was in a comment goes into the test
-  name. Section dividers become classes.
-
-### 6.3 Fixtures, helpers, constants
-
-- `tests/conftest.py`: only what both layers use.
-- `tests/unit/conftest.py`: data objects and the shared mocks of 6.4.
-- `tests/unit/api/conftest.py`: application, client and authentication fixtures.
-- `tests/integration/conftest.py`: database, engine and seeded entities.
-- Importable code (result dataclasses, builder functions, constants) lives in ordinary
-  modules under `tests/support/`, never in `conftest.py`.
-- A fixture is a noun and does not start with `test_` (`user`, `orbit`,
-  `seeded_orbit`). A builder function is a verb (`create_artifact`).
-- A fixture is async only when it awaits something.
-- Seed fixtures build on each other (orbit on organization, collection on orbit), do
-  not assert, and do not use randomness.
-- Well-known identifiers (`USER_ID`, `ORGANIZATION_ID`, `ORBIT_ID`, `COLLECTION_ID`,
-  …) are declared once in `tests/support/` and imported. A test declares a local
-  identifier only when it needs a value distinct from the shared ones.
-
-### 6.4 Mocking
-
-- A handler test receives its collaborators from one fixture per handler that patches
-  them all and returns an object with named mocks, as `lineage_mocks` does today. A
-  test configures only the mocks it cares about.
-- The permission check is allowed by default in that fixture; a test that checks
-  permissions overrides it.
-- One patch path per target: the path of the module that defines the object.
-- `@patch` decorators remain acceptable for a single, test-specific patch. More than
-  three on one test means a fixture is missing.
-- No module-level mutable state. A fake transaction and its recorded errors are
-  created per test by a fixture.
-- A route test mocks the handler, never the repository. A test that needs the route
-  and the handler together belongs to the handler-with-database layer or is rewritten
-  as two tests.
-
-### 6.5 Route tests
-
-- One shared application fixture built from the production application, with the
-  production error handlers and the production URL prefixes, and the authentication
-  backend replaced by a stub.
-- Stub backends are provided for: signed-in user with a session, signed-in user with
-  an API key, satellite, anonymous.
-- A route is always called through HTTP. Direct calls of route functions are rewritten.
-
-### 6.6 Database
-
-- The test database name comes from one place. The fixture refuses to run when the
-  configured connection string does not name that database.
-- Migrations run once per test run; tests are isolated from each other without
-  re-running them (decision D3 chooses the mechanism).
-- Every engine created by a fixture is disposed by that fixture.
-
-### 6.7 Configuration
-
-- Pytest settings live in the project configuration: test paths, automatic asyncio
-  mode, registered markers `unit` and `integration` applied by folder, warnings from
-  project code turned into errors.
-- CI runs three parallel jobs in one workflow: static checks, unit tests, integration
-  tests. Only the integration job starts a database. Installed dependencies are cached
-  between runs.
-- All three jobs are required for a merge.
-
-## 7. Target layout
-
-```
-tests/
-  conftest.py
   support/
-    ids.py                  shared identifiers
-    builders.py             create_artifact, create_sibling_orbit, …
-    seeds.py                result dataclasses of seed fixtures
-    auth.py                 authentication stubs
-    alembic.py              run a migration command on an engine
+    __init__.py
+    seeds.py                          result dataclasses of the seed fixtures
+    builders.py                       create_artifact, create_sibling_orbit, create_sibling_organization
+    alembic.py                        run an alembic command on an engine
+    ids.py                            identifiers shared by more than one file
+    auth.py                           authentication principals for route tests
   unit/
-    conftest.py
     api/
-      conftest.py
+      conftest.py                     application, client, principal
       test_auth.py
-      test_orbit_artifacts.py         artifact_routes + batch + pagination (artifacts)
-      test_orbit_collections.py       tags (collections) + pagination (collections)
-      test_orbit_tracks.py            tags (tracks)
+      test_orbit_artifacts.py
+      test_orbit_collections.py
       test_orbit_lineage.py
       test_orbit_satellites.py
+      test_orbit_tracks.py
       test_orbits_members.py
       test_organization_bucket_secrets.py
       test_organization_invites.py
       test_organization_members.py
       test_platform_admin.py
-      test_satellites.py              worker router, contract
+      test_satellites.py
+      test_service.py
       test_user_invites.py
-      test_service.py                 stats route removed, route registration
-    handlers/
-      test_<handler>.py               one per handler
-    repositories/
-      test_<repository>.py
+    handlers/                         unchanged
+    repositories/                     unchanged
     infra/
-      test_security.py
-      test_middleware.py
+      test_security.py                from unit/test_security.py
+      test_middleware.py              from unit/test_security_headers.py
   integration/
-    conftest.py
-    repositories/
-      test_<repository>.py
+    conftest.py                       database, engine, seed fixtures
+    repositories/                     from integration/repository/
     handlers/
-      test_artifacts.py
-      test_deployments.py
+      test_artifacts.py               one test from repository/test_lineage.py
+      test_deployments.py             two tests from repository/test_deployments.py
     migrations/
-      test_env.py
-      test_satellite_contract.py
-      test_concurrency_guards.py
+      test_env.py                     from integration/test_migrations_env.py
+      test_041_satellite_contract.py  from integration/test_satellite_contract_migration.py
+      test_039_concurrency_guards.py  two tests from repository/test_concurrency_guards.py
 ```
 
-## 8. Work plan
+Every folder is a package (`__init__.py`), as today, because file basenames repeat
+across folders. Moves are done with `git mv` so history follows the file.
 
-Rules for every phase:
+Which tests move out of `repositories/`:
 
-- One phase is one commit series that leaves the suite green.
-- The number of collected test cases stays 1 054 (777 unit, 277 integration) unless
-  the phase states a different number and the reason.
-- No file under `luml/` is touched.
-- A test body is changed only as far as the phase requires; assertions are never
-  weakened or removed.
-- Formatting and lint checks pass after each phase.
+| From | Tests | To |
+| --- | --- | --- |
+| `test_deployments.py` | `test_partial_details_update_preserves_untouched_columns`, `test_details_update_treats_explicit_null_secrets_as_cleared`, with the `deployment_handler` fixture | `handlers/test_deployments.py` |
+| `test_lineage.py` | `test_concurrent_deletion_of_the_last_live_artifacts_removes_the_component` | `handlers/test_artifacts.py` |
+| `test_concurrency_guards.py` | `test_migration_keeps_the_longest_blacklist_expiry`, `test_migration_extends_legacy_rows_to_the_token_expiry` | `migrations/test_039_concurrency_guards.py` |
 
-### Phase 0. Baseline
+The moved tests keep their bodies, including private attribute access; helpers they
+need travel with them or come from `support/`.
 
-- Record the list of collected test identifiers and the run time of both layers.
-- Outcome: a reference to compare every later phase against.
+## Support package and conftest split
 
-### Phase 1. Safety of the database fixture (F-20)
+`tests/conftest.py` keeps only the plain data fixtures (`invite_data`,
+`invite_get_data`, `invite_user_get_data`, `invite_accept_data`, `member_data`,
+`test_user_create`, `test_user_create_in`, `test_user`, `test_user_out`,
+`test_current_user_out`, `test_org`, `test_org_details`, `manifest_example`,
+`test_bucket`, `test_artifact`) under their current names. Fixtures that await nothing
+become plain synchronous fixtures returning the object; the explicit
+`scope="function"` goes.
 
-- The test database name has a single source; the administrative connection is built
-  from the connection string properly instead of by text replacement.
-- The fixture stops with a clear message when the connection string names any other
-  database.
-- The checked-in test environment file names the test database.
-- Outcome: a plain local `pytest` cannot touch the development database.
+`tests/integration/conftest.py` holds the database fixture, an `engine` fixture and
+the seed fixtures:
 
-### Phase 2. Configuration (F-28, F-29)
+- `engine`: a function-scoped async engine on the test database, disposed at teardown.
+  Every seed fixture uses it instead of creating its own; every test that today calls
+  the engine factory on the connection string uses the fixture instead (24 tests plus
+  the `get_created_user` fixture in `test_user.py`). The `engine` field of the seed
+  dataclasses stays, so test bodies do not change.
+- Seed fixtures chain: `create_orbit` builds on `create_organization_with_user`
+  instead of repeating the user, organization, limits and bucket secret steps;
+  `create_collection` on `create_orbit`; `create_satellite` on `create_collection`, as
+  today. Duplicated assertions go; assertions that narrow an optional result stay.
+- Determinism: `create_organization_with_members` invites on behalf of the
+  organization's owner; `create_orbit_with_members` gives the ten members alternating
+  roles, admin first. `random` is not imported in `conftest.py`.
+- The two identical invite fixtures (`invite_data`, `invite_accept_data`) stay both,
+  because renames are out of scope; the second is declared as an alias of the first.
 
-- Pytest settings are added; the 766 asyncio markers are removed.
-- Markers `unit` and `integration` are applied by folder.
-- Outcome: `pytest -m unit` and `pytest -m integration` select the layers; the
-  collected count is unchanged.
+`tests/support/seeds.py` holds the seven result dataclasses moved out of `conftest.py`;
+the 17 files that import them from `tests.conftest` import them from there.
 
-### Phase 3. Shared support code (F-13, F-22, F-25)
+`tests/support/builders.py`:
 
-- `tests/support/` is created with identifiers, builders, seed dataclasses.
-- `conftest.py` is split by layer; imports from `tests.conftest` are replaced.
-- Duplicated builders in integration files are replaced by the shared ones.
-- Local identifier declarations inside tests are replaced by the shared constants.
-- Fixtures are renamed by the rule in 6.3; async is dropped where nothing is awaited.
-- Outcome: no helper exists in more than one copy; no test imports from a
-  `conftest.py`.
+| Builder | Replaces | Behaviour |
+| --- | --- | --- |
+| `create_artifact(engine, template, collection_id, *, name, status=uploaded, artifact_type=model, extra_values=None, description=None, unique_identifier=None)` | `_create_artifact` in batch deletion, lineage, tracks; `_make_artifact` in artifacts; `_artifact` in concurrency guards | Copies the template, sets the given fields, a fresh unique identifier and bucket location, creates the row |
+| `create_sibling_orbit(engine, organization_id, bucket_secret_id)` | three identical copies | Creates an orbit named `sibling orbit` in the same organization |
+| `create_sibling_organization(engine, user_id)` | two identical copies | Creates an organization named `sibling org` owned by the user |
+| `create_collection(engine, orbit_id, name, type=model)` | `_make_collection` in artifacts, `_create_other_orbit_collection` in lineage (partly) | Creates a collection and returns it |
 
-### Phase 4. Seed fixtures and engines (F-23, F-24)
+The tracks integration file builds artifacts from its own manifest today; it keeps
+passing its own template to `create_artifact` so that nothing it asserts changes.
+Helpers that exist in one file only (`_seed_entries`, `_collect_pages`, `_race`,
+`_split`, `_wait_for_lock_waiters`, …) stay where they are.
 
-- Seed fixtures are chained, lose their assertions and their randomness.
-- Every engine has an owner that disposes it.
-- Outcome: the forced termination of connections is no longer needed for a clean run.
+`tests/support/alembic.py` holds one function that runs an alembic command
+(`upgrade` or `downgrade` to a revision) on an engine, replacing `_alembic` in the
+concurrency guards and `_migrate` in the satellite contract migration test.
 
-### Phase 5. Route tests (F-06, F-07, F-08, F-09)
+## Route tests
 
-- One application fixture and the four authentication stubs replace all local copies.
-- URLs in tests become the production URLs.
-- Direct calls of route functions become HTTP calls.
-- The tests that mock a repository are moved to the handler-with-database layer or
-  split, per decision D1.
-- Files are merged and renamed to one per router; tests become class methods.
-- Outcome: no route test file defines an application, a client or a backend.
+`tests/support/auth.py` defines the principals a route test can act as, each a pair
+of credentials and identity exactly as the production backend would return them:
 
-### Phase 6. Handler tests (F-10, F-11, F-12, F-14, F-15)
+| Principal | Scopes | Identity |
+| --- | --- | --- |
+| signed-in user (default) | `authenticated`, `jwt` | user `USER_ID`, `caller@example.com` |
+| API-key user | `authenticated`, `api_key` | same user |
+| satellite | `authenticated`, `satellite` | satellite and orbit ids given by the test |
+| anonymous | none | none |
 
-Per handler file, largest first:
+`tests/unit/api/conftest.py`:
 
-- A collaborators fixture is introduced; patch stacks are removed.
-- Each unused mock is checked: removed when the test passes without it and reaches no
-  real dependency, otherwise covered by the fixture.
-- Module-level fake session and error list become a fixture.
-- The logger workaround in the platform admin test is replaced by a fixture that
-  guarantees the logger state regardless of what ran before.
-- Tests become class methods; divider comments become classes or files per D7.
-- Outcome: no test has more than three patch decorators; the file passes when run
-  alone, when run after the integration suite, and in random order.
+- `app`: session-scoped, the production application (`AppService`) as is — routers
+  under their production prefixes, production error handlers, CORS, security headers.
+- `principal`: function-scoped, defaults to the signed-in user. A class overrides it
+  to act as another principal, or a test parametrizes it indirectly.
+- `client`: function-scoped test client on `app`; while it is alive, the
+  authentication backend's `authenticate` is patched to return `principal` (or
+  nothing for anonymous). The satellite path of the real backend also records the
+  satellite's last-seen time; the stub does not, so the `touch_last_seen` patches in
+  the satellite worker tests go.
 
-### Phase 7. Integration tests (F-01, F-05, F-26, F-27)
+Rules for every route test:
 
-- Folders `repositories/`, `handlers/`, `migrations/` are created and files moved.
-- Handler-driven tests are moved to `integration/handlers/` and stop using the global
-  engine and mangled private attributes as far as possible without changing production
-  code; what remains is listed in the phase report.
-- Tests become class methods; the repeated unpacking lines are replaced by fixtures
-  that provide the repository.
-- Stale names are fixed.
-- Outcome: `integration/repositories/` contains only repository tests.
+- Handlers are mocked at the handler class method, never repositories. The two
+  pagination tests become: a route test per router asserting that `cursor=` reaches
+  the handler unchanged and that an "Invalid cursor" application error from the
+  handler is answered with 400 and the standard detail body; and one handler test per
+  handler (`unit/handlers/test_artifacts.py`, `unit/handlers/test_collections.py`)
+  asserting that an empty cursor string reaches the repository as no cursor. The
+  satellite test that mocks the repository becomes a route test asserting that a
+  not-found error from the handler is answered with 404.
+- URLs are the production URLs (`/v1/organizations/…`, `/v1/auth/…`,
+  `/satellites/v1/…`, `/v1/invitations/…`).
+- Every route is called through the client. The two direct calls
+  (`create_artifact` in `test_artifact_routes.py`, `get_satellite_openapi` in
+  `test_orbit_satellites.py`) become HTTP calls; the artifact one keeps its two
+  principals (signed-in user, API-key user) and its assertion on the scopes forwarded.
+- One file per router, one class named after the router module, tests as methods:
 
-### Phase 8. Database lifecycle and CI (F-21, F-30)
+| File | Class | Takes tests from |
+| --- | --- | --- |
+| `test_auth.py` | `TestAuth` | `test_auth.py` |
+| `test_orbit_artifacts.py` | `TestOrbitArtifacts` | `test_artifact_routes.py`, `test_orbit_artifacts_batch_routes.py`, artifacts half of `test_pagination_routes.py` |
+| `test_orbit_collections.py` | `TestOrbitCollections` | collections tests of `test_orbit_tags_routes.py`, collections half of `test_pagination_routes.py` |
+| `test_orbit_tracks.py` | `TestOrbitTracks` | tracks tests of `test_orbit_tags_routes.py` |
+| `test_orbit_lineage.py` | `TestOrbitLineage` | `test_lineage_routes.py` |
+| `test_orbit_satellites.py` | `TestOrbitSatellites` | `test_orbit_satellites.py` |
+| `test_orbits_members.py` | `TestOrbitsMembers` | `test_orbit_members_routes.py` |
+| `test_organization_bucket_secrets.py` | `TestOrganizationBucketSecrets` | same file |
+| `test_organization_invites.py` | `TestOrganizationInvites` | same file |
+| `test_organization_members.py` | `TestOrganizationMembers` | same file |
+| `test_platform_admin.py` | `TestPlatformAdmin` | same file |
+| `test_satellites.py` | `TestSatellites` | `test_satellites.py`, `test_satellite_contract.py` |
+| `test_service.py` | `TestService` | `test_stats_removed.py` |
+| `test_user_invites.py` | `TestUserInvites` | same file |
 
-- The database lifecycle is implemented per decision D3.
-- The workflow is split into the three jobs of 6.7, per decision D9.
-- Outcome: integration run time drops from 265 seconds to under one minute, with the
-  same collected count and no order dependence; the whole workflow finishes in about
-  two minutes, and a lint or unit failure is reported in about one.
+- Well-known identifiers used by more than one file (`USER_ID`, `ORGANIZATION_ID`,
+  `ORBIT_ID`, `COLLECTION_ID`, and the satellite, deployment and artifact ids that
+  repeat) are declared once in `tests/support/ids.py` and imported; file-local ids
+  stay local. The second spec extends the same module to the handler tests.
+- `test_platform_admin.py` keeps its own application fixture: the admin routes are
+  mounted only when the admin configuration is set at construction, and the file
+  patches that configuration around the construction. It follows the other rules.
+- Tests that only inspect router registration or the OpenAPI document
+  (`test_lineage_router_is_registered_for_organizations`,
+  `test_get_deployment_route_is_registered_once`, the contract test, the stats tests)
+  stay in the file of the router they inspect and use `app` where they need one.
 
-### Phase 9. Comments and leftovers (F-17, F-18, F-19)
+## Trade-offs
 
-- Comments and docstrings are removed; reasons move into test names.
-- Imports inside test bodies move to the top of the file.
-- The shared condition cases file is handled per decision D4.
-- Outcome: no comment other than lint or type suppressions remains in `tests/`.
+- A session-scoped application means a test cannot swap the application's
+  configuration; the one file that needs to (platform admin) builds its own. Building
+  the production application per test would cost about 0.4 s each.
+- Keeping fixture names such as `test_user` and `create_orbit` for now leaves the
+  naming rule of the second spec unapplied in the new `conftest.py` files; the rename
+  touches about 300 signatures and can shadow local variables, so it is done file by
+  file where the bodies are read anyway.
+- `create_artifact` in `support/builders.py` accepts a template because the artifacts
+  and tracks files rely on different manifests; a single built-in template would
+  change what those files assert on.
 
-Phases 1, 2 and 8 touch only the database fixture, the configuration and the workflow,
-are independent of everything else and can be merged first. Phases 5, 6 and 7 depend
-on phase 3 and are independent of each other.
+# Scenarios
 
-## 9. Decisions for the reviewer
+## Database fixture
 
-Each has a recommendation; the work plan assumes the recommendation unless changed.
+## Scenario: the connection string names another database
+**Given** `POSTGRESQL_DSN` names `df_studio`
+**When** any integration test is collected and run
+**Then** the run stops before any database is dropped or migrated, with an error that names `df_studio_test` as the required database, and `df_studio` is untouched
 
-**D1. What to do with route tests that also run the handler (F-08), and with the
-missing end-to-end layer.**
-Recommended: keep `unit/api/` as the route layer with the handler mocked; rewrite the
-two pagination tests so that the route test mocks the handler and the cursor rule is
-asserted in the handler test; do not add an end-to-end layer in this refactor and open
-a separate task for a thin smoke set (sign in, create an orbit, upload an artifact).
-Alternative: introduce `integration/api/` now and move these tests there against a
-real database.
+## Scenario: unit tests need no database
+**Given** no Postgres is reachable
+**When** `pytest tests/unit` runs
+**Then** all unit tests pass and no connection is attempted
 
-**D2. Classes everywhere.**
-Recommended: yes, all 906 test functions become methods, done file by file inside
-phases 5, 6 and 7 rather than as one mechanical change, so that grouping is decided
-while the file is being read.
+## Scenario: the template is migrated once
+**Given** a run with 277 integration tests
+**When** the run completes
+**Then** the migration helper ran exactly once, on `df_studio_test_template`, and every test received `df_studio_test` cloned from it
 
-**D3. How tests are isolated once migrations run only once.**
-Recommended: migrate one template database at the start of the run and give every
-test its own database cloned from that template. Cloning takes about 50 milliseconds
-on the local Postgres against about one second for a migrated database today. Every
-test still starts from a fresh database, so no test has to change, and the tests that
-change the schema or open several connections need no special treatment.
-Alternative A: one database for the run, all tables emptied between tests. Slightly
-faster, but migration tests and the migration part of the concurrency guards need a
-private database, and any table missed by the cleanup leaks state.
-Alternative B: each test in a transaction that is rolled back. Fastest, but does not
-work for the tests that open several connections or commit on purpose (concurrency
-guards, batch deletion, lineage), so two mechanisms would coexist.
+## Scenario: every test starts from a fresh database
+**Given** a test that inserts an organization and a test that counts organizations, in either order
+**When** both run in one session
+**Then** the counting test sees only what it inserted itself
 
-**D4. The shared condition cases file (F-19).**
-Recommended: keep it as a data file, move it to a folder that says what it is
-(`backend/tests/contracts/`), and update the frontend import in the same change.
-Alternative: leave it where it is.
+## Scenario: a schema-changing test does not leak
+**Given** `test_041_satellite_contract` ends with the schema downgraded to `040`
+**When** the next integration test runs
+**Then** it receives a database at head
 
-**D5. Tests of private methods (F-16).**
-Recommended: leave as they are in this refactor and list them in the phase 6 report;
-rewriting them through public methods changes what is tested and needs a review of
-its own.
+## Scenario: leftovers of an interrupted run
+**Given** a previous run was killed while `df_studio_test` and `df_studio_test_template` existed, with an idle connection still open on one of them
+**When** a new run starts
+**Then** both are dropped and recreated and the run proceeds
 
-**D6. Type checking of tests (F-29).**
-Recommended: add `tests` to the CI type check after phase 6, when the number of
-suppressions is known. Alternative: remove `tests` from the type checker
-configuration so that configuration and CI agree.
+## Scenario: the CLI test still sees the head revision
+**Given** the per-test clone
+**When** `alembic current` runs against its connection string
+**Then** it reports the head revision
 
-**D7. One class per file versus several.**
-The stated preference is one class per module. For the eleven files in F-02 one class
-of 50 to 80 methods does not improve navigation.
-Recommended: one class per file by default; a file above roughly 800 lines becomes a
-folder named after the module with one file and one class per area
-(`unit/handlers/tracks/test_stages.py` with `TestTrackStages`).
-Alternative: keep one file per module and allow several classes in it, grouped by the
-method under test, as `test_platform_admin_auth.py` does today.
+## Scenario: handler-with-database tests use the test database
+**Given** the application's global engine is bound to the configured connection string
+**When** a test in `integration/handlers/` runs
+**Then** the handler writes to `df_studio_test` and the test's engine reads it back
 
-**D9. How to shorten the backend workflow (F-30).**
-Splitting alone does not shorten it: the integration tests would still take four and a
-half minutes in their own job or workflow, only the lint and unit results would arrive
-earlier. The time is in the database fixture.
-Recommended: fix the fixture first (D3), then split the single job into three parallel
-jobs inside the same workflow. One workflow keeps one entry in the pull request checks
-and one trigger definition.
-Alternative A: two separate workflows, unit and integration. Same effect on time, two
-files to keep in sync.
-Alternative B: run the integration tests only when repositories, models, migrations
-or the integration tests themselves change. Not recommended: a handler change can
-break a handler-with-database test, and a skipped required check blocks the merge.
-Alternative C: run the integration tests in parallel workers. Not needed once the
-fixture is fixed, and it requires a database per worker.
+## Scenario: run time
+**Given** the local Postgres in Docker
+**When** `pytest tests/integration` runs
+**Then** it finishes in under 90 seconds with 277 passed (265 seconds before)
 
-**D8. Order and size of the work.**
-Recommended: phases 1, 2 and 8 immediately (small, remove a real hazard and the slow
-workflow), then phase 3,
-then 5, 6, 7 as separate pull requests per folder. Phase 6 is the largest, about
-21 000 lines, and is best split into one pull request per handler file.
+## Configuration and CI
 
-## 10. Appendix: file inventory
+## Scenario: async tests without markers
+**Given** `asyncio_mode = auto`
+**When** the suite is collected
+**Then** 1 054 cases are collected, the same identifiers as before, and the existing markers cause no warning
 
-Columns: lines, tests in classes, tests at module level, fixtures, module-level
-helpers, comment lines, `@patch` decorators, largest patch stack.
+## Scenario: a unit failure is reported without waiting for the database
+**Given** a pull request that breaks a handler test
+**When** the workflow runs
+**Then** `unit-tests` fails within about a minute while `integration-tests` is still running, and `checks` reports independently
 
-### unit/api
+## Scenario: only the integration job starts Postgres
+**Given** the three jobs
+**When** they run
+**Then** `checks` and `unit-tests` have no service container and no `POSTGRESQL_DSN` dependency on a database being up
 
-| File | Lines | In class | Module | Fixt. | Helpers | Cmt | Patch | Max |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| test_artifact_routes.py | 69 | 0 | 1 | 0 | 0 | 0 | 1 | 1 |
-| test_auth.py | 112 | 0 | 5 | 0 | 1 | 0 | 5 | 1 |
-| test_lineage_routes.py | 405 | 0 | 11 | 0 | 3 | 2 | 11 | 2 |
-| test_orbit_artifacts_batch_routes.py | 213 | 4 | 0 | 0 | 2 | 0 | 4 | 1 |
-| test_orbit_members_routes.py | 61 | 0 | 1 | 0 | 0 | 0 | 1 | 1 |
-| test_orbit_satellites.py | 98 | 0 | 3 | 0 | 1 | 0 | 3 | 1 |
-| test_orbit_tags_routes.py | 132 | 0 | 4 | 0 | 1 | 0 | 4 | 1 |
-| test_organization_bucket_secrets.py | 85 | 0 | 2 | 0 | 1 | 0 | 2 | 1 |
-| test_organization_invites.py | 71 | 1 | 0 | 0 | 1 | 0 | 1 | 1 |
-| test_organization_members.py | 76 | 1 | 0 | 0 | 1 | 0 | 1 | 1 |
-| test_pagination_routes.py | 126 | 0 | 2 | 0 | 1 | 0 | 9 | 5 |
-| test_platform_admin.py | 347 | 0 | 17 | 2 | 2 | 0 | 9 | 1 |
-| test_satellite_contract.py | 20 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| test_satellites.py | 136 | 0 | 4 | 0 | 1 | 0 | 6 | 3 |
-| test_stats_removed.py | 43 | 0 | 3 | 0 | 0 | 0 | 1 | 1 |
-| test_user_invites.py | 66 | 0 | 2 | 0 | 1 | 0 | 2 | 1 |
+## Scenario: the type check covers the tests
+**Given** a test file with a type error
+**When** `checks` runs
+**Then** `mypy luml utils tests` fails the job
 
-### unit/handlers
+## Layout
 
-| File | Lines | In class | Module | Fixt. | Helpers | Cmt | Patch | Max |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| test_api_keys.py | 99 | 0 | 5 | 0 | 0 | 0 | 5 | 1 |
-| test_artifacts.py | 3832 | 0 | 74 | 0 | 6 | 15 | 287 | 11 |
-| test_artifacts_batch_deletion.py | 550 | 12 | 0 | 1 | 1 | 0 | 0 | 0 |
-| test_auth.py | 1260 | 0 | 57 | 3 | 0 | 0 | 107 | 6 |
-| test_bucket_secrets.py | 1298 | 0 | 28 | 0 | 2 | 0 | 67 | 3 |
-| test_collections.py | 1072 | 0 | 24 | 0 | 1 | 2 | 67 | 5 |
-| test_deployments.py | 2352 | 0 | 53 | 0 | 3 | 0 | 124 | 7 |
-| test_lineage.py | 1380 | 0 | 31 | 1 | 5 | 0 | 0 | 0 |
-| test_monitoring.py | 650 | 0 | 20 | 0 | 3 | 6 | 46 | 3 |
-| test_orbit_secrets.py | 552 | 0 | 15 | 0 | 1 | 0 | 28 | 3 |
-| test_orbits.py | 1200 | 0 | 28 | 3 | 2 | 0 | 100 | 7 |
-| test_organization_invites.py | 338 | 0 | 8 | 0 | 0 | 0 | 27 | 9 |
-| test_organization_members.py | 382 | 0 | 9 | 0 | 0 | 0 | 30 | 4 |
-| test_organizations.py | 441 | 0 | 14 | 0 | 0 | 0 | 29 | 3 |
-| test_permissions.py | 413 | 0 | 15 | 0 | 1 | 0 | 30 | 3 |
-| test_platform_admin.py | 98 | 0 | 4 | 0 | 0 | 1 | 4 | 1 |
-| test_platform_admin_auth.py | 402 | 23 | 0 | 0 | 6 | 0 | 8 | 1 |
-| test_satellite_parameters.py | 296 | 0 | 7 | 0 | 2 | 0 | 0 | 0 |
-| test_satellites.py | 1941 | 0 | 49 | 0 | 0 | 0 | 103 | 6 |
-| test_tracks.py | 2469 | 0 | 80 | 0 | 4 | 24 | 265 | 8 |
+## Scenario: history follows moved files
+**Given** `integration/repository/test_orbits.py` moved to `integration/repositories/test_orbits.py`
+**When** `git log --follow` is run on the new path
+**Then** the file's previous commits are listed
 
-### unit/repositories and unit root
+## Scenario: no test is lost in the move
+**Given** the moves in the Design table
+**When** the suite is collected
+**Then** 1 054 cases are collected; the three handler-driven tests are under `integration/handlers/`, the two migration guards under `integration/migrations/`, and `integration/repositories/` imports no handler
 
-| File | Lines | In class | Module | Fixt. | Helpers | Cmt | Patch | Max |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| repositories/test_artifacts.py | 84 | 0 | 4 | 0 | 0 | 0 | 0 | 0 |
-| repositories/test_base.py | 67 | 4 | 0 | 0 | 1 | 0 | 0 | 0 |
-| repositories/test_lineage.py | 37 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| test_security.py | 129 | 0 | 3 | 1 | 2 | 0 | 5 | 2 |
-| test_security_headers.py | 22 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
+## Scenario: repeated basenames resolve
+**Given** `unit/handlers/test_artifacts.py`, `unit/repositories/test_artifacts.py`, `integration/repositories/test_artifacts.py`, `integration/handlers/test_artifacts.py`
+**When** the suite is collected
+**Then** all four are collected under distinct module paths
 
-### integration
+## Support package
 
-| File | Lines | In class | Module | Fixt. | Helpers | Cmt | Patch | Max |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| repository/test_api_keys.py | 73 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
-| repository/test_artifacts.py | 1035 | 0 | 35 | 0 | 3 | 9 | 0 | 0 |
-| repository/test_artifacts_batch_deletion.py | 463 | 8 | 0 | 0 | 2 | 0 | 0 | 0 |
-| repository/test_bucket_secrets.py | 436 | 0 | 18 | 0 | 1 | 1 | 0 | 0 |
-| repository/test_collections.py | 344 | 0 | 11 | 0 | 1 | 0 | 0 | 0 |
-| repository/test_concurrency_guards.py | 897 | 22 | 0 | 0 | 8 | 0 | 0 | 0 |
-| repository/test_deployments.py | 903 | 0 | 24 | 1 | 3 | 3 | 2 | 1 |
-| repository/test_invites.py | 139 | 0 | 6 | 0 | 1 | 0 | 0 | 0 |
-| repository/test_lineage.py | 766 | 0 | 14 | 0 | 3 | 9 | 0 | 0 |
-| repository/test_monitoring.py | 52 | 0 | 3 | 0 | 0 | 2 | 0 | 0 |
-| repository/test_orbit_secrets.py | 192 | 0 | 10 | 0 | 1 | 0 | 0 | 0 |
-| repository/test_orbits.py | 412 | 0 | 17 | 0 | 1 | 0 | 0 | 0 |
-| repository/test_organization_members.py | 110 | 0 | 5 | 0 | 0 | 0 | 0 | 0 |
-| repository/test_organizations.py | 67 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
-| repository/test_platform_admin.py | 213 | 0 | 9 | 0 | 0 | 1 | 0 | 0 |
-| repository/test_satellites.py | 344 | 0 | 12 | 0 | 0 | 0 | 0 | 0 |
-| repository/test_token_blacklist.py | 50 | 0 | 3 | 0 | 0 | 0 | 0 | 0 |
-| repository/test_tracks.py | 1652 | 0 | 51 | 0 | 4 | 32 | 0 | 0 |
-| repository/test_user.py | 218 | 0 | 8 | 1 | 0 | 0 | 0 | 0 |
-| test_migrations_env.py | 37 | 2 | 0 | 0 | 1 | 0 | 0 | 0 |
-| test_satellite_contract_migration.py | 109 | 0 | 2 | 0 | 3 | 0 | 0 | 0 |
+## Scenario: no builder exists twice
+**Given** the suite after the change
+**When** the tests folder is searched for functions creating an artifact, a sibling orbit, a sibling organization or running alembic
+**Then** each exists once, in `tests/support/`
+
+## Scenario: nothing imports from a conftest
+**Given** the suite after the change
+**When** the tests folder is searched for `from tests.conftest import`
+**Then** there is no match
+
+## Scenario: seed data is deterministic
+**Given** `create_orbit_with_members` and `create_organization_with_members`
+**When** they run twice
+**Then** the roles of the members and the inviter of each invite are the same both times
+
+## Scenario: every engine is disposed
+**Given** a run of the integration suite with the forced termination of connections temporarily removed from the per-test teardown
+**When** the run completes
+**Then** every drop succeeds, because no fixture or test left an engine open
+
+## Scenario: chained seeds see one organization
+**Given** `create_satellite`
+**When** the fixture resolves
+**Then** its organization, orbit, collection and satellite belong to one user and one organization created once, with limits lifted once
+
+## Route tests
+
+## Scenario: default principal
+**Given** a route test that does not override `principal`
+**When** it calls a user route
+**Then** the route sees a signed-in user with the `jwt` scope and `USER_ID`
+
+## Scenario: anonymous principal
+**Given** a class overriding `principal` with the anonymous principal
+**When** it calls a protected route
+**Then** the response is 401 and the handler mock is not awaited
+
+## Scenario: satellite principal
+**Given** a class overriding `principal` with a satellite
+**When** it deletes a worker deployment
+**Then** the handler receives that satellite's id, and no last-seen update is attempted
+
+## Scenario: production URL
+**Given** the artifacts router
+**When** the test posts to `/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/delete-urls`
+**Then** the route answers, and a post to the same path without the `/v1/organizations` prefix answers 404
+
+## Scenario: production error handler
+**Given** a handler mock raising an application error with status 409 and a message
+**When** the route is called
+**Then** the response is 409 with `{"detail": <message>}`, produced by the application's own handler
+
+## Scenario: production validation handler
+**Given** a body with a non-finite number
+**When** the lineage batch route is called
+**Then** the response is 422 with the message the production validation handler produces
+
+## Scenario: forwarded scopes without a direct call
+**Given** the API-key principal
+**When** the artifact creation route is called over HTTP
+**Then** the handler mock is awaited with scopes `["authenticated", "api_key"]`
+
+## Scenario: pagination split
+**Given** the artifacts list route and a handler mock raising "Invalid cursor" with 400
+**When** the route is called with `cursor=garbage`
+**Then** the response is 400 with `{"detail": "Invalid cursor"}` and no repository is patched
+**And** a handler test calling the handler with an empty cursor string asserts that the repository receives no cursor
+
+## Scenario: platform admin keeps its application
+**Given** `test_platform_admin.py`
+**When** its tests run
+**Then** they build their own application under the admin configuration and pass, and every other route file uses the shared `app`
+
+## Scenario: route-test scaffolding exists once
+**Given** the suite after the change
+**When** `unit/api/` is searched for authentication backend subclasses, application factories or exception handlers
+**Then** none is found outside `conftest.py` and `test_platform_admin.py`
+
+# Tasks
+
+Conventions for every task: no file under `backend/luml/` or `backend/migrations/`
+changes; test assertions are never weakened or removed; the collected count stays
+1 054 (777 unit, 277 integration) unless the task says otherwise; each task ends green
+on `uv run ruff format --check luml migrations tests utils`,
+`uv run ruff check luml migrations tests utils`, `uv run mypy luml utils tests` and
+`uv run pytest`, all from `backend/`. Until Task 1 is merged, run pytest with
+`POSTGRESQL_DSN` exported as the value from `backend/.env.test` with the database part
+replaced by `df_studio_test`; from Task 1 on, `.env.test` names the test database and
+plain `uv run pytest` is correct. Tests carry no explanatory comments or docstrings;
+new tests are class methods.
+
+- [ ] Task 1 — Database fixture: connection string guard and template database
+  - [ ] In `backend/tests/conftest.py`, replace the text-replacement derivation of the administrative connection string with URL parsing; add the session start check that stops with an error naming `df_studio_test` when the configured database differs; keep `create_database_and_apply_migrations` as the per-test fixture name and return type.
+  - [ ] Add the session-scoped preparation: terminate sessions, drop and create `df_studio_test_template`, migrate it with `utils/db.py`, drop it at session end; make sure no connection outlives it.
+  - [ ] Rewrite the per-test fixture as terminate-drop-clone-yield-terminate-drop using `CREATE DATABASE … TEMPLATE`.
+  - [ ] Point `POSTGRESQL_DSN` in `backend/.env.test` at `df_studio_test`.
+  - [ ] Verify: `pytest tests/unit` passes with Postgres stopped; `pytest tests/integration` with the DSN naming `df_studio` stops before touching it; two consecutive integration runs pass with 277 cases each; a run interrupted mid-way followed by a full run passes; the integration run takes under 90 seconds locally (record the number in the task report).
+
+- [ ] Task 2 — Pytest configuration and CI workflow
+  - [ ] Add `[tool.pytest.ini_options]` with `testpaths` and `asyncio_mode = "auto"` to `backend/pyproject.toml`; confirm 1 054 cases still collect with unchanged identifiers and no marker warnings.
+  - [ ] Rewrite `.github/workflows/[backend] tests-and-linters.yml` into the jobs `checks`, `unit-tests`, `integration-tests` per the Design table: uv installed through the official setup action with caching, Postgres 15 as a service container with a readiness check in `integration-tests` only, the existing environment variables on the two test jobs, `mypy luml utils tests` in `checks`.
+  - [ ] Verify locally: `uv run mypy luml utils tests` passes; `uv run pytest tests/unit` and `uv run pytest tests/integration` pass separately. Note in the task report that `unit-tests` and `integration-tests` must be added by hand to the repository's required checks next to `checks`.
+
+- [ ] Task 3 — Layout
+  - [ ] `git mv backend/tests/integration/repository` to `integration/repositories`; create `integration/handlers/`, `integration/migrations/`, `unit/infra/` as packages.
+  - [ ] Move `unit/test_security.py` to `unit/infra/test_security.py` and `unit/test_security_headers.py` to `unit/infra/test_middleware.py`.
+  - [ ] Move `integration/test_migrations_env.py` to `integration/migrations/test_env.py` and `integration/test_satellite_contract_migration.py` to `integration/migrations/test_041_satellite_contract.py`.
+  - [ ] Move the two handler-driven deployment tests with their `deployment_handler` fixture into `integration/handlers/test_deployments.py`, the lineage concurrent-deletion test into `integration/handlers/test_artifacts.py`, and the two blacklist migration guards into `integration/migrations/test_039_concurrency_guards.py`; helpers they need travel with them (duplicated for now if the source file still needs them; Task 4 unifies).
+  - [ ] Update every import path that referenced a moved module; verify 1 054 cases collect and pass, `git log --follow` works on a moved file, and `integration/repositories/` imports no handler.
+
+- [ ] Task 4 — Support package, conftest split, seeds and engines
+  - [ ] Create `backend/tests/support/` with `seeds.py` (the seven dataclasses from `conftest.py`), `builders.py` (`create_artifact`, `create_sibling_orbit`, `create_sibling_organization`, `create_collection`), `alembic.py` (one command runner); replace `from tests.conftest import …` in all 17 files.
+  - [ ] Create `backend/tests/integration/conftest.py` with the database fixture from Task 1, the `engine` fixture and the seed fixtures; leave the data fixtures in `backend/tests/conftest.py` as synchronous fixtures without explicit scope.
+  - [ ] Chain the seed fixtures (`create_orbit` on `create_organization_with_user`), remove duplicated assertions, replace `random` with the deterministic choices of the Design, declare `invite_accept_data` as an alias of `invite_data`.
+  - [ ] Replace every engine creation in tests and fixtures (24 tests, `get_created_user`, the migration tests) with the `engine` fixture; keep the `engine` field on the seed dataclasses.
+  - [ ] Replace the duplicated builders in `integration/repositories/test_artifacts.py`, `test_artifacts_batch_deletion.py`, `test_lineage.py`, `test_tracks.py`, `test_concurrency_guards.py`, `test_collections.py`, `test_deployments.py`, `test_orbit_secrets.py`, `test_bucket_secrets.py`, `test_orbits.py` and in `integration/migrations/` with the `support` ones; tracks keeps passing its own template.
+  - [ ] Verify: 1 054 cases pass; no `from tests.conftest import` remains; each builder exists once; the integration run with the forced connection termination temporarily disabled in teardown still drops every database (then restore the termination as a safety net).
+
+- [ ] Task 5 — Route tests
+  - [ ] Create `backend/tests/support/ids.py` with the shared identifiers, `backend/tests/support/auth.py` with the four principals, and `backend/tests/unit/api/conftest.py` with the session-scoped `app`, the `principal` and `client` fixtures patching the backend's `authenticate` per test.
+  - [ ] Merge and rename the sixteen files into the fourteen of the Design table, one class per file, tests as methods, production URLs, handler-level mocks only; delete the local backends, factories and error handlers; drop the `touch_last_seen` patches.
+  - [ ] Rewrite the two direct route-function calls as HTTP calls, keeping the artifact test's two principals and its scopes assertion.
+  - [ ] Split the pagination tests: route tests asserting cursor forwarding and the 400 mapping in `test_orbit_artifacts.py` and `test_orbit_collections.py`; handler tests for the empty cursor in `unit/handlers/test_artifacts.py` and `unit/handlers/test_collections.py`. Rewrite the satellite foreign-deployment test as a route test on the handler's not-found error. Record the resulting unit count in the task report (it changes by the tests added and merged here) and confirm no other test is added or removed.
+  - [ ] Verify: no authentication backend subclass, application factory or exception handler is defined in `unit/api/` outside `conftest.py` and `test_platform_admin.py`; `pytest tests/unit/api` passes in under 15 seconds; the whole suite is green.
