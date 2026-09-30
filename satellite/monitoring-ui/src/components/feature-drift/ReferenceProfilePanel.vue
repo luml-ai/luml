@@ -56,6 +56,7 @@ import { computed } from 'vue'
 import type { ReferenceProfileResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
+import { formatChartNumber } from '@/lib/format'
 import StateBlock from '@/components/StateBlock.vue'
 
 const props = defineProps<{ profile: ReferenceProfileResponse | null; status: LoadStatus }>()
@@ -67,7 +68,7 @@ const feature = computed(() => props.profile?.feature ?? null)
 const summaryStats = computed(() =>
   Object.entries(feature.value?.summary ?? {}).map(([key, value]) => ({
     key,
-    value: formatStat(value),
+    value: formatChartNumber(value),
   })),
 )
 
@@ -79,7 +80,7 @@ const categories = computed(() => {
     const probability = probabilities[index] ?? 0
     return {
       name,
-      prob: `${(probability * 100).toFixed(1)}%`,
+      prob: formatChartNumber(probability, { percent: true }),
       width: `${Math.min(100, Math.round(probability * 100))}%`,
     }
   })
@@ -87,16 +88,8 @@ const categories = computed(() => {
 
 const binEdgesLabel = computed(() => {
   const edges = feature.value?.bin_edges
-  return edges?.length ? edges.map(formatStat).join('  ·  ') : 'Not available'
+  return edges?.length ? edges.map((edge) => formatChartNumber(edge)).join('  ·  ') : 'Not available'
 })
-
-function formatStat(value: number): string {
-  if (!Number.isFinite(value)) return String(value)
-  if (Number.isInteger(value)) return value.toLocaleString('en-US')
-  const magnitude = Math.abs(value)
-  if (magnitude >= 1000 || magnitude < 0.01) return value.toPrecision(3)
-  return value.toFixed(2)
-}
 </script>
 
 <style scoped>

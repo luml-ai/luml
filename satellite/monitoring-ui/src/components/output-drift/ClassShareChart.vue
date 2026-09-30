@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { formatChartNumber } from '@/lib/format'
 import type { Series } from '@/api/types'
 
 /** Each drifted class's live share across the windows — one line per class. */
@@ -29,6 +30,10 @@ const chartSeries = computed(() =>
   })),
 )
 
+function formatShare(value: number | null): string {
+  return formatChartNumber(value, { percent: true })
+}
+
 const options = computed(() => ({
   chart: { toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit' },
   colors: ['#2673fd', '#f97316', '#a855f7', '#059669', '#e11d48', '#64748b'],
@@ -46,12 +51,13 @@ const options = computed(() => ({
   yaxis: {
     labels: {
       style: { colors: '#94a3b8', fontSize: '11px' },
-      formatter: (value: number) => (value == null ? '' : `${(value * 100).toFixed(0)}%`),
+      formatter: formatShare,
     },
   },
-  tooltip: { theme: chartTooltipTheme.value,
+  tooltip: {
+    theme: chartTooltipTheme.value,
     x: { format: 'dd MMM HH:mm' },
-    y: { formatter: (value: number) => `${(value * 100).toFixed(1)}%` },
+    y: { formatter: formatShare },
   },
 }))
 </script>

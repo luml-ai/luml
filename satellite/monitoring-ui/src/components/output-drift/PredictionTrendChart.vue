@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { formatChartNumber } from '@/lib/format'
 import type { Series } from '@/api/types'
 
 /**
@@ -57,16 +58,8 @@ const chartSeries = computed(() => {
   return result
 })
 
-/** Axis labels the eye can read: large predictions compact, small ones trimmed. */
 function formatTick(value: number | null): string {
-  if (value == null) return ''
-  const magnitude = Math.abs(value)
-  if (magnitude >= 10000) {
-    return new Intl.NumberFormat('en-US', { notation: 'compact' }).format(value)
-  }
-  if (Number.isInteger(value)) return String(value)
-  if (magnitude >= 1) return value.toFixed(1)
-  return value.toFixed(3)
+  return formatChartNumber(value, { compact: true })
 }
 
 const options = computed(() => ({

@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { formatChartNumber } from '@/lib/format'
 import type { FeatureDistribution } from '@/api/types'
 
 const props = withDefaults(
@@ -17,6 +18,10 @@ const chartSeries = computed(() => [
   { name: 'Current', data: props.distribution.bins.map((b) => b.current ?? 0) },
 ])
 
+function formatShare(value: number | null): string {
+  return formatChartNumber(value, { percent: true })
+}
+
 const options = computed(() => ({
   chart: { toolbar: { show: false }, fontFamily: 'inherit' },
   colors: ['#94a3b8', '#2673fd'],
@@ -25,7 +30,14 @@ const options = computed(() => ({
   plotOptions: { bar: { columnWidth: '68%', borderRadius: 3 } },
   grid: { borderColor: chartGridColor.value, strokeDashArray: 4 },
   xaxis: {
-    categories: props.distribution.bins.map((b) => b.label),
+    categories: props.distribution.bins.map(({ label }) => {
+      if (props.distribution.kind !== 'numeric') return label
+      const edges = label.split('–')
+      if (edges.length !== 2 || edges.some((edge) => !edge.trim() || !Number.isFinite(Number(edge)))) {
+        return label
+      }
+      return edges.map((edge) => formatChartNumber(Number(edge))).join('–')
+    }),
     labels: {
       style: { colors: '#94a3b8', fontSize: '11px' },
       rotate: 0,
@@ -37,9 +49,9 @@ const options = computed(() => ({
   yaxis: {
     labels: {
       style: { colors: '#94a3b8', fontSize: '11px' },
-      formatter: (value: number) => (value == null ? '' : `${(value * 100).toFixed(0)}%`),
+      formatter: formatShare,
     },
   },
-  tooltip: { theme: chartTooltipTheme.value, y: { formatter: (value: number) => `${(value * 100).toFixed(1)}%` } },
+  tooltip: { theme: chartTooltipTheme.value, y: { formatter: formatShare } },
 }))
 </script>

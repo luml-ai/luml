@@ -101,7 +101,7 @@ import type { DataQualityFeatureRow, Series } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import SeriesChart from '@/components/SeriesChart.vue'
 import ChartFrame from '@/components/ChartFrame.vue'
-import { formatRate } from '@/lib/format'
+import { formatChartNumber, formatRate } from '@/lib/format'
 import { rateClass } from '@/lib/dataQuality'
 
 const props = withDefaults(
@@ -190,21 +190,16 @@ const hiddenCategories = computed(() => {
   return Math.max(0, detail.unseen_distinct - detail.unseen_categories.length)
 })
 
-function formatBound(value: number | null | undefined): string {
-  if (value == null) return '—'
-  return Number.isInteger(value) ? String(value) : value.toFixed(2)
-}
-
 const referenceBounds = computed(() => {
   const detail = invalid.value
   if (!detail) return '—'
-  return `${formatBound(detail.reference_min)} … ${formatBound(detail.reference_max)}`
+  return `${formatChartNumber(detail.reference_min)} … ${formatChartNumber(detail.reference_max)}`
 })
 
 const observedExtremes = computed(() => {
   const detail = invalid.value
   if (!detail) return '—'
-  return `${formatBound(detail.observed_min)} … ${formatBound(detail.observed_max)}`
+  return `${formatChartNumber(detail.observed_min)} … ${formatChartNumber(detail.observed_max)}`
 })
 
 const observedTypes = computed(() =>

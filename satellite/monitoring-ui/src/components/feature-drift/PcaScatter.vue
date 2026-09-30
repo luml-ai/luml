@@ -119,6 +119,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatChartNumber } from '@/lib/format'
 import type { PcaPoint } from '@/api/types'
 
 const W = 640
@@ -224,11 +225,9 @@ const currentPolygon = computed(() => polygon(props.currentEllipse))
 function ticks(bounds: [number, number], count: number, toPos: (v: number) => number) {
   const [low, high] = bounds
   const step = (high - low) / count
-  const magnitude = Math.max(Math.abs(low), Math.abs(high))
-  const digits = magnitude >= 100 ? 0 : magnitude >= 10 ? 1 : 2
   return Array.from({ length: count + 1 }, (_, i) => {
     const value = low + step * i
-    return { value, pos: toPos(value), label: value.toFixed(digits) }
+    return { value, pos: toPos(value), label: formatChartNumber(value) }
   })
 }
 

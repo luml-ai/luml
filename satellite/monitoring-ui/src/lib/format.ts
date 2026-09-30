@@ -7,6 +7,23 @@ export function severityLabel(severity: Severity): string {
 }
 
 const integerFormat = new Intl.NumberFormat('en-US')
+const chartNumberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
+const compactChartNumberFormat = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 3,
+})
+
+export function formatChartNumber(
+  value: number | null | undefined,
+  { percent = false, compact = false }: { percent?: boolean; compact?: boolean } = {},
+): string {
+  if (value == null || !Number.isFinite(value)) return '—'
+  const scaled = percent ? value * 100 : value
+  const formatter =
+    compact && Math.abs(scaled) >= 10000 ? compactChartNumberFormat : chartNumberFormat
+  const text = formatter.format(scaled)
+  return `${text === '-0' ? '0' : text}${percent ? '%' : ''}`
+}
 
 export function formatCardValue(card: Card): string {
   if (card.value == null) return '—'

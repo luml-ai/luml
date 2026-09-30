@@ -199,7 +199,7 @@ describe('FeatureDriftTab', () => {
     const panel = wrapper.get('[data-testid="reference-profile-panel"]')
     expect(panel.find('[data-testid="reference-categories"]').exists()).toBe(true)
     expect(panel.text()).toContain('north')
-    expect(panel.text()).toContain('50.0%')
+    expect(panel.text()).toContain('50%')
   })
 
   it('keeps a long category label on one line and exposes it in full on hover', async () => {
