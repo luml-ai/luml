@@ -55,6 +55,11 @@ async function mockDeploymentsBaseline(apiMocks: ApiMocks) {
   )
 
   await apiMocks.get(
+    `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/satellites`,
+    [],
+  )
+
+  await apiMocks.get(
     `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}/artifacts/${ARTIFACT_ID}`,
     makeArtifact(),
   )
@@ -224,8 +229,8 @@ test.describe('Deployments', () => {
 
       await expect.poll(() => patchPayload).toMatchObject({
         name: 'renamed-deployment',
-        description: null,
       })
+      expect(patchPayload).not.toHaveProperty('description')
       await expect(
         page.getByText('Deployment changes saved successfully.'),
       ).toBeVisible()
@@ -252,6 +257,7 @@ test.describe('Deployments', () => {
         const dialog = page
           .getByRole('dialog')
           .filter({ has: page.getByText('deployment settings', { exact: true }) })
+        await expect(dialog.getByRole('button', { name: 'save changes' })).toBeEnabled()
         await dialog.getByLabel('Name').fill(name)
         await dialog.getByRole('button', { name: 'save changes' }).click()
 
