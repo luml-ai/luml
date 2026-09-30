@@ -6,11 +6,12 @@
 import { computed } from 'vue'
 import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
+import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING } from '@/lib/charts'
 import type { Series } from '@/api/types'
 
 /** Each drifted class's live share across the windows — one line per class. */
 const props = withDefaults(defineProps<{ series: Series[]; height?: number | string }>(), {
-  height: 230,
+  height: CHART_HEIGHT,
 })
 
 // Isolated points need markers, same as the runtime series.
@@ -44,8 +45,8 @@ const options = computed(() => ({
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
-  legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px' },
-  grid: { borderColor: chartGridColor.value, strokeDashArray: 4 },
+  legend: CHART_LEGEND,
+  grid: { borderColor: chartGridColor.value, strokeDashArray: 4, padding: CHART_GRID_PADDING },
   xaxis: {
     type: 'datetime',
     axisBorder: { show: false },

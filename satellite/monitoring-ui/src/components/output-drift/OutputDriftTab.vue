@@ -54,10 +54,9 @@
           class="card"
           title="Reference vs current distribution"
           :eyebrow="outputDrift.name || 'output'"
-          :height="230"
         >
           <template #default="{ height }">
-            <div class="plot">
+            <div class="plot" :style="{ minHeight: `${height}px` }">
               <DistributionChart
                 v-if="outputDrift.distribution"
                 :distribution="outputDrift.distribution"
@@ -73,7 +72,7 @@
 
         <ChartFrame class="card" title="PSI over time" :eyebrow="outputDrift.name || 'output'">
           <template #default="{ height }">
-            <div class="plot">
+            <div class="plot" :style="{ minHeight: `${height}px` }">
               <SeriesChart
                 v-if="outputDrift.psi_over_time"
                 :series="outputDrift.psi_over_time"
@@ -95,7 +94,6 @@
         title="Prediction trend"
         subtitle="median inside its p05–p95 band, mean alongside"
         :eyebrow="outputDrift.name || 'output'"
-        :height="260"
       >
         <template #default="{ height }">
           <PredictionTrendChart :trend="outputDrift.trend" :height="height" />
@@ -127,7 +125,6 @@
             title="Confidence distribution"
             subtitle="how sure the model is, live vs training"
             eyebrow="Confidence"
-            :height="230"
           >
             <template #default="{ height }">
               <DistributionChart
@@ -339,10 +336,7 @@ function psiTone(psi: number): string {
   color: var(--luml-fg-muted);
 }
 .charts {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-}
-.plot {
-  min-height: 230px;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
 }
 .shifts {
   margin: var(--luml-space-3) 0 0;

@@ -36,6 +36,19 @@ function draw(points: (number | null)[], height?: number) {
 const CARD = undefined // the default height a chart gets inside its card
 const FULLSCREEN = 900
 
+describe('SeriesChart height', () => {
+  it('uses the common height by default and accepts the full-screen height', async () => {
+    const wrapper = mount(SeriesChart, {
+      props: { series: series([0.01, 0.02]) },
+      global: { stubs: { apexchart: ApexStub } },
+    })
+
+    expect(wrapper.getComponent(ApexStub).props('height')).toBe(180)
+    await wrapper.setProps({ height: FULLSCREEN })
+    expect(wrapper.getComponent(ApexStub).props('height')).toBe(FULLSCREEN)
+  })
+})
+
 describe('SeriesChart marks', () => {
   it('marks a measurement that has no neighbour to draw a line to', () => {
     // isolated buckets between empty ones need markers or the chart looks empty

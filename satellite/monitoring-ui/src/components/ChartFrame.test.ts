@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ChartFrame from './ChartFrame.vue'
 
@@ -14,6 +14,33 @@ function mountFrame() {
 }
 
 describe('ChartFrame', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('gives charts the common in-place height', () => {
+    const wrapper = mountFrame()
+
+    expect(wrapper.get('.plot').attributes('data-height')).toBe('180')
+  })
+
+  it('keeps the in-place height on narrow screens and enlarges the full-screen chart', async () => {
+    vi.stubGlobal('innerWidth', 360)
+    vi.stubGlobal('innerHeight', 400)
+    const wrapper = mountFrame()
+
+    await wrapper.get('[data-testid="chart-expand"]').trigger('click')
+    expect(wrapper.findAll('.plot').map((plot) => plot.attributes('data-height'))).toEqual([
+      '180', '320',
+    ])
+
+    vi.stubGlobal('innerHeight', 800)
+    globalThis.dispatchEvent(new Event('resize'))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAll('.plot').map((plot) => plot.attributes('data-height'))).toEqual([
+      '180', '650',
+    ])
+    wrapper.unmount()
+  })
+
   it('shows the chart in place with its title until asked for more room', () => {
     const wrapper = mountFrame()
 

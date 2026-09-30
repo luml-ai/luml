@@ -1,5 +1,18 @@
 import type { Series } from '@/api/types'
 
+export const CHART_HEIGHT = 180
+export const CHART_LEGEND_HEIGHT = 40
+
+// reserve the same band even without a legend; wrapping must not shrink the plot
+export const CHART_GRID_PADDING = { top: CHART_LEGEND_HEIGHT }
+export const CHART_LEGEND = {
+  position: 'top',
+  horizontalAlign: 'right',
+  fontSize: '12px',
+  floating: true,
+  height: CHART_LEGEND_HEIGHT,
+}
+
 export interface ChartCard {
   series: Series
   title: string

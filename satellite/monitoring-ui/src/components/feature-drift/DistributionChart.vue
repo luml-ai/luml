@@ -6,11 +6,12 @@
 import { computed } from 'vue'
 import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
+import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING } from '@/lib/charts'
 import type { FeatureDistribution } from '@/api/types'
 
 const props = withDefaults(
   defineProps<{ distribution: FeatureDistribution; height?: number | string }>(),
-  { height: 230 },
+  { height: CHART_HEIGHT },
 )
 
 const chartSeries = computed(() => [
@@ -26,9 +27,9 @@ const options = computed(() => ({
   chart: { toolbar: { show: false }, fontFamily: 'inherit', foreColor: chartTextColor.value },
   colors: [chartTextColor.value, chartSeriesColors.value[0]],
   dataLabels: { enabled: false },
-  legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px' },
+  legend: CHART_LEGEND,
   plotOptions: { bar: { columnWidth: '68%', borderRadius: 3 } },
-  grid: { borderColor: chartGridColor.value, strokeDashArray: 4 },
+  grid: { borderColor: chartGridColor.value, strokeDashArray: 4, padding: CHART_GRID_PADDING },
   xaxis: {
     categories: props.distribution.bins.map(({ label }) => {
       if (props.distribution.kind !== 'numeric') return label

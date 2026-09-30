@@ -16,12 +16,15 @@
         <!-- The scatter is the densest chart on the dashboard; full screen is where the
              individual points stop overlapping. -->
         <ChartFrame class="scatter-frame" title="PC1 × PC2 projection" eyebrow="Multivariate">
-          <PcaScatter
-            :reference="panel.reference_projection"
-            :current="panel.current_projection"
-            :reference-ellipse="panel.reference_ellipse ?? []"
-            :current-ellipse="panel.current_ellipse ?? []"
-          />
+          <template #default="{ height }">
+            <PcaScatter
+              :height="height"
+              :reference="panel.reference_projection"
+              :current="panel.current_projection"
+              :reference-ellipse="panel.reference_ellipse ?? []"
+              :current-ellipse="panel.current_ellipse ?? []"
+            />
+          </template>
         </ChartFrame>
 
         <div class="measures" data-testid="pca-measures">

@@ -27,12 +27,11 @@
           class="chart"
           title="Reference vs current distribution"
           :eyebrow="detail.feature"
-          :height="230"
         >
           <template #default="{ height }">
             <!-- The empty state keeps the chart's own height: a section that changes size
                  depending on whether data arrived reads as a broken layout. -->
-            <div class="plot">
+            <div class="plot" :style="{ minHeight: `${height}px` }">
               <DistributionChart
                 v-if="detail.distribution"
                 :distribution="detail.distribution"
@@ -44,7 +43,7 @@
         </ChartFrame>
         <ChartFrame class="chart" title="PSI over time" :eyebrow="detail.feature">
           <template #default="{ height }">
-          <div class="plot">
+          <div class="plot" :style="{ minHeight: `${height}px` }">
             <SeriesChart
               v-if="detail.psi_over_time"
               :series="detail.psi_over_time"
@@ -160,17 +159,11 @@ const kindLabel = computed(() => {
   font-weight: 500;
   color: var(--luml-fg);
 }
-/* Distribution chart is 230px tall, the PSI series 180px; the box keeps that space
-   whether or not the data arrived. Column flow on purpose: a row would shrink the chart
-   to its content width and squash it. */
+/* keep empty charts at the same height as charts with data */
 .plot {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 230px;
-}
-.chart + .chart .plot {
-  min-height: 180px;
 }
 .chart-empty {
   margin: 0;
