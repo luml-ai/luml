@@ -89,4 +89,14 @@ describe('useArtifactsList', () => {
 
     expect(list.isLoading.value).toBe(false)
   })
+
+  it('stops pagination when the response has an empty cursor', async () => {
+    getOrbitArtifacts.mockResolvedValueOnce(page(['a', 'b'], ''))
+    const list = mountList([])
+    await list.getInitialPage()
+
+    expect(list.hasNextPage.value).toBe(false)
+    await list.getNextPage()
+    expect(getOrbitArtifacts).toHaveBeenCalledTimes(1)
+  })
 })
