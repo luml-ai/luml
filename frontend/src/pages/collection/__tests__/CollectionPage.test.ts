@@ -154,14 +154,23 @@ describe('CollectionPage', () => {
     },
   )
 
-  it('does not reload the collection when navigating to another artifact in it', async () => {
+  it('remounts the artifact page without reloading its collection when the artifact changes', async () => {
     mountPage()
     await flushPromises()
 
     await navigate({ artifactId: 'other-artifact' })
 
     expect(harness.setCurrentCollection).toHaveBeenCalledTimes(1)
-    expect(harness.artifactUnmounted).not.toHaveBeenCalled()
+    expect(harness.resetCurrentCollection).toHaveBeenCalledTimes(1)
+    expect(harness.artifactUnmounted).toHaveBeenCalledTimes(1)
+    expect(harness.artifactMounted).toHaveBeenCalledTimes(2)
+
+    await navigate({}, 'artifact-card')
+    await navigate({}, 'experiment-snapshot')
+
+    expect(harness.setCurrentCollection).toHaveBeenCalledTimes(1)
+    expect(harness.artifactUnmounted).toHaveBeenCalledTimes(1)
+    expect(harness.artifactMounted).toHaveBeenCalledTimes(2)
   })
 
   it('does not restart a pending collection load on a tab switch', async () => {

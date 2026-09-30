@@ -4,7 +4,7 @@
 
     <div v-else-if="collectionsStore.currentCollection" class="page-content">
       <CollectionBreadcrumb></CollectionBreadcrumb>
-      <RouterView></RouterView>
+      <RouterView :key="String(route.params.artifactId ?? '')"></RouterView>
     </div>
 
     <Ui404 v-else></Ui404>

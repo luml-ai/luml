@@ -2,7 +2,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
+import type { ExperimentSnapshotProvider } from '@luml/experiments'
 import { ArtifactStatusEnum, ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
+import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import ArtifactPage from '../index.vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 
@@ -141,7 +143,7 @@ function mountPage() {
   })
 }
 
-describe('artifact page attachment tab', () => {
+describe('artifact page', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     apiMocks.getArtifact.mockReset()
@@ -224,5 +226,44 @@ describe('artifact page attachment tab', () => {
     await flushPromises()
 
     expect(routerHarness.replace).toHaveBeenCalledWith({ name: 'artifact' })
+  })
+
+  it('retains cached card and snapshot state across tabs and clears it on teardown', async () => {
+    mockedAxios.get.mockResolvedValue({ data: {} })
+    const wrapper = mountPage()
+    await flushPromises()
+    const store = useArtifactsStore()
+    const metadata = {
+      metrics: {
+        performance: { train: { ACC: 1, PRECISION: 1, RECALL: 1, F1: 1, SC_SCORE: 1 } },
+        permutation_feature_importance_train: { importances: [] },
+      },
+    }
+    const provider = {} as ExperimentSnapshotProvider
+    const releaseProvider = vi.fn()
+    store.setCurrentModelTag(FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1)
+    store.setCurrentModelMetadata(metadata)
+    store.setCurrentModelHtmlBlobUrl('blob:card')
+    store.setExperimentSnapshotProvider(provider, releaseProvider)
+
+    if (!routerHarness.route) throw new Error('Route harness was not initialized')
+    for (const tab of ['artifact-card', 'artifact', 'experiment-snapshot']) {
+      routerHarness.route.name = tab
+      await flushPromises()
+      expect(store.currentModelMetadata).toEqual(metadata)
+      expect(store.currentModelHtmlBlobUrl).toBe('blob:card')
+      expect(store.experimentSnapshotProvider).toEqual(provider)
+      expect(releaseProvider).not.toHaveBeenCalled()
+    }
+    expect(apiMocks.getArtifact).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+
+    expect(store.currentArtifact).toBeNull()
+    expect(store.currentModelTag).toBeNull()
+    expect(store.currentModelMetadata).toBeNull()
+    expect(store.currentModelHtmlBlobUrl).toBeNull()
+    expect(store.experimentSnapshotProvider).toBeNull()
+    expect(releaseProvider).toHaveBeenCalledTimes(1)
   })
 })
