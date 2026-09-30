@@ -257,19 +257,24 @@ class TestDeploymentRepositoryCrud:
     async def test_undeploy_artifact_deployments_queues_undeploys(
         self, repository: DeploymentRepository, seeded_satellite: SatelliteFixtureData
     ) -> None:
+        sibling = await _create_satellite_in(seeded_satellite, seeded_satellite.orbit)
         created = []
-        for name in ["first", "second"]:
+        for name, satellite in [
+            ("first", seeded_satellite.satellite),
+            ("second", seeded_satellite.satellite),
+            ("third", sibling),
+        ]:
             deployment, _ = await repository.create_deployment(
                 DeploymentCreate(
                     name=name,
                     orbit_id=seeded_satellite.orbit.id,
-                    satellite_id=seeded_satellite.satellite.id,
+                    satellite_id=satellite.id,
                     artifact_id=seeded_satellite.model.id,
                     status=DeploymentStatus.PENDING,
                 )
             )
             created.append(deployment)
-        assert len(await repository.list_deployments(seeded_satellite.orbit.id)) == 2
+        assert len(await repository.list_deployments(seeded_satellite.orbit.id)) == 3
 
         async with AsyncSession(seeded_satellite.engine) as session, session.begin():
             await repository.undeploy_artifact_deployments(
@@ -278,14 +283,19 @@ class TestDeploymentRepositoryCrud:
 
         assert await repository.list_deployments(seeded_satellite.orbit.id) == []
 
-        tasks = await SatelliteRepository(seeded_satellite.engine).list_tasks(
-            seeded_satellite.satellite.id, status=SatelliteTaskStatus.PENDING
-        )
-        undeploys = [task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY]
-        assert {task.payload["deployment_id"] for task in undeploys} == {
-            str(deployment.id) for deployment in created
-        }
-        assert {task.orbit_id for task in undeploys} == {seeded_satellite.orbit.id}
+        for satellite in [seeded_satellite.satellite, sibling]:
+            tasks = await SatelliteRepository(seeded_satellite.engine).list_tasks(
+                satellite.id, status=SatelliteTaskStatus.PENDING
+            )
+            undeploys = [
+                task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY
+            ]
+            assert {task.payload["deployment_id"] for task in undeploys} == {
+                str(deployment.id)
+                for deployment in created
+                if deployment.satellite_id == satellite.id
+            }
+            assert {task.orbit_id for task in undeploys} == {seeded_satellite.orbit.id}
 
     @pytest.mark.parametrize(
         "binding", ["dynamic_attributes_secrets", "env_variables_secrets"]
