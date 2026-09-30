@@ -45,8 +45,12 @@ const artifactsStore = {
 
 const secretsStore = {
   secretsList: [],
-  loadSecrets: vi.fn(async () => undefined),
+  loadSecrets: vi.fn(async (): Promise<void> => undefined),
 }
+
+const dynamicAttributes = vi.hoisted(() => ({
+  getDynamicAttributes: vi.fn(() => ({ secrets: [] as { name: string; description?: string }[] })),
+}))
 
 const deploymentsStore = {
   createDeployment: vi.fn(),
@@ -81,7 +85,7 @@ vi.mock('@/stores/deployments', () => ({
 }))
 
 vi.mock('@/lib/fnnx/FnnxService', () => ({
-  FnnxService: { getDynamicAttributes: () => ({ secrets: [] }) },
+  FnnxService: dynamicAttributes,
 }))
 
 vi.mock('primevue', async (importOriginal) => {
@@ -148,7 +152,19 @@ const formStubs = {
 function mountEditor(data = deployment(MONITORED.id)) {
   return mount(DeploymentsEditor, {
     props: { data, visible: true },
-    global: { stubs: formStubs },
+    global: {
+      stubs: {
+        ...formStubs,
+        ToggleSwitch: {
+          name: 'ToggleSwitch',
+          template: '<button data-testid="editor-monitoring-toggle" />',
+        },
+        Button: {
+          props: ['label', 'disabled', 'loading'],
+          template: '<button :disabled="disabled || loading"><slot>{{ label }}</slot></button>',
+        },
+      },
+    },
   })
 }
 
@@ -279,7 +295,10 @@ describe('deployment form submission with both dialogs open', () => {
     'Save changes updates only the editor deployment (editor first: %s)',
     async (editorFirst) => {
       const { editor, modal } = await mountDialogs(editorFirst)
-
+      editor
+        .getComponent({ name: 'DeploymentsFormBasicsSettings' })
+        .vm.$emit('update:name', 'Renamed deployment')
+      await nextTick()
       ;(editor.get('button[type="submit"]').element as HTMLButtonElement).click()
       await flushPromises()
 
@@ -287,7 +306,7 @@ describe('deployment form submission with both dialogs open', () => {
         'org-1',
         'orbit-1',
         'deployment-1',
-        expect.objectContaining({ name: 'Deployment' }),
+        { name: 'Renamed deployment' },
       )
       expect(deploymentsStore.createDeployment).not.toHaveBeenCalled()
       expect(modal.emitted('update:visible')).toBeUndefined()
@@ -328,5 +347,207 @@ describe('DeploymentsEditor validation', () => {
     } as never)
 
     expect(Object.keys(result.errors)).toEqual(['name'])
+  })
+})
+
+describe('DeploymentsEditor saves', () => {
+  beforeEach(() => {
+    satellitesStore.satellitesList = [MONITORED]
+    satellitesStore.loadSatellites.mockReset().mockResolvedValue([MONITORED])
+    satellitesStore.setList.mockImplementation((satellites) => {
+      satellitesStore.satellitesList = satellites
+    })
+    secretsStore.loadSecrets.mockReset().mockResolvedValue(undefined)
+    artifactsStore.getArtifact.mockReset().mockResolvedValue(modelWithTags([]))
+    dynamicAttributes.getDynamicAttributes.mockReturnValue({
+      secrets: [{ name: 'token' }, { name: 'password' }],
+    })
+    deploymentsStore.update.mockReset().mockResolvedValue(undefined)
+  })
+
+  function savedDeployment() {
+    return {
+      ...deployment(MONITORED.id),
+      tags: ['production'],
+      dynamic_attributes_secrets: { token: 'secret-1', password: 'secret-2' },
+    }
+  }
+
+  function saveButton(wrapper: ReturnType<typeof mountEditor>) {
+    return wrapper.get('button[type="submit"]')
+  }
+
+  async function submit(wrapper: ReturnType<typeof mountEditor>) {
+    wrapper.findComponent({ name: 'Form' }).vm.$emit('submit', { valid: true })
+    await flushPromises()
+  }
+
+  it.each(['satellites', 'secrets', 'artifact'] as const)(
+    'disables Save and ignores submission until %s initialization finishes',
+    async (stage) => {
+      let finish!: () => void
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      if (stage === 'satellites') {
+        satellitesStore.satellitesList = []
+        satellitesStore.loadSatellites.mockImplementationOnce(async () => {
+          await pending
+          return [MONITORED]
+        })
+      } else if (stage === 'secrets') {
+        secretsStore.loadSecrets.mockImplementationOnce(() => pending)
+      } else {
+        artifactsStore.getArtifact.mockImplementationOnce(async () => {
+          await pending
+          return modelWithTags([])
+        })
+      }
+      const wrapper = mountEditor(savedDeployment())
+      await flushPromises()
+      expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
+      await submit(wrapper)
+      expect(deploymentsStore.update).not.toHaveBeenCalled()
+
+      finish()
+      await flushPromises()
+      expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+      await submit(wrapper)
+      expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {})
+    },
+  )
+
+  it.each(['satellites', 'secrets', 'artifact', 'missing artifact'] as const)(
+    'keeps Save disabled after %s initialization fails',
+    async (stage) => {
+      if (stage === 'satellites') {
+        satellitesStore.satellitesList = []
+        satellitesStore.loadSatellites.mockRejectedValueOnce(new Error('load failed'))
+      } else if (stage === 'secrets') {
+        secretsStore.loadSecrets.mockRejectedValueOnce(new Error('load failed'))
+      } else if (stage === 'artifact') {
+        artifactsStore.getArtifact.mockRejectedValueOnce(new Error('load failed'))
+      } else {
+        artifactsStore.getArtifact.mockResolvedValueOnce(null)
+      }
+      const wrapper = mountEditor(savedDeployment())
+      await flushPromises()
+      expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
+      await submit(wrapper)
+      expect(deploymentsStore.update).not.toHaveBeenCalled()
+      expect(wrapper.emitted('update:visible')).toBeUndefined()
+    },
+  )
+
+  it('sends only a changed name and leaves saved secret bindings untouched', async () => {
+    const wrapper = mountEditor(savedDeployment())
+    await flushPromises()
+    wrapper
+      .findComponent({ name: 'DeploymentsFormBasicsSettings' })
+      .vm.$emit('update:name', 'Renamed')
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {
+      name: 'Renamed',
+    })
+  })
+
+  it('sends changed description, tags, and monitoring without untouched fields', async () => {
+    const data = savedDeployment()
+    const wrapper = mountEditor(data)
+    await flushPromises()
+    const basics = wrapper.findComponent({ name: 'DeploymentsFormBasicsSettings' })
+    basics.vm.$emit('update:description', 'New description')
+    basics.vm.$emit('update:tags', ['production', 'updated'])
+    wrapper.findComponent({ name: 'ToggleSwitch' }).vm.$emit('update:modelValue', true)
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {
+      description: 'New description',
+      tags: ['production', 'updated'],
+      monitoring_mode: MonitoringMode.full,
+    })
+    expect(data.tags).toEqual(['production'])
+  })
+
+  it('preserves untouched and undisplayed bindings when changing a secret', async () => {
+    const data = {
+      ...savedDeployment(),
+      dynamic_attributes_secrets: {
+        ...savedDeployment().dynamic_attributes_secrets,
+        legacy: 'secret-3',
+      },
+    }
+    const wrapper = mountEditor(data)
+    await flushPromises()
+    wrapper
+      .findAllComponents({ name: 'SecretsSelect' })[0]
+      .vm.$emit('update:modelValue', 'secret-4')
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {
+      dynamic_attributes_secrets: { token: 'secret-4', password: 'secret-2', legacy: 'secret-3' },
+    })
+    expect(data.dynamic_attributes_secrets.token).toBe('secret-1')
+  })
+
+  it('sends an empty binding map when the user explicitly clears every secret', async () => {
+    const wrapper = mountEditor(savedDeployment())
+    await flushPromises()
+    for (const select of wrapper.findAllComponents({ name: 'SecretsSelect' })) {
+      select.vm.$emit('update:modelValue', null)
+    }
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {
+      dynamic_attributes_secrets: {},
+    })
+  })
+
+  it('omits fields changed back to their saved values', async () => {
+    const wrapper = mountEditor(savedDeployment())
+    await flushPromises()
+    const basics = wrapper.findComponent({ name: 'DeploymentsFormBasicsSettings' })
+    const secret = wrapper.findAllComponents({ name: 'SecretsSelect' })[0]
+    basics.vm.$emit('update:name', 'Renamed')
+    basics.vm.$emit('update:name', 'Deployment')
+    basics.vm.$emit('update:tags', ['production'])
+    secret.vm.$emit('update:modelValue', 'secret-4')
+    secret.vm.$emit('update:modelValue', 'secret-1')
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {})
+  })
+
+  it('does not send an empty secret map for a deployment without secret fields', async () => {
+    dynamicAttributes.getDynamicAttributes.mockReturnValue({ secrets: [] })
+    const wrapper = mountEditor()
+    await flushPromises()
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {})
+  })
+
+  it('blocks duplicate submissions while saving and allows retry after update failure', async () => {
+    let fail!: (error: Error) => void
+    deploymentsStore.update.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          fail = reject
+        }),
+    )
+    const wrapper = mountEditor(savedDeployment())
+    await flushPromises()
+    wrapper
+      .findComponent({ name: 'DeploymentsFormBasicsSettings' })
+      .vm.$emit('update:name', 'Renamed')
+    await submit(wrapper)
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledTimes(1)
+
+    fail(new Error('update failed'))
+    await flushPromises()
+    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+    expect(wrapper.emitted('update:visible')).toBeUndefined()
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenLastCalledWith('org-1', 'orbit-1', 'deployment-1', {
+      name: 'Renamed',
+    })
+    expect(wrapper.emitted('update:visible')).toEqual([[false]])
   })
 })
