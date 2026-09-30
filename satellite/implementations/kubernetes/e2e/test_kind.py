@@ -452,6 +452,11 @@ def _assert_upgrade_keeps_sessions(
     session: str,
 ) -> None:
     before = _derivation_key(namespace, release)
+    stored_values = json.loads(
+        _run("helm", "get", "values", release, "-n", namespace, "--all", "-o", "json").stdout
+    )
+    assert "probes" not in stored_values
+    assert "objectStorage" not in stored_values["monitoring"]["store"]
     _run(
         "helm",
         "upgrade",
@@ -466,6 +471,15 @@ def _assert_upgrade_keeps_sessions(
     )
     after = _derivation_key(namespace, release)
     assert after == before
+    stores = _kubectl_json(
+        namespace, "get", "statefulsets", "-l", "app.kubernetes.io/component=store"
+    )["items"]
+    assert len(stores) == 1
+    store = stores[0]
+    assert "volumeClaimTemplates" not in store["spec"]
+    probe = store["spec"]["template"]["spec"]["containers"][0]["livenessProbe"]
+    assert probe["timeoutSeconds"] == 5
+    assert probe["failureThreshold"] == 3
     _assert_monitoring_session(host, session)
 
 

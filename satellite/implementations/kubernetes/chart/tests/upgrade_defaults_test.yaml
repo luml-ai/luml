@@ -1,0 +1,115 @@
+suite: missing release value groups
+templates:
+  - templates/deployment-satellite.yaml
+  - templates/statefulset-store.yaml
+  - templates/networkpolicy-satellite.yaml
+release:
+  name: upgrade
+  namespace: models
+  upgrade: true
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: renders chart defaults when release values omit top-level groups
+    template: templates/deployment-satellite.yaml
+    set:
+      model: null
+      sidecar: null
+      deploymentLimits: null
+      gpu: null
+      sharedCache: null
+      ingress: null
+      podSecurity: null
+      serviceAccount: null
+      probes: null
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 10001
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: MODEL_IMAGE, value: "ghcr.io/luml-ai/luml-model-server:dev"}
+
+  - it: defaults a missing monitoring group on upgrade
+    template: templates/statefulset-store.yaml
+    set:
+      monitoring: null
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: greptime/greptimedb:v0.13.1
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 20Gi
+
+  - it: defaults nested null and empty groups while keeping supplied values
+    template: templates/statefulset-store.yaml
+    set:
+      monitoring.store.persistence: null
+      monitoring.store.objectStorage: null
+      monitoring.store.image: {}
+      monitoring.store.port: 4444
+      probes: {timeoutSeconds: 15}
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: greptime/greptimedb:v0.13.1
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 20Gi
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 15
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  - it: preserves explicitly disabled persistence on upgrade
+    template: templates/statefulset-store.yaml
+    set:
+      monitoring.store.persistence.enabled: false
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content: {name: data, emptyDir: {}}
+
+  - it: preserves explicit empty strings and lists and zero values
+    template: templates/deployment-satellite.yaml
+    set:
+      satellite.logLevel: ""
+      satellite.pollIntervalSeconds: 0
+      deploymentLimits.memory.values: []
+      gpu.nodeSelector: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: LOG_LEVEL, value: ""}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: POLL_INTERVAL_SEC, value: "0"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_MEMORY_VALUES, value: "[]"}
+
+  - it: defaults a missing network policy group
+    template: templates/networkpolicy-satellite.yaml
+    set:
+      networkPolicy: null
+    asserts:
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 6443
+
+  - it: preserves an explicit zero instead of restoring the default API port
+    template: templates/networkpolicy-satellite.yaml
+    set:
+      networkPolicy.apiServerPort: 0
+    asserts:
+      - hasDocuments:
+          count: 0
