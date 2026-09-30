@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartTooltipTheme } from '@/lib/theme'
 import type { Series } from '@/api/types'
 
 /** Each drifted class's live share across the windows — one line per class. */
@@ -30,7 +30,7 @@ const chartSeries = computed(() =>
 )
 
 const options = computed(() => ({
-  chart: { toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit' },
+  chart: { toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit', foreColor: chartTextColor.value },
   colors: ['#2673fd', '#f97316', '#a855f7', '#059669', '#e11d48', '#64748b'],
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },

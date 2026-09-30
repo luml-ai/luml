@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartTooltipTheme } from '@/lib/theme'
 import type { Series } from '@/api/types'
 
 const props = withDefaults(
@@ -111,6 +111,7 @@ const options = computed(() => ({
     toolbar: { show: false },
     zoom: { enabled: false },
     fontFamily: 'inherit',
+    foreColor: chartTextColor.value,
     sparkline: { enabled: false },
   },
   colors: hasBaseline.value ? [props.color, '#94a3b8'] : [props.color],

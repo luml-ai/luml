@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartTooltipTheme } from '@/lib/theme'
 import type { FeatureDistribution } from '@/api/types'
 
 const props = withDefaults(
@@ -18,7 +18,7 @@ const chartSeries = computed(() => [
 ])
 
 const options = computed(() => ({
-  chart: { toolbar: { show: false }, fontFamily: 'inherit' },
+  chart: { toolbar: { show: false }, fontFamily: 'inherit', foreColor: chartTextColor.value },
   colors: ['#94a3b8', '#2673fd'],
   dataLabels: { enabled: false },
   legend: { position: 'top', horizontalAlign: 'right', fontSize: '12px' },

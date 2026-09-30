@@ -52,5 +52,6 @@ export function initTheme(): void {
 
 /* ApexCharts renders into canvas-like SVG with literal colors, so the handful of
    chrome colors the charts use are resolved here per theme instead of via CSS vars. */
+export const chartTextColor = computed(() => (theme.value === 'dark' ? '#e2e8f0' : '#334155'))
 export const chartGridColor = computed(() => (theme.value === 'dark' ? '#334155' : '#e2e8f0'))
 export const chartTooltipTheme = computed(() => theme.value)
