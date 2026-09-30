@@ -125,10 +125,10 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       initialValues.value,
     )
     visible.value = false
+    toast.add(simpleSuccessToast(`${props.data.name} updated successfully.`))
   } catch (e: unknown) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to update satellite')))
   } finally {
-    toast.add(simpleSuccessToast(`${props.data.name} updated successfully.`))
     loading.value = false
   }
 }
