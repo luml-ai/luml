@@ -224,7 +224,7 @@ const isForceDeleting = ref(false)
 const initialValues = ref<FormValues>({
   name: props.data.name,
   description: props.data.description,
-  tags: [...props.data.tags],
+  tags: [...(props.data.tags ?? [])],
   collectionId: props.data.collection_id,
   modelId: props.data.artifact_id,
   monitoringEnabled: props.data.monitoring_mode === MonitoringMode.full,
@@ -273,12 +273,13 @@ async function saveChanges({ valid }: FormSubmitEvent) {
   try {
     loading.value = true
     const values = initialValues.value
+    const savedTags = props.data.tags ?? []
     const payload: UpdateDeploymentPayload = {}
     if (values.name !== props.data.name) payload.name = values.name
     if (values.description !== props.data.description) payload.description = values.description
     if (
-      values.tags.length !== props.data.tags.length ||
-      values.tags.some((tag, index) => tag !== props.data.tags[index])
+      values.tags.length !== savedTags.length ||
+      values.tags.some((tag, index) => tag !== savedTags[index])
     ) {
       payload.tags = values.tags
     }

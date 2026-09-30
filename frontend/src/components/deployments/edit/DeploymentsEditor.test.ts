@@ -451,6 +451,61 @@ describe('DeploymentsEditor saves', () => {
     })
   })
 
+  it('initializes null tags and omits them from an unchanged save', async () => {
+    const data = { ...savedDeployment(), tags: null } as unknown as Deployment
+    const wrapper = mountEditor(data)
+    await flushPromises()
+
+    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+    expect(wrapper.findComponent({ name: 'DeploymentsFormBasicsSettings' }).props('tags')).toEqual(
+      [],
+    )
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {})
+    expect(data.tags).toBeNull()
+  })
+
+  it('preserves null tags when saving another field', async () => {
+    const data = { ...savedDeployment(), tags: null } as unknown as Deployment
+    const wrapper = mountEditor(data)
+    await flushPromises()
+    wrapper
+      .findComponent({ name: 'DeploymentsFormBasicsSettings' })
+      .vm.$emit('update:name', 'Renamed')
+    await submit(wrapper)
+
+    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {
+      name: 'Renamed',
+    })
+    expect(data.tags).toBeNull()
+  })
+
+  it('sends tags added to a deployment with null tags', async () => {
+    const data = { ...savedDeployment(), tags: null } as unknown as Deployment
+    const wrapper = mountEditor(data)
+    await flushPromises()
+    const basics = wrapper.findComponent({ name: 'DeploymentsFormBasicsSettings' })
+    basics.vm.$emit('update:tags', ['production'])
+    await submit(wrapper)
+
+    expect(deploymentsStore.update).toHaveBeenLastCalledWith('org-1', 'orbit-1', 'deployment-1', {
+      tags: ['production'],
+    })
+    expect(data.tags).toBeNull()
+  })
+
+  it('omits tags reverted to empty when the saved tags are null', async () => {
+    const data = { ...savedDeployment(), tags: null } as unknown as Deployment
+    const wrapper = mountEditor(data)
+    await flushPromises()
+    const basics = wrapper.findComponent({ name: 'DeploymentsFormBasicsSettings' })
+    basics.vm.$emit('update:tags', ['production'])
+    basics.vm.$emit('update:tags', [])
+    await submit(wrapper)
+    expect(deploymentsStore.update).toHaveBeenLastCalledWith('org-1', 'orbit-1', 'deployment-1', {})
+    expect(data.tags).toBeNull()
+  })
+
   it('sends changed description, tags, and monitoring without untouched fields', async () => {
     const data = savedDeployment()
     const wrapper = mountEditor(data)
