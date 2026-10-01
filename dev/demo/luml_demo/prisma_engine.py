@@ -102,6 +102,12 @@ class PrismaClient:
                 return str(repository["id"])
         return str(self.create_repository(name, path)["id"])
 
+    def delete_repository(self, repository_id: str) -> None:
+        self._request("DELETE", f"/repositories/{repository_id}")
+
+    def delete_run(self, run_id: str) -> None:
+        self._request("DELETE", f"/runs/{run_id}")
+
     def create_run(self, payload: dict[str, Any]) -> dict[str, Any]:
         return dict(self._request("POST", "/runs", json=payload).json())
 

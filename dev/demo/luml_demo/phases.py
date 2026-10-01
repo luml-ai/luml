@@ -272,8 +272,9 @@ def backfill_history(config: DemoConfig, state: DemoState, *, only: str | None =
                 deployment_id=record["id"], traffic=traffic, plan=plan, otlp_port=sat.otlp_port,
                 greptime_port=sat.greptime_port, envelope=envelope,
             )
-            counts = monitoring.send_live(inference_url, state.api_key, traffic, minutes=0.5,
-                                          per_minute=40, drift=not candidate)
+            # Enough live requests to fill the current window; sparse windows read as drift.
+            counts = monitoring.send_live(inference_url, state.api_key, traffic, minutes=1.0,
+                                          per_minute=150, drift=not candidate)
             say(f"live warm-up for {name}: {counts}")
             state.history[name] = datetime.now(UTC).isoformat()
             _save(config, state)
@@ -302,9 +303,32 @@ def stop_engine(config: DemoConfig) -> None:
     prisma_engine.Engine(config).stop()
 
 
+def forget_prisma_runs(config: DemoConfig, state: DemoState) -> None:
+    """Remove the demo's runs and repositories from the engine; other runs stay."""
+    engine = prisma_engine.Engine(config)
+    started = False
+    if not engine.healthy():
+        engine.start(speed=config.demo_speed)
+        started = True
+    client = prisma_engine.PrismaClient(config.prisma_url)
+    for scenario, run_id in list(state.runs.items()):
+        client.delete_run(run_id)
+        say(f"deleted prisma run for {scenario} ({run_id})")
+    for scenario, repository_id in list(state.repositories.items()):
+        client.delete_repository(repository_id)
+        say(f"deleted prisma repository for {scenario} ({repository_id})")
+    state.runs.clear()
+    state.repositories.clear()
+    if started:
+        engine.stop()
+
+
 def teardown(config: DemoConfig, state: DemoState, *, volumes: bool, keep_platform: bool) -> None:
     if platform.api_ready_quiet(config) and state.api_key and state.deployments:
         deployments.undeploy_all(_platform_client(config, state), state)
+        _save(config, state)
+    if volumes and (state.runs or state.repositories):
+        forget_prisma_runs(config, state)
         _save(config, state)
     for spec in config.satellites:
         satellites.down(config, spec, volumes=volumes)
@@ -313,9 +337,7 @@ def teardown(config: DemoConfig, state: DemoState, *, volumes: bool, keep_platfo
     if not keep_platform:
         platform.down(config, volumes=volumes)
     if volumes:
-        fresh = DemoState()
-        fresh.repositories = state.repositories
-        fresh.save(config.state_path)
+        DemoState().save(config.state_path)
         say("state reset; the next `luml-demo up` starts from an empty platform")
 
 

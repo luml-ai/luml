@@ -78,7 +78,8 @@ def runbook() -> None:
 def traffic(
     scenario: str = typer.Option("churn", help=f"One of {[s.name for s in SCENARIOS]}."),
     minutes: float = typer.Option(10.0, help="How long to keep sending requests."),
-    per_minute: float = typer.Option(20.0, help="Average requests per minute."),
+    per_minute: float = typer.Option(90.0, help="Average requests per minute (keep well above 60: "
+                                                "drift is scored per five-minute window)."),
     drift: bool = typer.Option(True, help="Send the drifted traffic mix instead of the reference mix."),
 ) -> None:
     """Send live inference traffic through a deployment while the demo is on screen."""
