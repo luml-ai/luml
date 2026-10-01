@@ -40,11 +40,6 @@ async def seeded_user(engine: AsyncEngine, new_user: CreateUser) -> UserFixtureD
 
 
 @pytest.fixture
-async def get_created_user(seeded_user: UserFixtureData) -> UserFixtureData:
-    return seeded_user
-
-
-@pytest.fixture
 def repository(engine: AsyncEngine) -> UserRepository:
     return UserRepository(engine)
 

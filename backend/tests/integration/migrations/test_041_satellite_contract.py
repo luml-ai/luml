@@ -33,60 +33,57 @@ async def _has_inference_url_unique_constraint(engine: AsyncEngine) -> bool:
         return await connection.run_sync(load)
 
 
-@pytest.mark.asyncio
-async def test_migration_upgrades_and_downgrades(
-    engine: AsyncEngine,
-) -> None:
-    await run_alembic(engine, "downgrade", "040")
-    assert "provider_ref" not in await _columns(engine, "deployments")
-    assert "progress_note" not in await _columns(engine, "deployments")
-    assert "kit_info" not in await _columns(engine, "satellites")
-    assert await _has_inference_url_unique_constraint(engine)
+class TestSatelliteContractMigration:
+    async def test_upgrade_and_downgrade_toggle_satellite_contract_schema(
+        self, engine: AsyncEngine
+    ) -> None:
+        await run_alembic(engine, "downgrade", "040")
+        assert "provider_ref" not in await _columns(engine, "deployments")
+        assert "progress_note" not in await _columns(engine, "deployments")
+        assert "kit_info" not in await _columns(engine, "satellites")
+        assert await _has_inference_url_unique_constraint(engine)
 
-    await run_alembic(engine, "upgrade", "head")
-    assert {"provider_ref", "progress_note"}.issubset(
-        await _columns(engine, "deployments")
-    )
-    assert "kit_info" in await _columns(engine, "satellites")
-    assert not await _has_inference_url_unique_constraint(engine)
-
-    await run_alembic(engine, "downgrade", "040")
-    assert "provider_ref" not in await _columns(engine, "deployments")
-    assert "progress_note" not in await _columns(engine, "deployments")
-    assert "kit_info" not in await _columns(engine, "satellites")
-    assert await _has_inference_url_unique_constraint(engine)
-
-
-@pytest.mark.asyncio
-async def test_downgrade_names_duplicate_inference_urls(
-    create_satellite: SatelliteFixtureData,
-) -> None:
-    data = create_satellite
-    repo = DeploymentRepository(data.engine)
-    deployments = [
-        (
-            await repo.create_deployment(
-                DeploymentCreate(
-                    name=f"duplicate-address-{index}",
-                    orbit_id=data.orbit.id,
-                    satellite_id=data.satellite.id,
-                    artifact_id=data.model.id,
-                )
-            )
-        )[0]
-        for index in range(2)
-    ]
-    inference_url = "https://shared.example/models"
-    for deployment in deployments:
-        await repo.update_deployment(
-            deployment.id,
-            data.satellite.id,
-            DeploymentUpdate(id=deployment.id, inference_url=inference_url),
+        await run_alembic(engine, "upgrade", "head")
+        assert {"provider_ref", "progress_note"}.issubset(
+            await _columns(engine, "deployments")
         )
+        assert "kit_info" in await _columns(engine, "satellites")
+        assert not await _has_inference_url_unique_constraint(engine)
 
-    with pytest.raises(RuntimeError, match=re.escape(inference_url)):
-        await run_alembic(data.engine, "downgrade", "040")
+        await run_alembic(engine, "downgrade", "040")
+        assert "provider_ref" not in await _columns(engine, "deployments")
+        assert "progress_note" not in await _columns(engine, "deployments")
+        assert "kit_info" not in await _columns(engine, "satellites")
+        assert await _has_inference_url_unique_constraint(engine)
 
-    assert {"provider_ref", "progress_note"}.issubset(
-        await _columns(data.engine, "deployments")
-    )
+    async def test_downgrade_raises_naming_inference_url_when_duplicates_exist(
+        self, engine: AsyncEngine, seeded_satellite: SatelliteFixtureData
+    ) -> None:
+        repository = DeploymentRepository(engine)
+        deployments = [
+            (
+                await repository.create_deployment(
+                    DeploymentCreate(
+                        name=f"duplicate-address-{index}",
+                        orbit_id=seeded_satellite.orbit.id,
+                        satellite_id=seeded_satellite.satellite.id,
+                        artifact_id=seeded_satellite.model.id,
+                    )
+                )
+            )[0]
+            for index in range(2)
+        ]
+        inference_url = "https://shared.example/models"
+        for deployment in deployments:
+            await repository.update_deployment(
+                deployment.id,
+                seeded_satellite.satellite.id,
+                DeploymentUpdate(id=deployment.id, inference_url=inference_url),
+            )
+
+        with pytest.raises(RuntimeError, match=re.escape(inference_url)):
+            await run_alembic(engine, "downgrade", "040")
+
+        assert {"provider_ref", "progress_note"}.issubset(
+            await _columns(engine, "deployments")
+        )

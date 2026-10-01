@@ -2,7 +2,6 @@ import time
 import uuid
 
 import jwt
-import pytest
 from luml.models import TokenBlackListOrm
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import (
@@ -25,8 +24,7 @@ async def _blacklist_expiry(engine: AsyncEngine, token: str) -> list[int]:
 
 
 class TestConcurrencyGuards:
-    @pytest.mark.asyncio
-    async def test_migration_keeps_the_longest_blacklist_expiry(
+    async def test_upgrade_keeps_longest_blacklist_expiry_when_token_listed_twice(
         self, engine: AsyncEngine
     ) -> None:
         token = f"refresh-{uuid.uuid4()}"
@@ -46,8 +44,7 @@ class TestConcurrencyGuards:
 
         assert await _blacklist_expiry(engine, token) == [300]
 
-    @pytest.mark.asyncio
-    async def test_migration_extends_legacy_rows_to_the_token_expiry(
+    async def test_upgrade_extends_legacy_blacklist_rows_to_refresh_token_expiry(
         self, engine: AsyncEngine
     ) -> None:
         now = int(time.time())

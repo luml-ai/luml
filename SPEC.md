@@ -420,7 +420,7 @@ mangled attributes kept, and any move between areas.
 - [x] Task 14 — remaining `integration/repositories/` files
   - [x] `test_api_keys.py`, `test_bucket_secrets.py`, `test_collections.py`, `test_invites.py`, `test_monitoring.py`, `test_orbit_secrets.py`, `test_orbits.py`, `test_organization_members.py`, `test_organizations.py`, `test_platform_admin.py`, `test_satellites.py`, `test_token_blacklist.py`, `test_user.py`, `test_concurrency_guards.py`: one class each, `repository` fixture, seed fixtures under new names, stale names fixed (`test_get_invite_where`, `test_delete_invite_where`, `test_get_satellite_get_satellite_by_hash`); convert; verify; report.
 
-- [ ] Task 15 — `integration/handlers/`, `integration/migrations/`, aliases, final sweep
-  - [ ] Convert the three files of `integration/handlers/` and `integration/migrations/` to one class each under the new fixture names.
-  - [ ] Remove every fixture alias from the `conftest.py` files and `test_user.py`.
-  - [ ] Run the final-sweep scenario checks and record the results in the report: no marker, no `pytest_asyncio.fixture`, no module-level handler instance, no comment or docstring, no old fixture name, every test a method; total collected count and both layers' run times.
+- [x] Task 15 — `integration/handlers/`, `integration/migrations/`, aliases, final sweep
+  - [x] Convert the three files of `integration/handlers/` and `integration/migrations/` to one class each under the new fixture names.
+  - [x] Remove every fixture alias from the `conftest.py` files and `test_user.py`.
+  - [x] Run the final-sweep scenario checks and record the results in the report: no marker, no `pytest_asyncio.fixture`, no module-level handler instance, no comment or docstring, no old fixture name, every test a method; total collected count and both layers' run times.

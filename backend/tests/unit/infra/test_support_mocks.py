@@ -40,7 +40,7 @@ class TestSupportMocks:
         return mock_collaborators(ArtifactHandler())
 
     @pytest.fixture
-    def lineage_mocks(self) -> CollaboratorMocks[LineageHandler]:
+    def lineage_handler_mocks(self) -> CollaboratorMocks[LineageHandler]:
         return mock_collaborators(LineageHandler())
 
     def test_artifact_handler_collaborators_are_all_replaced(
@@ -59,9 +59,9 @@ class TestSupportMocks:
             assert vars(artifact_mocks.handler)[f"_ArtifactHandler__{name}"] is mock
 
     def test_lineage_handler_collaborators_are_all_replaced(
-        self, lineage_mocks: CollaboratorMocks[LineageHandler]
+        self, lineage_handler_mocks: CollaboratorMocks[LineageHandler]
     ) -> None:
-        exposed = set(vars(lineage_mocks)) - {
+        exposed = set(vars(lineage_handler_mocks)) - {
             "handler",
             "session",
             "transaction_errors",
@@ -69,9 +69,11 @@ class TestSupportMocks:
 
         assert exposed == LINEAGE_COLLABORATORS
         for name in LINEAGE_COLLABORATORS:
-            mock = getattr(lineage_mocks, name)
+            mock = getattr(lineage_handler_mocks, name)
             assert isinstance(mock, Mock)
-            assert vars(lineage_mocks.handler)[f"_LineageHandler__{name}"] is mock
+            assert (
+                vars(lineage_handler_mocks.handler)[f"_LineageHandler__{name}"] is mock
+            )
 
     def test_non_collaborator_attributes_stay_real(
         self, artifact_mocks: CollaboratorMocks[ArtifactHandler]
@@ -160,27 +162,27 @@ class TestSupportMocks:
         artifact_mocks.lineage_repository.delete_unreachable_deleted_nodes.assert_not_awaited()
 
     async def test_lineage_repository_transaction_is_faked(
-        self, lineage_mocks: CollaboratorMocks[LineageHandler]
+        self, lineage_handler_mocks: CollaboratorMocks[LineageHandler]
     ) -> None:
         failure = ValueError("inside")
 
-        async with lineage_mocks.repository.transaction() as session:
-            assert session is lineage_mocks.session
+        async with lineage_handler_mocks.repository.transaction() as session:
+            assert session is lineage_handler_mocks.session
         with pytest.raises(ValueError, match="inside"):
-            async with lineage_mocks.repository.transaction():
+            async with lineage_handler_mocks.repository.transaction():
                 raise failure
 
-        assert lineage_mocks.transaction_errors == [failure]
+        assert lineage_handler_mocks.transaction_errors == [failure]
 
     def test_each_call_gets_its_own_session_and_errors(
         self,
         artifact_mocks: CollaboratorMocks[ArtifactHandler],
-        lineage_mocks: CollaboratorMocks[LineageHandler],
+        lineage_handler_mocks: CollaboratorMocks[LineageHandler],
     ) -> None:
         artifact_mocks.transaction_errors.append(RuntimeError())
 
-        assert artifact_mocks.session is not lineage_mocks.session
-        assert lineage_mocks.transaction_errors == []
+        assert artifact_mocks.session is not lineage_handler_mocks.session
+        assert lineage_handler_mocks.transaction_errors == []
 
     def test_production_class_untouched(
         self, artifact_mocks: CollaboratorMocks[ArtifactHandler]

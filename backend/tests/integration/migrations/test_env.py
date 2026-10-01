@@ -3,8 +3,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 
 
@@ -21,16 +19,15 @@ def _alembic_current(dsn: str) -> subprocess.CompletedProcess[str]:
 
 
 class TestMigrationsEnv:
-    @pytest.mark.asyncio
-    async def test_cli_uses_exported_dsn(
-        self, create_database_and_apply_migrations: str
+    async def test_alembic_current_reports_head_when_dsn_exported(
+        self, database_dsn: str
     ) -> None:
-        result = _alembic_current(create_database_and_apply_migrations)
+        result = _alembic_current(database_dsn)
 
         assert result.returncode == 0, result.stderr
         assert "(head)" in result.stdout
 
-    def test_cli_fails_on_unparseable_exported_dsn(self) -> None:
+    def test_alembic_current_fails_when_exported_dsn_unparseable(self) -> None:
         result = _alembic_current("not-a-dsn")
 
         assert result.returncode != 0

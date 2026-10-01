@@ -28,7 +28,7 @@ prepare_template = cast(
 )
 clone_database = cast(
     Callable[[tuple[str, str]], AsyncGenerator[str]],
-    unwrap(fixtures.create_database_and_apply_migrations),
+    unwrap(fixtures.database_dsn),
 )
 
 
@@ -212,7 +212,6 @@ class TestDatabaseFixture:
         )
         admin_connection.close.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_failed_clone_drops_database_and_closes_connections(
         self, admin_connection: AsyncMock
     ) -> None:
@@ -235,7 +234,6 @@ class TestDatabaseFixture:
         )
         admin_connection.close.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_failing_test_still_drops_its_database(
         self, admin_connection: AsyncMock
     ) -> None:
@@ -252,7 +250,6 @@ class TestDatabaseFixture:
         )
         admin_connection.close.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_drop_waits_for_terminated_sessions_to_disconnect(
         self, admin_connection: AsyncMock
     ) -> None:
@@ -268,7 +265,6 @@ class TestDatabaseFixture:
             "execute",
         ]
 
-    @pytest.mark.asyncio
     async def test_stuck_session_times_out_without_dropping_database(
         self, admin_connection: AsyncMock
     ) -> None:
@@ -297,15 +293,12 @@ class TestDatabaseFixture:
 
 class TestDatabaseIsolation:
     @pytest.mark.parametrize("_attempt", range(2))
-    @pytest.mark.asyncio
     async def test_clone_restores_data_and_schema(
         self,
         _attempt: int,
-        create_database_and_apply_migrations: str,
+        database_dsn: str,
     ) -> None:
-        url = make_url(create_database_and_apply_migrations).set(
-            drivername="postgresql"
-        )
+        url = make_url(database_dsn).set(drivername="postgresql")
         connection = await asyncpg.connect(url.render_as_string(hide_password=False))
         try:
             assert await connection.fetchval("SELECT count(*) FROM organizations") == 0
@@ -359,36 +352,36 @@ class TestSeedFixtures:
         self,
         _attempt: int,
         engine: AsyncEngine,
-        create_organization_with_user: OrganizationFixtureData,
-        create_orbit: OrbitFixtureData,
-        create_collection: CollectionFixtureData,
-        create_satellite: SatelliteFixtureData,
+        seeded_organization: OrganizationFixtureData,
+        seeded_orbit: OrbitFixtureData,
+        seeded_collection: CollectionFixtureData,
+        seeded_satellite: SatelliteFixtureData,
         limits_update: AsyncMock,
     ) -> None:
-        owner = create_organization_with_user
-        for seed in (create_orbit, create_collection, create_satellite):
+        owner = seeded_organization
+        for seed in (seeded_orbit, seeded_collection, seeded_satellite):
             assert seed.engine is engine
             assert seed.organization is owner.organization
             assert seed.user is owner.user
             assert seed.bucket_secret is owner.bucket_secret
             assert seed.orbit.organization_id == owner.organization.id
         assert owner.engine is engine
-        assert create_collection.orbit is create_orbit.orbit
-        assert create_satellite.orbit is create_orbit.orbit
-        assert create_collection.collection.orbit_id == create_orbit.orbit.id
-        assert create_satellite.satellite.orbit_id == create_orbit.orbit.id
-        assert create_satellite.model.collection_id == create_collection.collection.id
+        assert seeded_collection.orbit is seeded_orbit.orbit
+        assert seeded_satellite.orbit is seeded_orbit.orbit
+        assert seeded_collection.collection.orbit_id == seeded_orbit.orbit.id
+        assert seeded_satellite.satellite.orbit_id == seeded_orbit.orbit.id
+        assert seeded_satellite.model.collection_id == seeded_collection.collection.id
         limits_update.assert_awaited_once_with(engine, owner.organization.id)
 
     @pytest.mark.parametrize("_attempt", range(2))
     async def test_member_roles_and_inviters_are_deterministic(
         self,
         _attempt: int,
-        create_orbit_with_members: OrbitWithMembersFixtureData,
-        create_organization_with_members: OrganizationWithMembersFixtureData,
+        seeded_orbit_with_members: OrbitWithMembersFixtureData,
+        seeded_organization_with_members: OrganizationWithMembersFixtureData,
     ) -> None:
-        orbit = create_orbit_with_members
-        organization = create_organization_with_members
+        orbit = seeded_orbit_with_members
+        organization = seeded_organization_with_members
         assert [member.role for member in orbit.members] == [
             OrbitRole.ADMIN,
             OrbitRole.MEMBER,

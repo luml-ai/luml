@@ -1,10 +1,10 @@
 import uuid
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-import pytest_asyncio
 from luml.handlers.deployments import DeploymentHandler
+from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine as shared_engine
 from luml.repositories.deployments import DeploymentRepository
 from luml.schemas.deployment import (
@@ -12,94 +12,95 @@ from luml.schemas.deployment import (
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
 )
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.seeds import SatelliteFixtureData
 
 
-@pytest_asyncio.fixture
-async def deployment_handler() -> AsyncGenerator[DeploymentHandler]:
+@pytest.fixture
+def repository(engine: AsyncEngine) -> DeploymentRepository:
+    return DeploymentRepository(engine)
+
+
+@pytest.fixture
+async def handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> AsyncGenerator[DeploymentHandler]:
+    monkeypatch.setattr(PermissionsHandler, "check_permissions", AsyncMock())
     await shared_engine.dispose()
     yield DeploymentHandler()
     await shared_engine.dispose()
 
 
-@patch(
-    "luml.handlers.deployments.PermissionsHandler.check_permissions",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_partial_details_update_preserves_untouched_columns(
-    mock_check_permissions: AsyncMock,  # noqa: ARG001
-    create_satellite: SatelliteFixtureData,
-    deployment_handler: DeploymentHandler,
-) -> None:
-    data = create_satellite
-    repo = DeploymentRepository(data.engine)
-    secret_id = str(uuid.uuid7())
-
-    created, _ = await repo.create_deployment(
-        DeploymentCreate(
-            name="original",
-            orbit_id=data.orbit.id,
-            satellite_id=data.satellite.id,
-            artifact_id=data.model.id,
-            status=DeploymentStatus.PENDING,
-            description="keep me",
-            tags=["keep"],
-            dynamic_attributes_secrets={"token": secret_id},
-            env_variables={"LEVEL": "debug"},
+class TestDeploymentHandler:
+    async def test_update_deployment_details_preserves_untouched_columns_when_partial(
+        self,
+        handler: DeploymentHandler,
+        repository: DeploymentRepository,
+        seeded_satellite: SatelliteFixtureData,
+    ) -> None:
+        secret_id = str(uuid.uuid7())
+        created, _ = await repository.create_deployment(
+            DeploymentCreate(
+                name="original",
+                orbit_id=seeded_satellite.orbit.id,
+                satellite_id=seeded_satellite.satellite.id,
+                artifact_id=seeded_satellite.model.id,
+                status=DeploymentStatus.PENDING,
+                description="keep me",
+                tags=["keep"],
+                dynamic_attributes_secrets={"token": secret_id},
+                env_variables={"LEVEL": "debug"},
+            )
         )
-    )
 
-    await deployment_handler.update_deployment_details(
-        data.user.id,
-        data.organization.id,
-        data.orbit.id,
-        created.id,
-        DeploymentDetailsUpdateIn(name="renamed"),
-    )
-
-    reloaded = await repo.get_deployment(created.id, data.orbit.id)
-    assert reloaded is not None
-    assert reloaded.name == "renamed"
-    assert reloaded.description == "keep me"
-    assert reloaded.tags == ["keep"]
-    assert reloaded.dynamic_attributes_secrets == {"token": secret_id}
-    assert reloaded.env_variables == {"LEVEL": "debug"}
-
-
-@patch(
-    "luml.handlers.deployments.PermissionsHandler.check_permissions",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_details_update_treats_explicit_null_secrets_as_cleared(
-    mock_check_permissions: AsyncMock,  # noqa: ARG001
-    create_satellite: SatelliteFixtureData,
-    deployment_handler: DeploymentHandler,
-) -> None:
-    data = create_satellite
-    repo = DeploymentRepository(data.engine)
-
-    created, _ = await repo.create_deployment(
-        DeploymentCreate(
-            name="original",
-            orbit_id=data.orbit.id,
-            satellite_id=data.satellite.id,
-            artifact_id=data.model.id,
-            status=DeploymentStatus.PENDING,
-            dynamic_attributes_secrets={"token": str(uuid.uuid7())},
+        await handler.update_deployment_details(
+            seeded_satellite.user.id,
+            seeded_satellite.organization.id,
+            seeded_satellite.orbit.id,
+            created.id,
+            DeploymentDetailsUpdateIn(name="renamed"),
         )
-    )
 
-    await deployment_handler.update_deployment_details(
-        data.user.id,
-        data.organization.id,
-        data.orbit.id,
-        created.id,
-        DeploymentDetailsUpdateIn.model_validate({"dynamic_attributes_secrets": None}),
-    )
+        reloaded = await repository.get_deployment(
+            created.id, seeded_satellite.orbit.id
+        )
+        assert reloaded is not None
+        assert reloaded.name == "renamed"
+        assert reloaded.description == "keep me"
+        assert reloaded.tags == ["keep"]
+        assert reloaded.dynamic_attributes_secrets == {"token": secret_id}
+        assert reloaded.env_variables == {"LEVEL": "debug"}
 
-    reloaded = await repo.get_deployment(created.id, data.orbit.id)
-    assert reloaded is not None
-    assert reloaded.dynamic_attributes_secrets == {}
+    async def test_update_deployment_details_clears_secrets_when_explicit_null(
+        self,
+        handler: DeploymentHandler,
+        repository: DeploymentRepository,
+        seeded_satellite: SatelliteFixtureData,
+    ) -> None:
+        created, _ = await repository.create_deployment(
+            DeploymentCreate(
+                name="original",
+                orbit_id=seeded_satellite.orbit.id,
+                satellite_id=seeded_satellite.satellite.id,
+                artifact_id=seeded_satellite.model.id,
+                status=DeploymentStatus.PENDING,
+                dynamic_attributes_secrets={"token": str(uuid.uuid7())},
+            )
+        )
+
+        await handler.update_deployment_details(
+            seeded_satellite.user.id,
+            seeded_satellite.organization.id,
+            seeded_satellite.orbit.id,
+            created.id,
+            DeploymentDetailsUpdateIn.model_validate(
+                {"dynamic_attributes_secrets": None}
+            ),
+        )
+
+        reloaded = await repository.get_deployment(
+            created.id, seeded_satellite.orbit.id
+        )
+        assert reloaded is not None
+        assert reloaded.dynamic_attributes_secrets == {}

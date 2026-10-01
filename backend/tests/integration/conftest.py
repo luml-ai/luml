@@ -5,7 +5,6 @@ from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 import pytest
-import pytest_asyncio
 from luml.models import OrganizationOrm
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
@@ -129,7 +128,7 @@ def database_template() -> Generator[tuple[str, str]]:
                 runner.run(conn.close())
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def database_dsn(
     database_template: tuple[str, str],
 ) -> AsyncGenerator[str]:
@@ -155,7 +154,7 @@ async def lift_organization_limits(engine: AsyncEngine, organization_id: UUID) -
         await session.commit()
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def engine(
     database_dsn: str,
 ) -> AsyncGenerator[AsyncEngine]:
@@ -166,7 +165,7 @@ async def engine(
         await engine.dispose()
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def seeded_organization(
     engine: AsyncEngine, new_user: CreateUser
 ) -> OrganizationFixtureData:
@@ -206,7 +205,7 @@ async def seeded_organization(
     )
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def seeded_organization_with_members(
     seeded_organization: OrganizationFixtureData, new_user: CreateUser
 ) -> OrganizationWithMembersFixtureData:
@@ -255,7 +254,7 @@ async def seeded_organization_with_members(
     )
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def seeded_orbit(
     seeded_organization: OrganizationFixtureData,
 ) -> OrbitFixtureData:
@@ -275,7 +274,7 @@ async def seeded_orbit(
     )
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def seeded_orbit_with_members(
     seeded_orbit: OrbitFixtureData, new_user: CreateUser
 ) -> OrbitWithMembersFixtureData:
@@ -310,7 +309,7 @@ async def seeded_orbit_with_members(
     )
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def seeded_collection(
     seeded_orbit: OrbitFixtureData,
 ) -> CollectionFixtureData:
@@ -337,7 +336,7 @@ async def seeded_collection(
     )
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def seeded_satellite(
     seeded_collection: CollectionFixtureData, new_artifact: ArtifactCreate
 ) -> SatelliteFixtureData:
@@ -366,48 +365,3 @@ async def seeded_satellite(
         model=artifact,
         satellite=satellite,
     )
-
-
-@pytest_asyncio.fixture
-async def create_database_and_apply_migrations(database_dsn: str) -> str:
-    return database_dsn
-
-
-@pytest_asyncio.fixture
-async def create_organization_with_user(
-    seeded_organization: OrganizationFixtureData,
-) -> OrganizationFixtureData:
-    return seeded_organization
-
-
-@pytest_asyncio.fixture
-async def create_organization_with_members(
-    seeded_organization_with_members: OrganizationWithMembersFixtureData,
-) -> OrganizationWithMembersFixtureData:
-    return seeded_organization_with_members
-
-
-@pytest_asyncio.fixture
-async def create_orbit(seeded_orbit: OrbitFixtureData) -> OrbitFixtureData:
-    return seeded_orbit
-
-
-@pytest_asyncio.fixture
-async def create_orbit_with_members(
-    seeded_orbit_with_members: OrbitWithMembersFixtureData,
-) -> OrbitWithMembersFixtureData:
-    return seeded_orbit_with_members
-
-
-@pytest_asyncio.fixture
-async def create_collection(
-    seeded_collection: CollectionFixtureData,
-) -> CollectionFixtureData:
-    return seeded_collection
-
-
-@pytest_asyncio.fixture
-async def create_satellite(
-    seeded_satellite: SatelliteFixtureData,
-) -> SatelliteFixtureData:
-    return seeded_satellite
