@@ -414,8 +414,8 @@ mangled attributes kept, and any move between areas.
 - [x] Task 12 — `integration/repositories/artifacts/` and `test_lineage.py`
   - [x] Artifacts: folder with `conftest.py` (`repository` fixture, `_add_artifact_to_track`) and the four files, `test_artifacts_batch_deletion.py` moving in as `test_batch_deletion.py`; lineage: one class in place with `repository` and `_get_listed_artifacts`; convert; verify; report.
 
-- [ ] Task 13 — `integration/repositories/tracks/` and `integration/repositories/deployments/`
-  - [ ] Tracks: folder with `conftest.py` (`repository` fixtures for track, stage and entry repositories; `_seed_entries`, `_collect_pages`) and four files; deployments: folder with three files; convert; verify; report.
+- [x] Task 13 — `integration/repositories/tracks/` and `integration/repositories/deployments/`
+  - [x] Tracks: folder with `conftest.py` (`repository` fixtures for track, stage and entry repositories; `_seed_entries`, `_collect_pages`) and four files; deployments: folder with three files; convert; verify; report.
 
 - [ ] Task 14 — remaining `integration/repositories/` files
   - [ ] `test_api_keys.py`, `test_bucket_secrets.py`, `test_collections.py`, `test_invites.py`, `test_monitoring.py`, `test_orbit_secrets.py`, `test_orbits.py`, `test_organization_members.py`, `test_organizations.py`, `test_platform_admin.py`, `test_satellites.py`, `test_token_blacklist.py`, `test_user.py`, `test_concurrency_guards.py`: one class each, `repository` fixture, seed fixtures under new names, stale names fixed (`test_get_invite_where`, `test_delete_invite_where`, `test_get_satellite_get_satellite_by_hash`); convert; verify; report.
