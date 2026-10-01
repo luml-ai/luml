@@ -562,10 +562,10 @@ new tests are class methods.
   - [x] Point `POSTGRESQL_DSN` in `backend/.env.test` at `df_studio_test`.
   - [x] Verify: `pytest tests/unit` passes with Postgres stopped; `pytest tests/integration` with the DSN naming `df_studio` stops before touching it; two consecutive integration runs pass with 277 cases each; a run interrupted mid-way followed by a full run passes; the integration run takes under 90 seconds locally (record the number in the task report).
 
-- [ ] Task 2 — Pytest configuration and CI workflow
-  - [ ] Add `[tool.pytest.ini_options]` with `testpaths` and `asyncio_mode = "auto"` to `backend/pyproject.toml`; confirm 1 054 cases still collect with unchanged identifiers and no marker warnings.
-  - [ ] Rewrite `.github/workflows/[backend] tests-and-linters.yml` into the jobs `checks`, `unit-tests`, `integration-tests` per the Design table: uv installed through the official setup action with caching, Postgres 15 as a service container with a readiness check in `integration-tests` only, the existing environment variables on the two test jobs, `mypy luml utils tests` in `checks`.
-  - [ ] Verify locally: `uv run mypy luml utils tests` passes; `uv run pytest tests/unit` and `uv run pytest tests/integration` pass separately. Note in the task report that `unit-tests` and `integration-tests` must be added by hand to the repository's required checks next to `checks`.
+- [x] Task 2 — Pytest configuration and CI workflow
+  - [x] Add `[tool.pytest.ini_options]` with `testpaths` and `asyncio_mode = "auto"` to `backend/pyproject.toml`; confirm 1 054 cases still collect with unchanged identifiers and no marker warnings.
+  - [x] Rewrite `.github/workflows/[backend] tests-and-linters.yml` into the jobs `checks`, `unit-tests`, `integration-tests` per the Design table: uv installed through the official setup action with caching, Postgres 15 as a service container with a readiness check in `integration-tests` only, the existing environment variables on the two test jobs, `mypy luml utils tests` in `checks`.
+  - [x] Verify locally: `uv run mypy luml utils tests` passes; `uv run pytest tests/unit` and `uv run pytest tests/integration` pass separately. Note in the task report that `unit-tests` and `integration-tests` must be added by hand to the repository's required checks next to `checks`.
 
 - [ ] Task 3 — Layout
   - [ ] `git mv backend/tests/integration/repository` to `integration/repositories`; create `integration/handlers/`, `integration/migrations/`, `unit/infra/` as packages.
