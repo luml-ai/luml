@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, Mock, call
 from uuid import UUID, uuid7
 
@@ -23,6 +21,9 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.deployment import DeploymentStatus
 from luml.schemas.permissions import Action, Resource
+
+from tests.support.ids import COLLECTION_ID, ORBIT_ID, ORGANIZATION_ID, USER_ID
+from tests.support.mocks import CollaboratorMocks
 
 
 def _record(
@@ -48,75 +49,68 @@ def _record(
     )
 
 
-class TestArtifactsBatchDeletion:
+class TestArtifactBatchDeletion:
     @pytest.fixture
-    def context(self) -> SimpleNamespace:
-        handler = ArtifactHandler()
-        repository = Mock()
-        repository.request_batch_deletion = AsyncMock(return_value=[])
-        repository.get_batch_deletion_records = AsyncMock(return_value=[])
-        repository.mark_deletion_failed = AsyncMock()
-        repository.delete_artifact_record = AsyncMock(return_value=True)
-        permissions = Mock(check_permissions=AsyncMock())
-        storage_client = Mock(get_delete_url=AsyncMock())
-        orbit = Mock(bucket_secret_id=uuid7())
-        check_access = AsyncMock(return_value=(orbit, Mock()))
-        get_storage_client = AsyncMock(return_value=storage_client)
+    def storage_client(self) -> Mock:
+        return Mock(get_delete_url=AsyncMock())
 
-        untyped_handler: Any = handler
-        untyped_handler._ArtifactHandler__repository = repository
-        untyped_handler._ArtifactHandler__permissions_handler = permissions
-        untyped_handler._check_orbit_and_collection_access = check_access
-        untyped_handler._get_storage_client = get_storage_client
+    @pytest.fixture
+    def check_access(self) -> AsyncMock:
+        return AsyncMock(return_value=(Mock(bucket_secret_id=uuid7()), Mock()))
 
-        return SimpleNamespace(
-            handler=handler,
-            repository=repository,
-            permissions=permissions,
-            check_access=check_access,
-            get_storage_client=get_storage_client,
-            storage_client=storage_client,
-            user_id=uuid7(),
-            organization_id=uuid7(),
-            orbit_id=uuid7(),
-            collection_id=uuid7(),
+    @pytest.fixture
+    def get_storage_client(self, storage_client: Mock) -> AsyncMock:
+        return AsyncMock(return_value=storage_client)
+
+    @pytest.fixture(autouse=True)
+    def stubbed_handler(
+        self,
+        mocks: CollaboratorMocks[ArtifactHandler],
+        monkeypatch: pytest.MonkeyPatch,
+        check_access: AsyncMock,
+        get_storage_client: AsyncMock,
+    ) -> None:
+        mocks.repository.request_batch_deletion.return_value = []
+        mocks.repository.get_batch_deletion_records.return_value = []
+        mocks.repository.delete_artifact_record.return_value = True
+        monkeypatch.setattr(
+            mocks.handler, "_check_orbit_and_collection_access", check_access
         )
+        monkeypatch.setattr(mocks.handler, "_get_storage_client", get_storage_client)
 
-    @pytest.mark.asyncio
-    async def test_request_accepts_every_status_and_collapses_duplicates(
-        self, context: SimpleNamespace
+    async def test_request_delete_urls_accepts_every_status_and_collapses_duplicates(
+        self, mocks: CollaboratorMocks[ArtifactHandler], storage_client: Mock
     ) -> None:
         records = [
             _record(uuid7(), name=artifact_status.value, status=artifact_status)
             for artifact_status in ArtifactStatus
         ]
-        context.repository.request_batch_deletion.return_value = records
-        context.storage_client.get_delete_url.side_effect = [
+        mocks.repository.request_batch_deletion.return_value = records
+        storage_client.get_delete_url.side_effect = [
             f"https://bucket/{record.artifact.id}" for record in records
         ]
         requested_ids = [record.artifact.id for record in records]
 
-        result = await context.handler.request_delete_urls(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.request_delete_urls(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [*requested_ids, requested_ids[0], requested_ids[0]],
         )
 
         assert [entry.artifact_id for entry in result.urls] == requested_ids
         assert result.failed == []
-        context.repository.request_batch_deletion.assert_awaited_once_with(
-            context.collection_id, requested_ids
+        mocks.repository.request_batch_deletion.assert_awaited_once_with(
+            COLLECTION_ID, requested_ids
         )
-        assert context.storage_client.get_delete_url.await_args_list == [
+        assert storage_client.get_delete_url.await_args_list == [
             call(record.artifact.bucket_location) for record in records
         ]
-        context.repository.mark_deletion_failed.assert_not_awaited()
+        mocks.repository.mark_deletion_failed.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_request_classifies_mixed_selection_in_precedence_order(
-        self, context: SimpleNamespace
+    async def test_request_delete_urls_classifies_mixed_selection_by_precedence(
+        self, mocks: CollaboratorMocks[ArtifactHandler], storage_client: Mock
     ) -> None:
         eligible_id = uuid7()
         deployment_id = uuid7()
@@ -149,14 +143,14 @@ class TestArtifactsBatchDeletion:
                 tracks=tracks,
             ),
         ]
-        context.repository.request_batch_deletion.return_value = records
-        context.storage_client.get_delete_url.return_value = "https://bucket/delete"
+        mocks.repository.request_batch_deletion.return_value = records
+        storage_client.get_delete_url.return_value = "https://bucket/delete"
 
-        result = await context.handler.request_delete_urls(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.request_delete_urls(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [
                 eligible_id,
                 deployment_id,
@@ -181,28 +175,27 @@ class TestArtifactsBatchDeletion:
         assert result.failed[2].tracks == []
         assert result.failed[3].name is None
         assert result.failed[4].name is None
-        context.repository.delete_artifact_record.assert_not_awaited()
+        mocks.repository.delete_artifact_record.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_request_marks_only_signing_failures(
-        self, context: SimpleNamespace
+    async def test_request_delete_urls_marks_only_signing_failures_as_failed(
+        self, mocks: CollaboratorMocks[ArtifactHandler], storage_client: Mock
     ) -> None:
         first = _record(uuid7(), name="first")
         second = _record(uuid7(), name="second")
-        context.repository.request_batch_deletion.return_value = [first, second]
+        mocks.repository.request_batch_deletion.return_value = [first, second]
 
         async def sign_delete_url(bucket_location: str) -> str:
             if bucket_location == second.artifact.bucket_location:
                 raise BucketConnectionError("cannot sign")
             return "https://bucket/delete"
 
-        context.storage_client.get_delete_url.side_effect = sign_delete_url
+        storage_client.get_delete_url.side_effect = sign_delete_url
 
-        result = await context.handler.request_delete_urls(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.request_delete_urls(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [first.artifact.id, second.artifact.id],
         )
 
@@ -211,31 +204,31 @@ class TestArtifactsBatchDeletion:
         assert result.failed[0].artifact_id == second.artifact.id
         assert result.failed[0].name == "second"
         assert result.failed[0].reason == ArtifactDeleteReason.STORAGE_ERROR
-        context.repository.mark_deletion_failed.assert_awaited_once_with(
-            context.collection_id, [second.artifact.id]
+        mocks.repository.mark_deletion_failed.assert_awaited_once_with(
+            COLLECTION_ID, [second.artifact.id]
         )
 
-    @pytest.mark.asyncio
-    async def test_request_propagates_unexpected_signing_errors(
-        self, context: SimpleNamespace
+    async def test_request_delete_urls_propagates_unexpected_signing_errors(
+        self, mocks: CollaboratorMocks[ArtifactHandler], storage_client: Mock
     ) -> None:
         record = _record(uuid7(), name="first")
-        context.repository.request_batch_deletion.return_value = [record]
-        context.storage_client.get_delete_url.side_effect = RuntimeError("boom")
+        mocks.repository.request_batch_deletion.return_value = [record]
+        storage_client.get_delete_url.side_effect = RuntimeError("boom")
 
         with pytest.raises(RuntimeError):
-            await context.handler.request_delete_urls(
-                context.user_id,
-                context.organization_id,
-                context.orbit_id,
-                context.collection_id,
+            await mocks.handler.request_delete_urls(
+                USER_ID,
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                COLLECTION_ID,
                 [record.artifact.id],
             )
 
-        context.repository.mark_deletion_failed.assert_not_awaited()
+        mocks.repository.mark_deletion_failed.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_names_fall_back_to_file_name(self, context: SimpleNamespace) -> None:
+    async def test_deletion_results_name_artifact_by_file_name_when_name_is_missing(
+        self, mocks: CollaboratorMocks[ArtifactHandler], storage_client: Mock
+    ) -> None:
         eligible = _record(uuid7(), name=None, file_name="eligible.luml")
         deployed = _record(
             uuid7(),
@@ -247,26 +240,26 @@ class TestArtifactsBatchDeletion:
                 )
             ],
         )
-        context.repository.request_batch_deletion.return_value = [eligible, deployed]
-        context.storage_client.get_delete_url.return_value = "https://bucket/delete"
+        mocks.repository.request_batch_deletion.return_value = [eligible, deployed]
+        storage_client.get_delete_url.return_value = "https://bucket/delete"
 
-        requested = await context.handler.request_delete_urls(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        requested = await mocks.handler.request_delete_urls(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [eligible.artifact.id, deployed.artifact.id],
         )
 
         assert [entry.name for entry in requested.urls] == ["eligible.luml"]
         assert [entry.name for entry in requested.failed] == ["deployed.luml"]
 
-        context.repository.get_batch_deletion_records.return_value = [eligible]
-        confirmed = await context.handler.confirm_deletions(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        mocks.repository.get_batch_deletion_records.return_value = [eligible]
+        confirmed = await mocks.handler.confirm_deletions(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [eligible.artifact.id],
         )
 
@@ -284,35 +277,35 @@ class TestArtifactsBatchDeletion:
             (BucketSecretNotFoundError(), "storage"),
         ],
     )
-    @pytest.mark.asyncio
-    async def test_request_level_checks_change_nothing(
+    async def test_request_delete_urls_changes_nothing_when_request_check_fails(
         self,
-        context: SimpleNamespace,
+        mocks: CollaboratorMocks[ArtifactHandler],
         failure: Exception,
         failing_mock: str,
+        check_access: AsyncMock,
+        get_storage_client: AsyncMock,
     ) -> None:
         if failing_mock == "permissions":
-            context.permissions.check_permissions.side_effect = failure
+            mocks.permissions_handler.check_permissions.side_effect = failure
         elif failing_mock == "access":
-            context.check_access.side_effect = failure
+            check_access.side_effect = failure
         else:
-            context.get_storage_client.side_effect = failure
+            get_storage_client.side_effect = failure
 
         with pytest.raises(type(failure)):
-            await context.handler.request_delete_urls(
-                context.user_id,
-                context.organization_id,
-                context.orbit_id,
-                context.collection_id,
+            await mocks.handler.request_delete_urls(
+                USER_ID,
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                COLLECTION_ID,
                 [uuid7()],
             )
 
-        context.repository.request_batch_deletion.assert_not_awaited()
-        context.repository.mark_deletion_failed.assert_not_awaited()
+        mocks.repository.request_batch_deletion.assert_not_awaited()
+        mocks.repository.mark_deletion_failed.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_confirm_has_partial_success_and_defaults_force_to_false(
-        self, context: SimpleNamespace
+    async def test_confirm_deletions_deletes_only_pending_artifacts_without_force(
+        self, mocks: CollaboratorMocks[ArtifactHandler], get_storage_client: AsyncMock
     ) -> None:
         deletable = _record(
             uuid7(), name="deletable", status=ArtifactStatus.PENDING_DELETION
@@ -338,13 +331,13 @@ class TestArtifactsBatchDeletion:
         )
         unknown_id = uuid7()
         records = [deletable, uploaded, deployed, tracked]
-        context.repository.get_batch_deletion_records.return_value = records
+        mocks.repository.get_batch_deletion_records.return_value = records
 
-        result = await context.handler.confirm_deletions(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.confirm_deletions(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [
                 deletable.artifact.id,
                 uploaded.artifact.id,
@@ -362,14 +355,13 @@ class TestArtifactsBatchDeletion:
             ArtifactDeleteReason.TRACKS,
             ArtifactDeleteReason.NOT_FOUND,
         ]
-        context.repository.delete_artifact_record.assert_awaited_once_with(
-            deletable.artifact.id, context.collection_id
+        mocks.repository.delete_artifact_record.assert_awaited_once_with(
+            deletable.artifact.id, COLLECTION_ID
         )
-        context.get_storage_client.assert_not_awaited()
+        get_storage_client.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_confirm_deletes_every_pending_artifact(
-        self, context: SimpleNamespace
+    async def test_confirm_deletions_deletes_every_pending_artifact(
+        self, mocks: CollaboratorMocks[ArtifactHandler]
     ) -> None:
         records = [
             _record(
@@ -379,54 +371,55 @@ class TestArtifactsBatchDeletion:
             )
             for index in range(3)
         ]
-        context.repository.get_batch_deletion_records.return_value = records
+        mocks.repository.get_batch_deletion_records.return_value = records
         artifact_ids = [record.artifact.id for record in records]
 
-        result = await context.handler.confirm_deletions(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.confirm_deletions(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             artifact_ids,
         )
 
         assert result.deleted == artifact_ids
         assert result.failed == []
-        assert context.repository.delete_artifact_record.await_args_list == [
-            call(artifact_id, context.collection_id) for artifact_id in artifact_ids
+        assert mocks.repository.delete_artifact_record.await_args_list == [
+            call(artifact_id, COLLECTION_ID) for artifact_id in artifact_ids
         ]
 
-    @pytest.mark.asyncio
-    async def test_force_deletes_artifacts_in_every_status_without_storage(
-        self, context: SimpleNamespace
+    async def test_confirm_deletions_with_force_deletes_every_status_without_storage(
+        self,
+        mocks: CollaboratorMocks[ArtifactHandler],
+        get_storage_client: AsyncMock,
+        storage_client: Mock,
     ) -> None:
         records = [
             _record(uuid7(), name=artifact_status.value, status=artifact_status)
             for artifact_status in ArtifactStatus
         ]
-        context.repository.get_batch_deletion_records.return_value = records
+        mocks.repository.get_batch_deletion_records.return_value = records
         ids = [record.artifact.id for record in records]
 
-        result = await context.handler.confirm_deletions(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.confirm_deletions(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             ids,
             force=True,
         )
 
         assert result.deleted == ids
         assert result.failed == []
-        assert context.repository.delete_artifact_record.await_args_list == [
-            call(artifact_id, context.collection_id) for artifact_id in ids
+        assert mocks.repository.delete_artifact_record.await_args_list == [
+            call(artifact_id, COLLECTION_ID) for artifact_id in ids
         ]
-        context.get_storage_client.assert_not_awaited()
-        context.storage_client.get_delete_url.assert_not_awaited()
+        get_storage_client.assert_not_awaited()
+        storage_client.get_delete_url.assert_not_awaited()
 
-    @pytest.mark.asyncio
-    async def test_force_still_reports_references_and_unknown_ids(
-        self, context: SimpleNamespace
+    async def test_confirm_deletions_with_force_reports_references_and_unknown_ids(
+        self, mocks: CollaboratorMocks[ArtifactHandler]
     ) -> None:
         deployed = _record(
             uuid7(),
@@ -447,16 +440,16 @@ class TestArtifactsBatchDeletion:
             tracks=[ArtifactDeleteTrack(id=uuid7(), name="track")],
         )
         unknown_id = uuid7()
-        context.repository.get_batch_deletion_records.return_value = [
+        mocks.repository.get_batch_deletion_records.return_value = [
             deployed,
             tracked,
         ]
 
-        result = await context.handler.confirm_deletions(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.confirm_deletions(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [deployed.artifact.id, tracked.artifact.id, unknown_id],
             force=True,
         )
@@ -472,12 +465,11 @@ class TestArtifactsBatchDeletion:
         assert result.failed[1].deployments == []
         assert result.failed[1].tracks == tracked.tracks
         assert result.failed[2].name is None
-        context.repository.delete_artifact_record.assert_not_awaited()
+        mocks.repository.delete_artifact_record.assert_not_awaited()
 
     @pytest.mark.parametrize("race_reason", ["deployments", "tracks"])
-    @pytest.mark.asyncio
-    async def test_confirm_maps_constraint_race_to_current_reference(
-        self, context: SimpleNamespace, race_reason: str
+    async def test_confirm_deletions_reports_current_reference_after_constraint_race(
+        self, mocks: CollaboratorMocks[ArtifactHandler], race_reason: str
     ) -> None:
         artifact_id = uuid7()
         initial = _record(
@@ -498,19 +490,17 @@ class TestArtifactsBatchDeletion:
             deployments=[deployment] if race_reason == "deployments" else [],
             tracks=[track] if race_reason == "tracks" else [],
         )
-        context.repository.get_batch_deletion_records.side_effect = [
+        mocks.repository.get_batch_deletion_records.side_effect = [
             [initial],
             [blocked],
         ]
-        context.repository.delete_artifact_record.side_effect = (
-            DatabaseConstraintError()
-        )
+        mocks.repository.delete_artifact_record.side_effect = DatabaseConstraintError()
 
-        result = await context.handler.confirm_deletions(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        result = await mocks.handler.confirm_deletions(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [artifact_id],
         )
 
@@ -521,30 +511,29 @@ class TestArtifactsBatchDeletion:
         )
         assert result.failed[0].tracks == ([track] if race_reason == "tracks" else [])
 
-    @pytest.mark.asyncio
-    async def test_confirm_checks_permission_and_access_once(
-        self, context: SimpleNamespace
+    async def test_confirm_deletions_checks_permission_and_access_once(
+        self, mocks: CollaboratorMocks[ArtifactHandler], check_access: AsyncMock
     ) -> None:
-        context.repository.get_batch_deletion_records.return_value = []
+        mocks.repository.get_batch_deletion_records.return_value = []
         artifact_id = uuid7()
 
-        await context.handler.confirm_deletions(
-            context.user_id,
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        await mocks.handler.confirm_deletions(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
             [artifact_id],
         )
 
-        context.permissions.check_permissions.assert_awaited_once_with(
-            context.organization_id,
-            context.user_id,
+        mocks.permissions_handler.check_permissions.assert_awaited_once_with(
+            ORGANIZATION_ID,
+            USER_ID,
             Resource.ARTIFACT,
             Action.DELETE,
-            context.orbit_id,
+            ORBIT_ID,
         )
-        context.check_access.assert_awaited_once_with(
-            context.organization_id,
-            context.orbit_id,
-            context.collection_id,
+        check_access.assert_awaited_once_with(
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
         )

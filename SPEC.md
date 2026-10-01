@@ -375,10 +375,10 @@ mangled attributes kept, and any move between areas.
   - [x] In `backend/tests/conftest.py`, `backend/tests/integration/conftest.py` and `integration/repositories/test_user.py`, define every fixture under its new name and add the old names as aliases; delete `invite_accept_data`'s separate definition (alias of `new_invite`).
   - [x] Verify: 1 054-plus cases still collect (plus the new support tests), the whole suite passes with the aliases in place.
 
-- [ ] Task 2 — `unit/handlers/artifacts/`
-  - [ ] Create the folder, `conftest.py` with `mocks` (artifacts handler) and the shared builders of the old file (`_make_listed`, `_pagination_arg`, `_artifact_create_input`, `_pending_artifact`, `_make_artifact`), and the six files of the Design table; move `test_artifacts_batch_deletion.py` in as `test_batch_deletion.py`, replacing its `context` fixture with `mocks`.
-  - [ ] Convert every test per the Design; replace `DELETION_SESSION` and `DELETION_TRANSACTION_ERRORS` with `mocks.session` and `mocks.transaction_errors`.
-  - [ ] Verify per file and report.
+- [x] Task 2 — `unit/handlers/artifacts/`
+  - [x] Create the folder, `conftest.py` with `mocks` (artifacts handler) and the shared builders of the old file (`_make_listed`, `_pagination_arg`, `_artifact_create_input`, `_pending_artifact`, `_make_artifact`), and the six files of the Design table; move `test_artifacts_batch_deletion.py` in as `test_batch_deletion.py`, replacing its `context` fixture with `mocks`.
+  - [x] Convert every test per the Design; replace `DELETION_SESSION` and `DELETION_TRANSACTION_ERRORS` with `mocks.session` and `mocks.transaction_errors`.
+  - [x] Verify per file and report.
 
 - [ ] Task 3 — `unit/handlers/tracks/`
   - [ ] Create the folder with `conftest.py` (`mocks`, `_make_track`, `_make_entry`, `_make_stage`, `_integrity_error`) and the four files; convert; verify; report.
