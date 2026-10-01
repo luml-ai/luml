@@ -365,3 +365,48 @@ async def test_a_closed_subscription_stops_being_delivered_to():
     streams.transaction("churn.flow", transaction(1))
 
     await quiet(watching)
+
+
+async def test_an_agent_call_is_announced_and_remembered_until_it_ends() -> None:
+    """A tab opened while the agent is inside `edit-cell` learns of it from
+    its catch-up, which reads `activities`; the frame itself is for the tab
+    that was already there."""
+    streams = Streams()
+    subscription = streams.subscribe()
+    subscription.journals.add("churn")
+
+    streams.activity(
+        "churn",
+        actor="codex-1",
+        label="Codex",
+        tool="cells.edit",
+        slug="train",
+        phase="started",
+        step=4,
+    )
+    assert streams.activities("churn") == [
+        {"actor": "codex-1", "label": "Codex", "tool": "cells.edit", "slug": "train"}
+    ]
+    assert streams.active("churn", "codex-1") is not None
+    assert streams.activities("sales") == []
+
+    streams.activity(
+        "churn",
+        actor="codex-1",
+        label="Codex",
+        tool="cells.edit",
+        slug="train",
+        phase="ended",
+        step=5,
+    )
+    assert streams.activities("churn") == []
+    assert streams.active("churn", "codex-1") is None
+
+    started, ended = await frames(subscription, 2)
+    assert (started["type"], started["phase"], started["slug"]) == (
+        "activity",
+        "started",
+        "train",
+    )
+    assert (ended["type"], ended["phase"], ended["step"]) == ("activity", "ended", 5)
+    await quiet(subscription)

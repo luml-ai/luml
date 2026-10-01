@@ -72,3 +72,27 @@ export const CELL_OUTPUT_KIND_ICONS: Record<string, LucideIcon> = {
 }
 
 export const DEFAULT_OUTPUT_KIND_ICON: LucideIcon = ChartBar
+
+/**
+ * What a card says while a paired agent is inside a daemon call on it. The
+ * wire names the method; the card names the gesture. A method not listed
+ * reads as "working on", which is true of all of them.
+ */
+export const AGENT_TOOL_VERBS: Record<string, string> = {
+  'cells.edit': 'editing',
+  'cells.new': 'adding',
+  'cells.show': 'reading',
+  'cells.logs': 'reading logs of',
+  'cells.reorder': 'moving',
+  'cells.delete': 'deleting',
+  'cells.eager': 'changing',
+  'asset.preview': 'inspecting',
+  'asset.page': 'inspecting',
+  adopt: 'adopting',
+  rename: 'renaming',
+  run: 'running',
+}
+
+export function agentToolVerb(tool: string): string {
+  return AGENT_TOOL_VERBS[tool] ?? 'working on'
+}

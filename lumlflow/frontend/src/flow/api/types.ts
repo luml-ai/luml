@@ -363,12 +363,33 @@ export interface AgentsFrame {
  * The end of a catch-up. `running` is how a tab that opened mid-run learns
  * which console it can still ask for — an event it was not there for.
  */
+/**
+ * A leased agent is inside a daemon call, or just left it. `tool` is the
+ * daemon method and `slug` the cell it named, if it named one. One entry per
+ * actor; never replayed, a late joiner reads the same off the catch-up.
+ */
+export interface AgentActivity {
+  actor: string
+  label: string
+  tool: string
+  slug: string | null
+}
+
+export interface ActivityFrame extends AgentActivity {
+  channel: 'journal'
+  type: 'activity'
+  flow: string
+  step: number
+  phase: 'started' | 'ended'
+}
+
 export interface CaughtUpFrame {
   channel: 'journal'
   type: 'caught_up'
   flow: string
   step: number
   running: { run_id: string; slug: string; awaiting?: number }[]
+  activity?: AgentActivity[]
 }
 
 /** This client stopped reading long enough to be dropped. Replay from cursor. */
@@ -397,6 +418,7 @@ export type StreamFrame =
   | KernelFrame
   | StateFrame
   | AgentsFrame
+  | ActivityFrame
   | CaughtUpFrame
   | LaggedFrame
   | LogFrame

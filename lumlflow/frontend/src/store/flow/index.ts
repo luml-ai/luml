@@ -21,7 +21,44 @@ import { errorToast } from '@/toasts'
 import { formatUpdatedAgo } from '@/helpers/date'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FlowStream, streamToken } from '@/api/streams/flow'
-import type { StreamFrame } from '@/api/streams/flow'
+import type { AgentActivity, StreamFrame } from '@/api/streams/flow'
+
+/** A run the daemon has announced and not yet seen end, by the cell it is of. */
+export interface LiveRun {
+  run_id: string
+  slug: string
+  /** Announced by the queue but not yet started by the kernel. */
+  phase: 'queued' | 'running'
+}
+
+/**
+ * What is happening to a cell right now, as opposed to what its stored state
+ * says. A run beats an agent's call: when the agent asked for the run, the
+ * kernel is what the card is waiting on.
+ */
+export type CellLiveState =
+  | { kind: 'running'; run_id: string }
+  | { kind: 'queued'; run_id: string }
+  | { kind: 'agent'; actor: string; label: string; tool: string; inCall: boolean }
+
+/**
+ * How long a cell stays the agent's after its last call named it. The daemon
+ * sees an agent only inside a call, and a call lasts milliseconds; the work —
+ * reading the answer, deciding the next edit — happens between them. A cell
+ * the agent touched is its until it touches another, leaves, or goes quiet
+ * this long. The same idle window the workbench's task line uses.
+ */
+export const AGENT_FOCUS_MS = 90_000
+
+/**
+ * What an agent is doing, or just did. `inCall` says the daemon is inside the
+ * call right now; afterwards `since` is when it answered, and the entry stands
+ * until the agent moves on or the focus window closes.
+ */
+export interface AgentFocus extends AgentActivity {
+  inCall: boolean
+  since: number
+}
 
 function formatStepCount(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
@@ -156,6 +193,61 @@ export const useFlowStore = defineStore('flow', () => {
       : null,
   )
   const pairedAgentLabel = computed(() => pairedAgent.value?.label ?? null)
+  /**
+   * The runs in flight, as the daemon announces them. Not journaled, so this is
+   * fed by the live frames alone and replaced whole by every catch-up.
+   */
+  const liveRuns = ref<LiveRun[]>([])
+  /** One entry per leased agent: the call it is in, or the last one it made. */
+  const agentFocus = ref<AgentFocus[]>([])
+  // The clock the focus window is measured against. Ticks only while there is
+  // a focus to expire, so an idle page runs no timer.
+  const now = ref(Date.now())
+  let focusClock: ReturnType<typeof setInterval> | null = null
+  function keepClock() {
+    const wanted = agentFocus.value.some((entry) => !entry.inCall)
+    if (wanted && focusClock === null) {
+      focusClock = setInterval(() => {
+        now.value = Date.now()
+      }, 5_000)
+    } else if (!wanted && focusClock !== null) {
+      clearInterval(focusClock)
+      focusClock = null
+    }
+  }
+  function setFocus(entries: AgentFocus[]) {
+    agentFocus.value = entries
+    now.value = Date.now()
+    keepClock()
+  }
+  /** The agents still at work: in a call, or within the window after one. */
+  const agentActivity = computed<AgentFocus[]>(() =>
+    agentFocus.value.filter((entry) => entry.inCall || now.value - entry.since < AGENT_FOCUS_MS),
+  )
+  /** What the paired agent is doing this moment, if anything. */
+  const currentActivity = computed<AgentFocus | null>(
+    () => agentActivity.value[agentActivity.value.length - 1] ?? null,
+  )
+  const cellLiveStates = computed<Record<string, CellLiveState>>(() => {
+    const states: Record<string, CellLiveState> = {}
+    for (const activity of agentActivity.value) {
+      if (!activity.slug) continue
+      states[activity.slug] = {
+        kind: 'agent',
+        actor: activity.actor,
+        label: activity.label,
+        tool: activity.tool,
+        inCall: activity.inCall,
+      }
+    }
+    for (const run of liveRuns.value) {
+      const held = states[run.slug]
+      if (run.phase === 'queued' && held?.kind === 'running') continue
+      states[run.slug] = { kind: run.phase, run_id: run.run_id }
+    }
+    return states
+  })
+  const isAnythingRunning = computed(() => liveRuns.value.length > 0)
   const notebookCells = computed(() => cells.value.map(toNotebookCell))
   const currentBranchActivities = computed(() => {
     const branchId = currentBranch.value?.branch_id
@@ -306,6 +398,7 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   function disconnectCascadeStream() {
+    setFocus([])
     stopCascadeFrame?.()
     stopCascadeFrame = null
     cascadeStream?.close()
@@ -326,21 +419,105 @@ export const useFlowStore = defineStore('flow', () => {
       cascadeStream = stream
       stopCascadeFrame = stream.onFrame((frame: StreamFrame) => {
         if (!('channel' in frame) || frame.channel !== 'journal') return
-        if (frame.type === 'lagged') return
-        if (frame.flow !== opened.path) return
-        if (frame.type === 'state') return
-        if (frame.type === 'agents') {
-          // The whole list at that moment, lease state included — replace it.
-          // Nothing else in the tree moved, so no refetch is owed for it.
-          agentSessions.value = frame.sessions
-          return
-        }
-        scheduleLiveRefetch()
+        if (frame.type === 'lagged' || frame.flow !== opened.path) return
+        receiveLiveFrame(frame)
       })
       stream.connect()
       stream.watchJournal(opened.path, opened.flow_id)
     } catch (error) {
       toast.add(errorToast(error, 'Failed to open a live connection for cell updates'))
+    }
+  }
+
+  /**
+   * One journal frame for this flow. What moves the store is refetched after
+   * a quiet moment; what is only live — a run's lifecycle, an agent mid-call —
+   * is kept here, because nothing on the daemon answers "what is happening
+   * right now" except these frames and the catch-up that opens them.
+   */
+  function receiveLiveFrame(frame: StreamFrame) {
+    if (!('channel' in frame) || frame.channel !== 'journal') return
+    if (frame.type === 'lagged' || frame.type === 'state') return
+    if (frame.type === 'agents') {
+      // The whole list at that moment, lease state included — replace it.
+      // Nothing else in the tree moved, so no refetch is owed for it. An
+      // agent whose lease is gone is not working on anything any more.
+      agentSessions.value = frame.sessions
+      const leased = new Set(
+        frame.sessions.filter((session) => session.leased).map((session) => session.actor),
+      )
+      setFocus(agentFocus.value.filter((entry) => leased.has(entry.actor)))
+      return
+    }
+    if (frame.type === 'activity') {
+      const held = agentFocus.value.find((entry) => entry.actor === frame.actor)
+      const others = agentFocus.value.filter((entry) => entry.actor !== frame.actor)
+      // A call that names no cell — `context`, `diff` — is the agent looking
+      // around, and the cell it was on stays its; only a call naming another
+      // cell moves it on.
+      const slug = frame.slug ?? held?.slug ?? null
+      setFocus([
+        ...others,
+        {
+          actor: frame.actor,
+          label: frame.label,
+          tool: frame.tool,
+          slug,
+          inCall: frame.phase === 'started',
+          since: Date.now(),
+        },
+      ])
+      return
+    }
+    if (frame.type === 'caught_up') {
+      liveRuns.value = frame.running.map((entry) => ({
+        run_id: entry.run_id,
+        slug: entry.slug,
+        phase: 'running',
+      }))
+      // A tab that was away keeps nothing it inferred; what the daemon says
+      // is in flight is the whole truth at that moment.
+      setFocus(
+        (frame.activity ?? []).map((entry) => ({ ...entry, inCall: true, since: Date.now() })),
+      )
+      scheduleLiveRefetch()
+      return
+    }
+    if (frame.type === 'kernel') {
+      receiveKernelFrame(frame)
+      scheduleLiveRefetch()
+      return
+    }
+    scheduleLiveRefetch()
+  }
+
+  function receiveKernelFrame(frame: Extract<StreamFrame, { type: 'kernel' }>) {
+    if (frame.event === 'kernel_state') {
+      // A kernel that died mid-run reports no ending for it.
+      if (frame.kernel === 'stopped') liveRuns.value = []
+      return
+    }
+    if (!frame.run_id) return
+    const runId = frame.run_id
+    const others = liveRuns.value.filter((entry) => entry.run_id !== runId)
+    if (frame.event === 'awaiting') {
+      // The queue announces a run before the kernel starts it — that is the
+      // moment a cell is "queued". A count that reached zero is the run being
+      // left by everyone who waited on it.
+      const held = liveRuns.value.find((entry) => entry.run_id === runId)
+      if (frame.awaiting === 0) {
+        liveRuns.value = others
+      } else if (!held) {
+        liveRuns.value = [...others, { run_id: runId, slug: frame.slug ?? '', phase: 'queued' }]
+      }
+      return
+    }
+    if (frame.event === 'started') {
+      liveRuns.value = [...others, { run_id: runId, slug: frame.slug ?? '', phase: 'running' }]
+      return
+    }
+    if (frame.event === 'materialized' || frame.event === 'failed') {
+      liveRuns.value = others
     }
   }
 
@@ -594,6 +771,8 @@ export const useFlowStore = defineStore('flow', () => {
     terminalHistory.value = []
     branches.value = []
     agentSessions.value = []
+    liveRuns.value = []
+    setFocus([])
     currentFlow.value = null
     isBranchesLoading.value = false
     isSwitchingBranch.value = false
@@ -677,5 +856,11 @@ export const useFlowStore = defineStore('flow', () => {
     pairedAgent,
     pairedAgentLabel,
     endAgentSession,
+    liveRuns,
+    agentActivity,
+    currentActivity,
+    cellLiveStates,
+    isAnythingRunning,
+    receiveLiveFrame,
   }
 })

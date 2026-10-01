@@ -27,6 +27,7 @@ import { FlowStream } from '@/flow/api/stream'
 import type { StreamStatus } from '@/flow/api/stream'
 import { rejectToken } from '@/flow/api/token'
 import type {
+  AgentActivity,
   AgentSessionRecord,
   FlowStatus,
   StateFrame,
@@ -105,6 +106,11 @@ export interface FlowSessionHandle {
   /** Every registration on the flow, newest first, as the daemon last announced it. */
   agentSessions: Ref<AgentSessionRecord[]>
   /**
+   * The calls leased agents are inside of right now. The daemon brackets every
+   * one, so an agent that is working is known to be, and on which cell.
+   */
+  agentActivity: Ref<AgentActivity[]>
+  /**
    * The paired agent: the newest *leased* session, which is to say one with a
    * live connection behind it. A hand registration is attribution, not pairing.
    */
@@ -146,6 +152,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
   const running = ref<RunningCell[]>([])
   const attempts = ref<Record<string, number>>({})
   const agentSessions = ref<AgentSessionRecord[]>([])
+  const agentActivity = ref<AgentActivity[]>([])
   const agent = computed<RegisteredAgent | null>(() => {
     const live = agentSessions.value.find((session) => session.leased)
     return live ? { actor: live.actor, label: live.label } : null
@@ -192,6 +199,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     running.value = []
     attempts.value = {}
     agentSessions.value = []
+    agentActivity.value = []
   }
 
   async function request<M extends FlowMethod>(
@@ -253,6 +261,19 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
       agentSessions.value = frame.sessions
       return
     }
+    if (frame.type === 'activity') {
+      // One entry per actor: the next call's start replaces the last, and an
+      // end clears it. Moves no cursor; the catch-up carries the same list.
+      const others = agentActivity.value.filter((entry) => entry.actor !== frame.actor)
+      agentActivity.value =
+        frame.phase === 'started'
+          ? [
+              ...others,
+              { actor: frame.actor, label: frame.label, tool: frame.tool, slug: frame.slug },
+            ]
+          : others
+      return
+    }
     head.value = Math.max(head.value, frame.step)
     settle()
     if (frame.type === 'transaction') {
@@ -263,6 +284,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
       // The runs in flight arrive here rather than as events, because a
       // lifecycle nobody journaled is a lifecycle no cursor replays.
       running.value = frame.running.map((entry) => ({ ...entry, awaiting: entry.awaiting ?? 1 }))
+      agentActivity.value = frame.activity ?? []
       // The gap this client was away for, fixed at the moment it caught up. It
       // is the whole meaning of the marker — "since you were here" — so it must
       // not keep growing afterwards, while the reader is here watching the feed
@@ -398,6 +420,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     running,
     attempts,
     agentSessions,
+    agentActivity,
     agent,
     changesBehind,
     facts,
@@ -417,7 +440,6 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
       arrears.value = 0
     },
     request,
-    downloadUrl: (branch, target) =>
-      options.api.downloadUrl({ flow: path.value, branch, target }),
+    downloadUrl: (branch, target) => options.api.downloadUrl({ flow: path.value, branch, target }),
   }
 }

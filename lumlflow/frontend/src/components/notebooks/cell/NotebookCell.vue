@@ -1,7 +1,20 @@
 <template>
-  <div class="card">
+  <div
+    class="card"
+    :class="{
+      'card--running': live?.kind === 'running',
+      'card--queued': live?.kind === 'queued',
+      'card--agent': live?.kind === 'agent',
+    }"
+    :data-live="live?.kind ?? null"
+  >
     <NotebookCellHeader :title="title" :icon="icon" :cost-seconds="costSeconds" :cell="cell" />
-    <div class="py-4">
+    <div v-if="live" class="live-strip" :class="`live-strip--${live.kind}`" role="status">
+      <LoaderCircle v-if="live.kind !== 'queued'" :size="14" class="animate-spin shrink-0" />
+      <Clock v-else :size="14" class="shrink-0" />
+      <span class="truncate">{{ liveLabel }}</span>
+    </div>
+    <div class="py-4 live-body">
       <slot>
         <Accordion v-model:value="activePanels" multiple>
           <AccordionPanel value="code" :pt="ACCORDION_PANEL_PT">
@@ -46,6 +59,9 @@
 import type { NotebookCellProps } from '@/components/notebooks/cell/cell.interface'
 import { computed, ref } from 'vue'
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
+import { Clock, LoaderCircle } from 'lucide-vue-next'
+import { useFlowStore } from '@/store/flow'
+import { agentToolVerb } from '@/components/notebooks/cell/cell.const'
 import {
   ACCORDION_CONTENT_PT,
   ACCORDION_HEADER_PT,
@@ -60,7 +76,24 @@ import NotebookLogs from '@/components/notebooks/cell/NotebookLogs.vue'
 
 const props = defineProps<NotebookCellProps>()
 
+const flowStore = useFlowStore()
+
 const activePanels = ref<string[]>(['code'])
+
+// What is happening to this cell right now, as the daemon's live frames say:
+// a run the kernel is inside of, one the queue holds, or a paired agent that
+// has this cell — inside a call naming it, or between calls since one did.
+// The stored state in the footer is what it was.
+const live = computed(() => flowStore.cellLiveStates[props.cell.slug] ?? null)
+
+const liveLabel = computed(() => {
+  const state = live.value
+  if (!state) return ''
+  if (state.kind === 'running') return 'Running…'
+  if (state.kind === 'queued') return 'Queued'
+  if (state.inCall) return `${state.label} is ${agentToolVerb(state.tool)} this cell…`
+  return `${state.label} is working on this cell`
+})
 
 const outputs = computed(() =>
   Object.keys(props.cell.kinds).map((name) => ({ name, label: capitalize(name) })),
@@ -71,6 +104,48 @@ const outputs = computed(() =>
 @reference "@/assets/css/index.css";
 
 .card {
-  @apply bg-(--p-card-background) border border-surface rounded-lg overflow-hidden p-5 shadow-(--p-card-shadow);
+  @apply bg-(--p-card-background) border border-surface rounded-lg overflow-hidden p-5 shadow-(--p-card-shadow) relative transition-colors;
+}
+.card--running {
+  @apply border-primary;
+}
+.card--running::before {
+  /* A sweep along the top edge: the card is being computed on. */
+  content: '';
+  @apply absolute top-0 left-0 h-0.5 w-1/3 bg-primary rounded-full;
+  animation: live-sweep 1.4s ease-in-out infinite;
+}
+.card--queued {
+  @apply border-dashed;
+}
+.card--agent {
+  @apply border-(--p-tag-info-color);
+}
+/* The agent has the cell: its body steps back until the call lands. */
+.card--agent .live-body {
+  @apply opacity-50 pointer-events-none select-none;
+}
+.card--running .live-body {
+  @apply opacity-80;
+}
+.live-strip {
+  @apply flex items-center gap-2 mt-3 px-3 py-1.5 rounded-md text-sm;
+}
+.live-strip--running {
+  @apply bg-(--p-highlight-background) text-(--p-highlight-color);
+}
+.live-strip--queued {
+  @apply bg-(--p-content-hover-background) text-muted-color;
+}
+.live-strip--agent {
+  @apply bg-(--p-tag-info-background) text-(--p-tag-info-color);
+}
+@keyframes live-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
 }
 </style>

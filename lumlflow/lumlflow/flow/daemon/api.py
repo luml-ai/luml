@@ -17,7 +17,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, Literal, get_args
 
 from lumlflow.flow.daemon import envs, handoff, harnesses, queries, workspace
 from lumlflow.flow.daemon.hub import FlowSession, Hub
@@ -1220,6 +1220,55 @@ class Api:
             if session.ref.address == flow:
                 self._announce_agents(session)
                 return
+
+    def announce_activity(
+        self,
+        flow: str,
+        *,
+        actor: str,
+        label: str,
+        tool: str,
+        slug: str | None,
+        phase: Literal["started", "ended"],
+    ) -> None:
+        """Tell a flow's watchers a leased agent is inside a call, or out of it.
+
+        The daemon calls this around every method a leased connection invokes.
+        A flow nobody holds open has nobody to tell, and a connection that is
+        on its way out announces its end through `end_activity` instead, so a
+        call it never finished is not left hanging over a card.
+        """
+        for session in self.hub.opened():
+            if session.ref.address == flow and session.streams is not None:
+                session.streams.activity(
+                    flow,
+                    actor=actor,
+                    label=label,
+                    tool=tool,
+                    slug=slug,
+                    phase=phase,
+                    step=session.store.next_step - 1,
+                )
+                return
+
+    def end_activity(self, flow: str, *, actor: str) -> None:
+        """Clear whatever this actor was announced as doing, if anything."""
+        for session in self.hub.opened():
+            if session.ref.address != flow or session.streams is None:
+                continue
+            active = session.streams.active(flow, actor)
+            if active is None:
+                return
+            session.streams.activity(
+                flow,
+                actor=actor,
+                label=str(active["label"]),
+                tool=str(active["tool"]),
+                slug=active.get("slug"),
+                phase="ended",
+                step=session.store.next_step - 1,
+            )
+            return
 
     async def _flow_brief(self, session: FlowSession) -> dict[str, Any]:
         sessions = session.store.index.agent_sessions()

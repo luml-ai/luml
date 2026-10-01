@@ -67,6 +67,7 @@ import { useFlowStore } from '@/store/flow'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import AgentsPanel from '@/flow/workbench/components/panel/AgentsPanel.vue'
 import { useAgentHarnesses } from '@/flow/workbench/live/useAgentHarnesses'
+import { agentToolVerb } from '@/components/notebooks/cell/cell.const'
 
 const DIALOG_PT: DialogPassThroughOptions = {
   root: {
@@ -88,10 +89,21 @@ const ending = ref<string | null>(null)
 
 // Paired is read off the store, which reads it off the daemon's lease state.
 // Nothing in this dialog sets it: the agent connects, and the tag follows.
-const tagValue = computed(() =>
-  flowStore.pairedAgentLabel ? `${flowStore.pairedAgentLabel} paired` : 'Unpaired',
-)
-const tagSeverity = computed(() => (flowStore.pairedAgentLabel ? 'success' : 'secondary'))
+// While the agent is inside a call the tag says which, and which cell: the
+// daemon brackets every call a leased connection makes, so this is live.
+const tagValue = computed(() => {
+  const label = flowStore.pairedAgentLabel
+  if (!label) return 'Unpaired'
+  const doing = flowStore.currentActivity
+  if (!doing) return `${label} paired`
+  const verb = doing.inCall ? agentToolVerb(doing.tool) : 'working on'
+  if (doing.slug) return `${label} · ${verb} ${doing.slug}`
+  return doing.inCall ? `${label} · ${verb}` : `${label} · working`
+})
+const tagSeverity = computed(() => {
+  if (!flowStore.pairedAgentLabel) return 'secondary'
+  return flowStore.currentActivity ? 'info' : 'success'
+})
 const buttonLabel = computed(() => (flowStore.pairedAgentLabel ? 'Agents' : 'Pair an agent'))
 
 const agents = useAgentHarnesses(

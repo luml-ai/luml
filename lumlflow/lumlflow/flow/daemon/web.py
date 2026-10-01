@@ -283,6 +283,10 @@ def _subscribed(
         # opened halfway through one learns here which console it can still
         # ask for — without this the ring buffer holds a tail nobody can name.
         "running": streams.running(flow),
+        # The same for an agent mid-call: nothing journals "edit-cell is
+        # running on train", and a tab that opens during it would otherwise
+        # see the cell change with nobody named as changing it.
+        "activity": streams.activities(flow),
     }
     return [
         *(

@@ -25,7 +25,7 @@ import websockets.sync.client
 from lumlflow import __version__
 from lumlflow.cli import app
 from lumlflow.flow.daemon import client, harnesses, web, workspace
-from lumlflow.flow.daemon.main import ALREADY_RUNNING, INVALID_REQUEST
+from lumlflow.flow.daemon.main import ALREADY_RUNNING, INVALID_REQUEST, _activity
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowNotFound, ServerError
 from typer.testing import CliRunner
@@ -900,3 +900,88 @@ def test_a_browser_learns_who_is_paired_when_the_lease_opens_and_when_it_drops(
         ("manual", False)
     ]
     assert [(row["actor"], row["leased"]) for row in after] == [("manual", False)]
+
+
+def test_only_a_leased_caller_is_announced_as_working() -> None:
+    """A CLI verb connects per call and holds no lease; the probes a harness
+    sends say nothing about the flow. Everything else a leased connection
+    calls is the agent working, on the cell the call names when it names one."""
+    leased = {("/w/churn.flow", "codex-1", "Codex")}
+
+    assert _activity(set(), "cells.edit", {"actor": "codex-1", "slug": "train"}) is None
+    assert _activity(leased, "ping", {"actor": "codex-1"}) is None
+    assert _activity(leased, "cells.edit", {"actor": "user", "slug": "train"}) is None
+    assert _activity(leased, "cells.edit", {"actor": "codex-1", "slug": "train"}) == (
+        "/w/churn.flow",
+        "codex-1",
+        "Codex",
+        "cells.edit",
+        "train",
+    )
+    assert _activity(leased, "run", {"actor": "codex-1", "target": "score.table"}) == (
+        "/w/churn.flow",
+        "codex-1",
+        "Codex",
+        "run",
+        "score",
+    )
+    assert _activity(leased, "run", {"actor": "codex-1"}) == (
+        "/w/churn.flow",
+        "codex-1",
+        "Codex",
+        "run",
+        None,
+    )
+
+
+def test_a_browser_is_told_what_a_leased_agent_is_doing_and_when_it_stops(
+    tmp_path: Path, start: Starter
+) -> None:
+    """Every call a leased connection makes is bracketed for the flow's
+    watchers: `started` with the cell it names before the daemon runs it,
+    `ended` once it has answered. A connection that dies mid-call ends it too."""
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    address = str(root / "churn.flow")
+
+    with start(root) as live:
+        live.call("flow.open", {"flow": "churn"})
+        with _watch(live.record, address) as socket:
+            _caught_up(socket)
+            paired = client.attach(live.record, timeout=30)
+            paired.call(
+                "agent.begin",
+                {"flow": "churn", "actor": "codex", "label": "Codex", "lease": True},
+            )
+            paired.call(
+                "cells.show", {"flow": "churn", "actor": "codex", "slug": "score"}
+            )
+            started = _until(
+                socket,
+                lambda frame: (
+                    frame.get("type") == "activity" and frame.get("phase") == "started"
+                ),
+            )
+            ended = _until(
+                socket,
+                lambda frame: (
+                    frame.get("type") == "activity" and frame.get("phase") == "ended"
+                ),
+            )
+            paired.close()
+            _until(
+                socket,
+                lambda frame: (
+                    frame.get("type") == "agents"
+                    and not any(row["leased"] for row in frame["sessions"])
+                ),
+            )
+
+    assert (started["actor"], started["label"], started["tool"], started["slug"]) == (
+        "codex",
+        "Codex",
+        "cells.show",
+        "score",
+    )
+    assert started["flow"] == address
+    assert (ended["tool"], ended["slug"]) == ("cells.show", "score")
