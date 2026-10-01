@@ -60,26 +60,30 @@ export const useArtifactsList = (
     requestInfo.value = info
   }
 
-  async function getInitialPage() {
+  let loadId = 0
+
+  async function trackLoading(load: () => Promise<void>) {
+    const id = ++loadId
     isLoading.value = true
     try {
+      await load()
+    } finally {
+      if (id === loadId) isLoading.value = false
+    }
+  }
+
+  async function getInitialPage() {
+    await trackLoading(async () => {
       const response = await getData(null)
       addItemsToList(response.items, true)
       savedCursors.value = [response.cursor]
       if (!response.items.some(isVisible)) await loadUntilVisible()
-    } finally {
-      isLoading.value = false
-    }
+    })
   }
 
   async function getNextPage() {
     if (!getNextPageCursor()) return
-    isLoading.value = true
-    try {
-      await loadUntilVisible()
-    } finally {
-      isLoading.value = false
-    }
+    await trackLoading(loadUntilVisible)
   }
 
   // Excluded artifacts are filtered on the client. A page made only of them

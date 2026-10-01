@@ -1,7 +1,8 @@
 import { computed } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Artifact } from '@/lib/api/artifacts/interfaces'
 import { useArtifactsList } from '@/hooks/useArtifactsList'
+import { CanceledError } from 'axios'
 
 const getOrbitArtifacts = vi.hoisted(() => vi.fn())
 
@@ -29,6 +30,13 @@ function mountList(excluded: string[]) {
   return list
 }
 
+function abortablePage() {
+  return (...args: unknown[]) =>
+    new Promise((_, reject) => {
+      ;(args[3] as AbortSignal).addEventListener('abort', () => reject(new CanceledError()))
+    })
+}
+
 function requestedCursors(): (string | null)[] {
   return getOrbitArtifacts.mock.calls.map((call) => (call[2] as { cursor: string | null }).cursor)
 }
@@ -36,6 +44,11 @@ function requestedCursors(): (string | null)[] {
 describe('useArtifactsList', () => {
   beforeEach(() => {
     getOrbitArtifacts.mockReset()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('keeps loading pages until an artifact that is not excluded appears', async () => {
@@ -88,6 +101,30 @@ describe('useArtifactsList', () => {
     await expect(list.getInitialPage()).rejects.toThrow('network')
 
     expect(list.isLoading.value).toBe(false)
+  })
+
+  it('keeps the loading flag while a reload replaces an aborted page request', async () => {
+    getOrbitArtifacts
+      .mockResolvedValueOnce(page(['a', 'b'], 'c1'))
+      .mockImplementationOnce(abortablePage())
+    const list = mountList([])
+    await list.getInitialPage()
+    const nextPage = list.getNextPage().catch((error: unknown) => error)
+    await Promise.resolve()
+
+    let resolveReload!: (value: unknown) => void
+    getOrbitArtifacts.mockReturnValueOnce(new Promise((resolve) => (resolveReload = resolve)))
+    list.setSortData({ sort_by: 'name', order: 'asc' })
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(await nextPage).toBeInstanceOf(CanceledError)
+    expect(list.isLoading.value).toBe(true)
+
+    resolveReload(page(['b', 'a'], 'c2'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(list.isLoading.value).toBe(false)
+    expect(list.hasNextPage.value).toBe(true)
+    expect(requestedCursors()).toEqual([null, 'c1', null])
   })
 
   it('stops pagination when the response has an empty cursor', async () => {

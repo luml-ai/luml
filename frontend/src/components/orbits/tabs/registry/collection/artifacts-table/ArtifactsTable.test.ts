@@ -4,6 +4,7 @@ import { DataTable } from 'primevue'
 import type { Artifact, GetArtifactsListResponse } from '@/lib/api/artifacts/interfaces'
 import ArtifactsTable from './ArtifactsTable.vue'
 import TableToolbar from './TableToolbar.vue'
+import { CanceledError } from 'axios'
 
 const harness = vi.hoisted(() => ({
   getOrbitArtifacts: vi.fn(),
@@ -41,7 +42,7 @@ vi.mock('primevue', async (importOriginal) => {
       name: 'DataTable',
       inheritAttrs: false,
       props: ['selection', 'selectAll', 'virtualScrollerOptions', 'scrollHeight'],
-      emits: ['update:selection', 'select-all-change'],
+      emits: ['update:selection', 'select-all-change', 'sort'],
       template: '<div />',
     }),
     useToast: () => ({ add: harness.toastAdd }),
@@ -58,6 +59,13 @@ vi.mock('./TableToolbar.vue', () => ({
 
 function artifacts(start: number, count: number): Artifact[] {
   return Array.from({ length: count }, (_, index) => ({ id: `${start + index}` }) as Artifact)
+}
+
+function abortablePage() {
+  return (...args: unknown[]) =>
+    new Promise<GetArtifactsListResponse>((_, reject) => {
+      ;(args[3] as AbortSignal).addEventListener('abort', () => reject(new CanceledError()))
+    })
 }
 
 function deferredPage() {
@@ -202,6 +210,39 @@ describe('ArtifactsTable Pick All', () => {
     expect(selectedIds()).toEqual(artifacts(0, 45).map(({ id }) => id))
     expect(harness.getOrbitArtifacts).toHaveBeenCalledTimes(3)
     expect(wrapper.findComponent(TableToolbar).props('loadingSelection')).toBe(false)
+  })
+
+  it('resumes Pick All after a sort reload aborts the page request', async () => {
+    vi.useFakeTimers()
+    try {
+      const sortedFirstPage = [...firstPage].reverse()
+      harness.getOrbitArtifacts
+        .mockImplementationOnce(abortablePage())
+        .mockResolvedValueOnce({ items: sortedFirstPage, cursor: 'sorted-next' })
+        .mockResolvedValueOnce({ items: secondPage, cursor: 'sorted-last' })
+        .mockResolvedValueOnce({ items: lastPage, cursor: null })
+      const table = await mountTable()
+      table.vm.$emit('select-all-change', { checked: true })
+      await flushPromises()
+
+      table.vm.$emit('sort', { sortField: 'name', sortOrder: 1 })
+      await vi.advanceTimersByTimeAsync(500)
+      await flushPromises()
+
+      expect(selectedIds()).toEqual(artifacts(0, 45).map(({ id }) => id))
+      expect(table.props('selectAll')).toBe(true)
+      expect(wrapper.findComponent(TableToolbar).props('loadingSelection')).toBe(false)
+      expect(harness.toastAdd).not.toHaveBeenCalled()
+      expect(harness.getOrbitArtifacts.mock.calls.map((call) => call[2].cursor)).toEqual([
+        null,
+        'next',
+        null,
+        'sorted-next',
+        'sorted-last',
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports pagination failure and preserves the loaded selection for a retry', async () => {

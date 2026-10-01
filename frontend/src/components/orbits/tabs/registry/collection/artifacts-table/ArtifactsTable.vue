@@ -174,6 +174,7 @@ import { columnBodyStyle, TABLE_PT, TYPE_COLUMN_PT } from './models-table.data'
 import { useArtifactsList } from '@/hooks/useArtifactsList'
 import { getErrorMessage, getSizeText } from '@/helpers/helpers'
 import { until, useDebounceFn } from '@vueuse/core'
+import axios from 'axios'
 import { FilterMatchMode } from '@primevue/core/api'
 import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import TableToolbar from './TableToolbar.vue'
@@ -260,7 +261,11 @@ async function onSelectAllChange(event: DataTableSelectAllChangeEvent): Promise<
     while (pickAll.value && version === selectionVersion) {
       await until(isLoading).toBe(false)
       if (!pickAll.value || version !== selectionVersion || !hasNextPage.value) break
-      await getNextPage()
+      try {
+        await getNextPage()
+      } catch (e) {
+        if (!axios.isCancel(e)) throw e
+      }
     }
   } catch (e) {
     if (version !== selectionVersion) return
