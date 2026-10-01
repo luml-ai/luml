@@ -1,0 +1,15 @@
+● Task: paragraph-aligned chunking
+@sleep 1.0
+$ luml-inspect evals <parent-experiment>
+  misses include mid-paragraph facts — fixed windows split sentences
+@sleep 1.2
+● Change
+  fixed 200-char windows  →  paragraph-aligned chunks
+  prepend document title to every chunk for context
+  ranker unchanged: word-level TF-IDF, cosine similarity
+@sleep 1.5
+● Write rag/retrieval.py
+  ParagraphTfidfRetriever — paragraph_chunks(doc) + title prefix
+@sleep 1.0
+● Metric unchanged: recall_at_3 (same eval harness, same tracking)
+Done. Handing over to the run command.

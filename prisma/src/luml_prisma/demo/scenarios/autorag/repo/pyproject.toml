@@ -1,0 +1,10 @@
+[project]
+name = "nimbus-rag"
+version = "0.1.0"
+description = "RAG retrieval quality benchmark over the Nimbus Analytics docs"
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph>=0.6",
+    "luml-sdk>=0.1.0",
+    "scikit-learn>=1.5",
+]

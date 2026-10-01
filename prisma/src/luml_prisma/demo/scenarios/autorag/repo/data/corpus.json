@@ -1,0 +1,310 @@
+{
+  "name": "Nimbus Analytics product documentation",
+  "documents": [
+    {
+      "id": "doc-install",
+      "title": "Installing Nimbus Analytics",
+      "text": "Nimbus Analytics ships as a set of containers orchestrated with Docker Compose. Download the release bundle, extract it into the directory pointed to by NIMBUS_HOME, and start the stack with `docker compose up -d`. The bootstrap container initializes the metadata database and creates the first admin account.\n\nHardware sizing depends on daily event volume. A single node with 8 CPU cores and 32 GB of memory comfortably handles up to 50 million events per day. For larger installations, deploy the ingestion tier and the query tier on separate nodes."
+    },
+    {
+      "id": "doc-config",
+      "title": "Core Configuration Reference",
+      "text": "All server settings live in nimbus.yaml at the root of NIMBUS_HOME. Settings can be overridden with environment variables using the NIMBUS_ prefix; for example, the server.port key becomes NIMBUS_SERVER_PORT. Changes require a service restart unless marked as hot-reloadable in this reference.\n\nThe most frequently tuned keys are ingestion.max_batch_size, query.cache_ttl_seconds, and storage.compaction_window. Keep a copy of nimbus.yaml under version control so configuration drift across environments stays visible."
+    },
+    {
+      "id": "doc-auth-sso",
+      "title": "Single Sign-On (SAML and OIDC)",
+      "text": "Nimbus supports single sign-on through both SAML 2.0 and OpenID Connect. Configure the identity provider metadata URL under sso.metadata_url and set NIMBUS_SSO_ISSUER to the issuer string exactly as your IdP presents it. Group claims can be mapped to Nimbus roles in the sso.group_mapping section.\n\nWhen SSO is enabled, local password logins are disabled for all accounts except break-glass administrators. Session lifetime for SSO logins is governed by the auth.session_ttl_hours key rather than the IdP session."
+    },
+    {
+      "id": "doc-api-keys",
+      "title": "API Keys and Scopes",
+      "text": "API keys authenticate programmatic access to the Nimbus REST API. Create keys from Settings \u2192 Access, assigning one or more scopes: ingest:write, query:read, or admin:manage. Keys are shown once at creation time and stored hashed thereafter.\n\nRotate keys by creating a replacement, updating clients, and revoking the old key. Revocation propagates to all API gateways within thirty seconds. Expired or revoked keys return HTTP 401 with the error code key_revoked."
+    },
+    {
+      "id": "doc-ingest-api",
+      "title": "Batch Ingestion Endpoint",
+      "text": "Send events to POST /v1/ingest/batch as a JSON array of event objects. Each request may contain up to 5,000 events or 10 MB of payload, whichever limit is reached first. The endpoint responds with a per-event status list so partial failures can be retried selectively.\n\nEvents must include a name, a timestamp in RFC 3339 format, and a distinct_id. Malformed events are quarantined rather than dropped and can be inspected under Ingestion \u2192 Quarantine for fourteen days."
+    },
+    {
+      "id": "doc-retention",
+      "title": "Data Retention Policy",
+      "text": "Raw event data is retained for the number of days configured in NIMBUS_RETENTION_DAYS, which defaults to 395. When a partition ages out of the retention window it is first moved to cold storage as an archived partition, then deleted after a further grace period of thirty days.\n\nAggregated rollup tables are exempt from raw retention and follow their own schedule under storage.rollup_retention_days. Shortening the retention window never deletes data immediately; the next nightly compaction cycle applies the new policy."
+    },
+    {
+      "id": "doc-webhooks",
+      "title": "Webhook Subscriptions",
+      "text": "Webhooks push notifications about platform events \u2014 alert firings, export completions, and quota warnings \u2014 to an HTTPS endpoint you control. Each delivery is signed with an HMAC-SHA256 digest carried in the X-Nimbus-Signature header; verify it against your endpoint secret before trusting the payload.\n\nDeliveries are retried with exponential backoff for up to twenty-four hours. A subscription that fails continuously for three days is automatically paused and a warning email is sent to the workspace owners."
+    },
+    {
+      "id": "doc-dashboards",
+      "title": "Dashboards and Widgets",
+      "text": "Dashboards are collections of widgets bound to saved queries. Widgets refresh on the dashboard's shared interval, which defaults to five minutes, and can be pinned to a fixed time range or follow the viewer's selection.\n\nDashboards can be shared with individual teammates, whole teams, or via a public read-only link. Public links can be protected with a passphrase and expire after a configurable number of days."
+    },
+    {
+      "id": "doc-alerts",
+      "title": "Alert Rules and Notification Channels",
+      "text": "An alert rule attaches a threshold or anomaly condition to a saved query. Rules are evaluated on a fixed schedule, and when the condition holds the alert fires and fans out to its notification channels: email, Slack, PagerDuty, or a webhook subscription.\n\nTo reduce noise, each rule has a cooldown period during which repeat firings are suppressed. Alert history, including resolved and suppressed firings, is kept for ninety days and is searchable from the Alerts page."
+    },
+    {
+      "id": "doc-nql",
+      "title": "Nimbus Query Language (NQL)",
+      "text": "NQL is a SQL-flavoured language for querying events. A minimal query names an event stream and a time range: SELECT count() FROM pageview LAST 7 DAYS. Aggregations, property filters, and GROUP BY clauses compose the way SQL users expect.\n\nNQL adds analytics-specific verbs such as FUNNEL, RETAINED, and BREAKDOWN. Query results are cached according to query.cache_ttl_seconds, and cached results are marked with a freshness banner in the UI."
+    },
+    {
+      "id": "doc-exports",
+      "title": "Exporting Query Results",
+      "text": "Any query result can be exported as CSV or Parquet. One-off exports download directly from the browser, while scheduled exports run on a cron expression and deliver files to an S3 bucket, GCS bucket, or SFTP destination.\n\nExports larger than one million rows are chunked into multiple files with a shared manifest. When a scheduled export completes, an export.finished webhook event is emitted with the manifest location."
+    },
+    {
+      "id": "doc-sampling",
+      "title": "Event Sampling",
+      "text": "At very high volumes Nimbus can sample events at ingestion time. Adaptive sampling keeps rare events at full fidelity while sampling high-frequency events down to the configured target rate, and every stored event carries its sampling weight.\n\nQueries automatically re-weight sampled data so counts and sums remain unbiased estimates. Funnels and retention analyses refuse to run on streams sampled below ten percent because per-user sequences become unreliable."
+    },
+    {
+      "id": "doc-sdk-js",
+      "title": "JavaScript SDK",
+      "text": "Install the browser SDK with npm install @nimbus/browser and initialise it with your write key. Track events with nimbus.track(name, properties); the SDK batches events and flushes every ten seconds or thirty events, whichever comes first.\n\nThe SDK queues events in localStorage while the network is unavailable, and respects Do Not Track by default. Set autocapture: true to record clicks and page transitions without explicit track calls."
+    },
+    {
+      "id": "doc-sdk-python",
+      "title": "Python SDK",
+      "text": "Install the server-side SDK with pip install nimbus-analytics. Create a NimbusClient with your write key and call client.capture(distinct_id, event, properties). The client maintains a background worker thread that batches deliveries.\n\nFor serverless environments, construct the client with sync_mode=True so events are delivered before the function returns. The SDK raises NimbusQuotaError when the workspace event quota is exhausted."
+    },
+    {
+      "id": "doc-billing",
+      "title": "Billing and Event Quotas",
+      "text": "Pricing is usage-based: each plan includes a monthly event quota, and overage is billed per million events. Current usage and the projected end-of-month total are shown on the Billing page and exposed at GET /v1/usage.\n\nWhen a workspace exceeds its quota, ingestion continues for a 20 percent overage buffer, then new events are rejected with HTTP 402. Quota warnings are emitted as webhook events at 80 and 95 percent utilisation."
+    },
+    {
+      "id": "doc-backup",
+      "title": "Backups and Restore",
+      "text": "Nimbus snapshots the metadata database and storage manifests every six hours. Snapshots are written to the location configured under backup.destination and are retained according to backup.keep_last, which defaults to twenty-eight snapshots.\n\nTo restore, stop the stack, run nimbusctl restore --snapshot <id>, and restart. Restores are point-in-time for metadata; event data itself is immutable and is reattached from object storage during the restore."
+    },
+    {
+      "id": "doc-permissions",
+      "title": "Roles and Permissions",
+      "text": "Nimbus ships three built-in roles. Viewers can read dashboards and run saved queries; editors can additionally create and modify queries, dashboards, and alert rules; admins manage members, API keys, and workspace settings.\n\nCustom roles combine fine-grained permissions such as query.create, export.schedule, or member.invite. Role changes take effect on the member's next request; active sessions are not terminated."
+    },
+    {
+      "id": "doc-funnels",
+      "title": "Funnel Analysis",
+      "text": "A funnel measures how users progress through an ordered sequence of steps within a conversion window. Define steps as events with optional property filters, and choose strict ordering if intermediate events must not occur between steps.\n\nFunnel results break down conversion and median time-to-convert per step. Any step can be expanded by a property to compare conversion across segments, for example by plan tier or acquisition channel."
+    },
+    {
+      "id": "doc-cohorts",
+      "title": "Cohorts",
+      "text": "A cohort is a reusable set of users defined by behaviour or properties, such as 'signed up in the last 30 days and performed checkout at least twice'. Cohorts can be static snapshots or live definitions that re-evaluate on every query.\n\nCohorts plug into any query as a filter and into alert rules as a scope. Live cohorts referenced by dashboards are re-evaluated at most once per hour to bound query cost."
+    },
+    {
+      "id": "doc-anomaly",
+      "title": "Anomaly Detection",
+      "text": "The anomaly detection engine fits a seasonal baseline to any metric series and flags points that fall outside the expected band. Sensitivity is expressed in standard deviations and defaults to three sigma.\n\nAnomaly conditions can drive alert rules just like fixed thresholds. The engine needs at least two weeks of history to model weekly seasonality; sparser series fall back to a trend-only baseline."
+    },
+    {
+      "id": "doc-slack",
+      "title": "Slack Integration",
+      "text": "Connect a Slack workspace from Settings \u2192 Integrations to route alert notifications into channels. The integration posts rich messages with the triggering value, the threshold, and a link back to the underlying query.\n\nUse the /nimbus slash command to run saved queries from Slack and share the result as a snapshot image. The integration requires the channels:write and commands OAuth scopes."
+    },
+    {
+      "id": "doc-s3-import",
+      "title": "S3 Import Connector",
+      "text": "The S3 connector backfills historical events from newline-delimited JSON or Parquet files. Point it at a bucket prefix, provide a role ARN with read access, and map file columns to event fields in the import wizard.\n\nImports run as background jobs with progress visible under Ingestion \u2192 Imports. Files already imported are remembered by ETag, so re-running an import after adding new files only processes the additions."
+    },
+    {
+      "id": "doc-privacy",
+      "title": "Privacy and Data Deletion",
+      "text": "To satisfy GDPR and CCPA requests, submit a deletion request for a distinct_id under Settings \u2192 Privacy or via DELETE /v1/privacy/users/{distinct_id}. Deletions remove raw events, profile properties, and cohort memberships for that user.\n\nDeletion requests are batched and applied during nightly compaction; the API reports a request as fulfilled once every partition containing the user has been rewritten, typically within seven days."
+    },
+    {
+      "id": "doc-performance",
+      "title": "Query Performance Tuning",
+      "text": "Slow dashboards are usually dominated by unrolled raw scans. Enable materialized rollups for the event streams behind your heaviest widgets; the optimizer rewrites eligible queries against the rollup automatically.\n\nOther levers include narrowing the default time range, replacing regex property filters with exact matches, and raising query.cache_ttl_seconds for dashboards that tolerate staleness."
+    },
+    {
+      "id": "doc-throttling",
+      "title": "Ingestion Throttling and 429s",
+      "text": "The ingestion tier protects itself with per-key token buckets. When a client exceeds its sustained rate, requests receive HTTP 429 with a Retry-After header; SDKs honour it automatically, while custom clients should implement exponential backoff.\n\nPersistent 429 responses usually indicate an undersized ingestion tier or a misbehaving client loop. The Ingestion \u2192 Health page charts throttled request rates per API key to locate the source."
+    },
+    {
+      "id": "doc-sessions",
+      "title": "Session Tracking",
+      "text": "Sessions group a user's events using an inactivity timeout, configured by session.timeout_minutes and defaulting to thirty minutes. A new session also starts when the UTM campaign parameters of incoming traffic change.\n\nSession properties \u2014 duration, entry page, exit page, and event count \u2014 are computed at query time, so changing the timeout retroactively reshapes historical sessions."
+    },
+    {
+      "id": "doc-identity",
+      "title": "Identity Resolution",
+      "text": "Anonymous visitors are tracked under a device-generated distinct_id. When a user signs in, call identify() with the canonical user id; Nimbus merges the anonymous history into the identified profile within a few minutes.\n\nMerges are transitive: identifying two devices with the same user id links all of their histories. A profile can accumulate at most five hundred merged identities, after which further merges are rejected and logged."
+    },
+    {
+      "id": "doc-realtime",
+      "title": "Realtime Event Stream",
+      "text": "The realtime API exposes a WebSocket at /v1/stream that pushes matching events with sub-second latency. Subscribe with an NQL filter expression; the server confirms the subscription and then delivers events as JSON frames.\n\nRealtime subscriptions count against the query:read scope and are limited to ten concurrent streams per API key. Frames are dropped rather than buffered if a client cannot keep up for more than five seconds."
+    },
+    {
+      "id": "doc-upgrades",
+      "title": "Upgrades and Schema Migrations",
+      "text": "Minor versions upgrade in place: pull new images and restart. Major versions may include storage schema migrations, which run automatically on first boot and are safe to interrupt \u2014 progress is checkpointed per partition.\n\nAlways snapshot the metadata database before a major upgrade. The release notes flag migrations expected to take more than a few minutes per billion events."
+    },
+    {
+      "id": "doc-cli",
+      "title": "nimbusctl Command-Line Tool",
+      "text": "nimbusctl administers a Nimbus installation from the terminal: user management, backup and restore, configuration checks, and log collection. It talks to the admin API over the socket configured in admin.listen.\n\nRun nimbusctl doctor to validate configuration, storage permissions, and clock skew across nodes; the command exits non-zero if any check fails, making it suitable for health probes in provisioning scripts."
+    },
+    {
+      "id": "doc-profiles",
+      "title": "User Profiles and Properties",
+      "text": "A profile stores the latest value of every user property alongside computed traits such as first_seen and last_seen. Profile properties are set with identify() calls or bulk-updated through the profiles import API.\n\nProperty values are typed on first write; later writes with a conflicting type are rejected and surfaced in the ingestion quarantine, keeping downstream breakdowns consistent."
+    },
+    {
+      "id": "doc-retention-analysis",
+      "title": "Retention Analysis Reports",
+      "text": "A retention report measures how many users return and repeat a behaviour over time, for example users retained week over week after their first purchase. Choose a birth event, a return event, and a granularity of days, weeks, or months.\n\nRetention curves can be compared across cohorts and property breakdowns. Unbounded retention counts any later return, while bounded retention requires the return to happen in the exact interval."
+    },
+    {
+      "id": "doc-release-notes",
+      "title": "Release Notes 4.2",
+      "text": "Version 4.2 reworks webhook delivery retries, adds Parquet exports to SFTP destinations, and speeds up funnel queries on sampled streams by thirty percent. Alert rules gained per-channel cooldown overrides.\n\nUpgrading from 4.1 requires no schema migration. Deployments using the legacy export API should migrate before 5.0, when the endpoint is removed."
+    },
+    {
+      "id": "doc-faq",
+      "title": "Frequently Asked Questions",
+      "text": "Common questions cover event quotas, how long data is stored, connecting Slack, and inviting teammates. Most answers link to the detailed guides for billing, retention, integrations, and permissions.\n\nIf events are missing, check the ingestion quarantine, verify the write key, and confirm the SDK flushed before process exit. The status page lists any ongoing ingestion incidents."
+    },
+    {
+      "id": "doc-error-codes",
+      "title": "API Error Codes Reference",
+      "text": "The REST API uses conventional status codes: 400 for malformed requests, 401 for missing or revoked keys, 402 when the event quota is exhausted, 403 for missing scopes, 404 for unknown resources, and 429 for rate limiting.\n\nError bodies carry a machine-readable code such as key_revoked, quota_exceeded, or rate_limited, plus a human-readable message. Retry only on 429 and 5xx responses."
+    },
+    {
+      "id": "doc-rate-limits",
+      "title": "Query API Rate Limits",
+      "text": "The query API enforces per-key concurrency and per-minute request budgets. Exceeding either returns HTTP 429 with a Retry-After header. Limits are higher for keys with the admin:manage scope.\n\nDashboards batch widget queries through a shared scheduler, so a dashboard with many widgets consumes a single concurrency slot per refresh cycle."
+    },
+    {
+      "id": "doc-sso-troubleshooting",
+      "title": "Troubleshooting SSO Logins",
+      "text": "Failed SSO logins usually stem from clock skew between Nimbus and the identity provider, an issuer mismatch, or missing group claims. The login error page shows the SAML or OIDC error code returned by the IdP.\n\nEnable debug logging under auth.debug to capture full assertion payloads for fifteen minutes. Remember to disable it afterwards, as assertions contain personal data."
+    },
+    {
+      "id": "doc-legacy-exports",
+      "title": "Legacy Export API (Deprecated)",
+      "text": "The v1 export API delivered query results as gzipped CSV over a polling endpoint. It is deprecated: new integrations should use scheduled exports with S3, GCS, or SFTP destinations instead.\n\nExisting v1 export jobs continue to run until version 5.0. A migration guide maps each v1 parameter to its scheduled-export equivalent."
+    },
+    {
+      "id": "doc-event-schema",
+      "title": "Event Schema Reference",
+      "text": "Every event carries a name, an RFC 3339 timestamp, a distinct_id, and an optional properties object of up to 255 keys. Property names are case-sensitive and limited to 200 characters.\n\nReserved property prefixes $device, $geo, and $session are populated by SDKs and the ingestion tier. Events with unknown reserved prefixes are quarantined."
+    },
+    {
+      "id": "doc-sdk-ios",
+      "title": "iOS SDK",
+      "text": "Add the NimbusAnalytics Swift package and initialise it with your write key at app launch. Track events with Nimbus.shared.track(name, properties); events batch and flush when the app backgrounds.\n\nThe SDK persists queued events across launches and respects App Tracking Transparency: when tracking permission is denied it falls back to anonymous device statistics only."
+    },
+    {
+      "id": "doc-sdk-android",
+      "title": "Android SDK",
+      "text": "Add the com.nimbus:analytics Gradle dependency and initialise the client in your Application class. Track events with nimbus.track(name, props); WorkManager schedules background flushes.\n\nOffline events queue in an encrypted Room database capped at ten thousand entries; the oldest events are dropped first when the cap is reached."
+    },
+    {
+      "id": "doc-kafka-connector",
+      "title": "Kafka Source Connector",
+      "text": "The Kafka connector consumes events from one or more topics and forwards them to the ingestion tier. Configure the bootstrap servers, a consumer group, and a JSON or Avro deserializer in the connector manifest.\n\nOffsets commit only after Nimbus acknowledges the batch, giving at-least-once delivery. Duplicate events with identical insert_id values are deduplicated at ingestion."
+    },
+    {
+      "id": "doc-warehouse-sync",
+      "title": "Data Warehouse Sync",
+      "text": "Warehouse sync mirrors event streams and profile tables into Snowflake, BigQuery, or Redshift on an hourly schedule. Syncs are incremental and use merge semantics keyed on event id.\n\nSchema evolution is automatic: new event properties appear as new columns on the next sync cycle. Column type conflicts pause the sync and raise an alert."
+    },
+    {
+      "id": "doc-audit-logs",
+      "title": "Audit Logs",
+      "text": "Every administrative action \u2014 member changes, API key creation, settings edits, deletion requests \u2014 is recorded in the audit log with actor, timestamp, and source IP. Audit entries are immutable.\n\nAudit logs are retained for 400 days regardless of the event retention window and can be streamed to a SIEM via the audit webhook subscription."
+    },
+    {
+      "id": "doc-email-digests",
+      "title": "Email Digests",
+      "text": "Digests deliver a dashboard snapshot to subscribers on a daily or weekly schedule. Recipients need viewer access to the underlying dashboard; external recipients receive a redacted summary instead.\n\nDigest delivery windows follow the workspace timezone. A digest that fails to render three times in a row is paused and its owner notified."
+    },
+    {
+      "id": "doc-embedded",
+      "title": "Embedded Analytics",
+      "text": "Dashboards and single widgets can be embedded in your product with a signed iframe URL. Signing keys are managed under Settings \u2192 Embedding and rotate independently of API keys.\n\nEmbed tokens scope the viewer to a cohort or property filter, so customers only see their own data. Tokens expire after twenty-four hours by default."
+    },
+    {
+      "id": "doc-feature-flags",
+      "title": "Feature Flag Events",
+      "text": "Feature flag evaluations can be forwarded to Nimbus as $flag_evaluated events, enabling breakdowns of any metric by flag variant. SDK middleware for LaunchDarkly and Unleash ships with the browser and server SDKs.\n\nFlag events are sampled independently of product events; set sampling.flags_rate to control their volume."
+    },
+    {
+      "id": "doc-ab-testing",
+      "title": "A/B Test Analysis",
+      "text": "The experiment report compares a goal metric between variant cohorts with a sequential probability ratio test, reporting lift and confidence over time. Experiments attach to a feature flag and a primary goal event.\n\nGuardrail metrics watch for regressions in latency or churn while an experiment runs; a breached guardrail pauses the experiment and notifies its owner."
+    },
+    {
+      "id": "doc-heatmaps",
+      "title": "Heatmaps and Session Replays",
+      "text": "Heatmaps aggregate autocaptured clicks and scroll depth per page. They require the browser SDK with autocapture enabled and at least one thousand pageviews per page for stable rendering.\n\nSession replays record DOM mutations with all text masked by default. Replay retention is thirty days and is configured separately from event retention."
+    },
+    {
+      "id": "doc-query-api",
+      "title": "Query API",
+      "text": "Execute NQL programmatically via POST /v1/query with a query string and an optional parameter map. Responses stream as JSON rows with a trailing summary frame containing scan statistics.\n\nLong-running queries can be submitted asynchronously with mode=async, returning a job id to poll at GET /v1/query/jobs/{id}. Async results persist for one hour."
+    },
+    {
+      "id": "doc-pagination",
+      "title": "API Pagination",
+      "text": "List endpoints paginate with opaque cursors: pass the next_cursor from one response as the cursor parameter of the next request. Page size is capped at 200 items.\n\nCursors remain valid for twenty-four hours and tolerate concurrent writes; items created after the cursor was issued may appear on later pages."
+    },
+    {
+      "id": "doc-workspace-settings",
+      "title": "Workspace Settings",
+      "text": "Workspace settings cover the display timezone, default dashboard refresh interval, week start day, and data residency region. Only admins can modify them.\n\nChanging the timezone re-renders historical charts but does not rewrite stored timestamps, which are always UTC internally."
+    },
+    {
+      "id": "doc-custom-events",
+      "title": "Custom Event Best Practices",
+      "text": "Name events as object_verb in snake_case \u2014 checkout_completed, report_shared \u2014 and keep the taxonomy in a shared data dictionary. Avoid encoding property values into event names.\n\nPrefer few events with rich properties over many near-duplicate events; breakdowns and funnels compose better that way."
+    },
+    {
+      "id": "doc-data-dictionary",
+      "title": "Data Dictionary",
+      "text": "The data dictionary documents every event and property: description, owner, expected type, and example values. Entries flag whether a property contains personal data for privacy tooling.\n\nUndocumented events appearing in ingestion are listed for triage weekly; verified entries become available in the query autocomplete."
+    },
+    {
+      "id": "doc-import-csv",
+      "title": "CSV Import Wizard",
+      "text": "Small historical datasets can be imported by uploading CSV files up to 500 MB in the UI. Map columns to event fields, preview the first hundred rows, and start the import.\n\nCSV imports run as the same background jobs as connector imports and appear under Ingestion \u2192 Imports with row-level error reports."
+    },
+    {
+      "id": "doc-status-page",
+      "title": "Status Page and Incidents",
+      "text": "status.nimbus.io publishes component-level uptime for ingestion, query, and export services, with incident timelines and postmortems. Subscribe by email, RSS, or webhook.\n\nHistorical uptime is reported monthly per component. Scheduled maintenance is announced at least seven days in advance."
+    },
+    {
+      "id": "doc-terraform",
+      "title": "Terraform Provider",
+      "text": "The nimbus Terraform provider manages workspaces, API keys, alert rules, and scheduled exports as code. Authenticate the provider with an admin-scoped key via the NIMBUS_API_KEY environment variable.\n\nResources import with terraform import using the object id shown in the UI; plans show drift whenever the UI and code disagree."
+    },
+    {
+      "id": "doc-dbt",
+      "title": "dbt Integration",
+      "text": "The dbt package exposes rollup tables as sources so transformations build on pre-aggregated data. Run dbt after the hourly warehouse sync completes by consuming the sync.finished webhook.\n\nModels materialize in your warehouse, not in Nimbus; query them through your warehouse tooling."
+    },
+    {
+      "id": "doc-backfill-tool",
+      "title": "nimbusctl backfill",
+      "text": "nimbusctl backfill replays historical event files from local disk or object storage through the full ingestion pipeline at a controlled rate, respecting quarantine and deduplication rules.\n\nUse --dry-run to validate files without writing, and --rate to cap events per second so live ingestion is not starved."
+    },
+    {
+      "id": "doc-dashboard-snapshots",
+      "title": "Dashboard Snapshots",
+      "text": "A snapshot freezes a dashboard's current data into a static image and share link, useful for weekly reviews and email digests. Snapshots never update and survive dashboard edits.\n\nSnapshots are retained for one year and count against workspace storage. Automated snapshots can be scheduled from the dashboard menu."
+    },
+    {
+      "id": "doc-quota-alerts",
+      "title": "Monitoring Your Event Quota",
+      "text": "Create an alert rule on the usage metric to get ahead of quota exhaustion; most teams alert at 80 percent utilisation with a weekly cooldown. The Billing page shows projected month-end usage.\n\nQuota webhook events at 80 and 95 percent can also drive automation, such as raising sampling rates for noisy event streams."
+    }
+  ]
+}
