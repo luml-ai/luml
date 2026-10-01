@@ -1,27 +1,14 @@
 import re
 
 import pytest
-from alembic import command
 from luml.repositories.deployments import DeploymentRepository
 from luml.schemas.deployment import DeploymentCreate, DeploymentUpdate
 from sqlalchemy import inspect
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from utils.db import cfg as alembic_cfg
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import SatelliteFixtureData
-
-
-async def _migrate(engine: AsyncEngine, revision: str, *, upgrade: bool) -> None:
-    def run(connection: Connection) -> None:
-        alembic_cfg.attributes["connection"] = connection
-        if upgrade:
-            command.upgrade(alembic_cfg, revision)
-        else:
-            command.downgrade(alembic_cfg, revision)
-
-    async with engine.begin() as connection:
-        await connection.run_sync(run)
+from tests.support.alembic import run_alembic
+from tests.support.seeds import SatelliteFixtureData
 
 
 async def _columns(engine: AsyncEngine, table: str) -> set[str]:
@@ -48,30 +35,26 @@ async def _has_inference_url_unique_constraint(engine: AsyncEngine) -> bool:
 
 @pytest.mark.asyncio
 async def test_migration_upgrades_and_downgrades(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
-    try:
-        await _migrate(engine, "040", upgrade=False)
-        assert "provider_ref" not in await _columns(engine, "deployments")
-        assert "progress_note" not in await _columns(engine, "deployments")
-        assert "kit_info" not in await _columns(engine, "satellites")
-        assert await _has_inference_url_unique_constraint(engine)
+    await run_alembic(engine, "downgrade", "040")
+    assert "provider_ref" not in await _columns(engine, "deployments")
+    assert "progress_note" not in await _columns(engine, "deployments")
+    assert "kit_info" not in await _columns(engine, "satellites")
+    assert await _has_inference_url_unique_constraint(engine)
 
-        await _migrate(engine, "head", upgrade=True)
-        assert {"provider_ref", "progress_note"}.issubset(
-            await _columns(engine, "deployments")
-        )
-        assert "kit_info" in await _columns(engine, "satellites")
-        assert not await _has_inference_url_unique_constraint(engine)
+    await run_alembic(engine, "upgrade", "head")
+    assert {"provider_ref", "progress_note"}.issubset(
+        await _columns(engine, "deployments")
+    )
+    assert "kit_info" in await _columns(engine, "satellites")
+    assert not await _has_inference_url_unique_constraint(engine)
 
-        await _migrate(engine, "040", upgrade=False)
-        assert "provider_ref" not in await _columns(engine, "deployments")
-        assert "progress_note" not in await _columns(engine, "deployments")
-        assert "kit_info" not in await _columns(engine, "satellites")
-        assert await _has_inference_url_unique_constraint(engine)
-    finally:
-        await engine.dispose()
+    await run_alembic(engine, "downgrade", "040")
+    assert "provider_ref" not in await _columns(engine, "deployments")
+    assert "progress_note" not in await _columns(engine, "deployments")
+    assert "kit_info" not in await _columns(engine, "satellites")
+    assert await _has_inference_url_unique_constraint(engine)
 
 
 @pytest.mark.asyncio
@@ -102,7 +85,7 @@ async def test_downgrade_names_duplicate_inference_urls(
         )
 
     with pytest.raises(RuntimeError, match=re.escape(inference_url)):
-        await _migrate(data.engine, "040", upgrade=False)
+        await run_alembic(data.engine, "downgrade", "040")
 
     assert {"provider_ref", "progress_note"}.issubset(
         await _columns(data.engine, "deployments")

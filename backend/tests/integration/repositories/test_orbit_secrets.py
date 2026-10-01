@@ -2,25 +2,15 @@ from uuid import uuid7
 
 import pytest
 from luml.repositories.orbit_secrets import OrbitSecretRepository
-from luml.repositories.orbits import OrbitRepository
-from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 from luml.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
     OrbitSecretUpdate,
 )
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import OrbitFixtureData
-
-
-async def _create_sibling_orbit(data: OrbitFixtureData) -> OrbitDetails:
-    orbit = await OrbitRepository(data.engine).create_orbit(
-        data.organization.id,
-        OrbitCreateIn(name="sibling orbit", bucket_secret_id=data.bucket_secret.id),
-    )
-    assert orbit is not None
-    return orbit
+from tests.support.builders import create_sibling_orbit
+from tests.support.seeds import OrbitFixtureData
 
 
 @pytest.mark.asyncio
@@ -57,9 +47,8 @@ async def test_get_orbit_secret(create_orbit: OrbitFixtureData) -> None:
 
 @pytest.mark.asyncio
 async def test_get_orbit_secret_not_found(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = OrbitSecretRepository(engine)
 
     fetched_secret = await repo.get_orbit_secret(uuid7(), uuid7())
@@ -123,9 +112,8 @@ async def test_update_orbit_secret(create_orbit: OrbitFixtureData) -> None:
 
 @pytest.mark.asyncio
 async def test_update_orbit_secret_not_found(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = OrbitSecretRepository(engine)
 
     update_data = OrbitSecretUpdate(name="test", value="secret")
@@ -140,7 +128,9 @@ async def test_get_orbit_secret_from_another_orbit(
 ) -> None:
     data = create_orbit
     repo = OrbitSecretRepository(data.engine)
-    sibling_orbit = await _create_sibling_orbit(data)
+    sibling_orbit = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
 
     secret = await repo.create_orbit_secret(
         OrbitSecretCreate(name="test", value="secret", orbit_id=data.orbit.id)
@@ -156,7 +146,9 @@ async def test_update_orbit_secret_from_another_orbit(
 ) -> None:
     data = create_orbit
     repo = OrbitSecretRepository(data.engine)
-    sibling_orbit = await _create_sibling_orbit(data)
+    sibling_orbit = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
 
     secret = await repo.create_orbit_secret(
         OrbitSecretCreate(name="test", value="secret", orbit_id=data.orbit.id)
@@ -182,7 +174,9 @@ async def test_delete_orbit_secret_from_another_orbit(
 ) -> None:
     data = create_orbit
     repo = OrbitSecretRepository(data.engine)
-    sibling_orbit = await _create_sibling_orbit(data)
+    sibling_orbit = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
 
     secret = await repo.create_orbit_secret(
         OrbitSecretCreate(name="test", value="secret", orbit_id=data.orbit.id)

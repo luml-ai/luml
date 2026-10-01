@@ -3,7 +3,6 @@ import uuid
 import pytest
 from luml.infra.exceptions import InvalidStatusTransitionError
 from luml.repositories.deployments import DeploymentRepository
-from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import (
     Deployment,
@@ -13,7 +12,7 @@ from luml.schemas.deployment import (
     DeploymentUpdate,
     MonitoringMode,
 )
-from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
+from luml.schemas.orbit import OrbitDetails
 from luml.schemas.satellite import (
     Satellite,
     SatelliteCreate,
@@ -21,16 +20,8 @@ from luml.schemas.satellite import (
     SatelliteTaskType,
 )
 
-from tests.conftest import SatelliteFixtureData
-
-
-async def _create_sibling_orbit(data: SatelliteFixtureData) -> OrbitDetails:
-    orbit = await OrbitRepository(data.engine).create_orbit(
-        data.organization.id,
-        OrbitCreateIn(name="sibling orbit", bucket_secret_id=data.bucket_secret.id),
-    )
-    assert orbit is not None
-    return orbit
+from tests.support.builders import create_sibling_orbit
+from tests.support.seeds import SatelliteFixtureData
 
 
 async def _create_satellite_in(
@@ -693,7 +684,9 @@ async def test_get_deployment_from_another_orbit(
     data = create_satellite
     repo = DeploymentRepository(data.engine)
     deployment = await _create_deployment(data)
-    sibling_orbit = await _create_sibling_orbit(data)
+    sibling_orbit = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
 
     assert await repo.get_deployment(deployment.id, sibling_orbit.id) is None
     assert await repo.get_deployment(deployment.id, data.orbit.id) is not None
@@ -706,7 +699,9 @@ async def test_delete_deployment_from_another_orbit(
     data = create_satellite
     repo = DeploymentRepository(data.engine)
     deployment = await _create_deployment(data)
-    sibling_orbit = await _create_sibling_orbit(data)
+    sibling_orbit = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
 
     await repo.delete_deployment(deployment.id, sibling_orbit.id)
 
@@ -725,7 +720,10 @@ async def test_delete_satellite_deployment_from_another_satellite(
     repo = DeploymentRepository(data.engine)
     deployment = await _create_deployment(data)
     foreign_satellite = await _create_satellite_in(
-        data, await _create_sibling_orbit(data)
+        data,
+        await create_sibling_orbit(
+            data.engine, data.organization.id, data.bucket_secret.id
+        ),
     )
 
     await repo.delete_satellite_deployment(deployment.id, foreign_satellite.id)
@@ -745,7 +743,10 @@ async def test_get_satellite_deployment(
     repo = DeploymentRepository(data.engine)
     deployment = await _create_deployment(data)
     foreign_satellite = await _create_satellite_in(
-        data, await _create_sibling_orbit(data)
+        data,
+        await create_sibling_orbit(
+            data.engine, data.organization.id, data.bucket_secret.id
+        ),
     )
 
     found = await repo.get_satellite_deployment(deployment.id, data.satellite.id)

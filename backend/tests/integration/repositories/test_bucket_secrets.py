@@ -2,10 +2,8 @@ from uuid import uuid4
 
 import pytest
 from luml.infra.exceptions import DatabaseConstraintError
-from luml.models import OrganizationOrm
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
-from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import (
     BucketSecretUpdate,
     S3BucketSecret,
@@ -13,17 +11,9 @@ from luml.schemas.bucket_secrets import (
     S3BucketSecretOut,
 )
 from luml.schemas.orbit import OrbitCreateIn
-from luml.schemas.organization import OrganizationCreateIn
 
-from tests.conftest import OrganizationFixtureData
-
-
-async def _create_sibling_organization(
-    data: OrganizationFixtureData,
-) -> OrganizationOrm:
-    return await UserRepository(data.engine).create_organization(
-        data.user.id, OrganizationCreateIn(name="sibling org")
-    )
+from tests.support.builders import create_sibling_organization
+from tests.support.seeds import OrganizationFixtureData
 
 
 @pytest.mark.asyncio
@@ -367,7 +357,7 @@ async def test_get_bucket_secret_from_another_organization(
 ) -> None:
     data = create_organization_with_user
     repo = BucketSecretRepository(data.engine)
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     secret = data.bucket_secret
 
@@ -381,7 +371,7 @@ async def test_get_bucket_secret_details_from_another_organization(
 ) -> None:
     data = create_organization_with_user
     repo = BucketSecretRepository(data.engine)
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     secret = data.bucket_secret
 
@@ -400,7 +390,7 @@ async def test_update_bucket_secret_from_another_organization(
 ) -> None:
     data = create_organization_with_user
     repo = BucketSecretRepository(data.engine)
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     secret = data.bucket_secret
 
@@ -428,7 +418,7 @@ async def test_delete_bucket_secret_from_another_organization(
 ) -> None:
     data = create_organization_with_user
     repo = BucketSecretRepository(data.engine)
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     secret = data.bucket_secret
 

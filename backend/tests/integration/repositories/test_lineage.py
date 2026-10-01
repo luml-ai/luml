@@ -7,35 +7,22 @@ from luml.repositories.collections import CollectionRepository
 from luml.repositories.lineage import LineageRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.schemas.artifacts import (
-    Artifact,
     ArtifactCreate,
     ArtifactListed,
     ArtifactUpdate,
 )
-from luml.schemas.collections import CollectionCreate, CollectionType, CollectionUpdate
+from luml.schemas.collections import CollectionUpdate
 from luml.schemas.lineage import LineageNodeRef, LineageVia
 from luml.schemas.orbit import OrbitCreateIn
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import CollectionFixtureData
-
-
-async def _create_artifact(
-    engine: AsyncEngine,
-    template: ArtifactCreate,
-    collection_id: uuid.UUID,
-    name: str,
-) -> Artifact:
-    artifact = template.model_copy(
-        update={
-            "collection_id": collection_id,
-            "name": name,
-            "unique_identifier": f"{name}-{uuid.uuid4()}",
-        }
-    )
-    return await ArtifactRepository(engine).create_artifact(artifact)
+from tests.support.builders import (
+    create_artifact,
+    create_collection as build_collection,
+)
+from tests.support.seeds import CollectionFixtureData
 
 
 async def _get_listed_artifacts(
@@ -60,15 +47,7 @@ async def _create_other_orbit_collection(
         ),
     )
     assert orbit is not None
-    collection = await CollectionRepository(data.engine).create_collection(
-        CollectionCreate(
-            orbit_id=orbit.id,
-            description="other",
-            name="other",
-            type=CollectionType.MODEL,
-            tags=[],
-        )
-    )
+    collection = await build_collection(data.engine, orbit.id, "other")
     return orbit.id, collection.id
 
 
@@ -94,11 +73,19 @@ async def test_node_and_edge_lifecycle_and_constraints(
     data = create_collection
     artifact_repo = ArtifactRepository(data.engine)
     lineage_repo = LineageRepository(data.engine)
-    first = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "first"
+    first = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="first",
+        status=test_artifact.status,
     )
-    second = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "second"
+    second = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="second",
+        status=test_artifact.status,
     )
     listed = await _get_listed_artifacts(
         data.engine, data.orbit.id, [first.id, second.id]
@@ -213,11 +200,19 @@ async def test_repository_operations_share_a_caller_transaction(
 ) -> None:
     data = create_collection
     lineage_repo = LineageRepository(data.engine)
-    first = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "transaction-first"
+    first = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="transaction-first",
+        status=test_artifact.status,
     )
-    second = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "transaction-second"
+    second = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="transaction-second",
+        status=test_artifact.status,
     )
     listed = await _get_listed_artifacts(
         data.engine, data.orbit.id, [first.id, second.id]
@@ -265,14 +260,22 @@ async def test_repository_queries_and_writes_are_orbit_scoped(
     data = create_collection
     other_orbit_id, other_collection_id = await _create_other_orbit_collection(data)
     current_artifacts = [
-        await _create_artifact(
-            data.engine, test_artifact, data.collection.id, f"current-{index}"
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=f"current-{index}",
+            status=test_artifact.status,
         )
         for index in range(2)
     ]
     other_artifacts = [
-        await _create_artifact(
-            data.engine, test_artifact, other_collection_id, f"other-{index}"
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            other_collection_id,
+            name=f"other-{index}",
+            status=test_artifact.status,
         )
         for index in range(2)
     ]
@@ -347,11 +350,19 @@ async def test_refresh_node_copy_and_artifact_reference_deletion(
     data = create_collection
     artifact_repo = ArtifactRepository(data.engine)
     lineage_repo = LineageRepository(data.engine)
-    first = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "copy-first"
+    first = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="copy-first",
+        status=test_artifact.status,
     )
-    second = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "copy-second"
+    second = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="copy-second",
+        status=test_artifact.status,
     )
     listed = await _get_listed_artifacts(
         data.engine, data.orbit.id, [first.id, second.id]
@@ -395,7 +406,13 @@ async def test_traversal_depth_and_cycle(
 ) -> None:
     data = create_collection
     artifacts = [
-        await _create_artifact(data.engine, test_artifact, data.collection.id, name)
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=name,
+            status=test_artifact.status,
+        )
         for name in ["dataset", "experiment", "model", "output"]
     ]
     listed = await _get_listed_artifacts(
@@ -484,7 +501,13 @@ async def test_traversal_node_limit_applies_to_every_level(
         "wide-5",
     ]
     artifacts = [
-        await _create_artifact(data.engine, test_artifact, data.collection.id, name)
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=name,
+            status=test_artifact.status,
+        )
         for name in names
     ]
     listed = await _get_listed_artifacts(
@@ -558,8 +581,12 @@ async def test_traversal_returns_at_most_the_node_cap_for_a_high_degree_focal_no
     data = create_collection
     lineage_repo = LineageRepository(data.engine)
     artifacts = [
-        await _create_artifact(
-            data.engine, test_artifact, data.collection.id, f"artifact-{index}"
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=f"artifact-{index}",
+            status=test_artifact.status,
         )
         for index in range(LINEAGE_MAX_NODES + 1)
     ]
@@ -597,7 +624,13 @@ async def test_unreachable_deleted_components_are_removed(
     artifact_repo = ArtifactRepository(data.engine)
     lineage_repo = LineageRepository(data.engine)
     artifacts = [
-        await _create_artifact(data.engine, test_artifact, data.collection.id, name)
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=name,
+            status=test_artifact.status,
+        )
         for name in ["live", "gone-1", "gone-2", "island-1", "island-2"]
     ]
     listed = await _get_listed_artifacts(
@@ -644,8 +677,12 @@ async def test_get_node_by_artifact_id_is_orbit_scoped(
 ) -> None:
     data = create_collection
     lineage_repo = LineageRepository(data.engine)
-    artifact = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "lookup"
+    artifact = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="lookup",
+        status=test_artifact.status,
     )
     listed = await _get_listed_artifacts(data.engine, data.orbit.id, [artifact.id])
     node = await lineage_repo.get_or_create_node(data.orbit.id, listed[artifact.id])
@@ -698,8 +735,12 @@ async def test_traverse_rejects_a_non_positive_depth_and_an_unknown_focal_node(
 ) -> None:
     data = create_collection
     lineage_repo = LineageRepository(data.engine)
-    artifact = await _create_artifact(
-        data.engine, test_artifact, data.collection.id, "focal"
+    artifact = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="focal",
+        status=test_artifact.status,
     )
     listed = await _get_listed_artifacts(data.engine, data.orbit.id, [artifact.id])
     node = await lineage_repo.get_or_create_node(data.orbit.id, listed[artifact.id])

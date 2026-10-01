@@ -6,30 +6,14 @@ from luml.handlers.artifacts import ArtifactHandler
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.lineage import LineageRepository
 from luml.schemas.artifacts import (
-    Artifact,
     ArtifactCreate,
     ArtifactListed,
 )
 from luml.schemas.lineage import LineageVia
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import CollectionFixtureData
-
-
-async def _create_artifact(
-    engine: AsyncEngine,
-    template: ArtifactCreate,
-    collection_id: uuid.UUID,
-    name: str,
-) -> Artifact:
-    artifact = template.model_copy(
-        update={
-            "collection_id": collection_id,
-            "name": name,
-            "unique_identifier": f"{name}-{uuid.uuid4()}",
-        }
-    )
-    return await ArtifactRepository(engine).create_artifact(artifact)
+from tests.support.builders import create_artifact
+from tests.support.seeds import CollectionFixtureData
 
 
 async def _get_listed_artifacts(
@@ -57,7 +41,13 @@ async def test_concurrent_deletion_of_the_last_live_artifacts_removes_the_compon
         ArtifactHandler, "_ArtifactHandler__lineage_repository", lineage_repo
     )
     artifacts = [
-        await _create_artifact(data.engine, test_artifact, data.collection.id, name)
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=name,
+            status=test_artifact.status,
+        )
         for name in ["last-1", "last-2"]
     ]
     listed = await _get_listed_artifacts(

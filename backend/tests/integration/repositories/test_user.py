@@ -18,9 +18,9 @@ from luml.schemas.user import (
     User,
 )
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from tests.conftest import CollectionFixtureData
+from tests.support.seeds import CollectionFixtureData
 
 TRACK_ENTRY_AUTHOR = "Track Author"
 
@@ -34,9 +34,8 @@ class UserFixtureData:
 
 @pytest_asyncio.fixture(scope="function")
 async def get_created_user(
-    create_database_and_apply_migrations: str, test_user_create: CreateUser
+    engine: AsyncEngine, test_user_create: CreateUser
 ) -> AsyncGenerator[UserFixtureData]:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
     user = await repo.create_user(test_user_create)
@@ -46,9 +45,8 @@ async def get_created_user(
 
 @pytest.mark.asyncio
 async def test_create_user_and_organization(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     user = CreateUser(
         email=f"test_{uuid.uuid4()}@example.com",
@@ -75,9 +73,8 @@ async def test_create_user_and_organization(
 
 @pytest.mark.asyncio
 async def test_delete_signup_removes_user_and_organization(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     signup, other = (
         CreateUser(

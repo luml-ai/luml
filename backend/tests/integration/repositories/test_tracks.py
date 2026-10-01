@@ -4,7 +4,6 @@ from unittest.mock import Mock
 
 import pytest
 from luml.infra.exceptions import ApplicationError
-from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.tracks import (
     TrackEntryRepository,
     TrackRepository,
@@ -12,7 +11,6 @@ from luml.repositories.tracks import (
 )
 from luml.schemas.artifacts import (
     NDJSON,
-    Artifact,
     ArtifactCreate,
     ArtifactStatus,
     ArtifactType,
@@ -30,9 +28,9 @@ from luml.schemas.tracks import (
     TrackEntryUpdate,
     TrackUpdate,
 )
-from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import CollectionFixtureData, OrbitFixtureData
+from tests.support.builders import create_artifact
+from tests.support.seeds import CollectionFixtureData, OrbitFixtureData
 
 
 def _make_manifest() -> Manifest:
@@ -63,19 +61,12 @@ def _make_manifest() -> Manifest:
     )
 
 
-async def _create_artifact(
-    engine: AsyncEngine,
-    collection_id: uuid.UUID,
-    artifact_type: ArtifactType = ArtifactType.MODEL,
-    name: str | None = None,
-    description: str | None = None,
-) -> Artifact:
-    repo = ArtifactRepository(engine)
-    data = ArtifactCreate(
-        collection_id=collection_id,
+@pytest.fixture
+def artifact_template() -> ArtifactCreate:
+    return ArtifactCreate(
+        collection_id=uuid.uuid4(),
         file_name="artifact.luml",
-        name=name or f"artifact-{uuid.uuid4().hex[:8]}",
-        description=description,
+        name="artifact",
         extra_values={"accuracy": 0.9},
         manifest=_make_manifest(),
         file_hash=str(uuid.uuid4()),
@@ -85,10 +76,9 @@ async def _create_artifact(
         unique_identifier=f"uid_{uuid.uuid4().hex[:8]}",
         tags=["test"],
         status=ArtifactStatus.UPLOADED,
-        type=artifact_type,
+        type=ArtifactType.MODEL,
         created_by_user="Test User",
     )
-    return await repo.create_artifact(data)
 
 
 # --- Track CRUD ---
@@ -335,6 +325,7 @@ async def test_update_stage(create_orbit: OrbitFixtureData) -> None:
 @pytest.mark.asyncio
 async def test_create_entry_and_version_assignment(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -348,7 +339,12 @@ async def test_create_entry_and_version_assignment(
         )
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
 
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
@@ -367,7 +363,9 @@ async def test_create_entry_and_version_assignment(
 
 
 @pytest.mark.asyncio
-async def test_list_entries(create_collection: CollectionFixtureData) -> None:
+async def test_list_entries(
+    create_collection: CollectionFixtureData, artifact_template: ArtifactCreate
+) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
     entry_repo = TrackEntryRepository(data.engine)
@@ -381,7 +379,12 @@ async def test_list_entries(create_collection: CollectionFixtureData) -> None:
     )
 
     for _ in range(3):
-        artifact = await _create_artifact(data.engine, data.collection.id)
+        artifact = await create_artifact(
+            data.engine,
+            artifact_template,
+            data.collection.id,
+            name=f"artifact-{uuid.uuid4().hex[:8]}",
+        )
         await entry_repo.create_entry(
             TrackEntryCreate(
                 track_id=track.id,
@@ -401,6 +404,7 @@ async def test_list_entries(create_collection: CollectionFixtureData) -> None:
 @pytest.mark.asyncio
 async def test_list_entries_sorting(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -422,7 +426,9 @@ async def test_list_entries_sorting(
     names = ["Charlie", "Alpha", "Bravo"]
     entries = []
     for name in names:
-        artifact = await _create_artifact(data.engine, data.collection.id, name=name)
+        artifact = await create_artifact(
+            data.engine, artifact_template, data.collection.id, name=name
+        )
         entries.append(
             await entry_repo.create_entry(
                 TrackEntryCreate(
@@ -460,6 +466,7 @@ async def test_list_entries_sorting(
 async def _seed_entries(
     data: CollectionFixtureData,
     specs: list[tuple[str, str | None]],
+    artifact_template: ArtifactCreate,
 ) -> tuple[uuid.UUID, list[TrackEntry]]:
     """Create a track and one entry per (artifact_name, description) spec."""
     repo = TrackRepository(data.engine)
@@ -474,8 +481,12 @@ async def _seed_entries(
     )
     entries = []
     for name, description in specs:
-        artifact = await _create_artifact(
-            data.engine, data.collection.id, name=name, description=description
+        artifact = await create_artifact(
+            data.engine,
+            artifact_template,
+            data.collection.id,
+            name=name,
+            description=description,
         )
         entries.append(
             await entry_repo.create_entry(
@@ -519,10 +530,15 @@ async def _collect_pages(
 @pytest.mark.asyncio
 async def test_list_entries_sort_version(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     entry_repo = TrackEntryRepository(data.engine)
-    track_id, _ = await _seed_entries(data, [("a", None), ("b", None), ("c", None)])
+    track_id, _ = await _seed_entries(
+        data,
+        [("a", None), ("b", None), ("c", None)],
+        artifact_template=artifact_template,
+    )
 
     asc, _ = await entry_repo.list_entries(
         track_id, PaginationParams(limit=100, sort_by="version", order=SortOrder.ASC)
@@ -538,10 +554,15 @@ async def test_list_entries_sort_version(
 @pytest.mark.asyncio
 async def test_list_entries_default_sort_created_at_desc(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     entry_repo = TrackEntryRepository(data.engine)
-    track_id, _ = await _seed_entries(data, [("a", None), ("b", None), ("c", None)])
+    track_id, _ = await _seed_entries(
+        data,
+        [("a", None), ("b", None), ("c", None)],
+        artifact_template=artifact_template,
+    )
 
     # No sort_by -> defaults to created_at DESC (newest first => v3, v2, v1).
     items, _ = await entry_repo.list_entries(track_id, PaginationParams(limit=100))
@@ -551,11 +572,14 @@ async def test_list_entries_default_sort_created_at_desc(
 @pytest.mark.asyncio
 async def test_list_entries_sort_artifact_name(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     entry_repo = TrackEntryRepository(data.engine)
     track_id, _ = await _seed_entries(
-        data, [("Charlie", None), ("Alpha", None), ("Bravo", None)]
+        data,
+        [("Charlie", None), ("Alpha", None), ("Bravo", None)],
+        artifact_template=artifact_template,
     )
 
     asc, _ = await entry_repo.list_entries(
@@ -574,11 +598,14 @@ async def test_list_entries_sort_artifact_name(
 @pytest.mark.asyncio
 async def test_list_entries_sort_description(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     entry_repo = TrackEntryRepository(data.engine)
     track_id, _ = await _seed_entries(
-        data, [("a", "zeta"), ("b", "alpha"), ("c", "mu")]
+        data,
+        [("a", "zeta"), ("b", "alpha"), ("c", "mu")],
+        artifact_template=artifact_template,
     )
 
     asc, _ = await entry_repo.list_entries(
@@ -591,12 +618,15 @@ async def test_list_entries_sort_description(
 @pytest.mark.asyncio
 async def test_list_entries_sort_stage_null_handling(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     stage_repo = TrackStageRepository(data.engine)
     entry_repo = TrackEntryRepository(data.engine)
     track_id, entries = await _seed_entries(
-        data, [("a", None), ("b", None), ("c", None)]
+        data,
+        [("a", None), ("b", None), ("c", None)],
+        artifact_template=artifact_template,
     )
 
     alpha = await stage_repo.create_stage(StageCreate(track_id=track_id, name="Alpha"))
@@ -619,10 +649,13 @@ async def test_list_entries_sort_stage_null_handling(
 @pytest.mark.asyncio
 async def test_list_entries_pagination_by_version(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     entry_repo = TrackEntryRepository(data.engine)
-    track_id, _ = await _seed_entries(data, [(f"a{i}", None) for i in range(5)])
+    track_id, _ = await _seed_entries(
+        data, [(f"a{i}", None) for i in range(5)], artifact_template=artifact_template
+    )
 
     # First page only.
     page, cursor = await entry_repo.list_entries(
@@ -642,11 +675,14 @@ async def test_list_entries_pagination_by_version(
 @pytest.mark.asyncio
 async def test_list_entries_pagination_by_artifact_name(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     entry_repo = TrackEntryRepository(data.engine)
     names = ["Delta", "Alpha", "Echo", "Bravo", "Charlie"]
-    track_id, _ = await _seed_entries(data, [(n, None) for n in names])
+    track_id, _ = await _seed_entries(
+        data, [(n, None) for n in names], artifact_template=artifact_template
+    )
 
     # Cursor pagination over a related-table column (scalar subquery).
     collected = await _collect_pages(
@@ -682,6 +718,7 @@ def test_entry_cursor_value_maps_fields() -> None:
 @pytest.mark.asyncio
 async def test_update_entry_stage(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -699,7 +736,12 @@ async def test_update_entry_stage(
         StageCreate(track_id=track.id, name="Production")
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -718,6 +760,7 @@ async def test_update_entry_stage(
 @pytest.mark.asyncio
 async def test_stage_is_used_flag(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -738,7 +781,12 @@ async def test_stage_is_used_flag(
         StageCreate(track_id=track.id, name="Staging")
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -762,7 +810,9 @@ async def test_stage_is_used_flag(
 
 
 @pytest.mark.asyncio
-async def test_delete_entry(create_collection: CollectionFixtureData) -> None:
+async def test_delete_entry(
+    create_collection: CollectionFixtureData, artifact_template: ArtifactCreate
+) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
     entry_repo = TrackEntryRepository(data.engine)
@@ -775,7 +825,12 @@ async def test_delete_entry(create_collection: CollectionFixtureData) -> None:
         )
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -790,7 +845,9 @@ async def test_delete_entry(create_collection: CollectionFixtureData) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_entries_bulk(create_collection: CollectionFixtureData) -> None:
+async def test_delete_entries_bulk(
+    create_collection: CollectionFixtureData, artifact_template: ArtifactCreate
+) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
     entry_repo = TrackEntryRepository(data.engine)
@@ -805,7 +862,12 @@ async def test_delete_entries_bulk(create_collection: CollectionFixtureData) -> 
 
     entries = []
     for _ in range(3):
-        artifact = await _create_artifact(data.engine, data.collection.id)
+        artifact = await create_artifact(
+            data.engine,
+            artifact_template,
+            data.collection.id,
+            name=f"artifact-{uuid.uuid4().hex[:8]}",
+        )
         entries.append(
             await entry_repo.create_entry(
                 TrackEntryCreate(
@@ -825,6 +887,7 @@ async def test_delete_entries_bulk(create_collection: CollectionFixtureData) -> 
 @pytest.mark.asyncio
 async def test_delete_entries_scoped_to_track(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -841,7 +904,12 @@ async def test_delete_entries_scoped_to_track(
         )
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry_b = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track_b.id,
@@ -859,6 +927,7 @@ async def test_delete_entries_scoped_to_track(
 @pytest.mark.asyncio
 async def test_list_entries_for_artifact(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -879,7 +948,12 @@ async def test_list_entries_for_artifact(
         )
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
 
     await entry_repo.create_entry(
         TrackEntryCreate(
@@ -905,6 +979,7 @@ async def test_list_entries_for_artifact(
 @pytest.mark.asyncio
 async def test_has_entries_for_artifact(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -918,7 +993,12 @@ async def test_has_entries_for_artifact(
         )
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
 
     assert await entry_repo.has_entries_for_artifact(artifact.id) is False
 
@@ -936,6 +1016,7 @@ async def test_has_entries_for_artifact(
 @pytest.mark.asyncio
 async def test_clear_stage_from_entries(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -953,7 +1034,12 @@ async def test_clear_stage_from_entries(
         StageCreate(track_id=track.id, name="Staging")
     )
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -974,6 +1060,7 @@ async def test_clear_stage_from_entries(
 @pytest.mark.asyncio
 async def test_version_monotonicity_after_deletion(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -989,7 +1076,12 @@ async def test_version_monotonicity_after_deletion(
 
     artifacts = []
     for _ in range(3):
-        a = await _create_artifact(data.engine, data.collection.id)
+        a = await create_artifact(
+            data.engine,
+            artifact_template,
+            data.collection.id,
+            name=f"artifact-{uuid.uuid4().hex[:8]}",
+        )
         artifacts.append(a)
 
     entries = []
@@ -1009,7 +1101,12 @@ async def test_version_monotonicity_after_deletion(
 
     await entry_repo.delete_entry(entries[1].id)
 
-    new_artifact = await _create_artifact(data.engine, data.collection.id)
+    new_artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     new_entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -1024,6 +1121,7 @@ async def test_version_monotonicity_after_deletion(
 @pytest.mark.asyncio
 async def test_force_stage_reassign(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -1041,8 +1139,18 @@ async def test_force_stage_reassign(
         StageCreate(track_id=track.id, name="Production")
     )
 
-    art1 = await _create_artifact(data.engine, data.collection.id)
-    art2 = await _create_artifact(data.engine, data.collection.id)
+    art1 = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
+    art2 = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
 
     entry1 = await entry_repo.create_entry(
         TrackEntryCreate(
@@ -1073,7 +1181,9 @@ async def test_force_stage_reassign(
 
 
 @pytest.mark.asyncio
-async def test_pagination(create_collection: CollectionFixtureData) -> None:
+async def test_pagination(
+    create_collection: CollectionFixtureData, artifact_template: ArtifactCreate
+) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
     entry_repo = TrackEntryRepository(data.engine)
@@ -1087,7 +1197,12 @@ async def test_pagination(create_collection: CollectionFixtureData) -> None:
     )
 
     for _ in range(5):
-        art = await _create_artifact(data.engine, data.collection.id)
+        art = await create_artifact(
+            data.engine,
+            artifact_template,
+            data.collection.id,
+            name=f"artifact-{uuid.uuid4().hex[:8]}",
+        )
         await entry_repo.create_entry(
             TrackEntryCreate(
                 track_id=track.id,
@@ -1118,6 +1233,7 @@ async def test_pagination(create_collection: CollectionFixtureData) -> None:
 @pytest.mark.asyncio
 async def test_is_stage_in_use(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -1137,7 +1253,12 @@ async def test_is_stage_in_use(
 
     assert await stage_repo.is_stage_in_use(stage.id) is False
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -1153,6 +1274,7 @@ async def test_is_stage_in_use(
 @pytest.mark.asyncio
 async def test_get_entry_by_stage(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -1173,7 +1295,12 @@ async def test_get_entry_by_stage(
     result = await entry_repo.get_entry_by_stage(track.id, stage.id)
     assert result is None
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -1304,12 +1431,15 @@ async def test_get_entry_missing_returns_none(
 @pytest.mark.asyncio
 async def test_list_entries_filtered_by_stage(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     stage_repo = TrackStageRepository(data.engine)
     entry_repo = TrackEntryRepository(data.engine)
     track_id, entries = await _seed_entries(
-        data, [("a", None), ("b", None), ("c", None)]
+        data,
+        [("a", None), ("b", None), ("c", None)],
+        artifact_template=artifact_template,
     )
 
     stage = await stage_repo.create_stage(
@@ -1400,6 +1530,7 @@ async def test_sync_stages_empty_removes_all(
 @pytest.mark.asyncio
 async def test_sync_stages_in_use_conflict_is_atomic(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -1415,7 +1546,12 @@ async def test_sync_stages_in_use_conflict_is_atomic(
     )
     used = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Used"))
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -1486,6 +1622,7 @@ async def test_sync_stages_duplicate_names_conflict(
 @pytest.mark.asyncio
 async def test_update_track_with_stages_is_atomic(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     """A stage conflict must roll back the track-field update too."""
     data = create_collection
@@ -1502,7 +1639,12 @@ async def test_update_track_with_stages_is_atomic(
     )
     used = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Used"))
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
@@ -1572,6 +1714,7 @@ async def test_update_track_missing_returns_none(
 @pytest.mark.asyncio
 async def test_create_entry_with_stage(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
@@ -1588,7 +1731,12 @@ async def test_create_entry_with_stage(
     stage = await stage_repo.create_stage(
         StageCreate(track_id=track.id, name="Production")
     )
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
 
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
@@ -1606,12 +1754,18 @@ async def test_create_entry_with_stage(
 @pytest.mark.asyncio
 async def test_get_tracks_for_artifact(
     create_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
     entry_repo = TrackEntryRepository(data.engine)
 
-    artifact = await _create_artifact(data.engine, data.collection.id)
+    artifact = await create_artifact(
+        data.engine,
+        artifact_template,
+        data.collection.id,
+        name=f"artifact-{uuid.uuid4().hex[:8]}",
+    )
 
     track_a = await repo.create_track(
         TrackCreate(

@@ -2,15 +2,26 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
 from inspect import unwrap
 from typing import cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid7
 
 import asyncpg  # type: ignore[import-untyped]
 import pytest
+from luml.repositories.invites import InviteRepository
+from luml.schemas.orbit import OrbitRole
 from luml.settings import config
 from sqlalchemy.engine import URL, make_url
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests import conftest as fixtures
+from tests.integration import conftest as fixtures
+from tests.support.seeds import (
+    CollectionFixtureData,
+    OrbitFixtureData,
+    OrbitWithMembersFixtureData,
+    OrganizationFixtureData,
+    OrganizationWithMembersFixtureData,
+    SatelliteFixtureData,
+)
 
 prepare_template = cast(
     Callable[[], Generator[tuple[str, str]]], unwrap(fixtures.database_template)
@@ -269,7 +280,10 @@ class TestDatabaseFixture:
         admin_connection.fetchval.return_value = True
 
         with (
-            patch("tests.conftest.asyncio.timeout", return_value=asyncio.timeout(0)),
+            patch(
+                "tests.integration.conftest.asyncio.timeout",
+                return_value=asyncio.timeout(0),
+            ),
             pytest.raises(TimeoutError),
         ):
             await database.aclose()
@@ -304,3 +318,86 @@ class TestDatabaseIsolation:
             await connection.execute("DROP TABLE organizations CASCADE")
         finally:
             await connection.close()
+
+
+class TestEngineFixture:
+    @pytest.mark.parametrize("fails", [False, True])
+    async def test_engine_is_disposed_after_the_test(
+        self, fails: bool, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        engine = AsyncMock(spec=AsyncEngine)
+        factory = Mock(return_value=engine)
+        monkeypatch.setattr(fixtures, "create_async_engine", factory)
+        create_engine = cast(
+            Callable[[str], AsyncGenerator[AsyncEngine]], unwrap(fixtures.engine)
+        )
+        lifecycle = create_engine(config.POSTGRESQL_DSN)
+
+        assert await anext(lifecycle) is engine
+        factory.assert_called_once_with(config.POSTGRESQL_DSN)
+        engine.dispose.assert_not_awaited()
+
+        if fails:
+            with pytest.raises(RuntimeError, match="test failed"):
+                await lifecycle.athrow(RuntimeError("test failed"))
+        else:
+            with pytest.raises(StopAsyncIteration):
+                await anext(lifecycle)
+
+        engine.dispose.assert_awaited_once()
+
+
+class TestSeedFixtures:
+    @pytest.fixture(autouse=True)
+    def limits_update(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        update = AsyncMock(wraps=fixtures.lift_organization_limits)
+        monkeypatch.setattr(fixtures, "lift_organization_limits", update)
+        return update
+
+    @pytest.mark.parametrize("_attempt", range(2))
+    async def test_seeds_share_one_owner_organization_and_engine(
+        self,
+        _attempt: int,
+        engine: AsyncEngine,
+        create_organization_with_user: OrganizationFixtureData,
+        create_orbit: OrbitFixtureData,
+        create_collection: CollectionFixtureData,
+        create_satellite: SatelliteFixtureData,
+        limits_update: AsyncMock,
+    ) -> None:
+        owner = create_organization_with_user
+        for seed in (create_orbit, create_collection, create_satellite):
+            assert seed.engine is engine
+            assert seed.organization is owner.organization
+            assert seed.user is owner.user
+            assert seed.bucket_secret is owner.bucket_secret
+            assert seed.orbit.organization_id == owner.organization.id
+        assert owner.engine is engine
+        assert create_collection.orbit is create_orbit.orbit
+        assert create_satellite.orbit is create_orbit.orbit
+        assert create_collection.collection.orbit_id == create_orbit.orbit.id
+        assert create_satellite.satellite.orbit_id == create_orbit.orbit.id
+        assert create_satellite.model.collection_id == create_collection.collection.id
+        limits_update.assert_awaited_once_with(engine, owner.organization.id)
+
+    @pytest.mark.parametrize("_attempt", range(2))
+    async def test_member_roles_and_inviters_are_deterministic(
+        self,
+        _attempt: int,
+        create_orbit_with_members: OrbitWithMembersFixtureData,
+        create_organization_with_members: OrganizationWithMembersFixtureData,
+    ) -> None:
+        orbit = create_orbit_with_members
+        organization = create_organization_with_members
+        assert [member.role for member in orbit.members] == [
+            OrbitRole.ADMIN,
+            OrbitRole.MEMBER,
+        ] * 5
+        assert len(organization.members) == 11
+        assert len(organization.invites) == 5
+        repository = InviteRepository(organization.engine)
+        for invite in organization.invites:
+            stored = await repository.get_invite(invite.id)
+            assert stored is not None
+            assert stored.invited_by_user is not None
+            assert stored.invited_by_user.id == organization.user.id

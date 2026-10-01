@@ -15,9 +15,9 @@ from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteTaskType,
 )
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import OrbitFixtureData, SatelliteFixtureData
+from tests.support.seeds import OrbitFixtureData, SatelliteFixtureData
 
 
 @pytest.mark.asyncio
@@ -54,9 +54,8 @@ async def test_get_satellite(create_orbit: OrbitFixtureData) -> None:
 
 @pytest.mark.asyncio
 async def test_get_satellite_not_found(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = SatelliteRepository(engine)
 
     fetched_satellite = await repo.get_satellite(uuid.uuid7())
@@ -195,8 +194,7 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_empty(create_database_and_apply_migrations: str) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
+async def test_list_tasks_empty(engine: AsyncEngine) -> None:
     repo = SatelliteRepository(engine)
 
     tasks = await repo.list_tasks(uuid.uuid7())

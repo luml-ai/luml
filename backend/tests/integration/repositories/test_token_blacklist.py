@@ -3,12 +3,11 @@ import uuid
 
 import pytest
 from luml.repositories.token_blacklist import TokenBlackListRepository
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 @pytest.mark.asyncio
-async def test_add_token(create_database_and_apply_migrations: str) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
+async def test_add_token(engine: AsyncEngine) -> None:
     repo = TokenBlackListRepository(engine)
 
     token = f"test-token-test_add_token_{uuid.uuid4()}"
@@ -21,8 +20,7 @@ async def test_add_token(create_database_and_apply_migrations: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_is_token_blacklisted(create_database_and_apply_migrations: str) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
+async def test_is_token_blacklisted(engine: AsyncEngine) -> None:
     repo = TokenBlackListRepository(engine)
 
     token = f"test-token-test_is_token_blacklisted_{uuid.uuid4()}"
@@ -35,8 +33,7 @@ async def test_is_token_blacklisted(create_database_and_apply_migrations: str) -
 
 
 @pytest.mark.asyncio
-async def test_delete_expired_tokens(create_database_and_apply_migrations: str) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
+async def test_delete_expired_tokens(engine: AsyncEngine) -> None:
     repo = TokenBlackListRepository(engine)
 
     token = f"test-token-test_delete_expired_tokens_{uuid.uuid4()}"

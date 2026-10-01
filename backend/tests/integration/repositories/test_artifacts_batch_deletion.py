@@ -12,7 +12,6 @@ from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.schemas.artifacts import (
-    Artifact,
     ArtifactCreate,
     ArtifactStatus,
     ArtifactType,
@@ -22,27 +21,8 @@ from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.satellite import Satellite, SatelliteCreate
 from luml.schemas.tracks import TrackCreate, TrackEntryCreate
 
-from tests.conftest import CollectionFixtureData
-
-
-async def _create_artifact(
-    repository: ArtifactRepository,
-    template: ArtifactCreate,
-    collection_id: uuid.UUID,
-    *,
-    name: str,
-    status: ArtifactStatus = ArtifactStatus.UPLOADED,
-) -> Artifact:
-    data = template.model_copy(
-        update={
-            "collection_id": collection_id,
-            "name": name,
-            "status": status,
-            "unique_identifier": str(uuid.uuid4()),
-            "bucket_location": f"objects/{uuid.uuid4()}",
-        }
-    )
-    return await repository.create_artifact(data)
+from tests.support.builders import create_artifact
+from tests.support.seeds import CollectionFixtureData
 
 
 async def _create_satellite(
@@ -66,8 +46,8 @@ class TestArtifactsBatchDeletion:
     ) -> None:
         repository = ArtifactRepository(create_collection.engine)
         artifacts = [
-            await _create_artifact(
-                repository,
+            await create_artifact(
+                create_collection.engine,
                 test_artifact,
                 create_collection.collection.id,
                 name=artifact_status.value,
@@ -109,11 +89,8 @@ class TestArtifactsBatchDeletion:
                 type=data.collection.type,
             )
         )
-        foreign_artifact = await _create_artifact(
-            repository,
-            test_artifact,
-            other_collection.id,
-            name="foreign",
+        foreign_artifact = await create_artifact(
+            data.engine, test_artifact, other_collection.id, name="foreign"
         )
 
         records = await repository.request_batch_deletion(
@@ -138,30 +115,27 @@ class TestArtifactsBatchDeletion:
         track_repository = TrackRepository(data.engine)
         entry_repository = TrackEntryRepository(data.engine)
         satellite = await _create_satellite(data)
-        eligible = await _create_artifact(
-            repository,
+        eligible = await create_artifact(
+            data.engine,
             test_artifact,
             data.collection.id,
             name="eligible",
             status=ArtifactStatus.UPLOAD_FAILED,
         )
-        failed_deployment_artifact = await _create_artifact(
-            repository,
+        failed_deployment_artifact = await create_artifact(
+            data.engine,
             test_artifact,
             data.collection.id,
             name="failed deployment artifact",
         )
-        active_deployment_artifact = await _create_artifact(
-            repository,
+        active_deployment_artifact = await create_artifact(
+            data.engine,
             test_artifact,
             data.collection.id,
             name="active deployment artifact",
         )
-        tracked_artifact = await _create_artifact(
-            repository,
-            test_artifact,
-            data.collection.id,
-            name="tracked",
+        tracked_artifact = await create_artifact(
+            data.engine, test_artifact, data.collection.id, name="tracked"
         )
         failed_deployment, _ = await deployment_repository.create_deployment(
             DeploymentCreate(
@@ -261,8 +235,8 @@ class TestArtifactsBatchDeletion:
         test_artifact: ArtifactCreate,
     ) -> None:
         repository = ArtifactRepository(create_collection.engine)
-        artifact = await _create_artifact(
-            repository,
+        artifact = await create_artifact(
+            create_collection.engine,
             test_artifact,
             create_collection.collection.id,
             name="artifact",
@@ -287,8 +261,8 @@ class TestArtifactsBatchDeletion:
     ) -> None:
         repository = ArtifactRepository(create_collection.engine)
         artifacts = [
-            await _create_artifact(
-                repository,
+            await create_artifact(
+                create_collection.engine,
                 test_artifact,
                 create_collection.collection.id,
                 name=f"artifact-{index}",
@@ -331,17 +305,11 @@ class TestArtifactsBatchDeletion:
         track_repository = TrackRepository(data.engine)
         entry_repository = TrackEntryRepository(data.engine)
         satellite = await _create_satellite(data)
-        deployed = await _create_artifact(
-            repository,
-            test_artifact,
-            data.collection.id,
-            name="deployed",
+        deployed = await create_artifact(
+            data.engine, test_artifact, data.collection.id, name="deployed"
         )
-        tracked = await _create_artifact(
-            repository,
-            test_artifact,
-            data.collection.id,
-            name="tracked",
+        tracked = await create_artifact(
+            data.engine, test_artifact, data.collection.id, name="tracked"
         )
         await deployment_repository.create_deployment(
             DeploymentCreate(
@@ -390,10 +358,9 @@ class TestArtifactsBatchDeletion:
         test_artifact: ArtifactCreate,
         artifact_status: ArtifactStatus,
     ) -> None:
-        artifact_repository = ArtifactRepository(create_collection.engine)
         deployment_repository = DeploymentRepository(create_collection.engine)
-        artifact = await _create_artifact(
-            artifact_repository,
+        artifact = await create_artifact(
+            create_collection.engine,
             test_artifact,
             create_collection.collection.id,
             name=artifact_status.value,
@@ -425,11 +392,8 @@ class TestArtifactsBatchDeletion:
         data = create_collection
         artifact_repository = ArtifactRepository(data.engine)
         deployment_repository = DeploymentRepository(data.engine)
-        artifact = await _create_artifact(
-            artifact_repository,
-            test_artifact,
-            data.collection.id,
-            name="concurrent",
+        artifact = await create_artifact(
+            data.engine, test_artifact, data.collection.id, name="concurrent"
         )
         satellite = await _create_satellite(data)
         deployment_data = DeploymentCreate(

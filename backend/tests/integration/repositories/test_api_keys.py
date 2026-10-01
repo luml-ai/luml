@@ -6,14 +6,13 @@ from luml.schemas.user import (
     CreateUser,
     UpdateUserAPIKey,
 )
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 @pytest.mark.asyncio
 async def test_create_user_api_key(
-    create_database_and_apply_migrations: str, test_user_create: CreateUser
+    engine: AsyncEngine, test_user_create: CreateUser
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
 
     created_user = await user_repo.create_user(test_user_create)
@@ -27,9 +26,8 @@ async def test_create_user_api_key(
 
 @pytest.mark.asyncio
 async def test_get_user_by_api_key_hash(
-    create_database_and_apply_migrations: str, test_user_create: CreateUser
+    engine: AsyncEngine, test_user_create: CreateUser
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
 
     created_user = await user_repo.create_user(test_user_create)
@@ -47,9 +45,8 @@ async def test_get_user_by_api_key_hash(
 
 @pytest.mark.asyncio
 async def test_delete_api_key_by_user_id(
-    create_database_and_apply_migrations: str, test_user_create: CreateUser
+    engine: AsyncEngine, test_user_create: CreateUser
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     user_repo = UserRepository(engine)
 
     created_user = await user_repo.create_user(test_user_create)

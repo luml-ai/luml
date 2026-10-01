@@ -1,6 +1,5 @@
 import pytest
 from luml.repositories.collections import CollectionRepository
-from luml.repositories.orbits import OrbitRepository
 from luml.schemas.collections import (
     Collection,
     CollectionCreate,
@@ -8,18 +7,9 @@ from luml.schemas.collections import (
     CollectionUpdate,
 )
 from luml.schemas.general import PaginationParams
-from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 
-from tests.conftest import CollectionFixtureData, OrbitFixtureData
-
-
-async def _create_sibling_orbit(data: OrbitFixtureData) -> OrbitDetails:
-    orbit = await OrbitRepository(data.engine).create_orbit(
-        data.organization.id,
-        OrbitCreateIn(name="sibling orbit", bucket_secret_id=data.bucket_secret.id),
-    )
-    assert orbit is not None
-    return orbit
+from tests.support.builders import create_sibling_orbit
+from tests.support.seeds import CollectionFixtureData, OrbitFixtureData
 
 
 @pytest.mark.asyncio
@@ -128,7 +118,9 @@ async def test_update_collection_from_another_orbit(
     data = create_collection
     repo = CollectionRepository(data.engine)
     collection = data.collection
-    sibling_orbit = await _create_sibling_orbit(data)
+    sibling_orbit = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
 
     result = await repo.update_collection(
         collection.id, sibling_orbit.id, CollectionUpdate(name="renamed")
@@ -149,7 +141,9 @@ async def test_delete_collection_from_another_orbit(
     data = create_collection
     repo = CollectionRepository(data.engine)
     collection = data.collection
-    sibling_orbit = await _create_sibling_orbit(data)
+    sibling_orbit = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
 
     await repo.delete_collection(collection.id, sibling_orbit.id)
 

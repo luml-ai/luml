@@ -3,14 +3,13 @@ from uuid import uuid7
 
 import pytest
 from luml.repositories.monitoring import MonitoringLaunchTokenRepository
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 @pytest.mark.asyncio
 async def test_consume_is_single_use(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = MonitoringLaunchTokenRepository(engine)
 
     jti = uuid7()
@@ -25,9 +24,8 @@ async def test_consume_is_single_use(
 
 @pytest.mark.asyncio
 async def test_consume_distinct_jtis_succeed(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = MonitoringLaunchTokenRepository(engine)
 
     expire = int(time.time()) + 60
@@ -38,9 +36,8 @@ async def test_consume_distinct_jtis_succeed(
 
 @pytest.mark.asyncio
 async def test_expired_jti_is_cleaned_up(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = MonitoringLaunchTokenRepository(engine)
 
     jti = uuid7()

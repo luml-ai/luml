@@ -11,7 +11,7 @@ from luml.schemas.organization import (
 )
 from luml.schemas.user import User
 
-from tests.conftest import OrganizationFixtureData
+from tests.support.seeds import OrganizationFixtureData
 
 
 def get_invite_obj(

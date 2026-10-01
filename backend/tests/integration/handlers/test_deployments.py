@@ -13,7 +13,7 @@ from luml.schemas.deployment import (
     DeploymentStatus,
 )
 
-from tests.conftest import SatelliteFixtureData
+from tests.support.seeds import SatelliteFixtureData
 
 
 @pytest_asyncio.fixture

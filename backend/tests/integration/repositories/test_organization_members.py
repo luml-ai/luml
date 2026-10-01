@@ -9,7 +9,10 @@ from luml.schemas.organization import (
 )
 from luml.schemas.user import CreateUser
 
-from tests.conftest import OrganizationFixtureData, OrganizationWithMembersFixtureData
+from tests.support.seeds import (
+    OrganizationFixtureData,
+    OrganizationWithMembersFixtureData,
+)
 
 
 @pytest.mark.asyncio

@@ -1,10 +1,8 @@
 import pytest
-from luml.models import OrganizationOrm
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.orbits import OrbitRepository
-from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import S3BucketSecret, S3BucketSecretCreate
 from luml.schemas.collections import CollectionCreate, CollectionType
 from luml.schemas.orbit import (
@@ -19,20 +17,14 @@ from luml.schemas.orbit import (
     UpdateOrbitMember,
 )
 from luml.schemas.orbit_secret import OrbitSecretCreate
-from luml.schemas.organization import OrganizationCreateIn
 
-from tests.conftest import (
+from tests.support.builders import create_sibling_organization
+from tests.support.seeds import (
     CollectionFixtureData,
     OrbitFixtureData,
     OrbitWithMembersFixtureData,
     OrganizationFixtureData,
 )
-
-
-async def _create_sibling_organization(data: OrbitFixtureData) -> OrganizationOrm:
-    return await UserRepository(data.engine).create_organization(
-        data.user.id, OrganizationCreateIn(name="sibling org")
-    )
 
 
 @pytest.mark.asyncio
@@ -140,7 +132,7 @@ async def test_update_orbit_from_another_organization(
     data = create_orbit
     repo = OrbitRepository(data.engine)
     orbit = data.orbit
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     result = await repo.update_orbit(
         orbit.id, other_organization.id, OrbitUpdate(name="renamed")
@@ -160,7 +152,7 @@ async def test_delete_orbit_from_another_organization(
     data = create_orbit
     repo = OrbitRepository(data.engine)
     orbit = data.orbit
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     assert await repo.delete_orbit(orbit.id, other_organization.id) is False
     assert await repo.get_orbit_simple(orbit.id, orbit.organization_id) is not None
@@ -175,7 +167,7 @@ async def test_delete_orbit_from_another_organization_keeps_cascade_children(
     collection_repo = CollectionRepository(data.engine)
     secret_repo = OrbitSecretRepository(data.engine)
     orbit = data.orbit
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     secret = await secret_repo.create_orbit_secret(
         OrbitSecretCreate(name="child-secret", value="plaintext", orbit_id=orbit.id)
@@ -194,7 +186,7 @@ async def test_get_orbit_simple_from_another_organization(
     data = create_orbit
     repo = OrbitRepository(data.engine)
     orbit = data.orbit
-    other_organization = await _create_sibling_organization(data)
+    other_organization = await create_sibling_organization(data.engine, data.user.id)
 
     assert await repo.get_orbit_simple(orbit.id, other_organization.id) is None
     assert await repo.get_orbit_simple(orbit.id, orbit.organization_id) is not None

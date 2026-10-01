@@ -68,10 +68,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
-    create_async_engine,
 )
 
-from tests.conftest import (
+from tests.support.builders import create_artifact
+from tests.support.seeds import (
     CollectionFixtureData,
     OrganizationFixtureData,
     SatelliteFixtureData,
@@ -133,19 +133,13 @@ async def _set_limit(engine: AsyncEngine, organization_id: UUID, **limits: int) 
         await session.commit()
 
 
-def _artifact(template: ArtifactCreate, collection_id: UUID) -> ArtifactCreate:
-    data = template.model_copy()
-    data.collection_id = collection_id
-    data.unique_identifier = uuid.uuid4().hex
-    data.bucket_location = f"objects/{data.unique_identifier}"
-    return data
-
-
 async def _artifacts(
-    repo: ArtifactRepository, template: ArtifactCreate, collection_id: UUID, count: int
+    engine: AsyncEngine, template: ArtifactCreate, collection_id: UUID, count: int
 ) -> list[Artifact]:
     return [
-        await repo.create_artifact(_artifact(template, collection_id))
+        await create_artifact(
+            engine, template, collection_id, name=template.name, status=template.status
+        )
         for _ in range(count)
     ]
 
@@ -157,8 +151,12 @@ class TestConcurrencyGuards:
     ) -> None:
         data = create_collection
         repo = ArtifactRepository(data.engine)
-        artifact = await repo.create_artifact(
-            _artifact(test_artifact, data.collection.id)
+        artifact = await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=test_artifact.name,
+            status=test_artifact.status,
         )
 
         moved = await repo.request_deletion(artifact.id, data.collection.id)
@@ -216,9 +214,7 @@ class TestConcurrencyGuards:
         self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
     ) -> None:
         data = create_collection
-        artifacts = await _artifacts(
-            ArtifactRepository(data.engine), test_artifact, data.collection.id, 2
-        )
+        artifacts = await _artifacts(data.engine, test_artifact, data.collection.id, 2)
         track = await TrackRepository(data.engine).create_track(
             TrackCreate(
                 orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
@@ -256,9 +252,7 @@ class TestConcurrencyGuards:
         self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
     ) -> None:
         data = create_collection
-        artifacts = await _artifacts(
-            ArtifactRepository(data.engine), test_artifact, data.collection.id, 3
-        )
+        artifacts = await _artifacts(data.engine, test_artifact, data.collection.id, 3)
         track = await TrackRepository(data.engine).create_track(
             TrackCreate(
                 orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
@@ -301,7 +295,7 @@ class TestConcurrencyGuards:
     ) -> None:
         data = create_collection
         (artifact,) = await _artifacts(
-            ArtifactRepository(data.engine), test_artifact, data.collection.id, 1
+            data.engine, test_artifact, data.collection.id, 1
         )
         track = await TrackRepository(data.engine).create_track(
             TrackCreate(
@@ -364,11 +358,9 @@ class TestConcurrencyGuards:
 
     @pytest.mark.asyncio
     async def test_blacklisting_a_token_twice_reports_the_second_attempt(
-        self, create_database_and_apply_migrations: str
+        self, engine: AsyncEngine
     ) -> None:
-        repo = TokenBlackListRepository(
-            create_async_engine(create_database_and_apply_migrations)
-        )
+        repo = TokenBlackListRepository(engine)
         token = f"refresh-{uuid.uuid4()}"
         expire = int(time.time()) + 60
 
@@ -382,9 +374,8 @@ class TestConcurrencyGuards:
 
     @pytest.mark.asyncio
     async def test_blacklisting_propagates_unrelated_constraint_failures(
-        self, create_database_and_apply_migrations: str
+        self, engine: AsyncEngine
     ) -> None:
-        engine = create_async_engine(create_database_and_apply_migrations)
         repo = TokenBlackListRepository(engine)
         token = f"refresh-{uuid.uuid4()}"
 
@@ -398,8 +389,12 @@ class TestConcurrencyGuards:
     ) -> None:
         data = create_collection
         collections = CollectionRepository(data.engine)
-        await ArtifactRepository(data.engine).create_artifact(
-            _artifact(test_artifact, data.collection.id)
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=test_artifact.name,
+            status=test_artifact.status,
         )
 
         with pytest.raises(CollectionDeleteError, match="has artifacts"):
@@ -412,7 +407,6 @@ class TestConcurrencyGuards:
         self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
     ) -> None:
         data = create_collection
-        artifacts = ArtifactRepository(data.engine)
 
         async with AsyncSession(data.engine) as session:
             collection = (
@@ -423,7 +417,13 @@ class TestConcurrencyGuards:
                 )
             ).scalar_one()
             upload = asyncio.create_task(
-                artifacts.create_artifact(_artifact(test_artifact, data.collection.id))
+                create_artifact(
+                    data.engine,
+                    test_artifact,
+                    data.collection.id,
+                    name=test_artifact.name,
+                    status=test_artifact.status,
+                )
             )
             await _wait_for_lock_waiters(session, 1)
             assert not upload.done(), "the upload must wait on the collection row"
@@ -446,8 +446,20 @@ class TestConcurrencyGuards:
         await _set_limit(data.engine, data.organization.id, artifacts_limit=1)
 
         results = await _race(
-            repo.create_artifact(_artifact(test_artifact, data.collection.id)),
-            repo.create_artifact(_artifact(test_artifact, data.collection.id)),
+            create_artifact(
+                data.engine,
+                test_artifact,
+                data.collection.id,
+                name=test_artifact.name,
+                status=test_artifact.status,
+            ),
+            create_artifact(
+                data.engine,
+                test_artifact,
+                data.collection.id,
+                name=test_artifact.name,
+                status=test_artifact.status,
+            ),
         )
 
         winners, losers = _split(results, OrganizationLimitReachedError)
@@ -710,9 +722,7 @@ class TestConcurrencyGuards:
         self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
     ) -> None:
         data = create_collection
-        artifacts = await _artifacts(
-            ArtifactRepository(data.engine), test_artifact, data.collection.id, 3
-        )
+        artifacts = await _artifacts(data.engine, test_artifact, data.collection.id, 3)
         track = await TrackRepository(data.engine).create_track(
             TrackCreate(
                 orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
@@ -798,9 +808,8 @@ class TestConcurrencyGuards:
 
     @pytest.mark.asyncio
     async def test_blacklisting_keeps_the_longest_expiry(
-        self, create_database_and_apply_migrations: str
+        self, engine: AsyncEngine
     ) -> None:
-        engine = create_async_engine(create_database_and_apply_migrations)
         repo = TokenBlackListRepository(engine)
         token = f"refresh-{uuid.uuid4()}"
         base = int(time.time()) + 3600

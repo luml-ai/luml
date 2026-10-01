@@ -3,20 +3,17 @@ import uuid
 import pytest
 from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
 from luml.repositories.artifacts import ArtifactRepository
-from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.lineage import LineageRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.schemas.artifacts import (
-    Artifact,
     ArtifactCreate,
     ArtifactStatus,
     ArtifactType,
     ArtifactUpdate,
 )
-from luml.schemas.collections import CollectionCreate, CollectionType
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.lineage import LineageVia
@@ -25,41 +22,11 @@ from luml.schemas.satellite import SatelliteCreate
 from luml.schemas.tracks import TrackCreate, TrackEntryCreate
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import CollectionFixtureData
-
-
-async def _make_artifact(
-    repo: ArtifactRepository,
-    template: ArtifactCreate,
-    collection_id: uuid.UUID,
-    *,
-    name: str,
-    artifact_type: ArtifactType = ArtifactType.MODEL,
-    extra_values: dict[str, object] | None = None,
-) -> Artifact:
-    model = template.model_copy()
-    model.collection_id = collection_id
-    model.name = name
-    model.type = artifact_type
-    model.unique_identifier = str(uuid.uuid4())
-    if extra_values is not None:
-        model.extra_values = extra_values
-    return await repo.create_artifact(model)
-
-
-async def _make_collection(
-    engine: AsyncEngine, orbit_id: uuid.UUID, name: str
-) -> uuid.UUID:
-    collection = await CollectionRepository(engine).create_collection(
-        CollectionCreate(
-            orbit_id=orbit_id,
-            description=name,
-            name=name,
-            type=CollectionType.MODEL,
-            tags=[],
-        )
-    )
-    return collection.id
+from tests.support.builders import (
+    create_artifact,
+    create_collection as build_collection,
+)
+from tests.support.seeds import CollectionFixtureData
 
 
 @pytest.mark.asyncio
@@ -265,7 +232,7 @@ async def test_update_artifact_from_another_collection(
     model.collection_id = collection.id
     created_model = await repo.create_artifact(model)
 
-    sibling_collection_id = await _make_collection(engine, orbit.id, "sibling")
+    sibling_collection_id = (await build_collection(engine, orbit.id, "sibling")).id
 
     result = await repo.update_artifact(
         created_model.id,
@@ -307,8 +274,12 @@ async def test_delete_artifact_in_a_caller_transaction_is_rolled_back_with_it(
     data = create_collection
     artifact_repo = ArtifactRepository(data.engine)
     lineage_repo = LineageRepository(data.engine)
-    artifact = await _make_artifact(
-        artifact_repo, test_artifact, data.collection.id, name="kept-on-failure"
+    artifact = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="kept-on-failure",
+        status=test_artifact.status,
     )
 
     # The lineage clean-up that follows the delete fails: the delete must not
@@ -336,17 +307,19 @@ async def test_delete_artifact_preserves_connected_lineage_node_snapshot(
     data = create_collection
     artifact_repo = ArtifactRepository(data.engine)
     lineage_repo = LineageRepository(data.engine)
-    deleted_artifact = await _make_artifact(
-        artifact_repo,
+    deleted_artifact = await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="artifact-to-delete",
+        status=test_artifact.status,
     )
-    surviving_artifact = await _make_artifact(
-        artifact_repo,
+    surviving_artifact = await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="surviving-artifact",
+        status=test_artifact.status,
     )
     listed = await artifact_repo.get_artifacts_by_ids_in_orbit(
         data.orbit.id, [deleted_artifact.id, surviving_artifact.id]
@@ -403,8 +376,12 @@ async def test_delete_artifact_with_deployment_constraint(
     model.status = ArtifactStatus.UPLOADED
 
     created_model = await repo.create_artifact(model)
-    peer_model = await _make_artifact(
-        repo, test_artifact, collection.id, name="lineage-peer"
+    peer_model = await create_artifact(
+        engine,
+        test_artifact,
+        collection.id,
+        name="lineage-peer",
+        status=test_artifact.status,
     )
     listed = await repo.get_artifacts_by_ids_in_orbit(
         orbit.id, [created_model.id, peer_model.id]
@@ -663,10 +640,20 @@ async def test_get_collection_artifacts_search_partial_case_insensitive(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    resnet = await _make_artifact(
-        repo, test_artifact, data.collection.id, name="ResNet50"
+    resnet = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="ResNet50",
+        status=test_artifact.status,
     )
-    await _make_artifact(repo, test_artifact, data.collection.id, name="BERT")
+    await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="BERT",
+        status=test_artifact.status,
+    )
 
     items, _ = await repo.get_collection_artifacts(
         data.orbit.id, PaginationParams(limit=100), search="resnet"
@@ -682,7 +669,13 @@ async def test_get_collection_artifacts_search_no_match(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    await _make_artifact(repo, test_artifact, data.collection.id, name="ResNet50")
+    await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="ResNet50",
+        status=test_artifact.status,
+    )
 
     items, cursor = await repo.get_collection_artifacts(
         data.orbit.id, PaginationParams(limit=100), search="nonexistent"
@@ -700,7 +693,13 @@ async def test_get_collection_artifacts_pagination_by_created_at(
     repo = ArtifactRepository(data.engine)
 
     for i in range(3):
-        await _make_artifact(repo, test_artifact, data.collection.id, name=f"model-{i}")
+        await create_artifact(
+            data.engine,
+            test_artifact,
+            data.collection.id,
+            name=f"model-{i}",
+            status=test_artifact.status,
+        )
 
     first_page, cursor = await repo.get_collection_artifacts(
         data.orbit.id, PaginationParams(limit=2)
@@ -725,8 +724,12 @@ async def test_get_collection_artifacts_excludes_other_orbit(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    in_scope = await _make_artifact(
-        repo, test_artifact, data.collection.id, name="in-scope"
+    in_scope = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="in-scope",
+        status=test_artifact.status,
     )
 
     other_orbit = await OrbitRepository(data.engine).create_orbit(
@@ -734,10 +737,16 @@ async def test_get_collection_artifacts_excludes_other_orbit(
         OrbitCreateIn(name="other orbit", bucket_secret_id=data.bucket_secret.id),
     )
     assert other_orbit is not None
-    other_collection_id = await _make_collection(
-        data.engine, other_orbit.id, "other-collection"
+    other_collection_id = (
+        await build_collection(data.engine, other_orbit.id, "other-collection")
+    ).id
+    await create_artifact(
+        data.engine,
+        test_artifact,
+        other_collection_id,
+        name="out-of-scope",
+        status=test_artifact.status,
     )
-    await _make_artifact(repo, test_artifact, other_collection_id, name="out-of-scope")
 
     items, _ = await repo.get_collection_artifacts(
         data.orbit.id, PaginationParams(limit=100)
@@ -753,12 +762,24 @@ async def test_get_collection_artifacts_whole_orbit_without_collection_ids(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    second_collection_id = await _make_collection(
-        data.engine, data.orbit.id, "second-collection"
-    )
+    second_collection_id = (
+        await build_collection(data.engine, data.orbit.id, "second-collection")
+    ).id
 
-    a1 = await _make_artifact(repo, test_artifact, data.collection.id, name="a1")
-    a2 = await _make_artifact(repo, test_artifact, second_collection_id, name="a2")
+    a1 = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="a1",
+        status=test_artifact.status,
+    )
+    a2 = await create_artifact(
+        data.engine,
+        test_artifact,
+        second_collection_id,
+        name="a2",
+        status=test_artifact.status,
+    )
 
     items, _ = await repo.get_collection_artifacts(
         data.orbit.id, PaginationParams(limit=100)
@@ -774,12 +795,24 @@ async def test_get_collection_artifacts_collection_ids_subset(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    second_collection_id = await _make_collection(
-        data.engine, data.orbit.id, "second-collection"
-    )
+    second_collection_id = (
+        await build_collection(data.engine, data.orbit.id, "second-collection")
+    ).id
 
-    target = await _make_artifact(repo, test_artifact, data.collection.id, name="t")
-    await _make_artifact(repo, test_artifact, second_collection_id, name="other")
+    target = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="t",
+        status=test_artifact.status,
+    )
+    await create_artifact(
+        data.engine,
+        test_artifact,
+        second_collection_id,
+        name="other",
+        status=test_artifact.status,
+    )
 
     items, _ = await repo.get_collection_artifacts(
         data.orbit.id,
@@ -797,16 +830,34 @@ async def test_get_collection_artifacts_multiple_collection_ids(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    second_collection_id = await _make_collection(
-        data.engine, data.orbit.id, "second-collection"
-    )
-    third_collection_id = await _make_collection(
-        data.engine, data.orbit.id, "third-collection"
-    )
+    second_collection_id = (
+        await build_collection(data.engine, data.orbit.id, "second-collection")
+    ).id
+    third_collection_id = (
+        await build_collection(data.engine, data.orbit.id, "third-collection")
+    ).id
 
-    a1 = await _make_artifact(repo, test_artifact, data.collection.id, name="a1")
-    a2 = await _make_artifact(repo, test_artifact, second_collection_id, name="a2")
-    await _make_artifact(repo, test_artifact, third_collection_id, name="a3")
+    a1 = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="a1",
+        status=test_artifact.status,
+    )
+    a2 = await create_artifact(
+        data.engine,
+        test_artifact,
+        second_collection_id,
+        name="a2",
+        status=test_artifact.status,
+    )
+    await create_artifact(
+        data.engine,
+        test_artifact,
+        third_collection_id,
+        name="a3",
+        status=test_artifact.status,
+    )
 
     items, _ = await repo.get_collection_artifacts(
         data.orbit.id,
@@ -824,26 +875,29 @@ async def test_get_collection_artifacts_multiple_types(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    model = await _make_artifact(
-        repo,
+    model = await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="m",
         artifact_type=ArtifactType.MODEL,
+        status=test_artifact.status,
     )
-    dataset = await _make_artifact(
-        repo,
+    dataset = await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="d",
         artifact_type=ArtifactType.DATASET,
+        status=test_artifact.status,
     )
-    await _make_artifact(
-        repo,
+    await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="e",
         artifact_type=ArtifactType.EXPERIMENT,
+        status=test_artifact.status,
     )
 
     items, _ = await repo.get_collection_artifacts(
@@ -862,40 +916,44 @@ async def test_get_collection_artifacts_combined_filters(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    second_collection_id = await _make_collection(
-        data.engine, data.orbit.id, "second-collection"
-    )
+    second_collection_id = (
+        await build_collection(data.engine, data.orbit.id, "second-collection")
+    ).id
 
-    target = await _make_artifact(
-        repo,
+    target = await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="prod-model",
         artifact_type=ArtifactType.MODEL,
+        status=test_artifact.status,
     )
     # Right collection + name, wrong type.
-    await _make_artifact(
-        repo,
+    await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="prod-model",
         artifact_type=ArtifactType.DATASET,
+        status=test_artifact.status,
     )
     # Right type + name, wrong collection.
-    await _make_artifact(
-        repo,
+    await create_artifact(
+        data.engine,
         test_artifact,
         second_collection_id,
         name="prod-model",
         artifact_type=ArtifactType.MODEL,
+        status=test_artifact.status,
     )
     # Right type + collection, name does not match search.
-    await _make_artifact(
-        repo,
+    await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="staging-model",
         artifact_type=ArtifactType.MODEL,
+        status=test_artifact.status,
     )
 
     items, _ = await repo.get_collection_artifacts(
@@ -931,15 +989,21 @@ async def test_get_collection_artifacts_metric_sort_without_collection_ids_raise
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    await _make_artifact(
-        repo, test_artifact, data.collection.id, name="first", extra_values={"acc": 0.1}
+    await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="first",
+        extra_values={"acc": 0.1},
+        status=test_artifact.status,
     )
-    await _make_artifact(
-        repo,
+    await create_artifact(
+        data.engine,
         test_artifact,
         data.collection.id,
         name="second",
         extra_values={"acc": 0.9},
+        status=test_artifact.status,
     )
 
     with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
@@ -988,10 +1052,20 @@ async def test_get_collection_artifacts_excludes_tracks(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    in_track = await _make_artifact(
-        repo, test_artifact, data.collection.id, name="in-track"
+    in_track = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="in-track",
+        status=test_artifact.status,
     )
-    free = await _make_artifact(repo, test_artifact, data.collection.id, name="free")
+    free = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="free",
+        status=test_artifact.status,
+    )
 
     track_id = await _add_artifact_to_track(
         data.engine, data.orbit.id, in_track.id, data.user.email
@@ -1017,8 +1091,20 @@ async def test_get_collection_artifacts_excludes_only_listed_tracks(
     data = create_collection
     repo = ArtifactRepository(data.engine)
 
-    a_in_t1 = await _make_artifact(repo, test_artifact, data.collection.id, name="t1")
-    a_in_t2 = await _make_artifact(repo, test_artifact, data.collection.id, name="t2")
+    a_in_t1 = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="t1",
+        status=test_artifact.status,
+    )
+    a_in_t2 = await create_artifact(
+        data.engine,
+        test_artifact,
+        data.collection.id,
+        name="t2",
+        status=test_artifact.status,
+    )
 
     t1 = await _add_artifact_to_track(
         data.engine, data.orbit.id, a_in_t1.id, data.user.email, name="track-1"

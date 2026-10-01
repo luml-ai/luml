@@ -2,18 +2,17 @@ import pytest
 from luml.repositories.users import UserRepository
 from luml.schemas.organization import Organization, OrganizationCreateIn
 from luml.schemas.user import CreateUser
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.conftest import OrganizationWithMembersFixtureData
+from tests.support.seeds import OrganizationWithMembersFixtureData
 
 
 @pytest.mark.asyncio
 async def test_create_organization(
-    create_database_and_apply_migrations: str,
+    engine: AsyncEngine,
     test_user_create: CreateUser,
     test_org: Organization,
 ) -> None:
-    engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     organization = test_org
 
@@ -26,7 +25,6 @@ async def test_create_organization(
     assert created_organization.id
     assert created_organization.name == test_org.name
     assert created_organization.logo == test_org.logo
-    await engine.dispose()
 
 
 @pytest.mark.asyncio
