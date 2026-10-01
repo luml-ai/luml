@@ -408,8 +408,8 @@ mangled attributes kept, and any move between areas.
 - [x] Task 10 — `test_monitoring.py`, `test_platform_admin.py`, `test_platform_admin_auth.py`
   - [x] One class each; `test_platform_admin_auth.py`'s three classes merge with name prefixes; one audit logger fixture replaces the two repeated `disabled` patches; `test_platform_admin_auth.py`'s `_handler` builder becomes the `mocks` fixture; convert; verify; report.
 
-- [ ] Task 11 — `unit/repositories/` and `unit/infra/`
-  - [ ] `test_artifacts.py` and `test_lineage.py` to one class each (`test_base.py` already is); `unit/infra/test_security.py` and `test_middleware.py` to one class each; identifiers and naming rules; verify; report.
+- [x] Task 11 — `unit/repositories/` and `unit/infra/`
+  - [x] `test_artifacts.py` and `test_lineage.py` to one class each (`test_base.py` already is); `unit/infra/test_security.py` and `test_middleware.py` to one class each; identifiers and naming rules; verify; report.
 
 - [ ] Task 12 — `integration/repositories/artifacts/` and `test_lineage.py`
   - [ ] Artifacts: folder with `conftest.py` (`repository` fixture, `_add_artifact_to_track`) and the four files, `test_artifacts_batch_deletion.py` moving in as `test_batch_deletion.py`; lineage: one class in place with `repository` and `_get_listed_artifacts`; convert; verify; report.
