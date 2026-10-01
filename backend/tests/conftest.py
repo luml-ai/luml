@@ -1,11 +1,13 @@
+import asyncio
 import datetime
 import random
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from dataclasses import dataclass
 from uuid import UUID, uuid7
 
 import asyncpg  # type: ignore[import-untyped]
+import pytest
 import pytest_asyncio
 from luml.models import OrganizationOrm
 from luml.repositories.artifacts import ArtifactRepository
@@ -60,8 +62,8 @@ from luml.schemas.user import (
 )
 from luml.settings import config
 from sqlalchemy import update
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     create_async_engine,
@@ -69,11 +71,12 @@ from sqlalchemy.ext.asyncio import (
 from utils.db import migrate_db
 
 TEST_DB_NAME = "df_studio_test"
+TEMPLATE_DB_NAME = "df_studio_test_template"
 TEST_PASSWORD = "test_password"
 
 
-async def _terminate_connections(conn: AsyncConnection, db_name: str) -> None:
-    await conn.execute(  # type: ignore[call-overload]
+async def _terminate_connections(conn: asyncpg.Connection, db_name: str) -> None:
+    await conn.execute(
         """
         SELECT pg_terminate_backend(pid)
         FROM pg_stat_activity
@@ -81,25 +84,30 @@ async def _terminate_connections(conn: AsyncConnection, db_name: str) -> None:
         """,
         db_name,
     )
+    async with asyncio.timeout(5):
+        while await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE datname = $1 AND pid <> pg_backend_pid()
+            );
+            """,
+            db_name,
+        ):
+            await asyncio.sleep(0.001)
 
 
-async def _create_database(admin_dsn: str, db_name: str) -> None:
-    conn = await asyncpg.connect(admin_dsn)
-    try:
-        await _terminate_connections(conn, db_name)
-        await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
-        await conn.execute(f'CREATE DATABASE "{db_name}";')
-    finally:
-        await conn.close()
+async def _create_database(
+    conn: asyncpg.Connection, db_name: str, *, template: str | None = None
+) -> None:
+    await _drop_database(conn, db_name)
+    template_clause = f' TEMPLATE "{template}"' if template else ""
+    await conn.execute(f'CREATE DATABASE "{db_name}"{template_clause};')
 
 
-async def _drop_database(admin_dsn: str, db_name: str) -> None:
-    conn = await asyncpg.connect(admin_dsn)
-    try:
-        await _terminate_connections(conn, db_name)
-        await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
-    finally:
-        await conn.close()
+async def _drop_database(conn: asyncpg.Connection, db_name: str) -> None:
+    await _terminate_connections(conn, db_name)
+    await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
 
 
 @dataclass
@@ -144,18 +152,54 @@ class SatelliteFixtureData(OrbitFixtureData):
     satellite: Satellite
 
 
-@pytest_asyncio.fixture(scope="function")
-async def create_database_and_apply_migrations() -> AsyncGenerator[str]:  # noqa: ANN201
-    admin_dsn = config.POSTGRESQL_DSN.replace("+asyncpg", "").replace(
-        "df_studio_test", "postgres"
-    )
+@pytest.fixture(scope="session")
+def database_template() -> Generator[tuple[str, str]]:
     test_dsn = config.POSTGRESQL_DSN
+    test_url = make_url(test_dsn)
+    if (
+        test_url.database != TEST_DB_NAME
+        or {"database", "dbname"} & test_url.query.keys()
+    ):
+        pytest.exit(
+            f"Integration tests require POSTGRESQL_DSN to name {TEST_DB_NAME} "
+            "without a database override in its query parameters.",
+            returncode=pytest.ExitCode.USAGE_ERROR,
+        )
+    admin_dsn = test_url.set(
+        drivername="postgresql", database="postgres"
+    ).render_as_string(hide_password=False)
+    template_dsn = test_url.set(database=TEMPLATE_DB_NAME).render_as_string(
+        hide_password=False
+    )
 
-    await _create_database(admin_dsn, TEST_DB_NAME)
-    await migrate_db(test_dsn)
-    yield test_dsn
+    with asyncio.Runner() as runner:
+        conn = runner.run(asyncpg.connect(admin_dsn))
+        try:
+            runner.run(_drop_database(conn, TEST_DB_NAME))
+            runner.run(_create_database(conn, TEMPLATE_DB_NAME))
+            runner.run(migrate_db(template_dsn))
+            yield admin_dsn, test_dsn
+        finally:
+            try:
+                runner.run(_drop_database(conn, TEMPLATE_DB_NAME))
+            finally:
+                runner.run(conn.close())
 
-    await _drop_database(admin_dsn, TEST_DB_NAME)
+
+@pytest_asyncio.fixture(scope="function")
+async def create_database_and_apply_migrations(
+    database_template: tuple[str, str],
+) -> AsyncGenerator[str]:
+    admin_dsn, test_dsn = database_template
+    conn = await asyncpg.connect(admin_dsn)
+    try:
+        await _create_database(conn, TEST_DB_NAME, template=TEMPLATE_DB_NAME)
+        yield test_dsn
+    finally:
+        try:
+            await _drop_database(conn, TEST_DB_NAME)
+        finally:
+            await conn.close()
 
 
 @pytest_asyncio.fixture(scope="function")

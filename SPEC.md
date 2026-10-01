@@ -555,12 +555,12 @@ replaced by `df_studio_test`; from Task 1 on, `.env.test` names the test databas
 plain `uv run pytest` is correct. Tests carry no explanatory comments or docstrings;
 new tests are class methods.
 
-- [ ] Task 1 — Database fixture: connection string guard and template database
-  - [ ] In `backend/tests/conftest.py`, replace the text-replacement derivation of the administrative connection string with URL parsing; add the session start check that stops with an error naming `df_studio_test` when the configured database differs; keep `create_database_and_apply_migrations` as the per-test fixture name and return type.
-  - [ ] Add the session-scoped preparation: terminate sessions, drop and create `df_studio_test_template`, migrate it with `utils/db.py`, drop it at session end; make sure no connection outlives it.
-  - [ ] Rewrite the per-test fixture as terminate-drop-clone-yield-terminate-drop using `CREATE DATABASE … TEMPLATE`.
-  - [ ] Point `POSTGRESQL_DSN` in `backend/.env.test` at `df_studio_test`.
-  - [ ] Verify: `pytest tests/unit` passes with Postgres stopped; `pytest tests/integration` with the DSN naming `df_studio` stops before touching it; two consecutive integration runs pass with 277 cases each; a run interrupted mid-way followed by a full run passes; the integration run takes under 90 seconds locally (record the number in the task report).
+- [x] Task 1 — Database fixture: connection string guard and template database
+  - [x] In `backend/tests/conftest.py`, replace the text-replacement derivation of the administrative connection string with URL parsing; add the session start check that stops with an error naming `df_studio_test` when the configured database differs; keep `create_database_and_apply_migrations` as the per-test fixture name and return type.
+  - [x] Add the session-scoped preparation: terminate sessions, drop and create `df_studio_test_template`, migrate it with `utils/db.py`, drop it at session end; make sure no connection outlives it.
+  - [x] Rewrite the per-test fixture as terminate-drop-clone-yield-terminate-drop using `CREATE DATABASE … TEMPLATE`.
+  - [x] Point `POSTGRESQL_DSN` in `backend/.env.test` at `df_studio_test`.
+  - [x] Verify: `pytest tests/unit` passes with Postgres stopped; `pytest tests/integration` with the DSN naming `df_studio` stops before touching it; two consecutive integration runs pass with 277 cases each; a run interrupted mid-way followed by a full run passes; the integration run takes under 90 seconds locally (record the number in the task report).
 
 - [ ] Task 2 — Pytest configuration and CI workflow
   - [ ] Add `[tool.pytest.ini_options]` with `testpaths` and `asyncio_mode = "auto"` to `backend/pyproject.toml`; confirm 1 054 cases still collect with unchanged identifiers and no marker warnings.
