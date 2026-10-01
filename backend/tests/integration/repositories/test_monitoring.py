@@ -6,44 +6,37 @@ from luml.repositories.monitoring import MonitoringLaunchTokenRepository
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
-@pytest.mark.asyncio
-async def test_consume_is_single_use(
-    engine: AsyncEngine,
-) -> None:
-    repo = MonitoringLaunchTokenRepository(engine)
-
-    jti = uuid7()
-    expire = int(time.time()) + 60
-
-    first = await repo.consume(jti, expire)
-    second = await repo.consume(jti, expire)
-
-    assert first is True
-    assert second is False
+@pytest.fixture
+def repository(engine: AsyncEngine) -> MonitoringLaunchTokenRepository:
+    return MonitoringLaunchTokenRepository(engine)
 
 
-@pytest.mark.asyncio
-async def test_consume_distinct_jtis_succeed(
-    engine: AsyncEngine,
-) -> None:
-    repo = MonitoringLaunchTokenRepository(engine)
+class TestMonitoringLaunchTokenRepository:
+    async def test_consume_returns_false_when_jti_already_consumed(
+        self, repository: MonitoringLaunchTokenRepository
+    ) -> None:
+        jti = uuid7()
+        expire = int(time.time()) + 60
 
-    expire = int(time.time()) + 60
+        first = await repository.consume(jti, expire)
+        second = await repository.consume(jti, expire)
 
-    assert await repo.consume(uuid7(), expire) is True
-    assert await repo.consume(uuid7(), expire) is True
+        assert first is True
+        assert second is False
 
+    async def test_consume_returns_true_for_distinct_jtis(
+        self, repository: MonitoringLaunchTokenRepository
+    ) -> None:
+        expire = int(time.time()) + 60
 
-@pytest.mark.asyncio
-async def test_expired_jti_is_cleaned_up(
-    engine: AsyncEngine,
-) -> None:
-    repo = MonitoringLaunchTokenRepository(engine)
+        assert await repository.consume(uuid7(), expire) is True
+        assert await repository.consume(uuid7(), expire) is True
 
-    jti = uuid7()
-    expire = int(time.time()) - 60
+    async def test_consume_succeeds_again_when_expired_jti_was_deleted(
+        self, repository: MonitoringLaunchTokenRepository
+    ) -> None:
+        jti = uuid7()
+        expire = int(time.time()) - 60
 
-    # consume() calls delete_expired_tokens(), so an already-expired jti is
-    # removed and does not block a later consume of the same jti.
-    assert await repo.consume(jti, expire) is True
-    assert await repo.consume(jti, expire) is True
+        assert await repository.consume(jti, expire) is True
+        assert await repository.consume(jti, expire) is True

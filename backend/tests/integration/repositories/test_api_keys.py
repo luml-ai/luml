@@ -9,62 +9,61 @@ from luml.schemas.user import (
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 
-@pytest.mark.asyncio
-async def test_create_user_api_key(
-    engine: AsyncEngine, test_user_create: CreateUser
-) -> None:
-    user_repo = UserRepository(engine)
-
-    created_user = await user_repo.create_user(test_user_create)
-
-    api_key_update = UpdateUserAPIKey(id=created_user.id, hashed_api_key="api_key_hash")
-    result = await user_repo.create_user_api_key(api_key_update)
-
-    assert created_user
-    assert result is True
+@pytest.fixture
+def repository(engine: AsyncEngine) -> UserRepository:
+    return UserRepository(engine)
 
 
-@pytest.mark.asyncio
-async def test_get_user_by_api_key_hash(
-    engine: AsyncEngine, test_user_create: CreateUser
-) -> None:
-    user_repo = UserRepository(engine)
+class TestUserApiKeyRepository:
+    async def test_create_user_api_key_returns_true(
+        self, repository: UserRepository, new_user: CreateUser
+    ) -> None:
+        created_user = await repository.create_user(new_user)
 
-    created_user = await user_repo.create_user(test_user_create)
+        api_key_update = UpdateUserAPIKey(
+            id=created_user.id, hashed_api_key="api_key_hash"
+        )
+        result = await repository.create_user_api_key(api_key_update)
 
-    api_key_hash = f"test_api_key_hash_{uuid.uuid4()}"
-    api_key_update = UpdateUserAPIKey(id=created_user.id, hashed_api_key=api_key_hash)
-    await user_repo.create_user_api_key(api_key_update)
+        assert created_user
+        assert result is True
 
-    fetched_user = await user_repo.get_user_by_api_key_hash(api_key_hash)
+    async def test_get_user_by_api_key_hash_returns_key_owner(
+        self, repository: UserRepository, new_user: CreateUser
+    ) -> None:
+        created_user = await repository.create_user(new_user)
 
-    assert fetched_user
-    assert fetched_user.id == created_user.id
-    assert fetched_user.has_api_key is True
+        api_key_hash = f"test_api_key_hash_{uuid.uuid4()}"
+        api_key_update = UpdateUserAPIKey(
+            id=created_user.id, hashed_api_key=api_key_hash
+        )
+        await repository.create_user_api_key(api_key_update)
 
+        fetched_user = await repository.get_user_by_api_key_hash(api_key_hash)
 
-@pytest.mark.asyncio
-async def test_delete_api_key_by_user_id(
-    engine: AsyncEngine, test_user_create: CreateUser
-) -> None:
-    user_repo = UserRepository(engine)
+        assert fetched_user
+        assert fetched_user.id == created_user.id
+        assert fetched_user.has_api_key is True
 
-    created_user = await user_repo.create_user(test_user_create)
-    assert created_user
-    key_hash = f"api_key_hash_{uuid.uuid4()}"
+    async def test_delete_api_key_by_user_id_removes_key(
+        self, repository: UserRepository, new_user: CreateUser
+    ) -> None:
+        created_user = await repository.create_user(new_user)
+        assert created_user
+        key_hash = f"api_key_hash_{uuid.uuid4()}"
 
-    api_key_update = UpdateUserAPIKey(id=created_user.id, hashed_api_key=key_hash)
-    await user_repo.create_user_api_key(api_key_update)
+        api_key_update = UpdateUserAPIKey(id=created_user.id, hashed_api_key=key_hash)
+        await repository.create_user_api_key(api_key_update)
 
-    user_with_key = await user_repo.get_public_user_by_id(created_user.id)
-    assert user_with_key
-    assert user_with_key.has_api_key is True
+        user_with_key = await repository.get_public_user_by_id(created_user.id)
+        assert user_with_key
+        assert user_with_key.has_api_key is True
 
-    await user_repo.delete_api_key_by_user_id(created_user.id)
+        await repository.delete_api_key_by_user_id(created_user.id)
 
-    user_without_key = await user_repo.get_public_user_by_id(created_user.id)
-    assert user_without_key
-    assert user_without_key.has_api_key is False
+        user_without_key = await repository.get_public_user_by_id(created_user.id)
+        assert user_without_key
+        assert user_without_key.has_api_key is False
 
-    fetched_user = await user_repo.get_user_by_api_key_hash(key_hash)
-    assert fetched_user is None
+        fetched_user = await repository.get_user_by_api_key_hash(key_hash)
+        assert fetched_user is None

@@ -8,6 +8,7 @@ from luml.schemas.organization import (
     UpdateOrganizationMember,
 )
 from luml.schemas.user import CreateUser
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.seeds import (
     OrganizationFixtureData,
@@ -15,99 +16,105 @@ from tests.support.seeds import (
 )
 
 
-@pytest.mark.asyncio
-async def test_create_organization_member(
-    create_organization_with_user: OrganizationFixtureData, test_user_create: CreateUser
-) -> None:
-    data = create_organization_with_user
-    repo = UserRepository(data.engine)
-    created_organization = data.organization
-    test_user_create.email = f"test_{uuid.uuid4()}@example.com"
-    user = await repo.create_user(test_user_create)
-    created_member = await repo.create_organization_member(
-        OrganizationMemberCreate(
-            user_id=user.id,
-            organization_id=created_organization.id,
-            role=OrgRole.MEMBER,
+@pytest.fixture
+def repository(engine: AsyncEngine) -> UserRepository:
+    return UserRepository(engine)
+
+
+class TestOrganizationMemberRepository:
+    async def test_create_organization_member_returns_member_with_user(
+        self,
+        repository: UserRepository,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
+    ) -> None:
+        new_user.email = f"test_{uuid.uuid4()}@example.com"
+        created_user = await repository.create_user(new_user)
+        created_member = await repository.create_organization_member(
+            OrganizationMemberCreate(
+                user_id=created_user.id,
+                organization_id=seeded_organization.organization.id,
+                role=OrgRole.MEMBER,
+            )
         )
-    )
 
-    assert created_member.id
-    assert created_member.organization_id == created_organization.id
-    assert created_member.user.id == user.id
-    assert created_member.role == OrgRole.MEMBER
+        assert created_member.id
+        assert created_member.organization_id == seeded_organization.organization.id
+        assert created_member.user.id == created_user.id
+        assert created_member.role == OrgRole.MEMBER
 
+    async def test_update_organization_member_changes_role(
+        self,
+        repository: UserRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        updated_member = await repository.update_organization_member(
+            seeded_organization.member.id,
+            UpdateOrganizationMember(role=OrgRole.ADMIN),
+        )
 
-@pytest.mark.asyncio
-async def test_update_organization_member(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    repo = UserRepository(data.engine)
-    member = data.member
+        assert updated_member
+        assert updated_member.id == seeded_organization.member.id
+        assert updated_member.role == OrgRole.ADMIN
 
-    updated_member = await repo.update_organization_member(
-        member.id, UpdateOrganizationMember(role=OrgRole.ADMIN)
-    )
+    async def test_delete_organization_member_removes_member(
+        self,
+        repository: UserRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        await repository.delete_organization_member(seeded_organization.member.id)
+        fetched_member = await repository.get_organization_member_by_id(
+            seeded_organization.member.id
+        )
 
-    assert updated_member
-    assert updated_member.id == member.id
-    assert updated_member.role == OrgRole.ADMIN
+        assert fetched_member is None
 
+    async def test_get_organization_members_count_returns_number_of_members(
+        self,
+        repository: UserRepository,
+        seeded_organization_with_members: OrganizationWithMembersFixtureData,
+    ) -> None:
+        count = await repository.get_organization_members_count(
+            seeded_organization_with_members.organization.id
+        )
 
-@pytest.mark.asyncio
-async def test_delete_organization_member(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    repo = UserRepository(data.engine)
-    member = data.member
+        assert len(seeded_organization_with_members.members) == count
 
-    await repo.delete_organization_member(member.id)
-    fetched_member = await repo.get_organization_member_by_id(member.id)
+    async def test_get_organization_members_returns_members_ordered_by_role(
+        self,
+        repository: UserRepository,
+        seeded_organization_with_members: OrganizationWithMembersFixtureData,
+    ) -> None:
+        await repository.update_organization_member(
+            seeded_organization_with_members.member.id,
+            UpdateOrganizationMember(role=OrgRole.MEMBER),
+        )
+        await repository.update_organization_member(
+            seeded_organization_with_members.members[-2].id,
+            UpdateOrganizationMember(role=OrgRole.ADMIN),
+        )
+        await repository.delete_organization_member(
+            seeded_organization_with_members.members[-1].id
+        )
+        await repository.create_owner(
+            seeded_organization_with_members.members[-1].user.id,
+            seeded_organization_with_members.organization.id,
+        )
 
-    assert fetched_member is None
+        db_members = await repository.get_organization_members(
+            seeded_organization_with_members.organization.id
+        )
 
-
-@pytest.mark.asyncio
-async def test_get_organization_members_count(
-    create_organization_with_members: OrganizationWithMembersFixtureData,
-) -> None:
-    data = create_organization_with_members
-    repo = UserRepository(data.engine)
-    organization, members = (data.organization, data.members)
-
-    count = await repo.get_organization_members_count(organization.id)
-
-    assert len(members) == count
-
-
-@pytest.mark.asyncio
-async def test_get_organization_members(
-    create_organization_with_members: OrganizationWithMembersFixtureData,
-) -> None:
-    data = create_organization_with_members
-    repo = UserRepository(data.engine)
-    organization, members = (data.organization, data.members)
-
-    await repo.update_organization_member(
-        data.member.id, UpdateOrganizationMember(role=OrgRole.MEMBER)
-    )
-    await repo.update_organization_member(
-        members[-2].id, UpdateOrganizationMember(role=OrgRole.ADMIN)
-    )
-    await repo.delete_organization_member(members[-1].id)
-    await repo.create_owner(members[-1].user.id, organization.id)
-
-    db_members = await repo.get_organization_members(organization.id)
-
-    assert db_members
-    assert len(members) == len(db_members)
-    assert db_members[0].id
-    assert db_members[0].organization_id == organization.id
-    assert db_members[0].user.id
-    assert [member.role for member in db_members] == [
-        OrgRole.OWNER,
-        OrgRole.ADMIN,
-        *([OrgRole.MEMBER] * (len(members) - 2)),
-    ]
+        assert db_members
+        assert len(seeded_organization_with_members.members) == len(db_members)
+        assert db_members[0].id
+        assert (
+            db_members[0].organization_id
+            == seeded_organization_with_members.organization.id
+        )
+        assert db_members[0].user.id
+        assert [member.role for member in db_members] == [
+            OrgRole.OWNER,
+            OrgRole.ADMIN,
+            *([OrgRole.MEMBER] * (len(seeded_organization_with_members.members) - 2)),
+        ]

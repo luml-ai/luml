@@ -10,6 +10,7 @@ from luml.schemas.organization import (
     OrgRole,
 )
 from luml.schemas.user import User
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.seeds import OrganizationFixtureData
 
@@ -25,115 +26,122 @@ def get_invite_obj(
     )
 
 
-@pytest.mark.asyncio
-async def test_create_organization_invite(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, user, organization = data.engine, data.user, data.organization
-    repo = InviteRepository(engine)
-
-    invite = get_invite_obj(organization, user)
-
-    created_invite = await repo.create_organization_invite(invite)
-
-    assert created_invite.email == invite.email
-    assert created_invite.organization_id == invite.organization_id
+@pytest.fixture
+def repository(engine: AsyncEngine) -> InviteRepository:
+    return InviteRepository(engine)
 
 
-@pytest.mark.asyncio
-async def test_delete_organization_invite(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, user, organization = data.engine, data.user, data.organization
-    repo = InviteRepository(engine)
+class TestInviteRepository:
+    async def test_create_organization_invite_returns_created_invite(
+        self,
+        repository: InviteRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        invite_create = get_invite_obj(
+            seeded_organization.organization, seeded_organization.user
+        )
 
-    invite = get_invite_obj(organization, user)
+        created_invite = await repository.create_organization_invite(invite_create)
 
-    created_invite = await repo.create_organization_invite(invite)
-    assert created_invite
+        assert created_invite.email == invite_create.email
+        assert created_invite.organization_id == invite_create.organization_id
 
-    await repo.delete_organization_invite(organization.id, created_invite.id)
+    async def test_delete_organization_invite_removes_invite(
+        self,
+        repository: InviteRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        invite_create = get_invite_obj(
+            seeded_organization.organization, seeded_organization.user
+        )
 
-    result = await repo.get_invite(created_invite.id)
-    assert result is None
+        created_invite = await repository.create_organization_invite(invite_create)
+        assert created_invite
 
+        await repository.delete_organization_invite(
+            seeded_organization.organization.id, created_invite.id
+        )
 
-@pytest.mark.asyncio
-async def test_delete_organization_invite_from_other_organization(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, user, organization = data.engine, data.user, data.organization
-    repo = InviteRepository(engine)
-    other_organization = await UserRepository(engine).create_organization(
-        user.id, OrganizationCreateIn(name="other org")
-    )
+        result = await repository.get_invite(created_invite.id)
+        assert result is None
 
-    created_invite = await repo.create_organization_invite(
-        get_invite_obj(organization, user)
-    )
+    async def test_delete_organization_invite_keeps_invite_when_organization_differs(
+        self,
+        repository: InviteRepository,
+        engine: AsyncEngine,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        other_organization = await UserRepository(engine).create_organization(
+            seeded_organization.user.id, OrganizationCreateIn(name="other org")
+        )
 
-    await repo.delete_organization_invite(other_organization.id, created_invite.id)
+        created_invite = await repository.create_organization_invite(
+            get_invite_obj(seeded_organization.organization, seeded_organization.user)
+        )
 
-    assert await repo.get_invite(created_invite.id) is not None
+        await repository.delete_organization_invite(
+            other_organization.id, created_invite.id
+        )
 
+        assert await repository.get_invite(created_invite.id) is not None
 
-@pytest.mark.asyncio
-async def test_get_invite(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, user, organization = data.engine, data.user, data.organization
-    repo = InviteRepository(engine)
+    async def test_get_invite_returns_invite_with_inviting_user(
+        self,
+        repository: InviteRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        created_invite = await repository.create_organization_invite(
+            get_invite_obj(seeded_organization.organization, seeded_organization.user)
+        )
+        assert created_invite
+        fetched_invite = await repository.get_invite(created_invite.id)
 
-    created_invite = await repo.create_organization_invite(
-        get_invite_obj(organization, user)
-    )
-    assert created_invite
-    fetched_invite = await repo.get_invite(created_invite.id)
+        assert fetched_invite
+        assert fetched_invite.id == created_invite.id
+        assert fetched_invite.email == created_invite.email
+        assert fetched_invite.invited_by_user
+        assert fetched_invite.invited_by_user.id == seeded_organization.user.id
+        assert fetched_invite.organization_id == created_invite.organization_id
 
-    assert fetched_invite
-    assert fetched_invite.id == created_invite.id
-    assert fetched_invite.email == created_invite.email
-    assert fetched_invite.invited_by_user
-    assert fetched_invite.invited_by_user.id == user.id
-    assert fetched_invite.organization_id == created_invite.organization_id
+    async def test_get_invites_by_organization_id_returns_all_invites(
+        self,
+        repository: InviteRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        for _ in range(4):
+            await repository.create_organization_invite(
+                get_invite_obj(
+                    seeded_organization.organization, seeded_organization.user
+                )
+            )
 
+        invites = await repository.get_invites_by_organization_id(
+            seeded_organization.organization.id
+        )
 
-@pytest.mark.asyncio
-async def test_get_invite_where(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, user, organization = data.engine, data.user, data.organization
-    repo = InviteRepository(engine)
+        assert invites
+        assert isinstance(invites, list)
+        assert len(invites) == 4
+        assert invites[0].organization_id == seeded_organization.organization.id
 
-    for _ in range(4):
-        await repo.create_organization_invite(get_invite_obj(organization, user))
+    async def test_delete_all_organization_invites_removes_all_invites(
+        self,
+        repository: InviteRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        for _ in range(4):
+            await repository.create_organization_invite(
+                get_invite_obj(
+                    seeded_organization.organization, seeded_organization.user
+                )
+            )
 
-    invites = await repo.get_invites_by_organization_id(organization.id)
+        await repository.delete_all_organization_invites(
+            seeded_organization.organization.id
+        )
 
-    assert invites
-    assert isinstance(invites, list)
-    assert len(invites) == 4
-    assert invites[0].organization_id == organization.id
+        invites = await repository.get_invites_by_organization_id(
+            seeded_organization.organization.id
+        )
 
-
-@pytest.mark.asyncio
-async def test_delete_invite_where(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, user, organization = data.engine, data.user, data.organization
-    repo = InviteRepository(engine)
-
-    for _ in range(4):
-        await repo.create_organization_invite(get_invite_obj(organization, user))
-
-    await repo.delete_all_organization_invites(organization.id)
-
-    invites = await repo.get_invites_by_organization_id(organization.id)
-
-    assert len(invites) == 0
+        assert len(invites) == 0

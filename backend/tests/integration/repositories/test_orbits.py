@@ -1,3 +1,5 @@
+import random
+
 import pytest
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
@@ -17,6 +19,7 @@ from luml.schemas.orbit import (
     UpdateOrbitMember,
 )
 from luml.schemas.orbit_secret import OrbitSecretCreate
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.builders import create_sibling_organization
 from tests.support.seeds import (
@@ -27,378 +30,384 @@ from tests.support.seeds import (
 )
 
 
-@pytest.mark.asyncio
-async def test_create_orbit(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, organization, secret = (
-        data.engine,
-        data.organization,
-        data.bucket_secret,
-    )
-    repo = OrbitRepository(engine)
-
-    orbit = OrbitCreateIn(name="test orbit", bucket_secret_id=secret.id)
-    created_orbit = await repo.create_orbit(organization.id, orbit)
-
-    assert created_orbit
-    assert created_orbit.id
-    assert created_orbit.name == orbit.name
+@pytest.fixture
+def repository(engine: AsyncEngine) -> OrbitRepository:
+    return OrbitRepository(engine)
 
 
-@pytest.mark.asyncio
-async def test_update_orbit(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, organization, secret = (
-        data.engine,
-        data.organization,
-        data.bucket_secret,
-    )
-    repo = OrbitRepository(engine)
-
-    orbit = OrbitCreateIn(name="test orbit", bucket_secret_id=secret.id)
-    created_orbit = await repo.create_orbit(organization.id, orbit)
-
-    assert created_orbit
-
-    new_name = created_orbit.name + "updated"
-    updated_orbit = await repo.update_orbit(
-        created_orbit.id, organization.id, OrbitUpdate(name=new_name)
-    )
-
-    assert updated_orbit
-    assert updated_orbit.id == created_orbit.id
-    assert updated_orbit.name == new_name
-    assert updated_orbit.bucket_secret_id == secret.id
-
-
-@pytest.mark.asyncio
-async def test_attach_bucket_secret(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, organization, secret = (
-        data.engine,
-        data.organization,
-        data.bucket_secret,
-    )
-    repo = OrbitRepository(engine)
-    secret_repo = BucketSecretRepository(engine)
-
-    orbit = await repo.create_orbit(
-        organization.id, OrbitCreateIn(name="test", bucket_secret_id=secret.id)
-    )
-    assert orbit
-
-    new_secret = await secret_repo.create_bucket_secret(
-        S3BucketSecretCreate(
-            organization_id=organization.id,
-            endpoint="s3",
-            bucket_name="test_attach_bucket_secret",
-            region="us-east-1",
+class TestOrbitRepository:
+    async def test_create_orbit_returns_created_orbit(
+        self,
+        repository: OrbitRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        orbit_create = OrbitCreateIn(
+            name="test orbit", bucket_secret_id=seeded_organization.bucket_secret.id
         )
-    )
-    assert isinstance(new_secret, S3BucketSecret)
-
-    updated = await repo.update_orbit(
-        orbit.id,
-        organization.id,
-        OrbitUpdate(name=orbit.name, bucket_secret_id=new_secret.id),
-    )
-
-    assert updated
-    assert updated.bucket_secret_id == new_secret.id
-
-
-@pytest.mark.asyncio
-async def test_delete_orbit(create_orbit: OrbitFixtureData) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit = data.orbit
-
-    assert await repo.delete_orbit(orbit.id, orbit.organization_id) is True
-    fetched_orbit = await repo.get_orbit_simple(orbit.id, orbit.organization_id)
-
-    assert fetched_orbit is None
-
-
-@pytest.mark.asyncio
-async def test_update_orbit_from_another_organization(
-    create_orbit: OrbitFixtureData,
-) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit = data.orbit
-    other_organization = await create_sibling_organization(data.engine, data.user.id)
-
-    result = await repo.update_orbit(
-        orbit.id, other_organization.id, OrbitUpdate(name="renamed")
-    )
-
-    assert result is None
-
-    untouched = await repo.get_orbit_simple(orbit.id, orbit.organization_id)
-    assert untouched is not None
-    assert untouched.name == orbit.name
-
-
-@pytest.mark.asyncio
-async def test_delete_orbit_from_another_organization(
-    create_orbit: OrbitFixtureData,
-) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit = data.orbit
-    other_organization = await create_sibling_organization(data.engine, data.user.id)
-
-    assert await repo.delete_orbit(orbit.id, other_organization.id) is False
-    assert await repo.get_orbit_simple(orbit.id, orbit.organization_id) is not None
-
-
-@pytest.mark.asyncio
-async def test_delete_orbit_from_another_organization_keeps_cascade_children(
-    create_collection: CollectionFixtureData,
-) -> None:
-    data = create_collection
-    orbit_repo = OrbitRepository(data.engine)
-    collection_repo = CollectionRepository(data.engine)
-    secret_repo = OrbitSecretRepository(data.engine)
-    orbit = data.orbit
-    other_organization = await create_sibling_organization(data.engine, data.user.id)
-
-    secret = await secret_repo.create_orbit_secret(
-        OrbitSecretCreate(name="child-secret", value="plaintext", orbit_id=orbit.id)
-    )
-
-    assert await orbit_repo.delete_orbit(orbit.id, other_organization.id) is False
-
-    assert await collection_repo.get_collection(data.collection.id) is not None
-    assert await secret_repo.get_orbit_secret(secret.id, orbit.id) is not None
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_simple_from_another_organization(
-    create_orbit: OrbitFixtureData,
-) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit = data.orbit
-    other_organization = await create_sibling_organization(data.engine, data.user.id)
-
-    assert await repo.get_orbit_simple(orbit.id, other_organization.id) is None
-    assert await repo.get_orbit_simple(orbit.id, orbit.organization_id) is not None
-
-
-@pytest.mark.asyncio
-async def test_get_orbit(create_orbit: OrbitFixtureData) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit = data.orbit
-
-    fetched_orbit = await repo.get_orbit(orbit.id, orbit.organization_id)
-
-    assert fetched_orbit
-    assert isinstance(fetched_orbit, OrbitDetails)
-    assert fetched_orbit.id == orbit.id
-    assert fetched_orbit.name == orbit.name
-    assert fetched_orbit.organization_id == orbit.organization_id
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_with_collections_tags(create_orbit: OrbitFixtureData) -> None:
-    import random
-
-    data = create_orbit
-    orbit_repo = OrbitRepository(data.engine)
-    collection_repo = CollectionRepository(data.engine)
-    orbit = data.orbit
-
-    all_tags = ["tag1", "tag2", "tag3", "tag4"]
-
-    for i in range(4):
-        collection = CollectionCreate(
-            orbit_id=orbit.id,
-            description=f"Collection {i}",
-            name=f"collection-{i}",
-            type=CollectionType.MODEL if i % 2 == 0 else CollectionType.DATASET,
-            tags=all_tags
-            if i == 0
-            else random.sample(all_tags, k=random.randint(0, 3)),
+        created_orbit = await repository.create_orbit(
+            seeded_organization.organization.id, orbit_create
         )
-        await collection_repo.create_collection(collection)
 
-    fetched_orbit = await orbit_repo.get_orbit(orbit.id, orbit.organization_id)
+        assert created_orbit
+        assert created_orbit.id
+        assert created_orbit.name == orbit_create.name
 
-    assert fetched_orbit
-    assert isinstance(fetched_orbit, OrbitDetails)
-    assert fetched_orbit.id == orbit.id
-
-    assert fetched_orbit.collections_tags is not None
-    assert sorted(fetched_orbit.collections_tags) == sorted(all_tags)
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_without_collections(create_orbit: OrbitFixtureData) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit = data.orbit
-
-    fetched_orbit = await repo.get_orbit(orbit.id, orbit.organization_id)
-
-    assert fetched_orbit
-    assert isinstance(fetched_orbit, OrbitDetails)
-    assert fetched_orbit.id == orbit.id
-
-    assert fetched_orbit.collections_tags == []
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_with_collections_without_tags(
-    create_orbit: OrbitFixtureData,
-) -> None:
-    data = create_orbit
-    orbit_repo = OrbitRepository(data.engine)
-    collection_repo = CollectionRepository(data.engine)
-    orbit = data.orbit
-
-    for i in range(3):
-        collection = CollectionCreate(
-            orbit_id=orbit.id,
-            description=f"Collection {i}",
-            name=f"collection-{i}",
-            type=CollectionType.MODEL,
-            tags=None,
+    async def test_update_orbit_renames_orbit_and_keeps_bucket_secret(
+        self,
+        repository: OrbitRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        created_orbit = await repository.create_orbit(
+            seeded_organization.organization.id,
+            OrbitCreateIn(
+                name="test orbit",
+                bucket_secret_id=seeded_organization.bucket_secret.id,
+            ),
         )
-        await collection_repo.create_collection(collection)
 
-    fetched_orbit = await orbit_repo.get_orbit(orbit.id, orbit.organization_id)
+        assert created_orbit
 
-    assert fetched_orbit
-    assert isinstance(fetched_orbit, OrbitDetails)
-    assert fetched_orbit.id == orbit.id
-
-    assert fetched_orbit.collections_tags == []
-
-
-@pytest.mark.asyncio
-async def test_get_organization_orbits(
-    create_organization_with_user: OrganizationFixtureData,
-) -> None:
-    data = create_organization_with_user
-    engine, organization, secret = (
-        data.engine,
-        data.organization,
-        data.bucket_secret,
-    )
-    repo = OrbitRepository(engine)
-
-    for i in range(5):
-        await repo.create_orbit(
-            organization.id,
-            OrbitCreateIn(name=f"orbit #{i}", bucket_secret_id=secret.id),
+        new_name = created_orbit.name + "updated"
+        updated_orbit = await repository.update_orbit(
+            created_orbit.id,
+            seeded_organization.organization.id,
+            OrbitUpdate(name=new_name),
         )
-    own_orbit = await repo.create_orbit(
-        organization.id,
-        OrbitCreateIn(
-            name="own orbit",
-            bucket_secret_id=secret.id,
-            members=[
-                OrbitMemberCreateSimple(user_id=data.user.id, role=OrbitRole.ADMIN)
-            ],
-        ),
-    )
-    assert own_orbit
 
-    orbits = await repo.get_organization_orbits(organization.id, data.user.id)
+        assert updated_orbit
+        assert updated_orbit.id == created_orbit.id
+        assert updated_orbit.name == new_name
+        assert updated_orbit.bucket_secret_id == seeded_organization.bucket_secret.id
 
-    assert len(orbits) == 6
-    assert all(isinstance(orbit, Orbit) for orbit in orbits)
-    roles = {orbit.id: orbit.role for orbit in orbits}
-    assert roles.pop(own_orbit.id) == OrbitRole.ADMIN
-    assert set(roles.values()) == {None}
-    assert all(orbit.total_satellites == 0 for orbit in orbits)
-    assert next(o for o in orbits if o.id == own_orbit.id).total_members == 1
+    async def test_update_orbit_attaches_new_bucket_secret(
+        self,
+        repository: OrbitRepository,
+        engine: AsyncEngine,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        created_orbit = await repository.create_orbit(
+            seeded_organization.organization.id,
+            OrbitCreateIn(
+                name="test", bucket_secret_id=seeded_organization.bucket_secret.id
+            ),
+        )
+        assert created_orbit
 
+        new_secret = await BucketSecretRepository(engine).create_bucket_secret(
+            S3BucketSecretCreate(
+                organization_id=seeded_organization.organization.id,
+                endpoint="s3",
+                bucket_name="test_attach_bucket_secret",
+                region="us-east-1",
+            )
+        )
+        assert isinstance(new_secret, S3BucketSecret)
 
-@pytest.mark.asyncio
-async def test_get_orbit_members(
-    create_orbit_with_members: OrbitWithMembersFixtureData,
-) -> None:
-    data = create_orbit_with_members
-    repo = OrbitRepository(data.engine)
-    orbit, members = data.orbit, data.members
+        updated = await repository.update_orbit(
+            created_orbit.id,
+            seeded_organization.organization.id,
+            OrbitUpdate(name=created_orbit.name, bucket_secret_id=new_secret.id),
+        )
 
-    orbit_members = await repo.get_orbit_members(orbit.id)
+        assert updated
+        assert updated.bucket_secret_id == new_secret.id
 
-    assert orbit_members
-    assert isinstance(orbit_members, list)
-    assert len(orbit_members) == len(members)
-    assert isinstance(orbit_members[0], OrbitMember)
-    assert orbit_members[0].orbit_id == orbit.id
+    async def test_delete_orbit_removes_orbit(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        assert (
+            await repository.delete_orbit(
+                seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+            )
+            is True
+        )
+        fetched_orbit = await repository.get_orbit_simple(
+            seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+        )
 
+        assert fetched_orbit is None
 
-@pytest.mark.asyncio
-async def test_create_orbit_member(create_orbit: OrbitFixtureData) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit, user = (
-        data.orbit,
-        data.user,
-    )
+    async def test_update_orbit_returns_none_when_organization_differs(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        other_organization = await create_sibling_organization(
+            seeded_orbit.engine, seeded_orbit.user.id
+        )
 
-    member = OrbitMemberCreate(
-        user_id=user.id, orbit_id=orbit.id, role=OrbitRole.MEMBER
-    )
-    created_member = await repo.create_orbit_member(member)
+        result = await repository.update_orbit(
+            seeded_orbit.orbit.id, other_organization.id, OrbitUpdate(name="renamed")
+        )
 
-    assert created_member
-    assert isinstance(created_member, OrbitMember)
+        assert result is None
 
+        untouched = await repository.get_orbit_simple(
+            seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+        )
+        assert untouched is not None
+        assert untouched.name == seeded_orbit.orbit.name
 
-@pytest.mark.asyncio
-async def test_update_orbit_member(create_orbit: OrbitFixtureData) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit, user = (
-        data.orbit,
-        data.user,
-    )
+    async def test_delete_orbit_returns_false_when_organization_differs(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        other_organization = await create_sibling_organization(
+            seeded_orbit.engine, seeded_orbit.user.id
+        )
 
-    member = OrbitMemberCreate(
-        user_id=user.id, orbit_id=orbit.id, role=OrbitRole.MEMBER
-    )
-    created_member = await repo.create_orbit_member(member)
-    assert created_member
+        assert (
+            await repository.delete_orbit(seeded_orbit.orbit.id, other_organization.id)
+            is False
+        )
+        assert (
+            await repository.get_orbit_simple(
+                seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+            )
+            is not None
+        )
 
-    updated_member = await repo.update_orbit_member(
-        UpdateOrbitMember(id=created_member.id, role=OrbitRole.ADMIN)
-    )
+    async def test_delete_orbit_keeps_cascade_children_when_organization_differs(
+        self,
+        repository: OrbitRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+    ) -> None:
+        orbit_secret_repository = OrbitSecretRepository(engine)
+        other_organization = await create_sibling_organization(
+            seeded_collection.engine, seeded_collection.user.id
+        )
 
-    assert updated_member
-    assert isinstance(updated_member, OrbitMember)
-    assert updated_member.role == OrbitRole.ADMIN
+        orbit_secret = await orbit_secret_repository.create_orbit_secret(
+            OrbitSecretCreate(
+                name="child-secret",
+                value="plaintext",
+                orbit_id=seeded_collection.orbit.id,
+            )
+        )
 
+        assert (
+            await repository.delete_orbit(
+                seeded_collection.orbit.id, other_organization.id
+            )
+            is False
+        )
 
-@pytest.mark.asyncio
-async def test_delete_orbit_member(create_orbit: OrbitFixtureData) -> None:
-    data = create_orbit
-    repo = OrbitRepository(data.engine)
-    orbit, user = (
-        data.orbit,
-        data.user,
-    )
+        assert (
+            await CollectionRepository(engine).get_collection(
+                seeded_collection.collection.id
+            )
+            is not None
+        )
+        assert (
+            await orbit_secret_repository.get_orbit_secret(
+                orbit_secret.id, seeded_collection.orbit.id
+            )
+            is not None
+        )
 
-    member = OrbitMemberCreate(
-        user_id=user.id, orbit_id=orbit.id, role=OrbitRole.MEMBER
-    )
-    created_member = await repo.create_orbit_member(member)
-    assert created_member
+    async def test_get_orbit_simple_returns_none_when_organization_differs(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        other_organization = await create_sibling_organization(
+            seeded_orbit.engine, seeded_orbit.user.id
+        )
 
-    await repo.delete_orbit_member(created_member.id)
+        assert (
+            await repository.get_orbit_simple(
+                seeded_orbit.orbit.id, other_organization.id
+            )
+            is None
+        )
+        assert (
+            await repository.get_orbit_simple(
+                seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+            )
+            is not None
+        )
 
-    fetched_member = await repo.get_orbit_member(created_member.id)
+    async def test_get_orbit_returns_orbit_details(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        fetched_orbit = await repository.get_orbit(
+            seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+        )
 
-    assert fetched_member is None
+        assert fetched_orbit
+        assert isinstance(fetched_orbit, OrbitDetails)
+        assert fetched_orbit.id == seeded_orbit.orbit.id
+        assert fetched_orbit.name == seeded_orbit.orbit.name
+        assert fetched_orbit.organization_id == seeded_orbit.orbit.organization_id
+
+    async def test_get_orbit_returns_all_collection_tags(
+        self,
+        repository: OrbitRepository,
+        engine: AsyncEngine,
+        seeded_orbit: OrbitFixtureData,
+    ) -> None:
+        collection_repository = CollectionRepository(engine)
+        all_tags = ["tag1", "tag2", "tag3", "tag4"]
+
+        for i in range(4):
+            collection = CollectionCreate(
+                orbit_id=seeded_orbit.orbit.id,
+                description=f"Collection {i}",
+                name=f"collection-{i}",
+                type=CollectionType.MODEL if i % 2 == 0 else CollectionType.DATASET,
+                tags=all_tags
+                if i == 0
+                else random.sample(all_tags, k=random.randint(0, 3)),
+            )
+            await collection_repository.create_collection(collection)
+
+        fetched_orbit = await repository.get_orbit(
+            seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+        )
+
+        assert fetched_orbit
+        assert isinstance(fetched_orbit, OrbitDetails)
+        assert fetched_orbit.id == seeded_orbit.orbit.id
+
+        assert fetched_orbit.collections_tags is not None
+        assert sorted(fetched_orbit.collections_tags) == sorted(all_tags)
+
+    async def test_get_orbit_returns_no_tags_when_orbit_has_no_collections(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        fetched_orbit = await repository.get_orbit(
+            seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+        )
+
+        assert fetched_orbit
+        assert isinstance(fetched_orbit, OrbitDetails)
+        assert fetched_orbit.id == seeded_orbit.orbit.id
+
+        assert fetched_orbit.collections_tags == []
+
+    async def test_get_orbit_returns_no_tags_when_collections_have_no_tags(
+        self,
+        repository: OrbitRepository,
+        engine: AsyncEngine,
+        seeded_orbit: OrbitFixtureData,
+    ) -> None:
+        collection_repository = CollectionRepository(engine)
+
+        for i in range(3):
+            collection = CollectionCreate(
+                orbit_id=seeded_orbit.orbit.id,
+                description=f"Collection {i}",
+                name=f"collection-{i}",
+                type=CollectionType.MODEL,
+                tags=None,
+            )
+            await collection_repository.create_collection(collection)
+
+        fetched_orbit = await repository.get_orbit(
+            seeded_orbit.orbit.id, seeded_orbit.orbit.organization_id
+        )
+
+        assert fetched_orbit
+        assert isinstance(fetched_orbit, OrbitDetails)
+        assert fetched_orbit.id == seeded_orbit.orbit.id
+
+        assert fetched_orbit.collections_tags == []
+
+    async def test_get_organization_orbits_returns_orbits_with_user_roles(
+        self,
+        repository: OrbitRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        for i in range(5):
+            await repository.create_orbit(
+                seeded_organization.organization.id,
+                OrbitCreateIn(
+                    name=f"orbit #{i}",
+                    bucket_secret_id=seeded_organization.bucket_secret.id,
+                ),
+            )
+        own_orbit = await repository.create_orbit(
+            seeded_organization.organization.id,
+            OrbitCreateIn(
+                name="own orbit",
+                bucket_secret_id=seeded_organization.bucket_secret.id,
+                members=[
+                    OrbitMemberCreateSimple(
+                        user_id=seeded_organization.user.id, role=OrbitRole.ADMIN
+                    )
+                ],
+            ),
+        )
+        assert own_orbit
+
+        orbits = await repository.get_organization_orbits(
+            seeded_organization.organization.id, seeded_organization.user.id
+        )
+
+        assert len(orbits) == 6
+        assert all(isinstance(orbit, Orbit) for orbit in orbits)
+        roles = {orbit.id: orbit.role for orbit in orbits}
+        assert roles.pop(own_orbit.id) == OrbitRole.ADMIN
+        assert set(roles.values()) == {None}
+        assert all(orbit.total_satellites == 0 for orbit in orbits)
+        assert next(o for o in orbits if o.id == own_orbit.id).total_members == 1
+
+    async def test_get_orbit_members_returns_all_members(
+        self,
+        repository: OrbitRepository,
+        seeded_orbit_with_members: OrbitWithMembersFixtureData,
+    ) -> None:
+        orbit_members = await repository.get_orbit_members(
+            seeded_orbit_with_members.orbit.id
+        )
+
+        assert orbit_members
+        assert isinstance(orbit_members, list)
+        assert len(orbit_members) == len(seeded_orbit_with_members.members)
+        assert isinstance(orbit_members[0], OrbitMember)
+        assert orbit_members[0].orbit_id == seeded_orbit_with_members.orbit.id
+
+    async def test_create_orbit_member_returns_member(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        member = OrbitMemberCreate(
+            user_id=seeded_orbit.user.id,
+            orbit_id=seeded_orbit.orbit.id,
+            role=OrbitRole.MEMBER,
+        )
+        created_member = await repository.create_orbit_member(member)
+
+        assert created_member
+        assert isinstance(created_member, OrbitMember)
+
+    async def test_update_orbit_member_changes_role(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        member = OrbitMemberCreate(
+            user_id=seeded_orbit.user.id,
+            orbit_id=seeded_orbit.orbit.id,
+            role=OrbitRole.MEMBER,
+        )
+        created_member = await repository.create_orbit_member(member)
+        assert created_member
+
+        updated_member = await repository.update_orbit_member(
+            UpdateOrbitMember(id=created_member.id, role=OrbitRole.ADMIN)
+        )
+
+        assert updated_member
+        assert isinstance(updated_member, OrbitMember)
+        assert updated_member.role == OrbitRole.ADMIN
+
+    async def test_delete_orbit_member_removes_member(
+        self, repository: OrbitRepository, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        member = OrbitMemberCreate(
+            user_id=seeded_orbit.user.id,
+            orbit_id=seeded_orbit.orbit.id,
+            role=OrbitRole.MEMBER,
+        )
+        created_member = await repository.create_orbit_member(member)
+        assert created_member
+
+        await repository.delete_orbit_member(created_member.id)
+
+        fetched_member = await repository.get_orbit_member(created_member.id)
+
+        assert fetched_member is None

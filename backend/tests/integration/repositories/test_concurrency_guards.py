@@ -145,91 +145,113 @@ async def _artifacts(
 
 
 class TestConcurrencyGuards:
-    @pytest.mark.asyncio
-    async def test_request_deletion_moves_unreferenced_artifact(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_request_deletion_marks_unreferenced_artifact_pending_deletion(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        repo = ArtifactRepository(data.engine)
+        artifact_repository = ArtifactRepository(engine)
         artifact = await create_artifact(
-            data.engine,
-            test_artifact,
-            data.collection.id,
-            name=test_artifact.name,
-            status=test_artifact.status,
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
+            name=new_artifact.name,
+            status=new_artifact.status,
         )
 
-        moved = await repo.request_deletion(artifact.id, data.collection.id)
+        moved = await artifact_repository.request_deletion(
+            artifact.id, seeded_collection.collection.id
+        )
 
         assert moved is not None
         assert moved.status == ArtifactStatus.PENDING_DELETION
-        stored = await repo.get_artifact(artifact.id)
+        stored = await artifact_repository.get_artifact(artifact.id)
         assert stored is not None
         assert stored.status == ArtifactStatus.PENDING_DELETION
-        assert await repo.request_deletion(uuid.uuid4(), data.collection.id) is None
-        assert await repo.request_deletion(artifact.id, uuid.uuid4()) is None
+        assert (
+            await artifact_repository.request_deletion(
+                uuid.uuid4(), seeded_collection.collection.id
+            )
+            is None
+        )
+        assert (
+            await artifact_repository.request_deletion(artifact.id, uuid.uuid4())
+            is None
+        )
 
-    @pytest.mark.asyncio
-    async def test_request_deletion_reports_deployments_then_tracks(
-        self, create_satellite: SatelliteFixtureData
+    async def test_request_deletion_raises_for_deployments_then_tracks(
+        self, engine: AsyncEngine, seeded_satellite: SatelliteFixtureData
     ) -> None:
-        data = create_satellite
-        repo = ArtifactRepository(data.engine)
-        deployments = DeploymentRepository(data.engine)
-        deployment, _ = await deployments.create_deployment(
+        artifact_repository = ArtifactRepository(engine)
+        deployment_repository = DeploymentRepository(engine)
+        deployment, _ = await deployment_repository.create_deployment(
             DeploymentCreate(
                 name="held",
-                orbit_id=data.orbit.id,
-                satellite_id=data.satellite.id,
-                artifact_id=data.model.id,
+                orbit_id=seeded_satellite.orbit.id,
+                satellite_id=seeded_satellite.satellite.id,
+                artifact_id=seeded_satellite.model.id,
                 status=DeploymentStatus.PENDING,
             )
         )
 
         with pytest.raises(ArtifactDeployedError, match="used in deployments"):
-            await repo.request_deletion(data.model.id, data.model.collection_id)
+            await artifact_repository.request_deletion(
+                seeded_satellite.model.id, seeded_satellite.model.collection_id
+            )
 
-        await deployments.delete_deployment(deployment.id, data.orbit.id)
-        track = await TrackRepository(data.engine).create_track(
+        await deployment_repository.delete_deployment(
+            deployment.id, seeded_satellite.orbit.id
+        )
+        track = await TrackRepository(engine).create_track(
             TrackCreate(
-                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+                orbit_id=seeded_satellite.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
             )
         )
-        await TrackEntryRepository(data.engine).create_entry(
+        await TrackEntryRepository(engine).create_entry(
             TrackEntryCreate(
                 track_id=track.id,
-                artifact_id=data.model.id,
-                added_by=data.user.email,
+                artifact_id=seeded_satellite.model.id,
+                added_by=seeded_satellite.user.email,
             )
         )
 
         with pytest.raises(ArtifactTrackedError, match="referenced by one or more"):
-            await repo.request_deletion(data.model.id, data.model.collection_id)
-        stored = await repo.get_artifact(data.model.id)
+            await artifact_repository.request_deletion(
+                seeded_satellite.model.id, seeded_satellite.model.collection_id
+            )
+        stored = await artifact_repository.get_artifact(seeded_satellite.model.id)
         assert stored is not None
-        assert stored.status == data.model.status
+        assert stored.status == seeded_satellite.model.status
 
-    @pytest.mark.asyncio
-    async def test_stage_holds_at_most_one_entry(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_update_entry_keeps_one_stage_holder_when_assignments_race(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        artifacts = await _artifacts(data.engine, test_artifact, data.collection.id, 2)
-        track = await TrackRepository(data.engine).create_track(
+        artifacts = await _artifacts(
+            engine, new_artifact, seeded_collection.collection.id, 2
+        )
+        track = await TrackRepository(engine).create_track(
             TrackCreate(
-                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+                orbit_id=seeded_collection.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
             )
         )
-        stage = await TrackStageRepository(data.engine).create_stage(
+        stage = await TrackStageRepository(engine).create_stage(
             StageCreate(track_id=track.id, name="Production")
         )
-        entries = TrackEntryRepository(data.engine)
+        entries = TrackEntryRepository(engine)
         first, second = [
             await entries.create_entry(
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=a.id,
-                    added_by=data.user.email,
+                    added_by=seeded_collection.user.email,
                 )
             )
             for a in artifacts
@@ -247,27 +269,32 @@ class TestConcurrencyGuards:
         assert holder is not None
         assert holder.id == winners[0].id
 
-    @pytest.mark.asyncio
-    async def test_forced_reassignments_race_to_one_holder(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_update_entry_keeps_one_stage_holder_when_forced_reassignments_race(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        artifacts = await _artifacts(data.engine, test_artifact, data.collection.id, 3)
-        track = await TrackRepository(data.engine).create_track(
+        artifacts = await _artifacts(
+            engine, new_artifact, seeded_collection.collection.id, 3
+        )
+        track = await TrackRepository(engine).create_track(
             TrackCreate(
-                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+                orbit_id=seeded_collection.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
             )
         )
-        stage = await TrackStageRepository(data.engine).create_stage(
+        stage = await TrackStageRepository(engine).create_stage(
             StageCreate(track_id=track.id, name="Production")
         )
-        entries = TrackEntryRepository(data.engine)
+        entries = TrackEntryRepository(engine)
         holder, b, c = [
             await entries.create_entry(
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=a.id,
-                    added_by=data.user.email,
+                    added_by=seeded_collection.user.email,
                 )
             )
             for a in artifacts
@@ -289,27 +316,30 @@ class TestConcurrencyGuards:
         assert previous is not None
         assert previous.stage_id is None
 
-    @pytest.mark.asyncio
-    async def test_stage_deletion_refuses_assigned_stage_unless_unassigning(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_delete_stage_raises_when_assigned_unless_unassigning(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
         (artifact,) = await _artifacts(
-            data.engine, test_artifact, data.collection.id, 1
+            engine, new_artifact, seeded_collection.collection.id, 1
         )
-        track = await TrackRepository(data.engine).create_track(
+        track = await TrackRepository(engine).create_track(
             TrackCreate(
-                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+                orbit_id=seeded_collection.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
             )
         )
-        stages = TrackStageRepository(data.engine)
+        stages = TrackStageRepository(engine)
         stage = await stages.create_stage(StageCreate(track_id=track.id, name="Prod"))
-        entries = TrackEntryRepository(data.engine)
+        entries = TrackEntryRepository(engine)
         entry = await entries.create_entry(
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=artifact.id,
-                added_by=data.user.email,
+                added_by=seeded_collection.user.email,
                 stage_id=stage.id,
             )
         )
@@ -326,21 +356,21 @@ class TestConcurrencyGuards:
         assert stored is not None
         assert stored.stage_id is None
 
-    @pytest.mark.asyncio
-    async def test_concurrent_stage_replacements_do_not_merge(
-        self, create_collection: CollectionFixtureData
+    async def test_sync_stages_keeps_one_stage_set_when_replacements_race(
+        self, engine: AsyncEngine, seeded_collection: CollectionFixtureData
     ) -> None:
-        data = create_collection
-        track = await TrackRepository(data.engine).create_track(
+        track = await TrackRepository(engine).create_track(
             TrackCreate(
-                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+                orbit_id=seeded_collection.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
             )
         )
-        stages = TrackStageRepository(data.engine)
+        stages = TrackStageRepository(engine)
         left = [StageUpsertIn(name="dev"), StageUpsertIn(name="staging")]
         right = [StageUpsertIn(name="qa"), StageUpsertIn(name="prod")]
 
-        async with AsyncSession(data.engine) as session:
+        async with AsyncSession(engine) as session:
             await session.execute(
                 select(TrackOrm.id).where(TrackOrm.id == track.id).with_for_update()
             )
@@ -356,73 +386,83 @@ class TestConcurrencyGuards:
         with pytest.raises(ApplicationError, match="Track not found"):
             await stages.sync_stages(uuid.uuid4(), left)
 
-    @pytest.mark.asyncio
-    async def test_blacklisting_a_token_twice_reports_the_second_attempt(
+    async def test_add_token_returns_false_for_second_concurrent_attempt(
         self, engine: AsyncEngine
     ) -> None:
-        repo = TokenBlackListRepository(engine)
+        blacklist_repository = TokenBlackListRepository(engine)
         token = f"refresh-{uuid.uuid4()}"
         expire = int(time.time()) + 60
 
         results = await _race(
-            repo.add_token(token, expire), repo.add_token(token, expire)
+            blacklist_repository.add_token(token, expire),
+            blacklist_repository.add_token(token, expire),
         )
 
         assert sorted(results) == [False, True]
-        assert await repo.add_token(token, expire) is False
-        assert await repo.is_token_blacklisted(token) is True
+        assert await blacklist_repository.add_token(token, expire) is False
+        assert await blacklist_repository.is_token_blacklisted(token) is True
 
-    @pytest.mark.asyncio
-    async def test_blacklisting_propagates_unrelated_constraint_failures(
+    async def test_add_token_propagates_integrity_error_other_than_duplicate(
         self, engine: AsyncEngine
     ) -> None:
-        repo = TokenBlackListRepository(engine)
+        blacklist_repository = TokenBlackListRepository(engine)
         token = f"refresh-{uuid.uuid4()}"
 
         with pytest.raises(IntegrityError):
-            await repo.add_token(token, None)  # type: ignore[arg-type]
-        assert await repo.is_token_blacklisted(token) is False
+            await blacklist_repository.add_token(token, None)  # type: ignore[arg-type]
+        assert await blacklist_repository.is_token_blacklisted(token) is False
 
-    @pytest.mark.asyncio
-    async def test_collection_deletion_refuses_artifacts_and_reports_missing(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_delete_collection_raises_when_artifacts_exist_or_returns_false(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        collections = CollectionRepository(data.engine)
+        collection_repository = CollectionRepository(engine)
         await create_artifact(
-            data.engine,
-            test_artifact,
-            data.collection.id,
-            name=test_artifact.name,
-            status=test_artifact.status,
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
+            name=new_artifact.name,
+            status=new_artifact.status,
         )
 
         with pytest.raises(CollectionDeleteError, match="has artifacts"):
-            await collections.delete_collection(data.collection.id, data.orbit.id)
-        assert await collections.get_collection(data.collection.id) is not None
-        assert await collections.delete_collection(uuid.uuid4(), data.orbit.id) is False
+            await collection_repository.delete_collection(
+                seeded_collection.collection.id, seeded_collection.orbit.id
+            )
+        assert (
+            await collection_repository.get_collection(seeded_collection.collection.id)
+            is not None
+        )
+        assert (
+            await collection_repository.delete_collection(
+                uuid.uuid4(), seeded_collection.orbit.id
+            )
+            is False
+        )
 
-    @pytest.mark.asyncio
-    async def test_upload_waits_for_collection_deletion_and_then_fails(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_create_artifact_raises_when_collection_deleted_while_waiting(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-
-        async with AsyncSession(data.engine) as session:
+        async with AsyncSession(engine) as session:
             collection = (
                 await session.execute(
                     select(CollectionOrm)
-                    .where(CollectionOrm.id == data.collection.id)
+                    .where(CollectionOrm.id == seeded_collection.collection.id)
                     .with_for_update()
                 )
             ).scalar_one()
             upload = asyncio.create_task(
                 create_artifact(
-                    data.engine,
-                    test_artifact,
-                    data.collection.id,
-                    name=test_artifact.name,
-                    status=test_artifact.status,
+                    engine,
+                    new_artifact,
+                    seeded_collection.collection.id,
+                    name=new_artifact.name,
+                    status=new_artifact.status,
                 )
             )
             await _wait_for_lock_waiters(session, 1)
@@ -433,32 +473,34 @@ class TestConcurrencyGuards:
         with pytest.raises(CollectionNotFoundError):
             await upload
         assert (
-            await CollectionRepository(data.engine).get_collection(data.collection.id)
+            await CollectionRepository(engine).get_collection(
+                seeded_collection.collection.id
+            )
             is None
         )
 
-    @pytest.mark.asyncio
-    async def test_artifact_quota_holds_under_concurrency(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_create_artifact_enforces_quota_when_creations_race(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        repo = ArtifactRepository(data.engine)
-        await _set_limit(data.engine, data.organization.id, artifacts_limit=1)
+        await _set_limit(engine, seeded_collection.organization.id, artifacts_limit=1)
 
         results = await _race(
             create_artifact(
-                data.engine,
-                test_artifact,
-                data.collection.id,
-                name=test_artifact.name,
-                status=test_artifact.status,
+                engine,
+                new_artifact,
+                seeded_collection.collection.id,
+                name=new_artifact.name,
+                status=new_artifact.status,
             ),
             create_artifact(
-                data.engine,
-                test_artifact,
-                data.collection.id,
-                name=test_artifact.name,
-                status=test_artifact.status,
+                engine,
+                new_artifact,
+                seeded_collection.collection.id,
+                name=new_artifact.name,
+                status=new_artifact.status,
             ),
         )
 
@@ -466,20 +508,25 @@ class TestConcurrencyGuards:
         assert len(winners) == 1
         assert len(losers) == 1
         assert "maximum number of artifacts" in str(losers[0])
-        assert await repo.get_collection_artifacts_count(data.collection.id) == 1
+        assert (
+            await ArtifactRepository(engine).get_collection_artifacts_count(
+                seeded_collection.collection.id
+            )
+            == 1
+        )
 
-    @pytest.mark.asyncio
-    async def test_orbit_quota_holds_under_concurrency(
-        self, create_organization_with_user: OrganizationFixtureData
+    async def test_create_orbit_enforces_quota_when_creations_race(
+        self, engine: AsyncEngine, seeded_organization: OrganizationFixtureData
     ) -> None:
-        data = create_organization_with_user
-        repo = OrbitRepository(data.engine)
-        await _set_limit(data.engine, data.organization.id, orbits_limit=1)
+        orbit_repository = OrbitRepository(engine)
+        await _set_limit(engine, seeded_organization.organization.id, orbits_limit=1)
 
         async def make(name: str) -> OrbitDetails | None:
-            return await repo.create_orbit(
-                data.organization.id,
-                OrbitCreateIn(name=name, bucket_secret_id=data.bucket_secret.id),
+            return await orbit_repository.create_orbit(
+                seeded_organization.organization.id,
+                OrbitCreateIn(
+                    name=name, bucket_secret_id=seeded_organization.bucket_secret.id
+                ),
             )
 
         winners, losers = _split(
@@ -490,18 +537,16 @@ class TestConcurrencyGuards:
         assert len(losers) == 1
         assert "maximum number of orbits" in str(losers[0])
 
-    @pytest.mark.asyncio
-    async def test_satellite_quota_holds_under_concurrency(
-        self, create_collection: CollectionFixtureData
+    async def test_create_satellite_enforces_quota_when_creations_race(
+        self, engine: AsyncEngine, seeded_collection: CollectionFixtureData
     ) -> None:
-        data = create_collection
-        repo = SatelliteRepository(data.engine)
-        await _set_limit(data.engine, data.organization.id, satellites_limit=1)
+        satellite_repository = SatelliteRepository(engine)
+        await _set_limit(engine, seeded_collection.organization.id, satellites_limit=1)
 
         async def make(name: str) -> Satellite:
-            return await repo.create_satellite(
+            return await satellite_repository.create_satellite(
                 SatelliteCreate(
-                    orbit_id=data.orbit.id,
+                    orbit_id=seeded_collection.orbit.id,
                     api_key_hash=str(uuid.uuid4()),
                     name=name,
                 )
@@ -515,30 +560,29 @@ class TestConcurrencyGuards:
         assert len(losers) == 1
         assert "maximum number of satellites" in str(losers[0])
 
-    @pytest.mark.asyncio
-    async def test_member_quotas_hold_under_concurrency(
+    async def test_create_organization_member_enforces_quotas_when_additions_race(
         self,
-        create_organization_with_user: OrganizationFixtureData,
-        test_user_create: CreateUser,
+        engine: AsyncEngine,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
     ) -> None:
-        data = create_organization_with_user
-        repo = UserRepository(data.engine)
+        user_repository = UserRepository(engine)
         joiners = [
-            await repo.create_user(
-                test_user_create.model_copy(
+            await user_repository.create_user(
+                new_user.model_copy(
                     update={"email": f"joiner-{index}-{uuid.uuid4().hex}@example.com"}
                 )
             )
             for index in range(2)
         ]
         assert all(joiners)
-        await _set_limit(data.engine, data.organization.id, members_limit=2)
+        await _set_limit(engine, seeded_organization.organization.id, members_limit=2)
 
-        async def make(user: User) -> OrganizationMember:
-            return await repo.create_organization_member(
+        async def make(joiner: User) -> OrganizationMember:
+            return await user_repository.create_organization_member(
                 OrganizationMemberCreate(
-                    user_id=user.id,
-                    organization_id=data.organization.id,
+                    user_id=joiner.id,
+                    organization_id=seeded_organization.organization.id,
                     role=OrgRole.MEMBER,
                 )
             )
@@ -552,123 +596,155 @@ class TestConcurrencyGuards:
         assert len(losers) == 1
         assert "maximum number of users" in str(losers[0])
 
-        current = await repo.get_user_organizations_membership_count(data.user.id)
+        current = await user_repository.get_user_organizations_membership_count(
+            seeded_organization.user.id
+        )
         with pytest.raises(
             OrganizationLimitReachedError, match="limit of organizations"
         ):
-            await repo.create_organization(
-                data.user.id,
+            await user_repository.create_organization(
+                seeded_organization.user.id,
                 OrganizationCreateIn(name="second"),
                 membership_limit=current,
             )
-        second = await repo.create_organization(
-            data.user.id,
+        second = await user_repository.create_organization(
+            seeded_organization.user.id,
             OrganizationCreateIn(name="second"),
             membership_limit=current + 1,
         )
-        assert await repo.get_organization_member(second.id, data.user.id) is not None
+        assert (
+            await user_repository.get_organization_member(
+                second.id, seeded_organization.user.id
+            )
+            is not None
+        )
 
-    @pytest.mark.asyncio
-    async def test_duplicate_invite_is_refused(
-        self, create_organization_with_user: OrganizationFixtureData
+    async def test_create_organization_invite_raises_when_duplicate_invites_race(
+        self, engine: AsyncEngine, seeded_organization: OrganizationFixtureData
     ) -> None:
-        data = create_organization_with_user
-        repo = InviteRepository(data.engine)
+        invite_repository = InviteRepository(engine)
         invite = CreateOrganizationInvite(
             email="new@example.com",
             role=OrgRole.MEMBER,
-            organization_id=data.organization.id,
-            invited_by=data.user.id,
+            organization_id=seeded_organization.organization.id,
+            invited_by=seeded_organization.user.id,
         )
 
         winners, losers = _split(
             await _race(
-                repo.create_organization_invite(invite),
-                repo.create_organization_invite(invite),
+                invite_repository.create_organization_invite(invite),
+                invite_repository.create_organization_invite(invite),
             ),
             OrganizationInviteAlreadyExistsError,
         )
 
         assert len(winners) == 1
         assert len(losers) == 1
-        assert len(await repo.get_invites_by_organization_id(data.organization.id)) == 1
+        assert (
+            len(
+                await invite_repository.get_invites_by_organization_id(
+                    seeded_organization.organization.id
+                )
+            )
+            == 1
+        )
 
-    @pytest.mark.asyncio
-    async def test_organization_deletion_refuses_members_and_reports_missing(
+    async def test_delete_organization_raises_when_members_exist_or_returns_false(
         self,
-        create_organization_with_user: OrganizationFixtureData,
-        test_user_create: CreateUser,
+        engine: AsyncEngine,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
     ) -> None:
-        data = create_organization_with_user
-        repo = UserRepository(data.engine)
-        joiner = await repo.create_user(
-            test_user_create.model_copy(
+        user_repository = UserRepository(engine)
+        joiner = await user_repository.create_user(
+            new_user.model_copy(
                 update={"email": f"joiner-{uuid.uuid4().hex}@example.com"}
             )
         )
         assert joiner is not None
-        member = await repo.create_organization_member(
+        member = await user_repository.create_organization_member(
             OrganizationMemberCreate(
                 user_id=joiner.id,
-                organization_id=data.organization.id,
+                organization_id=seeded_organization.organization.id,
                 role=OrgRole.MEMBER,
             )
         )
 
         with pytest.raises(OrganizationDeleteError, match="has members"):
-            await repo.delete_organization(data.organization.id)
-        assert await repo.get_organization_details(data.organization.id) is not None
+            await user_repository.delete_organization(
+                seeded_organization.organization.id
+            )
+        assert (
+            await user_repository.get_organization_details(
+                seeded_organization.organization.id
+            )
+            is not None
+        )
 
-        await repo.delete_organization_member(member.id)
-        assert await repo.delete_organization(uuid.uuid4()) is False
-        assert await repo.delete_organization(data.organization.id) is True
-        assert await repo.get_organization_details(data.organization.id) is None
+        await user_repository.delete_organization_member(member.id)
+        assert await user_repository.delete_organization(uuid.uuid4()) is False
+        assert (
+            await user_repository.delete_organization(
+                seeded_organization.organization.id
+            )
+            is True
+        )
+        assert (
+            await user_repository.get_organization_details(
+                seeded_organization.organization.id
+            )
+            is None
+        )
 
     @pytest.mark.parametrize("reference", ["deployment", "entry"])
     @pytest.mark.parametrize("first", ["deletion", "reference"])
-    @pytest.mark.asyncio
-    async def test_deletion_request_races_a_new_reference(
-        self, create_satellite: SatelliteFixtureData, first: str, reference: str
+    async def test_request_deletion_serializes_with_new_reference(
+        self,
+        engine: AsyncEngine,
+        seeded_satellite: SatelliteFixtureData,
+        first: str,
+        reference: str,
     ) -> None:
-        data = create_satellite
-        artifacts = ArtifactRepository(data.engine)
-        deployments = DeploymentRepository(data.engine)
-        entries = TrackEntryRepository(data.engine)
-        track = await TrackRepository(data.engine).create_track(
+        artifacts = ArtifactRepository(engine)
+        deployments = DeploymentRepository(engine)
+        entries = TrackEntryRepository(engine)
+        track = await TrackRepository(engine).create_track(
             TrackCreate(
-                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+                orbit_id=seeded_satellite.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
             )
         )
         make_reference: dict[str, Callable[[], Coroutine[Any, Any, Any]]] = {
             "deployment": lambda: deployments.create_deployment(
                 DeploymentCreate(
                     name="late",
-                    orbit_id=data.orbit.id,
-                    satellite_id=data.satellite.id,
-                    artifact_id=data.model.id,
+                    orbit_id=seeded_satellite.orbit.id,
+                    satellite_id=seeded_satellite.satellite.id,
+                    artifact_id=seeded_satellite.model.id,
                     status=DeploymentStatus.PENDING,
                 )
             ),
             "entry": lambda: entries.create_entry(
                 TrackEntryCreate(
                     track_id=track.id,
-                    artifact_id=data.model.id,
-                    added_by=data.user.email,
+                    artifact_id=seeded_satellite.model.id,
+                    added_by=seeded_satellite.user.email,
                 )
             ),
         }
         writers: dict[str, Callable[[], Coroutine[Any, Any, Any]]] = {
             "deletion": lambda: artifacts.request_deletion(
-                data.model.id, data.model.collection_id
+                seeded_satellite.model.id, seeded_satellite.model.collection_id
             ),
             "reference": make_reference[reference],
         }
         second = "reference" if first == "deletion" else "deletion"
 
-        async with AsyncSession(data.engine) as session:
+        async with AsyncSession(engine) as session:
             await session.execute(
                 select(ArtifactOrm.id)
-                .where(ArtifactOrm.id == data.model.id)
+                .where(ArtifactOrm.id == seeded_satellite.model.id)
                 .with_for_update()
             )
             tasks = {first: asyncio.create_task(writers[first]())}
@@ -683,15 +759,15 @@ class TestConcurrencyGuards:
             name: (await asyncio.gather(task, return_exceptions=True))[0]
             for name, task in tasks.items()
         }
-        stored = await artifacts.get_artifact(data.model.id)
+        stored = await artifacts.get_artifact(seeded_satellite.model.id)
         assert stored is not None
-        async with AsyncSession(data.engine) as session:
+        async with AsyncSession(engine) as session:
             deployment_count = await session.scalar(
                 select(func.count())
                 .select_from(DeploymentOrm)
-                .where(DeploymentOrm.artifact_id == data.model.id)
+                .where(DeploymentOrm.artifact_id == seeded_satellite.model.id)
             )
-        linked = await entries.has_entries_for_artifact(data.model.id)
+        linked = await entries.has_entries_for_artifact(seeded_satellite.model.id)
 
         if first == "deletion":
             moved = results["deletion"]
@@ -715,21 +791,26 @@ class TestConcurrencyGuards:
             else:
                 assert isinstance(refused, ArtifactTrackedError)
                 assert linked is True
-            assert stored.status == data.model.status
+            assert stored.status == seeded_satellite.model.status
 
-    @pytest.mark.asyncio
-    async def test_forced_stage_deletion_never_leaves_a_dangling_assignment(
-        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    async def test_delete_stage_leaves_no_dangling_assignment_when_racing_assignment(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        artifacts = await _artifacts(data.engine, test_artifact, data.collection.id, 3)
-        track = await TrackRepository(data.engine).create_track(
+        artifacts = await _artifacts(
+            engine, new_artifact, seeded_collection.collection.id, 3
+        )
+        track = await TrackRepository(engine).create_track(
             TrackCreate(
-                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+                orbit_id=seeded_collection.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
             )
         )
-        stages = TrackStageRepository(data.engine)
-        entries = TrackEntryRepository(data.engine)
+        stages = TrackStageRepository(engine)
+        entries = TrackEntryRepository(engine)
 
         for artifact in artifacts:
             stage = await stages.create_stage(
@@ -739,7 +820,7 @@ class TestConcurrencyGuards:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=artifact.id,
-                    added_by=data.user.email,
+                    added_by=seeded_collection.user.email,
                 )
             )
 
@@ -758,28 +839,31 @@ class TestConcurrencyGuards:
             assert stored is not None
             assert stored.stage_id is None
 
-    @pytest.mark.asyncio
-    async def test_direct_member_addition_respects_the_user_cap(
+    async def test_create_organization_member_enforces_membership_limit_in_race(
         self,
-        create_organization_with_user: OrganizationFixtureData,
-        test_user_create: CreateUser,
+        engine: AsyncEngine,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
     ) -> None:
-        data = create_organization_with_user
-        repo = UserRepository(data.engine)
-        joiner = await repo.create_user(
-            test_user_create.model_copy(
+        user_repository = UserRepository(engine)
+        joiner = await user_repository.create_user(
+            new_user.model_copy(
                 update={"email": f"joiner-{uuid.uuid4().hex}@example.com"}
             )
         )
         assert joiner is not None
-        second = await repo.create_organization(
-            data.user.id, OrganizationCreateIn(name="second"), membership_limit=10
+        second = await user_repository.create_organization(
+            seeded_organization.user.id,
+            OrganizationCreateIn(name="second"),
+            membership_limit=10,
         )
-        await _set_limit(data.engine, second.id, members_limit=10)
-        already = await repo.get_user_organizations_membership_count(joiner.id)
+        await _set_limit(engine, second.id, members_limit=10)
+        already = await user_repository.get_user_organizations_membership_count(
+            joiner.id
+        )
 
         async def make(organization_id: UUID, limit: int) -> OrganizationMember:
-            return await repo.create_organization_member(
+            return await user_repository.create_organization_member(
                 OrganizationMemberCreate(
                     user_id=joiner.id,
                     organization_id=organization_id,
@@ -791,31 +875,28 @@ class TestConcurrencyGuards:
         with pytest.raises(
             OrganizationLimitReachedError, match="limit of organizations"
         ):
-            await make(data.organization.id, already)
+            await make(seeded_organization.organization.id, already)
 
         winners, losers = _split(
             await _race(
-                make(data.organization.id, already + 1),
+                make(seeded_organization.organization.id, already + 1),
                 make(second.id, already + 1),
             ),
             OrganizationLimitReachedError,
         )
         assert len(winners) == 1
         assert len(losers) == 1
-        assert await repo.get_user_organizations_membership_count(joiner.id) == (
-            already + 1
-        )
+        assert await user_repository.get_user_organizations_membership_count(
+            joiner.id
+        ) == (already + 1)
 
-    @pytest.mark.asyncio
-    async def test_blacklisting_keeps_the_longest_expiry(
-        self, engine: AsyncEngine
-    ) -> None:
-        repo = TokenBlackListRepository(engine)
+    async def test_add_token_keeps_longest_expiry(self, engine: AsyncEngine) -> None:
+        blacklist_repository = TokenBlackListRepository(engine)
         token = f"refresh-{uuid.uuid4()}"
         base = int(time.time()) + 3600
 
-        assert await repo.add_token(token, base) is True
-        assert await repo.add_token(token, base + 600) is False
-        assert await repo.add_token(token, base - 600) is False
+        assert await blacklist_repository.add_token(token, base) is True
+        assert await blacklist_repository.add_token(token, base + 600) is False
+        assert await blacklist_repository.add_token(token, base - 600) is False
 
         assert await _blacklist_expiry(engine, token) == [base + 600]
