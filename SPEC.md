@@ -399,11 +399,11 @@ mangled attributes kept, and any move between areas.
 - [x] Task 8 — `unit/handlers/bucket_secrets/` and `test_orbit_secrets.py`
   - [x] Bucket secrets: folder with four files (`_owner_s3_secret`, `_scoped_get_bucket_secret` in `conftest.py`); orbit secrets: one class in place; convert; verify; report.
 
-- [ ] Task 9 — `unit/handlers/orbits/`, `unit/handlers/organizations/`, `test_permissions.py`
-  - [ ] Orbits: folder with two files (`orbit`, `orbit_member`, `orbit_details` fixtures and `_scoped_bucket_secret`, `_owner_orbits` in `conftest.py`).
-  - [ ] Organizations: folder with three files from `test_organizations.py`, `test_organization_invites.py`, `test_organization_members.py`.
-  - [ ] Permissions: one class in place; it tests the real `PermissionsHandler` through `mocks`, which replaces only its repositories, so its repository patches go like everywhere else.
-  - [ ] Convert; verify; report.
+- [x] Task 9 — `unit/handlers/orbits/`, `unit/handlers/organizations/`, `test_permissions.py`
+  - [x] Orbits: folder with two files (`orbit`, `orbit_member`, `orbit_details` fixtures and `_scoped_bucket_secret`, `_owner_orbits` in `conftest.py`).
+  - [x] Organizations: folder with three files from `test_organizations.py`, `test_organization_invites.py`, `test_organization_members.py`.
+  - [x] Permissions: one class in place; it tests the real `PermissionsHandler` through `mocks`, which replaces only its repositories, so its repository patches go like everywhere else.
+  - [x] Convert; verify; report.
 
 - [ ] Task 10 — `test_monitoring.py`, `test_platform_admin.py`, `test_platform_admin_auth.py`
   - [ ] One class each; `test_platform_admin_auth.py`'s three classes merge with name prefixes; one audit logger fixture replaces the two repeated `disabled` patches; `test_platform_admin_auth.py`'s `_handler` builder becomes the `mocks` fixture; convert; verify; report.
