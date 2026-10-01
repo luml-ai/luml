@@ -172,6 +172,14 @@ export const useOrganizationStore = defineStore('organization', () => {
     availableOrganizations.value = availableOrganizations.value.filter(
       (organization) => organization.id !== organizationId,
     )
+    if (currentOrganizationId.value !== organizationId) return
+
+    resetCurrentOrganization()
+    organizationDetails.value = null
+    LocalStorageService.remove('currentOrganizationId')
+    useOrbitsStore().reset()
+    LocalStorageService.remove('currentOrbitId')
+    await setInitialOrganization()
   }
 
   function reset() {
