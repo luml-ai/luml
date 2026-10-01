@@ -1,14 +1,11 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
 
 from fastapi.testclient import TestClient
 from luml.schemas.orbit import OrbitMember, OrbitRole
 from luml.schemas.user import UserOut
 
-from tests.support.ids import MEMBER_ID, ORGANIZATION_ID
-
-ORBIT_ID = UUID("0199c337-0aa2-7b45-9d21-4f8e3c7a15d0")
+from tests.support.ids import MEMBER_ID, ORBIT_ID, ORGANIZATION_ID
 
 
 class TestOrbitsMembers:

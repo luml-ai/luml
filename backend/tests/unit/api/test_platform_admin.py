@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,10 +22,10 @@ from luml.schemas.user import AuthProvider, User, UserOut
 from luml.service import AppService
 from luml.settings import config
 
+from tests.support.ids import ORGANIZATION_ID, USER_ID
+
 ADMIN_EMAIL = "admin@luml.ai"
 ADMIN_PASSWORD = "admin-password"
-ORGANIZATION_ID = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
-USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
 ALLOWED_ORIGIN = config.CORS_ORIGINS.split(",")[0]
 STATS_PATH = "/v1/platform-admin/stats"
 

@@ -191,6 +191,13 @@ class TestOrbitArtifacts:
             [artifact_id, blocked_id],
         )
 
+        unprefixed = client.post(
+            f"/orbits/{ORBIT_ID}/collections/{COLLECTION_ID}/artifacts/delete-urls",
+            json={"artifact_ids": [str(artifact_id)]},
+        )
+
+        assert unprefixed.status_code == 404
+
     @pytest.mark.parametrize(
         "artifact_ids",
         [[], [str(uuid7()) for _ in range(101)]],
