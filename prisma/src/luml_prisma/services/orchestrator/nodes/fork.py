@@ -166,7 +166,7 @@ def _collect_proposals(
     worktree_path: str,
     proposals_dir: Path,
     max_children: int,
-    node_id: int,
+    node_id: str,
 ) -> list[dict[str, Any]]:
     proposals: list[dict[str, Any]] = []
     try:

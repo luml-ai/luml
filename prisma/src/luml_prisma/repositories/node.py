@@ -43,7 +43,8 @@ class RunNodeRepository(RepositoryBase):
 
     def get_node(self, node_id: str) -> RunNodeOrm | None:
         with self._session_factory() as session:
-            return session.get(RunNodeOrm, node_id)
+            node: RunNodeOrm | None = session.get(RunNodeOrm, node_id)
+            return node
 
     def list_nodes(self, run_id: str) -> list[RunNodeOrm]:
         with self._session_factory() as session:
@@ -173,13 +174,14 @@ class RunNodeRepository(RepositoryBase):
 
     def get_next_event_seq(self, run_id: str) -> int:
         with self._session_factory() as session:
-            return (  # type: ignore[return-value]
+            next_seq: int = (
                 session.query(
                     func.coalesce(func.max(RunEventOrm.seq), 0) + 1,
                 )
                 .filter(RunEventOrm.run_id == run_id)
                 .scalar()
             )
+            return next_seq
 
     def add_session(
         self, node_id: str, session_id: str,
@@ -229,4 +231,5 @@ class RunNodeRepository(RepositoryBase):
             )
             if ns is None:
                 return None
-            return session.get(RunNodeOrm, ns.node_id)
+            node: RunNodeOrm | None = session.get(RunNodeOrm, ns.node_id)
+            return node
