@@ -383,8 +383,8 @@ mangled attributes kept, and any move between areas.
 - [x] Task 3 — `unit/handlers/tracks/`
   - [x] Create the folder with `conftest.py` (`mocks`, `_make_track`, `_make_entry`, `_make_stage`, `_integrity_error`) and the four files; convert; verify; report.
 
-- [ ] Task 4 — `unit/handlers/deployments/`
-  - [ ] Create the folder with `conftest.py` (`mocks`, `_capabilities`, `_satellite`, `_artifact`) and the five files; move `test_satellite_parameters.py` in unchanged apart from class and naming rules; convert; verify; report.
+- [x] Task 4 — `unit/handlers/deployments/`
+  - [x] Create the folder with `conftest.py` (`mocks`, `_capabilities`, `_satellite`, `_artifact`) and the five files; move `test_satellite_parameters.py` in unchanged apart from class and naming rules; convert; verify; report.
 
 - [ ] Task 5 — `unit/handlers/satellites/`
   - [ ] Create the folder with `conftest.py` and the four files; convert, including the six mangled-path patches of the permission handler's repositories, which become configuration of `mocks.permissions_handler`; verify; report.
