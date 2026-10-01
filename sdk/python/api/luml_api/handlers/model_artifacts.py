@@ -6,6 +6,10 @@ import tarfile
 from luml_api._types import ArtifactFileDetails
 
 
+def _is_appended_metadata(name: str) -> bool:
+    return "/" not in name and name.startswith("meta-") and name.endswith(".json")
+
+
 class ModelFileHandler:
     _tabular_producer_tags = [
         "dataforce.studio::tabular_classification:v1",
@@ -57,6 +61,22 @@ class ModelFileHandler:
                 )
             except Exception:
                 self._metadata = []
+            # Metadata appended after packaging (registry metrics, model cards,
+            # experiment snapshots) lives in meta-<id>.json files beside meta.json.
+            for member in tar.getmembers():
+                if not member.isfile() or not _is_appended_metadata(member.name):
+                    continue
+                try:
+                    appended = tar.extractfile(member)
+                    if appended is None:
+                        continue
+                    items = json.loads(appended.read().decode("utf-8"))
+                except Exception:
+                    continue
+                if isinstance(items, list):
+                    self._metadata.extend(
+                        item for item in items if isinstance(item, dict)
+                    )
 
     def _compute_hash(self) -> str:
         hash_sha256 = hashlib.sha256()
@@ -67,9 +87,10 @@ class ModelFileHandler:
 
     def _payload_for_tags(self, tags: list[str]) -> dict | None:
         for meta_item in self._metadata:
-            if isinstance(meta_item, dict) and any(
-                tag in tags for tag in meta_item.get("producer_tags", [])
-            ):
+            if not isinstance(meta_item, dict):
+                continue
+            item_tags = meta_item.get("producer_tags") or meta_item.get("tags") or []
+            if any(tag in tags for tag in item_tags):
                 return meta_item.get("payload", {})
         return None
 

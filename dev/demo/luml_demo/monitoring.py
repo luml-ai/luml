@@ -208,11 +208,14 @@ class HistoryPlan:
     incident_minutes: float = 12.0
 
 
-CHURN_PLAN = HistoryPlan(hours=24, base_per_hour=60, base_latency_ms=38, drift_onset_hours_ago=6,
+# Drift is scored per five-minute window against the reference histogram, so every
+# window needs enough requests to populate the reference bins; sparse windows read as
+# drift on their own.
+CHURN_PLAN = HistoryPlan(hours=24, base_per_hour=2400, base_latency_ms=38, drift_onset_hours_ago=6,
                          quality_issue_hours=2.5, incident_hours_ago=3)
-ASSISTANT_PLAN = HistoryPlan(hours=24, base_per_hour=45, base_latency_ms=140,
+ASSISTANT_PLAN = HistoryPlan(hours=24, base_per_hour=900, base_latency_ms=140,
                              drift_onset_hours_ago=0, quality_issue_hours=1.5, incident_hours_ago=9)
-CANDIDATE_PLAN = HistoryPlan(hours=6, base_per_hour=25, base_latency_ms=42, drift_onset_hours_ago=0,
+CANDIDATE_PLAN = HistoryPlan(hours=6, base_per_hour=1200, base_latency_ms=42, drift_onset_hours_ago=0,
                              quality_issue_hours=0, incident_hours_ago=0)
 
 
@@ -337,6 +340,13 @@ class Greptime:
             return 0
         return int(value or 0)
 
+    def clear_events(self, deployment_id: str) -> None:
+        with contextlib.suppress(RuntimeError, httpx.HTTPError):
+            self.sql(
+                "DELETE FROM inference_events WHERE "
+                f"json_get_string(span_attributes, '$.\"inference.deployment_id\"') = '{deployment_id}'"
+            )
+
     def clear_results(self, deployment_id: str) -> None:
         for table in ("monitoring_results", "monitoring_alerts", "monitoring_worker_failures"):
             with contextlib.suppress(RuntimeError, httpx.HTTPError):
@@ -385,6 +395,7 @@ def backfill(
 ) -> int:
     moment = now or datetime.now(UTC)
     store = Greptime(greptime_port)
+    store.clear_events(deployment_id)
     say(f"exporting {plan.hours}h of history for deployment {deployment_id}")
     exported = export_events(
         deployment_id, otlp_port, generate_history(traffic, plan, now=moment, envelope=envelope),

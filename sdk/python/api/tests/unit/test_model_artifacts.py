@@ -124,6 +124,30 @@ def test_extra_values_custom_registry_metrics(tmp_path: Path) -> None:
     assert details.extra_values == {"f1": 0.7}
 
 
+def test_extra_values_from_metadata_appended_after_packaging(tmp_path: Path) -> None:
+    """luml-sdk appends `meta-<id>.json` files (keyed by `tags`) next to meta.json."""
+    appended = [
+        {
+            "id": "dataforce.studio~c~~c~registry_metrics~c~v1~~et~~abc",
+            "tags": ["dataforce.studio::registry_metrics:v1"],
+            "payload": {"metrics": {"roc_auc": 0.87, "f1": 0.59}},
+        }
+    ]
+    file_path = _build_tar(
+        tmp_path / "model.luml",
+        meta=[],
+        manifest={"producer_tags": ["luml.ai::sklearn:v1"]},
+        extra_files={
+            "meta-abc123.json": json.dumps(appended).encode("utf-8"),
+            "meta_artifacts/meta-nested.json": b"not metadata",
+        },
+    )
+
+    details = ModelFileHandler(file_path).artifact_details()
+
+    assert details.extra_values == {"roc_auc": 0.87, "f1": 0.59}
+
+
 def test_extra_values_empty_when_nothing_matches(tmp_path: Path) -> None:
     file_path = _build_tar(
         tmp_path / "model.fnnx", meta=[], manifest={"producer_tags": []}
