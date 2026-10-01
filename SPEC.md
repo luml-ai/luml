@@ -396,8 +396,8 @@ mangled attributes kept, and any move between areas.
   - [x] Lineage: create the folder, move `HandlerMocks`/`lineage_mocks` into `mocks` from `support/mocks.py` (dropping the hand-written patch list), three files; convert; verify.
   - [x] Collections: create the folder with three files; convert; verify; report both.
 
-- [ ] Task 8 — `unit/handlers/bucket_secrets/` and `test_orbit_secrets.py`
-  - [ ] Bucket secrets: folder with four files (`_owner_s3_secret`, `_scoped_get_bucket_secret` in `conftest.py`); orbit secrets: one class in place; convert; verify; report.
+- [x] Task 8 — `unit/handlers/bucket_secrets/` and `test_orbit_secrets.py`
+  - [x] Bucket secrets: folder with four files (`_owner_s3_secret`, `_scoped_get_bucket_secret` in `conftest.py`); orbit secrets: one class in place; convert; verify; report.
 
 - [ ] Task 9 — `unit/handlers/orbits/`, `unit/handlers/organizations/`, `test_permissions.py`
   - [ ] Orbits: folder with two files (`orbit`, `orbit_member`, `orbit_details` fixtures and `_scoped_bucket_secret`, `_owner_orbits` in `conftest.py`).
