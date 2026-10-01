@@ -154,8 +154,10 @@ function buildCanvas(
   }
 
   // The path the selected cell's result was computed along lights up with
-  // it: every edge into it, and into what those came from. Drawn above the
-  // rest so a lit edge is never hidden behind an unlit one it crosses.
+  // it: every edge into it, and into what those came from. Lit edges go
+  // last so they paint over the unlit ones they cross — SVG paints in order
+  // — while every edge stays in the layer beneath the cards. A z-index
+  // would lift them above the cards instead.
   const lit = edgesLeadingTo(cellEdges, selected)
   const edges: Edge[] = cellEdges.map((edge) => {
     const id = edgeId(edge)
@@ -167,12 +169,12 @@ function buildCanvas(
       type: 'smoothstep',
       pathOptions: { borderRadius: 20 },
       class: isLit ? 'edge--lit' : undefined,
-      zIndex: isLit ? 1 : 0,
       markerEnd: isLit
         ? { type: MarkerType.ArrowClosed, color: 'var(--p-primary-color)' }
         : MarkerType.ArrowClosed,
     }
   })
+  edges.sort((left, right) => Number(lit.has(left.id)) - Number(lit.has(right.id)))
 
   return { nodes, edges }
 }
