@@ -34,7 +34,7 @@ TEST_PASSWORD = "test_password"
 
 
 @pytest.fixture
-def invite_data() -> CreateOrganizationInvite:
+def new_invite() -> CreateOrganizationInvite:
     return CreateOrganizationInvite(
         email="test@example.com",
         role=OrgRole.MEMBER,
@@ -44,7 +44,7 @@ def invite_data() -> CreateOrganizationInvite:
 
 
 @pytest.fixture
-def invite_get_data() -> OrganizationInvite:
+def invite() -> OrganizationInvite:
     return OrganizationInvite(
         id=uuid7(),
         email="test@example.com",
@@ -62,7 +62,7 @@ def invite_get_data() -> OrganizationInvite:
 
 
 @pytest.fixture
-def invite_user_get_data() -> UserInvite:
+def user_invite() -> UserInvite:
     return UserInvite(
         id=uuid7(),
         email="test@example.com",
@@ -86,11 +86,8 @@ def invite_user_get_data() -> UserInvite:
     )
 
 
-invite_accept_data = invite_data
-
-
 @pytest.fixture
-def member_data() -> OrganizationMember:
+def organization_member() -> OrganizationMember:
     return OrganizationMember(
         id=uuid7(),
         organization_id=uuid7(),
@@ -108,7 +105,7 @@ def member_data() -> OrganizationMember:
 
 
 @pytest.fixture
-def test_user_create() -> CreateUser:
+def new_user() -> CreateUser:
     return CreateUser(
         email=f"test_{uuid.uuid4()}@example.com",
         full_name="Test User",
@@ -121,10 +118,10 @@ def test_user_create() -> CreateUser:
 
 
 @pytest.fixture
-def test_user_create_in(
-    test_user_create: CreateUser,
+def new_user_in(
+    new_user: CreateUser,
 ) -> CreateUserIn:
-    user = test_user_create.model_copy()
+    user = new_user.model_copy()
     return CreateUserIn(
         email=user.email,
         full_name=user.full_name,
@@ -134,8 +131,8 @@ def test_user_create_in(
 
 
 @pytest.fixture
-def test_user(test_user_create: CreateUser) -> User:
-    user = test_user_create.model_copy()
+def user(new_user: CreateUser) -> User:
+    user = new_user.model_copy()
     return User(
         id=uuid7(),
         email=user.email,
@@ -149,8 +146,7 @@ def test_user(test_user_create: CreateUser) -> User:
 
 
 @pytest.fixture
-def test_user_out(test_user: User) -> UserOut:
-    user = test_user.model_copy()
+def user_out(user: User) -> UserOut:
     return UserOut(
         id=user.id,
         email=user.email,
@@ -162,8 +158,7 @@ def test_user_out(test_user: User) -> UserOut:
 
 
 @pytest.fixture
-def test_current_user_out(test_user: User) -> CurrentUserOut:
-    user = test_user.model_copy()
+def current_user_out(user: User) -> CurrentUserOut:
     return CurrentUserOut(
         id=user.id,
         email=user.email,
@@ -176,7 +171,7 @@ def test_current_user_out(test_user: User) -> CurrentUserOut:
 
 
 @pytest.fixture
-def test_org() -> Organization:
+def organization() -> Organization:
     return Organization(
         id=uuid7(),
         name="Test organization",
@@ -187,8 +182,8 @@ def test_org() -> Organization:
 
 
 @pytest.fixture
-def test_org_details(
-    invite_get_data: OrganizationInvite, member_data: OrganizationMember
+def organization_details(
+    invite: OrganizationInvite, organization_member: OrganizationMember
 ) -> OrganizationDetails:
     test_org_details_id = uuid7()
 
@@ -198,8 +193,8 @@ def test_org_details(
         logo=None,
         created_at=datetime.datetime.now(),
         updated_at=datetime.datetime.now(),
-        invites=[invite_get_data],
-        members=[member_data],
+        invites=[invite],
+        members=[organization_member],
         orbits=[
             Orbit(
                 id=uuid7(),
@@ -216,7 +211,7 @@ def test_org_details(
 
 
 @pytest.fixture
-def manifest_example() -> Manifest:
+def manifest() -> Manifest:
     return Manifest(
         variant="pipeline",
         description="",
@@ -249,7 +244,7 @@ def manifest_example() -> Manifest:
 
 
 @pytest.fixture
-def test_bucket() -> S3BucketSecret:
+def bucket_secret() -> S3BucketSecret:
     return S3BucketSecret(
         id=uuid7(),
         organization_id=uuid7(),
@@ -266,15 +261,15 @@ def test_bucket() -> S3BucketSecret:
 
 
 @pytest.fixture
-def test_artifact(
-    manifest_example: Manifest,
+def new_artifact(
+    manifest: Manifest,
 ) -> ArtifactCreate:
     return ArtifactCreate(
         collection_id=uuid7(),
         file_name="model.luml",
         name="Test Model",
         extra_values={"accuracy": 0.95, "precision": 0.92},
-        manifest=manifest_example,
+        manifest=manifest,
         file_hash=str(uuid.uuid4()),
         file_index={"model": (0, 1000)},
         bucket_location="orbit/collection/model.luml",
@@ -285,3 +280,80 @@ def test_artifact(
         created_by_user="User FullName",
         type=ArtifactType.MODEL,
     )
+
+
+@pytest.fixture
+def test_user_create(new_user: CreateUser) -> CreateUser:
+    return new_user
+
+
+@pytest.fixture
+def test_user_create_in(new_user_in: CreateUserIn) -> CreateUserIn:
+    return new_user_in
+
+
+@pytest.fixture
+def test_user(user: User) -> User:
+    return user
+
+
+@pytest.fixture
+def test_user_out(user_out: UserOut) -> UserOut:
+    return user_out
+
+
+@pytest.fixture
+def test_current_user_out(current_user_out: CurrentUserOut) -> CurrentUserOut:
+    return current_user_out
+
+
+@pytest.fixture
+def test_org(organization: Organization) -> Organization:
+    return organization
+
+
+@pytest.fixture
+def test_org_details(organization_details: OrganizationDetails) -> OrganizationDetails:
+    return organization_details
+
+
+@pytest.fixture
+def test_bucket(bucket_secret: S3BucketSecret) -> S3BucketSecret:
+    return bucket_secret
+
+
+@pytest.fixture
+def test_artifact(new_artifact: ArtifactCreate) -> ArtifactCreate:
+    return new_artifact
+
+
+@pytest.fixture
+def manifest_example(manifest: Manifest) -> Manifest:
+    return manifest
+
+
+@pytest.fixture
+def invite_data(new_invite: CreateOrganizationInvite) -> CreateOrganizationInvite:
+    return new_invite
+
+
+@pytest.fixture
+def invite_accept_data(
+    new_invite: CreateOrganizationInvite,
+) -> CreateOrganizationInvite:
+    return new_invite
+
+
+@pytest.fixture
+def invite_get_data(invite: OrganizationInvite) -> OrganizationInvite:
+    return invite
+
+
+@pytest.fixture
+def invite_user_get_data(user_invite: UserInvite) -> UserInvite:
+    return user_invite
+
+
+@pytest.fixture
+def member_data(organization_member: OrganizationMember) -> OrganizationMember:
+    return organization_member

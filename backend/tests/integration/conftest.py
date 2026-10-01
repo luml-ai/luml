@@ -130,7 +130,7 @@ def database_template() -> Generator[tuple[str, str]]:
 
 
 @pytest_asyncio.fixture
-async def create_database_and_apply_migrations(
+async def database_dsn(
     database_template: tuple[str, str],
 ) -> AsyncGenerator[str]:
     admin_dsn, test_dsn = database_template
@@ -157,9 +157,9 @@ async def lift_organization_limits(engine: AsyncEngine, organization_id: UUID) -
 
 @pytest_asyncio.fixture
 async def engine(
-    create_database_and_apply_migrations: str,
+    database_dsn: str,
 ) -> AsyncGenerator[AsyncEngine]:
-    engine = create_async_engine(create_database_and_apply_migrations)
+    engine = create_async_engine(database_dsn)
     try:
         yield engine
     finally:
@@ -167,13 +167,13 @@ async def engine(
 
 
 @pytest_asyncio.fixture
-async def create_organization_with_user(
-    engine: AsyncEngine, test_user_create: CreateUser
+async def seeded_organization(
+    engine: AsyncEngine, new_user: CreateUser
 ) -> OrganizationFixtureData:
     repo = UserRepository(engine)
     secret_repo = BucketSecretRepository(engine)
 
-    user = await repo.create_user(test_user_create)
+    user = await repo.create_user(new_user)
 
     created_organization = await repo.create_organization(
         user.id, OrganizationCreateIn(name="test org")
@@ -184,8 +184,7 @@ async def create_organization_with_user(
     member = member_orm.to_organization_member() if member_orm else None
 
     assert member is not None, (
-        "Organization Member should not be None in "
-        "create_organization_with_user fixture"
+        "Organization Member should not be None in seeded_organization fixture"
     )
 
     secret = await secret_repo.create_bucket_secret(
@@ -208,10 +207,10 @@ async def create_organization_with_user(
 
 
 @pytest_asyncio.fixture
-async def create_organization_with_members(
-    create_organization_with_user: OrganizationFixtureData, test_user_create: CreateUser
+async def seeded_organization_with_members(
+    seeded_organization: OrganizationFixtureData, new_user: CreateUser
 ) -> OrganizationWithMembersFixtureData:
-    data = create_organization_with_user
+    data = seeded_organization
     repo = UserRepository(data.engine)
     invites_repo = InviteRepository(data.engine)
 
@@ -219,7 +218,7 @@ async def create_organization_with_members(
     invites = []
 
     for _ in range(10):
-        user_data = test_user_create.model_copy()
+        user_data = new_user.model_copy()
         user_data.email = f"test_{uuid.uuid4()}@example.com"
         user = await repo.create_user(user_data)
 
@@ -257,10 +256,10 @@ async def create_organization_with_members(
 
 
 @pytest_asyncio.fixture
-async def create_orbit(
-    create_organization_with_user: OrganizationFixtureData,
+async def seeded_orbit(
+    seeded_organization: OrganizationFixtureData,
 ) -> OrbitFixtureData:
-    data = create_organization_with_user
+    data = seeded_organization
     orbit = await OrbitRepository(data.engine).create_orbit(
         data.organization.id,
         OrbitCreateIn(name="test orbit", bucket_secret_id=data.bucket_secret.id),
@@ -277,10 +276,10 @@ async def create_orbit(
 
 
 @pytest_asyncio.fixture
-async def create_orbit_with_members(
-    create_orbit: OrbitFixtureData, test_user_create: CreateUser
+async def seeded_orbit_with_members(
+    seeded_orbit: OrbitFixtureData, new_user: CreateUser
 ) -> OrbitWithMembersFixtureData:
-    data = create_orbit
+    data = seeded_orbit
     user_repo = UserRepository(data.engine)
     repo = OrbitRepository(data.engine)
     orbit = data.orbit
@@ -288,7 +287,7 @@ async def create_orbit_with_members(
     members = []
 
     for index in range(10):
-        user_data = test_user_create.model_copy()
+        user_data = new_user.model_copy()
         user_data.email = f"test_{uuid.uuid4()}@example.com"
         created_user = await user_repo.create_user(user_data)
         member = await repo.create_orbit_member(
@@ -312,10 +311,10 @@ async def create_orbit_with_members(
 
 
 @pytest_asyncio.fixture
-async def create_collection(
-    create_orbit: OrbitFixtureData,
+async def seeded_collection(
+    seeded_orbit: OrbitFixtureData,
 ) -> CollectionFixtureData:
-    data = create_orbit
+    data = seeded_orbit
     repo = CollectionRepository(data.engine)
 
     collection_data = CollectionCreate(
@@ -339,15 +338,15 @@ async def create_collection(
 
 
 @pytest_asyncio.fixture
-async def create_satellite(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+async def seeded_satellite(
+    seeded_collection: CollectionFixtureData, new_artifact: ArtifactCreate
 ) -> SatelliteFixtureData:
-    data = create_collection
+    data = seeded_collection
     repo = SatelliteRepository(data.engine)
     artifact_repo = ArtifactRepository(data.engine)
     orbit, collection = data.orbit, data.collection
 
-    artifact_data = test_artifact.model_copy()
+    artifact_data = new_artifact.model_copy()
     artifact_data.collection_id = collection.id
     artifact_data.status = ArtifactStatus.UPLOADED
 
@@ -367,3 +366,48 @@ async def create_satellite(
         model=artifact,
         satellite=satellite,
     )
+
+
+@pytest_asyncio.fixture
+async def create_database_and_apply_migrations(database_dsn: str) -> str:
+    return database_dsn
+
+
+@pytest_asyncio.fixture
+async def create_organization_with_user(
+    seeded_organization: OrganizationFixtureData,
+) -> OrganizationFixtureData:
+    return seeded_organization
+
+
+@pytest_asyncio.fixture
+async def create_organization_with_members(
+    seeded_organization_with_members: OrganizationWithMembersFixtureData,
+) -> OrganizationWithMembersFixtureData:
+    return seeded_organization_with_members
+
+
+@pytest_asyncio.fixture
+async def create_orbit(seeded_orbit: OrbitFixtureData) -> OrbitFixtureData:
+    return seeded_orbit
+
+
+@pytest_asyncio.fixture
+async def create_orbit_with_members(
+    seeded_orbit_with_members: OrbitWithMembersFixtureData,
+) -> OrbitWithMembersFixtureData:
+    return seeded_orbit_with_members
+
+
+@pytest_asyncio.fixture
+async def create_collection(
+    seeded_collection: CollectionFixtureData,
+) -> CollectionFixtureData:
+    return seeded_collection
+
+
+@pytest_asyncio.fixture
+async def create_satellite(
+    seeded_satellite: SatelliteFixtureData,
+) -> SatelliteFixtureData:
+    return seeded_satellite

@@ -33,14 +33,19 @@ class UserFixtureData:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def get_created_user(
-    engine: AsyncEngine, test_user_create: CreateUser
+async def seeded_user(
+    engine: AsyncEngine, new_user: CreateUser
 ) -> AsyncGenerator[UserFixtureData]:
     repo = UserRepository(engine)
 
-    user = await repo.create_user(test_user_create)
+    user = await repo.create_user(new_user)
 
     yield UserFixtureData(engine=engine, repo=repo, user=user)
+
+
+@pytest_asyncio.fixture
+async def get_created_user(seeded_user: UserFixtureData) -> UserFixtureData:
+    return seeded_user
 
 
 @pytest.mark.asyncio
