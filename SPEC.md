@@ -392,9 +392,9 @@ mangled attributes kept, and any move between areas.
 - [x] Task 6 — `unit/handlers/auth/` and `test_api_keys.py`
   - [x] Create the `auth/` folder with `conftest.py` (`mocks` building the handler with the module's secret, algorithm and provider; `passwords`, `tokens`, `tokens_by_purpose`) and the five files; `jwt.decode` patches stay as context managers; convert `test_api_keys.py` in place to one class; verify; report.
 
-- [ ] Task 7 — `unit/handlers/lineage/` and `unit/handlers/collections/`
-  - [ ] Lineage: create the folder, move `HandlerMocks`/`lineage_mocks` into `mocks` from `support/mocks.py` (dropping the hand-written patch list), three files; convert; verify.
-  - [ ] Collections: create the folder with three files; convert; verify; report both.
+- [x] Task 7 — `unit/handlers/lineage/` and `unit/handlers/collections/`
+  - [x] Lineage: create the folder, move `HandlerMocks`/`lineage_mocks` into `mocks` from `support/mocks.py` (dropping the hand-written patch list), three files; convert; verify.
+  - [x] Collections: create the folder with three files; convert; verify; report both.
 
 - [ ] Task 8 — `unit/handlers/bucket_secrets/` and `test_orbit_secrets.py`
   - [ ] Bucket secrets: folder with four files (`_owner_s3_secret`, `_scoped_get_bucket_secret` in `conftest.py`); orbit secrets: one class in place; convert; verify; report.
