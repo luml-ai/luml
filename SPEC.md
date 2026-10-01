@@ -567,12 +567,12 @@ new tests are class methods.
   - [x] Rewrite `.github/workflows/[backend] tests-and-linters.yml` into the jobs `checks`, `unit-tests`, `integration-tests` per the Design table: uv installed through the official setup action with caching, Postgres 15 as a service container with a readiness check in `integration-tests` only, the existing environment variables on the two test jobs, `mypy luml utils tests` in `checks`.
   - [x] Verify locally: `uv run mypy luml utils tests` passes; `uv run pytest tests/unit` and `uv run pytest tests/integration` pass separately. Note in the task report that `unit-tests` and `integration-tests` must be added by hand to the repository's required checks next to `checks`.
 
-- [ ] Task 3 — Layout
-  - [ ] `git mv backend/tests/integration/repository` to `integration/repositories`; create `integration/handlers/`, `integration/migrations/`, `unit/infra/` as packages.
-  - [ ] Move `unit/test_security.py` to `unit/infra/test_security.py` and `unit/test_security_headers.py` to `unit/infra/test_middleware.py`.
-  - [ ] Move `integration/test_migrations_env.py` to `integration/migrations/test_env.py` and `integration/test_satellite_contract_migration.py` to `integration/migrations/test_041_satellite_contract.py`.
-  - [ ] Move the two handler-driven deployment tests with their `deployment_handler` fixture into `integration/handlers/test_deployments.py`, the lineage concurrent-deletion test into `integration/handlers/test_artifacts.py`, and the two blacklist migration guards into `integration/migrations/test_039_concurrency_guards.py`; helpers they need travel with them (duplicated for now if the source file still needs them; Task 4 unifies).
-  - [ ] Update every import path that referenced a moved module; verify 1 054 cases collect and pass, `git log --follow` works on a moved file, and `integration/repositories/` imports no handler.
+- [x] Task 3 — Layout
+  - [x] `git mv backend/tests/integration/repository` to `integration/repositories`; create `integration/handlers/`, `integration/migrations/`, `unit/infra/` as packages.
+  - [x] Move `unit/test_security.py` to `unit/infra/test_security.py` and `unit/test_security_headers.py` to `unit/infra/test_middleware.py`.
+  - [x] Move `integration/test_migrations_env.py` to `integration/migrations/test_env.py` and `integration/test_satellite_contract_migration.py` to `integration/migrations/test_041_satellite_contract.py`.
+  - [x] Move the two handler-driven deployment tests with their `deployment_handler` fixture into `integration/handlers/test_deployments.py`, the lineage concurrent-deletion test into `integration/handlers/test_artifacts.py`, and the two blacklist migration guards into `integration/migrations/test_039_concurrency_guards.py`; helpers they need travel with them (duplicated for now if the source file still needs them; Task 4 unifies).
+  - [x] Update every import path that referenced a moved module; verify 1 054 cases collect and pass, `git log --follow` works on a moved file, and `integration/repositories/` imports no handler.
 
 - [ ] Task 4 — Support package, conftest split, seeds and engines
   - [ ] Create `backend/tests/support/` with `seeds.py` (the seven dataclasses from `conftest.py`), `builders.py` (`create_artifact`, `create_sibling_orbit`, `create_sibling_organization`, `create_collection`), `alembic.py` (one command runner); replace `from tests.conftest import …` in all 17 files.

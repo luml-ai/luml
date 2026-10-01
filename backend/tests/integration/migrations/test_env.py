@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-BACKEND_DIR = Path(__file__).resolve().parents[2]
+BACKEND_DIR = Path(__file__).resolve().parents[3]
 
 
 def _alembic_current(dsn: str) -> subprocess.CompletedProcess[str]:

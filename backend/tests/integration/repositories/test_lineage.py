@@ -1,9 +1,7 @@
-import asyncio
 import uuid
 
 import pytest
 from luml.constants import LINEAGE_MAX_NODES
-from luml.handlers.artifacts import ArtifactHandler
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.lineage import LineageRepository
@@ -633,50 +631,6 @@ async def test_unreachable_deleted_components_are_removed(
 
     await artifact_repo.delete_artifact(artifacts[0].id)
     await lineage_repo.delete_unreachable_deleted_nodes(data.orbit.id)
-    assert (
-        await lineage_repo.get_nodes_by_ids(data.orbit.id, [node.id for node in nodes])
-        == []
-    )
-
-
-@pytest.mark.asyncio
-async def test_concurrent_deletion_of_the_last_live_artifacts_removes_the_component(
-    create_collection: CollectionFixtureData,
-    test_artifact: ArtifactCreate,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    data = create_collection
-    artifact_repo = ArtifactRepository(data.engine)
-    lineage_repo = LineageRepository(data.engine)
-    monkeypatch.setattr(ArtifactHandler, "_ArtifactHandler__repository", artifact_repo)
-    monkeypatch.setattr(
-        ArtifactHandler, "_ArtifactHandler__lineage_repository", lineage_repo
-    )
-    artifacts = [
-        await _create_artifact(data.engine, test_artifact, data.collection.id, name)
-        for name in ["last-1", "last-2"]
-    ]
-    listed = await _get_listed_artifacts(
-        data.engine, data.orbit.id, [artifact.id for artifact in artifacts]
-    )
-    nodes = [
-        await lineage_repo.get_or_create_node(data.orbit.id, listed[artifact.id])
-        for artifact in artifacts
-    ]
-    await lineage_repo.create_edges(
-        data.orbit.id, [(nodes[0].id, nodes[1].id)], "Test User", LineageVia.API
-    )
-    handler = ArtifactHandler()
-
-    # Run independently, each deletion could see the other artifact as still
-    # live, skip the cleanup, and leave a component nobody can open.
-    await asyncio.gather(
-        handler._delete_artifact(data.orbit.id, artifacts[0].id),
-        handler._delete_artifact(data.orbit.id, artifacts[1].id),
-    )
-
-    assert await artifact_repo.get_artifact(artifacts[0].id) is None
-    assert await artifact_repo.get_artifact(artifacts[1].id) is None
     assert (
         await lineage_repo.get_nodes_by_ids(data.orbit.id, [node.id for node in nodes])
         == []
