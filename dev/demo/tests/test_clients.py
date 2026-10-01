@@ -143,6 +143,16 @@ def test_engine_environment_isolates_state(monkeypatch: pytest.MonkeyPatch, tmp_
     assert env["PATH"].split(":")[0].endswith("bin")
 
 
+def test_post_upload_url_explains_a_claimed_upload() -> None:
+    client = prisma_engine.PrismaClient("http://engine")
+    client._client = httpx.Client(
+        base_url="http://engine/api",
+        transport=httpx.MockTransport(lambda request: httpx.Response(409, json={"detail": "claimed"})),
+    )
+    with pytest.raises(RuntimeError, match="Prisma run page"):
+        client.post_upload_url("r1", "u1", "https://bucket/x")
+
+
 def test_upload_outcome_reads_persisted_events() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/runs/r1/events"

@@ -125,7 +125,13 @@ class PrismaClient:
         response = self._client.post(
             f"/runs/{run_id}/uploads/{upload_id}/url", json={"presigned_url": presigned_url},
         )
-        if response.status_code not in (202, 409):
+        if response.status_code == 409:
+            # An open Prisma run page handles upload_ready events itself and claims the upload.
+            raise RuntimeError(
+                "the engine's upload was already claimed, most likely by an open Prisma run page; "
+                "close the Prisma pages while luml-demo prepares, then re-run `luml-demo up`"
+            )
+        if response.status_code != 202:
             raise RuntimeError(f"posting the upload URL failed: {response.status_code} {response.text[:300]}")
 
     def post_artifact_link(self, run_id: str, upload_id: str, *, artifact_id: str,

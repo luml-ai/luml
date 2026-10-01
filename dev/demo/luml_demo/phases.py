@@ -410,6 +410,9 @@ def runbook_text(config: DemoConfig, state: DemoState) -> str:
         "     monitoring dashboard (24h history with a drift onset, data-quality issues, an incident).",
         "  5. Keep traffic flowing while talking: luml-demo traffic --scenario churn --minutes 15",
         "",
+        "Keep Prisma run pages closed while `luml-demo up` runs: an open page claims the engine's",
+        "uploads itself and registers plain `agent-model-<node>` artifacts instead of the curated ones.",
+        "",
         "Teardown: luml-demo down  (add --volumes for a clean slate)",
         "",
     ])
