@@ -26,7 +26,8 @@ class RepositoryRepository(RepositoryBase):
 
     def get(self, repository_id: str) -> RepositoryOrm | None:
         with self._session_factory() as session:
-            return session.get(RepositoryOrm, repository_id)
+            repo: RepositoryOrm | None = session.get(RepositoryOrm, repository_id)
+            return repo
 
     def list_all(self) -> list[RepositoryOrm]:
         with self._session_factory() as session:
