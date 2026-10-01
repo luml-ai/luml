@@ -380,8 +380,8 @@ mangled attributes kept, and any move between areas.
   - [x] Convert every test per the Design; replace `DELETION_SESSION` and `DELETION_TRANSACTION_ERRORS` with `mocks.session` and `mocks.transaction_errors`.
   - [x] Verify per file and report.
 
-- [ ] Task 3 — `unit/handlers/tracks/`
-  - [ ] Create the folder with `conftest.py` (`mocks`, `_make_track`, `_make_entry`, `_make_stage`, `_integrity_error`) and the four files; convert; verify; report.
+- [x] Task 3 — `unit/handlers/tracks/`
+  - [x] Create the folder with `conftest.py` (`mocks`, `_make_track`, `_make_entry`, `_make_stage`, `_integrity_error`) and the four files; convert; verify; report.
 
 - [ ] Task 4 — `unit/handlers/deployments/`
   - [ ] Create the folder with `conftest.py` (`mocks`, `_capabilities`, `_satellite`, `_artifact`) and the five files; move `test_satellite_parameters.py` in unchanged apart from class and naming rules; convert; verify; report.
