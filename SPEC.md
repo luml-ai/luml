@@ -411,8 +411,8 @@ mangled attributes kept, and any move between areas.
 - [x] Task 11 — `unit/repositories/` and `unit/infra/`
   - [x] `test_artifacts.py` and `test_lineage.py` to one class each (`test_base.py` already is); `unit/infra/test_security.py` and `test_middleware.py` to one class each; identifiers and naming rules; verify; report.
 
-- [ ] Task 12 — `integration/repositories/artifacts/` and `test_lineage.py`
-  - [ ] Artifacts: folder with `conftest.py` (`repository` fixture, `_add_artifact_to_track`) and the four files, `test_artifacts_batch_deletion.py` moving in as `test_batch_deletion.py`; lineage: one class in place with `repository` and `_get_listed_artifacts`; convert; verify; report.
+- [x] Task 12 — `integration/repositories/artifacts/` and `test_lineage.py`
+  - [x] Artifacts: folder with `conftest.py` (`repository` fixture, `_add_artifact_to_track`) and the four files, `test_artifacts_batch_deletion.py` moving in as `test_batch_deletion.py`; lineage: one class in place with `repository` and `_get_listed_artifacts`; convert; verify; report.
 
 - [ ] Task 13 — `integration/repositories/tracks/` and `integration/repositories/deployments/`
   - [ ] Tracks: folder with `conftest.py` (`repository` fixtures for track, stage and entry repositories; `_seed_entries`, `_collect_pages`) and four files; deployments: folder with three files; convert; verify; report.

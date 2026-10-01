@@ -20,6 +20,7 @@ from luml.schemas.collections import CollectionCreate
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.satellite import Satellite, SatelliteCreate
 from luml.schemas.tracks import TrackCreate, TrackEntryCreate
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.builders import create_artifact
 from tests.support.seeds import CollectionFixtureData
@@ -37,19 +38,19 @@ async def _create_satellite(
     )
 
 
-class TestArtifactsBatchDeletion:
-    @pytest.mark.asyncio
-    async def test_phase_one_accepts_artifacts_in_every_status(
+class TestArtifactRepositoryBatchDeletion:
+    async def test_request_batch_deletion_accepts_artifacts_in_every_status(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        repository = ArtifactRepository(create_collection.engine)
         artifacts = [
             await create_artifact(
-                create_collection.engine,
-                test_artifact,
-                create_collection.collection.id,
+                engine,
+                new_artifact,
+                seeded_collection.collection.id,
                 name=artifact_status.value,
                 status=artifact_status,
             )
@@ -57,7 +58,7 @@ class TestArtifactsBatchDeletion:
         ]
 
         records = await repository.request_batch_deletion(
-            create_collection.collection.id,
+            seeded_collection.collection.id,
             [artifact.id for artifact in artifacts],
         )
 
@@ -73,28 +74,27 @@ class TestArtifactsBatchDeletion:
             assert persisted is not None
             assert persisted.status == ArtifactStatus.PENDING_DELETION
 
-    @pytest.mark.asyncio
-    async def test_phase_one_ignores_artifacts_outside_the_collection(
+    async def test_request_batch_deletion_ignores_artifacts_outside_collection(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        repository = ArtifactRepository(data.engine)
-        other_collection = await CollectionRepository(data.engine).create_collection(
+        other_collection = await CollectionRepository(engine).create_collection(
             CollectionCreate(
-                orbit_id=data.orbit.id,
+                orbit_id=seeded_collection.orbit.id,
                 description="description",
                 name="other",
-                type=data.collection.type,
+                type=seeded_collection.collection.type,
             )
         )
         foreign_artifact = await create_artifact(
-            data.engine, test_artifact, other_collection.id, name="foreign"
+            engine, new_artifact, other_collection.id, name="foreign"
         )
 
         records = await repository.request_batch_deletion(
-            data.collection.id,
+            seeded_collection.collection.id,
             [foreign_artifact.id, uuid.uuid4()],
         )
 
@@ -103,44 +103,43 @@ class TestArtifactsBatchDeletion:
         assert persisted is not None
         assert persisted.status == ArtifactStatus.UPLOADED
 
-    @pytest.mark.asyncio
-    async def test_phase_one_moves_only_unreferenced_artifacts_with_details(
+    async def test_request_batch_deletion_moves_only_unreferenced_artifacts(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        repository = ArtifactRepository(data.engine)
-        deployment_repository = DeploymentRepository(data.engine)
-        track_repository = TrackRepository(data.engine)
-        entry_repository = TrackEntryRepository(data.engine)
-        satellite = await _create_satellite(data)
+        deployment_repository = DeploymentRepository(engine)
+        track_repository = TrackRepository(engine)
+        entry_repository = TrackEntryRepository(engine)
+        satellite = await _create_satellite(seeded_collection)
         eligible = await create_artifact(
-            data.engine,
-            test_artifact,
-            data.collection.id,
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
             name="eligible",
             status=ArtifactStatus.UPLOAD_FAILED,
         )
         failed_deployment_artifact = await create_artifact(
-            data.engine,
-            test_artifact,
-            data.collection.id,
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
             name="failed deployment artifact",
         )
         active_deployment_artifact = await create_artifact(
-            data.engine,
-            test_artifact,
-            data.collection.id,
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
             name="active deployment artifact",
         )
         tracked_artifact = await create_artifact(
-            data.engine, test_artifact, data.collection.id, name="tracked"
+            engine, new_artifact, seeded_collection.collection.id, name="tracked"
         )
         failed_deployment, _ = await deployment_repository.create_deployment(
             DeploymentCreate(
                 name="failed deployment",
-                orbit_id=data.orbit.id,
+                orbit_id=seeded_collection.orbit.id,
                 satellite_id=satellite.id,
                 artifact_id=failed_deployment_artifact.id,
                 status=DeploymentStatus.FAILED,
@@ -149,7 +148,7 @@ class TestArtifactsBatchDeletion:
         active_deployment, _ = await deployment_repository.create_deployment(
             DeploymentCreate(
                 name="active deployment",
-                orbit_id=data.orbit.id,
+                orbit_id=seeded_collection.orbit.id,
                 satellite_id=satellite.id,
                 artifact_id=active_deployment_artifact.id,
                 status=DeploymentStatus.ACTIVE,
@@ -160,7 +159,7 @@ class TestArtifactsBatchDeletion:
                 TrackCreate(
                     name=name,
                     artifact_type=ArtifactType.MODEL,
-                    orbit_id=data.orbit.id,
+                    orbit_id=seeded_collection.orbit.id,
                 )
             )
             for name in ("release", "latest")
@@ -170,12 +169,12 @@ class TestArtifactsBatchDeletion:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=tracked_artifact.id,
-                    added_by=data.user.email,
+                    added_by=seeded_collection.user.email,
                 )
             )
 
         records = await repository.request_batch_deletion(
-            data.collection.id,
+            seeded_collection.collection.id,
             [
                 eligible.id,
                 failed_deployment_artifact.id,
@@ -222,99 +221,98 @@ class TestArtifactsBatchDeletion:
         assert tracked.status == ArtifactStatus.UPLOADED
         assert (
             await deployment_repository.get_deployment(
-                failed_deployment.id, data.orbit.id
+                failed_deployment.id, seeded_collection.orbit.id
             )
             is not None
         )
         assert await entry_repository.has_entries_for_artifact(tracked_artifact.id)
 
-    @pytest.mark.asyncio
     async def test_mark_deletion_failed_updates_requested_rows(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        repository = ArtifactRepository(create_collection.engine)
         artifact = await create_artifact(
-            create_collection.engine,
-            test_artifact,
-            create_collection.collection.id,
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
             name="artifact",
         )
         await repository.request_batch_deletion(
-            create_collection.collection.id, [artifact.id]
+            seeded_collection.collection.id, [artifact.id]
         )
 
         await repository.mark_deletion_failed(
-            create_collection.collection.id, [artifact.id]
+            seeded_collection.collection.id, [artifact.id]
         )
 
         updated = await repository.get_artifact(artifact.id)
         assert updated is not None
         assert updated.status == ArtifactStatus.DELETION_FAILED
 
-    @pytest.mark.asyncio
-    async def test_record_removal_updates_count_and_reports_missing_record(
+    async def test_delete_artifact_record_updates_count_and_reports_missing_record(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        repository = ArtifactRepository(create_collection.engine)
         artifacts = [
             await create_artifact(
-                create_collection.engine,
-                test_artifact,
-                create_collection.collection.id,
+                engine,
+                new_artifact,
+                seeded_collection.collection.id,
                 name=f"artifact-{index}",
             )
             for index in range(3)
         ]
         assert (
             await repository.get_collection_artifacts_count(
-                create_collection.collection.id
+                seeded_collection.collection.id
             )
             == 3
         )
 
         for artifact in artifacts:
             assert await repository.delete_artifact_record(
-                artifact.id, create_collection.collection.id
+                artifact.id, seeded_collection.collection.id
             )
         assert not await repository.delete_artifact_record(
-            artifacts[0].id, create_collection.collection.id
+            artifacts[0].id, seeded_collection.collection.id
         )
 
         for artifact in artifacts:
             assert await repository.get_artifact(artifact.id) is None
         assert (
             await repository.get_collection_artifacts_count(
-                create_collection.collection.id
+                seeded_collection.collection.id
             )
             == 0
         )
 
-    @pytest.mark.asyncio
-    async def test_record_removal_reports_deployment_and_track_constraints(
+    async def test_delete_artifact_record_raises_on_deployment_and_track_references(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        repository = ArtifactRepository(data.engine)
-        deployment_repository = DeploymentRepository(data.engine)
-        track_repository = TrackRepository(data.engine)
-        entry_repository = TrackEntryRepository(data.engine)
-        satellite = await _create_satellite(data)
+        deployment_repository = DeploymentRepository(engine)
+        track_repository = TrackRepository(engine)
+        entry_repository = TrackEntryRepository(engine)
+        satellite = await _create_satellite(seeded_collection)
         deployed = await create_artifact(
-            data.engine, test_artifact, data.collection.id, name="deployed"
+            engine, new_artifact, seeded_collection.collection.id, name="deployed"
         )
         tracked = await create_artifact(
-            data.engine, test_artifact, data.collection.id, name="tracked"
+            engine, new_artifact, seeded_collection.collection.id, name="tracked"
         )
         await deployment_repository.create_deployment(
             DeploymentCreate(
                 name="deployment",
-                orbit_id=data.orbit.id,
+                orbit_id=seeded_collection.orbit.id,
                 satellite_id=satellite.id,
                 artifact_id=deployed.id,
             )
@@ -323,21 +321,25 @@ class TestArtifactsBatchDeletion:
             TrackCreate(
                 name="track",
                 artifact_type=ArtifactType.MODEL,
-                orbit_id=data.orbit.id,
+                orbit_id=seeded_collection.orbit.id,
             )
         )
         await entry_repository.create_entry(
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=tracked.id,
-                added_by=data.user.email,
+                added_by=seeded_collection.user.email,
             )
         )
 
         with pytest.raises(DatabaseConstraintError):
-            await repository.delete_artifact_record(deployed.id, data.collection.id)
+            await repository.delete_artifact_record(
+                deployed.id, seeded_collection.collection.id
+            )
         with pytest.raises(DatabaseConstraintError):
-            await repository.delete_artifact_record(tracked.id, data.collection.id)
+            await repository.delete_artifact_record(
+                tracked.id, seeded_collection.collection.id
+            )
 
         assert await repository.get_artifact(deployed.id) is not None
         assert await repository.get_artifact(tracked.id) is not None
@@ -351,61 +353,60 @@ class TestArtifactsBatchDeletion:
             ArtifactStatus.DELETION_FAILED,
         ],
     )
-    @pytest.mark.asyncio
-    async def test_deployment_creation_rejects_non_uploaded_status(
+    async def test_create_deployment_rejects_artifact_not_uploaded(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
         artifact_status: ArtifactStatus,
     ) -> None:
-        deployment_repository = DeploymentRepository(create_collection.engine)
+        deployment_repository = DeploymentRepository(engine)
         artifact = await create_artifact(
-            create_collection.engine,
-            test_artifact,
-            create_collection.collection.id,
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
             name=artifact_status.value,
             status=artifact_status,
         )
-        satellite = await _create_satellite(create_collection)
+        satellite = await _create_satellite(seeded_collection)
 
         with pytest.raises(ArtifactStatusMismatchError, match=artifact_status.value):
             await deployment_repository.create_deployment(
                 DeploymentCreate(
                     name="deployment",
-                    orbit_id=create_collection.orbit.id,
+                    orbit_id=seeded_collection.orbit.id,
                     satellite_id=satellite.id,
                     artifact_id=artifact.id,
                 )
             )
 
         assert (
-            await deployment_repository.list_deployments(create_collection.orbit.id)
+            await deployment_repository.list_deployments(seeded_collection.orbit.id)
             == []
         )
 
-    @pytest.mark.asyncio
-    async def test_deployment_creation_and_phase_one_serialize_on_artifact(
+    async def test_create_deployment_and_batch_deletion_serialize_on_artifact(
         self,
-        create_collection: CollectionFixtureData,
-        test_artifact: ArtifactCreate,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
     ) -> None:
-        data = create_collection
-        artifact_repository = ArtifactRepository(data.engine)
-        deployment_repository = DeploymentRepository(data.engine)
+        deployment_repository = DeploymentRepository(engine)
         artifact = await create_artifact(
-            data.engine, test_artifact, data.collection.id, name="concurrent"
+            engine, new_artifact, seeded_collection.collection.id, name="concurrent"
         )
-        satellite = await _create_satellite(data)
+        satellite = await _create_satellite(seeded_collection)
         deployment_data = DeploymentCreate(
             name="deployment",
-            orbit_id=data.orbit.id,
+            orbit_id=seeded_collection.orbit.id,
             satellite_id=satellite.id,
             artifact_id=artifact.id,
         )
 
         transition_result, creation_result = await asyncio.gather(
-            artifact_repository.request_batch_deletion(
-                data.collection.id, [artifact.id]
+            repository.request_batch_deletion(
+                seeded_collection.collection.id, [artifact.id]
             ),
             deployment_repository.create_deployment(deployment_data),
             return_exceptions=True,
@@ -413,7 +414,7 @@ class TestArtifactsBatchDeletion:
 
         assert not isinstance(transition_result, BaseException)
         assert len(transition_result) == 1
-        current = await artifact_repository.get_artifact(artifact.id)
+        current = await repository.get_artifact(artifact.id)
         assert current is not None
         deployment_won = not isinstance(creation_result, BaseException)
         deletion_won = isinstance(creation_result, ArtifactStatusMismatchError)
@@ -424,4 +425,7 @@ class TestArtifactsBatchDeletion:
         else:
             assert current.status == ArtifactStatus.PENDING_DELETION
             assert transition_result[0].deployments == []
-            assert await deployment_repository.list_deployments(data.orbit.id) == []
+            assert (
+                await deployment_repository.list_deployments(seeded_collection.orbit.id)
+                == []
+            )
