@@ -1,0 +1,70 @@
+[project]
+name = "luml-demo"
+version = "0.1.0"
+description = "One-command local end-to-end demo environment for LUML"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "cloudpickle>=3.1",
+    "httpx>=0.27",
+    "luml-api",
+    "luml-prisma",
+    "luml-sdk",
+    "numpy>=2.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.43",
+    "opentelemetry-sdk>=1.43",
+    "pandas>=2.2,<3",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.5",
+    "typer>=0.15",
+]
+
+[project.scripts]
+luml-demo = "luml_demo.cli:main"
+
+[tool.uv]
+# luml-prisma pins luml-sdk<0.3.0 on PyPI; the demo runs against the monorepo SDK.
+override-dependencies = ["luml-sdk"]
+
+[tool.uv.sources]
+luml-api = { path = "../../sdk/python/api", editable = true }
+luml-prisma = { path = "../../prisma", editable = true }
+luml-sdk = { path = "../../sdk/python/sdk", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["luml_demo"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19",
+    "pandas-stubs>=2.2",
+    "pytest>=8.0",
+    "ruff>=0.15",
+    "types-PyYAML>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "ANN"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = ["luml.*", "luml_api.*", "luml_prisma.*", "cloudpickle.*", "sklearn.*", "opentelemetry.*"]
+ignore_missing_imports = true
+follow_untyped_imports = true
