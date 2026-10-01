@@ -21,6 +21,21 @@ from luml_demo.shell import say, wait_for
 RUN_TERMINAL_STATES = {"succeeded", "failed", "canceled", "merged"}
 
 
+def engine_environment(config: DemoConfig) -> dict[str, str]:
+    """Environment for the engine and the prisma-demo helpers: demo-local state, demo venv on PATH.
+
+    The engine keeps its board, sessions and custom agents under LUML_PRISMA_DATA_DIR, so the
+    demo never mixes with runs made against other platforms.
+    """
+    venv_bin = Path(sys.executable).parent
+    env = dict(os.environ)
+    env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
+    env["LUML_PRISMA_DATA_DIR"] = str(config.home / "prisma")
+    env["LUML_EXPERIMENTS_DIR"] = str(config.experiments_dir)
+    env["LUML_PRISMA_CORS_ORIGINS"] = f"{config.web_url},http://127.0.0.1:{config.web_port}"
+    return env
+
+
 class Engine:
     def __init__(self, config: DemoConfig) -> None:
         self.config = config
@@ -41,11 +56,8 @@ class Engine:
                 "stop it first (luml-demo prisma stop) so the demo agents are on its PATH"
             )
         venv_bin = Path(sys.executable).parent
-        env = dict(os.environ)
-        env["PATH"] = f"{venv_bin}:{env.get('PATH', '')}"
+        env = engine_environment(self.config)
         env["PRISMA_DEMO_SPEED"] = str(speed)
-        env["LUML_EXPERIMENTS_DIR"] = str(self.config.experiments_dir)
-        env["LUML_PRISMA_CORS_ORIGINS"] = f"{self.config.web_url},http://127.0.0.1:{self.config.web_port}"
         self.config.logs_dir.mkdir(parents=True, exist_ok=True)
         self.config.experiments_dir.mkdir(parents=True, exist_ok=True)
         log = self.log_file.open("ab")
@@ -102,6 +114,38 @@ class PrismaClient:
                 return str(repository["id"])
         return str(self.create_repository(name, path)["id"])
 
+    def pending_uploads(self, run_id: str) -> list[dict[str, Any]]:
+        """Uploads the engine queued for the run's successful nodes, keyed later by node id."""
+        return list(self._request("GET", f"/runs/{run_id}/uploads", params={"status": "pending"}).json())
+
+    def events(self, run_id: str, after_seq: int = 0) -> list[dict[str, Any]]:
+        return list(self._request("GET", f"/runs/{run_id}/events", params={"after_seq": after_seq}).json())
+
+    def post_upload_url(self, run_id: str, upload_id: str, presigned_url: str) -> None:
+        response = self._client.post(
+            f"/runs/{run_id}/uploads/{upload_id}/url", json={"presigned_url": presigned_url},
+        )
+        if response.status_code not in (202, 409):
+            raise RuntimeError(f"posting the upload URL failed: {response.status_code} {response.text[:300]}")
+
+    def post_artifact_link(self, run_id: str, upload_id: str, *, artifact_id: str,
+                           organization_id: str, orbit_id: str, collection_id: str) -> None:
+        self._request("POST", f"/runs/{run_id}/uploads/{upload_id}/artifact-link", json={
+            "artifact_id": artifact_id,
+            "organization_id": organization_id,
+            "orbit_id": orbit_id,
+            "collection_id": collection_id,
+        })
+
+    def upload_outcome(self, run_id: str, upload_id: str) -> str | None:
+        """'completed', 'failed' or None while the engine is still transferring the file."""
+        for event in self.events(run_id):
+            if event.get("type") in ("upload_completed", "upload_failed") and (
+                event.get("data") or {}
+            ).get("upload_id") == upload_id:
+                return "completed" if event["type"] == "upload_completed" else "failed"
+        return None
+
     def delete_repository(self, repository_id: str) -> None:
         self._request("DELETE", f"/repositories/{repository_id}")
 
@@ -121,8 +165,16 @@ class PrismaClient:
         return dict(self._request("GET", f"/runs/{run_id}/graph").json())
 
 
-def run_payload(scenario: Scenario, spec: ScenarioSpec, repository_id: str, name: str) -> dict[str, Any]:
-    return {
+def run_payload(
+    scenario: Scenario,
+    spec: ScenarioSpec,
+    repository_id: str,
+    name: str,
+    *,
+    registry: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """The workflow settings the runbook prescribes; `registry` turns on artifact uploads."""
+    payload: dict[str, Any] = {
         "repository_id": repository_id,
         "name": name,
         "objective": scenario.objective.strip(),
@@ -137,6 +189,13 @@ def run_payload(scenario: Scenario, spec: ScenarioSpec, repository_id: str, name
         "auto_terminate_timeout": 30,
         "primary_metric": "metric",
     }
+    if registry:
+        payload.update({
+            "luml_collection_id": registry["collection_id"],
+            "luml_organization_id": registry["organization_id"],
+            "luml_orbit_id": registry["orbit_id"],
+        })
+    return payload
 
 
 def run_to_completion(client: PrismaClient, payload: dict[str, Any], *, timeout: float) -> dict[str, Any]:

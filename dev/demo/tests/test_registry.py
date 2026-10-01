@@ -2,7 +2,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
-from luml_api import LumlClient
+import pytest
+from luml_api import ArtifactStatus, LumlClient
 
 from luml_demo import registry
 from luml_demo.config import SCENARIOS
@@ -105,6 +106,79 @@ def test_publish_artifacts_reuses_uploaded_versions(tmp_path: Path) -> None:
         ("track-1", "art-1", "production"),
     ]
     assert published[0]["artifact_id"] == "art-old" and published[0]["version"] == 99
+
+
+class FakePrisma:
+    def __init__(self) -> None:
+        self.urls: list[tuple[str, str]] = []
+        self.links: list[dict[str, str]] = []
+
+    def post_upload_url(self, run_id: str, upload_id: str, presigned_url: str) -> None:
+        self.urls.append((upload_id, presigned_url))
+
+    def upload_outcome(self, run_id: str, upload_id: str) -> str | None:
+        return "completed" if any(u == upload_id for u, _ in self.urls) else None
+
+    def post_artifact_link(self, run_id: str, upload_id: str, **link: str) -> None:
+        self.links.append({"upload_id": upload_id, **link})
+
+
+class FakeArtifactsWithCreate(FakeArtifacts):
+    def __init__(self) -> None:
+        super().__init__()
+        self.created: list[dict[str, Any]] = []
+        self.updates: list[tuple[str, Any]] = []
+
+    def create(self, collection_id: str, **kwargs: Any) -> SimpleNamespace:
+        self.created.append({"collection_id": collection_id, **kwargs})
+        return SimpleNamespace(
+            artifact=SimpleNamespace(id=f"art-{len(self.created)}"),
+            upload_details=SimpleNamespace(url=f"https://bucket/{kwargs['name']}"),
+        )
+
+    def update(self, artifact_id: str, *, status: Any, collection_id: str) -> None:
+        self.updates.append((artifact_id, status))
+
+
+def test_publish_artifacts_through_the_engine_links_nodes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    details = SimpleNamespace(
+        manifest={"producer_tags": ["luml.ai::sklearn:v1"]}, file_hash="h", size=3,
+        file_index={"manifest.json": (0, 2)}, extra_values={"roc_auc": 0.87},
+    )
+    monkeypatch.setattr(
+        registry, "ModelFileHandler", lambda path: SimpleNamespace(artifact_details=lambda: details),
+    )
+    client = SimpleNamespace(artifacts=FakeArtifactsWithCreate(), tracks=FakeTracks())
+    prisma = FakePrisma()
+    state = DemoState(organization_id="org", orbit_id="orb", collections={"models": "col-m"},
+                      tracks={"churn-scorer": "track-1"})
+    spec = next(s for s in SCENARIOS if s.name == "churn")
+    artifacts = [
+        _artifact(tmp_path, "baseline", 0.83, winner=False),
+        _artifact(tmp_path, "gradient-boosting", 0.87, winner=True),
+    ]
+    by_node = {"node-baseline": {"id": "up-1"}, "node-gradient-boosting": {"id": "up-2"}}
+    uploads = registry.EngineUploads(cast(Any, prisma), "run-1", by_node)
+
+    published = registry.publish_artifacts(
+        cast(LumlClient, client), state, spec, artifacts, dataset_id="ds-1", engine_uploads=uploads,
+    )
+
+    assert client.artifacts.uploads == []
+    assert [c["name"] for c in client.artifacts.created] == [
+        "churn-scorer-baseline", "churn-scorer-gradient-boosting",
+    ]
+    expected_values = {"roc_auc": 0.87, "experiment_ids": ["exp-baseline"]}
+    assert client.artifacts.created[0]["extra_values"] == expected_values
+    assert client.artifacts.created[1]["lineage_inputs"] == ["art-1"]
+    assert prisma.urls == [("up-1", "https://bucket/churn-scorer-baseline"),
+                           ("up-2", "https://bucket/churn-scorer-gradient-boosting")]
+    assert [u[1] for u in client.artifacts.updates] == [ArtifactStatus.UPLOADED] * 2
+    assert prisma.links[1] == {"upload_id": "up-2", "artifact_id": "art-2", "organization_id": "org",
+                               "orbit_id": "orb", "collection_id": "col-m"}
+    assert published[1]["artifact_id"] == "art-2" and published[1]["stage"] == "production"
 
 
 def test_publish_dataset_reuses_existing(tmp_path: Path) -> None:

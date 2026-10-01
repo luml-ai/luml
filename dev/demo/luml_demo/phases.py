@@ -115,9 +115,17 @@ def ensure_satellites(config: DemoConfig, state: DemoState, *, rebuild_images: b
     _save(config, state)
 
 
-def _prisma_demo(*args: str) -> None:
+def _prisma_demo(config: DemoConfig, *args: str) -> None:
     executable = Path(sys.executable).parent / "prisma-demo"
-    subprocess.run([str(executable), *args], check=True)
+    subprocess.run([str(executable), *args], check=True, env=prisma_engine.engine_environment(config))
+
+
+def _registry_target(state: DemoState) -> dict[str, str]:
+    return {
+        "collection_id": state.collections[registry.MODELS_COLLECTION],
+        "organization_id": state.organization_id,
+        "orbit_id": state.orbit_id,
+    }
 
 
 def _repo_path(config: DemoConfig, spec: ScenarioSpec) -> Path:
@@ -138,10 +146,10 @@ def run_prisma_scenarios(config: DemoConfig, state: DemoState) -> None:
     config.repos_dir.mkdir(parents=True, exist_ok=True)
     for spec in SCENARIOS:
         scenario = load_scenario(resolve_scenario_dir(spec.name))
-        _prisma_demo("install-agent", spec.name)
+        _prisma_demo(config, "install-agent", spec.name)
         repo = _repo_path(config, spec)
         if not repo.exists():
-            _prisma_demo("init-repo", spec.name, str(repo))
+            _prisma_demo(config, "init-repo", spec.name, str(repo))
         if scenario.agent_id not in client.available_agents():
             raise RuntimeError(f"agent {scenario.agent_id} is not visible to the engine")
         repository_id = client.ensure_repository(scenario.title, repo)
@@ -152,6 +160,7 @@ def run_prisma_scenarios(config: DemoConfig, state: DemoState) -> None:
             continue
         payload = prisma_engine.run_payload(
             scenario, spec, repository_id, name=f"{spec.model_name} research — {_stamp()}",
+            registry=_registry_target(state),
         )
         run = prisma_engine.run_to_completion(client, payload, timeout=PRISMA_RUN_TIMEOUT)
         state.runs[spec.name] = str(run["id"])
@@ -186,7 +195,8 @@ def publish_registry(config: DemoConfig, state: DemoState) -> None:
         if spec.dataset_file:
             csv_path = _repo_path(config, spec) / spec.dataset_file
             dataset_id = registry.publish_dataset(luml, state, spec, csv_path)
-        registry.publish_artifacts(luml, state, spec, artifacts, dataset_id)
+        uploads = registry.EngineUploads.collect(prisma, run_id)
+        registry.publish_artifacts(luml, state, spec, artifacts, dataset_id, engine_uploads=uploads)
         _save(config, state)
 
 
@@ -378,7 +388,8 @@ def runbook_text(config: DemoConfig, state: DemoState) -> str:
         "",
         "=== LUML demo runbook ===",
         f"Login            {config.web_url}  ({config.admin_email} / {config.admin_password})",
-        f"Prisma board     {config.web_url}/prisma   (engine {config.prisma_url}, demo agents installed)",
+        f"Prisma board     {config.web_url}/prisma   (engine {config.prisma_url}, state under "
+        f"{config.home / 'prisma'}; restart it with `luml-demo prisma start`, not a bare luml-prisma)",
         f"Flow (local)     uvx lumlflow ui --path {config.experiments_dir} --port {config.lumlflow_port}",
         f"Registry         {orbit_url}   (collections: models, datasets; tracks: "
         f"{', '.join(state.tracks) or '-'})",

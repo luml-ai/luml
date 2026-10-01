@@ -124,3 +124,36 @@ def test_run_payload_uses_scenario_settings() -> None:
     assert payload["max_children_per_fork"] == 3
     assert payload["auto_mode"] is True
     assert "roc_auc" in payload["objective"]
+    assert "luml_collection_id" not in payload
+    with_registry = prisma_engine.run_payload(
+        scenario, spec, "repo1", "demo run",
+        registry={"collection_id": "c", "organization_id": "o", "orbit_id": "r"},
+    )
+    assert with_registry["luml_collection_id"] == "c"
+    assert with_registry["luml_orbit_id"] == "r"
+
+
+def test_engine_environment_isolates_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from luml_demo.config import DemoConfig
+
+    monkeypatch.setenv("LUML_DEMO_HOME", str(tmp_path))
+    env = prisma_engine.engine_environment(DemoConfig())
+    assert env["LUML_PRISMA_DATA_DIR"] == str(tmp_path / "prisma")
+    assert env["LUML_EXPERIMENTS_DIR"] == str(tmp_path / "experiments")
+    assert env["PATH"].split(":")[0].endswith("bin")
+
+
+def test_upload_outcome_reads_persisted_events() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/runs/r1/events"
+        return httpx.Response(200, json=[
+            {"seq": 1, "type": "node_updated", "data": {}},
+            {"seq": 2, "type": "upload_failed", "data": {"upload_id": "u9"}},
+            {"seq": 3, "type": "upload_completed", "data": {"upload_id": "u1"}},
+        ])
+
+    client = prisma_engine.PrismaClient("http://engine")
+    client._client = httpx.Client(base_url="http://engine/api", transport=httpx.MockTransport(handler))
+    assert client.upload_outcome("r1", "u1") == "completed"
+    assert client.upload_outcome("r1", "u9") == "failed"
+    assert client.upload_outcome("r1", "u5") is None
