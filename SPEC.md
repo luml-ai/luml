@@ -386,8 +386,8 @@ mangled attributes kept, and any move between areas.
 - [x] Task 4 — `unit/handlers/deployments/`
   - [x] Create the folder with `conftest.py` (`mocks`, `_capabilities`, `_satellite`, `_artifact`) and the five files; move `test_satellite_parameters.py` in unchanged apart from class and naming rules; convert; verify; report.
 
-- [ ] Task 5 — `unit/handlers/satellites/`
-  - [ ] Create the folder with `conftest.py` and the four files; convert, including the six mangled-path patches of the permission handler's repositories, which become configuration of `mocks.permissions_handler`; verify; report.
+- [x] Task 5 — `unit/handlers/satellites/`
+  - [x] Create the folder with `conftest.py` and the four files; convert, including the six mangled-path patches of the permission handler's repositories, which become configuration of `mocks.permissions_handler`; verify; report.
 
 - [ ] Task 6 — `unit/handlers/auth/` and `test_api_keys.py`
   - [ ] Create the `auth/` folder with `conftest.py` (`mocks` building the handler with the module's secret, algorithm and provider; `passwords`, `tokens`, `tokens_by_purpose`) and the five files; `jwt.decode` patches stay as context managers; convert `test_api_keys.py` in place to one class; verify; report.
