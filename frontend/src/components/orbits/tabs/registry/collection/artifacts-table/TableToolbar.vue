@@ -8,7 +8,7 @@
         severity="secondary"
         aria-label="Delete"
         v-tooltip="'Delete'"
-        :disabled="!selectedArtifacts.length"
+        :disabled="loadingSelection || !selectedArtifacts.length"
         @click="onDeleteClick"
       >
         <template #icon>
@@ -20,7 +20,7 @@
         variant="text"
         severity="secondary"
         v-tooltip="'Settings'"
-        :disabled="selectedArtifacts.length !== 1"
+        :disabled="loadingSelection || selectedArtifacts.length !== 1"
         @click="openModelEditor"
       >
         <template #icon>
@@ -31,7 +31,7 @@
         variant="text"
         severity="secondary"
         v-tooltip="'Download'"
-        :disabled="downloadButtonDisabled"
+        :disabled="loadingSelection || downloadButtonDisabled"
         @click="downloadClick"
       >
         <template #icon>
@@ -43,7 +43,7 @@
         variant="text"
         severity="secondary"
         v-tooltip="'Deploy'"
-        :disabled="deployButtonDisabled"
+        :disabled="loadingSelection || deployButtonDisabled"
         @click="onDeployClick"
       >
         <template #icon>
@@ -55,7 +55,7 @@
         variant="text"
         severity="secondary"
         v-tooltip="'Compare'"
-        :disabled="compareButtonDisabled"
+        :disabled="loadingSelection || compareButtonDisabled"
         @click="compareClick"
       >
         <template #icon>
@@ -119,6 +119,7 @@ const FAILED_DELETION_TEXT =
 type Props = {
   selectedArtifacts: Artifact[]
   metrics: string[]
+  loadingSelection?: boolean
 }
 
 type Emits = {
