@@ -1,0 +1,16 @@
+● Task: enrich the feature set so the linear model sees intensity signals directly
+@sleep 0.9
+● Read churn/features.py, churn/data.py
+  the preprocessor is built from column groups — derived columns slot in before scaling
+@sleep 1.2
+● Write churn/features.py
+  add_derived(): spend_per_seat, events_per_seat, api_calls_per_seat, dashboards_per_seat,
+                 tickets_per_month, log_api_calls, is_new_account
+  Pipeline([("derive", FunctionTransformer(add_derived)), ("encode", ColumnTransformer(...))])
+  feature_names() reads the encoder step so importance plots keep working
+@sleep 1.4
+● Check
+  model.py untouched (LogisticRegression C=1.0), 7 derived features logged as derived_features
+  eval harness, metric (roc_auc) and tracking unchanged
+@sleep 0.8
+Done. The orchestrator executes the run command next.

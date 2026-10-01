@@ -1,0 +1,16 @@
+● Task: replace the linear scorer with a gradient-boosted tree ensemble
+@sleep 0.9
+● Read churn/model.py, churn/features.py, main.py
+  model.py is the only file that changes: same fit()/decision_threshold()/training_curve() contract
+@sleep 1.3
+● Write churn/model.py
+  GradientBoostingClassifier(n_estimators=300, learning_rate=0.05, max_depth=3,
+                             subsample=0.8, min_samples_leaf=20, random_state=42)
+  training_curve: staged_predict_proba on train/validation every 5 stages
+  importance: feature_importances_ (gain)
+@sleep 1.4
+● Check
+  preprocessing untouched (one-hot + standard scaling still feeds the trees)
+  eval harness, metric (roc_auc) and tracking unchanged — curves now show 60 boosting checkpoints
+@sleep 0.8
+Done. The orchestrator executes the run command next.

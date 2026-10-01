@@ -1,0 +1,19 @@
+● Reading the failure logs...
+@sleep 1.2
+  ValueError: Pipeline.fit does not accept the sample_weight parameter.
+    You can pass parameters to specific steps of your pipeline using the
+    stepname__parameter format, e.g. Pipeline.fit(X, y, model__sample_weight=sample_weight)
+  raised in churn/model.py fit() during cross-validation fold 1
+@sleep 1.4
+● Root cause
+  The weights were passed to the Pipeline, not to the estimator step. sklearn routes
+  fit parameters by step name, so the preprocess step received a parameter it does not accept.
+@sleep 1.6
+● Fix
+  pipeline.fit(X, y, model__sample_weight=sample_weights(X))
+@sleep 1.0
+● Write churn/model.py (step-scoped fit parameter, behaviour otherwise unchanged)
+@sleep 0.8
+● Experiment tracking code untouched — metric stays roc_auc. The failed experiment stays
+  recorded in the store for comparison.
+Done. The orchestrator will re-run the training.

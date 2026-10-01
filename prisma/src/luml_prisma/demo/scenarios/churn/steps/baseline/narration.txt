@@ -1,0 +1,38 @@
+● Reading repository structure...
+@sleep 0.8
+  data/customers.csv   4,000 accounts · 12 snapshot fields · churned label (20.6% positive)
+  pyproject.toml       scikit-learn, pandas, matplotlib, luml-sdk
+@sleep 1.4
+● Plan
+  1. Stratified 80/20 holdout, 5-fold CV on the training side
+  2. Baseline: one-hot categoricals + standardized numericals → LogisticRegression
+  3. Metric: roc_auc (primary, higher is better) + pr_auc, f1, brier, log_loss
+  4. Track params, CV folds, learning curve, eval samples, plots and a model card with luml-sdk
+  5. Package the pipeline with save_sklearn (reference profile for monitoring) → .prisma/artifact.luml
+@sleep 1.8
+● Write churn/data.py
+  column groups, fixed seed, stratified split_holdout()
+@sleep 1.0
+● Write churn/features.py
+  ColumnTransformer: OneHotEncoder(handle_unknown="ignore") + StandardScaler
+@sleep 1.1
+● Write churn/model.py
+  LogisticRegression(C=1.0), learning curve over 10 training fractions
+@sleep 1.1
+● Write churn/report.py
+  ROC, confusion matrix, calibration, feature importance figures; data profile; CardBuilder model card
+@sleep 1.2
+● Write churn/tracking.py
+  ExperimentTracker(sqlite://$LUML_EXPERIMENTS_DIR), result.json + registry metrics helpers
+@sleep 1.0
+● Write main.py
+  CV folds → log_dynamic per fold, curve → log_dynamic per step, holdout → log_dynamic
+  150 holdout accounts as eval samples (+ 3 reviewer annotations), 4 plots + 4 reports as attachments
+  save_sklearn(pipeline, X_train, reference_data=X_train, extra_code_modules=["churn"])
+  model card + registry metrics, log_model, link_to_model, writes .prisma/result.json
+@sleep 1.6
+● Sanity check
+  imports resolve, data path exists, entrypoint matches run command `uv run main.py`
+@sleep 0.9
+Done. The orchestrator executes the run command next.
+# Metric: roc_auc on the stratified holdout — higher is better.

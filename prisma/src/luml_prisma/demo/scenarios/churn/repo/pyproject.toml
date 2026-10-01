@@ -1,0 +1,13 @@
+[project]
+name = "nimbus-churn"
+version = "0.1.0"
+description = "Churn-risk scoring for Nimbus Analytics customer accounts"
+# The model server builds its runtime on Python 3.12; training on the same minor
+# keeps the pickled pipeline loadable there.
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "luml-sdk>=0.3.0",
+    "matplotlib>=3.9",
+    "pandas>=2.2,<3",
+    "scikit-learn>=1.5",
+]

@@ -1,17 +1,18 @@
 [scenario]
 name = "autorag"
-title = "AutoRAG — LangGraph retrieval iteration"
+title = "AutoRAG — support assistant retrieval iteration"
 agent_id = "demo-autorag"
 agent_name = "Demo Agent — AutoRAG"
 run_command = "uv run main.py"
 objective = """
-Improve retrieval quality of the Nimbus Analytics support RAG pipeline.
-The repository contains the documentation corpus (data/corpus.json) and an
-eval set of support questions (data/eval.json). Build a LangGraph retrieval
-pipeline, evaluate it against the eval set with recall@3 as the primary
-metric, track every experiment with luml-sdk (params, metrics, traces, eval
-samples), and iterate on the retrieval strategy to maximize the metric.
-Package the best pipeline as a LUML artifact."""
+Improve the Nimbus Analytics documentation support assistant. The repository
+contains the documentation corpus (data/corpus.json) and an eval set of support
+questions (data/eval.json). Build a LangGraph assistant (query rewrite,
+retrieval, rerank, grounded generation with citations), evaluate it against the
+eval set with recall@3 as the primary metric plus answer faithfulness, track
+every experiment with luml-sdk (params, metric curves, traces, eval samples,
+annotations, reports), and iterate on the retrieval strategy to maximize the
+metric. Package the best assistant as a LUML artifact."""
 
 [playback]
 line_delay_ms = 140

@@ -1,0 +1,10 @@
+● Analyzing the branch experiments with luml-inspect...
+@sleep 1.0
+$ luml-inspect list --group churn-risk
+  churn-gbdt-raw                   completed   best roc_auc so far
+  churn-logreg-engineered          completed
+  churn-logreg-cost-sensitive      completed
+@sleep 1.2
+● The gradient-boosting branch leads; the remaining budget is best spent confirming it is stable.
+@sleep 0.8
+● Write .prisma/fork.json (1 proposal: revalidate-gradient-boosting)

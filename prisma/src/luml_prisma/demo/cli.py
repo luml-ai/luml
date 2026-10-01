@@ -9,6 +9,7 @@ Typical flow:
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -25,8 +26,10 @@ from luml_prisma.demo.scenario import (
     resolve_scenario_dir,
     user_scenarios_dir,
 )
+from luml_prisma.services import agents as agents_service
 
 AGENT_CLI = "prisma-demo-agent"
+EXPERIMENTS_DIR_ENV = "LUML_EXPERIMENTS_DIR"
 
 app = typer.Typer(
     name="prisma-demo",
@@ -36,7 +39,15 @@ app = typer.Typer(
 
 
 def _custom_agents_path() -> Path:
-    return Path.home() / ".luml-prisma" / "coding-clis.json"
+    return agents_service._custom_agents_path()
+
+
+def experiments_dir() -> Path:
+    """Store the scenario repos write to; the run nodes inherit the same env var."""
+    configured = os.environ.get(EXPERIMENTS_DIR_ENV, "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".luml" / "experiments"
 
 
 def _load_scenario_or_exit(name: str) -> Scenario:
@@ -192,7 +203,7 @@ def _check_experiments_store() -> str | None:
         from luml.experiments.tracker import ExperimentTracker
     except ImportError as exc:
         return f"luml-sdk not importable: {exc}"
-    store = Path.home() / ".prisma" / "experiments"
+    store = experiments_dir()
     try:
         store.mkdir(parents=True, exist_ok=True)
         ExperimentTracker(f"sqlite://{store}")
@@ -240,13 +251,12 @@ def doctor(name: str = typer.Argument("autorag")) -> None:
         report(f"'{tool}' on PATH", None if shutil.which(tool) else "not found")
 
     store_error = _check_experiments_store()
-    report("experiments store (~/.prisma/experiments)", store_error)
+    report(f"experiments store ({experiments_dir()})", store_error)
     if store_error is not None:
         typer.echo(
             "        The store cannot be opened by the luml-sdk version the demo "
             "uses.\n        Remedy: back it up out of the way and let a fresh one "
-            "be created:\n"
-            "          mv ~/.prisma/experiments ~/.prisma/experiments.bak",
+            f"be created:\n          mv {experiments_dir()} {experiments_dir()}.bak",
         )
 
     if failures:
@@ -276,6 +286,7 @@ def runbook(name: str) -> None:
         "   (the agent CLI must be on the server's PATH):",
         "     uv run luml-prisma",
         "   Optional pacing override for rehearsal: PRISMA_DEMO_SPEED=0.3",
+        f"   Optional experiment store override: {EXPERIMENTS_DIR_ENV}=<dir>",
         "",
         "3. In the platform UI (/prisma): register <repo-path> under",
         "   Repositories, then create a Workflow with:",
@@ -296,7 +307,7 @@ def runbook(name: str) -> None:
         ]
     lines += [
         "5. Experiments & traces (written by the run nodes for real):",
-        "     uvx lumlflow ui --path ~/.prisma/experiments",
+        f"     uvx lumlflow ui --path {experiments_dir()}",
     ]
     typer.echo("\n".join(lines))
 
@@ -363,7 +374,7 @@ Implementing the {step} step.
 
 @app.command("new-scenario")
 def new_scenario(name: str) -> None:
-    """Scaffold a new scenario under ~/.luml-prisma/demo-scenarios/."""
+    """Scaffold a new scenario under ~/.luml/prisma/demo-scenarios/."""
     target = user_scenarios_dir() / name
     if target.exists():
         typer.secho(f"{target} already exists", fg=typer.colors.RED, err=True)

@@ -98,7 +98,7 @@ def builtin_scenarios_dir() -> Path:
 
 
 def user_scenarios_dir() -> Path:
-    return Path.home() / ".luml-prisma" / "demo-scenarios"
+    return Path.home() / ".luml" / "prisma" / "demo-scenarios"
 
 
 def scenario_search_dirs() -> list[Path]:

@@ -2,9 +2,12 @@
 name = "nimbus-rag"
 version = "0.1.0"
 description = "RAG retrieval quality benchmark over the Nimbus Analytics docs"
-requires-python = ">=3.12"
+# The model server builds its runtime on Python 3.12; packaging the graph on the
+# same minor keeps the pickled factory loadable there.
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "langgraph>=0.6",
-    "luml-sdk>=0.1.0",
+    "luml-sdk>=0.3.0",
+    "matplotlib>=3.9",
     "scikit-learn>=1.5",
 ]

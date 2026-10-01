@@ -1,0 +1,21 @@
+● Analyzing the parent experiment with luml-inspect...
+@sleep 1.0
+$ luml-inspect list --group churn-risk
+  churn-logreg-raw   completed   roc_auc=0.833  pr_auc=0.617  f1=0.494
+@sleep 1.2
+$ luml-inspect evals <parent-experiment> --limit 150
+  recall 0.42 at the 0.5 threshold · 58 churners scored below 0.3
+@sleep 1.0
+● Failure clusters
+  1. non-linear interactions — short tenure × many tickets churns far more than the sum of the parts;
+     a linear model can only add them
+  2. intensity hidden by scale — usage, API calls and dashboards grow with seats, so large quiet
+     accounts look active in absolute terms
+  3. class imbalance — 0.5 threshold on a 20% positive rate under-calls churn; enterprise misses cost most
+@sleep 1.8
+● Proposing 3 diverse directions
+  1. gradient-boosting          GradientBoostingClassifier, 300 shallow trees, staged curves
+  2. feature-engineering        per-seat ratios, tickets/month, log API volume, new-account flag
+  3. cost-sensitive-weighting   balanced classes × plan-tier cost weights, tuned threshold
+@sleep 1.2
+● Write .prisma/fork.json (3 proposals, metric preserved: roc_auc)

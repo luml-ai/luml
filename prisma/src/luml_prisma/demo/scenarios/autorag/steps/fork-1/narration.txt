@@ -1,12 +1,12 @@
 ● Analyzing the parent experiment with luml-inspect...
 @sleep 1.0
-$ luml-inspect list --group autorag
-  autorag-tfidf-fixed-chunks   completed   recall_at_3=0.708  mrr=0.715
+$ luml-inspect list --group support-assistant
+  assistant-tfidf-fixed-chunks   completed   recall_at_3=0.708  mrr=0.735  faithfulness=0.79
 @sleep 1.2
 $ luml-inspect evals <parent-experiment>
-  7 of 24 questions miss the relevant doc in the top-3
+  7 of 24 questions miss the relevant doc in the top-3 · reviewer rejected q-07's answer
 @sleep 1.0
-● Failure clusters
+● Failure clusters (from the traces: retrieve spans, not generation)
   1. paraphrased questions — user wording ≠ documentation wording
      ("keep my data around" vs "retained", "visit" vs "session")
   2. exact rare tokens diluted by fixed 200-char windows

@@ -1,6 +1,6 @@
 ● Analyzing branch results with luml-inspect...
 @sleep 1.0
-$ luml-inspect list --group autorag
+$ luml-inspect list --group support-assistant
   the hybrid BM25 + RRF branch leads on recall_at_3
 @sleep 1.2
 ● No further promising directions at this depth — proposing a

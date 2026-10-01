@@ -1,0 +1,103 @@
+[scenario]
+name = "churn"
+title = "Churn — customer churn-risk scoring"
+agent_id = "demo-churn"
+agent_name = "Demo Agent — Churn"
+run_command = "uv run main.py"
+objective = """
+Build a churn-risk scorer for Nimbus Analytics customer accounts. The repository
+contains the account snapshot (data/customers.csv: plan, billing, usage, support
+and NPS signals, with the churned label). Train a classifier, evaluate it on a
+stratified holdout with roc_auc as the primary metric, track every experiment
+with luml-sdk (params, metric curves, eval samples, plots, model card), and
+iterate on the modelling approach to maximize the metric. Package the best
+scorer as a LUML artifact with a monitoring reference profile."""
+
+[playback]
+line_delay_ms = 140
+jitter_ms = 120
+char_delay_ms = 4
+
+[[steps]]
+id = "baseline"
+type = "implement"
+root = true
+variant = "baseline"
+files = "steps/baseline/files"
+narration = "steps/baseline/narration.txt"
+
+[[steps]]
+id = "fork-1"
+type = "fork"
+after_variant = "baseline"
+narration = "steps/fork-1/narration.txt"
+
+[[steps.proposals]]
+title = "gradient-boosting"
+prompt = """Replace the logistic regression with a gradient-boosted tree ensemble \
+(GradientBoostingClassifier, ~300 shallow trees, learning_rate 0.05, subsample \
+0.8) to capture the non-linear tenure, usage and support-ticket interactions \
+the linear model misses. Log the per-stage train/validation curves. Keep the \
+same preprocessing, eval harness and metric (roc_auc, higher is better) and the \
+same experiment tracking."""
+
+[[steps.proposals]]
+title = "feature-engineering"
+prompt = """Keep the logistic regression but enrich the feature set with \
+per-seat ratios (spend, events, API calls, dashboards per seat), a tickets-per-month \
+rate, a log-scaled API volume and a new-account flag, so the linear model sees \
+the intensity signals directly. Keep the same eval harness and metric (roc_auc, \
+higher is better) and the same experiment tracking."""
+
+[[steps.proposals]]
+title = "cost-sensitive-weighting"
+prompt = """Make the logistic regression cost-sensitive: balance the classes and \
+weight each account by its plan tier so missed enterprise churners cost more, \
+then tune the decision threshold on a validation split. Keep the same eval \
+harness and metric (roc_auc, higher is better) and the same experiment \
+tracking."""
+
+[[steps]]
+id = "gradient-boosting"
+type = "implement"
+proposal = "gradient-boosted tree ensemble"
+variant = "gradient-boosting"
+files = "steps/gradient-boosting/files"
+narration = "steps/gradient-boosting/narration.txt"
+
+[[steps]]
+id = "feature-engineering"
+type = "implement"
+proposal = "per-seat ratios"
+variant = "feature-engineering"
+files = "steps/feature-engineering/files"
+narration = "steps/feature-engineering/narration.txt"
+
+[[steps]]
+id = "cost-sensitive"
+type = "implement"
+proposal = "cost-sensitive"
+variant = "cost-sensitive"
+files = "steps/cost-sensitive/files"
+narration = "steps/cost-sensitive/narration.txt"
+
+[[steps]]
+id = "cost-sensitive-debug"
+type = "debug"
+after_variant = "cost-sensitive"
+files = "steps/cost-sensitive-debug/files"
+narration = "steps/cost-sensitive-debug/narration.txt"
+
+# Safety net for runs configured deeper than the scripted story (max_depth > 2):
+# every extra fork re-validates the winning gradient-boosting branch.
+[[steps]]
+id = "fork-revalidate"
+type = "fork"
+after_variant = "*"
+narration = "steps/fork-revalidate/narration.txt"
+
+[[steps.proposals]]
+title = "revalidate-gradient-boosting"
+prompt = """Re-validate the best-performing approach: the gradient-boosted tree \
+ensemble (300 shallow trees, learning_rate 0.05, subsample 0.8) on the raw \
+feature set. Re-run the eval to confirm roc_auc is stable."""

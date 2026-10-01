@@ -20,7 +20,7 @@ def demo_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _agents_file(home: Path) -> Path:
-    return home / ".luml-prisma" / "coding-clis.json"
+    return home / ".luml" / "prisma" / "coding-clis.json"
 
 
 class TestInstallAgent:
@@ -96,20 +96,31 @@ class TestDoctor:
 
     def test_broken_experiments_store_fails(self, demo_home: Path) -> None:
         runner.invoke(app, ["install-agent", "autorag"])
-        store = demo_home / ".prisma" / "experiments"
+        store = demo_home / ".luml" / "experiments"
         store.mkdir(parents=True)
         (store / "meta.db").write_bytes(b"this is not a sqlite database")
         result = runner.invoke(app, ["doctor", "autorag"])
         assert result.exit_code == 1
         assert "experiments store" in result.output
-        assert "mv ~/.prisma/experiments" in result.output
+        assert f"mv {store}" in result.output
+
+    def test_store_override_is_reported(
+        self, demo_home: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        runner.invoke(app, ["install-agent", "autorag"])
+        override = tmp_path / "custom-store"
+        monkeypatch.setenv("LUML_EXPERIMENTS_DIR", str(override))
+        result = runner.invoke(app, ["doctor", "autorag"])
+        assert result.exit_code == 0, result.output
+        assert str(override) in result.output
+        assert (override / "meta.db").exists()
 
 
 class TestScaffoldAndInfo:
     def test_new_scenario_scaffold_loads(self, demo_home: Path) -> None:
         result = runner.invoke(app, ["new-scenario", "myscn"])
         assert result.exit_code == 0
-        scenario_dir = demo_home / ".luml-prisma" / "demo-scenarios" / "myscn"
+        scenario_dir = demo_home / ".luml" / "prisma" / "demo-scenarios" / "myscn"
         scenario = load_scenario(scenario_dir)
         assert scenario.name == "myscn"
         assert {s.step_type for s in scenario.steps} == {"implement", "fork"}
@@ -118,6 +129,15 @@ class TestScaffoldAndInfo:
         result = runner.invoke(app, ["list"])
         assert result.exit_code == 0
         assert "autorag" in result.output
+        assert "churn" in result.output
+        assert "lint:" not in result.output
+
+    def test_churn_runbook_prints_settings(self) -> None:
+        result = runner.invoke(app, ["runbook", "churn"])
+        assert result.exit_code == 0
+        assert "Demo Agent — Churn" in result.output
+        assert "Max children per fork:  3" in result.output
+        assert "roc_auc" in result.output
 
     def test_runbook_prints_settings(self) -> None:
         result = runner.invoke(app, ["runbook", "autorag"])

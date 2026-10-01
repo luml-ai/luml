@@ -1,0 +1,15 @@
+● Task: make the scorer cost-sensitive and tune its decision threshold
+@sleep 0.9
+● Read churn/model.py, main.py
+  fit() is the single entry point for training — weights go there; threshold hook already exists
+@sleep 1.2
+● Write churn/model.py
+  LogisticRegression(C=0.5, class_weight="balanced")
+  sample_weights(): plan-tier costs starter=1.0 · growth=1.5 · enterprise=3.0
+  fit(): pipeline.fit(X, y, sample_weight=sample_weights(X))
+  decision_threshold(): F1-max over precision_recall_curve thresholds on the validation split
+@sleep 1.4
+● Check
+  features untouched, eval harness and metric (roc_auc) unchanged, threshold logged as a param
+@sleep 0.8
+Done. The orchestrator executes the run command next.
