@@ -143,6 +143,10 @@ class PrismaClient:
             "collection_id": collection_id,
         })
 
+    def dismiss_upload(self, run_id: str, upload_id: str) -> None:
+        """Close a queued upload whose artifact was registered out of band."""
+        self._request("POST", f"/runs/{run_id}/uploads/{upload_id}/dismiss")
+
     def upload_outcome(self, run_id: str, upload_id: str) -> str | None:
         """'completed', 'failed' or None while the engine is still transferring the file."""
         for event in self.events(run_id):

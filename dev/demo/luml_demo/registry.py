@@ -218,6 +218,10 @@ def publish_artifacts(
                 organization_id=state.organization_id, orbit_id=state.orbit_id,
                 collection_id=collection_id,
             )
+            if name in existing:
+                # Nothing was transferred for a reused artifact; close the queue entry so
+                # an open Prisma page does not keep trying to resume it.
+                engine_uploads.prisma.dismiss_upload(engine_uploads.run_id, str(upload["id"]))
         stage = "staging" if index == runner_up_rank else _stage_for(index, artifact.winner)
         entry = tracked.get(artifact_id)
         if entry is None:

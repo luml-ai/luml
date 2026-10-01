@@ -112,6 +112,7 @@ class FakePrisma:
     def __init__(self) -> None:
         self.urls: list[tuple[str, str]] = []
         self.links: list[dict[str, str]] = []
+        self.dismissed: list[str] = []
 
     def post_upload_url(self, run_id: str, upload_id: str, presigned_url: str) -> None:
         self.urls.append((upload_id, presigned_url))
@@ -121,6 +122,9 @@ class FakePrisma:
 
     def post_artifact_link(self, run_id: str, upload_id: str, **link: str) -> None:
         self.links.append({"upload_id": upload_id, **link})
+
+    def dismiss_upload(self, run_id: str, upload_id: str) -> None:
+        self.dismissed.append(upload_id)
 
 
 class FakeArtifactsWithCreate(FakeArtifacts):
@@ -179,6 +183,26 @@ def test_publish_artifacts_through_the_engine_links_nodes(
     assert prisma.links[1] == {"upload_id": "up-2", "artifact_id": "art-2", "organization_id": "org",
                                "orbit_id": "orb", "collection_id": "col-m"}
     assert published[1]["artifact_id"] == "art-2" and published[1]["stage"] == "production"
+    assert prisma.dismissed == []
+
+
+def test_reused_artifacts_still_link_and_dismiss_the_queued_upload(tmp_path: Path) -> None:
+    client = SimpleNamespace(
+        artifacts=FakeArtifacts(existing={"churn-scorer-baseline": "art-old"}),
+        tracks=FakeTracks(tracked={"art-old": (1, "development")}),
+    )
+    prisma = FakePrisma()
+    state = DemoState(organization_id="org", orbit_id="orb", collections={"models": "col-m"},
+                      tracks={"churn-scorer": "track-1"})
+    spec = next(s for s in SCENARIOS if s.name == "churn")
+    artifacts = [_artifact(tmp_path, "baseline", 0.83, winner=True)]
+    uploads = registry.EngineUploads(cast(Any, prisma), "run-1", {"node-baseline": {"id": "up-1"}})
+
+    registry.publish_artifacts(cast(LumlClient, client), state, spec, artifacts, None, engine_uploads=uploads)
+
+    assert client.artifacts.uploads == []
+    assert prisma.links[0]["artifact_id"] == "art-old"
+    assert prisma.dismissed == ["up-1"]
 
 
 def test_publish_dataset_reuses_existing(tmp_path: Path) -> None:
