@@ -397,15 +397,15 @@ def backfill(
     store.clear_results(deployment_id)
     seed_end = aligned_window_end(moment - timedelta(hours=plan.hours))
     store.seed_window(deployment_id, seed_end)
-    expected_windows = int(plan.hours * 3600 / WINDOW_SECONDS) - 2
     last_seen = [0, time.monotonic()]
 
     def materialized() -> bool:
+        # The worker materializes every pending window inside one tick; the row count
+        # grows while it works and goes quiet once the history is complete.
         count = store.results_count(deployment_id)
         if count != last_seen[0]:
             last_seen[0], last_seen[1] = count, time.monotonic()
-        settled = time.monotonic() - last_seen[1] > 45
-        return count >= expected_windows or (count > 1 and settled)
+        return count > 1 and time.monotonic() - last_seen[1] > 45
 
     wait_for("the monitoring worker to materialize the history", materialized, timeout=900, interval=5)
     store.remove_seed(deployment_id)

@@ -96,3 +96,20 @@ async def test_async_client_tracks_list_tags(
     tags = await async_client_with_mocks.tracks.list_tags()
 
     assert tags == ["ml", "production", "staging"]
+
+
+def test_track_entry_added_by_is_a_display_name() -> None:
+    from luml_api._types import TrackEntry
+
+    entry = TrackEntry.model_validate(
+        {
+            "id": "0199c455-21ee-74c6-b747-19a82f1a1e75",
+            "track_id": "0199c455-21ee-74c6-b747-19a82f1a1e76",
+            "artifact_id": "0199c455-21ee-74c6-b747-19a82f1a1e77",
+            "version": 1,
+            "stage_id": None,
+            "added_by": "Dev Admin",
+            "created_at": "2024-01-01T00:00:00Z",
+        }
+    )
+    assert entry.added_by == "Dev Admin"

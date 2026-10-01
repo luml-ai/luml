@@ -83,7 +83,8 @@ def test_collect_artifacts_orders_runs_and_flags_winner(tmp_path: Path) -> None:
     nodes = [
         {"id": "n2", "node_type": "run", "status": "succeeded", "created_at": "2026-10-01T10:05",
          "worktree_path": str(worktrees["gradient-boosting"]),
-         "result": {"metrics": {"metric": 0.87, "roc_auc": 0.87}, "experiment_id": "e2"}},
+         "result": {"success": True, "artifacts": {"metrics": {"metric": 0.87, "roc_auc": 0.87},
+                                                   "experiment_ids": ["e2"], "exit_code": 0}}},
         {"id": "n1", "node_type": "run", "status": "succeeded", "created_at": "2026-10-01T10:00",
          "worktree_path": str(worktrees["baseline"]),
          "result": {"metrics": {"metric": 0.83}, "experiment_ids": ["e1"]}},

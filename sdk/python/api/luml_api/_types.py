@@ -425,7 +425,7 @@ class TrackEntry(BaseModel, BaseOrmConfig):
     artifact_id: UUID
     version: int
     stage_id: UUID | None = None
-    added_by: UUID
+    added_by: str
     created_at: str
     updated_at: str | None = None
     artifact_name: str | None = None

@@ -81,7 +81,8 @@ class DemoConfig:
     docker_host_ip: str = field(default_factory=lambda: _env("DOCKER_HOST_IP", ""))
     admin_email: str = "admin@example.com"
     admin_password: str = "admin12345"
-    org_name: str = "Dev Org"
+    # A dedicated organization: the seeded one already holds its one allowed orbit.
+    org_name: str = field(default_factory=lambda: _env("ORG_NAME", "Nimbus Analytics"))
     orbit_name: str = field(default_factory=lambda: _env("ORBIT_NAME", "production-ml"))
     bucket_name: str = "dev-bucket"
     demo_speed: float = field(default_factory=lambda: float(_env("SPEED", "1.0")))

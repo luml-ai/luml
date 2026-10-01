@@ -152,17 +152,17 @@ class PlatformClient:
         return response.status_code == 204
 
     def organizations(self) -> list[dict[str, Any]]:
-        return list(self._request("GET", "/organizations").json())
+        return list(self._request("GET", "/users/me/organizations").json())
+
+    def create_organization(self, name: str) -> dict[str, Any]:
+        return dict(self._request("POST", "/organizations", json={"name": name}).json())
 
     def orbits(self, org_id: str) -> list[dict[str, Any]]:
         return list(self._request("GET", f"/organizations/{org_id}/orbits").json())
 
-    def create_orbit(self, org_id: str, name: str, bucket_secret_id: str, user_id: str) -> dict[str, Any]:
-        payload = {
-            "name": name,
-            "bucket_secret_id": bucket_secret_id,
-            "members": [{"user_id": user_id, "role": "admin"}],
-        }
+    def create_orbit(self, org_id: str, name: str, bucket_secret_id: str) -> dict[str, Any]:
+        # The creator becomes an orbit admin automatically; listing them as a member is rejected.
+        payload = {"name": name, "bucket_secret_id": bucket_secret_id}
         return dict(self._request("POST", f"/organizations/{org_id}/orbits", json=payload).json())
 
     def satellites(self, org_id: str, orbit_id: str) -> list[dict[str, Any]]:

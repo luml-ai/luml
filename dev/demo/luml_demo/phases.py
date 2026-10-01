@@ -22,9 +22,10 @@ def _save(config: DemoConfig, state: DemoState) -> None:
 
 
 def _platform_client(config: DemoConfig, state: DemoState) -> platform.PlatformClient:
-    client = platform.PlatformClient(config.api_url, token=state.api_key or None)
-    if not state.api_key:
-        client.signin(config.admin_email, config.admin_password)
+    """A session-authenticated client: some routes (organizations, API keys) refuse API keys."""
+    client = platform.PlatformClient(config.api_url)
+    client.signin(config.admin_email, config.admin_password)
+    state.user_id = client.user_id
     return client
 
 
@@ -51,7 +52,10 @@ def ensure_account(config: DemoConfig, state: DemoState) -> None:
 def ensure_orbit(config: DemoConfig, state: DemoState) -> None:
     client = _platform_client(config, state)
     organizations = client.organizations()
-    org = next((o for o in organizations if o["name"] == config.org_name), organizations[0])
+    org = next((o for o in organizations if o["name"] == config.org_name), None)
+    if org is None:
+        org = client.create_organization(config.org_name)
+        say(f"created organization {config.org_name}")
     if state.organization_id and state.organization_id != str(org["id"]):
         say("the platform database was recreated; forgetting ids from the previous environment")
         _forget_platform_state(state)
@@ -72,8 +76,7 @@ def ensure_orbit(config: DemoConfig, state: DemoState) -> None:
     state.bucket_secret_id = str(secret.id)
     orbit = next((o for o in client.orbits(state.organization_id) if o["name"] == config.orbit_name), None)
     if orbit is None:
-        orbit = client.create_orbit(state.organization_id, config.orbit_name, state.bucket_secret_id,
-                                    state.user_id or client.user_id)
+        orbit = client.create_orbit(state.organization_id, config.orbit_name, state.bucket_secret_id)
         say(f"created orbit {config.orbit_name}")
     state.orbit_id = str(orbit["id"])
     luml = registry.make_client(config, state)

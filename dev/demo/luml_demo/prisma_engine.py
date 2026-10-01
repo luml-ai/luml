@@ -188,16 +188,18 @@ def collect_artifacts(client: PrismaClient, run_id: str) -> list[RunArtifact]:
         if not artifact.exists():
             say(f"  run node {node['id']} has no artifact at {artifact}; skipping")
             continue
+        # The run node keeps what result.json reported under result["artifacts"].
         result = node.get("result") or {}
-        experiment_ids = result.get("experiment_ids") or (
-            [result["experiment_id"]] if result.get("experiment_id") else []
+        reported = {**result, **(result.get("artifacts") or {})}
+        experiment_ids = reported.get("experiment_ids") or (
+            [reported["experiment_id"]] if reported.get("experiment_id") else []
         )
         artifacts.append(RunArtifact(
             node_id=str(node["id"]),
             variant=_variant_of(worktree),
             worktree=worktree,
             artifact_path=artifact,
-            metrics={k: float(v) for k, v in (result.get("metrics") or {}).items()},
+            metrics={k: float(v) for k, v in (reported.get("metrics") or {}).items()},
             experiment_ids=[str(e) for e in experiment_ids],
             winner=str(node["id"]) == best,
         ))
