@@ -55,6 +55,37 @@ async def test_get_orbit_collections_rejects_invalid_cursor(
     mock_get_collections.assert_not_called()
 
 
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_treats_empty_cursor_as_first_page(
+    mock_get_collections: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id, organization_id, orbit_id = uuid7(), uuid7(), uuid7()
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
+    mock_get_collections.return_value = ([], None)
+
+    result = await handler.get_orbit_collections(
+        user_id, organization_id, orbit_id, cursor_str=""
+    )
+
+    assert result == CollectionsList(items=[], cursor=None)
+    assert mock_get_collections.await_args is not None
+    assert mock_get_collections.await_args.kwargs["pagination"].cursor is None
+
+
 def test_collection_update_in_name_empty_string() -> None:
     with pytest.raises(ValidationError):
         CollectionUpdateIn(name="")

@@ -311,8 +311,9 @@ of credentials and identity exactly as the production backend would return them:
 - `client`: function-scoped test client on `app`; while it is alive, the
   authentication backend's `authenticate` is patched to return `principal` (or
   nothing for anonymous). The satellite path of the real backend also records the
-  satellite's last-seen time; the stub does not, so the `touch_last_seen` patches in
-  the satellite worker tests go.
+  satellite's last-seen time; the stub does not. The satellite worker routes record
+  it themselves as well, so the satellite worker tests keep mocking
+  `touch_last_seen` on the satellite handler like any other handler call.
 
 Rules for every route test:
 
@@ -505,6 +506,7 @@ Rules for every route test:
 **Given** a class overriding `principal` with a satellite
 **When** it deletes a worker deployment
 **Then** the handler receives that satellite's id, and no last-seen update is attempted
+by the authentication backend (the route's own call goes to the mocked handler)
 
 ## Scenario: production URL
 **Given** the artifacts router
@@ -582,9 +584,9 @@ new tests are class methods.
   - [x] Replace the duplicated builders in `integration/repositories/test_artifacts.py`, `test_artifacts_batch_deletion.py`, `test_lineage.py`, `test_tracks.py`, `test_concurrency_guards.py`, `test_collections.py`, `test_deployments.py`, `test_orbit_secrets.py`, `test_bucket_secrets.py`, `test_orbits.py` and in `integration/migrations/` with the `support` ones; tracks keeps passing its own template.
   - [x] Verify: 1 054 cases pass; no `from tests.conftest import` remains; each builder exists once; the integration run with the forced connection termination temporarily disabled in teardown still drops every database (then restore the termination as a safety net).
 
-- [ ] Task 5 — Route tests
-  - [ ] Create `backend/tests/support/ids.py` with the shared identifiers, `backend/tests/support/auth.py` with the four principals, and `backend/tests/unit/api/conftest.py` with the session-scoped `app`, the `principal` and `client` fixtures patching the backend's `authenticate` per test.
-  - [ ] Merge and rename the sixteen files into the fourteen of the Design table, one class per file, tests as methods, production URLs, handler-level mocks only; delete the local backends, factories and error handlers; drop the `touch_last_seen` patches.
-  - [ ] Rewrite the two direct route-function calls as HTTP calls, keeping the artifact test's two principals and its scopes assertion.
-  - [ ] Split the pagination tests: route tests asserting cursor forwarding and the 400 mapping in `test_orbit_artifacts.py` and `test_orbit_collections.py`; handler tests for the empty cursor in `unit/handlers/test_artifacts.py` and `unit/handlers/test_collections.py`. Rewrite the satellite foreign-deployment test as a route test on the handler's not-found error. Record the resulting unit count in the task report (it changes by the tests added and merged here) and confirm no other test is added or removed.
-  - [ ] Verify: no authentication backend subclass, application factory or exception handler is defined in `unit/api/` outside `conftest.py` and `test_platform_admin.py`; `pytest tests/unit/api` passes in under 15 seconds; the whole suite is green.
+- [x] Task 5 — Route tests
+  - [x] Create `backend/tests/support/ids.py` with the shared identifiers, `backend/tests/support/auth.py` with the four principals, and `backend/tests/unit/api/conftest.py` with the session-scoped `app`, the `principal` and `client` fixtures patching the backend's `authenticate` per test.
+  - [x] Merge and rename the sixteen files into the fourteen of the Design table, one class per file, tests as methods, production URLs, handler-level mocks only; delete the local backends, factories and error handlers; keep the `touch_last_seen` handler mocks in the satellite worker tests.
+  - [x] Rewrite the two direct route-function calls as HTTP calls, keeping the artifact test's two principals and its scopes assertion.
+  - [x] Split the pagination tests: route tests asserting cursor forwarding and the 400 mapping in `test_orbit_artifacts.py` and `test_orbit_collections.py`; handler tests for the empty cursor in `unit/handlers/test_artifacts.py` and `unit/handlers/test_collections.py`. Rewrite the satellite foreign-deployment test as a route test on the handler's not-found error. Record the resulting unit count in the task report (it changes by the tests added and merged here) and confirm no other test is added or removed.
+  - [x] Verify: no authentication backend subclass, application factory or exception handler is defined in `unit/api/` outside `conftest.py` and `test_platform_admin.py`; `pytest tests/unit/api` passes in under 15 seconds; the whole suite is green.

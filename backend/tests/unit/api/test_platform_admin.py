@@ -112,236 +112,235 @@ def _bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_routes_are_not_mounted_without_admin_email() -> None:
-    paths = {getattr(route, "path", "") for route in AppService().routes}
+class TestPlatformAdmin:
+    def test_routes_are_not_mounted_without_admin_email(self, app: AppService) -> None:
+        paths = {getattr(route, "path", "") for route in app.routes}
 
-    assert not any(path.startswith("/v1/platform-admin") for path in paths)
+        assert not any(path.startswith("/v1/platform-admin") for path in paths)
 
-
-def test_password_grant_token_identifies_admin(
-    client: TestClient, admin_token: str
-) -> None:
-    response = client.get("/v1/platform-admin/auth/me", headers=_bearer(admin_token))
-
-    assert response.status_code == 200
-    assert response.json()["email"] == ADMIN_EMAIL
-    assert response.json()["auth_method"] == "EMAIL"
-
-
-def test_admin_routes_require_bearer_token(client: TestClient) -> None:
-    response = client.get(STATS_PATH)
-
-    assert response.status_code == 401
-    assert response.headers["WWW-Authenticate"] == "Bearer"
-
-
-def test_admin_token_in_cookie_is_ignored(client: TestClient, admin_token: str) -> None:
-    client.cookies.set("access_token", admin_token)
-
-    assert client.get(STATS_PATH).status_code == 401
-
-
-@patch("luml.handlers.auth.AuthHandler.handle_get_current_user", new_callable=AsyncMock)
-def test_user_session_token_is_rejected(
-    mock_handle_get_current_user: AsyncMock, client: TestClient
-) -> None:
-    mock_handle_get_current_user.return_value = UserOut(id=USER_ID, email=ADMIN_EMAIL)
-    user_token = AuthHandler(secret_key=config.AUTH_SECRET_KEY)._create_tokens(
-        ADMIN_EMAIL
-    )
-
-    response = client.get(STATS_PATH, headers=_bearer(user_token.access_token))
-
-    assert response.status_code == 401
-
-
-@patch(f"{HANDLER}.get_stats", new_callable=AsyncMock)
-def test_stats_with_admin_token(
-    mock_get_stats: AsyncMock, client: TestClient, admin_token: str
-) -> None:
-    mock_get_stats.return_value = STATS
-
-    response = client.get(STATS_PATH, headers=_bearer(admin_token))
-
-    assert response.status_code == 200
-    assert response.json() == STATS.model_dump()
-
-
-@patch(f"{HANDLER}.update_organization_limits", new_callable=AsyncMock)
-def test_update_limits_passes_admin_and_partial_limits(
-    mock_update_limits: AsyncMock, client: TestClient, admin_token: str
-) -> None:
-    mock_update_limits.return_value = _organization_details()
-
-    response = client.patch(
-        f"/v1/platform-admin/organizations/{ORGANIZATION_ID}/limits",
-        headers=_bearer(admin_token),
-        json={"orbits_limit": 5},
-    )
-
-    assert response.status_code == 200
-    assert mock_update_limits.await_args is not None
-    admin, organization_id, limits = mock_update_limits.await_args.args
-    assert admin.email == ADMIN_EMAIL
-    assert organization_id == ORGANIZATION_ID
-    assert limits == OrganizationLimitsUpdate(orbits_limit=5)
-
-
-@pytest.mark.parametrize(
-    "body",
-    [{}, {"orbits_limit": -1}, {"orbits_limit": 5, "unknown_limit": 1}],
-    ids=["empty", "negative", "unknown-field"],
-)
-@patch(f"{HANDLER}.update_organization_limits", new_callable=AsyncMock)
-def test_update_limits_validates_body(
-    mock_update_limits: AsyncMock,
-    body: dict[str, int],
-    client: TestClient,
-    admin_token: str,
-) -> None:
-    response = client.patch(
-        f"/v1/platform-admin/organizations/{ORGANIZATION_ID}/limits",
-        headers=_bearer(admin_token),
-        json=body,
-    )
-
-    assert response.status_code == 422
-    mock_update_limits.assert_not_awaited()
-
-
-@patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
-def test_update_user_rejects_fields_other_than_disabled(
-    mock_update_user: AsyncMock, client: TestClient, admin_token: str
-) -> None:
-    response = client.patch(
-        f"/v1/platform-admin/users/{USER_ID}",
-        headers=_bearer(admin_token),
-        json={"disabled": True, "email": "other@example.com"},
-    )
-
-    assert response.status_code == 422
-    mock_update_user.assert_not_awaited()
-
-
-@patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
-def test_update_user_disables_user(
-    mock_update_user: AsyncMock, client: TestClient, admin_token: str
-) -> None:
-    mock_update_user.side_effect = RuntimeError("stop after validation")
-
-    with pytest.raises(RuntimeError):
-        client.patch(
-            f"/v1/platform-admin/users/{USER_ID}",
-            headers=_bearer(admin_token),
-            json={"disabled": True},
+    def test_password_grant_token_identifies_admin(
+        self, client: TestClient, admin_token: str
+    ) -> None:
+        response = client.get(
+            "/v1/platform-admin/auth/me", headers=_bearer(admin_token)
         )
 
-    assert mock_update_user.await_args is not None
-    _admin, user_id, update = mock_update_user.await_args.args
-    assert user_id == USER_ID
-    assert update == PlatformAdminUserUpdate(disabled=True)
+        assert response.status_code == 200
+        assert response.json()["email"] == ADMIN_EMAIL
+        assert response.json()["auth_method"] == "EMAIL"
 
+    def test_admin_routes_require_bearer_token(self, client: TestClient) -> None:
+        response = client.get(STATS_PATH)
 
-def test_preflight_to_admin_routes_is_refused(client: TestClient) -> None:
-    response = client.options(
-        STATS_PATH,
-        headers={
-            "Origin": ALLOWED_ORIGIN,
-            "Access-Control-Request-Method": "GET",
-            "Access-Control-Request-Headers": "authorization",
-        },
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == "Bearer"
+
+    def test_admin_token_in_cookie_is_ignored(
+        self, client: TestClient, admin_token: str
+    ) -> None:
+        client.cookies.set("access_token", admin_token)
+
+        assert client.get(STATS_PATH).status_code == 401
+
+    @patch(
+        "luml.handlers.auth.AuthHandler.handle_get_current_user", new_callable=AsyncMock
     )
-
-    assert response.status_code == 403
-    assert "access-control-allow-origin" not in response.headers
-
-
-@patch(f"{HANDLER}.get_stats", new_callable=AsyncMock)
-def test_admin_responses_carry_no_cors_headers(
-    mock_get_stats: AsyncMock, client: TestClient, admin_token: str
-) -> None:
-    mock_get_stats.return_value = STATS
-
-    response = client.get(
-        STATS_PATH, headers={**_bearer(admin_token), "Origin": ALLOWED_ORIGIN}
-    )
-
-    assert response.status_code == 200
-    assert not any(name.startswith("access-control-") for name in response.headers)
-
-
-def test_cors_still_applies_to_regular_routes(client: TestClient) -> None:
-    response = client.options(
-        "/v1/auth/signin",
-        headers={"Origin": ALLOWED_ORIGIN, "Access-Control-Request-Method": "POST"},
-    )
-
-    assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == ALLOWED_ORIGIN
-
-
-def test_google_login_redirects_to_google(client: TestClient) -> None:
-    response = client.get(
-        "/v1/platform-admin/auth/google/login",
-        params={"port": 53682, "code_challenge": code_challenge_for("v" * 43)},
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 307
-    assert response.headers["location"].startswith(config.GOOGLE_AUTH_URL)
-
-
-@pytest.mark.parametrize(
-    "params",
-    [
-        {"port": 80, "code_challenge": code_challenge_for("v" * 43)},
-        {"port": 53682, "code_challenge": "too-short"},
-    ],
-    ids=["privileged-port", "bad-challenge"],
-)
-def test_google_login_validates_loopback_parameters(
-    client: TestClient, params: dict[str, int | str]
-) -> None:
-    response = client.get(
-        "/v1/platform-admin/auth/google/login", params=params, follow_redirects=False
-    )
-
-    assert response.status_code == 422
-
-
-@pytest.mark.parametrize(
-    "body",
-    [{}, {"organizations_limit": -1}, {"disabled": None}],
-    ids=["empty", "negative-limit", "only-null"],
-)
-@patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
-def test_update_user_validates_body(
-    mock_update_user: AsyncMock,
-    body: dict[str, object],
-    client: TestClient,
-    admin_token: str,
-) -> None:
-    response = client.patch(
-        f"/v1/platform-admin/users/{USER_ID}", headers=_bearer(admin_token), json=body
-    )
-
-    assert response.status_code == 422
-    mock_update_user.assert_not_awaited()
-
-
-@patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
-def test_update_user_organizations_limit(
-    mock_update_user: AsyncMock, client: TestClient, admin_token: str
-) -> None:
-    mock_update_user.side_effect = RuntimeError("stop after validation")
-
-    with pytest.raises(RuntimeError):
-        client.patch(
-            f"/v1/platform-admin/users/{USER_ID}",
-            headers=_bearer(admin_token),
-            json={"organizations_limit": 8},
+    def test_user_session_token_is_rejected(
+        self, mock_handle_get_current_user: AsyncMock, client: TestClient
+    ) -> None:
+        mock_handle_get_current_user.return_value = UserOut(
+            id=USER_ID, email=ADMIN_EMAIL
+        )
+        user_token = AuthHandler(secret_key=config.AUTH_SECRET_KEY)._create_tokens(
+            ADMIN_EMAIL
         )
 
-    assert mock_update_user.await_args is not None
-    _admin, _user_id, update = mock_update_user.await_args.args
-    assert update == PlatformAdminUserUpdate(organizations_limit=8)
+        response = client.get(STATS_PATH, headers=_bearer(user_token.access_token))
+
+        assert response.status_code == 401
+
+    @patch(f"{HANDLER}.get_stats", new_callable=AsyncMock)
+    def test_stats_with_admin_token(
+        self, mock_get_stats: AsyncMock, client: TestClient, admin_token: str
+    ) -> None:
+        mock_get_stats.return_value = STATS
+
+        response = client.get(STATS_PATH, headers=_bearer(admin_token))
+
+        assert response.status_code == 200
+        assert response.json() == STATS.model_dump()
+
+    @patch(f"{HANDLER}.update_organization_limits", new_callable=AsyncMock)
+    def test_update_limits_passes_admin_and_partial_limits(
+        self, mock_update_limits: AsyncMock, client: TestClient, admin_token: str
+    ) -> None:
+        mock_update_limits.return_value = _organization_details()
+
+        response = client.patch(
+            f"/v1/platform-admin/organizations/{ORGANIZATION_ID}/limits",
+            headers=_bearer(admin_token),
+            json={"orbits_limit": 5},
+        )
+
+        assert response.status_code == 200
+        assert mock_update_limits.await_args is not None
+        admin, organization_id, limits = mock_update_limits.await_args.args
+        assert admin.email == ADMIN_EMAIL
+        assert organization_id == ORGANIZATION_ID
+        assert limits == OrganizationLimitsUpdate(orbits_limit=5)
+
+    @pytest.mark.parametrize(
+        "body",
+        [{}, {"orbits_limit": -1}, {"orbits_limit": 5, "unknown_limit": 1}],
+        ids=["empty", "negative", "unknown-field"],
+    )
+    @patch(f"{HANDLER}.update_organization_limits", new_callable=AsyncMock)
+    def test_update_limits_validates_body(
+        self,
+        mock_update_limits: AsyncMock,
+        body: dict[str, int],
+        client: TestClient,
+        admin_token: str,
+    ) -> None:
+        response = client.patch(
+            f"/v1/platform-admin/organizations/{ORGANIZATION_ID}/limits",
+            headers=_bearer(admin_token),
+            json=body,
+        )
+
+        assert response.status_code == 422
+        mock_update_limits.assert_not_awaited()
+
+    @patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
+    def test_update_user_rejects_fields_other_than_disabled(
+        self, mock_update_user: AsyncMock, client: TestClient, admin_token: str
+    ) -> None:
+        response = client.patch(
+            f"/v1/platform-admin/users/{USER_ID}",
+            headers=_bearer(admin_token),
+            json={"disabled": True, "email": "other@example.com"},
+        )
+
+        assert response.status_code == 422
+        mock_update_user.assert_not_awaited()
+
+    @patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
+    def test_update_user_disables_user(
+        self, mock_update_user: AsyncMock, client: TestClient, admin_token: str
+    ) -> None:
+        mock_update_user.side_effect = RuntimeError("stop after validation")
+
+        with pytest.raises(RuntimeError):
+            client.patch(
+                f"/v1/platform-admin/users/{USER_ID}",
+                headers=_bearer(admin_token),
+                json={"disabled": True},
+            )
+
+        assert mock_update_user.await_args is not None
+        _admin, user_id, update = mock_update_user.await_args.args
+        assert user_id == USER_ID
+        assert update == PlatformAdminUserUpdate(disabled=True)
+
+    def test_preflight_to_admin_routes_is_refused(self, client: TestClient) -> None:
+        response = client.options(
+            STATS_PATH,
+            headers={
+                "Origin": ALLOWED_ORIGIN,
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+
+        assert response.status_code == 403
+        assert "access-control-allow-origin" not in response.headers
+
+    @patch(f"{HANDLER}.get_stats", new_callable=AsyncMock)
+    def test_admin_responses_carry_no_cors_headers(
+        self, mock_get_stats: AsyncMock, client: TestClient, admin_token: str
+    ) -> None:
+        mock_get_stats.return_value = STATS
+
+        response = client.get(
+            STATS_PATH, headers={**_bearer(admin_token), "Origin": ALLOWED_ORIGIN}
+        )
+
+        assert response.status_code == 200
+        assert not any(name.startswith("access-control-") for name in response.headers)
+
+    def test_cors_still_applies_to_regular_routes(self, client: TestClient) -> None:
+        response = client.options(
+            "/v1/auth/signin",
+            headers={"Origin": ALLOWED_ORIGIN, "Access-Control-Request-Method": "POST"},
+        )
+
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == ALLOWED_ORIGIN
+
+    def test_google_login_redirects_to_google(self, client: TestClient) -> None:
+        response = client.get(
+            "/v1/platform-admin/auth/google/login",
+            params={"port": 53682, "code_challenge": code_challenge_for("v" * 43)},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 307
+        assert response.headers["location"].startswith(config.GOOGLE_AUTH_URL)
+
+    @pytest.mark.parametrize(
+        "params",
+        [
+            {"port": 80, "code_challenge": code_challenge_for("v" * 43)},
+            {"port": 53682, "code_challenge": "too-short"},
+        ],
+        ids=["privileged-port", "bad-challenge"],
+    )
+    def test_google_login_validates_loopback_parameters(
+        self, client: TestClient, params: dict[str, int | str]
+    ) -> None:
+        response = client.get(
+            "/v1/platform-admin/auth/google/login",
+            params=params,
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 422
+
+    @pytest.mark.parametrize(
+        "body",
+        [{}, {"organizations_limit": -1}, {"disabled": None}],
+        ids=["empty", "negative-limit", "only-null"],
+    )
+    @patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
+    def test_update_user_validates_body(
+        self,
+        mock_update_user: AsyncMock,
+        body: dict[str, object],
+        client: TestClient,
+        admin_token: str,
+    ) -> None:
+        response = client.patch(
+            f"/v1/platform-admin/users/{USER_ID}",
+            headers=_bearer(admin_token),
+            json=body,
+        )
+
+        assert response.status_code == 422
+        mock_update_user.assert_not_awaited()
+
+    @patch(f"{HANDLER}.update_user", new_callable=AsyncMock)
+    def test_update_user_organizations_limit(
+        self, mock_update_user: AsyncMock, client: TestClient, admin_token: str
+    ) -> None:
+        mock_update_user.side_effect = RuntimeError("stop after validation")
+
+        with pytest.raises(RuntimeError):
+            client.patch(
+                f"/v1/platform-admin/users/{USER_ID}",
+                headers=_bearer(admin_token),
+                json={"organizations_limit": 8},
+            )
+
+        assert mock_update_user.await_args is not None
+        _admin, _user_id, update = mock_update_user.await_args.args
+        assert update == PlatformAdminUserUpdate(organizations_limit=8)

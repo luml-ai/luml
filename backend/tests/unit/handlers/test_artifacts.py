@@ -734,6 +734,34 @@ async def test_get_collection_artifacts_resets_cursor_on_sort_change(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
+async def test_get_collection_artifacts_treats_empty_cursor_as_first_page(
+    mock_check_permissions: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_repo: AsyncMock,
+) -> None:
+    mock_repo.return_value = ([], None)
+
+    result = await handler.get_collection_artifacts(
+        uuid7(), uuid7(), uuid7(), cursor_str=""
+    )
+
+    assert result == ArtifactsList(items=[], cursor=None)
+    assert _pagination_arg(mock_repo).cursor is None
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collections_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
 async def test_get_collection_artifacts_applies_limit(
     mock_check_permissions: AsyncMock,
     mock_check_access: AsyncMock,
