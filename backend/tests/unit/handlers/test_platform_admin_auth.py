@@ -306,6 +306,10 @@ class TestPlatformAdminAuthHandler:
                 )
             )
 
+        mocks.google_provider.exchange_code_for_token.assert_awaited_once_with(
+            ANY, "google-code", redirect_uri=REDIRECT_URI
+        )
+
     async def test_google_login_code_raises_when_verifier_mismatches(
         self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
@@ -319,6 +323,9 @@ class TestPlatformAdminAuthHandler:
             )
 
         mocks.token_black_list_repository.add_token.assert_not_awaited()
+        mocks.google_provider.exchange_code_for_token.assert_awaited_once_with(
+            ANY, "google-code", redirect_uri=REDIRECT_URI
+        )
 
     @pytest.mark.parametrize(
         "userinfo",
@@ -359,6 +366,9 @@ class TestPlatformAdminAuthHandler:
         )
 
         assert _query(redirect) == {"error": "access_denied"}
+        mocks.google_provider.exchange_code_for_token.assert_awaited_once_with(
+            ANY, "google-code", redirect_uri=REDIRECT_URI
+        )
 
     async def test_google_callback_forwards_google_error_to_loopback(
         self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
