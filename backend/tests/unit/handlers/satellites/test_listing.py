@@ -41,66 +41,6 @@ class TestSatelliteListing:
         )
         mocks.sat_repo.list_satellites.assert_awaited_once_with(ORBIT_ID, None)
 
-    async def test_list_satellites_returns_satellites_when_orbit_member_allowed(
-        self, mocks: CollaboratorMocks[SatelliteHandler]
-    ) -> None:
-        capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
-
-        expected = [
-            Satellite(
-                id=SATELLITE_ID,
-                orbit_id=ORBIT_ID,
-                name="test",
-                description=None,
-                base_url="https://url.com",
-                paired=False,
-                capabilities=capabilities,
-                created_at=datetime.datetime.now(),
-                updated_at=None,
-                last_seen_at=None,
-            )
-        ]
-
-        mocks.sat_repo.list_satellites.return_value = expected
-
-        result = await mocks.handler.list_satellites(USER_ID, ORGANIZATION_ID, ORBIT_ID)
-
-        assert result == expected
-        mocks.permissions_handler.check_permissions.assert_awaited_once_with(
-            ORGANIZATION_ID, USER_ID, Resource.SATELLITE, Action.LIST, ORBIT_ID
-        )
-        mocks.sat_repo.list_satellites.assert_awaited_once_with(ORBIT_ID, None)
-
-    async def test_list_satellites_returns_satellites_when_organization_admin_allowed(
-        self, mocks: CollaboratorMocks[SatelliteHandler]
-    ) -> None:
-        capabilities: dict[str, dict[str, Any]] = {"deploy": {"version": 1}}
-
-        expected = [
-            Satellite(
-                id=SATELLITE_ID,
-                orbit_id=ORBIT_ID,
-                name="test",
-                description=None,
-                base_url="https://url.com",
-                paired=False,
-                capabilities=capabilities,
-                created_at=datetime.datetime.now(),
-                updated_at=None,
-                last_seen_at=None,
-            )
-        ]
-
-        mocks.sat_repo.list_satellites.return_value = expected
-
-        result = await mocks.handler.list_satellites(USER_ID, ORGANIZATION_ID, ORBIT_ID)
-
-        assert result == expected
-        mocks.permissions_handler.check_permissions.assert_awaited_once_with(
-            ORGANIZATION_ID, USER_ID, Resource.SATELLITE, Action.LIST, ORBIT_ID
-        )
-        mocks.sat_repo.list_satellites.assert_awaited_once_with(ORBIT_ID, None)
-
     async def test_get_satellite_returns_satellite(
         self, mocks: CollaboratorMocks[SatelliteHandler]
     ) -> None:
