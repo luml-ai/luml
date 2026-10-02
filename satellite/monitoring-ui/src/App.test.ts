@@ -12,6 +12,7 @@ vi.mock('@/api/monitoring', () => ({
   getReferenceProfile: vi.fn(),
   getTraces: vi.fn(),
   getWorkerHealth: vi.fn(),
+  getSessionInfo: vi.fn(),
   acknowledgeAlert: vi.fn(),
   dimensionParams: (dims: unknown) => dims,
 }))
@@ -20,7 +21,7 @@ import * as monitoringApi from '@/api/monitoring'
 import { SessionExpiredError } from '@/api/client'
 import App from '@/App.vue'
 import { MONITORING_SESSION_EXPIRED_MESSAGE } from '@/composables/useMonitoringDashboard'
-import { ProfileStatus, Window } from '@/api/types'
+import { ProfileStatus, Window, SectionState } from '@/api/types'
 import {
   makeAlerts,
   makeWorkerHealth,
@@ -45,6 +46,7 @@ const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
 const getTraces = vi.mocked(monitoringApi.getTraces)
 const getAlerts = vi.mocked(monitoringApi.getAlerts)
 const getWorkerHealth = vi.mocked(monitoringApi.getWorkerHealth)
+const getSessionInfo = vi.mocked(monitoringApi.getSessionInfo)
 const acknowledgeAlert = vi.mocked(monitoringApi.acknowledgeAlert)
 
 function mountApp() {
@@ -65,7 +67,67 @@ describe('App (dashboard shell)', () => {
     getTraces.mockResolvedValue(makeTraces())
     getAlerts.mockResolvedValue(makeAlerts())
     getWorkerHealth.mockResolvedValue(makeWorkerHealth())
+    getSessionInfo.mockResolvedValue({ deployment_id: 'dep-1', scope: 'monitoring:read' })
+    localStorage.clear()
     acknowledgeAlert.mockResolvedValue(makeAlerts())
+  })
+
+  it.each(['fault', 'unavailable', 'disabled'] as const)(
+    'shows recording off for %s even without a worker',
+    async (state) => {
+      getWorkerHealth.mockResolvedValue(makeWorkerHealth({
+        state: SectionState.UNAVAILABLE,
+        recording: { state, reason: 'Monitoring could not start' },
+      }))
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="recording-status"]').text()).toContain('Recording is off')
+      expect(wrapper.find('[data-testid="recording-status"]').text()).toContain(
+        'Monitoring could not start',
+      )
+    },
+  )
+
+  it.each(['runtime', 'data-quality'] as const)(
+    'shows recording health on the saved %s tab and updates it on refresh',
+    async (tab) => {
+      localStorage.setItem('monitoring-settings:dep-1', JSON.stringify({ v: 1, tab }))
+      getWorkerHealth.mockResolvedValue(makeWorkerHealth({
+        recording: { state: 'fault', reason: 'Monitoring could not start' },
+      }))
+      const wrapper = mountApp()
+      await flushPromises()
+      expect(wrapper.find(`[data-testid="${tab}-tab"]`).exists()).toBe(true)
+      expect(wrapper.find('[data-testid="recording-status"]').text()).toContain('Recording is off')
+      expect(getOverview).not.toHaveBeenCalled()
+
+      getWorkerHealth.mockResolvedValue(makeWorkerHealth({
+        recording: { state: 'recording', reason: null },
+      }))
+      await wrapper.find('[data-testid="refresh"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="recording-status"]').exists()).toBe(false)
+
+      getWorkerHealth.mockResolvedValue(makeWorkerHealth({
+        recording: { state: 'fault', reason: 'Monitoring could not start' },
+      }))
+      await wrapper.find('[data-testid="refresh"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="recording-status"]').exists()).toBe(true)
+      expect(getOverview).not.toHaveBeenCalled()
+      wrapper.unmount()
+    },
+  )
+
+  it('does not label healthy recording with no traffic as off', async () => {
+    getOverview.mockResolvedValue(makeOverview({ state: SectionState.EMPTY, cards: [] }))
+    getRuntime.mockResolvedValue(makeRuntime({ request_count: 0 }))
+    getWorkerHealth.mockResolvedValue(makeWorkerHealth({
+      recording: { state: 'recording', reason: null },
+    }))
+    const wrapper = mountApp()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="recording-status"]').exists()).toBe(false)
   })
 
   it('renders the header and Overview from the contracts once loaded', async () => {

@@ -1,8 +1,13 @@
 import asyncio
+import builtins
 import json
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 
 import httpx
 import pytest
@@ -356,6 +361,8 @@ async def test_sidecar_selects_noop_without_an_endpoint_and_monitoring_with_one(
     try:
         assert isinstance(without_endpoint.recorder, NoOpRecorder)
         assert isinstance(with_endpoint.recorder, InferenceInstrumentation)
+        assert without_endpoint.recording_status().state == "unavailable"
+        assert with_endpoint.recording_status().state == "recording"
         warnings = [
             record for record in caplog.records if "no telemetry endpoint" in record.getMessage()
         ]
@@ -379,3 +386,228 @@ def test_serving_image_installs_both_extras_and_runs_as_non_root() -> None:
     assert "--extra serving --extra monitoring" in dockerfile
     assert "USER 10001:0" in dockerfile
     assert 'CMD ["luml-satellite-sidecar"]' in dockerfile
+
+
+@pytest.mark.parametrize(
+    ("absent_extra", "import_name", "expected"),
+    [
+        (False, "opentelemetry.sdk", "fault"),
+        (False, "", "fault"),
+        (False, "luml_satellite.monitoring.missing", "fault"),
+        (True, "opentelemetry.sdk", "unavailable"),
+        (True, "luml_satellite.monitoring.missing", "fault"),
+    ],
+)
+async def test_sidecar_reports_import_fault_and_absent_extra(
+    monkeypatch: pytest.MonkeyPatch,
+    absent_extra: bool,
+    import_name: str,
+    expected: str,
+) -> None:
+    original_import = builtins.__import__
+
+    def broken_import(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> ModuleType:
+        if name == "luml_satellite.monitoring":
+            if not import_name:
+                raise ImportError("cannot import a monitoring symbol")
+            raise ModuleNotFoundError("unavailable module", name=import_name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    def distribution_version(name: str) -> str:
+        if absent_extra:
+            raise PackageNotFoundError(name)
+        return "1.43.0"
+
+    monkeypatch.setattr(builtins, "__import__", broken_import)
+    monkeypatch.setattr("luml_satellite.serving.sidecar.version", distribution_version)
+    sleeper = ControlledSleep()
+    companion = FakeCompanion(metadata())
+    sidecar = Sidecar(
+        configuration(OTEL_EXPORTER_OTLP_ENDPOINT="http://collector:4317"),
+        companion=companion,
+        upstream_transport=upstream_transport(),
+        sleep=sleeper,
+    )
+    try:
+        await sidecar.start()
+        await sleeper.next_delay()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.internal_application),
+            base_url="http://sidecar",
+            headers={"Authorization": f"Bearer {COMPANION_TOKEN}"},
+        ) as client:
+            recording = await client.get("/recording")
+            health = await client.get("/healthz")
+            assert recording.json()["state"] == expected
+            assert health.status_code == 503
+            assert health.json()["recording"]["state"] == expected
+            companion.current_metadata = metadata(monitoring=False)
+            sleeper.release()
+            await sleeper.next_delay()
+            disabled = await client.get("/healthz")
+            assert disabled.status_code == 200
+            assert disabled.json()["recording"]["state"] == "disabled"
+    finally:
+        await sidecar.aclose()
+
+
+@pytest.mark.parametrize("failure_at", ["start", "complete"])
+async def test_sidecar_reports_recorder_failure_after_start(failure_at: str) -> None:
+    from luml_satellite.workload import (
+        InferenceOutcome,
+        NoOpRecordingSession,
+        RecordingPolicy,
+        RecordingSession,
+    )
+
+    failing = [True]
+
+    class FailingSession(NoOpRecordingSession):
+        async def complete(self, outcome: InferenceOutcome) -> None:
+            if failing[0]:
+                raise RuntimeError("recording broke")
+
+    class FailingRecorder:
+        async def start(
+            self, deployment_id: str, inputs: object | None, policy: RecordingPolicy
+        ) -> RecordingSession:
+            if failure_at == "start" and failing[0]:
+                raise RuntimeError("recording broke")
+            return FailingSession()
+
+    sleeper = ControlledSleep()
+    sidecar = Sidecar(
+        configuration(),
+        companion=FakeCompanion(metadata()),
+        upstream_transport=upstream_transport(),
+        recorder=FailingRecorder(),
+        sleep=sleeper,
+    )
+    try:
+        await sidecar.start()
+        await sleeper.next_delay()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.application), base_url="http://serving"
+        ) as serving:
+            response = await serving.post(
+                f"/deployments/{DEPLOYMENT_ID}/compute",
+                headers=AUTHORIZATION,
+                json={"inputs": {"x": 1}},
+            )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.internal_application),
+            base_url="http://sidecar",
+        ) as internal:
+            health = await internal.get(
+                "/healthz", headers={"Authorization": f"Bearer {COMPANION_TOKEN}"}
+            )
+        assert response.status_code == 200
+        assert health.status_code == 503
+        assert health.json()["recording"]["state"] == "fault"
+        failing[0] = False
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.application), base_url="http://serving"
+        ) as serving:
+            recovered = await serving.post(
+                f"/deployments/{DEPLOYMENT_ID}/compute",
+                headers=AUTHORIZATION,
+                json={"inputs": {"x": 2}},
+            )
+        assert recovered.status_code == 200
+        assert sidecar.recording_status().state == "recording"
+    finally:
+        await sidecar.aclose()
+
+
+async def test_sidecar_reports_telemetry_initialization_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_telemetry(*, endpoint: str) -> None:
+        raise RuntimeError("collector setup failed")
+
+    monkeypatch.setattr("luml_satellite.monitoring.create_telemetry", fail_telemetry)
+    sleeper = ControlledSleep()
+    sidecar = Sidecar(
+        configuration(OTEL_EXPORTER_OTLP_ENDPOINT="http://collector:4317"),
+        companion=FakeCompanion(metadata()),
+        upstream_transport=upstream_transport(),
+        sleep=sleeper,
+    )
+    try:
+        await sidecar.start()
+        await sleeper.next_delay()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.internal_application),
+            base_url="http://sidecar",
+        ) as client:
+            unguarded = await client.get("/recording")
+            response = await client.get(
+                "/recording", headers={"Authorization": f"Bearer {COMPANION_TOKEN}"}
+            )
+        assert unguarded.status_code == 403
+        assert response.json() == {"state": "fault", "reason": "Telemetry initialization failed"}
+    finally:
+        await sidecar.aclose()
+
+
+async def test_sidecar_reports_inactive_telemetry_after_exporter_initialization_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_TIMEOUT", "invalid")
+    sleeper = ControlledSleep()
+    sidecar = Sidecar(
+        configuration(OTEL_EXPORTER_OTLP_ENDPOINT="http://collector:4317"),
+        companion=FakeCompanion(metadata()),
+        upstream_transport=upstream_transport(),
+        sleep=sleeper,
+    )
+    try:
+        await sidecar.start()
+        await sleeper.next_delay()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.internal_application),
+            base_url="http://sidecar",
+            headers={"Authorization": f"Bearer {COMPANION_TOKEN}"},
+        ) as client:
+            health = await client.get("/healthz")
+            recording = await client.get("/recording")
+        assert health.status_code == 503
+        assert health.json()["recording"] == {
+            "state": "fault",
+            "reason": "Telemetry initialization failed",
+        }
+        assert recording.json() == health.json()["recording"]
+        assert isinstance(sidecar.recorder, NoOpRecorder)
+    finally:
+        await sidecar.aclose()
+
+
+async def test_noop_recording_does_not_clear_unavailable_state_after_inference() -> None:
+    sleeper = ControlledSleep()
+    sidecar = Sidecar(
+        configuration(),
+        companion=FakeCompanion(metadata()),
+        upstream_transport=upstream_transport(),
+        sleep=sleeper,
+    )
+    try:
+        await sidecar.start()
+        await sleeper.next_delay()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=sidecar.application), base_url="http://serving"
+        ) as client:
+            response = await client.post(
+                f"/deployments/{DEPLOYMENT_ID}/compute",
+                headers=AUTHORIZATION,
+                json={"inputs": {"x": 1}},
+            )
+        assert response.status_code == 200
+        assert sidecar.recording_status().state == "unavailable"
+    finally:
+        await sidecar.aclose()

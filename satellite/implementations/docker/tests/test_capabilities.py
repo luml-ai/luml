@@ -68,7 +68,7 @@ async def test_docker_capabilities_remain_wire_identical() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pairing_document_matches_snapshot_and_has_only_the_two_declared_changes() -> None:
+async def test_pairing_document_matches_snapshot_and_preserves_existing_contract() -> None:
     fake_platform = FakePlatform()
     config = configuration(MONITORING_ENABLED=True)
     driver = DockerDriver(config, client=FakeDocker().as_client())
@@ -97,6 +97,12 @@ async def test_pairing_document_matches_snapshot_and_has_only_the_two_declared_c
     expected = copy.deepcopy(old_document)
     expected["paths"][INFERENCE_ACCESS_PATH]["post"]["security"] = [{"HTTPBearer": []}]
     expected["paths"][DEPLOYMENT_SCHEMA_PATH] = document["paths"][DEPLOYMENT_SCHEMA_PATH]
+    schemas = expected["components"]["schemas"]
+    snapshot_schemas = snapshot["components"]["schemas"]
+    schemas["RecordingStatus"] = snapshot_schemas["RecordingStatus"]
+    schemas["WorkerHealthResponse"]["properties"]["recording"] = snapshot_schemas[
+        "WorkerHealthResponse"
+    ]["properties"]["recording"]
 
     assert body["kit"] == {
         "name": "luml-satellite",

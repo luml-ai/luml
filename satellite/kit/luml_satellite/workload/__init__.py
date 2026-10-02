@@ -38,6 +38,7 @@ from luml_satellite.workload.recording import (
     Recorder,
     RecordingPolicy,
     RecordingSession,
+    RecordingStatus,
 )
 from luml_satellite.workload.transitions import (
     ALLOWED_STATUS_TRANSITIONS,
@@ -80,6 +81,7 @@ __all__ = [
     "Recorder",
     "RecordingPolicy",
     "RecordingSession",
+    "RecordingStatus",
     "RemoveResult",
     "StartContext",
     "StartResult",

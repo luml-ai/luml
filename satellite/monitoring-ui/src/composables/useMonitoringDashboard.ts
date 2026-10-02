@@ -141,15 +141,15 @@ export function useMonitoringDashboard() {
   }
 
   function loadHeader(): Promise<void> {
-    return run(headerStatus, monitoringApi.getHeader, (value) => (header.value = value))
-  }
-
-  function loadOverview(): Promise<void> {
     // Worker health must never keep the metrics from rendering.
     void monitoringApi
       .getWorkerHealth()
       .then((value) => (workerHealth.value = value))
       .catch(() => (workerHealth.value = null))
+    return run(headerStatus, monitoringApi.getHeader, (value) => (header.value = value))
+  }
+
+  function loadOverview(): Promise<void> {
     return run(
       overviewStatus,
       () => monitoringApi.getOverview({ ...dimensions }),

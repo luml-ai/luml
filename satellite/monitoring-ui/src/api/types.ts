@@ -101,6 +101,10 @@ export interface MetricIncident {
 export interface WorkerHealthResponse {
   state: SectionState
   running: boolean
+  recording?: {
+    state: 'recording' | 'disabled' | 'unavailable' | 'fault'
+    reason: string | null
+  } | null
   last_tick_at?: string | null
   windows_processed: number
   last_window_end?: string | null
