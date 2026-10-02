@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { FlaskConical, SquareCode, History, CircuitBoard } from 'lucide-vue-next'
+import { FlaskConical, SquareCode, Timer, CircuitBoard } from 'lucide-vue-next'
 import { useFlowStore } from '@/store/flow'
 import NotebookAccordionCells from './NotebookAccordionCells.vue'
 import NotebookAccordionExperiments from './NotebookAccordionExperiments.vue'
@@ -39,7 +39,7 @@ export function useSidebarSections() {
       component: NotebookAccordionModels,
     },
     {
-      icon: History,
+      icon: Timer,
       label: 'Activities',
       value: 'activities',
       count: undefined,

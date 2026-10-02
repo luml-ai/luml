@@ -1,82 +1,78 @@
 <template>
-  <div>
-    <Button variant="text" class="px-2.5! w-full" @click="toggle">
-      <Flag v-if="currentPointName" :size="14" />
-      <History v-else :size="14" />
-      <span>Step {{ flowStore.currentHeadStep }}</span>
-      <span v-if="currentPointName" class="head-point">· {{ currentPointName }}</span>
-    </Button>
-    <Popover ref="popoverRef" :pt="POPOVER_WITHOUT_ARROW_PT" class="w-96">
-      <p v-if="!flowStore.currentBranchSteps.length" class="empty">Nothing on this lane yet</p>
-      <ol v-else class="steps">
-        <li v-for="step in flowStore.currentBranchSteps" :key="step.step" class="step">
-          <Flag v-if="flowStore.currentBranchPoints.has(step.step)" :size="14" class="point-icon" />
-          <div class="step-info">
-            <div class="step-title">
-              <span class="step-intent">
-                {{ flowStore.currentBranchPoints.get(step.step) ?? step.intent }}
-              </span>
+  <Accordion class="border-t border-surface">
+    <AccordionPanel value="1" class="border-none!">
+      <AccordionHeader class="bg-transparent!" :pt="ACCORDION_HEADER_PT">
+        <div class="header">
+          <History :size="14" color="var(--p-text-muted-color)" />
+          <span class="text-color">Steps ({{ flowStore.currentBranchSteps.length }})</span>
+        </div>
+      </AccordionHeader>
+      <AccordionContent :pt="ACCORDION_CONTENT_PT">
+        <NotebookLanesCreatePoint />
+        <p v-if="!flowStore.currentBranchSteps.length" class="empty">Nothing on this lane yet</p>
+        <ol v-else class="steps">
+          <li v-for="step in flowStore.currentBranchSteps" :key="step.step" class="step">
+            <Flag
+              v-if="flowStore.currentBranchPoints.has(step.step)"
+              :size="14"
+              class="point-icon"
+            />
+            <div class="step-info">
+              <div class="step-title">
+                <span class="step-intent">
+                  {{ flowStore.currentBranchPoints.get(step.step) ?? step.intent }}
+                </span>
+              </div>
+              <div v-if="flowStore.currentBranchPoints.has(step.step)" class="step-point-intent">
+                {{ step.intent }}
+              </div>
+              <div class="step-meta">
+                step {{ step.step }} · {{ formatUpdatedAgo(step.ts) }} · {{ step.actor }}
+              </div>
             </div>
-            <div v-if="flowStore.currentBranchPoints.has(step.step)" class="step-point-intent">
-              {{ step.intent }}
-            </div>
-            <div class="step-meta">
-              step {{ step.step }} · {{ formatUpdatedAgo(step.ts) }} · {{ step.actor }}
-            </div>
-          </div>
-          <Tag
-            v-if="step.step === flowStore.currentHeadStep"
-            value="current"
-            severity="secondary"
-          />
-          <Button
-            v-else
-            label="Go"
-            severity="secondary"
-            variant="outlined"
-            size="small"
-            :loading="rewindingStep === step.step"
-            :disabled="rewindingStep !== null"
-            @click="rewind(step.step)"
-          />
-        </li>
-      </ol>
-    </Popover>
-  </div>
+            <Tag
+              v-if="step.step === flowStore.currentHeadStep"
+              value="current"
+              severity="secondary"
+            />
+            <Button
+              v-else
+              label="Go"
+              severity="secondary"
+              variant="outlined"
+              size="small"
+              :loading="rewindingStep === step.step"
+              :disabled="rewindingStep !== null"
+              @click="rewind(step.step)"
+            />
+          </li>
+        </ol>
+      </AccordionContent>
+    </AccordionPanel>
+  </Accordion>
 </template>
 
 <script setup lang="ts">
-import { Button, Popover, Tag } from 'primevue'
+import { Accordion, AccordionContent, AccordionHeader, AccordionPanel, Button, Tag } from 'primevue'
 import { Flag, History } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
 import { formatUpdatedAgo } from '@/helpers/date'
-import { POPOVER_WITHOUT_ARROW_PT } from '@/prime-vue/pass-through/popover.pt'
+import { ACCORDION_CONTENT_PT, ACCORDION_HEADER_PT } from '@/prime-vue/pass-through/accordion.pt'
+import NotebookLanesCreatePoint from './NotebookLanesCreatePoint.vue'
 
 const toast = useToast()
 
 const flowStore = useFlowStore()
 
-const popoverRef = ref<InstanceType<typeof Popover>>()
-
 const rewindingStep = ref<number | null>(null)
-
-const currentPointName = computed(() => {
-  const step = flowStore.currentHeadStep
-  return step === null ? undefined : flowStore.currentBranchPoints.get(step)
-})
-
-function toggle(event: Event) {
-  popoverRef.value?.toggle(event)
-}
 
 async function rewind(step: number) {
   rewindingStep.value = step
   try {
     await flowStore.rewindBranch(step)
-    popoverRef.value?.hide()
     toast.add(successToast(`Moved to step ${step}`))
   } catch (error) {
     toast.add(errorToast(error))
@@ -89,8 +85,11 @@ async function rewind(step: number) {
 <style scoped>
 @reference "@/assets/css/index.css";
 
+.header {
+  @apply flex items-center gap-1 min-w-0 text-sm font-normal;
+}
 .head-point {
-  @apply max-w-48 truncate;
+  @apply max-w-48 truncate text-muted-color;
 }
 .empty {
   @apply text-sm text-muted-color;

@@ -560,7 +560,7 @@ describe('the card overflow is a menu, not a list of sentences', () => {
     // Eight is the ceiling: past it a menu is a page nobody reads.
     expect(items.length).toBeLessThanOrEqual(8)
     expect(items.slice(0, 2)).toEqual(['expand', 'rename'])
-    expect(items).not.toContain('promote to LUML')
+    expect(items).not.toContain('Upload to LUML')
     // Destructive last, alone behind its own rule, and coloured as what it is.
     expect(items.at(-1)).toBe('delete from this lane…')
     const destroy = document.body.querySelector('[role="menuitem"]:last-of-type')
@@ -588,7 +588,7 @@ describe('the card overflow is a menu, not a list of sentences', () => {
 
     const items = labels()
     expect(items).not.toContain('add cell downstream')
-    expect(items).not.toContain('promote to LUML')
+    expect(items).not.toContain('Upload to LUML')
     expect(items.some((label) => label.startsWith('eager'))).toBe(false)
     wrapper.unmount()
   })

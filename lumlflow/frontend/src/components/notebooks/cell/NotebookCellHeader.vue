@@ -316,7 +316,7 @@ const menuItems: CellHeaderMenuItem[] = [
     command: onOpenInExperiments,
   },
   {
-    label: 'Promote to LUML',
+    label: 'Upload to LUML',
     glyph: CloudUpload,
     visible: () => modelOutputName() !== undefined || experimentOutputName() !== undefined,
     command: onPromoteToLuml,

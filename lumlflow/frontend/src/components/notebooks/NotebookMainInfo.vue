@@ -28,30 +28,36 @@
       >
         {{ flowStore.currentBranchFamilyLine }}
       </div>
-      <div v-if="flowStore.isSidebarOpened" class="actions">
-        <NotebookLanesSteps />
-        <NotebookLanesCreatePoint />
-      </div>
     </div>
-    <NotebooksLanes v-if="flowStore.isSidebarOpened" />
-    <SidebarTooltipPlug
-      v-else
-      class="border-t border-surface"
-      :icon="ListTree"
-      :tooltip="`Lanes (${flowStore.branches.length})`"
-      label="Lanes"
-    />
+    <template v-if="flowStore.isSidebarOpened">
+      <NotebookLanesSteps />
+      <NotebooksLanes />
+    </template>
+
+    <template v-else>
+      <SidebarTooltipPlug
+        class="border-t border-surface"
+        :icon="History"
+        :tooltip="`Lanes (${flowStore.branches.length})`"
+        label="Lanes"
+      />
+      <SidebarTooltipPlug
+        class="border-t border-surface"
+        :icon="ListTree"
+        :tooltip="`Lanes (${flowStore.branches.length})`"
+        label="Lanes"
+      />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ArrowRightToLine, CircleQuestionMark, ListTree } from 'lucide-vue-next'
+import { ArrowRightToLine, CircleQuestionMark, History, ListTree } from 'lucide-vue-next'
 import { Tag } from 'primevue'
 import { useFlowStore } from '@/store/flow'
 import NotebooksLanes from '@/components/notebooks/lanes/NotebooksLanes.vue'
 import SidebarTooltipPlug from '@/components/notebooks/SidebarTooltipPlug.vue'
 import NotebookLanesSteps from '@/components/notebooks/lanes/NotebookLanesSteps.vue'
-import NotebookLanesCreatePoint from '@/components/notebooks/lanes/NotebookLanesCreatePoint.vue'
 
 const flowStore = useFlowStore()
 </script>
@@ -78,8 +84,5 @@ const flowStore = useFlowStore()
 }
 .description {
   @apply text-sm text-muted-color;
-}
-.actions {
-  @apply flex flex-col gap-1 mt-2 -ml-2.5;
 }
 </style>
