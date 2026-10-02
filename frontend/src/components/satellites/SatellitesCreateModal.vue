@@ -31,7 +31,7 @@
           ></Textarea>
         </div>
       </div>
-      <Button label="Create" fluid rounded type="submit"></Button>
+      <Button label="Create" fluid rounded type="submit" :loading="loading"></Button>
     </Form>
   </Dialog>
 </template>
@@ -79,7 +79,7 @@ const initialValues = ref({
 const loading = ref(false)
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid) return
+  if (!valid || loading.value) return
   const organizationIdParam = route.params.organizationId
   const orbitIdParam = route.params.id
 
