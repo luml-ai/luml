@@ -23,7 +23,9 @@
       <div v-else class="empty-message">Tracks not found...</div>
     </div>
 
-    <TracksCreator />
+    <TracksCreator
+      v-if="orbitsStore.getCurrentOrbitPermissions?.track.includes(PermissionEnum.create)"
+    />
 
     <TrackEditor />
   </div>
@@ -41,9 +43,12 @@ import TracksCreator from '@/components/tracks/TracksCreator.vue'
 import TrackEditor from '@/components/tracks/TrackEditor.vue'
 import TracksList from '@/components/tracks/TracksList.vue'
 import TracksWelcome from '@/components/tracks/TracksWelcome.vue'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 const route = useRoute()
 const toast = useToast()
+const orbitsStore = useOrbitsStore()
 
 const {
   setRequestInfo,
