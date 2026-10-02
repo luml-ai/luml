@@ -166,9 +166,24 @@ describe.each([
     await submit()
     await wrapper.setProps({ visible: false })
     expect(uploadSignal().aborted).toBe(true)
-    resolveUpload()
+    rejectUpload(new DOMException('Aborted', 'AbortError'))
     await flushPromises()
     expect(harness.toastAdd).not.toHaveBeenCalled()
+  })
+
+  it('reports an upload that completed after the dialog was closed', async () => {
+    await fillForm()
+    await submit()
+    await wrapper.setProps({ visible: false })
+    resolveUpload()
+    await flushPromises()
+    expect(harness.toastAdd).toHaveBeenCalledOnce()
+    expect(harness.toastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'success',
+        detail: expect.stringContaining('My model has been added'),
+      }),
+    )
   })
 
   it('keeps a new upload active when the old cancelled upload settles', async () => {
@@ -179,9 +194,11 @@ describe.each([
     await wrapper.setProps({ visible: true })
     await fillForm()
     await submit()
+    const visibleEvents = wrapper.emitted('update:visible')?.length ?? 0
     resolveOldUpload()
     await flushPromises()
-    expect(harness.toastAdd).not.toHaveBeenCalled()
+    expect(harness.toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
+    expect(wrapper.emitted('update:visible')?.length ?? 0).toBe(visibleEvents)
     expect(
       wrapper
         .findAll('button')

@@ -269,14 +269,13 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       undefined,
       controller.signal,
     )
-    if (controller.signal.aborted) return
     toast.add({
       severity: 'success',
       summary: 'Success',
       detail: `${name} has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-collections" data-params="{}">Go to Collections</a>`,
       life: 5000,
     })
-    visible.value = false
+    if (!controller.signal.aborted) visible.value = false
   } catch (e) {
     if (!controller.signal.aborted)
       toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))

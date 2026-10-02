@@ -213,9 +213,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       ids,
       controller.signal,
     )
-    if (controller.signal.aborted) return
     toast.add(simpleSuccessToast(`${name} has been added to the collection successfully.`))
-    visible.value = false
+    if (!controller.signal.aborted) visible.value = false
   } catch (e: unknown) {
     if (!controller.signal.aborted)
       toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))
