@@ -3,10 +3,13 @@ import { formatChartNumber } from './format'
 
 describe('formatChartNumber', () => {
   it.each([
-    [0.0004, '0'],
-    [-0.0004, '0'],
+    [0.0004, '0.0004'],
+    [-0.0004, '-0.0004'],
+    [0.000123456, '0.00012'],
+    [5.551115123125783e-17, '0'],
     [-0, '0'],
-    [0.0006, '0.001'],
+    [0.0006, '0.0006'],
+    [0.0015, '0.002'],
     [0.29999999999999999, '0.3'],
     [0.5, '0.5'],
     [1.23456, '1.235'],
@@ -28,7 +31,7 @@ describe('formatChartNumber', () => {
     [0.12345678, '12.346%'],
     [1, '100%'],
     [-0.125, '-12.5%'],
-    [-0.000004, '0%'],
+    [-0.000004, '-0.0004%'],
     [null, '—'],
   ])('converts ratio %s before rounding to %s', (value, expected) => {
     expect(formatChartNumber(value, { percent: true })).toBe(expected)

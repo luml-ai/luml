@@ -51,7 +51,7 @@ describe('monitoring chart number formatting', () => {
         }),
       },
     })
-    expect(wrapper.get('.edge-values').text()).toBe('0  ·  0.5  ·  1.235')
+    expect(wrapper.get('.edge-values').text()).toBe('0.0004  ·  0.5  ·  1.235')
     await wrapper.setProps({
       profile: makeReferenceProfile({
         feature: {
@@ -71,7 +71,7 @@ describe('monitoring chart number formatting', () => {
     const chart = wrapper.getComponent(ApexStub)
     const options = chart.props('options') as Options
     expect(options.yaxis.labels.formatter(1.23456)).toBe('1.235')
-    expect(options.tooltip.y.formatter(-0.0004)).toBe('0')
+    expect(options.tooltip.y.formatter(-0.0004)).toBe('-0.0004')
     expect(options.tooltip.y.formatter(null)).toBe('—')
     expect(chart.props('series')[0].data[0][1]).toBe(1.23456)
     expect(chart.props('series')[1].data[0][1]).toBe(0.0004)
@@ -117,7 +117,7 @@ describe('monitoring chart number formatting', () => {
     }
     const wrapper = mount(DistributionChart, { props: { distribution }, global })
     const options = wrapper.getComponent(ApexStub).props('options') as Options
-    expect(options.xaxis.categories).toEqual(['-1.235–0', '0–1.235', '1.235–1,234,567.89'])
+    expect(options.xaxis.categories).toEqual(['-1.235–0.0004', '0.0004–1.235', '1.235–1,234,567.89'])
     expect(options.yaxis.labels.formatter(0.12345678)).toBe('12.346%')
     expect(options.tooltip.y.formatter(0.5)).toBe('50%')
     expect(options.tooltip.y.formatter(null)).toBe('—')

@@ -12,6 +12,7 @@ const compactChartNumberFormat = new Intl.NumberFormat('en-US', {
   notation: 'compact',
   maximumFractionDigits: 3,
 })
+const smallChartNumberFormat = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 2 })
 
 export function formatChartNumber(
   value: number | null | undefined,
@@ -19,8 +20,13 @@ export function formatChartNumber(
 ): string {
   if (value == null || !Number.isFinite(value)) return '—'
   const scaled = percent ? value * 100 : value
+  const magnitude = Math.abs(scaled)
   const formatter =
-    compact && Math.abs(scaled) >= 10000 ? compactChartNumberFormat : chartNumberFormat
+    magnitude >= 1e-9 && magnitude < 0.001
+      ? smallChartNumberFormat
+      : compact && magnitude >= 10000
+        ? compactChartNumberFormat
+        : chartNumberFormat
   const text = formatter.format(scaled)
   return `${text === '-0' ? '0' : text}${percent ? '%' : ''}`
 }

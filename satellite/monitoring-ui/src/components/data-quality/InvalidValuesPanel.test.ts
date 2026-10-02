@@ -26,7 +26,7 @@ const TREND: Series = {
 }
 
 describe('InvalidValuesPanel', () => {
-  it('trims reference bounds and rounds observed extremes to three decimals', () => {
+  it('trims reference bounds, rounds observed extremes to three decimals and keeps tiny values', () => {
     const row = rowFor('age')
     const wrapper = mountPanel({
       ...row,
@@ -40,7 +40,7 @@ describe('InvalidValuesPanel', () => {
     })
     const range = wrapper.get('[data-testid="dq-out-of-range"]').text()
     expect(range).toContain('0.5 … 1.235')
-    expect(range).toContain('0 … 1,234,567.891')
+    expect(range).toContain('-0.0004 … 1,234,567.891')
   })
 
   it('explains a numerical feature with the bounds it violated', () => {
