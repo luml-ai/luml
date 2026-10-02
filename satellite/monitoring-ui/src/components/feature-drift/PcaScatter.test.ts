@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PcaScatter from './PcaScatter.vue'
 import type { PcaPoint } from '@/api/types'
@@ -16,6 +16,36 @@ const CLOUD: PcaPoint[] = Array.from({ length: 50 }, (_, i) => ({
 }))
 
 describe('PcaScatter', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('uses the common chart height with space for its legend and expands full screen', async () => {
+    const wrapper = mount(PcaScatter, { props: { reference: [], current: CLOUD } })
+
+    expect((wrapper.get('.legend').element as HTMLElement).style.height).toBe('40px')
+    expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('180px')
+    await wrapper.setProps({ height: 650 })
+    expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('610px')
+  })
+
+  it('fits narrow screens without shrinking the plot or its axis labels', async () => {
+    let resize: (entries: { contentRect: { width: number } }[]) => void
+    const disconnect = vi.fn()
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: typeof resize) { resize = callback }
+      observe = vi.fn()
+      disconnect = disconnect
+    })
+    const wrapper = mount(PcaScatter, { props: { reference: [], current: CLOUD } })
+
+    resize!([{ contentRect: { width: 280 } }])
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.get('svg.plot').attributes('viewBox')).toBe('0 0 280 180')
+    expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('180px')
+    wrapper.unmount()
+    expect(disconnect).toHaveBeenCalledOnce()
+  })
+
   it('names both clouds — the legend used to come from the charting library', () => {
     const wrapper = mount(PcaScatter, {
       props: { reference: [], current: CLOUD, referenceEllipse: ring(0, 0, 2) },

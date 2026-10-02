@@ -6,11 +6,12 @@
 import { computed } from 'vue'
 import { chartGridColor, chartTextColor, chartTooltipTheme, chartColor } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
+import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING } from '@/lib/charts'
 import type { Series } from '@/api/types'
 
 const props = withDefaults(
   defineProps<{ series: Series; color?: string; threshold?: number; height?: number | string }>(),
-  { color: 'var(--luml-chart-1)', threshold: undefined, height: 180 },
+  { color: 'var(--luml-chart-1)', threshold: undefined, height: CHART_HEIGHT },
 )
 
 const hasBaseline = computed(() => (props.series.baseline?.length ?? 0) > 0)
@@ -63,19 +64,18 @@ const hasIsolatedPoints = computed(() => {
  * gains a little on a taller canvas. Only a little: what makes an isolated point invisible
  * is not being drawn at all, and past a point a dot stops marking a value and covers it.
  */
-const CARD_HEIGHT = 180
 const CARD_MARKER_SIZE = 4
 const MAX_MARKER_SIZE = 6
 
 const renderedHeight = computed(() => {
   const value = typeof props.height === 'number' ? props.height : parseFloat(props.height)
-  return Number.isFinite(value) ? value : CARD_HEIGHT
+  return Number.isFinite(value) ? value : CHART_HEIGHT
 })
 
 const markerSize = computed(() => {
   if (measured.value === 0) return 0
   if (measured.value > 3 && !hasIsolatedPoints.value) return 0
-  const scaled = (CARD_MARKER_SIZE * renderedHeight.value) / CARD_HEIGHT
+  const scaled = (CARD_MARKER_SIZE * renderedHeight.value) / CHART_HEIGHT
   return Math.min(MAX_MARKER_SIZE, Math.max(CARD_MARKER_SIZE, Math.round(scaled)))
 })
 
@@ -104,6 +104,7 @@ const options = computed(() => ({
     ? [chartColor(props.color), chartTextColor.value]
     : [chartColor(props.color)],
   dataLabels: { enabled: false },
+  legend: CHART_LEGEND,
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
   // Baseline: dashed, grey, no fill.
   stroke: hasBaseline.value
@@ -116,7 +117,7 @@ const options = computed(() => ({
         opacity: [1, 0],
       }
     : { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
-  grid: { borderColor: chartGridColor.value, strokeDashArray: 4 },
+  grid: { borderColor: chartGridColor.value, strokeDashArray: 4, padding: CHART_GRID_PADDING },
   xaxis: {
     type: 'datetime',
     axisBorder: { show: false },
