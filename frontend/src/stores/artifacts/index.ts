@@ -81,49 +81,36 @@ export const useArtifactsStore = defineStore('artifacts', () => {
       return
     }
 
+    const [indexOffset, indexSize] = fileIndex[indexPath]
+    const indexEnd = indexOffset + indexSize
+    const [tarOffset, tarSize] = fileIndex[tarPath]
+    const tarEnd = tarOffset + tarSize
+    if (
+      !Number.isSafeInteger(artifact.size) ||
+      artifact.size < 0 ||
+      !Number.isSafeInteger(indexOffset) ||
+      !Number.isSafeInteger(indexSize) ||
+      indexOffset < 0 ||
+      indexSize <= 0 ||
+      !Number.isSafeInteger(indexEnd) ||
+      indexEnd > artifact.size ||
+      !Number.isSafeInteger(tarOffset) ||
+      !Number.isSafeInteger(tarSize) ||
+      tarOffset < 0 ||
+      tarSize < 0 ||
+      !Number.isSafeInteger(tarEnd) ||
+      tarEnd > artifact.size
+    ) {
+      if (loadVersion === attachmentsLoadVersion) attachmentsStatus.value = 'empty'
+      return
+    }
+
+    let downloader: ModelDownloader
+    let index: unknown
     try {
-      const [indexOffset, indexSize] = fileIndex[indexPath]
-      const indexEnd = indexOffset + indexSize
-      const [tarOffset, tarSize] = fileIndex[tarPath]
-      const tarEnd = tarOffset + tarSize
-      if (
-        !Number.isSafeInteger(artifact.size) ||
-        artifact.size < 0 ||
-        !Number.isSafeInteger(indexOffset) ||
-        !Number.isSafeInteger(indexSize) ||
-        indexOffset < 0 ||
-        indexSize <= 0 ||
-        !Number.isSafeInteger(indexEnd) ||
-        indexEnd > artifact.size ||
-        !Number.isSafeInteger(tarOffset) ||
-        !Number.isSafeInteger(tarSize) ||
-        tarOffset < 0 ||
-        tarSize < 0 ||
-        !Number.isSafeInteger(tarEnd) ||
-        tarEnd > artifact.size
-      ) {
-        throw new Error('Attachment index has an invalid range')
-      }
-
       const url = await getDownloadUrl(artifact.id)
-      const downloader = new ModelDownloader(url, () => getDownloadUrl(artifact.id))
-      const index = await downloader.getFileFromBucket<unknown>(fileIndex, indexPath)
-
-      if (!FnnxService.isValidAttachmentsIndex(index, tarSize)) {
-        throw new Error('Attachment index has invalid content')
-      }
-
-      if (loadVersion !== attachmentsLoadVersion || currentArtifact.value?.id !== artifact.id) {
-        return
-      }
-
-      if (!FnnxService.hasAttachments(index)) {
-        attachmentsStatus.value = 'empty'
-      } else {
-        attachmentsIndex.value = index
-        attachmentsDownloader.value = downloader
-        attachmentsStatus.value = 'available'
-      }
+      downloader = new ModelDownloader(url, () => getDownloadUrl(artifact.id))
+      index = await downloader.getFileFromBucket<unknown>(fileIndex, indexPath)
     } catch (error) {
       if (loadVersion !== attachmentsLoadVersion || currentArtifact.value?.id !== artifact.id) {
         return
@@ -131,6 +118,22 @@ export const useArtifactsStore = defineStore('artifacts', () => {
 
       attachmentsError.value = getErrorMessage(error, 'Failed to check attachments')
       attachmentsStatus.value = 'error'
+      return
+    }
+
+    if (loadVersion !== attachmentsLoadVersion || currentArtifact.value?.id !== artifact.id) {
+      return
+    }
+
+    if (
+      !FnnxService.isValidAttachmentsIndex(index, tarSize) ||
+      !FnnxService.hasAttachments(index)
+    ) {
+      attachmentsStatus.value = 'empty'
+    } else {
+      attachmentsIndex.value = index
+      attachmentsDownloader.value = downloader
+      attachmentsStatus.value = 'available'
     }
   }
 
