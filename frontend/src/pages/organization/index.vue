@@ -50,9 +50,14 @@ async function init() {
     return
   }
   try {
-    organizationStore.resetCurrentOrganization()
-    organizationStore.setCurrentOrganizationId(organizationId)
-    organizationStore.getOrganizationDetails(organizationId)
+    if (organizationStore.availableOrganizationsRequest && organizationStore.currentOrganization) {
+      await organizationStore.availableOrganizationsRequest
+    }
+    if (organizationStore.currentOrganization?.id === organizationId) {
+      organizationStore.getOrganizationDetails(organizationId)
+    } else {
+      await organizationStore.switchOrganization(organizationId)
+    }
   } catch (e: unknown) {
     const errorDetails = (e as ApiError)?.details
     toast.add(simpleErrorToast(errorDetails || 'Unable to retrieve organization data'))

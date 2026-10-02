@@ -33,19 +33,17 @@ export const useOrganizationStore = defineStore('organization', () => {
 
   async function getAvailableOrganizations() {
     if (availableOrganizationsRequest.value) return availableOrganizationsRequest.value
-    availableOrganizationsRequest.value = new Promise(async (resolve, reject) => {
+    availableOrganizationsRequest.value = (async () => {
       try {
         const response = await api.getOrganizations()
         availableOrganizations.value = response
         await setInitialOrganization()
-      } catch (e) {
-        reject(e)
       } finally {
         availableOrganizationsRequest.value = null
       }
-    })
+    })()
 
-    return availableOrganizationsRequest
+    return availableOrganizationsRequest.value
   }
 
   async function createOrganization(payload: CreateOrganizationPayload) {
@@ -115,6 +113,8 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function setInitialOrganization() {
+    if (currentOrganization.value) return
+
     const organizationInStorage = LocalStorageService.get('currentOrganizationId')
     const organizationInStorageAvailable =
       organizationInStorage &&
@@ -189,6 +189,7 @@ export const useOrganizationStore = defineStore('organization', () => {
 
   return {
     availableOrganizations,
+    availableOrganizationsRequest,
     currentOrganization,
     loading,
     organizationDetails,

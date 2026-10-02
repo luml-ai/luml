@@ -32,7 +32,9 @@ export const useInvitationsStore = defineStore('invitations', () => {
     await api.acceptInvitation(inviteId)
     invitations.value = invitations.value.filter((invitation) => invitation.id !== inviteId)
     await organizationStore.getAvailableOrganizations()
-    organizationStore.setCurrentOrganizationId(organizationId)
+    if (organizationStore.currentOrganization?.id !== organizationId) {
+      await organizationStore.switchOrganization(organizationId)
+    }
   }
 
   async function rejectInvitation(inviteId: string) {

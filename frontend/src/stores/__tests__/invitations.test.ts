@@ -7,8 +7,9 @@ const apiMocks = vi.hoisted(() => ({
   rejectInvitation: vi.fn(),
 }))
 const organizationStore = vi.hoisted(() => ({
+  currentOrganization: null as { id: string } | null,
   getAvailableOrganizations: vi.fn(),
-  setCurrentOrganizationId: vi.fn(),
+  switchOrganization: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({ api: apiMocks }))
@@ -26,6 +27,7 @@ describe('invitations store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    organizationStore.currentOrganization = null
   })
 
   it('tracks a successful invitation load', async () => {
@@ -65,9 +67,36 @@ describe('invitations store', () => {
     await store.acceptInvitation(invitation.id, invitation.organization_id)
 
     expect(store.invitations).toEqual([])
-    expect(organizationStore.setCurrentOrganizationId).toHaveBeenCalledWith(
-      invitation.organization_id,
-    )
+    expect(organizationStore.switchOrganization).toHaveBeenCalledWith(invitation.organization_id)
+  })
+
+  it('switches to the joined organization only after the organization list refreshes', async () => {
+    apiMocks.acceptInvitation.mockResolvedValue(undefined)
+    organizationStore.currentOrganization = { id: 'organization-a' }
+    const calls: string[] = []
+    organizationStore.getAvailableOrganizations.mockImplementation(async () => {
+      calls.push('refresh')
+    })
+    organizationStore.switchOrganization.mockImplementation(async (id: string) => {
+      calls.push(`switch:${id}`)
+    })
+    const store = useInvitationsStore()
+
+    await store.acceptInvitation(invitation.id, invitation.organization_id)
+
+    expect(calls).toEqual(['refresh', `switch:${invitation.organization_id}`])
+  })
+
+  it('does not switch again when the refresh already selected the joined organization', async () => {
+    apiMocks.acceptInvitation.mockResolvedValue(undefined)
+    organizationStore.getAvailableOrganizations.mockImplementation(async () => {
+      organizationStore.currentOrganization = { id: invitation.organization_id }
+    })
+    const store = useInvitationsStore()
+
+    await store.acceptInvitation(invitation.id, invitation.organization_id)
+
+    expect(organizationStore.switchOrganization).not.toHaveBeenCalled()
   })
 
   it('keeps an invitation when accepting it fails', async () => {

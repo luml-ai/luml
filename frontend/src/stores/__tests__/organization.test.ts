@@ -6,6 +6,9 @@ import { useOrganizationStore } from '../organization'
 import { useOrbitsStore } from '../orbits'
 
 const apiMocks = vi.hoisted(() => ({
+  getOrganizations: vi.fn(),
+  createOrganization: vi.fn(),
+  deleteOrganization: vi.fn(),
   leaveOrganization: vi.fn(),
   getOrganization: vi.fn(),
   getOrganizationOrbits: vi.fn(),
@@ -125,5 +128,104 @@ describe('leaving an organization', () => {
     expect(orbits.currentOrbitId).toBeNull()
     expect(LocalStorageService.get('currentOrganizationId')).toBe(secondOrganization.id)
     expect(localStorage.getItem('currentOrbitId')).toBeNull()
+  })
+})
+
+const organizations = [{ id: 'organization-a', name: 'Organization A' }] as Organization[]
+
+describe('organization initialization', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.resetAllMocks()
+    apiMocks.getOrganizationOrbits.mockResolvedValue([])
+  })
+
+  it('waits for initialization and settles all concurrent callers', async () => {
+    let resolveOrganizations!: (value: Organization[]) => void
+    apiMocks.getOrganizations.mockReturnValue(
+      new Promise((resolve) => {
+        resolveOrganizations = resolve
+      }),
+    )
+    const store = useOrganizationStore()
+    const settled = vi.fn()
+    const first = store.getAvailableOrganizations().then(settled)
+    const second = store.getAvailableOrganizations().then(settled)
+    await Promise.resolve()
+    expect(settled).not.toHaveBeenCalled()
+    expect(apiMocks.getOrganizations).toHaveBeenCalledOnce()
+
+    resolveOrganizations(organizations)
+    await Promise.all([first, second])
+
+    expect(settled).toHaveBeenCalledTimes(2)
+    expect(store.currentOrganization?.id).toBe('organization-a')
+    expect(apiMocks.getOrganizationOrbits).toHaveBeenCalledWith('organization-a')
+  })
+
+  it('rejects concurrent callers on failure and permits a retry', async () => {
+    const error = new Error('Organizations unavailable')
+    apiMocks.getOrganizations.mockRejectedValueOnce(error)
+    const store = useOrganizationStore()
+    const first = store.getAvailableOrganizations()
+    const second = store.getAvailableOrganizations()
+
+    await expect(first).rejects.toThrow(error)
+    await expect(second).rejects.toThrow(error)
+    expect(store.availableOrganizations).toEqual([])
+
+    apiMocks.getOrganizations.mockResolvedValueOnce(organizations)
+    await store.getAvailableOrganizations()
+    expect(store.currentOrganization?.id).toBe('organization-a')
+  })
+
+  it('retains the saved organization fallback when there is no URL organization', async () => {
+    const saved = { id: 'organization-b', name: 'Organization B' } as Organization
+    LocalStorageService.set('currentOrganizationId', saved.id)
+    apiMocks.getOrganizations.mockResolvedValueOnce([...organizations, saved])
+    const store = useOrganizationStore()
+
+    await store.getAvailableOrganizations()
+
+    expect(store.currentOrganization).toEqual(saved)
+  })
+
+  it('settles when the user has no organizations', async () => {
+    apiMocks.getOrganizations.mockResolvedValueOnce([])
+    const store = useOrganizationStore()
+
+    await store.getAvailableOrganizations()
+
+    expect(store.currentOrganization).toBeNull()
+    expect(apiMocks.getOrganizationOrbits).not.toHaveBeenCalled()
+  })
+
+  it('keeps the current organization when creating another organization', async () => {
+    const store = useOrganizationStore()
+    store.availableOrganizations = organizations
+    store.setCurrentOrganizationId(organizations[0].id)
+    apiMocks.getOrganizations.mockResolvedValueOnce([
+      ...organizations,
+      { id: 'organization-b', name: 'Organization B' } as Organization,
+    ])
+
+    await store.createOrganization({ name: 'Organization B', logo: '' })
+
+    expect(store.currentOrganization?.id).toBe('organization-a')
+    expect(apiMocks.getOrganizationOrbits).not.toHaveBeenCalled()
+  })
+
+  it('selects a remaining organization when the current organization is deleted', async () => {
+    const store = useOrganizationStore()
+    const remaining = { id: 'organization-b', name: 'Organization B' } as Organization
+    store.availableOrganizations = [...organizations, remaining]
+    store.setCurrentOrganizationId(organizations[0].id)
+
+    await store.deleteOrganization(organizations[0].id)
+
+    expect(store.currentOrganization).toEqual(remaining)
+    expect(apiMocks.getOrganizationOrbits).toHaveBeenCalledWith(remaining.id)
+    expect(LocalStorageService.get('currentOrganizationId')).toBe(remaining.id)
   })
 })
