@@ -48,7 +48,7 @@
             <SeriesChart
               v-if="detail.psi_over_time"
               :series="detail.psi_over_time"
-              color="#a855f7"
+              color="var(--luml-chart-6)"
               :height="height"
             />
             <p v-else class="chart-empty">

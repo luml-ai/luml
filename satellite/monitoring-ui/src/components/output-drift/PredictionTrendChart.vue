@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
 import type { Series } from '@/api/types'
 
@@ -14,10 +14,9 @@ import type { Series } from '@/api/types'
  * A range-area series carries the band, plain lines carry the median and the mean —
  * one chart, so the eye reads "where predictions sit and how wide they spread" at once.
  */
-const props = withDefaults(
-  defineProps<{ trend: Series[]; height?: number | string }>(),
-  { height: 230 },
-)
+const props = withDefaults(defineProps<{ trend: Series[]; height?: number | string }>(), {
+  height: 230,
+})
 
 function series(key: string): Series | undefined {
   return props.trend.find((entry) => entry.key === `prediction_${key}`)
@@ -63,8 +62,13 @@ function formatTick(value: number | null): string {
 }
 
 const options = computed(() => ({
-  chart: { toolbar: { show: false }, zoom: { enabled: false }, fontFamily: 'inherit' },
-  colors: ['#bfdbfe', '#2673fd', '#94a3b8'],
+  chart: {
+    toolbar: { show: false },
+    zoom: { enabled: false },
+    fontFamily: 'inherit',
+    foreColor: chartTextColor.value,
+  },
+  colors: [chartSeriesColors.value[0], chartSeriesColors.value[0], chartTextColor.value],
   dataLabels: { enabled: false },
   // the band must stay 'straight': a smoothed range can cross its own bounds
   stroke: { curve: ['straight', 'smooth', 'smooth'], width: [0, 2, 2], dashArray: [0, 0, 4] },
@@ -75,11 +79,11 @@ const options = computed(() => ({
     type: 'datetime',
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#94a3b8', fontSize: '11px' } },
+    labels: { style: { colors: chartTextColor.value, fontSize: '11px' } },
   },
   yaxis: {
     labels: {
-      style: { colors: '#94a3b8', fontSize: '11px' },
+      style: { colors: chartTextColor.value, fontSize: '11px' },
       formatter: (value: number) => formatTick(value),
     },
   },

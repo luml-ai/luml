@@ -109,7 +109,7 @@ defineEmits<{ 'show-feature': [AlertBanner]; acknowledge: [AlertBanner] }>()
 const acknowledged = computed(() => props.alert.state === 'acknowledged')
 const canAcknowledge = computed(() => !acknowledged.value)
 
-const chartColor = computed(() => (props.alert.severity === 'critical' ? '#ef4444' : '#f97316'))
+const chartColor = computed(() => (props.alert.severity === 'critical' ? 'var(--luml-chart-5)' : 'var(--luml-chart-3)'))
 
 const thresholdNote = computed(() =>
   props.alert.threshold_source === 'profile'

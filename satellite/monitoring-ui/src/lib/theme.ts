@@ -50,7 +50,23 @@ export function initTheme(): void {
   })
 }
 
-/* ApexCharts renders into canvas-like SVG with literal colors, so the handful of
-   chrome colors the charts use are resolved here per theme instead of via CSS vars. */
-export const chartGridColor = computed(() => (theme.value === 'dark' ? '#334155' : '#e2e8f0'))
+// apexcharts needs literal colors; resolve the same tokens the dashboard uses
+export function chartColor(value: string): string {
+  const token = /^var\((--luml-[\w-]+)\)$/.exec(value)
+  if (!token) return value
+  return chartColor(getComputedStyle(document.documentElement).getPropertyValue(token[1]).trim())
+}
+
+export const chartGridColor = computed(() => {
+  theme.value
+  return chartColor('var(--luml-border)')
+})
+export const chartTextColor = computed(() => {
+  theme.value
+  return chartColor('var(--luml-fg-muted)')
+})
+export const chartSeriesColors = computed(() => {
+  theme.value
+  return Array.from({ length: 14 }, (_, index) => chartColor(`var(--luml-chart-${index + 1})`))
+})
 export const chartTooltipTheme = computed(() => theme.value)

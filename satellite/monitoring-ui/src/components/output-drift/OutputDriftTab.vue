@@ -77,7 +77,7 @@
               <SeriesChart
                 v-if="outputDrift.psi_over_time"
                 :series="outputDrift.psi_over_time"
-                color="#a855f7"
+                color="var(--luml-chart-6)"
                 :height="height"
               />
               <p v-else class="chart-empty">
@@ -146,7 +146,7 @@
             <template #default="{ height }">
               <SeriesChart
                 :series="outputDrift.confidence.mean_over_time"
-                color="#059669"
+                color="var(--luml-chart-4)"
                 :height="height"
               />
             </template>

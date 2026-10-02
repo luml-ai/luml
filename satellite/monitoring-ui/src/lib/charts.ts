@@ -7,7 +7,7 @@ export interface ChartCard {
   color: string
 }
 
-const FALLBACK_COLOR = '#2673fd'
+const FALLBACK_COLOR = 'var(--luml-chart-1)'
 
 // Overview and Runtime share the rollup: same titles and colours on both.
 const RUNTIME_CHART_META: Record<string, { title: string; subtitle: string; color: string }> = {
@@ -19,12 +19,12 @@ const RUNTIME_CHART_META: Record<string, { title: string; subtitle: string; colo
   error_rate: {
     title: 'Error rate over time',
     subtitle: '4xx / 5xx share of calls',
-    color: '#f97316',
+    color: 'var(--luml-chart-3)',
   },
   latency_p95: {
     title: 'Latency p95 over time',
     subtitle: '95th percentile response time',
-    color: '#a855f7',
+    color: 'var(--luml-chart-6)',
   },
 }
 
