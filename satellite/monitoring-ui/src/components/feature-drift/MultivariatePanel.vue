@@ -16,9 +16,9 @@
         <!-- The scatter is the densest chart on the dashboard; full screen is where the
              individual points stop overlapping. -->
         <ChartFrame class="scatter-frame" title="PC1 × PC2 projection" eyebrow="Multivariate">
-          <template #default="{ height }">
+          <template #default="{ height, expanded }">
             <PcaScatter
-              :height="height"
+              :height="expanded ? height : PCA_CHART_HEIGHT"
               :reference="panel.reference_projection"
               :current="panel.current_projection"
               :reference-ellipse="panel.reference_ellipse ?? []"
@@ -94,6 +94,7 @@ import { SectionState, type MultivariatePanel as MultivariatePanelData } from '@
 import SeverityTag from '@/components/SeverityTag.vue'
 import ChartFrame from '@/components/ChartFrame.vue'
 import PcaScatter from './PcaScatter.vue'
+import { PCA_CHART_HEIGHT } from '@/lib/charts'
 
 // PSI ≥ 0.2 is the conventional "moderate shift" line the design summarizes multivariately.
 const PSI_ATTENTION = 0.2

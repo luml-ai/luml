@@ -70,7 +70,7 @@ describe('monitoring chart heights', () => {
     for (const wrapper of wrappers) {
       const charts = wrapper.findAllComponents(ApexStub)
       expect(charts.length).toBeGreaterThan(0)
-      expect(new Set(charts.map((chart) => chart.props('height')))).toEqual(new Set([180]))
+      expect(new Set(charts.map((chart) => chart.props('height')))).toEqual(new Set([220]))
       wrapper.unmount()
     }
   })
@@ -84,7 +84,7 @@ describe('monitoring chart heights', () => {
     const wrapper = draw()
     const chart = wrapper.getComponent(ApexStub)
 
-    expect(chart.props('height')).toBe(180)
+    expect(chart.props('height')).toBe(220)
     const options = chart.props('options')
     expect(options.grid.padding.top).toBe(40)
     expect(options.legend.floating).toBe(true)
@@ -113,7 +113,7 @@ describe('monitoring chart heights', () => {
 
     for (const wrapper of wrappers) {
       expect(wrapper.findAll('.plot').map((plot) => (plot.element as HTMLElement).style.minHeight))
-        .toEqual(['180px', '180px'])
+        .toEqual(['220px', '220px'])
       wrapper.unmount()
     }
   })

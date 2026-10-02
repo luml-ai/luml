@@ -1,7 +1,9 @@
 import type { Series } from '@/api/types'
 
-export const CHART_HEIGHT = 180
+export const CHART_PLOT_HEIGHT = 180
 export const CHART_LEGEND_HEIGHT = 40
+export const CHART_HEIGHT = CHART_PLOT_HEIGHT + CHART_LEGEND_HEIGHT
+export const PCA_CHART_HEIGHT = 300
 
 // reserve the same band even without a legend; wrapping must not shrink the plot
 export const CHART_GRID_PADDING = { top: CHART_LEGEND_HEIGHT }

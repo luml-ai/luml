@@ -27,17 +27,17 @@ function panel(overrides: Partial<PanelData> = {}): PanelData {
 }
 
 describe('MultivariatePanel — how drift is measured', () => {
-  it('passes the common in-place and larger full-screen heights to the scatter', async () => {
+  it('gives the scatter its own in-place height and a larger full-screen one', async () => {
     const wrapper = mount(MultivariatePanel, {
       props: { panel: panel() },
       global: { stubs: { teleport: true } },
     })
 
-    expect(wrapper.getComponent(PcaScatter).props('height')).toBe(180)
+    expect(wrapper.getComponent(PcaScatter).props('height')).toBe(300)
     await wrapper.get('[data-testid="chart-expand"]').trigger('click')
     const charts = wrapper.findAllComponents(PcaScatter)
     expect(charts).toHaveLength(2)
-    expect(charts[1].props('height')).toBeGreaterThan(180)
+    expect(charts[1].props('height')).toBeGreaterThan(300)
     wrapper.unmount()
   })
 

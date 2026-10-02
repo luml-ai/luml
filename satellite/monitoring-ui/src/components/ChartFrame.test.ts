@@ -19,7 +19,7 @@ describe('ChartFrame', () => {
   it('gives charts the common in-place height', () => {
     const wrapper = mountFrame()
 
-    expect(wrapper.get('.plot').attributes('data-height')).toBe('180')
+    expect(wrapper.get('.plot').attributes('data-height')).toBe('220')
   })
 
   it('keeps the in-place height on narrow screens and enlarges the full-screen chart', async () => {
@@ -29,14 +29,14 @@ describe('ChartFrame', () => {
 
     await wrapper.get('[data-testid="chart-expand"]').trigger('click')
     expect(wrapper.findAll('.plot').map((plot) => plot.attributes('data-height'))).toEqual([
-      '180', '320',
+      '220', '320',
     ])
 
     vi.stubGlobal('innerHeight', 800)
     globalThis.dispatchEvent(new Event('resize'))
     await wrapper.vm.$nextTick()
     expect(wrapper.findAll('.plot').map((plot) => plot.attributes('data-height'))).toEqual([
-      '180', '650',
+      '220', '650',
     ])
     wrapper.unmount()
   })

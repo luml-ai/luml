@@ -22,7 +22,7 @@ describe('PcaScatter', () => {
     const wrapper = mount(PcaScatter, { props: { reference: [], current: CLOUD } })
 
     expect((wrapper.get('.legend').element as HTMLElement).style.height).toBe('40px')
-    expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('140px')
+    expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('180px')
     await wrapper.setProps({ height: 650 })
     expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('610px')
   })
@@ -40,8 +40,8 @@ describe('PcaScatter', () => {
     resize!([{ contentRect: { width: 280 } }])
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.get('svg.plot').attributes('viewBox')).toBe('0 0 280 140')
-    expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('140px')
+    expect(wrapper.get('svg.plot').attributes('viewBox')).toBe('0 0 280 180')
+    expect((wrapper.get('svg.plot').element as SVGElement).style.height).toBe('180px')
     wrapper.unmount()
     expect(disconnect).toHaveBeenCalledOnce()
   })

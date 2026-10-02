@@ -43,7 +43,7 @@ describe('SeriesChart height', () => {
       global: { stubs: { apexchart: ApexStub } },
     })
 
-    expect(wrapper.getComponent(ApexStub).props('height')).toBe(180)
+    expect(wrapper.getComponent(ApexStub).props('height')).toBe(220)
     await wrapper.setProps({ height: FULLSCREEN })
     expect(wrapper.getComponent(ApexStub).props('height')).toBe(FULLSCREEN)
   })
