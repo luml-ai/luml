@@ -26,6 +26,7 @@ from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteTaskType,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import SatelliteFixtureData
 
@@ -799,26 +800,46 @@ async def test_operations_on_an_unknown_deployment_return_none(
 
 
 @pytest.mark.asyncio
-async def test_delete_deployments_by_artifact_id(
+async def test_undeploy_artifact_deployments(
     create_satellite: SatelliteFixtureData,
 ) -> None:
     data = create_satellite
     repo = DeploymentRepository(data.engine)
-    for name in ["first", "second"]:
-        await repo.create_deployment(
+    sibling = await _create_satellite_in(data, data.orbit)
+    created = []
+    for name, satellite in [
+        ("first", data.satellite),
+        ("second", data.satellite),
+        ("third", sibling),
+    ]:
+        deployment, _ = await repo.create_deployment(
             DeploymentCreate(
                 name=name,
                 orbit_id=data.orbit.id,
-                satellite_id=data.satellite.id,
+                satellite_id=satellite.id,
                 artifact_id=data.model.id,
                 status=DeploymentStatus.PENDING,
             )
         )
-    assert len(await repo.list_deployments(data.orbit.id)) == 2
+        created.append(deployment)
+    assert len(await repo.list_deployments(data.orbit.id)) == 3
 
-    await repo.delete_deployments_by_artifact_id(data.model.id)
+    async with AsyncSession(data.engine) as session, session.begin():
+        await repo.undeploy_artifact_deployments(data.model.id, session)
 
     assert await repo.list_deployments(data.orbit.id) == []
+
+    for satellite in [data.satellite, sibling]:
+        tasks = await SatelliteRepository(data.engine).list_tasks(
+            satellite.id, status=SatelliteTaskStatus.PENDING
+        )
+        undeploys = [task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY]
+        assert {task.payload["deployment_id"] for task in undeploys} == {
+            str(deployment.id)
+            for deployment in created
+            if deployment.satellite_id == satellite.id
+        }
+        assert {task.orbit_id for task in undeploys} == {data.orbit.id}
 
 
 @patch(
