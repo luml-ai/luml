@@ -528,6 +528,46 @@ class TestArtifactDeletion:
         )
         mocks.repository.get_artifact_details.assert_awaited_once_with(ARTIFACT_ID)
 
+    async def test_artifact_deletion_checks_raises_conflict_when_artifact_is_tracked(
+        self, mocks: CollaboratorMocks[ArtifactHandler]
+    ) -> None:
+        mocks.orbit_repository.get_orbit_simple.return_value = Mock(
+            organization_id=ORGANIZATION_ID
+        )
+        mocks.collection_repository.get_collection.return_value = Mock(
+            orbit_id=ORBIT_ID
+        )
+        mocks.repository.get_artifact_details.return_value = Mock(
+            collection_id=COLLECTION_ID, deployments=None
+        )
+        mocks.track_entry_repository.has_entries_for_artifact.return_value = True
+
+        with pytest.raises(
+            ApplicationError, match="referenced by one or more tracks"
+        ) as exc:
+            await mocks.handler._artifact_deletion_checks(
+                USER_ID, ORGANIZATION_ID, ORBIT_ID, COLLECTION_ID, ARTIFACT_ID
+            )
+        assert exc.value.status_code == 409
+
+    async def test_artifact_deletion_checks_returns_artifact_when_it_has_no_entries(
+        self, mocks: CollaboratorMocks[ArtifactHandler]
+    ) -> None:
+        mocks.orbit_repository.get_orbit_simple.return_value = Mock(
+            organization_id=ORGANIZATION_ID
+        )
+        mocks.collection_repository.get_collection.return_value = Mock(
+            orbit_id=ORBIT_ID
+        )
+        artifact_mock = Mock(collection_id=COLLECTION_ID, deployments=None)
+        mocks.repository.get_artifact_details.return_value = artifact_mock
+        mocks.track_entry_repository.has_entries_for_artifact.return_value = False
+
+        result = await mocks.handler._artifact_deletion_checks(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, COLLECTION_ID, ARTIFACT_ID
+        )
+        assert result == artifact_mock
+
     async def test_force_delete_artifact_deletes_artifact_when_not_deployed(
         self, mocks: CollaboratorMocks[ArtifactHandler]
     ) -> None:
