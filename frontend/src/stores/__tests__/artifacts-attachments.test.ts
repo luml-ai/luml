@@ -114,7 +114,7 @@ describe('artifact attachment loading', () => {
     expect(store.attachmentsError).toContain('range unavailable')
   })
 
-  it('rejects malformed attachment index content', async () => {
+  it('treats malformed attachment index content as empty', async () => {
     mockedAxios.get.mockResolvedValue({ data: { 'attachments/report.pdf': [90, 42] } })
     const store = useArtifactsStore()
     const model = artifact()
@@ -122,8 +122,33 @@ describe('artifact attachment loading', () => {
 
     await store.loadCurrentArtifactAttachments(model)
 
-    expect(store.attachmentsStatus).toBe('error')
-    expect(store.attachmentsError).toContain('invalid content')
+    expect(store.attachmentsStatus).toBe('empty')
+    expect(store.attachmentsError).toBeNull()
+  })
+
+  it('treats an attachment index that is not JSON as empty', async () => {
+    mockedAxios.get.mockResolvedValue({ data: 'ustar\u0000garbage' })
+    const store = useArtifactsStore()
+    const model = artifact()
+    store.setCurrentArtifact(model)
+
+    await store.loadCurrentArtifactAttachments(model)
+
+    expect(store.attachmentsStatus).toBe('empty')
+  })
+
+  it('treats an attachment index range outside the artifact as empty without a request', async () => {
+    const store = useArtifactsStore()
+    const model = {
+      ...artifact(),
+      file_index: { 'attachments.tar': [0, 100], 'attachments.index.json': [180, 50] },
+    } as Artifact
+    store.setCurrentArtifact(model)
+
+    await store.loadCurrentArtifactAttachments(model)
+
+    expect(store.attachmentsStatus).toBe('empty')
+    expect(apiMocks.getDownloadUrl).not.toHaveBeenCalled()
   })
 
   it('accepts an attachment index larger than one MiB', async () => {

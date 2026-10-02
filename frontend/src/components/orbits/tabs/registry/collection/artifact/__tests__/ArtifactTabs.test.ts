@@ -13,7 +13,7 @@ const RouterLinkStub = defineComponent({
   template: '<a><slot /></a>',
 })
 
-function mountTabs(showModelAttachments: boolean) {
+function mountTabs(showModelAttachments: boolean, modelAttachmentsDisabled = false) {
   return mount(ArtifactTabs, {
     props: {
       showDataTab: false,
@@ -22,6 +22,7 @@ function mountTabs(showModelAttachments: boolean) {
       showModelAttachments,
       cardDisabled: false,
       experimentSnapshotDisabled: false,
+      modelAttachmentsDisabled,
     },
     global: {
       mocks: {
@@ -38,12 +39,20 @@ function mountTabs(showModelAttachments: boolean) {
   })
 }
 
+function attachmentsTab(wrapper: ReturnType<typeof mountTabs>) {
+  return wrapper.findAllComponents(TabStub).find((tab) => tab.props('value') === 'attachments')
+}
+
 describe('ArtifactTabs', () => {
-  it('hides the attachments tab when the artifact has no attachments', () => {
-    expect(mountTabs(false).text()).not.toContain('Attachments')
+  it('hides the attachments tab for artifacts that cannot carry attachments', () => {
+    expect(attachmentsTab(mountTabs(false))).toBeUndefined()
   })
 
-  it('shows the attachments tab when the artifact has attachments', () => {
-    expect(mountTabs(true).text()).toContain('Attachments')
+  it('renders a disabled attachments tab while attachments are not confirmed', () => {
+    expect(attachmentsTab(mountTabs(true, true))?.props('disabled')).toBe(true)
+  })
+
+  it('enables the attachments tab once attachments are confirmed', () => {
+    expect(attachmentsTab(mountTabs(true, false))?.props('disabled')).toBe(false)
   })
 })
