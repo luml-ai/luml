@@ -79,7 +79,6 @@
           showValue
         />
       </div>
-      <Button type="submit" fluid rounded :loading="loading" :disabled="loading">Add</Button>
       <Button
         v-if="loading"
         type="button"
@@ -90,6 +89,7 @@
       >
         Cancel
       </Button>
+      <Button v-else type="submit" fluid rounded>Add</Button>
     </Form>
   </Dialog>
 </template>

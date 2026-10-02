@@ -73,7 +73,6 @@
           aria-label="Model upload progress"
         />
       </div>
-      <Button type="submit" fluid rounded :loading="loading" :disabled="loading">Upload</Button>
       <Button
         v-if="loading"
         type="button"
@@ -84,6 +83,7 @@
       >
         Cancel
       </Button>
+      <Button v-else type="submit" fluid rounded>Upload</Button>
     </Form>
   </Dialog>
 </template>

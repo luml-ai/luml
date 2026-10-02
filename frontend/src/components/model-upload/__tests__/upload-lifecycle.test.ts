@@ -129,6 +129,7 @@ describe.each([
     await flushPromises()
     expect(wrapper.getComponent({ name: 'ProgressBar' }).props('value')).toBe(42)
     expect(uploadSignal()).toBeInstanceOf(AbortSignal)
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['Cancel'])
     await submit()
     expect(harness.upload).toHaveBeenCalledTimes(1)
   })
@@ -199,12 +200,7 @@ describe.each([
     await flushPromises()
     expect(harness.toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
     expect(wrapper.emitted('update:visible')?.length ?? 0).toBe(visibleEvents)
-    expect(
-      wrapper
-        .findAll('button')
-        .find((button) => button.text() === (registry ? 'Add' : 'Upload'))
-        ?.attributes('disabled'),
-    ).toBeDefined()
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['Cancel'])
     expect(uploadSignal(1).aborted).toBe(false)
   })
 
