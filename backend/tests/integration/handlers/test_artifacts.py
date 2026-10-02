@@ -50,7 +50,6 @@ class TestArtifactHandler:
     ) -> None:
         artifact_repository = ArtifactRepository(engine)
         lineage_repository = LineageRepository(engine)
-        orbit_id = seeded_collection.orbit.id
         artifacts = [
             await create_artifact(
                 engine,
@@ -62,26 +61,31 @@ class TestArtifactHandler:
             for name in ["last-1", "last-2"]
         ]
         listed = await _get_listed_artifacts(
-            engine, orbit_id, [artifact.id for artifact in artifacts]
+            engine, seeded_collection.orbit.id, [artifact.id for artifact in artifacts]
         )
         nodes = [
-            await lineage_repository.get_or_create_node(orbit_id, listed[artifact.id])
+            await lineage_repository.get_or_create_node(
+                seeded_collection.orbit.id, listed[artifact.id]
+            )
             for artifact in artifacts
         ]
         await lineage_repository.create_edges(
-            orbit_id, [(nodes[0].id, nodes[1].id)], "Test User", LineageVia.API
+            seeded_collection.orbit.id,
+            [(nodes[0].id, nodes[1].id)],
+            "Test User",
+            LineageVia.API,
         )
 
         await asyncio.gather(
-            handler._delete_artifact(orbit_id, artifacts[0].id),
-            handler._delete_artifact(orbit_id, artifacts[1].id),
+            handler._delete_artifact(seeded_collection.orbit.id, artifacts[0].id),
+            handler._delete_artifact(seeded_collection.orbit.id, artifacts[1].id),
         )
 
         assert await artifact_repository.get_artifact(artifacts[0].id) is None
         assert await artifact_repository.get_artifact(artifacts[1].id) is None
         assert (
             await lineage_repository.get_nodes_by_ids(
-                orbit_id, [node.id for node in nodes]
+                seeded_collection.orbit.id, [node.id for node in nodes]
             )
             == []
         )

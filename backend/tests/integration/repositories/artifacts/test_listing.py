@@ -32,14 +32,12 @@ class TestArtifactRepositoryListing:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        collection = seeded_collection.collection
-
         model_data1 = new_artifact.model_copy()
-        model_data1.collection_id = collection.id
+        model_data1.collection_id = seeded_collection.collection.id
         model_data1.unique_identifier = "uid1"
 
         model_data2 = new_artifact.model_copy()
-        model_data2.collection_id = collection.id
+        model_data2.collection_id = seeded_collection.collection.id
         model_data2.unique_identifier = "uid2"
 
         created_model1 = await repository.create_artifact(model_data1)
@@ -47,7 +45,9 @@ class TestArtifactRepositoryListing:
 
         pagination = PaginationParams(limit=100)
         models, _ = await repository.get_collection_artifacts(
-            seeded_collection.orbit.id, pagination, collection_ids=[collection.id]
+            seeded_collection.orbit.id,
+            pagination,
+            collection_ids=[seeded_collection.collection.id],
         )
 
         assert len(models) == 2
@@ -62,18 +62,17 @@ class TestArtifactRepositoryListing:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        orbit, collection = seeded_collection.orbit, seeded_collection.collection
         satellite_repository = SatelliteRepository(engine)
         deployment_repository = DeploymentRepository(engine)
 
         model = new_artifact.model_copy()
-        model.collection_id = collection.id
+        model.collection_id = seeded_collection.collection.id
         model.status = ArtifactStatus.UPLOADED
         created_model = await repository.create_artifact(model)
 
         satellite = await satellite_repository.create_satellite(
             SatelliteCreate(
-                orbit_id=orbit.id,
+                orbit_id=seeded_collection.orbit.id,
                 api_key_hash=str(uuid.uuid4()),
                 name="test_satellite",
             )
@@ -82,7 +81,7 @@ class TestArtifactRepositoryListing:
         active, _ = await deployment_repository.create_deployment(
             DeploymentCreate(
                 name="active-deployment",
-                orbit_id=orbit.id,
+                orbit_id=seeded_collection.orbit.id,
                 satellite_id=satellite.id,
                 artifact_id=created_model.id,
                 status=DeploymentStatus.ACTIVE,
@@ -91,7 +90,7 @@ class TestArtifactRepositoryListing:
         await deployment_repository.create_deployment(
             DeploymentCreate(
                 name="pending-deployment",
-                orbit_id=orbit.id,
+                orbit_id=seeded_collection.orbit.id,
                 satellite_id=satellite.id,
                 artifact_id=created_model.id,
                 status=DeploymentStatus.PENDING,
@@ -100,7 +99,9 @@ class TestArtifactRepositoryListing:
 
         pagination = PaginationParams(limit=100)
         models, _ = await repository.get_collection_artifacts(
-            orbit.id, pagination, collection_ids=[collection.id]
+            seeded_collection.orbit.id,
+            pagination,
+            collection_ids=[seeded_collection.collection.id],
         )
 
         assert len(models) == 1
@@ -112,16 +113,18 @@ class TestArtifactRepositoryListing:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        collection = seeded_collection.collection
-
-        count = await repository.get_collection_artifacts_count(collection.id)
+        count = await repository.get_collection_artifacts_count(
+            seeded_collection.collection.id
+        )
         assert count == 0
 
         model = new_artifact.model_copy()
-        model.collection_id = collection.id
+        model.collection_id = seeded_collection.collection.id
         await repository.create_artifact(model)
 
-        count = await repository.get_collection_artifacts_count(collection.id)
+        count = await repository.get_collection_artifacts_count(
+            seeded_collection.collection.id
+        )
         assert count == 1
 
     async def test_get_collection_artifacts_extra_values_returns_sorted_keys(
@@ -160,22 +163,22 @@ class TestArtifactRepositoryListing:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        collection = seeded_collection.collection
-
         model1 = new_artifact.model_copy()
-        model1.collection_id = collection.id
+        model1.collection_id = seeded_collection.collection.id
         model1.unique_identifier = "uid1"
         model1.tags = ["v1", "prod"]
 
         model2 = new_artifact.model_copy()
-        model2.collection_id = collection.id
+        model2.collection_id = seeded_collection.collection.id
         model2.unique_identifier = "uid2"
         model2.tags = ["v2", "prod"]
 
         await repository.create_artifact(model1)
         await repository.create_artifact(model2)
 
-        result = await repository.get_collection_artifacts_tags(collection.id)
+        result = await repository.get_collection_artifacts_tags(
+            seeded_collection.collection.id
+        )
 
         assert set(result) == {"v1", "v2", "prod"}
 
@@ -185,15 +188,13 @@ class TestArtifactRepositoryListing:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        collection = seeded_collection.collection
-
         low = new_artifact.model_copy()
-        low.collection_id = collection.id
+        low.collection_id = seeded_collection.collection.id
         low.unique_identifier = "low"
         low.extra_values = {"accuracy": 0.1}
 
         high = new_artifact.model_copy()
-        high.collection_id = collection.id
+        high.collection_id = seeded_collection.collection.id
         high.unique_identifier = "high"
         high.extra_values = {"accuracy": 0.9}
 
@@ -203,7 +204,7 @@ class TestArtifactRepositoryListing:
         first, cursor = await repository.get_collection_artifacts(
             seeded_collection.orbit.id,
             PaginationParams(limit=1, sort_by="accuracy", order=SortOrder.ASC),
-            collection_ids=[collection.id],
+            collection_ids=[seeded_collection.collection.id],
         )
         assert len(first) == 1
         assert first[0].extra_values["accuracy"] == 0.1
@@ -215,7 +216,7 @@ class TestArtifactRepositoryListing:
             PaginationParams(
                 limit=1, sort_by="accuracy", order=SortOrder.ASC, cursor=cursor
             ),
-            collection_ids=[collection.id],
+            collection_ids=[seeded_collection.collection.id],
         )
         assert second[0].extra_values["accuracy"] == 0.9
 
@@ -259,15 +260,13 @@ class TestArtifactRepositoryListing:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        collection = seeded_collection.collection
-
         model = new_artifact.model_copy()
-        model.collection_id = collection.id
+        model.collection_id = seeded_collection.collection.id
         model.unique_identifier = "a-model"
         model.type = ArtifactType.MODEL
 
         dataset = new_artifact.model_copy()
-        dataset.collection_id = collection.id
+        dataset.collection_id = seeded_collection.collection.id
         dataset.unique_identifier = "a-dataset"
         dataset.type = ArtifactType.DATASET
 
@@ -277,7 +276,7 @@ class TestArtifactRepositoryListing:
         items, _ = await repository.get_collection_artifacts(
             seeded_collection.orbit.id,
             PaginationParams(limit=100),
-            collection_ids=[collection.id],
+            collection_ids=[seeded_collection.collection.id],
             artifact_types=[ArtifactType.MODEL],
         )
         assert all(a.type == ArtifactType.MODEL for a in items)

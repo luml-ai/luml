@@ -76,7 +76,6 @@ class TestArtifactRepositoryDeletion:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        orbit_id = seeded_collection.orbit.id
         lineage_repository = LineageRepository(engine)
         deleted_artifact = await create_artifact(
             engine,
@@ -93,18 +92,18 @@ class TestArtifactRepositoryDeletion:
             status=new_artifact.status,
         )
         listed = await repository.get_artifacts_by_ids_in_orbit(
-            orbit_id, [deleted_artifact.id, surviving_artifact.id]
+            seeded_collection.orbit.id, [deleted_artifact.id, surviving_artifact.id]
         )
         listed_by_id = {artifact.id: artifact for artifact in listed}
         deleted_node = await lineage_repository.get_or_create_node(
-            orbit_id, listed_by_id[deleted_artifact.id]
+            seeded_collection.orbit.id, listed_by_id[deleted_artifact.id]
         )
         surviving_node = await lineage_repository.get_or_create_node(
-            orbit_id, listed_by_id[surviving_artifact.id]
+            seeded_collection.orbit.id, listed_by_id[surviving_artifact.id]
         )
         edge = (
             await lineage_repository.create_edges(
-                orbit_id,
+                seeded_collection.orbit.id,
                 [(deleted_node.id, surviving_node.id)],
                 "Artifact User",
                 LineageVia.API,
@@ -118,17 +117,21 @@ class TestArtifactRepositoryDeletion:
 
         await lineage_repository.refresh_node_copy(deleted_artifact.id)
         await repository.delete_artifact(deleted_artifact.id)
-        await lineage_repository.delete_edgeless_nodes(orbit_id)
+        await lineage_repository.delete_edgeless_nodes(seeded_collection.orbit.id)
 
         assert await repository.get_artifact(deleted_artifact.id) is None
         detached_node = (
-            await lineage_repository.get_nodes_by_ids(orbit_id, [deleted_node.id])
+            await lineage_repository.get_nodes_by_ids(
+                seeded_collection.orbit.id, [deleted_node.id]
+            )
         )[0]
         assert detached_node.artifact_id is None
         assert detached_node.name == "refreshed-name"
         assert detached_node.type == ArtifactType.MODEL.value
         assert detached_node.collection_name == seeded_collection.collection.name
-        assert await lineage_repository.get_edges_by_ids(orbit_id, [edge.id])
+        assert await lineage_repository.get_edges_by_ids(
+            seeded_collection.orbit.id, [edge.id]
+        )
 
     async def test_delete_artifact_raises_conflict_when_artifact_is_deployed(
         self,
@@ -137,7 +140,6 @@ class TestArtifactRepositoryDeletion:
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        orbit_id = seeded_collection.orbit.id
         lineage_repository = LineageRepository(engine)
         satellite_repository = SatelliteRepository(engine)
         deployment_repository = DeploymentRepository(engine)
@@ -155,18 +157,18 @@ class TestArtifactRepositoryDeletion:
             status=new_artifact.status,
         )
         listed = await repository.get_artifacts_by_ids_in_orbit(
-            orbit_id, [created_model.id, peer_model.id]
+            seeded_collection.orbit.id, [created_model.id, peer_model.id]
         )
         listed_by_id = {artifact.id: artifact for artifact in listed}
         created_node = await lineage_repository.get_or_create_node(
-            orbit_id, listed_by_id[created_model.id]
+            seeded_collection.orbit.id, listed_by_id[created_model.id]
         )
         peer_node = await lineage_repository.get_or_create_node(
-            orbit_id, listed_by_id[peer_model.id]
+            seeded_collection.orbit.id, listed_by_id[peer_model.id]
         )
         edge = (
             await lineage_repository.create_edges(
-                orbit_id,
+                seeded_collection.orbit.id,
                 [(created_node.id, peer_node.id)],
                 "Artifact User",
                 LineageVia.API,
@@ -175,7 +177,7 @@ class TestArtifactRepositoryDeletion:
 
         satellite = await satellite_repository.create_satellite(
             SatelliteCreate(
-                orbit_id=orbit_id,
+                orbit_id=seeded_collection.orbit.id,
                 api_key_hash=str(uuid.uuid4()),
                 name="test_satellite",
             )
@@ -183,7 +185,7 @@ class TestArtifactRepositoryDeletion:
 
         deployment_data = DeploymentCreate(
             name="my-deployment",
-            orbit_id=orbit_id,
+            orbit_id=seeded_collection.orbit.id,
             satellite_id=satellite.id,
             artifact_id=created_model.id,
             status=DeploymentStatus.PENDING,
@@ -197,7 +199,11 @@ class TestArtifactRepositoryDeletion:
         assert error.value.status_code == 409
         assert await repository.get_artifact(created_model.id) is not None
         attached_node = (
-            await lineage_repository.get_nodes_by_ids(orbit_id, [created_node.id])
+            await lineage_repository.get_nodes_by_ids(
+                seeded_collection.orbit.id, [created_node.id]
+            )
         )[0]
         assert attached_node.artifact_id == created_model.id
-        assert await lineage_repository.get_edges_by_ids(orbit_id, [edge.id])
+        assert await lineage_repository.get_edges_by_ids(
+            seeded_collection.orbit.id, [edge.id]
+        )

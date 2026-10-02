@@ -727,18 +727,21 @@ class TestLineageRepository:
         repository: LineageRepository,
         seeded_collection: CollectionFixtureData,
     ) -> None:
-        orbit_id = seeded_collection.orbit.id
-
-        assert await repository.get_nodes_by_ids(orbit_id, []) == []
-        assert await repository.get_nodes_by_artifact_ids(orbit_id, []) == []
+        assert await repository.get_nodes_by_ids(seeded_collection.orbit.id, []) == []
         assert (
-            await repository.create_edges(orbit_id, [], "Test User", LineageVia.API)
+            await repository.get_nodes_by_artifact_ids(seeded_collection.orbit.id, [])
             == []
         )
-        assert await repository.get_edges_by_ids(orbit_id, []) == []
-        assert await repository.get_edges_by_pairs(orbit_id, []) == []
-        await repository.delete_edges(orbit_id, [])
-        await repository.update_positions(orbit_id, {})
+        assert (
+            await repository.create_edges(
+                seeded_collection.orbit.id, [], "Test User", LineageVia.API
+            )
+            == []
+        )
+        assert await repository.get_edges_by_ids(seeded_collection.orbit.id, []) == []
+        assert await repository.get_edges_by_pairs(seeded_collection.orbit.id, []) == []
+        await repository.delete_edges(seeded_collection.orbit.id, [])
+        await repository.update_positions(seeded_collection.orbit.id, {})
 
     async def test_refresh_node_copy_with_unknown_artifact_does_not_raise(
         self, repository: LineageRepository
