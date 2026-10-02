@@ -1,3 +1,19 @@
+{{- define "luml.values" -}}
+{{- $defaults := .Files.Get "defaults.yaml" | fromYaml -}}
+{{- include "luml.fillDefaults" (dict "defaults" $defaults "values" .Values) -}}
+{{- end -}}
+
+{{- define "luml.fillDefaults" -}}
+{{- range $key, $default := .defaults -}}
+{{- $value := get $.values $key -}}
+{{- if or (not (hasKey $.values $key)) (kindIs "invalid" $value) -}}
+{{- $_ := set $.values $key (deepCopy $default) -}}
+{{- else if and (kindIs "map" $default) (kindIs "map" $value) -}}
+{{- include "luml.fillDefaults" (dict "defaults" $default "values" $value) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "luml.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}

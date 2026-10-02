@@ -67,4 +67,6 @@ jobs:
           helm lint chart --strict -f chart/ci/openshift-values.yaml
 
       - name: Test Helm chart
-        run: helm unittest --strict chart
+        run: |
+          helm unittest --strict chart
+          uv run pytest tests/test_chart_defaults.py
