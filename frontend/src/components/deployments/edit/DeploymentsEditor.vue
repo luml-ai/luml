@@ -15,7 +15,7 @@
     <Form
       v-if="visible"
       ref="formRef"
-      id="createDeploymentForm"
+      id="editDeploymentForm"
       class="content"
       :initial-values="initialValues"
       :resolver="deploymentEditorResolver"
@@ -120,7 +120,7 @@
           Stop deployment
         </Button>
       </div>
-      <Button type="submit" :loading="loading" form="createDeploymentForm">Save changes</Button>
+      <Button type="submit" :loading="loading" form="editDeploymentForm">Save changes</Button>
     </template>
     <DeploymentsDelete
       v-if="isDeleting"

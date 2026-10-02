@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { reactive } from 'vue'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick, reactive } from 'vue'
 import {
   DeploymentStatusEnum,
   MonitoringMode,
@@ -9,6 +9,7 @@ import {
 import { MonitoringFeature } from '@/lib/api/satellites/interfaces'
 import { deploymentEditorResolver } from '@/utils/forms/resolvers'
 import DeploymentsEditor from './DeploymentsEditor.vue'
+import DeploymentsCreateModal from '../create/DeploymentsCreateModal.vue'
 
 const TABULAR_KIND_TAG = 'luml.ai::kind_tabular:v1'
 const TABULAR_MONITORING_TAG = 'luml.ai::tabular_monitoring:v1'
@@ -48,6 +49,7 @@ const secretsStore = {
 }
 
 const deploymentsStore = {
+  createDeployment: vi.fn(),
   update: vi.fn(),
   forceDeleteDeployment: vi.fn(),
 }
@@ -109,34 +111,44 @@ function modelWithTags(producerTags: string[]) {
   }
 }
 
+const nativeFormStub = {
+  name: 'Form',
+  props: ['initialValues', 'resolver'],
+  emits: ['submit'],
+  data: () => ({ valid: true }),
+  template: '<form @submit.prevent="$emit(\'submit\', { valid })"><slot /></form>',
+}
+
+const buttonStub = {
+  props: ['label', 'disabled'],
+  template: '<button :disabled="disabled"><slot>{{ label }}</slot></button>',
+}
+
+const formStubs = {
+  Dialog: {
+    props: ['visible'],
+    template: '<div><slot name="header" /><slot /><slot name="footer" /></div>',
+  },
+  Form: nativeFormStub,
+  FormField: { template: '<div><slot /></div>' },
+  DeploymentsFormBasicsSettings: true,
+  DeploymentsFormModelSettings: true,
+  DeploymentsFormSatelliteSettings: true,
+  DeploymentsDelete: true,
+  ForceDeleteConfirmDialog: true,
+  SecretsSelect: true,
+  Accordion: { template: '<div><slot /></div>' },
+  AccordionPanel: { template: '<div><slot /></div>' },
+  AccordionHeader: { template: '<div><slot /></div>' },
+  AccordionContent: { template: '<div><slot /></div>' },
+  ToggleSwitch: { template: '<button data-testid="editor-monitoring-toggle" />' },
+  Button: buttonStub,
+}
+
 function mountEditor(data = deployment(MONITORED.id)) {
   return mount(DeploymentsEditor, {
     props: { data, visible: true },
-    global: {
-      stubs: {
-        Dialog: {
-          props: ['visible'],
-          template: '<div><slot name="header" /><slot /><slot name="footer" /></div>',
-        },
-        Form: {
-          name: 'Form',
-          props: ['resolver'],
-          emits: ['submit'],
-          template: '<form><slot /></form>',
-        },
-        FormField: { template: '<div><slot /></div>' },
-        DeploymentsFormBasicsSettings: true,
-        DeploymentsDelete: true,
-        ForceDeleteConfirmDialog: true,
-        SecretsSelect: true,
-        Accordion: { template: '<div><slot /></div>' },
-        AccordionPanel: { template: '<div><slot /></div>' },
-        AccordionHeader: { template: '<div><slot /></div>' },
-        AccordionContent: { template: '<div><slot /></div>' },
-        ToggleSwitch: { template: '<button data-testid="editor-monitoring-toggle" />' },
-        Button: { template: '<button><slot /></button>' },
-      },
-    },
+    global: { stubs: formStubs },
   })
 }
 
@@ -193,6 +205,95 @@ describe('DeploymentsEditor monitoring settings', () => {
 
     expect(wrapper.find('[data-testid="deployment-provider-reference"]').exists()).toBe(false)
   })
+})
+
+describe('deployment form submission with both dialogs open', () => {
+  const cleanup: (() => void)[] = []
+
+  beforeEach(() => {
+    deploymentsStore.createDeployment.mockReset()
+    deploymentsStore.createDeployment.mockResolvedValue(undefined)
+    deploymentsStore.update.mockReset()
+    deploymentsStore.update.mockResolvedValue(undefined)
+    artifactsStore.getArtifact.mockResolvedValue(modelWithTags([]))
+  })
+
+  afterEach(() => {
+    cleanup.splice(0).forEach((unmount) => unmount())
+    document.body.replaceChildren()
+  })
+
+  async function mountDialogs(editorFirst: boolean) {
+    const editorTemplate = '<DeploymentsEditor :data="deployment" :visible="true" />'
+    const modalTemplate = '<DeploymentsCreateModal :visible="true" />'
+    const wrapper = mount(
+      {
+        components: { DeploymentsEditor, DeploymentsCreateModal },
+        data: () => ({ deployment: deployment(MONITORED.id) }),
+        template: editorFirst ? editorTemplate + modalTemplate : modalTemplate + editorTemplate,
+      },
+      { attachTo: document.body, global: { stubs: formStubs } },
+    )
+    cleanup.push(() => wrapper.unmount())
+    const openEditor = wrapper.getComponent(DeploymentsEditor)
+    const modal = wrapper.getComponent(DeploymentsCreateModal)
+
+    modal
+      .getComponent({ name: 'DeploymentsFormBasicsSettings' })
+      .vm.$emit('update:name', 'new-deployment')
+    const modelSettings = modal.getComponent({ name: 'DeploymentsFormModelSettings' })
+    modelSettings.vm.$emit('update:modelId', 'new-model')
+    await nextTick()
+    modelSettings.vm.$emit('model-changed', { id: 'new-model' })
+    modal
+      .getComponent({ name: 'DeploymentsFormSatelliteSettings' })
+      .vm.$emit('update:satelliteId', MONITORED.id)
+    await flushPromises()
+
+    return { editor: openEditor, modal }
+  }
+
+  it.each([true, false])(
+    'Deploy creates a deployment and leaves the editor untouched (editor first: %s)',
+    async (editorFirst) => {
+      const { editor, modal } = await mountDialogs(editorFirst)
+
+      ;(modal.get('button[type="submit"]').element as HTMLButtonElement).click()
+      await flushPromises()
+
+      expect(deploymentsStore.createDeployment).toHaveBeenCalledExactlyOnceWith(
+        'org-1',
+        'orbit-1',
+        expect.objectContaining({ name: 'new-deployment', artifact_id: 'new-model' }),
+      )
+      expect(deploymentsStore.update).not.toHaveBeenCalled()
+      expect(editor.emitted('update:visible')).toBeUndefined()
+      expect(editor.getComponent({ name: 'DeploymentsFormBasicsSettings' }).props('name')).toBe(
+        'Deployment',
+      )
+      expect(modal.emitted('update:visible')).toEqual([[false]])
+    },
+  )
+
+  it.each([true, false])(
+    'Save changes updates only the editor deployment (editor first: %s)',
+    async (editorFirst) => {
+      const { editor, modal } = await mountDialogs(editorFirst)
+
+      ;(editor.get('button[type="submit"]').element as HTMLButtonElement).click()
+      await flushPromises()
+
+      expect(deploymentsStore.update).toHaveBeenCalledExactlyOnceWith(
+        'org-1',
+        'orbit-1',
+        'deployment-1',
+        expect.objectContaining({ name: 'Deployment' }),
+      )
+      expect(deploymentsStore.createDeployment).not.toHaveBeenCalled()
+      expect(modal.emitted('update:visible')).toBeUndefined()
+      expect(editor.emitted('update:visible')).toEqual([[false]])
+    },
+  )
 })
 
 describe('DeploymentsEditor validation', () => {
