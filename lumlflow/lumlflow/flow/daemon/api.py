@@ -17,7 +17,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, Literal, get_args
 
 from lumlflow.flow.daemon import envs, handoff, harnesses, queries, workspace
 from lumlflow.flow.daemon.hub import FlowSession, Hub
@@ -41,6 +41,10 @@ from lumlflow.flow.store.models import AgentBegin, AgentEnd, OutputRecord, React
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
 AttachmentCheck = Callable[[str], dict[str, Any]]
+# The agent sessions live connections are carrying, as (flow, actor, label).
+# The daemon owns the set; the API only reads it to say who is really paired.
+Leases = set[tuple[str | None, str, str]]
+LeaseCheck = Callable[[], Leases]
 
 # One pass names every cell an imported file holds, a second binds the
 # references the first could not see yet. Nothing a third would find.
@@ -55,6 +59,7 @@ class Api:
         directory: Path | None = None,
         stop: Callable[[], None] | None = None,
         attachments: AttachmentCheck | None = None,
+        leases: LeaseCheck | None = None,
         instance_id: str = "",
         harness_service: harnesses.HarnessService | None = None,
     ) -> None:
@@ -67,6 +72,7 @@ class Api:
         self.web: str | None = None
         self._stop = stop
         self._attachments = attachments
+        self._leases = leases
         self._harnesses = harness_service or harnesses.HarnessService()
         # Upload jobs in flight. A task nothing references may be collected
         # mid-upload; the set holds each until its done callback drops it.
@@ -203,7 +209,7 @@ class Api:
 
     async def tree(self, params: dict[str, Any]) -> dict[str, Any]:
         session, _ = await self._read(params)
-        return queries.tree(session)
+        return queries.tree(session, leased=self._leased_actors(session))
 
     async def graph(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch = await self._read(params)
@@ -889,6 +895,7 @@ class Api:
             intent=params.get("intent") or f"{label} started working",
             actor=actor,
         )
+        self._announce_agents(session)
         return {
             "flow": session.ref.address,
             "actor": actor,
@@ -916,6 +923,7 @@ class Api:
             intent=params.get("intent") or f"{registered.label} finished",
             actor=registered.actor,
         )
+        self._announce_agents(session)
         return {
             "flow": session.ref.address,
             "actor": registered.actor,
@@ -1164,6 +1172,104 @@ class Api:
             "hygiene": queries.hygiene(session),
         }
 
+    def _leased_actors(self, session: FlowSession) -> frozenset[str]:
+        """The actors whose session a live connection is carrying on this flow."""
+        if self._leases is None:
+            return frozenset()
+        return frozenset(
+            actor
+            for flow, actor, _ in self._leases()
+            if flow is None or flow == session.ref.address
+        )
+
+    def _agent_sessions(self, session: FlowSession) -> list[dict[str, Any]]:
+        """Every registered session, newest first, marked by whether it is live.
+
+        `leased` is what "paired" means to a surface. A row without it was
+        registered by hand — `lumlflow agent begin` — and exists for
+        attribution only: nobody is on the other end of it.
+        """
+        leased = self._leased_actors(session)
+        return queries.agent_sessions(session, leased=leased)
+
+    def _announce_agents(self, session: FlowSession) -> None:
+        """Push the session list to the flow's watchers, lease state included.
+
+        Called after every registration or end commits, and by the daemon when
+        a lease changes hands without a commit of its own — a connection that
+        dropped. The list is the whole truth at that moment; a watcher replaces
+        rather than merges.
+        """
+        if session.streams is None:
+            return
+        session.streams.agents(
+            session.ref.address,
+            self._agent_sessions(session),
+            step=session.store.next_step - 1,
+        )
+
+    def announce_agents(self, flow: str | None) -> None:
+        """The daemon's entry to `_announce_agents`, by flow address.
+
+        Only a flow this daemon holds open can have a lease on it — the
+        registration opened it — so a miss here means there is nobody to tell.
+        """
+        if not flow:
+            return
+        for session in self.hub.opened():
+            if session.ref.address == flow:
+                self._announce_agents(session)
+                return
+
+    def announce_activity(
+        self,
+        flow: str,
+        *,
+        actor: str,
+        label: str,
+        tool: str,
+        slug: str | None,
+        phase: Literal["started", "ended"],
+    ) -> None:
+        """Tell a flow's watchers a leased agent is inside a call, or out of it.
+
+        The daemon calls this around every method a leased connection invokes.
+        A flow nobody holds open has nobody to tell, and a connection that is
+        on its way out announces its end through `end_activity` instead, so a
+        call it never finished is not left hanging over a card.
+        """
+        for session in self.hub.opened():
+            if session.ref.address == flow and session.streams is not None:
+                session.streams.activity(
+                    flow,
+                    actor=actor,
+                    label=label,
+                    tool=tool,
+                    slug=slug,
+                    phase=phase,
+                    step=session.store.next_step - 1,
+                )
+                return
+
+    def end_activity(self, flow: str, *, actor: str) -> None:
+        """Clear whatever this actor was announced as doing, if anything."""
+        for session in self.hub.opened():
+            if session.ref.address != flow or session.streams is None:
+                continue
+            active = session.streams.active(flow, actor)
+            if active is None:
+                return
+            session.streams.activity(
+                flow,
+                actor=actor,
+                label=str(active["label"]),
+                tool=str(active["tool"]),
+                slug=active.get("slug"),
+                phase="ended",
+                step=session.store.next_step - 1,
+            )
+            return
+
     async def _flow_brief(self, session: FlowSession) -> dict[str, Any]:
         sessions = session.store.index.agent_sessions()
         settings = session.store.manifest.settings
@@ -1174,6 +1280,7 @@ class Api:
             "branch": session.branch,
             "checked_out": session.worktree.bound() is not None,
             "agent": sessions[0].label if sessions else None,
+            "agent_sessions": self._agent_sessions(session),
             "kernel": await _kernel(session, session.kernel.handshake),
             "settings": {
                 "reactivity": settings.reactivity,

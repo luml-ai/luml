@@ -32,9 +32,14 @@
       :aria-label="`source of ${props.slug}`"
       :max-height="props.fullHeight ? 'none' : '18rem'"
     />
-    <pre v-else class="code-output" :style="{ maxHeight: props.fullHeight ? 'none' : '18rem' }">
-      {{ source }}
-    </pre>
+    <!-- The same editor, locked: highlighted and numbered before anybody edits. -->
+    <UiCodeEditor
+      v-else
+      :model-value="source"
+      readonly
+      :aria-label="`source of ${props.slug}, read only`"
+      :max-height="props.fullHeight ? 'none' : '18rem'"
+    />
   </div>
 </template>
 
@@ -94,11 +99,3 @@ async function onSave() {
   }
 }
 </script>
-
-<style scoped>
-@reference "@/assets/css/index.css";
-
-.code-output {
-  @apply max-h-64 overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg border border-surface bg-surface-50 dark:bg-surface-900 p-3 font-mono text-sm leading-relaxed;
-}
-</style>

@@ -210,7 +210,7 @@ import { Plus, Terminal } from 'lucide-vue-next'
 
 import { FlowApiError } from '@/flow/api/client'
 import type { FlowStream } from '@/flow/api/stream'
-import type { AgentHarness, CellSummary } from '@/flow/api/types'
+import type { CellSummary } from '@/flow/api/types'
 import FromHereDialog from '../components/branch/FromHereDialog.vue'
 import NewBranchDialog from '../components/branch/NewBranchDialog.vue'
 import FlowCanvas, { type CanvasSessionState } from '../components/canvas/FlowCanvas.vue'
@@ -226,6 +226,7 @@ import { formatCount } from '../model/format'
 import { reorderNeighbours } from '../model/registry'
 import { summarized } from '../live/useCell'
 import { MOVE_GUARD, MoveCancelled, useFlowOps } from '../live/useFlowOps'
+import { useAgentHarnesses } from '../live/useAgentHarnesses'
 import type { FlowSessionHandle } from '../live/useFlowSession'
 import { useSelection } from '../live/useSelection'
 import { useSlice } from '../live/useSlice'
@@ -607,12 +608,18 @@ async function onRerunBranch(payload: { force: boolean }): Promise<void> {
   }
 }
 
-const agents = ref<AgentHarness[]>([])
-const agentsLoading = ref(false)
-const agentsError = ref<string | null>(null)
-const agentBusy = ref<Set<string>>(new Set())
-const agentBusyIds = computed(() => [...agentBusy.value])
-let agentRead = 0
+const harnesses = useAgentHarnesses(
+  {
+    list: () => session.request('agents.harnesses', {}),
+    setup: (id, consent) => session.request('agents.setup', { harness: id, consent }),
+    remove: (id) => session.request('agents.remove', { harness: id }),
+  },
+  refused,
+)
+const agents = harnesses.harnesses
+const agentsLoading = harnesses.loading
+const agentsError = harnesses.loadError
+const agentBusyIds = harnesses.busyIds
 
 function onPair(): void {
   if (!panelOpen.value.includes('agents')) {
@@ -622,66 +629,20 @@ function onPair(): void {
   void onOpenAgents()
 }
 
-async function onOpenAgents(): Promise<void> {
-  const read = ++agentRead
-  agentsLoading.value = true
-  agentsError.value = null
-  try {
-    const answer = await session.request('agents.harnesses', {})
-    if (read === agentRead) agents.value = answer.harnesses
-  } catch (failure) {
-    if (read === agentRead) {
-      agentsError.value = failure instanceof Error ? failure.message : String(failure)
-    }
-  } finally {
-    if (read === agentRead) agentsLoading.value = false
-  }
+function onOpenAgents(): Promise<void> {
+  return harnesses.refresh()
 }
 
-function setAgentBusy(id: string, busy: boolean): void {
-  const next = new Set(agentBusy.value)
-  if (busy) next.add(id)
-  else next.delete(id)
-  agentBusy.value = next
-}
-
-function applyHarness(next: AgentHarness): void {
-  const at = agents.value.findIndex((harness) => harness.id === next.id)
-  if (at < 0) {
-    agents.value = [...agents.value, next]
-    return
-  }
-  agents.value = agents.value.map((harness, index) => (index === at ? next : harness))
-}
-
-async function setupAgent(id: string, consent: boolean): Promise<void> {
-  setAgentBusy(id, true)
-  try {
-    applyHarness(await session.request('agents.setup', { harness: id, consent }))
-  } catch (failure) {
-    refused(failure)
-  } finally {
-    setAgentBusy(id, false)
-  }
-}
-
-async function onSetupAgents(ids: string[], consent: boolean): Promise<void> {
-  for (const id of ids) await setupAgent(id, consent)
+function onSetupAgents(ids: string[], consent: boolean): Promise<void> {
+  return harnesses.setup(ids, consent)
 }
 
 function onUpdateAgent(id: string): void {
-  void setupAgent(id, false)
+  harnesses.update(id)
 }
 
-async function onRemoveAgent(id: string): Promise<void> {
-  setAgentBusy(id, true)
-  try {
-    applyHarness(await session.request('agents.remove', { harness: id }))
-  } catch (failure) {
-    refused(failure)
-  } finally {
-    setAgentBusy(id, false)
-  }
+function onRemoveAgent(id: string): Promise<void> {
+  return harnesses.remove(id)
 }
 
 /**

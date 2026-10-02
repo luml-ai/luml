@@ -884,3 +884,34 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
         f"{web.STREAM_PATH}?{urlparse(printed).query}"
     ) as socket:
         assert catch_up(socket, flow_address(served))["flow"] == flow_address(served)
+
+
+def test_an_http_registration_is_never_leased_and_announces_itself(
+    served: Served,
+) -> None:
+    """A browser cannot hold a lease — the request is over before the answer
+    lands — so the flag it asks for is dropped rather than echoed. What it can
+    do is register and end, and each is announced to the flow's watchers with
+    the full list, lease state included.
+    """
+    served.rpc("flow.open", {"flow": "churn"})
+    session = served.hub.session("churn")
+    cursor = session.store.next_step - 1
+
+    with served.watch() as socket:
+        subscribe(socket, flow_address(served), cursor=cursor)
+        begun = served.rpc(
+            "agent.begin",
+            {"flow": "churn", "actor": "codex", "label": "Codex", "lease": True},
+        )
+        announced = until(socket, lambda frame: frame.get("type") == "agents")
+        served.rpc("agent.end", {"flow": "churn", "actor": "codex"})
+        cleared = until(socket, lambda frame: frame.get("type") == "agents")
+
+    assert begun["leased"] is False
+    assert announced["flow"] == flow_address(served)
+    assert [
+        (row["actor"], row["label"], row["leased"]) for row in announced["sessions"]
+    ] == [("codex", "Codex", False)]
+    assert cleared["sessions"] == []
+    assert served.rpc("tree", {"flow": "churn"})["agent_sessions"] == []

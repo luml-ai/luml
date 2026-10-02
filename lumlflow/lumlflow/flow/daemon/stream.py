@@ -145,6 +145,10 @@ class Streams:
         # because the queue announces the first waiter before the kernel says
         # the run started, and a count nobody could attach yet is still true.
         self._awaiting: dict[tuple[str, str], int] = {}
+        # What each leased agent is doing on a flow right now, keyed by
+        # (flow, actor). Like a run in flight it is the daemon's memory, not
+        # the journal's: a tab opened mid-call learns of it from its catch-up.
+        self._activity: OrderedDict[tuple[str, str], dict[str, Any]] = OrderedDict()
         self._ring = ring
         self._runs = runs
 
@@ -191,6 +195,80 @@ class Streams:
         if cell is not None:
             frame["cell"] = cell
         self._deliver(lambda subscription: flow in subscription.journals, frame)
+
+    def agents(self, flow: str, sessions: list[dict[str, Any]], *, step: int) -> None:
+        """Who is registered on a flow, and which of them are actually connected.
+
+        A lease is the daemon's memory, never the journal's: the connection is
+        the session, so the only honest source of "paired" is the daemon saying
+        so when a lease opens or drops. Like a state hint, this moves no cursor
+        and is never replayed — a late joiner reads the same list off `flow.open`.
+        """
+        self._deliver(
+            lambda subscription: flow in subscription.journals,
+            {
+                "channel": "journal",
+                "type": "agents",
+                "flow": flow,
+                "step": step,
+                "sessions": sessions,
+            },
+        )
+
+    def activity(
+        self,
+        flow: str,
+        *,
+        actor: str,
+        label: str,
+        tool: str,
+        slug: str | None,
+        phase: Literal["started", "ended"],
+        step: int,
+    ) -> None:
+        """A leased agent began or finished a call on this flow.
+
+        `tool` is the daemon method it called and `slug` the cell it named, if
+        it named one — what lets a surface dim that one card rather than the
+        whole flow. One entry per actor: an agent is doing one thing at a time
+        on its connection, and the next call's `started` replaces the last.
+        Like a state hint, this moves no cursor and is never replayed.
+        """
+        key = (flow, actor)
+        if phase == "started":
+            self._activity[key] = {
+                "actor": actor,
+                "label": label,
+                "tool": tool,
+                "slug": slug,
+            }
+            self._activity.move_to_end(key)
+        else:
+            self._activity.pop(key, None)
+        frame: Frame = {
+            "channel": "journal",
+            "type": "activity",
+            "flow": flow,
+            "step": step,
+            "phase": phase,
+            "actor": actor,
+            "label": label,
+            "tool": tool,
+            "slug": slug,
+        }
+        self._deliver(lambda subscription: flow in subscription.journals, frame)
+
+    def active(self, flow: str, actor: str) -> dict[str, Any] | None:
+        """What this actor is doing on the flow right now, if anything."""
+        return self._activity.get((flow, actor))
+
+    def activities(self, flow: str) -> list[dict[str, Any]]:
+        """Every call a leased agent is inside of on this flow, oldest first."""
+        return [
+            dict(entry)
+            for (on_flow, _), entry in self._activity.items()
+            if on_flow == flow
+        ]
 
     def kernel(
         self, flow: str, event: str, params: dict[str, Any], *, step: int

@@ -26,7 +26,14 @@ import type { FlowMethod, FlowMethods } from '@/flow/api/client'
 import { FlowStream } from '@/flow/api/stream'
 import type { StreamStatus } from '@/flow/api/stream'
 import { rejectToken } from '@/flow/api/token'
-import type { FlowStatus, StateFrame, StreamFrame, Transaction } from '@/flow/api/types'
+import type {
+  AgentActivity,
+  AgentSessionRecord,
+  FlowStatus,
+  StateFrame,
+  StreamFrame,
+  Transaction,
+} from '@/flow/api/types'
 import type { FlowState } from '../model/types'
 import { degradedStates, flowState } from './degraded'
 import type { DegradedKind, SessionFacts } from './degraded'
@@ -96,7 +103,18 @@ export interface FlowSessionHandle {
   running: Ref<RunningCell[]>
   /** Failed runs per cell since its last good one — the folded repair history. */
   attempts: Ref<Record<string, number>>
-  agent: Ref<RegisteredAgent | null>
+  /** Every registration on the flow, newest first, as the daemon last announced it. */
+  agentSessions: Ref<AgentSessionRecord[]>
+  /**
+   * The calls leased agents are inside of right now. The daemon brackets every
+   * one, so an agent that is working is known to be, and on which cell.
+   */
+  agentActivity: Ref<AgentActivity[]>
+  /**
+   * The paired agent: the newest *leased* session, which is to say one with a
+   * live connection behind it. A hand registration is attribution, not pairing.
+   */
+  agent: ComputedRef<RegisteredAgent | null>
   changesBehind: ComputedRef<number>
   facts: ComputedRef<SessionFacts>
   state: ComputedRef<FlowState>
@@ -133,7 +151,12 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
   const transactions = ref<Transaction[]>([])
   const running = ref<RunningCell[]>([])
   const attempts = ref<Record<string, number>>({})
-  const agent = ref<RegisteredAgent | null>(null)
+  const agentSessions = ref<AgentSessionRecord[]>([])
+  const agentActivity = ref<AgentActivity[]>([])
+  const agent = computed<RegisteredAgent | null>(() => {
+    const live = agentSessions.value.find((session) => session.leased)
+    return live ? { actor: live.actor, label: live.label } : null
+  })
   const stateSubscribers = new Set<(frame: StateFrame) => void>()
   let reachabilityEpoch = 0
 
@@ -175,7 +198,8 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     transactions.value = []
     running.value = []
     attempts.value = {}
-    agent.value = null
+    agentSessions.value = []
+    agentActivity.value = []
   }
 
   async function request<M extends FlowMethod>(
@@ -218,13 +242,9 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
       if (held.length > KEPT_TRANSACTIONS) held.splice(0, held.length - KEPT_TRANSACTIONS)
     }
     transactions.value = [...held]
-    for (const op of transaction.ops) {
-      if (op.op === 'agent_begin') {
-        agent.value = { actor: op.actor, label: op.label }
-      } else if (op.op === 'agent_end' && agent.value?.actor === op.actor) {
-        agent.value = null
-      }
-    }
+    // `agent_begin` and `agent_end` ops are not read here on purpose: a
+    // registration says nothing about whether anybody is connected, and the
+    // daemon's `agents` frame — which follows every one of them — does.
   }
 
   function receive(frame: StreamFrame): void {
@@ -233,6 +253,25 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     if (frame.flow !== path.value) return
     if (frame.type === 'state') {
       for (const subscriber of [...stateSubscribers]) subscriber(frame)
+      return
+    }
+    if (frame.type === 'agents') {
+      // The whole list at that moment, lease state included. It moves no
+      // cursor and is never replayed; `flow.open` carries the same list.
+      agentSessions.value = frame.sessions
+      return
+    }
+    if (frame.type === 'activity') {
+      // One entry per actor: the next call's start replaces the last, and an
+      // end clears it. Moves no cursor; the catch-up carries the same list.
+      const others = agentActivity.value.filter((entry) => entry.actor !== frame.actor)
+      agentActivity.value =
+        frame.phase === 'started'
+          ? [
+              ...others,
+              { actor: frame.actor, label: frame.label, tool: frame.tool, slug: frame.slug },
+            ]
+          : others
       return
     }
     head.value = Math.max(head.value, frame.step)
@@ -245,6 +284,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
       // The runs in flight arrive here rather than as events, because a
       // lifecycle nobody journaled is a lifecycle no cursor replays.
       running.value = frame.running.map((entry) => ({ ...entry, awaiting: entry.awaiting ?? 1 }))
+      agentActivity.value = frame.activity ?? []
       // The gap this client was away for, fixed at the moment it caught up. It
       // is the whole meaning of the marker — "since you were here" — so it must
       // not keep growing afterwards, while the reader is here watching the feed
@@ -343,6 +383,7 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     const previousFlowId = brief.value?.flow_id ?? options.seenFlowId
     if (previousFlowId !== undefined && previousFlowId !== opened.flow_id) resetFlowState()
     brief.value = opened
+    agentSessions.value = opened.agent_sessions ?? []
     options.stream.connect()
     options.stream.watchJournal(opened.path, opened.flow_id)
   }
@@ -378,6 +419,8 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
     transactions,
     running,
     attempts,
+    agentSessions,
+    agentActivity,
     agent,
     changesBehind,
     facts,
@@ -397,7 +440,6 @@ export function useFlowSession(options: FlowSessionOptions): FlowSessionHandle {
       arrears.value = 0
     },
     request,
-    downloadUrl: (branch, target) =>
-      options.api.downloadUrl({ flow: path.value, branch, target }),
+    downloadUrl: (branch, target) => options.api.downloadUrl({ flow: path.value, branch, target }),
   }
 }

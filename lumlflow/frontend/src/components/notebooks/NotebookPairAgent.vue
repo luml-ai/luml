@@ -2,75 +2,76 @@
   <div class="pair-agent">
     <Tag :value="tagValue" :severity="tagSeverity" />
     <button type="button" class="toolbar-pair-button" @click="openDialog">{{ buttonLabel }}</button>
-    <button
-      v-tooltip.bottom="COPY_COMMAND_TOOLTIP"
-      type="button"
-      class="toolbar-copy-button"
-      aria-label="Copy agent connection command"
-      @click="copyConnectCommand"
-    >
-      <Copy :size="14" />
-    </button>
 
     <Dialog
       v-model:visible="visible"
-      header="PAIR AN AGENT"
+      header="AGENTS"
       modal
       dismissable-mask
       :draggable="false"
       :pt="DIALOG_PT"
-      @update:visible="onVisibleChange"
     >
-      <Listbox
-        v-model="selectedAgentId"
-        :options="NOTEBOOK_PAIRABLE_AGENTS"
-        option-label="name"
-        option-value="id"
-        fluid
-      >
-        <template #option="{ option }">
-          <div class="agent-option">
-            <component :is="(option as PairableAgentInterface).icon" :size="16" />
-            <span>{{ (option as PairableAgentInterface).name }}</span>
-          </div>
-        </template>
-      </Listbox>
-      <template #footer>
-        <Button
-          label="Pair"
-          :loading="loading"
-          :disabled="!selectedAgentId || loading"
-          fluid
-          rounded
-          @click="onPair"
+      <div class="agents-body">
+        <p class="agents-note">
+          An agent is paired when it connects over MCP. Set up a harness below, then start the
+          agent in this workspace; this label updates by itself.
+        </p>
+
+        <AgentsPanel
+          :harnesses="agents.harnesses.value"
+          :loading="agents.loading.value"
+          :load-error="agents.loadError.value"
+          :busy-ids="agents.busyIds.value"
+          @setup="agents.setup"
+          @update="agents.update"
+          @remove="agents.remove"
         />
-      </template>
+
+        <section v-if="flowStore.agentSessions.length" class="sessions">
+          <h3 class="sessions-title">Registered sessions</h3>
+          <ul class="sessions-list">
+            <li
+              v-for="session in flowStore.agentSessions"
+              :key="session.actor"
+              class="session-row"
+              :data-actor="session.actor"
+            >
+              <span class="session-label">{{ session.label }}</span>
+              <span class="session-state" :class="{ 'session-state--live': session.leased }">
+                {{ session.leased ? 'connected' : 'registered, no connection' }}
+              </span>
+              <Button
+                v-if="!session.leased"
+                text
+                size="small"
+                severity="danger"
+                label="End"
+                :loading="ending === session.actor"
+                @click="onEnd(session.actor)"
+              />
+            </li>
+          </ul>
+        </section>
+      </div>
     </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { DialogPassThroughOptions } from 'primevue'
-import type { PairableAgentInterface } from '@/components/notebooks/notebooks.interface'
-import { Button, Dialog, Listbox, Tag } from 'primevue'
+import { Button, Dialog, Tag } from 'primevue'
 import { computed, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
-import { errorToast, successToast } from '@/toasts'
+import { errorToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
-import { NOTEBOOK_PAIRABLE_AGENTS } from '@/components/notebooks/notebooks.const'
-import { Copy } from 'lucide-vue-next'
-
-function agentIdForLabel(label: string | null): string | null {
-  if (!label) return null
-  const agent = NOTEBOOK_PAIRABLE_AGENTS.find(
-    (agent) => agent.name.toLowerCase() === label.toLowerCase(),
-  )
-  return agent?.id ?? null
-}
+import { workspaceApi } from '@/api/slices/workspace/workspace.api'
+import AgentsPanel from '@/flow/workbench/components/panel/AgentsPanel.vue'
+import { useAgentHarnesses } from '@/flow/workbench/live/useAgentHarnesses'
+import { agentToolVerb } from '@/components/notebooks/cell/cell.const'
 
 const DIALOG_PT: DialogPassThroughOptions = {
   root: {
-    class: 'w-[420px] rounded-lg!',
+    class: 'w-[520px] max-w-[calc(100vw-2rem)] rounded-lg!',
   },
   header: {
     class: 'text-xl uppercase',
@@ -80,63 +81,55 @@ const DIALOG_PT: DialogPassThroughOptions = {
   },
 }
 
-const COPY_COMMAND_TOOLTIP =
-  'Copy the command to connect your agent to this flow. Replace {your_agent} with your agent name before running it.'
-
 const toast = useToast()
-
 const flowStore = useFlowStore()
 
 const visible = ref(false)
-const loading = ref(false)
-const selectedAgentId = ref<string | null>(agentIdForLabel(flowStore.pairedAgentLabel))
+const ending = ref<string | null>(null)
 
-const tagValue = computed(() =>
-  flowStore.pairedAgentLabel ? `${flowStore.pairedAgentLabel} paired` : 'Unpaired',
-)
-const tagSeverity = computed(() => (flowStore.pairedAgentLabel ? 'success' : 'secondary'))
-
-const buttonLabel = computed(() => {
-  if (flowStore.pairedAgentLabel) return 'Change agent'
-  return 'Pair an agent'
+// Paired is read off the store, which reads it off the daemon's lease state.
+// Nothing in this dialog sets it: the agent connects, and the tag follows.
+// While the agent is inside a call the tag says which, and which cell: the
+// daemon brackets every call a leased connection makes, so this is live.
+const tagValue = computed(() => {
+  const label = flowStore.pairedAgentLabel
+  if (!label) return 'Unpaired'
+  const doing = flowStore.currentActivity
+  if (!doing) return `${label} paired`
+  const verb = doing.inCall ? agentToolVerb(doing.tool) : 'working on'
+  if (doing.slug) return `${label} · ${verb} ${doing.slug}`
+  return doing.inCall ? `${label} · ${verb}` : `${label} · working`
 })
+const tagSeverity = computed(() => {
+  if (!flowStore.pairedAgentLabel) return 'secondary'
+  return flowStore.currentActivity ? 'info' : 'success'
+})
+const buttonLabel = computed(() => (flowStore.pairedAgentLabel ? 'Agents' : 'Pair an agent'))
+
+const agents = useAgentHarnesses(
+  {
+    list: () => workspaceApi.agentHarnesses(),
+    setup: (id, consent) => workspaceApi.setupAgentHarness(id, consent),
+    remove: (id) => workspaceApi.removeAgentHarness(id),
+  },
+  (failure) => toast.add(errorToast(failure)),
+)
 
 function openDialog() {
-  selectedAgentId.value = agentIdForLabel(flowStore.pairedAgentLabel)
   visible.value = true
+  // Detected on every open: a harness installed since the last look is the
+  // whole reason to look again.
+  void agents.refresh()
 }
 
-function onVisibleChange(value: boolean) {
-  if (value) return
-  selectedAgentId.value = agentIdForLabel(flowStore.pairedAgentLabel)
-}
-
-const connectCommand = computed(
-  () => `lumlflow agent begin --label {your_agent} --flow ${flowStore.currentFlow ?? ''}`,
-)
-
-async function copyConnectCommand() {
+async function onEnd(actor: string) {
+  ending.value = actor
   try {
-    await navigator.clipboard.writeText(connectCommand.value)
-    toast.add(successToast('Agent connection command copied to clipboard'))
-  } catch (error) {
-    toast.add(errorToast(error))
-  }
-}
-
-async function onPair() {
-  const agent = NOTEBOOK_PAIRABLE_AGENTS.find((agent) => agent.id === selectedAgentId.value)
-  if (!agent) return
-
-  loading.value = true
-  try {
-    await flowStore.pairAgent(agent)
-    visible.value = false
-    toast.add(successToast(`${agent.name} paired successfully`))
-  } catch (error) {
-    toast.add(errorToast(error))
+    await flowStore.endAgentSession(actor)
+  } catch (failure) {
+    toast.add(errorToast(failure))
   } finally {
-    loading.value = false
+    ending.value = null
   }
 }
 </script>
@@ -150,10 +143,31 @@ async function onPair() {
 .toolbar-pair-button {
   @apply text-primary cursor-pointer hover:text-primary-600 transition-colors p-1;
 }
-.toolbar-copy-button {
-  @apply text-primary cursor-pointer hover:text-primary-600 transition-colors p-1;
+.agents-body {
+  @apply flex flex-col gap-4;
 }
-.agent-option {
-  @apply flex items-center gap-2;
+.agents-note {
+  @apply text-sm text-muted-color;
+}
+.sessions {
+  @apply flex flex-col gap-2 border-t border-surface-200 pt-3 dark:border-surface-700;
+}
+.sessions-title {
+  @apply text-sm font-medium;
+}
+.sessions-list {
+  @apply flex flex-col gap-1;
+}
+.session-row {
+  @apply flex items-center gap-2 text-sm;
+}
+.session-label {
+  @apply flex-1 min-w-0 truncate;
+}
+.session-state {
+  @apply text-muted-color;
+}
+.session-state--live {
+  @apply text-(--p-message-success-color);
 }
 </style>

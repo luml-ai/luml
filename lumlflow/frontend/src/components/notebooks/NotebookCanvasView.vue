@@ -66,6 +66,7 @@ import type {
   NotebookAssetInterface,
 } from '@/components/notebooks/notebooks.interface'
 import { useFlowStore } from '@/store/flow'
+import { edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
 import NotebookCellNode from '@/components/notebooks/cell/NotebookCellNode.vue'
 import NotebooksCanvasToolbar from '@/components/notebooks/NotebooksCanvasToolbar.vue'
 import {
@@ -115,6 +116,7 @@ function buildLevels(cells: CellSummary[], edges: CellEdge[]): Map<string, numbe
 function buildCanvas(
   cells: CellSummary[],
   assets: NotebookAssetInterface[],
+  selected: string | null,
 ): { nodes: Node<CellNodeData>[]; edges: Edge[] } {
   const cellEdges = buildEdges(cells)
   const levels = buildLevels(cells, cellEdges)
@@ -151,21 +153,37 @@ function buildCanvas(
     })
   }
 
-  const edges: Edge[] = cellEdges.map((edge) => ({
-    id: `e-${edge.from}-${edge.to}-${edge.input}`,
-    source: edge.from,
-    target: edge.to,
-    type: 'smoothstep',
-    pathOptions: { borderRadius: 20 },
-    markerEnd: MarkerType.ArrowClosed,
-  }))
+  // The path the selected cell's result was computed along lights up with
+  // it: every edge into it, and into what those came from. Lit edges go
+  // last so they paint over the unlit ones they cross — SVG paints in order
+  // — while every edge stays in the layer beneath the cards. A z-index
+  // would lift them above the cards instead.
+  const lit = edgesLeadingTo(cellEdges, selected)
+  const edges: Edge[] = cellEdges.map((edge) => {
+    const id = edgeId(edge)
+    const isLit = lit.has(id)
+    return {
+      id,
+      source: edge.from,
+      target: edge.to,
+      type: 'smoothstep',
+      pathOptions: { borderRadius: 20 },
+      class: isLit ? 'edge--lit' : undefined,
+      markerEnd: isLit
+        ? { type: MarkerType.ArrowClosed, color: 'var(--p-primary-color)' }
+        : MarkerType.ArrowClosed,
+    }
+  })
+  edges.sort((left, right) => Number(lit.has(left.id)) - Number(lit.has(right.id)))
 
   return { nodes, edges }
 }
 
 const flowStore = useFlowStore()
 
-const canvas = computed(() => buildCanvas(flowStore.cells, flowStore.notebookCells))
+const canvas = computed(() =>
+  buildCanvas(flowStore.cells, flowStore.notebookCells, flowStore.selectedCellId),
+)
 const nodes = computed(() => canvas.value.nodes)
 const edges = computed(() => canvas.value.edges)
 
@@ -242,5 +260,18 @@ watch(
 
 .full-screen {
   @apply fixed top-4 right-4 bottom-4 left-4 z-1000 h-auto;
+}
+</style>
+
+<style>
+/* Vue Flow renders edges outside this component's scope. */
+.vue-flow__edge .vue-flow__edge-path {
+  transition:
+    stroke 0.2s ease,
+    stroke-width 0.2s ease;
+}
+.vue-flow__edge.edge--lit .vue-flow__edge-path {
+  stroke: var(--p-primary-color);
+  stroke-width: 2;
 }
 </style>

@@ -104,8 +104,14 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
         method = api.methods.get(method_name)
         if method is None:
             return _failed(f"no method `{message.get('method')}`", status=_NO_METHOD)
+        params = dict(message.get("params") or {})
+        if method_name == "agent.begin":
+            # A lease is a connection's promise to be there; an HTTP request is
+            # gone before the answer lands. The session is still registered —
+            # for attribution — but nothing may call it paired.
+            params.pop("lease", None)
         try:
-            result = await method(dict(message.get("params") or {}))
+            result = await method(params)
         except FlowError as failure:
             # A refusal the runtime named crosses as itself, so the browser's
             # client can rebuild it the way the CLI does.
@@ -277,6 +283,10 @@ def _subscribed(
         # opened halfway through one learns here which console it can still
         # ask for — without this the ring buffer holds a tail nobody can name.
         "running": streams.running(flow),
+        # The same for an agent mid-call: nothing journals "edit-cell is
+        # running on train", and a tab that opens during it would otherwise
+        # see the cell change with nobody named as changing it.
+        "activity": streams.activities(flow),
     }
     return [
         *(

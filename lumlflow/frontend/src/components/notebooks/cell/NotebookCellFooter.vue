@@ -18,8 +18,8 @@
         variant="outlined"
         severity="secondary"
         class="p-0 w-10 h-10"
-        :loading="isRunning"
-        :disabled="isRunning"
+        :loading="isRunning || isLive"
+        :disabled="isRunning || isLive"
         @click="onRunCell"
       >
         <template #icon>
@@ -53,6 +53,9 @@ const subtitle = computed(() => {
 })
 
 const isRunning = ref(false)
+// A run somebody else asked for — the agent, reactivity, another tab — is
+// just as much a reason not to offer a second one.
+const isLive = computed(() => flowStore.cellLiveStates[props.cell.slug] !== undefined)
 
 async function onRunCell() {
   if (!flowStore.ensureOnLaneHead()) return

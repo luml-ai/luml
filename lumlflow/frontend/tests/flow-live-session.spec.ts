@@ -631,10 +631,12 @@ describe('the surfaces a degraded state drives', () => {
 // --- pairing, runs, and the slice --------------------------------------------
 
 describe('the session state a journal drives', () => {
-  it('flips to paired on the agent_begin transaction, with no confirmation step', async () => {
+  it('flips to paired on the daemon’s agents frame, and only for a leased session', async () => {
     const { socket, session } = await attach()
     expect(session.agent.value).toBeNull()
 
+    // The registration itself proves nothing: a hand-registered session has
+    // nobody behind it, and the transaction that records it must not pair.
     socket.deliver({
       channel: 'journal',
       type: 'transaction',
@@ -642,26 +644,57 @@ describe('the session state a journal drives', () => {
       step: 2,
       transaction: transaction(2, {
         intent: 'session start',
-        ops: [{ op: 'agent_begin', actor: 'claude-1', label: 'claude-1' }],
+        ops: [{ op: 'agent_begin', actor: 'manual', label: 'manual' }],
       }),
+    })
+    socket.deliver({
+      channel: 'journal',
+      type: 'agents',
+      flow: FLOW,
+      step: 2,
+      sessions: [{ actor: 'manual', label: 'manual', begun_step: 2, leased: false }],
+    })
+
+    expect(session.agent.value).toBeNull()
+    expect(session.state.value).toBe('unpaired')
+
+    // A leased session is a connection, and the daemon says so itself.
+    socket.deliver({
+      channel: 'journal',
+      type: 'agents',
+      flow: FLOW,
+      step: 3,
+      sessions: [
+        { actor: 'claude-1', label: 'claude-1', begun_step: 3, leased: true },
+        { actor: 'manual', label: 'manual', begun_step: 2, leased: false },
+      ],
     })
 
     expect(session.agent.value).toEqual({ actor: 'claude-1', label: 'claude-1' })
     expect(session.state.value).toBe('idle')
 
+    // The connection dropped; the daemon announces without anybody asking it to.
     socket.deliver({
       channel: 'journal',
-      type: 'transaction',
+      type: 'agents',
       flow: FLOW,
-      step: 3,
-      transaction: transaction(3, {
-        intent: 'session end',
-        ops: [{ op: 'agent_end', actor: 'claude-1', label: 'claude-1' }],
-      }),
+      step: 4,
+      sessions: [{ actor: 'manual', label: 'manual', begun_step: 2, leased: false }],
     })
 
     expect(session.agent.value).toBeNull()
     expect(session.state.value).toBe('unpaired')
+  })
+
+  it('reads who is paired off flow.open, so a late tab does not wait for a frame', async () => {
+    const { session } = await attach({
+      status: flowStatus({
+        agent: 'claude-1',
+        agent_sessions: [{ actor: 'claude-1', label: 'claude-1', begun_step: 1, leased: true }],
+      }),
+    })
+
+    expect(session.agent.value).toEqual({ actor: 'claude-1', label: 'claude-1' })
   })
 
   it('learns the runs in flight from the catch-up, not only from events', async () => {

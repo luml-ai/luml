@@ -455,6 +455,21 @@ function beganPairing(step = 3) {
   })
 }
 
+/**
+ * The daemon's word that the registration has a live connection behind it. The
+ * transaction alone pairs nobody: a hand registration looks the same in the
+ * journal, and only the lease tells them apart.
+ */
+function leasedPairing(step = 3, leased = true) {
+  return {
+    channel: 'journal' as const,
+    type: 'agents' as const,
+    flow: FLOW,
+    step,
+    sessions: leased ? [{ actor: 'claude-1', label: 'claude-1', begun_step: step, leased }] : [],
+  }
+}
+
 /** The line bound to the session, so only a journal frame can move it. */
 function pairHarness(session: Parameters<typeof pairedAgent>[0], now: number) {
   return defineComponent({
@@ -481,6 +496,7 @@ describe('pairing is detected, not declared', () => {
       step: 3,
       transaction: beganPairing(),
     })
+    socket.deliver(leasedPairing())
     await nextTick()
 
     expect(wrapper.text()).toContain('claude-1')
@@ -501,6 +517,7 @@ describe('pairing is detected, not declared', () => {
       step: 3,
       transaction: beganPairing(),
     })
+    socket.deliver(leasedPairing())
     await nextTick()
 
     expect(wrapper.text()).toContain('idle')
@@ -518,6 +535,7 @@ describe('pairing is detected, not declared', () => {
       step: 3,
       transaction: beganPairing(),
     })
+    socket.deliver(leasedPairing())
     await nextTick()
 
     // The registration survives; the transaction that carried it is pushed out
@@ -560,6 +578,7 @@ describe('pairing is detected, not declared', () => {
       step: 3,
       transaction: beganPairing(),
     })
+    socket.deliver(leasedPairing())
     await nextTick()
     socket.deliver({
       channel: 'journal',
@@ -573,6 +592,7 @@ describe('pairing is detected, not declared', () => {
         ops: [{ op: 'agent_end', actor: 'claude-1', label: 'claude-1' }],
       }),
     })
+    socket.deliver(leasedPairing(4, false))
     await nextTick()
 
     // Unpaired is a working state, not an error: the line goes back to the link

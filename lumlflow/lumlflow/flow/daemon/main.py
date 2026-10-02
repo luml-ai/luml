@@ -63,6 +63,7 @@ class Daemon:
             directory=self.directory,
             stop=self.stop,
             attachments=self._attachments,
+            leases=self._leases,
             instance_id=self.instance_id,
         )
         self.watcher = Watcher(self.hub)
@@ -294,20 +295,59 @@ class Daemon:
         """
         if self._stopped.is_set():
             return
-        for flow, actor, _ in sorted(
-            leased, key=lambda lease: (lease[0] or "", lease[1])
-        ):
+        ended = sorted(leased, key=lambda lease: (lease[0] or "", lease[1]))
+        # Dropped before the ends are committed: the watchers reading the
+        # announcement must not see a lease this connection no longer holds.
+        leased.clear()
+        # A call the connection died inside of never reaches its `ended`;
+        # cleared here so no card stays dimmed for an agent that is gone.
+        for flow, actor, _ in ended:
+            if flow:
+                with contextlib.suppress(FlowError, OSError):
+                    self.api.end_activity(flow, actor=actor)
+        for flow, actor, _ in ended:
             with contextlib.suppress(FlowError, OSError):
                 await self.api.agent_end({"flow": flow, "actor": actor})
-        leased.clear()
+            self._announce_agents(flow)
+
+    def _leases(self) -> Leases:
+        """Every agent session a live connection is carrying right now."""
+        return {
+            lease
+            for client_leases in self._client_leases.values()
+            for lease in client_leases
+        }
+
+    def _announce_activity(self, activity: "Activity", phase: str) -> None:
+        """Tell a flow's watchers a leased agent is inside a call, or out of it.
+
+        Best effort, like every announcement: a watcher that cannot be told is
+        not a reason to fail the call the agent made.
+        """
+        flow, actor, label, tool, slug = activity
+        with contextlib.suppress(FlowError, OSError):
+            self.api.announce_activity(
+                flow,
+                actor=actor,
+                label=label,
+                tool=tool,
+                slug=slug,
+                phase=phase,  # type: ignore[arg-type]
+            )
+
+    def _announce_agents(self, flow: str | None) -> None:
+        """Tell a flow's watchers who is really there, once a lease changed hands.
+
+        The registration itself announced when it committed, but without the
+        lease — that is only taken on the reply. This is the second, complete
+        word; on a dropped connection it is the only one.
+        """
+        with contextlib.suppress(FlowError, OSError):
+            self.api.announce_agents(flow)
 
     def _report_attached(self) -> None:
         leases = sorted(
-            {
-                lease
-                for client_leases in self._client_leases.values()
-                for lease in client_leases
-            },
+            self._leases(),
             key=lambda lease: (lease[2].casefold(), lease[0] or ""),
         )
         outside_flows = sorted(
@@ -335,11 +375,7 @@ class Daemon:
 
     def _attachments(self, flow_path: str) -> dict[str, Any]:
         excluded = Path(flow_path).resolve() if flow_path else None
-        leases = {
-            lease
-            for client_leases in self._client_leases.values()
-            for lease in client_leases
-        }
+        leases = self._leases()
         open_flows = sorted(
             session.ref.address
             for session in self.hub.opened()
@@ -393,8 +429,12 @@ class Daemon:
                 error=_error(METHOD_NOT_FOUND, f"no method `{message.get('method')}`"),
             )
             return
+        params = message.get("params") or {}
+        activity = _activity(leased, str(message["method"]), params)
+        if activity is not None:
+            self._announce_activity(activity, "started")
         try:
-            result = await method(message.get("params") or {})
+            result = await method(params)
         except FlowError as failure:
             _reply(
                 writer,
@@ -410,7 +450,17 @@ class Daemon:
             _reply(writer, request_id, error=_error(INTERNAL_ERROR, str(failure)))
         else:
             _reply(writer, request_id, result=result)
-            _leased(leased, str(message["method"]), message.get("params") or {}, result)
+            name = str(message["method"])
+            _leased(leased, name, params, result)
+            if (
+                name == "agent.begin"
+                and isinstance(result, dict)
+                and result.get("leased")
+            ):
+                self._announce_agents(result.get("flow"))
+        finally:
+            if activity is not None:
+                self._announce_activity(activity, "ended")
         # The caller may already be gone — an answer nobody is there for is not
         # a daemon-level failure.
         with contextlib.suppress(OSError):
@@ -529,6 +579,51 @@ def _log_loop_exception(
         )
     else:
         logger.error(message)
+
+
+# One call a leased agent is inside of: (flow, actor, label, method, slug).
+Activity = tuple[str, str, str, str, str | None]
+
+# Calls that say nothing about work on a flow: the handshake, the lease
+# itself, and the probes a harness sends to see whether the daemon is there.
+_SILENT = frozenset(
+    {
+        "ping",
+        "authenticate",
+        "agent.begin",
+        "agent.end",
+        "status",
+        "workspace.list",
+        "flow.open",
+        "tree",
+        "agents.harnesses",
+    }
+)
+
+
+def _activity(leased: Leases, method: str, params: dict[str, Any]) -> Activity | None:
+    """What a watcher should be told this call is, if the caller is leased.
+
+    Only a connection carrying a lease on the flow it addresses is an agent
+    working there; a CLI verb connects per call and holds none. The cell the
+    call names — `slug`, or the cell half of a `target` — is what lets the
+    workbench mark one card rather than the flow.
+    """
+    if method in _SILENT:
+        return None
+    actor = str(params.get("actor") or "")
+    if not actor:
+        return None
+    held = [lease for lease in leased if lease[1] == actor and lease[0]]
+    if not held:
+        return None
+    asked = params.get("flow")
+    flow, _, label = next(
+        (lease for lease in held if asked and lease[0] == asked), held[0]
+    )
+    slug = params.get("slug") or params.get("target")
+    named = str(slug).split(".", 1)[0] if slug else None
+    return (str(flow), actor, label, method, named or None)
 
 
 def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) -> None:

@@ -1,21 +1,16 @@
 import {
-  Bot,
   ChartBar,
   ChartSpline,
   CircuitBoard,
-  Cpu,
   FlaskConical,
   Notebook,
-  Sparkles,
   Table2,
-  Wand2,
   Workflow,
   type LucideIcon,
 } from 'lucide-vue-next'
 import type {
   NotebookAssetType,
   NotebookHealthState,
-  PairableAgentInterface,
   ReactivityOption,
   ViewModeOption,
 } from './notebooks.interface'
@@ -47,13 +42,6 @@ export const NOTEBOOK_REACTIVITY_HINTS: Record<ReactivityOption['value'], string
   lazy: 'Nothing runs until you ask for it.',
   auto: 'A cell already timed under this refreshes itself when something above it changes. Anything dearer waits for you, and says so on the card.',
 }
-
-export const NOTEBOOK_PAIRABLE_AGENTS: PairableAgentInterface[] = [
-  { id: 'claude', name: 'Claude', icon: Bot },
-  { id: 'codex', name: 'Codex', icon: Cpu },
-  { id: 'cursor', name: 'Cursor', icon: Sparkles },
-  { id: 'windsurf', name: 'Windsurf', icon: Wand2 },
-]
 
 export const NOTEBOOK_HEALTH_LABELS: Record<NotebookHealthState, string> = {
   synced: 'All cells are up to date',
