@@ -86,6 +86,7 @@ vi.mock('@/components/orbits/tabs/registry/collection/artifact/ArtifactTabs.vue'
         showExperimentSnapshot: Boolean,
         cardDisabled: Boolean,
         experimentSnapshotDisabled: Boolean,
+        modelAttachmentsDisabled: Boolean,
       },
       template: '<div />',
     }),
@@ -143,6 +144,14 @@ function mountPage() {
   })
 }
 
+function tabsProps(wrapper: ReturnType<typeof mountPage>) {
+  const tabs = wrapper.findComponent({ name: 'ArtifactTabs' })
+  return {
+    showModelAttachments: tabs.props('showModelAttachments'),
+    modelAttachmentsDisabled: tabs.props('modelAttachmentsDisabled'),
+  }
+}
+
 describe('artifact page', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -158,7 +167,7 @@ describe('artifact page', () => {
     apiMocks.getDownloadUrl.mockResolvedValue({ url: 'https://download.test/model' })
   })
 
-  it('shows the tab after reading a non-empty attachment index', async () => {
+  it('enables the tab after reading a non-empty attachment index', async () => {
     mockedAxios.get.mockResolvedValue({
       data: { 'attachments/report.pdf': [0, 42] },
     })
@@ -166,66 +175,73 @@ describe('artifact page', () => {
 
     await flushPromises()
 
-    expect(wrapper.findComponent({ name: 'ArtifactTabs' }).props('showModelAttachments')).toBe(true)
+    expect(tabsProps(wrapper)).toEqual({
+      showModelAttachments: true,
+      modelAttachmentsDisabled: false,
+    })
   })
 
-  it('hides the tab after reading an empty attachment index', async () => {
+  it('keeps the tab disabled after reading an empty attachment index', async () => {
     mockedAxios.get.mockResolvedValue({ data: {} })
     const wrapper = mountPage()
 
     await flushPromises()
 
-    expect(wrapper.findComponent({ name: 'ArtifactTabs' }).props('showModelAttachments')).toBe(
-      false,
-    )
+    expect(tabsProps(wrapper)).toEqual({
+      showModelAttachments: true,
+      modelAttachmentsDisabled: true,
+    })
   })
 
-  it('does not show the tab before attachment availability is known', async () => {
+  it('shows the tab disabled before attachment availability is known', async () => {
     apiMocks.getDownloadUrl.mockImplementation(() => new Promise(() => {}))
     const wrapper = mountPage()
 
     await flushPromises()
 
-    expect(wrapper.findComponent({ name: 'ArtifactTabs' }).props('showModelAttachments')).toBe(
-      false,
-    )
+    expect(tabsProps(wrapper)).toEqual({
+      showModelAttachments: true,
+      modelAttachmentsDisabled: true,
+    })
   })
 
-  it('keeps the tab available when index inspection fails', async () => {
+  it('keeps the tab enabled when index inspection fails', async () => {
     apiMocks.getDownloadUrl.mockRejectedValue(new Error('temporary failure'))
     const wrapper = mountPage()
 
     await flushPromises()
 
-    expect(wrapper.findComponent({ name: 'ArtifactTabs' }).props('showModelAttachments')).toBe(true)
+    expect(tabsProps(wrapper)).toEqual({
+      showModelAttachments: true,
+      modelAttachmentsDisabled: false,
+    })
   })
 
-  it('redirects a direct empty-attachments route to the overview', async () => {
-    if (!routerHarness.route) throw new Error('Route harness was not initialized')
-    routerHarness.route.name = 'attachments'
-    mockedAxios.get.mockResolvedValue({ data: {} })
-    mountPage()
-
-    await flushPromises()
-
-    expect(routerHarness.replace).toHaveBeenCalledWith({ name: 'artifact' })
-  })
-
-  it('redirects when a retry finds an empty attachment index', async () => {
-    if (!routerHarness.route) throw new Error('Route harness was not initialized')
-    routerHarness.route.name = 'attachments'
+  it('keeps the tab in place while a retry is running', async () => {
     apiMocks.getDownloadUrl.mockRejectedValueOnce(new Error('temporary failure'))
+    const wrapper = mountPage()
+    await flushPromises()
+
+    apiMocks.getDownloadUrl.mockImplementation(() => new Promise(() => {}))
+    const store = useArtifactsStore()
+    void store.loadCurrentArtifactAttachments(store.currentArtifact!)
+    await flushPromises()
+
+    expect(tabsProps(wrapper)).toEqual({
+      showModelAttachments: true,
+      modelAttachmentsDisabled: true,
+    })
+  })
+
+  it('stays on a direct attachments route when the attachment index is empty', async () => {
+    if (!routerHarness.route) throw new Error('Route harness was not initialized')
+    routerHarness.route.name = 'attachments'
     mockedAxios.get.mockResolvedValue({ data: {} })
     mountPage()
 
     await flushPromises()
+
     expect(routerHarness.replace).not.toHaveBeenCalled()
-
-    const store = useArtifactsStore()
-    await store.loadCurrentArtifactAttachments(store.currentArtifact!)
-    await flushPromises()
-
-    expect(routerHarness.replace).toHaveBeenCalledWith({ name: 'artifact' })
   })
 
   it('retains cached card and snapshot state across tabs and clears it on teardown', async () => {

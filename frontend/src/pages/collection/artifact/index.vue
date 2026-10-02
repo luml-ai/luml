@@ -45,7 +45,8 @@
       :show-data-tab="isDataTabVisible"
       :show-card="true"
       :show-experiment-snapshot="isExperimentSnapshotVisible"
-      :show-model-attachments="isModelAttachmentsAvailable"
+      :model-attachments-disabled="!isModelAttachmentsAvailable"
+      :show-model-attachments="isModelAttachmentsVisible"
     ></ArtifactTabs>
     <div class="view-wrapper">
       <RouterView></RouterView>
@@ -132,20 +133,17 @@ const isExperimentSnapshotCardAvailable = computed(() => {
   return !!FnnxService.findExperimentSnapshotArchiveName(fileIndex)
 })
 
-const isModelAttachmentsAvailable = computed(() => {
-  const artifact = artifactsStore.currentArtifact
-  if (!artifact) return false
-  if (artifact.type !== ArtifactTypeEnum.model && artifact.type !== ArtifactTypeEnum.experiment) {
-    return false
-  }
-  const fileIndex = artifact.file_index
-  const archivePath = FnnxService.findAttachmentsTarPath(fileIndex)
-  const indexPath = FnnxService.findAttachmentsIndexPath(fileIndex)
+const isModelAttachmentsVisible = computed(() => {
+  if (!artifactsStore.currentArtifact) return false
   return (
-    !!archivePath &&
-    !!indexPath &&
-    (artifactsStore.attachmentsStatus === 'available' ||
-      artifactsStore.attachmentsStatus === 'error')
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.model ||
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.experiment
+  )
+})
+
+const isModelAttachmentsAvailable = computed(() => {
+  return (
+    artifactsStore.attachmentsStatus === 'available' || artifactsStore.attachmentsStatus === 'error'
   )
 })
 
@@ -236,15 +234,6 @@ async function onTracksChanged() {
 }
 
 watch(() => route.params.artifactId, onArtifactIdChange, { immediate: true })
-
-watch(
-  () => artifactsStore.attachmentsStatus,
-  (status) => {
-    if (status === 'empty' && route.name === 'attachments') {
-      void router.replace({ name: 'artifact' })
-    }
-  },
-)
 
 onUnmounted(() => {
   artifactsStore.resetCurrentArtifact()

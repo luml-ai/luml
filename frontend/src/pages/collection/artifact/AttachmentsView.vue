@@ -4,6 +4,7 @@
     <p>{{ error ?? artifactsStore.attachmentsError }}</p>
     <Button label="Try again" severity="secondary" @click="retry" />
   </div>
+  <p v-else-if="artifactsStore.attachmentsStatus === 'empty'">This artifact has no attachments.</p>
   <ModelAttachments v-else-if="provider" :provider="provider" class="attachments" />
 </template>
 
