@@ -1,99 +1,71 @@
-from unittest.mock import AsyncMock, patch
-from uuid import UUID
-
 import pytest
 from luml.handlers.api_keys import APIKeyHandler
 from luml.infra.exceptions import UserAPIKeyCreateError
 from luml.schemas.user import APIKeyCreateOut, UserOut
 
-handler = APIKeyHandler()
+from tests.support.ids import USER_ID
+from tests.support.mocks import CollaboratorMocks, mock_collaborators
 
 
-@patch(
-    "luml.handlers.api_keys.UserRepository.create_user_api_key",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_create_user_api_key(
-    mock_create_user_api_key: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    mock_create_user_api_key.return_value = True
-
-    result = await handler.create_user_api_key(user_id)
-
-    assert isinstance(result, APIKeyCreateOut)
-    assert result.key is not None
-    assert result.key.startswith("dfs_")
-    mock_create_user_api_key.assert_awaited_once()
+@pytest.fixture
+def mocks() -> CollaboratorMocks[APIKeyHandler]:
+    return mock_collaborators(APIKeyHandler())
 
 
-@patch(
-    "luml.handlers.api_keys.UserRepository.create_user_api_key",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_create_user_api_key_failed(
-    mock_create_user_api_key: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    mock_create_user_api_key.return_value = False
+class TestAPIKeyHandler:
+    async def test_create_user_api_key_returns_prefixed_key(
+        self, mocks: CollaboratorMocks[APIKeyHandler]
+    ) -> None:
+        mocks.user_repository.create_user_api_key.return_value = True
 
-    with pytest.raises(UserAPIKeyCreateError):
-        await handler.create_user_api_key(user_id)
+        result = await mocks.handler.create_user_api_key(USER_ID)
 
+        assert isinstance(result, APIKeyCreateOut)
+        assert result.key is not None
+        assert result.key.startswith("dfs_")
+        mocks.user_repository.create_user_api_key.assert_awaited_once()
 
-@patch(
-    "luml.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_authenticate_api_key(
-    mock_get_user_by_api_key_hash: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    expected_user = UserOut(
-        id=user_id,
-        email="test@example.com",
-        full_name="Test User",
-        disabled=False,
-        photo=None,
-        has_api_key=True,
-    )
-    mock_get_user_by_api_key_hash.return_value = expected_user
+    async def test_create_user_api_key_raises_when_repository_fails(
+        self, mocks: CollaboratorMocks[APIKeyHandler]
+    ) -> None:
+        mocks.user_repository.create_user_api_key.return_value = False
 
-    result = await handler.authenticate_api_key("dfs_test_api_key")
+        with pytest.raises(UserAPIKeyCreateError):
+            await mocks.handler.create_user_api_key(USER_ID)
 
-    assert result == expected_user
-    mock_get_user_by_api_key_hash.assert_awaited_once()
+    async def test_authenticate_api_key_returns_user(
+        self, mocks: CollaboratorMocks[APIKeyHandler]
+    ) -> None:
+        expected_user = UserOut(
+            id=USER_ID,
+            email="test@example.com",
+            full_name="Test User",
+            disabled=False,
+            photo=None,
+            has_api_key=True,
+        )
+        mocks.user_repository.get_user_by_api_key_hash.return_value = expected_user
 
+        result = await mocks.handler.authenticate_api_key("dfs_test_api_key")
 
-@patch(
-    "luml.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_authenticate_api_key_not_found(
-    mock_get_user_by_api_key_hash: AsyncMock,
-) -> None:
-    mock_get_user_by_api_key_hash.return_value = None
+        assert result == expected_user
+        mocks.user_repository.get_user_by_api_key_hash.assert_awaited_once()
 
-    result = await handler.authenticate_api_key("invalid_api_key")
+    async def test_authenticate_api_key_returns_none_when_key_unknown(
+        self, mocks: CollaboratorMocks[APIKeyHandler]
+    ) -> None:
+        mocks.user_repository.get_user_by_api_key_hash.return_value = None
 
-    assert result is None
-    mock_get_user_by_api_key_hash.assert_awaited_once()
+        result = await mocks.handler.authenticate_api_key("invalid_api_key")
 
+        assert result is None
+        mocks.user_repository.get_user_by_api_key_hash.assert_awaited_once()
 
-@patch(
-    "luml.handlers.api_keys.UserRepository.delete_api_key_by_user_id",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_delete_user_api_key(
-    mock_delete_api_key_by_user_id: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    async def test_delete_user_api_key_deletes_by_user_id(
+        self, mocks: CollaboratorMocks[APIKeyHandler]
+    ) -> None:
+        await mocks.handler.delete_user_api_key(USER_ID)
 
-    await handler.delete_user_api_key(user_id)
-
-    mock_delete_api_key_by_user_id.assert_awaited_once_with(user_id)
+        mocks.user_repository.delete_api_key_by_user_id.assert_awaited_once_with(
+            USER_ID
+        )

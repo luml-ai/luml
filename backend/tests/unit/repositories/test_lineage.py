@@ -1,19 +1,16 @@
 from typing import cast
 from unittest.mock import AsyncMock, Mock
-from uuid import UUID
 
 import pytest
 from luml.repositories.lineage import LineageRepository
 from luml.schemas.artifacts import ArtifactType
 from sqlalchemy.ext.asyncio import AsyncSession
 
-ORBIT_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-ARTIFACT_ID = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+from tests.support.ids import ARTIFACT_ID, ORBIT_ID
 
 
 class TestLineageRepository:
-    @pytest.mark.asyncio
-    async def test_get_or_create_node_fails_loudly_when_the_node_is_missing(
+    async def test_get_or_create_node_raises_runtime_error_when_node_missing(
         self,
     ) -> None:
         mock_session = Mock(spec=AsyncSession)

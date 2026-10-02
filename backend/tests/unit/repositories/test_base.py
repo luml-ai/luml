@@ -30,7 +30,7 @@ def _wrapped(
 
 
 class TestIntegrityErrorTranslation:
-    def test_constraint_name_is_read_through_the_cause_chain(self) -> None:
+    def test_violated_constraint_returns_name_read_through_cause_chain(self) -> None:
         error = _wrapped(constraint_name="org_member", sqlstate="23505")
 
         assert violated_constraint(error) == "org_member"
@@ -38,7 +38,7 @@ class TestIntegrityErrorTranslation:
         assert not violates(error, "other")
         assert not is_foreign_key_violation(error)
 
-    def test_foreign_key_violations_are_recognised_by_sqlstate(self) -> None:
+    def test_is_foreign_key_violation_returns_true_when_sqlstate_is_23503(self) -> None:
         error = _wrapped(
             constraint_name="organization_members_organization_id_fkey",
             sqlstate="23503",
@@ -46,14 +46,14 @@ class TestIntegrityErrorTranslation:
 
         assert is_foreign_key_violation(error)
 
-    def test_errors_without_driver_details_fall_back_to_the_message(self) -> None:
+    def test_violates_falls_back_to_message_when_no_driver_details(self) -> None:
         error = IntegrityError("", {}, Exception('duplicate key "org_member"'))
 
         assert violated_constraint(error) is None
         assert violates(error, "org_member")
         assert not is_foreign_key_violation(error)
 
-    def test_stage_sync_error_maps_only_the_known_constraints(self) -> None:
+    def test_stage_sync_error_maps_only_known_constraints(self) -> None:
         duplicate = stage_sync_error(_wrapped("uq_track_stages_track_id_name"))
         assigned = stage_sync_error(_wrapped("fk_track_entries_stage_id_track_stages"))
         unrelated = _wrapped("some_other_constraint")

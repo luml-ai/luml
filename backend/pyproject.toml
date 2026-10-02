@@ -48,6 +48,10 @@ dev = [
     "types-passlib==1.7.7.20250602",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
 [tool.ruff]
 # Target Python 3.14
 target-version = "py314"
