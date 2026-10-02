@@ -26,6 +26,23 @@ const TREND: Series = {
 }
 
 describe('InvalidValuesPanel', () => {
+  it('trims reference bounds, rounds observed extremes to three decimals and keeps tiny values', () => {
+    const row = rowFor('age')
+    const wrapper = mountPanel({
+      ...row,
+      invalid: {
+        ...row.invalid!,
+        reference_min: 0.5,
+        reference_max: 1.234567,
+        observed_min: -0.0004,
+        observed_max: 1234567.89123,
+      },
+    })
+    const range = wrapper.get('[data-testid="dq-out-of-range"]').text()
+    expect(range).toContain('0.5 … 1.235')
+    expect(range).toContain('-0.0004 … 1,234,567.891')
+  })
+
   it('explains a numerical feature with the bounds it violated', () => {
     const wrapper = mountPanel(rowFor('age'))
 

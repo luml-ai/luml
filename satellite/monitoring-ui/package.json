@@ -15,7 +15,7 @@
     "apexcharts": "^5.10.6",
     "lucide-vue-next": "^0.460.0",
     "vue": "^3.5.12",
-    "vue3-apexcharts": "^1.8.0"
+    "vue3-apexcharts": "1.10.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.3",

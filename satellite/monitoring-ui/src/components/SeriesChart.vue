@@ -5,6 +5,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { formatChartNumber } from '@/lib/format'
 import type { Series } from '@/api/types'
 
 const props = withDefaults(
@@ -86,24 +87,8 @@ const flatZero = computed(
     props.series.points.every((point) => point.value == null || point.value === 0),
 )
 
-/**
- * Axis labels the eye can read: a rate as a percentage, a count as an integer, and a
- * score like PSI with just enough decimals. Rounding everything to integers collapsed
- * PSI 0.26 to "0"; printing it raw gave 0.29999999999999999.
- */
 function formatTick(value: number | null): string {
-  if (value == null) return ''
-  if (isRatio.value) return `${(value * 100).toFixed(1)}%`
-  if (Number.isInteger(value)) return String(value)
-  const magnitude = Math.abs(value)
-  if (magnitude >= 100) return value.toFixed(0)
-  if (magnitude >= 1) return trim(value.toFixed(2))
-  return trim(value.toFixed(3))
-}
-
-/** 0.250 -> 0.25, 1.50 -> 1.5 */
-function trim(text: string): string {
-  return text.includes('.') ? text.replace(/0+$/, '').replace(/\.$/, '') : text
+  return formatChartNumber(value, { percent: isRatio.value })
 }
 
 const options = computed(() => ({
