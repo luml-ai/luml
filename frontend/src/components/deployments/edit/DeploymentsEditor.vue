@@ -93,8 +93,13 @@
               <SecretsSelect
                 v-model="secret.value"
                 :secrets-list="secretsStore.secretsList"
+                disabled
               ></SecretsSelect>
             </FormField>
+            <p class="secrets-hint" data-testid="secrets-read-only-hint">
+              Secret bindings can't be changed after deployment. To use a new key, update the
+              secret's value in Secrets.
+            </p>
           </AccordionContent>
         </AccordionPanel>
       </Accordion>
@@ -120,7 +125,14 @@
           Stop deployment
         </Button>
       </div>
-      <Button type="submit" :loading="loading" form="editDeploymentForm">Save changes</Button>
+      <Button
+        type="submit"
+        :loading="loading"
+        :disabled="!initialized || loading"
+        form="editDeploymentForm"
+      >
+        Save changes
+      </Button>
     </template>
     <DeploymentsDelete
       v-if="isDeleting"
@@ -217,13 +229,14 @@ const isForceDeleting = ref(false)
 const initialValues = ref<FormValues>({
   name: props.data.name,
   description: props.data.description,
-  tags: props.data.tags,
+  tags: [...(props.data.tags ?? [])],
   collectionId: props.data.collection_id,
   modelId: props.data.artifact_id,
   monitoringEnabled: props.data.monitoring_mode === MonitoringMode.full,
   secretDynamicAttributes: [],
 })
 
+const initialized = ref(false)
 const loading = ref(false)
 const modelArtifact = ref<ModelArtifact | null>(null)
 
@@ -261,26 +274,22 @@ const isForceDelete = computed(() => {
 })
 
 async function saveChanges({ valid }: FormSubmitEvent) {
-  if (!valid) return
+  if (!valid || !initialized.value || loading.value) return
   try {
     loading.value = true
-    const dynamic_attributes_secrets = initialValues.value.secretDynamicAttributes.reduce(
-      (acc: Record<string, string>, attribute) => {
-        if (!attribute.value) return acc
-        acc[attribute.key] = attribute.value
-        return acc
-      },
-      {},
-    )
-    const payload: UpdateDeploymentPayload = {
-      name: initialValues.value.name,
-      description: initialValues.value.description,
-      tags: initialValues.value.tags,
-      dynamic_attributes_secrets,
-      monitoring_mode: initialValues.value.monitoringEnabled
-        ? MonitoringMode.full
-        : MonitoringMode.off,
+    const values = initialValues.value
+    const savedTags = props.data.tags ?? []
+    const payload: UpdateDeploymentPayload = {}
+    if (values.name !== props.data.name) payload.name = values.name
+    if (values.description !== props.data.description) payload.description = values.description
+    if (
+      values.tags.length !== savedTags.length ||
+      values.tags.some((tag, index) => tag !== savedTags[index])
+    ) {
+      payload.tags = values.tags
     }
+    const monitoringMode = values.monitoringEnabled ? MonitoringMode.full : MonitoringMode.off
+    if (monitoringMode !== props.data.monitoring_mode) payload.monitoring_mode = monitoringMode
     await deploymentsStore.update(organizationId.value, props.data.orbit_id, props.data.id, payload)
     toast.add(simpleSuccessToast('Deployment changes saved successfully.'))
     visible.value = false
@@ -349,10 +358,11 @@ onBeforeMount(async () => {
       collectionId: props.data.collection_id,
     }
     const currentModel = await artifactsStore.getArtifact(props.data.artifact_id, requestInfo)
-    if (!currentModel) return
+    if (!currentModel) throw new Error('Failed to load model')
     modelArtifact.value = currentModel
     const { secrets } = FnnxService.getDynamicAttributes(currentModel.manifest)
     setSecrets(secrets)
+    initialized.value = true
   } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load model')))
   }
@@ -370,7 +380,7 @@ onBeforeMount(async () => {
 }
 
 .base-settings {
-  margin: -20px;
+  margin: -20px -20px -12px;
 }
 
 .model-settings {
@@ -411,6 +421,13 @@ onBeforeMount(async () => {
 }
 
 .monitoring-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--p-button-text-secondary-color);
+  margin: 0;
+}
+
+.secrets-hint {
   font-size: 12px;
   line-height: 1.5;
   color: var(--p-button-text-secondary-color);
