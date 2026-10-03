@@ -10,6 +10,7 @@ from luml_tunnel.cli import BASE_URL_ENV, COOKIE_SECRET_ENV, RELAY_TOKEN_ENV, ma
 from luml_tunnel.frames import RelayLimits
 from luml_tunnel.relay import Relay, RelayServer
 from tests.harness import (
+    APP_URL,
     BASE_DOMAIN,
     RELAY_TOKEN,
     FakeRelayApi,
@@ -85,7 +86,22 @@ async def test_relay_learns_its_base_domain_and_app_origins_from_luml(
     settings = served_relay(started).settings
     assert settings.base_domain == BASE_DOMAIN
     assert settings.app_origins == ("https://app.luml.ai", "http://localhost:5173")
+    assert settings.app_url == APP_URL
     assert settings.cookie_secret == b"shared-secret"
+
+
+@pytest.mark.usefixtures("luml_url")
+@pytest.mark.parametrize(
+    "app_url", ["javascript:alert(1)", 'https://app.example/"><script>', "app.example"]
+)
+async def test_relay_drops_an_app_address_that_is_not_a_web_address(
+    luml: FakeRelayApi, started: list[RelayServer], app_url: str
+) -> None:
+    luml.app_url = app_url
+
+    assert await run_relay() == 0
+
+    assert served_relay(started).settings.app_url == ""
 
 
 @pytest.mark.usefixtures("luml_url")

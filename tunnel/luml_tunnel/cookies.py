@@ -20,15 +20,17 @@ MAX_LIFETIME_SECONDS = 12 * 60 * 60
 class ViewerCookie:
     session: str
     user: str
+    grant: str
     issued_at: float
     expires_at: float
     value: str
 
 
 class ViewerCookies:
-    """Signs the relay's cookie, bound to one session and one user.
+    """Signs the relay's cookie, bound to one session, one user and the grant at LUML.
 
-    A cookie ends after `idle_lifetime` without requests and `max_lifetime` after launch.
+    A cookie ends after `idle_lifetime` without requests and `max_lifetime` after launch,
+    which the relay decides from the cookie alone.
     """
 
     def __init__(
@@ -45,8 +47,8 @@ class ViewerCookies:
         self._idle_lifetime = idle_lifetime
         self._max_lifetime = max_lifetime
 
-    def issue(self, session: str, user: str) -> ViewerCookie:
-        return self._signed(session, user, self._clock())
+    def issue(self, session: str, user: str, grant: str) -> ViewerCookie:
+        return self._signed(session, user, grant, self._clock())
 
     def renew(self, value: str, session: str) -> ViewerCookie | None:
         """Return a renewed cookie for a valid value of this session, otherwise None."""
@@ -54,16 +56,19 @@ class ViewerCookies:
         if payload is None or payload.get("session") != session:
             return None
         try:
-            user, issued_at, expires_at = payload["user"], payload["iat"], payload["exp"]
+            user, grant = payload["user"], payload["grant"]
+            issued_at, expires_at = payload["iat"], payload["exp"]
         except KeyError:
             return None
-        if not isinstance(user, str) or not all(
-            isinstance(moment, int | float) for moment in (issued_at, expires_at)
+        if (
+            not isinstance(user, str)
+            or not isinstance(grant, str)
+            or not all(isinstance(moment, int | float) for moment in (issued_at, expires_at))
         ):
             return None
         if self._clock() >= min(expires_at, issued_at + self._max_lifetime):
             return None
-        return self._signed(session, user, issued_at)
+        return self._signed(session, user, grant, issued_at)
 
     def set_cookie_header(self, cookie: ViewerCookie) -> str:
         max_age = max(0, math.ceil(cookie.expires_at - self._clock()))
@@ -73,13 +78,19 @@ class ViewerCookies:
             "Secure; HttpOnly; SameSite=None; Partitioned"
         )
 
-    def _signed(self, session: str, user: str, issued_at: float) -> ViewerCookie:
+    def _signed(self, session: str, user: str, grant: str, issued_at: float) -> ViewerCookie:
         now = self._clock()
         expires_at = min(now + self._idle_lifetime, issued_at + self._max_lifetime)
-        payload = {"session": session, "user": user, "iat": issued_at, "exp": expires_at}
+        payload = {
+            "session": session,
+            "user": user,
+            "grant": grant,
+            "iat": issued_at,
+            "exp": expires_at,
+        }
         encoded = _encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
         value = f"{encoded}.{self._signature(encoded)}"
-        return ViewerCookie(session, user, issued_at, expires_at, value)
+        return ViewerCookie(session, user, grant, issued_at, expires_at, value)
 
     def _verified_payload(self, value: str) -> dict[str, Any] | None:
         encoded, _, signature = value.partition(".")

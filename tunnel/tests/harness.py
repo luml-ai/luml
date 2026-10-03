@@ -219,16 +219,21 @@ class FakeRelayApi:
     """LUML's relay-facing API in process, with the backend's routes and answers.
 
     It knows one relay by its token unless told otherwise, and stores what it issues.
+    Its clock decides when tokens and grants expire.
     """
 
     relay_tokens: dict[str, str] = field(default_factory=lambda: {RELAY_TOKEN: RELAY_ID})
     base_domain: str = BASE_DOMAIN
     app_origins: list[str] = field(default_factory=list)
+    app_url: str = APP_URL
     tokens: dict[str, StoredToken] = field(default_factory=dict)
     ended_sessions: set[str] = field(default_factory=set)
     outage: Outage | None = None
     validated: list[str] = field(default_factory=list)
+    launches: list[str] = field(default_factory=list)
+    grant_checks: list[str] = field(default_factory=list)
     descriptions: int = 0
+    clock: Callable[[], float] = time.time
 
     def issue(
         self,
@@ -240,7 +245,7 @@ class FakeRelayApi:
         destination: str | None = None,
     ) -> str:
         token = secrets.token_urlsafe(24)
-        expires_at = datetime.now(UTC) + lifetime
+        expires_at = self._now() + lifetime
         self.tokens[token] = StoredToken(
             kind, session, user, relay, expires_at, destination=destination
         )
@@ -249,11 +254,18 @@ class FakeRelayApi:
     def validations_of(self, token: str) -> int:
         return self.validated.count(token)
 
+    def grant_of(self, token: str) -> str:
+        return self.tokens[token].id
+
+    def _now(self) -> datetime:
+        return datetime.fromtimestamp(self.clock(), UTC)
+
     def app(self) -> Starlette:
         return Starlette(
             routes=[
                 Route("/relays/v1/self", self._describe),
                 Route("/relays/v1/tokens/validate", self._validate, methods=["POST"]),
+                Route("/relays/v1/grants/check", self._check_grant, methods=["POST"]),
             ]
         )
 
@@ -276,7 +288,7 @@ class FakeRelayApi:
             "agent_url": f"wss://{self.base_domain}{CONNECT_PATH}",
             "status": "enabled",
             "app_origins": self.app_origins,
-            "app_url": APP_URL,
+            "app_url": self.app_url,
         }
         return JSONResponse(description)
 
@@ -285,21 +297,19 @@ class FakeRelayApi:
         if relay is None:
             return JSONResponse({"detail": "Invalid relay token"}, 401)
         body = await request.json()
-        self.validated.append(body["token"])
         launch = body.get("launch", False)
+        (self.launches if launch else self.validated).append(body["token"])
         stored = self.tokens.get(body["token"])
         if (
             stored is None
-            or stored.relay != relay
-            or stored.session in self.ended_sessions
-            or stored.expires_at <= datetime.now(UTC)
+            or not self._active(stored, relay)
             or stored.launched
             or (launch and stored.kind != TokenKind.VIEW)
         ):
             return JSONResponse({"active": False})
         if launch:
             stored.launched = True
-            stored.expires_at = datetime.now(UTC) + timedelta(hours=12)
+            stored.expires_at = self._now() + timedelta(hours=12)
         answer = {
             "active": True,
             "kind": stored.kind,
@@ -310,6 +320,30 @@ class FakeRelayApi:
             "destination": stored.destination if launch else None,
         }
         return JSONResponse(answer)
+
+    async def _check_grant(self, request: Request) -> JSONResponse:
+        relay = self._caller(request)
+        if relay is None:
+            return JSONResponse({"detail": "Invalid relay token"}, 401)
+        grant = (await request.json())["grant_id"]
+        self.grant_checks.append(grant)
+        stored = next((token for token in self.tokens.values() if token.id == grant), None)
+        if stored is None or not stored.launched or not self._active(stored, relay):
+            return JSONResponse({"active": False})
+        answer = {
+            "active": True,
+            "session_id": stored.session,
+            "user_id": stored.user,
+            "expires_at": stored.expires_at.isoformat(),
+        }
+        return JSONResponse(answer)
+
+    def _active(self, stored: StoredToken, relay: str) -> bool:
+        return (
+            stored.relay == relay
+            and stored.session not in self.ended_sessions
+            and stored.expires_at > self._now()
+        )
 
 
 class _FakeLumlTransport(httpx.AsyncBaseTransport):
@@ -352,7 +386,10 @@ def create_relay(
     verifier: LumlTokenVerifier | None = None,
 ) -> Relay:
     settings = RelaySettings(
-        base_domain=BASE_DOMAIN, limits=limits or RelayLimits(), app_origins=app_origins
+        base_domain=BASE_DOMAIN,
+        limits=limits or RelayLimits(),
+        app_origins=app_origins,
+        app_url=APP_URL,
     )
     return Relay(settings, verifier or create_verifier(luml), cookies=cookies)
 

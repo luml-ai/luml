@@ -125,6 +125,7 @@ async def _serve_relay(api: RelayApi, arguments: argparse.Namespace) -> None:
                 idle_timeout_seconds=arguments.idle_timeout,
             ),
             app_origins=description.app_origins,
+            app_url=description.app_url,
             cookie_secret=os.environ.get(COOKIE_SECRET_ENV, "").encode() or None,
         )
         relay = Relay(settings, LumlTokenVerifier(api, arguments.cache_window))

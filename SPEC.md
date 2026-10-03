@@ -874,13 +874,13 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Rewrite `tunnel/tests/test_tokens.py` and adjust `tunnel/tests/test_cli.py` for the scenarios: validated and cached, refused and cached, LUML unreachable for viewers and agents, claims that do not fit refused by the relay alone, another relay's session, the description fetched with retries, a refused token at startup and during operation
   - [x] Run ruff format, ruff check, mypy and pytest in `tunnel/`
 
-- [ ] Move viewer launch and grants to LUML in the relay
-  - [ ] Launch through the validate operation with the launch flag, bypassing the cache and evicting the token's cached claims on success, remove the in-memory set of used launch tokens from `tunnel/luml_tunnel/relay.py`, and redirect to the destination from the answer or to the root
-  - [ ] Make the cookie in `tunnel/luml_tunnel/cookies.py` carry what the relay needs to decide the 30-minute idle and 12-hour limits from the cookie alone and to look the grant up, and check the grant through the cache on cookie requests
-  - [ ] Accept only `view` tokens in the header and only grant references through the cookie
-  - [ ] Make the access-needed page in `tunnel/luml_tunnel/pages.py` work as a top-level document with a link to the app address from the description, posting its message only when framed
-  - [ ] Update `tunnel/tests/test_browser_access.py` for the scenarios: launch and grant, launch accepted once including header use after launch inside the cache window, the grant after the token's lifetime, idleness and age, the destination, the access-needed page top-level, viewer access by header survives, viewers revoked when the session ends
-  - [ ] Run ruff format, ruff check, mypy and pytest in `tunnel/`
+- [x] Move viewer launch and grants to LUML in the relay
+  - [x] Launch through the validate operation with the launch flag, bypassing the cache and evicting the token's cached claims on success, remove the in-memory set of used launch tokens from `tunnel/luml_tunnel/relay.py`, and redirect to the destination from the answer or to the root
+  - [x] Make the cookie in `tunnel/luml_tunnel/cookies.py` carry what the relay needs to decide the 30-minute idle and 12-hour limits from the cookie alone and to look the grant up, and check the grant through the cache on cookie requests
+  - [x] Accept only `view` tokens in the header and only grant references through the cookie
+  - [x] Make the access-needed page in `tunnel/luml_tunnel/pages.py` work as a top-level document with a link to the app address from the description, posting its message only when framed
+  - [x] Update `tunnel/tests/test_browser_access.py` for the scenarios: launch and grant, launch accepted once including header use after launch inside the cache window, the grant after the token's lifetime, idleness and age, the destination, the access-needed page top-level, viewer access by header survives, viewers revoked when the session ends
+  - [x] Run ruff format, ruff check, mypy and pytest in `tunnel/`
 
 - [ ] Add relay reporting and hardening bounds
   - [ ] Report connected agents to LUML on the report interval, logging and retrying failed reports without affecting serving

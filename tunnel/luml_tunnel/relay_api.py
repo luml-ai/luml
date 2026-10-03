@@ -13,6 +13,7 @@ REQUEST_TIMEOUT_SECONDS = 10.0
 
 _PREFIX = "/relays/v1"
 _ORIGIN = re.compile(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?")
+_APP_URL = re.compile(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[^\s\"'<>]*)?")
 
 
 class LumlUnavailableError(Exception):
@@ -36,6 +37,15 @@ class RelayDescription:
 @dataclass(frozen=True)
 class ActiveToken:
     kind: str
+    session: str
+    user: str
+    expires_at: datetime
+    grant: str | None = None
+    destination: str | None = None
+
+
+@dataclass(frozen=True)
+class ActiveGrant:
     session: str
     user: str
     expires_at: datetime
@@ -63,6 +73,7 @@ class RelayApi:
     async def describe(self) -> RelayDescription:
         answer = await self._request("GET", "/self")
         try:
+            app_url = str(answer["app_url"])
             return RelayDescription(
                 relay_id=str(answer["id"]),
                 label=str(answer["label"]),
@@ -72,26 +83,51 @@ class RelayApi:
                 app_origins=tuple(
                     origin for origin in answer["app_origins"] if _ORIGIN.fullmatch(str(origin))
                 ),
-                app_url=str(answer["app_url"]),
+                # It becomes a link on the relay's pages, so only a web address passes.
+                app_url=app_url if _APP_URL.fullmatch(app_url) else "",
             )
         except (KeyError, TypeError) as error:
             raise LumlUnavailableError(f"LUML described the relay unreadably: {error!r}") from error
 
-    async def validate(self, token: str) -> ActiveToken | None:
-        """The token's own claims while it is active for this relay, otherwise None."""
-        answer = await self._request("POST", "/tokens/validate", {"token": token})
+    async def validate(self, token: str, launch: bool = False) -> ActiveToken | None:
+        """The token's own claims while it is active for this relay, otherwise None.
+
+        A launch consumes a `view` token at LUML and answers the grant it became.
+        """
+        answer = await self._request("POST", "/tokens/validate", {"token": token, "launch": launch})
         if answer.get("active") is not True:
             return None
         try:
+            grant, destination = answer.get("grant_id"), answer.get("destination")
+            if launch and grant is None:
+                raise KeyError("grant_id")
             return ActiveToken(
                 kind=str(answer["kind"]),
+                session=str(answer["session_id"]),
+                user=str(answer["user_id"]),
+                expires_at=_aware(datetime.fromisoformat(answer["expires_at"])),
+                grant=None if grant is None else str(grant),
+                destination=None if destination is None else str(destination),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise LumlUnavailableError(
+                f"LUML answered a validation unreadably: {error!r}"
+            ) from error
+
+    async def check_grant(self, grant: str) -> ActiveGrant | None:
+        """The grant's claims while it is active for this relay, otherwise None."""
+        answer = await self._request("POST", "/grants/check", {"grant_id": grant})
+        if answer.get("active") is not True:
+            return None
+        try:
+            return ActiveGrant(
                 session=str(answer["session_id"]),
                 user=str(answer["user_id"]),
                 expires_at=_aware(datetime.fromisoformat(answer["expires_at"])),
             )
         except (KeyError, TypeError, ValueError) as error:
             raise LumlUnavailableError(
-                f"LUML answered a validation unreadably: {error!r}"
+                f"LUML answered a grant check unreadably: {error!r}"
             ) from error
 
     async def _request(

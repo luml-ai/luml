@@ -1,17 +1,25 @@
 import hashlib
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 
-from luml_tunnel.relay_api import LumlUnavailableError, RelayApi, RelayTokenRefusedError
+from luml_tunnel.relay_api import (
+    ActiveToken,
+    LumlUnavailableError,
+    RelayApi,
+    RelayTokenRefusedError,
+)
 
 logger = logging.getLogger(__name__)
 
 CACHE_WINDOW_SECONDS = 60.0
+
+# Token keys are hex digests, so this prefix keeps grants apart from them.
+_GRANT_KEY_PREFIX = "grant:"
 
 
 class TokenKind(StrEnum):
@@ -25,7 +33,13 @@ class TunnelClaims:
     kind: TokenKind
     user: str
     expires_at: datetime
-    token_id: str
+
+
+@dataclass(frozen=True)
+class Launch:
+    claims: TunnelClaims
+    grant: str
+    destination: str | None
 
 
 class TokenRejectedError(Exception):
@@ -46,6 +60,18 @@ class TokenVerifier(Protocol):
         """
         ...
 
+    async def launch(self, token: str, session: str) -> Launch:
+        """Consume a `view` token of the session and return the grant it became.
+
+        A token is launched once; a launch is never answered from a cache. Raises as
+        `verify` does.
+        """
+        ...
+
+    async def check_grant(self, grant: str, session: str) -> TunnelClaims:
+        """Return the claims of an active grant of the session; raises as `verify` does."""
+        ...
+
     @property
     def problem(self) -> str | None:
         """What keeps the verifier from getting verdicts, for the health check."""
@@ -64,8 +90,9 @@ class _Verdict:
 
 
 class LumlTokenVerifier:
-    """Asks LUML about tokens and caches its verdicts, keyed by the token's hash.
+    """Asks LUML about tokens and grants and caches its verdicts.
 
+    Verdicts on tokens are keyed by the token's hash, verdicts on grants by the grant.
     LUML answers about the token itself; whether it fits the request is checked here,
     so one verdict per token serves every request. While LUML gives no answer, cached
     claims are used past their window until the token expires on its own.
@@ -91,7 +118,30 @@ class LumlTokenVerifier:
         return "LUML refuses the relay token" if self._relay_token_refused else None
 
     async def verify(self, token: str, kind: TokenKind, session: str | None = None) -> TunnelClaims:
-        claims = await self._claims(token)
+        claims = await self._cached(_token_key(token), lambda: self._ask_about_token(token))
+        return self._fitting(claims, kind, session)
+
+    async def check_grant(self, grant: str, session: str) -> TunnelClaims:
+        claims = await self._cached(_GRANT_KEY_PREFIX + grant, lambda: self._ask_about_grant(grant))
+        return self._fitting(claims, TokenKind.VIEW, session)
+
+    async def launch(self, token: str, session: str) -> Launch:
+        try:
+            answer = await self._api.validate(token, launch=True)
+        except LumlUnavailableError as error:
+            self._note_no_answer(error)
+            raise TokenCheckUnavailableError("LUML cannot be asked about the launch") from error
+        self._relay_token_refused = False
+        if answer is None or answer.grant is None:
+            raise TokenRejectedError("LUML does not accept the launch token")
+        # The token is consumed, so cached claims must not let it in by the header.
+        self._verdicts.pop(_token_key(token), None)
+        claims = self._fitting(_claims_of(answer), TokenKind.VIEW, session)
+        return Launch(claims, answer.grant, answer.destination)
+
+    def _fitting(
+        self, claims: TunnelClaims | None, kind: TokenKind, session: str | None
+    ) -> TunnelClaims:
         if claims is None or claims.expires_at.timestamp() <= self._clock():
             raise TokenRejectedError("LUML does not accept the token")
         if claims.kind != kind:
@@ -100,39 +150,60 @@ class LumlTokenVerifier:
             raise TokenRejectedError("token is for another session")
         return claims
 
-    async def _claims(self, token: str) -> TunnelClaims | None:
-        token_id = hashlib.sha256(token.encode()).hexdigest()
+    async def _ask_about_token(self, token: str) -> TunnelClaims | None:
+        answer = await self._api.validate(token)
+        return None if answer is None else _claims_of(answer)
+
+    async def _ask_about_grant(self, grant: str) -> TunnelClaims | None:
+        answer = await self._api.check_grant(grant)
+        if answer is None:
+            return None
+        return TunnelClaims(answer.session, TokenKind.VIEW, answer.user, answer.expires_at)
+
+    async def _cached(
+        self, key: str, ask: Callable[[], Awaitable[TunnelClaims | None]]
+    ) -> TunnelClaims | None:
         now = self._clock()
         self._forget_unusable(now)
-        cached = self._verdicts.get(token_id)
+        cached = self._verdicts.get(key)
         if cached is not None and cached.fresh_until > now:
             return cached.claims
         try:
-            answer = await self._api.validate(token)
-        except RelayTokenRefusedError as error:
-            self._relay_token_refused = True
-            logger.error("LUML refused the relay token when asked about a token: %s", error)
-            return _stale_claims(cached, now)
+            claims = await ask()
         except LumlUnavailableError as error:
-            logger.warning("LUML gave no verdict on a token: %s", error)
+            self._note_no_answer(error)
             return _stale_claims(cached, now)
         self._relay_token_refused = False
-        verdict = _Verdict(None, now + self._cache_window)
-        if answer is not None and answer.kind in tuple(TokenKind):
-            claims = TunnelClaims(
-                answer.session, TokenKind(answer.kind), answer.user, answer.expires_at, token_id
-            )
-            verdict = _Verdict(claims, min(verdict.fresh_until, answer.expires_at.timestamp()))
-        self._verdicts[token_id] = verdict
-        return verdict.claims
+        fresh_until = now + self._cache_window
+        if claims is not None:
+            fresh_until = min(fresh_until, claims.expires_at.timestamp())
+        self._verdicts[key] = _Verdict(claims, fresh_until)
+        return claims
+
+    def _note_no_answer(self, error: LumlUnavailableError) -> None:
+        if isinstance(error, RelayTokenRefusedError):
+            self._relay_token_refused = True
+            logger.error("LUML refused the relay token when asked about a token: %s", error)
+        else:
+            logger.warning("LUML gave no verdict on a token: %s", error)
 
     def _forget_unusable(self, now: float) -> None:
         if now < self._next_cleanup:
             return
         self._next_cleanup = now + self._cache_window
         self._verdicts = {
-            token_id: verdict for token_id, verdict in self._verdicts.items() if verdict.usable(now)
+            key: verdict for key, verdict in self._verdicts.items() if verdict.usable(now)
         }
+
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _claims_of(answer: ActiveToken) -> TunnelClaims | None:
+    if answer.kind not in tuple(TokenKind):
+        return None
+    return TunnelClaims(answer.session, TokenKind(answer.kind), answer.user, answer.expires_at)
 
 
 def _stale_claims(cached: _Verdict | None, now: float) -> TunnelClaims:

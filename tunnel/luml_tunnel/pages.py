@@ -1,3 +1,4 @@
+import html
 import json
 
 ACCESS_NEEDED_MESSAGE = "luml-tunnel:access-needed"
@@ -25,7 +26,8 @@ h1 {{ font-size: 1.25rem; }}
 </html>
 """
 
-# Posted once per origin; the browser delivers it only to a parent on a matching origin.
+# Posted once per origin, and only inside a frame; the browser delivers it only to a parent
+# on a matching origin.
 _ACCESS_NEEDED_SCRIPT = """<script>
 if (window.parent !== window) {{
   for (const origin of {origins}) {{
@@ -35,14 +37,15 @@ if (window.parent !== window) {{
 </script>"""
 
 
-def access_needed_page(session: str, app_origins: tuple[str, ...]) -> str:
+def access_needed_page(session: str, app_origins: tuple[str, ...], app_url: str) -> str:
     message = {"type": ACCESS_NEEDED_MESSAGE, "session": session}
     script = _ACCESS_NEEDED_SCRIPT.format(
         origins=_script_json(list(app_origins)), message=_script_json(message)
     )
+    app = f'<a href="{html.escape(app_url)}">the LUML app</a>' if app_url else "the LUML app"
     return _PAGE.format(
         title="Access is needed",
-        text="Open this session from the LUML app to view it.",
+        text=f"Open this flow again from {app} to view it.",
         script=script if app_origins else "",
     )
 

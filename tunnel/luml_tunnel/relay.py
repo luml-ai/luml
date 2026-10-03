@@ -95,6 +95,7 @@ class RelaySettings:
     base_domain: str
     limits: RelayLimits = field(default_factory=RelayLimits)
     app_origins: tuple[str, ...] = ()
+    app_url: str = ""
     cookie_secret: bytes | None = None
 
 
@@ -118,7 +119,6 @@ class Relay:
         self._verifier = verifier
         self._sessions = sessions or HostnameSessionResolver(settings.base_domain)
         self._cookies = cookies or ViewerCookies(settings.cookie_secret)
-        self._used_launch_tokens: dict[str, datetime] = {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
@@ -212,14 +212,13 @@ class Relay:
                 await connection.ask_to_reconnect()
 
     async def _launch(self, scope: Scope, receive: Receive, send: Send, session: str) -> None:
-        """Exchange a view token, accepted once, for the relay's cookie."""
+        """Exchange a view token, which LUML accepts once, for the relay's cookie."""
         query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
         tokens = query.get(LAUNCH_TOKEN_PARAMETER, [])
         try:
             if scope["method"] != "GET" or len(tokens) != 1:
                 raise TokenRejectedError("no launch token")
-            claims = await self._verifier.verify(tokens[0], TokenKind.VIEW, session)
-            self._accept_launch_token_once(claims)
+            launched = await self._verifier.launch(tokens[0], session)
         except TokenRejectedError as error:
             logger.info("Refused a launch of session %s: %s", session, error)
             await self._access_needed(scope, receive, send, session)
@@ -227,30 +226,20 @@ class Relay:
         except TokenCheckUnavailableError:
             await _respond_text(scope, receive, send, TRY_AGAIN, 503)
             return
-        cookie = self._cookies.issue(session, claims.user)
-        response = RedirectResponse("/", 303)
+        cookie = self._cookies.issue(session, launched.claims.user, launched.grant)
+        response = RedirectResponse(_local_destination(launched.destination), 303)
         response.headers.append("set-cookie", self._cookies.set_cookie_header(cookie))
         # The address carries the token, so it must not be cached or sent on as a referrer.
         response.headers["cache-control"] = "no-store"
         response.headers["referrer-policy"] = "no-referrer"
         await response(scope, receive, send)
 
-    def _accept_launch_token_once(self, claims: TunnelClaims) -> None:
-        now = datetime.now(UTC)
-        self._used_launch_tokens = {
-            token_id: expires_at
-            for token_id, expires_at in self._used_launch_tokens.items()
-            if expires_at > now
-        }
-        if claims.token_id in self._used_launch_tokens:
-            raise TokenRejectedError("the launch token was used before")
-        self._used_launch_tokens[claims.token_id] = claims.expires_at
-
     async def _authorize(self, scope: Scope, session: str) -> tuple[str, ViewerCookie | None]:
         """Return the viewer's user and, when access is by cookie, the renewed cookie.
 
-        Raises TokenRejectedError without valid access and _CrossSiteError for a request
-        with a cookie that another site started.
+        The header carries only `view` tokens and the cookie only grants. Raises
+        TokenRejectedError without valid access and _CrossSiteError for a request with a
+        cookie that another site started.
         """
         token = _header(scope, TOKEN_HEADER)
         if token is not None:
@@ -262,13 +251,16 @@ class Relay:
             raise TokenRejectedError("no token and no valid cookie")
         if not _started_by_own_pages_or_navigation(scope):
             raise _CrossSiteError
+        grant = await self._verifier.check_grant(cookie.grant, session)
+        if grant.user != cookie.user:
+            raise TokenRejectedError("the grant is another user's")
         return cookie.user, cookie
 
     async def _access_needed(
         self, scope: Scope, receive: Receive, send: Send, session: str
     ) -> None:
         if scope["type"] == "http" and _is_navigation(scope):
-            page = access_needed_page(session, self.settings.app_origins)
+            page = access_needed_page(session, self.settings.app_origins, self.settings.app_url)
             await HTMLResponse(page, 401, headers={"cache-control": "no-store"})(
                 scope, receive, send
             )
@@ -593,6 +585,13 @@ def _started_by_own_pages_or_navigation(scope: Scope) -> bool:
         "GET",
         "HEAD",
     )
+
+
+def _local_destination(destination: str | None) -> str:
+    # LUML accepts only such paths; checked again so a redirect never leaves the hostname.
+    if destination is None or not destination.startswith("/") or destination.startswith("//"):
+        return "/"
+    return destination
 
 
 def _is_relay_path(path: str) -> bool:
