@@ -24,12 +24,14 @@ First run builds two images and runs `npm install` — subsequent runs are fast.
 | http://localhost:8000 | Backend (uvicorn `--reload`) |
 | http://localhost:8000/docs | API docs |
 | http://localhost:9001 | MinIO console (`minioadmin` / `minioadmin`) |
+| http://&lt;session&gt;.tunnel.localhost:8080 | Relay serving flows; agents connect at `ws://localhost:8080/connect` |
 | localhost:5432 | Postgres (`user` / `password` / `df_studio`) |
 
 App login: `admin@example.com` / `admin12345`.
 
-The seed creates the user, an org, a `Sample Orbit`, and a bucket secret
-pointing at the local MinIO. It's idempotent — re-runs only fill in what's
+The seed creates the user, an org, a `Sample Orbit`, a bucket secret
+pointing at the local MinIO, and registers the relay as the org's own relay
+assigned to `Sample Orbit`. It's idempotent — re-runs only fill in what's
 missing:
 
 ```bash

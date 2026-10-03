@@ -27,3 +27,12 @@ Codie wrote this report while implementing `SPEC.md`.
 **Done:** Codie does not write the pull request, so the publish order is recorded here: `luml-api`, then `luml-tunnel`, then the SDK, then lumlflow. The tunnel's serving step, `serve_session` in `tunnel/luml_tunnel/luml.py`, gained an optional `connected` event. The step sets it when the agent first connects. A test in `tunnel/tests/test_luml.py` covers it.
 
 **Why:** The serving step creates its agent internally, so a caller had no way to learn that the agent had connected. The event is generic and optional, existing callers are unchanged, and the tunnel package still knows nothing about flows.
+
+### Register the dev relay in the dev stack
+
+**Spec:** The last subtask says to "check the compose file with `docker compose config`, run the stack and walk through the scenario for a flow in the dev stack". That scenario ends with the flow appearing "as a card on the Flow page of the local app" (Scenarios section A flow in the dev stack). The Flow page is rebuilt with flow cards by the later task "Rebuild the Flow page with flow cards".
+
+**Done:** Docker was not available where this task ran, so the compose file was only checked by parsing it as YAML. The stack's pieces were run by hand instead, with the same environment values: a local Postgres, the migration, the seed run twice, the backend, the relay with `LUML_BASE_URL` and `LUML_TUNNEL_RELAY_TOKEN`, and a script with a `LiveFlow` block. The second seed run created nothing new. The relay fetched its description and reported to the backend. The flow's agent connected through the relay, a viewer reached the flow at a hostname under `tunnel.localhost` by header and by launch, and the flow was removed when the block ended. The card on the Flow page was not checked, because that page is built by the later task.
+
+**Why:** These checks cover everything this task adds. `docker compose config` and the flow card should be checked when the stack runs under Docker after the Flow page task.
+

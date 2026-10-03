@@ -896,11 +896,11 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Add tests in `sdk/python/sdk/tests/` with fakes of the flows API and the tunnel's serving step, a stub command in place of lumlflow and a fake local server: started lumlflow stopped, found lumlflow left running, port in use, missing lumlflow, explicit start and stop, the default name, cleanup on termination, no interruption handler, the gated import
   - [x] Run ruff, mypy and pytest in `sdk/python/sdk/`
 
-- [ ] Register the dev relay in the dev stack
-  - [ ] Configure the relay service in `dev/docker-compose.yml` with the two environment variables pointing at the backend service, drop its old command-line options, and start it after the seed completes
-  - [ ] Replace the signing key and single-relay settings in `dev/backend.env` with the dev relay's token, base domain and agent address
-  - [ ] Extend `dev/seed.py` to register the relay as the dev organization's own with the hash of the token and assign it to the sample orbit, both only when missing
-  - [ ] Name the relay in the services table of `dev/README.md`, check the compose file with `docker compose config`, run the stack and walk through the scenario for a flow in the dev stack
+- [x] Register the dev relay in the dev stack
+  - [x] Configure the relay service in `dev/docker-compose.yml` with the two environment variables pointing at the backend service, drop its old command-line options, and start it after the seed completes
+  - [x] Replace the signing key and single-relay settings in `dev/backend.env` with the dev relay's token, base domain and agent address
+  - [x] Extend `dev/seed.py` to register the relay as the dev organization's own with the hash of the token and assign it to the sample orbit, both only when missing
+  - [x] Name the relay in the services table of `dev/README.md`, check the compose file with `docker compose config`, run the stack and walk through the scenario for a flow in the dev stack
 
 - [ ] Add a relays tab to organization settings
   - [ ] Add a relays API module in `frontend/src/lib/api/` following `bucket-secrets/`, register it in `frontend/src/lib/api/api.ts`, and add a store in `frontend/src/stores/` following `buckets.ts`
