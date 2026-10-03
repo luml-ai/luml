@@ -4,6 +4,7 @@ from luml.models.base import Base, TimestampMixin
 from luml.models.bucket_secrets import BucketSecretOrm
 from luml.models.collection import CollectionOrm
 from luml.models.deployment import DeploymentOrm
+from luml.models.flow import FlowOrm
 from luml.models.lineage import LineageEdgeOrm, LineageNodeOrm
 from luml.models.live_session import LiveSessionOrm
 from luml.models.live_session_token import LiveSessionTokenOrm
@@ -40,6 +41,7 @@ __all__ = [
     "LineageEdgeOrm",
     "LiveSessionOrm",
     "LiveSessionTokenOrm",
+    "FlowOrm",
     "RelayOrm",
     "OrbitSecretOrm",
     "StatsEmailSendOrm",

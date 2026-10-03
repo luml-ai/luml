@@ -169,10 +169,13 @@ async def test_start_session(
     repo["get_orbit_simple"].assert_awaited_once_with(ORBIT_ID, ORGANIZATION_ID)
     repo["get_relay"].assert_awaited_once_with(RELAY_ID)
     repo["check_session_slot"].assert_awaited_once_with(
-        ORGANIZATION_ID, OrganizationResource.OWN_RELAY_SESSIONS
+        ORGANIZATION_ID, OrganizationResource.OWN_RELAY_SESSIONS, None
     )
     assert repo["create_live_session"].await_args is not None
-    created, organization_id, limit = repo["create_live_session"].await_args.args
+    created, organization_id, limit, replacing = repo[
+        "create_live_session"
+    ].await_args.args
+    assert replacing is None
     assert (
         created.orbit_id,
         created.user_id,
@@ -525,12 +528,33 @@ async def test_start_on_a_managed_relay_counts_toward_the_managed_limit(
     )
 
     repo["check_session_slot"].assert_awaited_once_with(
-        ORGANIZATION_ID, OrganizationResource.MANAGED_RELAY_SESSIONS
+        ORGANIZATION_ID, OrganizationResource.MANAGED_RELAY_SESSIONS, None
     )
     assert repo["create_live_session"].await_args is not None
     assert repo["create_live_session"].await_args.args[2] == (
         OrganizationResource.MANAGED_RELAY_SESSIONS
     )
+
+
+@pytest.mark.asyncio
+async def test_start_replacing_a_session_frees_its_slot_and_ends_it_on_create(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["create_live_session"].return_value = _session(last_heartbeat_ago=None)
+
+    await _handler().start_session(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        LiveSessionStartIn(label="run"),
+        replacing="oldsession01",
+    )
+
+    repo["check_session_slot"].assert_awaited_once_with(
+        ORGANIZATION_ID, OrganizationResource.OWN_RELAY_SESSIONS, "oldsession01"
+    )
+    assert repo["create_live_session"].await_args is not None
+    assert repo["create_live_session"].await_args.args[3] == "oldsession01"
 
 
 @pytest.mark.asyncio

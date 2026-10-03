@@ -3,7 +3,7 @@ import string
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import Update, delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from luml.models import LiveSessionOrm
@@ -32,38 +32,69 @@ def new_session_id() -> str:
     )
 
 
+def _end_statement(session_id: str) -> Update:
+    # A session that ended by the shared rule ended when the rule says so,
+    # which keeps its retention from being extended by a late end.
+    return (
+        update(LiveSessionOrm)
+        .where(LiveSessionOrm.id == session_id, LiveSessionOrm.ended_at.is_(None))
+        .values(ended_at=func.least(datetime.now(UTC), live_session_implied_end()))
+    )
+
+
 class LiveSessionRepository(RepositoryBase):
     async def check_session_slot(
-        self, organization_id: UUID, limit: OrganizationResource
+        self,
+        organization_id: UUID,
+        limit: OrganizationResource,
+        replacing: str | None = None,
     ) -> None:
         async with self._get_session() as session:
-            await reserve_organization_slot(session, organization_id, limit, lock=False)
+            await reserve_organization_slot(
+                session,
+                organization_id,
+                limit,
+                lock=False,
+                excluded_session_id=replacing,
+            )
 
     async def create_live_session(
         self,
         data: LiveSessionCreate,
         organization_id: UUID,
         limit: OrganizationResource,
+        replacing: str | None = None,
     ) -> LiveSession:
+        """Start a session, ending the `replacing` one in the same transaction.
+
+        A start refused by the limit leaves the replaced session running.
+        """
         await self.delete_sessions_past_retention()
         # The primary key refuses an identifier that was handed out before;
         # a clash is retried with a new one.
         for _ in range(_MAX_ID_ATTEMPTS - 1):
             try:
-                return await self._insert_live_session(data, organization_id, limit)
+                return await self._insert_live_session(
+                    data, organization_id, limit, replacing
+                )
             except IntegrityError as error:
                 if not violates(error, "live_sessions_pkey"):
                     raise
-        return await self._insert_live_session(data, organization_id, limit)
+        return await self._insert_live_session(data, organization_id, limit, replacing)
 
     async def _insert_live_session(
         self,
         data: LiveSessionCreate,
         organization_id: UUID,
         limit: OrganizationResource,
+        replacing: str | None,
     ) -> LiveSession:
         async with self._get_session() as session:
-            await reserve_organization_slot(session, organization_id, limit)
+            await reserve_organization_slot(
+                session, organization_id, limit, excluded_session_id=replacing
+            )
+            if replacing is not None:
+                await session.execute(_end_statement(replacing))
             db_session = LiveSessionOrm(
                 id=new_session_id(), started_at=datetime.now(UTC), **data.model_dump()
             )
@@ -122,18 +153,8 @@ class LiveSessionRepository(RepositoryBase):
             await session.commit()
 
     async def end_live_session(self, session_id: str) -> LiveSession | None:
-        # A session that ended by the shared rule ended when the rule says so,
-        # which keeps its retention from being extended by a late end.
-        ended_at = func.least(datetime.now(UTC), live_session_implied_end())
         async with self._get_session() as session:
-            await session.execute(
-                update(LiveSessionOrm)
-                .where(
-                    LiveSessionOrm.id == session_id,
-                    LiveSessionOrm.ended_at.is_(None),
-                )
-                .values(ended_at=ended_at)
-            )
+            await session.execute(_end_statement(session_id))
             await session.commit()
         live_session = await self.get_live_session(session_id)
         await self.delete_sessions_past_retention()

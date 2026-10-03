@@ -842,13 +842,13 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Update `backend/tests/unit/test_live_session_status.py` and the handler, route and repository tests for the status table, the idle rule and the activity reset, the invisible session, the label and the removal of ended sessions after their retention
   - [x] Run ruff, mypy and pytest in `backend/`
 
-- [ ] Add flows to the backend
-  - [ ] Add the flow model with orbit, creator, name and required session reference, the unique name per creator and orbit, register it and add it to the migration
-  - [ ] Add schemas and a repository: delete gone flows, find by name for a creator and orbit, create with its session, point at a new session, list visible flows whose session is not ended with the session summary, read, delete
-  - [ ] Add the handler implementing expose, list, read and remove as in the Design table in Flows, with the start refusals checked before anything is ended or created and the found flow's own session counted as free, reusing the live session handler for starting and ending sessions and the live session permission resource, and building the Flow page address from `APP_EMAIL_URL`
-  - [ ] Add the routes in `backend/luml/api/orbits/` next to `orbit_live_sessions.py` and register them in `backend/luml/api/organization_routes.py`
-  - [ ] Add unit and integration tests for the flow scenarios: exposed, refused with nothing created, re-exposed after a crash, over a running agent, onto a draining relay and at the limit, two users with one name, concurrent exposes of one name, gone by silence, removed, seen only through its session
-  - [ ] Run ruff, mypy and pytest in `backend/`
+- [x] Add flows to the backend
+  - [x] Add the flow model with orbit, creator, name and required session reference, the unique name per creator and orbit, register it and add it to the migration
+  - [x] Add schemas and a repository: delete gone flows, find by name for a creator and orbit, create with its session, point at a new session, list visible flows whose session is not ended with the session summary, read, delete
+  - [x] Add the handler implementing expose, list, read and remove as in the Design table in Flows, with the start refusals checked before anything is ended or created and the found flow's own session counted as free, reusing the live session handler for starting and ending sessions and the live session permission resource, and building the Flow page address from `APP_EMAIL_URL`
+  - [x] Add the routes in `backend/luml/api/orbits/` next to `orbit_live_sessions.py` and register them in `backend/luml/api/organization_routes.py`
+  - [x] Add unit and integration tests for the flow scenarios: exposed, refused with nothing created, re-exposed after a crash, over a running agent, onto a draining relay and at the limit, two users with one name, concurrent exposes of one name, gone by silence, removed, seen only through its session
+  - [x] Run ruff, mypy and pytest in `backend/`
 
 - [ ] Update the API client for relays, flows and the changed operations
   - [ ] Add a relays resource in `sdk/python/api/luml_api/resources/` following `bucket_secrets.py`, with list, get by identifier or label, create, update, rotate token and delete in both forms, the plaintext token only in the create and rotate answers; add its types to `sdk/python/api/luml_api/_types.py` and register it in `sdk/python/api/luml_api/_client.py`

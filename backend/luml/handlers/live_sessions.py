@@ -139,11 +139,17 @@ class LiveSessionHandler:
         organization_id: UUID,
         orbit_id: UUID,
         data: LiveSessionStartIn,
+        replacing: str | None = None,
     ) -> LiveSessionStartOut:
+        """Start a session; `replacing` names a session of the caller to end.
+
+        The replaced session counts as free in the limit and is ended only
+        when the new session is created.
+        """
         await self._authorize(user_id, organization_id, orbit_id, Action.CREATE)
         relay = await self._relay_for_new_session(organization_id, orbit_id)
         limit = _SESSION_LIMITS[relay.kind]
-        await self.__repo.check_session_slot(organization_id, limit)
+        await self.__repo.check_session_slot(organization_id, limit, replacing)
         live_session = await self.__repo.create_live_session(
             LiveSessionCreate(
                 orbit_id=orbit_id,
@@ -154,6 +160,7 @@ class LiveSessionHandler:
             ),
             organization_id,
             limit,
+            replacing,
         )
         token, expires_at = await self._issue_token(
             TunnelTokenKind.EXPOSE, live_session, self._expose_lifetime

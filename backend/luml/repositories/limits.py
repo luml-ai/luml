@@ -52,10 +52,10 @@ _LIMIT_MESSAGES = {
 
 
 def _relay_sessions_usage_query(
-    organization_id: UUID, managed: bool
+    organization_id: UUID, managed: bool, excluded_session_id: str | None
 ) -> Select[tuple[int]]:
     relay_owner = RelayOrm.organization_id
-    return (
+    query = (
         select(func.count(LiveSessionOrm.id))
         .join(OrbitOrm, LiveSessionOrm.orbit_id == OrbitOrm.id)
         .join(RelayOrm, LiveSessionOrm.relay_id == RelayOrm.id)
@@ -65,10 +65,15 @@ def _relay_sessions_usage_query(
             live_session_unended(datetime.now(UTC)),
         )
     )
+    if excluded_session_id is not None:
+        query = query.where(LiveSessionOrm.id != excluded_session_id)
+    return query
 
 
 def _usage_query(
-    resource: OrganizationResource, organization_id: UUID
+    resource: OrganizationResource,
+    organization_id: UUID,
+    excluded_session_id: str | None = None,
 ) -> Select[tuple[int]]:
     if resource is OrganizationResource.ARTIFACTS:
         return (
@@ -82,9 +87,13 @@ def _usage_query(
             OrbitOrm.organization_id == organization_id
         )
     if resource is OrganizationResource.MANAGED_RELAY_SESSIONS:
-        return _relay_sessions_usage_query(organization_id, managed=True)
+        return _relay_sessions_usage_query(
+            organization_id, managed=True, excluded_session_id=excluded_session_id
+        )
     if resource is OrganizationResource.OWN_RELAY_SESSIONS:
-        return _relay_sessions_usage_query(organization_id, managed=False)
+        return _relay_sessions_usage_query(
+            organization_id, managed=False, excluded_session_id=excluded_session_id
+        )
     if resource is OrganizationResource.SATELLITES:
         return (
             select(func.count(SatelliteOrm.id))
@@ -101,18 +110,22 @@ async def reserve_organization_slot(
     organization_id: UUID,
     resource: OrganizationResource,
     lock: bool = True,
+    excluded_session_id: str | None = None,
 ) -> None:
     """Refuse when the organization has used up its limit for the resource.
 
     With `lock`, the organization row stays locked until the caller's
     transaction ends, so concurrent inserts are counted one after another.
+    `excluded_session_id` names a live session counted as free because the
+    new one replaces it.
     """
     limit_column = getattr(OrganizationOrm, f"{resource.value}_limit")
     query = select(limit_column).where(OrganizationOrm.id == organization_id)
     limit = await session.scalar(query.with_for_update() if lock else query)
     if limit is None:
         raise NotFoundError("Organization not found")
-    used = await session.scalar(_usage_query(resource, organization_id)) or 0
+    usage = _usage_query(resource, organization_id, excluded_session_id)
+    used = await session.scalar(usage) or 0
     if used >= limit:
         raise OrganizationLimitReachedError(_LIMIT_MESSAGES[resource])
 
