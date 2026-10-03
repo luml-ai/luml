@@ -116,6 +116,35 @@ async def test_relay_takes_its_limits_from_options(started: list[RelayServer]) -
     )
 
 
+@pytest.mark.usefixtures("luml_url")
+async def test_relay_takes_its_bounds_from_options(started: list[RelayServer]) -> None:
+    bounds = ["--max-agents", "3", "--max-renewals-per-minute", "2", "--report-interval", "5"]
+    assert await run_relay(*bounds, "--max-cache-entries", "10") == 0
+
+    settings = served_relay(started).settings
+    assert (settings.max_agents, settings.max_renewals_per_minute) == (3, 2)
+    assert settings.report_interval == 5.0
+
+
+def test_relay_help_documents_the_bounds_and_their_defaults(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        main(["relay", "--help"])
+
+    help_text = " ".join(capsys.readouterr().out.split())
+    for option in (
+        "--max-agents",
+        "--max-renewals-per-minute",
+        "--max-validations-in-flight",
+        "--max-cache-entries",
+        "--report-interval",
+    ):
+        assert option in help_text
+    assert "(default: 1000)" in help_text
+    assert "(default: 60.0)" in help_text
+
+
 async def test_relay_retries_until_luml_answers(
     luml: FakeRelayApi,
     started: list[RelayServer],
@@ -172,6 +201,11 @@ def test_relay_without_a_token_names_the_variable(
         ["--idle-timeout", "0"],
         ["--idle-timeout", "soon"],
         ["--cache-window", "0"],
+        ["--max-agents", "0"],
+        ["--max-renewals-per-minute", "0"],
+        ["--max-validations-in-flight", "0"],
+        ["--max-cache-entries", "0"],
+        ["--report-interval", "0"],
     ],
 )
 def test_relay_refuses_options_that_are_not_positive(option: list[str]) -> None:

@@ -3,7 +3,11 @@ import logging
 from collections.abc import AsyncIterator
 from datetime import timedelta
 
+import httpx
 import pytest
+from websockets.asyncio.client import connect
+from websockets.exceptions import InvalidStatus
+from websockets.typing import Subprotocol
 
 from luml_tunnel.agent import (
     Agent,
@@ -12,17 +16,22 @@ from luml_tunnel.agent import (
     LoopbackService,
     ReconnectPolicy,
 )
-from luml_tunnel.frames import TOKEN_EXPIRED_CLOSE_CODE, RelayLimits
-from luml_tunnel.relay import Relay
+from luml_tunnel.frames import SUBPROTOCOL, TOKEN_EXPIRED_CLOSE_CODE, RelayLimits
+from luml_tunnel.relay import TRY_AGAIN, Relay
 from luml_tunnel.tokens import TokenKind
 from tests.conftest import WINDOW
 from tests.harness import (
     FAST_RECONNECT,
+    RELAY_ID,
+    RELAY_TOKEN,
     SESSION,
     EchoService,
     FakeRelayApi,
+    Outage,
     bound_socket,
+    create_api,
     create_relay,
+    create_verifier,
     port_of,
     relay_url,
     running_agent,
@@ -304,3 +313,146 @@ async def test_idle_stream_is_closed(
     assert other.status_code == 200
     assert idle.status_code == 504
     assert after.status_code == 200
+
+
+async def test_agent_over_the_cap_is_refused_and_connected_agents_are_untouched(
+    luml: FakeRelayApi, expose_token: str, view_token: str, service_port: int, echo: EchoService
+) -> None:
+    relay = create_relay(luml, max_agents=1)
+    async with (
+        serve(relay) as relay_port,
+        running_agent(relay, relay_port, expose_token, service_port),
+    ):
+        with pytest.raises(InvalidStatus) as refused:
+            await connect(
+                relay_url(relay_port),
+                subprotocols=[Subprotocol(SUBPROTOCOL)],
+                additional_headers={
+                    "Authorization": f"Bearer {luml.issue(TokenKind.EXPOSE, session='other1')}"
+                },
+            )
+        replacement = luml.issue(TokenKind.EXPOSE)
+        async with (
+            running_agent(relay, relay_port, replacement, service_port),
+            viewer(relay_port, view_token) as client,
+        ):
+            response = await client.get("/after")
+
+    assert refused.value.response.status_code == 503
+    assert b"cap of 1 agents" in refused.value.response.body
+    assert relay.agents.get("other1") is None
+    assert response.status_code == 200
+    assert [request.path for request in echo.requests] == ["/after"]
+
+
+async def test_renewals_beyond_the_rate_are_dropped_unchecked(
+    luml: FakeRelayApi, view_token: str, service_port: int
+) -> None:
+    relay = create_relay(luml, max_renewals_per_minute=2)
+    short_token = luml.issue(TokenKind.EXPOSE, lifetime=timedelta(seconds=1))
+    checked = [luml.issue(TokenKind.EXPOSE, lifetime=timedelta(seconds=2)) for _ in range(2)]
+    dropped = [luml.issue(TokenKind.EXPOSE) for _ in range(8)]
+    async with (
+        serve(relay) as relay_port,
+        running_agent(relay, relay_port, short_token, service_port) as agent,
+    ):
+        connection = relay.agents.get(SESSION)
+        assert connection is not None
+        for token in [*checked, *dropped]:
+            await agent.renew_token(token)
+        await until(lambda: all(luml.validations_of(token) == 1 for token in checked))
+        async with viewer(relay_port, view_token) as client:
+            response = await client.get("/")
+        assert not connection.closed
+
+        await until(lambda: connection.closed)
+
+    assert response.status_code == 200
+    assert [luml.validations_of(token) for token in dropped] == [0] * 8
+
+
+async def test_validations_in_flight_are_bounded_and_the_rest_try_again(
+    luml: FakeRelayApi, echo: EchoService, expose_token: str, service_port: int
+) -> None:
+    relay = create_relay(luml, verifier=create_verifier(luml, max_in_flight=2))
+    unknown_tokens = [f"unknown-{number}" for number in range(12)]
+
+    async def request(relay_port: int, token: str) -> httpx.Response:
+        async with viewer(relay_port, token) as client:
+            return await client.get("/")
+
+    async with (
+        serve(relay) as relay_port,
+        running_agent(relay, relay_port, expose_token, service_port),
+    ):
+        luml.validation_delay = 0.2
+        responses = await asyncio.gather(*(request(relay_port, token) for token in unknown_tokens))
+
+    statuses = {response.status_code for response in responses}
+    assert luml.most_open_validations == 2
+    assert statuses == {401, 503}
+    assert {response.text for response in responses if response.status_code == 503} == {TRY_AGAIN}
+    assert echo.requests == []
+
+
+async def test_relay_reports_its_connected_agents(
+    luml: FakeRelayApi, expose_token: str, service_port: int
+) -> None:
+    relay = create_relay(luml, reports_to=create_api(luml), report_interval=0.05)
+    async with serve(relay) as relay_port:
+        await until(lambda: luml.reports[-1:] == [0])
+        async with running_agent(relay, relay_port, expose_token, service_port):
+            await until(lambda: luml.reports[-1:] == [1])
+
+    assert set(luml.reports) == {0, 1}
+
+
+async def test_failed_reports_are_logged_and_retried_without_affecting_serving(
+    luml: FakeRelayApi,
+    expose_token: str,
+    view_token: str,
+    service_port: int,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="luml_tunnel.relay")
+    relay = create_relay(luml, reports_to=create_api(luml), report_interval=0.05)
+    async with (
+        serve(relay) as relay_port,
+        running_agent(relay, relay_port, expose_token, service_port),
+        viewer(relay_port, view_token) as client,
+    ):
+        assert (await client.get("/")).status_code == 200
+        luml.outage = Outage.FAILING
+        await until(lambda: caplog.text.count("Could not report to LUML") >= 2)
+        during_outage = await client.get("/")
+        reports_before = len(luml.reports)
+        luml.outage = None
+        await until(lambda: len(luml.reports) > reports_before)
+        resumed_report = luml.reports[reports_before]
+
+    assert during_outage.status_code == 200
+    assert resumed_report == 1
+
+
+async def test_a_refused_report_is_an_error_and_shows_in_the_health_check(
+    luml: FakeRelayApi, caplog: pytest.LogCaptureFixture
+) -> None:
+    relay = create_relay(luml, reports_to=create_api(luml), report_interval=0.05)
+    luml.relay_tokens.clear()
+    async with (
+        serve(relay) as relay_port,
+        httpx.AsyncClient(base_url=f"http://127.0.0.1:{relay_port}") as client,
+    ):
+        await until(
+            lambda: caplog.text.count("refused the relay token when the relay reported") >= 2
+        )
+        degraded = (await client.get("/health")).json()
+        luml.relay_tokens = {RELAY_TOKEN: RELAY_ID}
+        # The second report starts only after the first one's answer is taken in.
+        await until(lambda: len(luml.reports) >= 2)
+        healthy = (await client.get("/health")).json()
+
+    errors = [record for record in caplog.records if record.levelno == logging.ERROR]
+    assert len(errors) >= 2
+    assert degraded == {"status": "degraded", "problem": "LUML refuses the relay token"}
+    assert healthy == {"status": "ok"}

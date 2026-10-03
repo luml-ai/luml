@@ -7,8 +7,16 @@ import sys
 from collections.abc import Sequence
 
 from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
-from luml_tunnel.relay_api import DEFAULT_BASE_URL, RelayApi, RelayTokenRefusedError
-from luml_tunnel.tokens import CACHE_WINDOW_SECONDS
+from luml_tunnel.protocol import MAX_RENEWALS_PER_MINUTE
+from luml_tunnel.relay_api import (
+    DEFAULT_BASE_URL,
+    MAX_REQUESTS_IN_FLIGHT,
+    REPORT_INTERVAL_SECONDS,
+    RelayApi,
+    RelayTokenRefusedError,
+)
+from luml_tunnel.routing import MAX_AGENTS
+from luml_tunnel.tokens import CACHE_WINDOW_SECONDS, MAX_CACHE_ENTRIES
 
 TOKEN_ENV = "LUML_TUNNEL_TOKEN"
 COOKIE_SECRET_ENV = "LUML_TUNNEL_COOKIE_SECRET"
@@ -94,7 +102,8 @@ def _relay(arguments: argparse.Namespace) -> int:
     base_url = os.environ.get(BASE_URL_ENV) or DEFAULT_BASE_URL
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     try:
-        asyncio.run(_serve_relay(RelayApi(base_url, relay_token), arguments))
+        api = RelayApi(base_url, relay_token, max_in_flight=arguments.max_validations_in_flight)
+        asyncio.run(_serve_relay(api, arguments))
     except RelayTokenRefusedError as error:
         print(
             f"LUML at {base_url} refused the relay token in {RELAY_TOKEN_ENV} ({error}); "
@@ -127,8 +136,14 @@ async def _serve_relay(api: RelayApi, arguments: argparse.Namespace) -> None:
             app_origins=description.app_origins,
             app_url=description.app_url,
             cookie_secret=os.environ.get(COOKIE_SECRET_ENV, "").encode() or None,
+            max_agents=arguments.max_agents,
+            max_renewals_per_minute=arguments.max_renewals_per_minute,
+            report_interval=arguments.report_interval,
         )
-        relay = Relay(settings, LumlTokenVerifier(api, arguments.cache_window))
+        verifier = LumlTokenVerifier(
+            api, arguments.cache_window, max_entries=arguments.max_cache_entries
+        )
+        relay = Relay(settings, verifier, reports_to=api)
         config = uvicorn.Config(
             relay,
             host=arguments.host,
@@ -216,7 +231,41 @@ def _build_parser() -> argparse.ArgumentParser:
         "--cache-window",
         type=_positive_float,
         default=CACHE_WINDOW_SECONDS,
-        help="Seconds a verdict of LUML on a token is reused before LUML is asked again",
+        help="Seconds a verdict of LUML on a token is reused before LUML is asked again "
+        "(default: %(default)s)",
+    )
+    relay.add_argument(
+        "--max-cache-entries",
+        type=_positive_int,
+        default=MAX_CACHE_ENTRIES,
+        help="Verdicts of LUML kept; beyond them the oldest are evicted (default: %(default)s)",
+    )
+    relay.add_argument(
+        "--max-validations-in-flight",
+        type=_positive_int,
+        default=MAX_REQUESTS_IN_FLIGHT,
+        help="Requests to LUML, token validations above all, open at once; more wait for a "
+        "slot, and one that cannot get it in time is answered 'try again' "
+        "(default: %(default)s)",
+    )
+    relay.add_argument(
+        "--max-agents",
+        type=_positive_int,
+        default=MAX_AGENTS,
+        help="Agents connected at once; one more is refused with status 503 (default: %(default)s)",
+    )
+    relay.add_argument(
+        "--max-renewals-per-minute",
+        type=_positive_int,
+        default=MAX_RENEWALS_PER_MINUTE,
+        help="Renewed tokens checked per agent connection and minute; more are dropped "
+        "unchecked (default: %(default)s)",
+    )
+    relay.add_argument(
+        "--report-interval",
+        type=_positive_float,
+        default=REPORT_INTERVAL_SECONDS,
+        help="Seconds between reports of the connected agents to LUML (default: %(default)s)",
     )
     relay.set_defaults(handler=_relay)
 

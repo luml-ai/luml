@@ -4,6 +4,7 @@ import logging
 import posixpath
 import socket
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -39,6 +40,7 @@ from luml_tunnel.headers import (
 )
 from luml_tunnel.pages import access_needed_page, not_connected_page
 from luml_tunnel.protocol import (
+    MAX_RENEWALS_PER_MINUTE,
     PeerClosed,
     RelayConnection,
     Stream,
@@ -47,12 +49,14 @@ from luml_tunnel.protocol import (
     pass_messages,
 )
 from luml_tunnel.relay_api import (
+    REPORT_INTERVAL_SECONDS,
     LumlUnavailableError,
     RelayApi,
     RelayDescription,
     RelayTokenRefusedError,
 )
 from luml_tunnel.routing import (
+    MAX_AGENTS,
     AgentRegistry,
     HostnameSessionResolver,
     InMemoryAgentRegistry,
@@ -97,6 +101,9 @@ class RelaySettings:
     app_origins: tuple[str, ...] = ()
     app_url: str = ""
     cookie_secret: bytes | None = None
+    max_agents: int = MAX_AGENTS
+    max_renewals_per_minute: int = MAX_RENEWALS_PER_MINUTE
+    report_interval: float = REPORT_INTERVAL_SECONDS
 
 
 class Relay:
@@ -104,6 +111,7 @@ class Relay:
 
     A request whose host is a session hostname belongs to that session. Every other
     host reaches the relay's own endpoints, so a health check works on any address.
+    With an API to report to, the relay reports its connected agents while it runs.
     """
 
     def __init__(
@@ -113,16 +121,19 @@ class Relay:
         sessions: SessionResolver | None = None,
         agents: AgentRegistry | None = None,
         cookies: ViewerCookies | None = None,
+        reports_to: RelayApi | None = None,
     ) -> None:
         self.settings = settings
         self.agents = agents or InMemoryAgentRegistry()
         self._verifier = verifier
         self._sessions = sessions or HostnameSessionResolver(settings.base_domain)
         self._cookies = cookies or ViewerCookies(settings.cookie_secret)
+        self._reports_to = reports_to
+        self._report_refused = False
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
-            await _run_lifespan(receive, send)
+            await self._run_lifespan(receive, send)
             return
         host = _header(scope, "host") or ""
         session = self._sessions.session_for(host)
@@ -144,7 +155,9 @@ class Relay:
         elif scope["type"] == "websocket":
             await WebSocket(scope, receive, send).close()
         elif scope["path"] == HEALTH_PATH:
-            problem = self._verifier.problem
+            problem = self._verifier.problem or (
+                "LUML refuses the relay token" if self._report_refused else None
+            )
             health = (
                 {"status": "ok"} if problem is None else {"status": "degraded", "problem": problem}
             )
@@ -169,6 +182,12 @@ class Relay:
             # A 5xx answer, unlike a refusal, makes the agent retry.
             await _respond_text(websocket.scope, websocket.receive, websocket.send, TRY_AGAIN, 503)
             return
+        max_agents = self.settings.max_agents
+        if self.agents.get(claims.session) is None and len(self.agents.connections()) >= max_agents:
+            logger.warning("Refused an agent: the relay serves its cap of %d agents", max_agents)
+            refusal = f"The relay serves its cap of {max_agents} agents; try again later"
+            await _respond_text(websocket.scope, websocket.receive, websocket.send, refusal, 503)
+            return
         await websocket.accept(SUBPROTOCOL)
         connection = RelayConnection(_AsgiWebSocketTransport(websocket), self.settings.limits)
         previous = self.agents.get(claims.session)
@@ -187,8 +206,13 @@ class Relay:
             self.agents.unregister(claims.session, connection)
 
     async def _close_on_expiry(self, connection: RelayConnection, claims: TunnelClaims) -> None:
-        """Close the connection when its token expires, unless the agent renews it first."""
+        """Close the connection when its token expires, unless the agent renews it first.
+
+        Renewals beyond the rate are dropped unchecked, so an agent cannot make the relay
+        ask LUML at will.
+        """
         expires_at = claims.expires_at
+        recent_renewals: deque[float] = deque()
         while True:
             remaining = (expires_at - datetime.now(UTC)).total_seconds()
             try:
@@ -199,12 +223,48 @@ class Relay:
                 return
             if token is None:
                 return
+            now = time.monotonic()
+            while recent_renewals and recent_renewals[0] <= now - 60:
+                recent_renewals.popleft()
+            if len(recent_renewals) >= self.settings.max_renewals_per_minute:
+                logger.info("Dropped a renewed token for session %s over the rate", claims.session)
+                continue
+            recent_renewals.append(now)
             try:
                 renewed = await self._verifier.verify(token, TokenKind.EXPOSE, claims.session)
             except (TokenRejectedError, TokenCheckUnavailableError) as error:
                 logger.info("Ignored a renewed token for session %s: %s", claims.session, error)
                 continue
             expires_at = max(expires_at, renewed.expires_at)
+
+    async def _run_lifespan(self, receive: Receive, send: Send) -> None:
+        reporting: asyncio.Task[None] | None = None
+        while True:
+            message = await receive()
+            if message["type"] == "lifespan.startup":
+                if self._reports_to is not None:
+                    reporting = asyncio.create_task(self._report_periodically(self._reports_to))
+                await send({"type": "lifespan.startup.complete"})
+            elif message["type"] == "lifespan.shutdown":
+                if reporting is not None:
+                    reporting.cancel()
+                    await asyncio.gather(reporting, return_exceptions=True)
+                await send({"type": "lifespan.shutdown.complete"})
+                return
+
+    async def _report_periodically(self, api: RelayApi) -> None:
+        interval = self.settings.report_interval
+        while True:
+            try:
+                await api.report(len(self.agents.connections()))
+            except RelayTokenRefusedError as error:
+                self._report_refused = True
+                logger.error("LUML refused the relay token when the relay reported: %s", error)
+            except LumlUnavailableError as error:
+                logger.warning("Could not report to LUML, retrying in %g s: %s", interval, error)
+            else:
+                self._report_refused = False
+            await asyncio.sleep(interval)
 
     async def ask_agents_to_reconnect(self) -> None:
         for connection in self.agents.connections():
@@ -540,16 +600,6 @@ class RelayServer(uvicorn.Server):
     async def shutdown(self, sockets: list[socket.socket] | None = None) -> None:
         await self._relay.ask_agents_to_reconnect()
         await super().shutdown(sockets)
-
-
-async def _run_lifespan(receive: Receive, send: Send) -> None:
-    while True:
-        message = await receive()
-        if message["type"] == "lifespan.startup":
-            await send({"type": "lifespan.startup.complete"})
-        elif message["type"] == "lifespan.shutdown":
-            await send({"type": "lifespan.shutdown.complete"})
-            return
 
 
 def _header(scope: Scope, name: str) -> str | None:

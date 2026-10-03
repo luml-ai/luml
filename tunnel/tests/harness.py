@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import Any
 
 import httpx
 import uvicorn
@@ -27,9 +28,16 @@ from luml_tunnel.agent import Agent, FixedToken, LoopbackService, ReconnectPolic
 from luml_tunnel.cookies import ViewerCookies
 from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
 from luml_tunnel.headers import TOKEN_HEADER
+from luml_tunnel.protocol import MAX_RENEWALS_PER_MINUTE
 from luml_tunnel.relay import CONNECT_PATH, Relay, RelayServer, RelaySettings
-from luml_tunnel.relay_api import RelayApi
-from luml_tunnel.tokens import CACHE_WINDOW_SECONDS, LumlTokenVerifier, TokenKind
+from luml_tunnel.relay_api import MAX_REQUESTS_IN_FLIGHT, REPORT_INTERVAL_SECONDS, RelayApi
+from luml_tunnel.routing import MAX_AGENTS
+from luml_tunnel.tokens import (
+    CACHE_WINDOW_SECONDS,
+    MAX_CACHE_ENTRIES,
+    LumlTokenVerifier,
+    TokenKind,
+)
 
 LUML_URL = "http://luml.test"
 RELAY_TOKEN = "dfsrelay_lab"
@@ -233,6 +241,10 @@ class FakeRelayApi:
     launches: list[str] = field(default_factory=list)
     grant_checks: list[str] = field(default_factory=list)
     descriptions: int = 0
+    reports: list[int] = field(default_factory=list)
+    validation_delay: float = 0.0
+    open_validations: int = 0
+    most_open_validations: int = 0
     clock: Callable[[], float] = time.time
 
     def issue(
@@ -266,6 +278,7 @@ class FakeRelayApi:
                 Route("/relays/v1/self", self._describe),
                 Route("/relays/v1/tokens/validate", self._validate, methods=["POST"]),
                 Route("/relays/v1/grants/check", self._check_grant, methods=["POST"]),
+                Route("/relays/v1/report", self._report, methods=["POST"]),
             ]
         )
 
@@ -296,7 +309,15 @@ class FakeRelayApi:
         relay = self._caller(request)
         if relay is None:
             return JSONResponse({"detail": "Invalid relay token"}, 401)
-        body = await request.json()
+        self.open_validations += 1
+        self.most_open_validations = max(self.most_open_validations, self.open_validations)
+        try:
+            await asyncio.sleep(self.validation_delay)
+            return await self._answer_validation(relay, await request.json())
+        finally:
+            self.open_validations -= 1
+
+    async def _answer_validation(self, relay: str, body: dict[str, Any]) -> JSONResponse:
         launch = body.get("launch", False)
         (self.launches if launch else self.validated).append(body["token"])
         stored = self.tokens.get(body["token"])
@@ -338,6 +359,12 @@ class FakeRelayApi:
         }
         return JSONResponse(answer)
 
+    async def _report(self, request: Request) -> Response:
+        if self._caller(request) is None:
+            return JSONResponse({"detail": "Invalid relay token"}, 401)
+        self.reports.append((await request.json())["connected_agents"])
+        return Response(status_code=204)
+
     def _active(self, stored: StoredToken, relay: str) -> bool:
         return (
             stored.relay == relay
@@ -369,13 +396,20 @@ class FakeClock:
         return self.now
 
 
+def create_api(luml: FakeRelayApi, max_in_flight: int = MAX_REQUESTS_IN_FLIGHT) -> RelayApi:
+    return RelayApi(
+        LUML_URL, RELAY_TOKEN, luml.transport(), timeout=0.5, max_in_flight=max_in_flight
+    )
+
+
 def create_verifier(
     luml: FakeRelayApi,
     cache_window: float = CACHE_WINDOW_SECONDS,
     clock: Callable[[], float] = time.time,
+    max_entries: int = MAX_CACHE_ENTRIES,
+    max_in_flight: int = MAX_REQUESTS_IN_FLIGHT,
 ) -> LumlTokenVerifier:
-    api = RelayApi(LUML_URL, RELAY_TOKEN, luml.transport(), timeout=0.5)
-    return LumlTokenVerifier(api, cache_window, clock)
+    return LumlTokenVerifier(create_api(luml, max_in_flight), cache_window, clock, max_entries)
 
 
 def create_relay(
@@ -384,14 +418,23 @@ def create_relay(
     app_origins: tuple[str, ...] = (),
     cookies: ViewerCookies | None = None,
     verifier: LumlTokenVerifier | None = None,
+    reports_to: RelayApi | None = None,
+    max_agents: int = MAX_AGENTS,
+    max_renewals_per_minute: int = MAX_RENEWALS_PER_MINUTE,
+    report_interval: float = REPORT_INTERVAL_SECONDS,
 ) -> Relay:
     settings = RelaySettings(
         base_domain=BASE_DOMAIN,
         limits=limits or RelayLimits(),
         app_origins=app_origins,
         app_url=APP_URL,
+        max_agents=max_agents,
+        max_renewals_per_minute=max_renewals_per_minute,
+        report_interval=report_interval,
     )
-    return Relay(settings, verifier or create_verifier(luml), cookies=cookies)
+    return Relay(
+        settings, verifier or create_verifier(luml), cookies=cookies, reports_to=reports_to
+    )
 
 
 def relay_url(relay_port: int) -> str:

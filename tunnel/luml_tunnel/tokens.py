@@ -17,6 +17,7 @@ from luml_tunnel.relay_api import (
 logger = logging.getLogger(__name__)
 
 CACHE_WINDOW_SECONDS = 60.0
+MAX_CACHE_ENTRIES = 100_000
 
 # Token keys are hex digests, so this prefix keeps grants apart from them.
 _GRANT_KEY_PREFIX = "grant:"
@@ -95,7 +96,8 @@ class LumlTokenVerifier:
     Verdicts on tokens are keyed by the token's hash, verdicts on grants by the grant.
     LUML answers about the token itself; whether it fits the request is checked here,
     so one verdict per token serves every request. While LUML gives no answer, cached
-    claims are used past their window until the token expires on its own.
+    claims are used past their window until the token expires on its own. Beyond
+    `max_entries` verdicts, the oldest are evicted.
     """
 
     def __init__(
@@ -103,11 +105,15 @@ class LumlTokenVerifier:
         api: RelayApi,
         cache_window: float = CACHE_WINDOW_SECONDS,
         clock: Callable[[], float] = time.time,
+        max_entries: int = MAX_CACHE_ENTRIES,
     ) -> None:
         if cache_window <= 0:
             raise ValueError("the cache window must be positive")
+        if max_entries <= 0:
+            raise ValueError("the cache must hold at least one entry")
         self._api = api
         self._cache_window = cache_window
+        self._max_entries = max_entries
         self._clock = clock
         self._verdicts: dict[str, _Verdict] = {}
         self._next_cleanup = 0.0
@@ -177,8 +183,15 @@ class LumlTokenVerifier:
         fresh_until = now + self._cache_window
         if claims is not None:
             fresh_until = min(fresh_until, claims.expires_at.timestamp())
-        self._verdicts[key] = _Verdict(claims, fresh_until)
+        self._store(key, _Verdict(claims, fresh_until))
         return claims
+
+    def _store(self, key: str, verdict: _Verdict) -> None:
+        # Dicts keep insertion order, so re-inserting makes a key the newest.
+        self._verdicts.pop(key, None)
+        self._verdicts[key] = verdict
+        while len(self._verdicts) > self._max_entries:
+            del self._verdicts[next(iter(self._verdicts))]
 
     def _note_no_answer(self, error: LumlUnavailableError) -> None:
         if isinstance(error, RelayTokenRefusedError):

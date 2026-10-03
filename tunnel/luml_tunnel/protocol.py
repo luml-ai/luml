@@ -27,6 +27,7 @@ from luml_tunnel.frames import (
 )
 
 MAX_DATA_FRAME_BYTES = 64 * 1024
+MAX_RENEWALS_PER_MINUTE = 6
 
 InboundFrame = ResponseHead | Data | End | WebSocketMessage | WebSocketClose
 

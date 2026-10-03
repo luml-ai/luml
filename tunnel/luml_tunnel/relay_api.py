@@ -10,6 +10,8 @@ import httpx
 
 DEFAULT_BASE_URL = "https://api.luml.ai"
 REQUEST_TIMEOUT_SECONDS = 10.0
+MAX_REQUESTS_IN_FLIGHT = 32
+REPORT_INTERVAL_SECONDS = 60.0
 
 _PREFIX = "/relays/v1"
 _ORIGIN = re.compile(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?")
@@ -58,8 +60,10 @@ class RelayApi:
         relay_token: str,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = REQUEST_TIMEOUT_SECONDS,
+        max_in_flight: int = MAX_REQUESTS_IN_FLIGHT,
     ) -> None:
         self._timeout = timeout
+        self._slots = asyncio.Semaphore(max_in_flight)
         self._client = httpx.AsyncClient(
             base_url=base_url.rstrip("/") + _PREFIX,
             headers={"authorization": f"Bearer {relay_token}"},
@@ -130,19 +134,29 @@ class RelayApi:
                 f"LUML answered a grant check unreadably: {error!r}"
             ) from error
 
-    async def _request(
+    async def report(self, connected_agents: int) -> None:
+        await self._send("POST", "/report", {"connected_agents": connected_agents})
+
+    async def _send(
         self, method: str, path: str, body: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> httpx.Response:
         try:
-            # httpx bounds each phase of a request; this bounds the whole of it.
-            async with asyncio.timeout(self._timeout):
+            # httpx bounds each phase of a request; this bounds the whole of it, including
+            # the wait for a slot, so a request that cannot get one in time fails too.
+            async with asyncio.timeout(self._timeout), self._slots:
                 response = await self._client.request(method, path, json=body)
         except (httpx.HTTPError, TimeoutError) as error:
             raise LumlUnavailableError(f"LUML cannot be reached: {error!r}") from error
         if response.status_code in (401, 403):
             raise RelayTokenRefusedError(f"LUML answered {response.status_code}")
-        if response.status_code != 200:
+        if not response.is_success:
             raise LumlUnavailableError(f"LUML answered {response.status_code}")
+        return response
+
+    async def _request(
+        self, method: str, path: str, body: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        response = await self._send(method, path, body)
         try:
             answer = response.json()
         except ValueError as error:

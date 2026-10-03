@@ -882,11 +882,11 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Update `tunnel/tests/test_browser_access.py` for the scenarios: launch and grant, launch accepted once including header use after launch inside the cache window, the grant after the token's lifetime, idleness and age, the destination, the access-needed page top-level, viewer access by header survives, viewers revoked when the session ends
   - [x] Run ruff format, ruff check, mypy and pytest in `tunnel/`
 
-- [ ] Add relay reporting and hardening bounds
-  - [ ] Report connected agents to LUML on the report interval, logging and retrying failed reports without affecting serving
-  - [ ] Add the bounds from the Design table in The relay process as settings of the relay command with defaults documented in its help: the agent connection cap with a 503 refusal naming the cap, the renewal rate per connection with dropped frames in the token expiry watcher, validations in flight, and the cache size with eviction
-  - [ ] Add tests in `tunnel/tests/test_relay_operation.py` for the cap, the rate, the flood of unknown tokens and the report
-  - [ ] Run ruff format, ruff check, mypy and pytest in `tunnel/`
+- [x] Add relay reporting and hardening bounds
+  - [x] Report connected agents to LUML on the report interval, logging and retrying failed reports without affecting serving
+  - [x] Add the bounds from the Design table in The relay process as settings of the relay command with defaults documented in its help: the agent connection cap with a 503 refusal naming the cap, the renewal rate per connection with dropped frames in the token expiry watcher, validations in flight, and the cache size with eviction
+  - [x] Add tests in `tunnel/tests/test_relay_operation.py` for the cap, the rate, the flood of unknown tokens and the report
+  - [x] Run ruff format, ruff check, mypy and pytest in `tunnel/`
 
 - [ ] Add LiveFlow to the SDK
   - [ ] Add the `flow` extra to `sdk/python/sdk/pyproject.toml` depending on the tunnel package with its LUML extra and on `luml-api`, with local path sources for development as `lumlflow/pyproject.toml` declares them, and the extra's dependencies in the dev group so `.github/workflows/[sdk] tests-and-linters.yml` installs them

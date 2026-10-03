@@ -87,6 +87,31 @@ async def test_verdict_is_cached_for_the_window(
     assert luml.validations_of(token) == 2
 
 
+async def test_oldest_verdicts_are_evicted_beyond_the_cache_size(
+    luml: FakeRelayApi, clock: FakeClock
+) -> None:
+    verifier = create_verifier(luml, WINDOW, clock, max_entries=2)
+    first, second, third = (luml.issue(TokenKind.VIEW) for _ in range(3))
+    await verifier.verify(first, TokenKind.VIEW, SESSION)
+    await verifier.verify(second, TokenKind.VIEW, SESSION)
+    clock.now += WINDOW
+    # Asking again about the first makes it the newest, so the second is evicted.
+    await verifier.verify(first, TokenKind.VIEW, SESSION)
+    await verifier.verify(third, TokenKind.VIEW, SESSION)
+    assert [luml.validations_of(token) for token in (first, second, third)] == [2, 1, 1]
+
+    await verifier.verify(first, TokenKind.VIEW, SESSION)
+    await verifier.verify(third, TokenKind.VIEW, SESSION)
+    await verifier.verify(second, TokenKind.VIEW, SESSION)
+
+    assert [luml.validations_of(token) for token in (first, second, third)] == [2, 2, 1]
+
+
+def test_cache_size_must_be_positive(luml: FakeRelayApi) -> None:
+    with pytest.raises(ValueError, match="at least one entry"):
+        create_verifier(luml, max_entries=0)
+
+
 async def test_claims_are_cached_no_longer_than_the_token_lives(
     luml: FakeRelayApi, verifier: LumlTokenVerifier, clock: FakeClock
 ) -> None:

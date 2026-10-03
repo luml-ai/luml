@@ -3,6 +3,8 @@ from typing import Protocol
 
 from luml_tunnel.protocol import RelayConnection
 
+MAX_AGENTS = 1000
+
 _SESSION_ID = re.compile(r"[a-z0-9]+")
 
 
