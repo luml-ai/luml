@@ -37,7 +37,7 @@ from tests.harness import (
 API_KEY = "luml_test_key"
 ORGANIZATION_ID = "0199c455-21ec-7c74-8efe-41470e29bae5"
 ORBIT_ID = "0199c455-21ed-7aba-9fe5-5231611220de"
-APP_URL = f"http://app.example/organization/{ORGANIZATION_ID}/orbit/{ORBIT_ID}/flow/{SESSION}"
+PUBLIC_URL = f"http://{SESSION}.tunnel.example"
 CREATED_AT = "2026-09-29T10:00:00Z"
 
 
@@ -116,13 +116,12 @@ class FakeLuml:
         if self.start_status != 200:
             detail = {"detail": "Live sessions are not set up in this deployment"}
             return JSONResponse(detail, status_code=self.start_status)
-        self.started.append((await request.json())["name"])
+        self.started.append((await request.json())["label"])
         token, expires_at = self._token(self.token_lifetime)
         return JSONResponse(
             {
                 "id": SESSION,
-                "public_url": f"http://{SESSION}.tunnel.example",
-                "app_url": APP_URL,
+                "public_url": PUBLIC_URL,
                 "agent_url": relay_url(self.relay_port),
                 "expose_token": token,
                 "token_expires_at": expires_at.isoformat(),
@@ -157,7 +156,8 @@ class FakeLuml:
             "id": SESSION,
             "orbit_id": ORBIT_ID,
             "user_id": USER,
-            "name": self.started[-1],
+            "label": self.started[-1],
+            "visibility": "owner",
             "relay_id": self.relay_id,
             "started_at": CREATED_AT,
             "connected": False,
@@ -221,7 +221,7 @@ async def test_expose_starts_a_session_and_becomes_live(
 
         assert fake_luml.started == ["dashboard"]
         assert relay.agents.get(SESSION) is not None
-        assert APP_URL in capsys.readouterr().out
+        assert PUBLIC_URL in capsys.readouterr().out
         assert await _served(relay_port, view_token) == 200
         assert not running.task.done()
 
@@ -407,7 +407,7 @@ async def test_command_ends_the_session_on_a_signal(
             process.kill()
             await process.wait()
 
-    assert APP_URL in printed.decode()
+    assert PUBLIC_URL in printed.decode()
     assert exit_code == 0
     assert fake_luml.end_calls == 1
 

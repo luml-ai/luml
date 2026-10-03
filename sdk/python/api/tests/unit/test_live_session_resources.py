@@ -8,13 +8,18 @@ from pydantic import BaseModel
 from respx import MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
-from luml_api._exceptions import ConflictError, InternalServerError, NotFoundError
+from luml_api._exceptions import (
+    ConflictError,
+    NotFoundError,
+    UnprocessableEntityError,
+)
 from luml_api._types import (
     LiveSession,
     LiveSessionHeartbeat,
     LiveSessionStart,
     LiveSessionStatus,
     LiveSessionViewToken,
+    LiveSessionVisibility,
 )
 from tests.conftest import TEST_API_KEY
 
@@ -24,6 +29,7 @@ USER = "0199c9cd-3e36-72c0-b823-040eb8195067"
 SESSION_ID = "k3f9x2ab"
 SESSIONS_PATH = f"/v1/organizations/{ORG}/orbits/{ORBIT}/live-sessions"
 SESSION_PATH = f"{SESSIONS_PATH}/{SESSION_ID}"
+RELAY = "0199d001-0000-7000-8000-000000000001"
 TOKEN_EXPIRES_AT = datetime(2026, 9, 29, 12, 10, tzinfo=UTC)
 
 
@@ -32,12 +38,14 @@ def _session_record(**overrides: Any) -> dict[str, Any]:  # noqa: ANN401
         "id": SESSION_ID,
         "orbit_id": ORBIT,
         "user_id": USER,
-        "name": "training dashboard",
-        "relay_id": "default",
+        "label": "training dashboard",
+        "visibility": "owner",
+        "relay_id": RELAY,
         "started_at": "2026-09-29T12:00:00Z",
         "last_heartbeat_at": "2026-09-29T12:00:30Z",
         "connected": True,
         "ended_at": None,
+        "last_viewer_activity_at": None,
         "status": "live",
     }
     record.update(overrides)
@@ -47,7 +55,6 @@ def _session_record(**overrides: Any) -> dict[str, Any]:  # noqa: ANN401
 START_RESPONSE: dict[str, Any] = {
     "id": SESSION_ID,
     "public_url": f"https://{SESSION_ID}.tunnel.example",
-    "app_url": f"https://app.luml.ai/organization/{ORG}/orbit/{ORBIT}/flow/{SESSION_ID}",
     "agent_url": "wss://tunnel.example/.luml-tunnel/agent",
     "expose_token": "expose-token",
     "token_expires_at": "2026-09-29T12:10:00Z",
@@ -71,10 +78,11 @@ OPERATIONS: list[tuple[str, tuple[Any, ...], str, str, Any, Any, type[BaseModel]
         ("training dashboard",),
         "POST",
         SESSIONS_PATH,
-        {"name": "training dashboard"},
+        {"label": "training dashboard"},
         START_RESPONSE,
         LiveSessionStart,
     ),
+    ("start", (), "POST", SESSIONS_PATH, {}, START_RESPONSE, LiveSessionStart),
     ("get", (SESSION_ID,), "GET", SESSION_PATH, None, _session_record(), LiveSession),
     (
         "heartbeat",
@@ -90,7 +98,16 @@ OPERATIONS: list[tuple[str, tuple[Any, ...], str, str, Any, Any, type[BaseModel]
         (SESSION_ID,),
         "POST",
         f"{SESSION_PATH}/view-token",
-        None,
+        {},
+        VIEW_TOKEN_RESPONSE,
+        LiveSessionViewToken,
+    ),
+    (
+        "view_token",
+        (SESSION_ID, "/runs/42?tab=metrics"),
+        "POST",
+        f"{SESSION_PATH}/view-token",
+        {"destination": "/runs/42?tab=metrics"},
         VIEW_TOKEN_RESPONSE,
         LiveSessionViewToken,
     ),
@@ -104,7 +121,7 @@ OPERATIONS: list[tuple[str, tuple[Any, ...], str, str, Any, Any, type[BaseModel]
         LiveSession,
     ),
 ]
-OPERATION_IDS = [operation[0] for operation in OPERATIONS]
+OPERATION_IDS = [f"{operation[0]}-{len(operation[1])}-args" for operation in OPERATIONS]
 
 
 def _assert_request(
@@ -237,19 +254,62 @@ def test_heartbeat_without_renewal_has_no_token(
     assert answer.token_expires_at is None
 
 
-def test_start_when_feature_is_off_raises_501(
+def test_start_answer_carries_no_app_address(
     client_with_mocks: LumlClient, respx_mock: MockRouter
 ) -> None:
     respx_mock.post(SESSIONS_PATH).mock(
+        return_value=httpx.Response(200, json=START_RESPONSE)
+    )
+
+    started = client_with_mocks.live_sessions.start()
+
+    assert "app_url" not in started.model_dump()
+    assert started.public_url == f"https://{SESSION_ID}.tunnel.example"
+
+
+def test_session_without_label_or_relay_is_typed(
+    client_with_mocks: LumlClient, respx_mock: MockRouter
+) -> None:
+    respx_mock.get(SESSION_PATH).mock(
         return_value=httpx.Response(
-            501, json={"detail": "Live sessions are not set up in this deployment"}
+            200, json=_session_record(label=None, relay_id=None, status="ended")
         )
     )
 
-    with pytest.raises(InternalServerError) as error:
+    session = client_with_mocks.live_sessions.get(SESSION_ID)
+
+    assert session.label is None
+    assert session.relay_id is None
+    assert session.visibility == LiveSessionVisibility.OWNER
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "Assign a relay to this orbit in orbit settings",
+        "Relay office is draining",
+    ],
+)
+def test_start_refusal_raises_conflict(
+    client_with_mocks: LumlClient, respx_mock: MockRouter, detail: str
+) -> None:
+    respx_mock.post(SESSIONS_PATH).mock(
+        return_value=httpx.Response(409, json={"detail": detail})
+    )
+
+    with pytest.raises(ConflictError):
         client_with_mocks.live_sessions.start("training dashboard")
 
-    assert error.value.status_code == 501
+
+def test_view_token_with_invalid_destination_raises_unprocessable(
+    client_with_mocks: LumlClient, respx_mock: MockRouter
+) -> None:
+    respx_mock.post(f"{SESSION_PATH}/view-token").mock(
+        return_value=httpx.Response(422, json={"detail": "Invalid destination"})
+    )
+
+    with pytest.raises(UnprocessableEntityError):
+        client_with_mocks.live_sessions.view_token(SESSION_ID, "https://evil.example")
 
 
 def test_get_of_another_users_session_raises_not_found(

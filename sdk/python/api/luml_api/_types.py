@@ -150,6 +150,7 @@ class Orbit(BaseModel):
     name: str
     organization_id: str
     bucket_secret_id: str
+    relay_id: str | None = None
     total_members: int | None = None
     total_collections: int | None = None
     created_at: str
@@ -476,18 +477,28 @@ class LiveSessionStatus(StrEnum):
     ENDED = "ended"
 
 
+class LiveSessionVisibility(StrEnum):
+    """
+    Options: "owner".
+    """
+
+    OWNER = "owner"
+
+
 class LiveSession(BaseModel):
     """A service exposed through the tunnel, as the Platform records it."""
 
     id: str
     orbit_id: str
     user_id: str
-    name: str
-    relay_id: str
+    label: str | None = None
+    visibility: LiveSessionVisibility
+    relay_id: str | None = None
     started_at: str
     last_heartbeat_at: str | None = None
     connected: bool
     ended_at: str | None = None
+    last_viewer_activity_at: str | None = None
     status: LiveSessionStatus
 
 
@@ -496,7 +507,6 @@ class LiveSessionStart(BaseModel):
 
     id: str
     public_url: str
-    app_url: str
     agent_url: str
     expose_token: str
     token_expires_at: datetime
@@ -515,6 +525,74 @@ class LiveSessionViewToken(BaseModel):
     token: str
     launch_url: str
     expires_at: datetime
+
+
+class FlowSession(BaseModel):
+    id: str
+    status: LiveSessionStatus
+    started_at: str
+    last_heartbeat_at: str | None = None
+
+
+class Flow(BaseModel):
+    """A named entry on an orbit's Flow page, pointing at its current session."""
+
+    id: str
+    orbit_id: str
+    user_id: str
+    name: str
+    session: FlowSession
+    created_at: str
+
+
+class FlowExposed(BaseModel):
+    """The exposed flow, what its agent needs to connect, and the Flow page."""
+
+    flow: Flow
+    session: LiveSessionStart
+    app_url: str
+
+
+class RelayStatus(StrEnum):
+    """
+    Options: "enabled", "draining".
+    """
+
+    ENABLED = "enabled"
+    DRAINING = "draining"
+
+
+class RelayKind(StrEnum):
+    """
+    Options: "managed", "own".
+    """
+
+    MANAGED = "managed"
+    OWN = "own"
+
+
+class Relay(BaseModel):
+    """A relay sessions are served through; managed relays have no organization."""
+
+    id: str
+    organization_id: str | None = None
+    kind: RelayKind
+    label: str
+    base_domain: str
+    agent_url: str
+    status: RelayStatus
+    online: bool
+    last_seen_at: str | None = None
+    connected_agents: int = 0
+    created_at: str
+    updated_at: str | None = None
+
+
+class RelayWithToken(BaseModel):
+    """A relay with its plaintext token, answered once when the token is issued."""
+
+    relay: Relay
+    token: str
 
 
 def _satellite_origin(url: URL) -> tuple[str, str, int | None]:

@@ -850,13 +850,13 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Add unit and integration tests for the flow scenarios: exposed, refused with nothing created, re-exposed after a crash, over a running agent, onto a draining relay and at the limit, two users with one name, concurrent exposes of one name, gone by silence, removed, seen only through its session
   - [x] Run ruff, mypy and pytest in `backend/`
 
-- [ ] Update the API client for relays, flows and the changed operations
-  - [ ] Add a relays resource in `sdk/python/api/luml_api/resources/` following `bucket_secrets.py`, with list, get by identifier or label, create, update, rotate token and delete in both forms, the plaintext token only in the create and rotate answers; add its types to `sdk/python/api/luml_api/_types.py` and register it in `sdk/python/api/luml_api/_client.py`
-  - [ ] Let create and update in `sdk/python/api/luml_api/resources/orbits.py` take the optional relay reference and clear it
-  - [ ] Change `sdk/python/api/luml_api/resources/live_sessions.py` and the types for the optional label, the destination in viewer access and the start answer without an app address
-  - [ ] Add a flows resource with expose, list, read and remove in both forms, following `live_sessions.py`, and register it in the client
-  - [ ] Add a relays test following the bucket secrets resource test, extend the orbits test for the relay reference, update `sdk/python/api/tests/unit/test_live_session_resources.py` and add a flows test following it
-  - [ ] Run ruff, mypy and pytest in `sdk/python/api/`
+- [x] Update the API client for relays, flows and the changed operations
+  - [x] Add a relays resource in `sdk/python/api/luml_api/resources/` following `bucket_secrets.py`, with list, get by identifier or label, create, update, rotate token and delete in both forms, the plaintext token only in the create and rotate answers; add its types to `sdk/python/api/luml_api/_types.py` and register it in `sdk/python/api/luml_api/_client.py`
+  - [x] Let create and update in `sdk/python/api/luml_api/resources/orbits.py` take the optional relay reference and clear it
+  - [x] Change `sdk/python/api/luml_api/resources/live_sessions.py` and the types for the optional label, the destination in viewer access and the start answer without an app address
+  - [x] Add a flows resource with expose, list, read and remove in both forms, following `live_sessions.py`, and register it in the client
+  - [x] Add a relays test following the bucket secrets resource test, extend the orbits test for the relay reference, update `sdk/python/api/tests/unit/test_live_session_resources.py` and add a flows test following it
+  - [x] Run ruff, mypy and pytest in `sdk/python/api/`
 
 - [ ] Adapt the agent and the expose command to the changed session contracts
   - [ ] Split `tunnel/luml_tunnel/luml.py` into starting a bare session and serving a started session with heartbeats, renewed tokens and the clean end, so the SDK can reuse the second part

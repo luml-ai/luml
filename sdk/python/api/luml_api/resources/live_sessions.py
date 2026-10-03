@@ -25,20 +25,23 @@ class LiveSessionResource:
         )
         return path if session_id is None else f"{path}/{session_id}"
 
-    def start(self, name: str) -> LiveSessionStart:
+    def start(self, label: str | None = None) -> LiveSessionStart:
         """
-        Start a live session in the configured orbit.
+        Start a live session in the configured orbit through the orbit's relay.
+
+        A bare session appears nowhere in the LUML app; expose a flow through
+        `flows` to show it on the Flow page.
 
         Args:
-            name: Name shown for the session on the Flow page.
+            label: Optional label for operators; it is shown nowhere in the app.
 
         Returns:
-            LiveSessionStart: The session's addresses, the relay address the agent
-            connects to, an `expose` token and the heartbeat interval in seconds.
+            LiveSessionStart: The session's public address, the relay address the
+            agent connects to, an `expose` token and the heartbeat interval in
+            seconds.
 
         Raises:
-            InternalServerError: With status 501 when live sessions are off in
-            this deployment; every live session operation fails this way then.
+            ConflictError: If the orbit has no relay or its relay is draining.
 
         Example:
         ```python
@@ -48,11 +51,13 @@ class LiveSessionResource:
             orbit="0199c455-21ed-7aba-9fe5-5231611220de",
         )
         started = luml.live_sessions.start("training dashboard")
-        started.app_url
+        started.public_url
         ```
         """
         return LiveSessionStart.model_validate(
-            self._client.post(self._path(), json={"name": name})
+            self._client.post(
+                self._path(), json=self._client.filter_none({"label": label})
+            )
         )
 
     def list(self) -> list[LiveSession]:
@@ -67,8 +72,8 @@ class LiveSessionResource:
         Read one live session.
 
         Raises:
-            NotFoundError: If the session does not exist or was started by another
-            user.
+            NotFoundError: If the session does not exist or the user may not see
+            it.
         """
         return LiveSession.model_validate(self._client.get(self._path(session_id)))
 
@@ -98,15 +103,26 @@ class LiveSessionResource:
             )
         )
 
-    def view_token(self, session_id: str) -> LiveSessionViewToken:
+    def view_token(
+        self, session_id: str, destination: str | None = None
+    ) -> LiveSessionViewToken:
         """
         Issue a `view` token and the launch address that exchanges it for a cookie.
 
+        Args:
+            session_id: Id of the session.
+            destination: Path on the session's hostname the launch redirects to,
+                such as `/runs/42`; the root when omitted.
+
         Raises:
             ConflictError: If the session has ended.
+            UnprocessableEntityError: If the destination is not a relative path.
         """
         return LiveSessionViewToken.model_validate(
-            self._client.post(f"{self._path(session_id)}/view-token")
+            self._client.post(
+                f"{self._path(session_id)}/view-token",
+                json=self._client.filter_none({"destination": destination}),
+            )
         )
 
     def end(self, session_id: str) -> LiveSession:
@@ -129,10 +145,12 @@ class AsyncLiveSessionResource:
         )
         return path if session_id is None else f"{path}/{session_id}"
 
-    async def start(self, name: str) -> LiveSessionStart:
+    async def start(self, label: str | None = None) -> LiveSessionStart:
         """Async variant of `LiveSessionResource.start`."""
         return LiveSessionStart.model_validate(
-            await self._client.post(self._path(), json={"name": name})
+            await self._client.post(
+                self._path(), json=self._client.filter_none({"label": label})
+            )
         )
 
     async def list(self) -> list[LiveSession]:
@@ -162,10 +180,15 @@ class AsyncLiveSessionResource:
             )
         )
 
-    async def view_token(self, session_id: str) -> LiveSessionViewToken:
+    async def view_token(
+        self, session_id: str, destination: str | None = None
+    ) -> LiveSessionViewToken:
         """Async variant of `LiveSessionResource.view_token`."""
         return LiveSessionViewToken.model_validate(
-            await self._client.post(f"{self._path(session_id)}/view-token")
+            await self._client.post(
+                f"{self._path(session_id)}/view-token",
+                json=self._client.filter_none({"destination": destination}),
+            )
         )
 
     async def end(self, session_id: str) -> LiveSession:

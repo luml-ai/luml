@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         AsyncDeploymentResource,
         DeploymentResource,
     )
+    from luml_api.resources.flows import AsyncFlowResource, FlowResource
     from luml_api.resources.live_sessions import (
         AsyncLiveSessionResource,
         LiveSessionResource,
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
         AsyncOrganizationResource,
         OrganizationResource,
     )
+    from luml_api.resources.relays import AsyncRelayResource, RelayResource
     from luml_api.resources.satellites import (
         AsyncSatelliteResource,
         SatelliteResource,
@@ -186,6 +188,16 @@ class LumlClientBase(ABC):
     @cached_property
     @abstractmethod
     def live_sessions(self) -> "LiveSessionResource | AsyncLiveSessionResource":
+        raise NotImplementedError()
+
+    @cached_property
+    @abstractmethod
+    def flows(self) -> "FlowResource | AsyncFlowResource":
+        raise NotImplementedError()
+
+    @cached_property
+    @abstractmethod
+    def relays(self) -> "RelayResource | AsyncRelayResource":
         raise NotImplementedError()
 
 
@@ -434,6 +446,20 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
         return AsyncLiveSessionResource(self)
 
+    @cached_property
+    def flows(self) -> "AsyncFlowResource":
+        """Flows on the orbit's Flow page, each served through a live session."""
+        from luml_api.resources.flows import AsyncFlowResource
+
+        return AsyncFlowResource(self)
+
+    @cached_property
+    def relays(self) -> "AsyncRelayResource":
+        """Relays that serve live sessions."""
+        from luml_api.resources.relays import AsyncRelayResource
+
+        return AsyncRelayResource(self)
+
 
 class LumlClient(LumlClientBase, SyncBaseClient):
     def __init__(
@@ -665,3 +691,17 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         from luml_api.resources.live_sessions import LiveSessionResource
 
         return LiveSessionResource(self)
+
+    @cached_property
+    def flows(self) -> "FlowResource":
+        """Flows on the orbit's Flow page, each served through a live session."""
+        from luml_api.resources.flows import FlowResource
+
+        return FlowResource(self)
+
+    @cached_property
+    def relays(self) -> "RelayResource":
+        """Relays that serve live sessions."""
+        from luml_api.resources.relays import RelayResource
+
+        return RelayResource(self)

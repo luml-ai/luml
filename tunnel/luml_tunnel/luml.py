@@ -55,7 +55,7 @@ async def expose_through_luml(
     """
     client = await _configured_client(organization, orbit)
     started = await _call_luml("start the session", client.live_sessions.start(name))
-    print(f"Session {name!r} is live at {started.app_url}", flush=True)
+    print(f"Session {name!r} is live at {started.public_url}", flush=True)
     tokens = LumlTokens(started.expose_token, started.token_expires_at)
     agent = Agent(started.agent_url, tokens, service, reconnect)
     serving = asyncio.create_task(agent.run())
