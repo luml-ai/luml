@@ -888,13 +888,13 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Add tests in `tunnel/tests/test_relay_operation.py` for the cap, the rate, the flood of unknown tokens and the report
   - [x] Run ruff format, ruff check, mypy and pytest in `tunnel/`
 
-- [ ] Add LiveFlow to the SDK
-  - [ ] Add the `flow` extra to `sdk/python/sdk/pyproject.toml` depending on the tunnel package with its LUML extra and on `luml-api`, with local path sources for development as `lumlflow/pyproject.toml` declares them, and the extra's dependencies in the dev group so `.github/workflows/[sdk] tests-and-linters.yml` installs them
-  - [ ] Widen the `luml-api` and `luml-sdk` pins in `lumlflow/pyproject.toml` to accept the minors this work ships, changing nothing else in lumlflow, and note the publish order from the Design section The flow object in the pull request
-  - [ ] Add the `luml.flow` module under `sdk/python/sdk/luml/` with `LiveFlow` as the Design section The flow object describes: the defaults, start and stop, the context manager, the background thread with its own loop, the lumlflow probe with the port-in-use failure and the start through the `lumlflow` command, the exit hook and the termination handler only, the printed and kept address
-  - [ ] Fail clearly when the extra or the `lumlflow` command is missing
-  - [ ] Add tests in `sdk/python/sdk/tests/` with fakes of the flows API and the tunnel's serving step, a stub command in place of lumlflow and a fake local server: started lumlflow stopped, found lumlflow left running, port in use, missing lumlflow, explicit start and stop, the default name, cleanup on termination, no interruption handler, the gated import
-  - [ ] Run ruff, mypy and pytest in `sdk/python/sdk/`
+- [x] Add LiveFlow to the SDK
+  - [x] Add the `flow` extra to `sdk/python/sdk/pyproject.toml` depending on the tunnel package with its LUML extra and on `luml-api`, with local path sources for development as `lumlflow/pyproject.toml` declares them, and the extra's dependencies in the dev group so `.github/workflows/[sdk] tests-and-linters.yml` installs them
+  - [x] Widen the `luml-api` and `luml-sdk` pins in `lumlflow/pyproject.toml` to accept the minors this work ships, changing nothing else in lumlflow, and note the publish order from the Design section The flow object in the pull request
+  - [x] Add the `luml.flow` module under `sdk/python/sdk/luml/` with `LiveFlow` as the Design section The flow object describes: the defaults, start and stop, the context manager, the background thread with its own loop, the lumlflow probe with the port-in-use failure and the start through the `lumlflow` command, the exit hook and the termination handler only, the printed and kept address
+  - [x] Fail clearly when the extra or the `lumlflow` command is missing
+  - [x] Add tests in `sdk/python/sdk/tests/` with fakes of the flows API and the tunnel's serving step, a stub command in place of lumlflow and a fake local server: started lumlflow stopped, found lumlflow left running, port in use, missing lumlflow, explicit start and stop, the default name, cleanup on termination, no interruption handler, the gated import
+  - [x] Run ruff, mypy and pytest in `sdk/python/sdk/`
 
 - [ ] Register the dev relay in the dev stack
   - [ ] Configure the relay service in `dev/docker-compose.yml` with the two environment variables pointing at the backend service, drop its old command-line options, and start it after the seed completes

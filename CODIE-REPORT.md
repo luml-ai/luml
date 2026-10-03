@@ -19,3 +19,11 @@ Codie wrote this report while implementing `SPEC.md`.
 **Done:** The tunnel package uses the API client from its local path. Once the start call sent a `label` and the start answer no longer had `app_url`, ten tests in `tunnel/tests/test_luml.py` failed. To keep the tunnel suite green, two small changes were made. `tunnel/luml_tunnel/luml.py` now prints `started.public_url` in place of `started.app_url`. The fake LUML in `tunnel/tests/test_luml.py` reads `label`, drops `app_url` from its start answer, and returns `label` and `visibility` in its session record. The two output assertions now look for the public address. The bare-session split, the label flag and the printed identifier stay with the next task.
 
 **Why:** Without these lines, the tunnel tests would stay red between this commit and the next. The changes are only what the new client contract needs, and the next task replaces them.
+
+### Add LiveFlow to the SDK
+
+**Spec:** The subtask about lumlflow's pins says to "note the publish order from the Design section The flow object in the pull request". The Design section The flow object says `LiveFlow` "waits until the agent reports a connection or a timeout passes", using "the tunnel package's serving step". The task's subtasks change only `sdk/python/sdk/` and `lumlflow/pyproject.toml` (Tasks section).
+
+**Done:** Codie does not write the pull request, so the publish order is recorded here: `luml-api`, then `luml-tunnel`, then the SDK, then lumlflow. The tunnel's serving step, `serve_session` in `tunnel/luml_tunnel/luml.py`, gained an optional `connected` event. The step sets it when the agent first connects. A test in `tunnel/tests/test_luml.py` covers it.
+
+**Why:** The serving step creates its agent internally, so a caller had no way to learn that the agent had connected. The event is generic and optional, existing callers are unchanged, and the tunnel package still knows nothing about flows.

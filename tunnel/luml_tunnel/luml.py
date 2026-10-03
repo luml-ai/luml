@@ -75,13 +75,15 @@ async def serve_session(
     service: LocalService,
     stop: asyncio.Event,
     reconnect: ReconnectPolicy | None = None,
+    connected: asyncio.Event | None = None,
 ) -> None:
     """Serve a started session until `stop` is set or LUML ends it.
 
     `client` must be configured with the session's organization and orbit. The agent
     connects to the relay, heartbeats report its connection and bring renewed tokens.
-    Setting `stop` ends the session at LUML. Raises LumlSessionError when LUML refuses
-    a heartbeat for good, and AgentRefusedError when the relay refuses the agent.
+    Setting `stop` ends the session at LUML; `connected`, when given, is set once the
+    agent first connects. Raises LumlSessionError when LUML refuses a heartbeat for
+    good, and AgentRefusedError when the relay refuses the agent.
     """
     tokens = LumlTokens(started.expose_token, started.token_expires_at)
     agent = Agent(started.agent_url, tokens, service, reconnect)
@@ -89,18 +91,24 @@ async def serve_session(
     heartbeats = asyncio.create_task(_send_heartbeats(client, started, agent, tokens))
     stopping = asyncio.create_task(stop.wait())
     tasks = (serving, heartbeats, stopping)
+    signalling = asyncio.create_task(_signal_connected(agent, connected or asyncio.Event()))
     try:
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     finally:
-        for task in tasks:
+        for task in (*tasks, signalling):
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks, signalling, return_exceptions=True)
     if stopping in done:
         await _end(client, started.id)
         return
     for finished in (serving, heartbeats):
         if finished in done:
             finished.result()
+
+
+async def _signal_connected(agent: Agent, connected: asyncio.Event) -> None:
+    await agent.wait_connected()
+    connected.set()
 
 
 async def _configured_client(organization: str, orbit: str) -> AsyncLumlClient:

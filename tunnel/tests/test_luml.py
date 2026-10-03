@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from luml_api import AsyncLumlClient
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -15,7 +16,7 @@ from starlette.routing import Route
 
 from luml_tunnel.agent import AgentRefusedError, LoopbackService
 from luml_tunnel.cli import main
-from luml_tunnel.luml import LumlSessionError, LumlTokens, expose_through_luml
+from luml_tunnel.luml import LumlSessionError, LumlTokens, expose_through_luml, serve_session
 from luml_tunnel.relay import Relay
 from luml_tunnel.tokens import TokenKind
 from tests.harness import (
@@ -227,6 +228,28 @@ async def test_expose_starts_a_session_and_becomes_live(
         assert f"Session {SESSION} is live at {PUBLIC_URL}" in capsys.readouterr().out
         assert await _served(relay_port, view_token) == 200
         assert not running.task.done()
+
+
+@pytest.mark.usefixtures("luml_port")
+async def test_serving_signals_the_first_connection(fake_luml: FakeLuml, service_port: int) -> None:
+    client = AsyncLumlClient()
+    client.organization = ORGANIZATION_ID
+    client.orbit = ORBIT_ID
+    started = await client.live_sessions.start("dashboard")
+    service = LoopbackService(service_port)
+    connected = asyncio.Event()
+    serving = asyncio.create_task(
+        serve_session(client, started, service, asyncio.Event(), FAST_RECONNECT, connected)
+    )
+    try:
+        await asyncio.wait_for(connected.wait(), 5)
+        assert not serving.done()
+    finally:
+        serving.cancel()
+        await asyncio.gather(serving, return_exceptions=True)
+        await service.aclose()
+
+    assert fake_luml.end_calls == 0
 
 
 @pytest.mark.usefixtures("luml_port")
