@@ -380,7 +380,7 @@ onBeforeMount(async () => {
 }
 
 .base-settings {
-  margin: -20px;
+  margin: -20px -20px -12px;
 }
 
 .model-settings {
