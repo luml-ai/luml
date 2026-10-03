@@ -16,6 +16,7 @@ from luml.api.orbits.orbits_members import orbit_members_router
 from luml.api.organization.organization_bucket_secrets import bucket_secrets_router
 from luml.api.organization.organization_invites import invites_router
 from luml.api.organization.organization_members import members_router
+from luml.api.organization.organization_relays import relays_router
 
 organization_all_routers = APIRouter(
     prefix="/organizations",
@@ -26,6 +27,7 @@ organization_all_routers.include_router(members_router)
 organization_all_routers.include_router(organization_orbits_router)
 organization_all_routers.include_router(orbit_members_router)
 organization_all_routers.include_router(bucket_secrets_router)
+organization_all_routers.include_router(relays_router)
 organization_all_routers.include_router(collections_router)
 organization_all_routers.include_router(artifacts_router)
 organization_all_routers.include_router(lineage_router)

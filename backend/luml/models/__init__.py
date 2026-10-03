@@ -1,5 +1,5 @@
 from luml.models.artifacts import ArtifactOrm
-from luml.models.auth import AuthSatellite, AuthUser
+from luml.models.auth import AuthRelay, AuthSatellite, AuthUser
 from luml.models.base import Base, TimestampMixin
 from luml.models.bucket_secrets import BucketSecretOrm
 from luml.models.collection import CollectionOrm
@@ -14,6 +14,7 @@ from luml.models.organization import (
     OrganizationMemberOrm,
     OrganizationOrm,
 )
+from luml.models.relay import RelayOrm
 from luml.models.satellite import SatelliteOrm, SatelliteQueueOrm
 from luml.models.stats import StatsEmailSendOrm
 from luml.models.token_black_list import TokenBlackListOrm
@@ -37,11 +38,13 @@ __all__ = [
     "LineageNodeOrm",
     "LineageEdgeOrm",
     "LiveSessionOrm",
+    "RelayOrm",
     "OrbitSecretOrm",
     "StatsEmailSendOrm",
     "BucketSecretOrm",
     "ArtifactOrm",
     "CollectionOrm",
+    "AuthRelay",
     "AuthSatellite",
     "AuthUser",
     "TrackOrm",

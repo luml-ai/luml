@@ -118,6 +118,7 @@ class PermissionsHandler:
                 Resource.ORGANIZATION_INVITE,
                 Resource.BILLING,
                 Resource.ORBIT,
+                Resource.RELAY,
             ],
         )
         if Action.CREATE in permissions.get(Resource.ORBIT, []):

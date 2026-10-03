@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     LIVE_SESSION_RELAY_AGENT_URL: str | None = None
     LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS: int = 600
     LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS: int = 300
+    LIVE_SESSION_RELAY_TOKEN_OVERLAP_SECONDS: int = 600
 
     CORS_ORIGINS: str = "https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
 
