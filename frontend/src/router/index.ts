@@ -155,11 +155,6 @@ const router = createRouter({
           name: 'orbit-flow',
           component: () => import('../pages/orbits/OrbitFlowView.vue'),
         },
-        {
-          path: 'flow/:sessionId',
-          name: 'orbit-flow-session',
-          component: () => import('../pages/orbits/OrbitFlowSessionView.vue'),
-        },
       ],
     },
     {

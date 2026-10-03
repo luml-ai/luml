@@ -311,3 +311,18 @@ export const deleteRelayConfirmOptions = (accept: () => void): ConfirmationOptio
   },
   accept,
 })
+
+export const removeFlowConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message:
+    'The flow will be removed from this page and its session ended. The agent next to it stops after its next heartbeat.',
+  header: 'Remove flow?',
+  rejectProps: {
+    label: 'Cancel',
+  },
+  acceptProps: {
+    label: 'Remove',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})

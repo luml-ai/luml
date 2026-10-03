@@ -25,4 +25,16 @@ describe('SetupPage Flow tab', () => {
     expect(wrapper.text()).toContain('pip install lumlflow')
     expect(wrapper.text()).toContain('lumlflow ui')
   })
+
+  it('points to the docs page for exposing a flow instead of building a tunnel command', async () => {
+    const wrapper = mount(SetupPage, {
+      global: { stubs: { DButton: true, OrbitCreator: true, UiPageLoader: true } },
+    })
+    await flushPromises()
+
+    const docsLink = wrapper.get('a.link')
+    expect(docsLink.attributes('href')).toMatch(/\/apps\/lumlflow\/relayed_flows$/)
+    expect(docsLink.attributes('target')).toBe('_blank')
+    expect(wrapper.text()).not.toContain('luml-tunnel')
+  })
 })

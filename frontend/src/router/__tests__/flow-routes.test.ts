@@ -17,11 +17,9 @@ describe('flow routes', () => {
     expect(route.meta.orbitMiddleware).toBe(true)
   })
 
-  it('places a session under the list, by its identifier', () => {
+  it('shows the not-found page at an old session address', () => {
     const route = router.resolve(`/organization/${ORGANIZATION_ID}/orbit/${ORBIT_ID}/flow/k3j9x2`)
 
-    expect(route.name).toBe('orbit-flow-session')
-    expect(route.params.sessionId).toBe('k3j9x2')
-    expect(route.meta.requireAuth).toBe(true)
+    expect(route.name).toBe('404')
   })
 })

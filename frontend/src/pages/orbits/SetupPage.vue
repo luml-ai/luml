@@ -47,6 +47,9 @@
           <div class="content">
             <div class="title">{{ card.title }}</div>
             <p class="text">{{ card.description }}</p>
+            <a v-if="card.link" :href="card.link.href" target="_blank" class="link">
+              {{ card.link.label }}
+            </a>
           </div>
         </div>
 
@@ -81,7 +84,11 @@ import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import type { Orbit } from '@/lib/api/api.interfaces'
 import { TAB_TO_ROUTE } from '@/constants/orbit-navigation'
 import FlowCommandCard from '@/components/flow/FlowCommandCard.vue'
-import { RUN_LOCALLY_COMMANDS, RUN_LOCALLY_HINTS } from '@/components/flow/flow-commands'
+import {
+  RELAYED_FLOWS_DOCS_URL,
+  RUN_LOCALLY_COMMANDS,
+  RUN_LOCALLY_HINTS,
+} from '@/components/flow/flow-commands'
 
 const route = useRoute()
 const router = useRouter()
@@ -130,7 +137,11 @@ watch(
 
 const TABS: Record<
   string,
-  { title: string; icon: unknown; cards: { title: string; description: string }[] }
+  {
+    title: string
+    icon: unknown
+    cards: { title: string; description: string; link?: { label: string; href: string } }[]
+  }
 > = {
   registry: {
     title: 'Registry',
@@ -185,9 +196,10 @@ const TABS: Record<
     icon: ChartSpline,
     cards: [
       {
-        title: 'Live sessions',
+        title: 'Relayed flows',
         description:
-          'Expose lumlflow or any other web app from wherever it runs, and open it from the Flow page of your orbit.',
+          'Expose a lumlflow running inside a job on a cluster or another machine, and open it from the Flow page of your orbit.',
+        link: { label: 'Read how to expose a flow', href: RELAYED_FLOWS_DOCS_URL },
       },
     ],
   },
@@ -278,6 +290,13 @@ function onOrbitCreated(orbit: Orbit) {
   font-size: 14px;
   font-weight: 400;
   line-height: 20px;
+}
+
+.link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--p-primary-color);
 }
 
 .actions {

@@ -76,12 +76,20 @@ describe('LayoutSidebar Flow entry', () => {
     })
   })
 
-  it.each(['orbit-flow', 'orbit-flow-session'])('is active on %s', (name) => {
+  it('is active on the Flow page', () => {
     organizationStore.currentOrganization = { id: ORG }
     orbitsStore.currentOrbitId = ORBIT
-    route.name = name
+    route.name = 'orbit-flow'
 
     expect(flowLink(mountSidebar()).classes()).toContain('active')
+  })
+
+  it('is not active on another orbit page', () => {
+    organizationStore.currentOrganization = { id: ORG }
+    orbitsStore.currentOrbitId = ORBIT
+    route.name = 'orbit-satellites'
+
+    expect(flowLink(mountSidebar()).classes()).not.toContain('active')
   })
 
   it('is active on the Flow tab of the setup page', () => {

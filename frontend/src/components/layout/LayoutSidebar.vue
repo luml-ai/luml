@@ -135,7 +135,6 @@ const theme = computed<Theme>({
 const ROUTES_REQUIRING_ORG_ID = ['organization', 'collection']
 const ORBIT_ROUTES = Object.values(TAB_TO_ROUTE)
 const DEPLOYMENTS_GROUP = ['orbit-deployments', 'orbit-secrets']
-const FLOW_GROUP = ['orbit-flow', 'orbit-flow-session']
 
 const getFormattedGithubStars = computed(() => {
   if (githubStarsCount.value === null) return null
@@ -151,9 +150,6 @@ function isActive(routeName: string): boolean {
   }
   if (routeName === 'orbit-deployments') {
     return DEPLOYMENTS_GROUP.includes(currentRouteName)
-  }
-  if (routeName === 'orbit-flow') {
-    return FLOW_GROUP.includes(currentRouteName)
   }
   return currentRouteName === routeName
 }

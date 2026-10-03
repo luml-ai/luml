@@ -5,3 +5,9 @@ export interface LocalStorageProviderSettings {
   [ProvidersEnum.openAi]?: Record<string, string>
   [ProvidersEnum.ollama]?: Record<string, string>
 }
+
+export interface LocalFlow {
+  name: string
+  address: string
+  port: number
+}
