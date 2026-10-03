@@ -1,9 +1,13 @@
 import uuid
 
+import pytest
+from luml.infra.exceptions import NotFoundError
 from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import Deployment, DeploymentCreate, DeploymentStatus
 from luml.schemas.orbit import OrbitDetails
+from luml.schemas.orbit_secret import OrbitSecretCreate
 from luml.schemas.satellite import (
     Satellite,
     SatelliteCreate,
@@ -265,5 +269,36 @@ class TestDeploymentRepositoryCrud:
         assert len(await repository.list_deployments(seeded_satellite.orbit.id)) == 2
 
         await repository.delete_deployments_by_artifact_id(seeded_satellite.model.id)
+
+        assert await repository.list_deployments(seeded_satellite.orbit.id) == []
+
+    @pytest.mark.parametrize(
+        "binding", ["dynamic_attributes_secrets", "env_variables_secrets"]
+    )
+    async def test_create_deployment_raises_not_found_for_missing_secret(
+        self,
+        repository: DeploymentRepository,
+        seeded_satellite: SatelliteFixtureData,
+        binding: str,
+    ) -> None:
+        existing = await OrbitSecretRepository(
+            seeded_satellite.engine
+        ).create_orbit_secret(
+            OrbitSecretCreate(
+                name="token", value="secret", orbit_id=seeded_satellite.orbit.id
+            )
+        )
+
+        with pytest.raises(NotFoundError, match="Orbit secret not found"):
+            await repository.create_deployment(
+                DeploymentCreate(
+                    name="missing-secret",
+                    orbit_id=seeded_satellite.orbit.id,
+                    satellite_id=seeded_satellite.satellite.id,
+                    artifact_id=seeded_satellite.model.id,
+                    status=DeploymentStatus.PENDING,
+                    **{binding: {"A": str(existing.id), "B": str(uuid.uuid7())}},
+                )
+            )
 
         assert await repository.list_deployments(seeded_satellite.orbit.id) == []

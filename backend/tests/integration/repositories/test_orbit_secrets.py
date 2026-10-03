@@ -1,7 +1,10 @@
 from uuid import uuid7
 
 import pytest
+from luml.infra.exceptions import OrbitSecretInUseError
+from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbit_secrets import OrbitSecretRepository
+from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
@@ -10,7 +13,7 @@ from luml.schemas.orbit_secret import (
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.builders import create_sibling_orbit
-from tests.support.seeds import OrbitFixtureData
+from tests.support.seeds import OrbitFixtureData, SatelliteFixtureData
 
 
 @pytest.fixture
@@ -190,3 +193,65 @@ class TestOrbitSecretRepository:
             await repository.get_orbit_secret(secret.id, seeded_orbit.orbit.id)
             is not None
         )
+
+    @pytest.mark.parametrize(
+        "binding", ["dynamic_attributes_secrets", "env_variables_secrets"]
+    )
+    async def test_delete_orbit_secret_raises_in_use_when_deployment_binds_it(
+        self,
+        repository: OrbitSecretRepository,
+        seeded_satellite: SatelliteFixtureData,
+        binding: str,
+    ) -> None:
+        secret = await repository.create_orbit_secret(
+            OrbitSecretCreate(
+                name="token", value="secret", orbit_id=seeded_satellite.orbit.id
+            )
+        )
+        await DeploymentRepository(seeded_satellite.engine).create_deployment(
+            DeploymentCreate(
+                name="uses-token",
+                orbit_id=seeded_satellite.orbit.id,
+                satellite_id=seeded_satellite.satellite.id,
+                artifact_id=seeded_satellite.model.id,
+                status=DeploymentStatus.PENDING,
+                **{binding: {"TOKEN": str(secret.id)}},
+            )
+        )
+
+        with pytest.raises(OrbitSecretInUseError) as error:
+            await repository.delete_orbit_secret(secret.id, seeded_satellite.orbit.id)
+
+        assert error.value.status_code == 409
+        assert error.value.deployment_names == ["uses-token"]
+        assert "uses-token" in error.value.message
+        assert (
+            await repository.get_orbit_secret(secret.id, seeded_satellite.orbit.id)
+            is not None
+        )
+
+    async def test_delete_orbit_secret_ignores_deployments_bound_to_other_secrets(
+        self,
+        repository: OrbitSecretRepository,
+        seeded_satellite: SatelliteFixtureData,
+    ) -> None:
+        orbit_id = seeded_satellite.orbit.id
+        secret = await repository.create_orbit_secret(
+            OrbitSecretCreate(name="unused", value="secret", orbit_id=orbit_id)
+        )
+        other = await repository.create_orbit_secret(
+            OrbitSecretCreate(name="used", value="secret", orbit_id=orbit_id)
+        )
+        await DeploymentRepository(seeded_satellite.engine).create_deployment(
+            DeploymentCreate(
+                name="uses-other",
+                orbit_id=orbit_id,
+                satellite_id=seeded_satellite.satellite.id,
+                artifact_id=seeded_satellite.model.id,
+                status=DeploymentStatus.PENDING,
+                dynamic_attributes_secrets={"token": str(other.id)},
+            )
+        )
+
+        assert await repository.delete_orbit_secret(secret.id, orbit_id) is True
+        assert await repository.get_orbit_secret(secret.id, orbit_id) is None
