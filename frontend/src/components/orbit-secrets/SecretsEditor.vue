@@ -226,17 +226,7 @@ async function onDelete() {
     toast.add(simpleSuccessToast('Secret deleted successfully'))
     emit('update:visible', false)
   } catch (e: unknown) {
-    const errorMessage = getErrorMessage(e, 'Failed to delete secret')
-
-    if (
-      errorMessage.includes('used') ||
-      errorMessage.includes('deployment') ||
-      errorMessage.includes('active')
-    ) {
-      toast.add(simpleErrorToast('The secret is currently used by active deployments'))
-    } else {
-      toast.add(simpleErrorToast(errorMessage))
-    }
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to delete secret')))
   } finally {
     deleteLoading.value = false
   }
