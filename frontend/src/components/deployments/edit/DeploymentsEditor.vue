@@ -93,8 +93,13 @@
               <SecretsSelect
                 v-model="secret.value"
                 :secrets-list="secretsStore.secretsList"
+                disabled
               ></SecretsSelect>
             </FormField>
+            <p class="secrets-hint" data-testid="secrets-read-only-hint">
+              Secret bindings can't be changed after deployment. To use a new key, update the
+              secret's value in Secrets.
+            </p>
           </AccordionContent>
         </AccordionPanel>
       </Accordion>
@@ -285,16 +290,6 @@ async function saveChanges({ valid }: FormSubmitEvent) {
     }
     const monitoringMode = values.monitoringEnabled ? MonitoringMode.full : MonitoringMode.off
     if (monitoringMode !== props.data.monitoring_mode) payload.monitoring_mode = monitoringMode
-    for (const attribute of values.secretDynamicAttributes) {
-      if (attribute.value === (props.data.dynamic_attributes_secrets[attribute.key] || null))
-        continue
-      payload.dynamic_attributes_secrets ??= { ...props.data.dynamic_attributes_secrets }
-      if (attribute.value) {
-        payload.dynamic_attributes_secrets[attribute.key] = attribute.value
-      } else {
-        Reflect.deleteProperty(payload.dynamic_attributes_secrets, attribute.key)
-      }
-    }
     await deploymentsStore.update(organizationId.value, props.data.orbit_id, props.data.id, payload)
     toast.add(simpleSuccessToast('Deployment changes saved successfully.'))
     visible.value = false
@@ -426,6 +421,13 @@ onBeforeMount(async () => {
 }
 
 .monitoring-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--p-button-text-secondary-color);
+  margin: 0;
+}
+
+.secrets-hint {
   font-size: 12px;
   line-height: 1.5;
   color: var(--p-button-text-secondary-color);

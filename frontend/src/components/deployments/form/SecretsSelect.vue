@@ -10,6 +10,7 @@
       placeholder="Select secret"
       size="small"
       fluid
+      :disabled="disabled"
     >
       <template #footer>
         <div class="select-footer">
@@ -38,6 +39,7 @@ import SecretCreator from '@/components/orbit-secrets/SecretCreator.vue'
 
 type Props = {
   secretsList: OrbitSecret[]
+  disabled?: boolean
 }
 
 defineProps<Props>()

@@ -523,48 +523,22 @@ describe('DeploymentsEditor saves', () => {
     expect(data.tags).toEqual(['production'])
   })
 
-  it('preserves untouched and undisplayed bindings when changing a secret', async () => {
-    const data = {
-      ...savedDeployment(),
-      dynamic_attributes_secrets: {
-        ...savedDeployment().dynamic_attributes_secrets,
-        legacy: 'secret-3',
-      },
-    }
-    const wrapper = mountEditor(data)
-    await flushPromises()
-    wrapper
-      .findAllComponents({ name: 'SecretsSelect' })[0]
-      .vm.$emit('update:modelValue', 'secret-4')
-    await submit(wrapper)
-    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {
-      dynamic_attributes_secrets: { token: 'secret-4', password: 'secret-2', legacy: 'secret-3' },
-    })
-    expect(data.dynamic_attributes_secrets.token).toBe('secret-1')
-  })
-
-  it('sends an empty binding map when the user explicitly clears every secret', async () => {
+  it('shows saved secret bindings read-only with a hint on rotating the key', async () => {
     const wrapper = mountEditor(savedDeployment())
     await flushPromises()
-    for (const select of wrapper.findAllComponents({ name: 'SecretsSelect' })) {
-      select.vm.$emit('update:modelValue', null)
-    }
-    await submit(wrapper)
-    expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {
-      dynamic_attributes_secrets: {},
-    })
+    const selects = wrapper.findAllComponents({ name: 'SecretsSelect' })
+    expect(selects.map((select) => select.props('modelValue'))).toEqual(['secret-1', 'secret-2'])
+    expect(selects.every((select) => select.props('disabled') === true)).toBe(true)
+    expect(wrapper.find('[data-testid="secrets-read-only-hint"]').exists()).toBe(true)
   })
 
   it('omits fields changed back to their saved values', async () => {
     const wrapper = mountEditor(savedDeployment())
     await flushPromises()
     const basics = wrapper.findComponent({ name: 'DeploymentsFormBasicsSettings' })
-    const secret = wrapper.findAllComponents({ name: 'SecretsSelect' })[0]
     basics.vm.$emit('update:name', 'Renamed')
     basics.vm.$emit('update:name', 'Deployment')
     basics.vm.$emit('update:tags', ['production'])
-    secret.vm.$emit('update:modelValue', 'secret-4')
-    secret.vm.$emit('update:modelValue', 'secret-1')
     await submit(wrapper)
     expect(deploymentsStore.update).toHaveBeenCalledWith('org-1', 'orbit-1', 'deployment-1', {})
   })
