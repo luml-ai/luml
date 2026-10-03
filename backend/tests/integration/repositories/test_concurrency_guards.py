@@ -14,6 +14,8 @@ from luml.infra.exceptions import (
     ArtifactTrackedError,
     CollectionDeleteError,
     CollectionNotFoundError,
+    NotFoundError,
+    OrbitSecretInUseError,
     OrganizationDeleteError,
     OrganizationInviteAlreadyExistsError,
     OrganizationLimitReachedError,
@@ -22,6 +24,7 @@ from luml.models import (
     ArtifactOrm,
     CollectionOrm,
     DeploymentOrm,
+    OrbitSecretOrm,
     OrganizationOrm,
     TokenBlackListOrm,
     TrackOrm,
@@ -30,6 +33,7 @@ from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.invites import InviteRepository
+from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.token_blacklist import TokenBlackListRepository
@@ -47,6 +51,7 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
+from luml.schemas.orbit_secret import OrbitSecretCreate
 from luml.schemas.organization import (
     CreateOrganizationInvite,
     OrganizationCreateIn,
@@ -695,6 +700,66 @@ class TestConcurrencyGuards:
             )
             is None
         )
+
+    @pytest.mark.parametrize("first", ["deletion", "deployment"])
+    async def test_delete_orbit_secret_serializes_with_new_binding(
+        self,
+        engine: AsyncEngine,
+        seeded_satellite: SatelliteFixtureData,
+        first: str,
+    ) -> None:
+        orbit_id = seeded_satellite.orbit.id
+        secrets = OrbitSecretRepository(engine)
+        deployments = DeploymentRepository(engine)
+        secret = await secrets.create_orbit_secret(
+            OrbitSecretCreate(name="token", value="secret", orbit_id=orbit_id)
+        )
+        writers: dict[str, Callable[[], Coroutine[Any, Any, Any]]] = {
+            "deletion": lambda: secrets.delete_orbit_secret(secret.id, orbit_id),
+            "deployment": lambda: deployments.create_deployment(
+                DeploymentCreate(
+                    name="late",
+                    orbit_id=orbit_id,
+                    satellite_id=seeded_satellite.satellite.id,
+                    artifact_id=seeded_satellite.model.id,
+                    status=DeploymentStatus.PENDING,
+                    dynamic_attributes_secrets={"token": str(secret.id)},
+                )
+            ),
+        }
+        second = "deployment" if first == "deletion" else "deletion"
+
+        async with AsyncSession(engine) as session:
+            await session.execute(
+                select(OrbitSecretOrm.id)
+                .where(OrbitSecretOrm.id == secret.id)
+                .with_for_update()
+            )
+            tasks = {first: asyncio.create_task(writers[first]())}
+            await _wait_for_lock_waiters(session, 1)
+            tasks[second] = asyncio.create_task(writers[second]())
+            await _wait_for_lock_waiters(session, 2)
+            assert not tasks[first].done()
+            assert not tasks[second].done()
+            await session.commit()
+
+        results = {
+            name: (await asyncio.gather(task, return_exceptions=True))[0]
+            for name, task in tasks.items()
+        }
+        stored = await secrets.get_orbit_secret(secret.id, orbit_id)
+        bound = await deployments.list_deployments(orbit_id)
+
+        if first == "deletion":
+            assert results["deletion"] is True
+            assert isinstance(results["deployment"], NotFoundError)
+            assert stored is None
+            assert bound == []
+        else:
+            assert not isinstance(results["deployment"], BaseException), results
+            assert isinstance(results["deletion"], OrbitSecretInUseError)
+            assert stored is not None
+            assert [deployment.name for deployment in bound] == ["late"]
 
     @pytest.mark.parametrize("reference", ["deployment", "entry"])
     @pytest.mark.parametrize("first", ["deletion", "reference"])

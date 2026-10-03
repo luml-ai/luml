@@ -1,13 +1,15 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from luml.infra.exceptions import (
     ArtifactNotFoundError,
     ArtifactStatusMismatchError,
     InvalidStatusTransitionError,
+    NotFoundError,
 )
-from luml.models import ArtifactOrm, DeploymentOrm, SatelliteQueueOrm
+from luml.models import ArtifactOrm, DeploymentOrm, OrbitSecretOrm, SatelliteQueueOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.artifacts import ArtifactStatus
 from luml.schemas.deployment import (
@@ -25,6 +27,27 @@ from luml.schemas.satellite import (
 
 
 class DeploymentRepository(RepositoryBase, CrudMixin):
+    @staticmethod
+    async def _lock_referenced_secrets(
+        session: AsyncSession, orbit_id: UUID, *bindings: dict[str, str] | None
+    ) -> bool:
+        secret_ids = {
+            UUID(secret_id)
+            for binding in bindings
+            for secret_id in (binding or {}).values()
+        }
+        if not secret_ids:
+            return True
+        result = await session.execute(
+            select(OrbitSecretOrm.id)
+            .where(
+                OrbitSecretOrm.id.in_(secret_ids),
+                OrbitSecretOrm.orbit_id == orbit_id,
+            )
+            .with_for_update(read=True, key_share=True)
+        )
+        return set(result.scalars().all()) == secret_ids
+
     async def create_deployment(
         self, deployment: DeploymentCreate
     ) -> tuple[Deployment, SatelliteQueueTask]:
@@ -39,6 +62,13 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
                 raise ArtifactNotFoundError()
             if artifact.status != ArtifactStatus.UPLOADED:
                 raise ArtifactStatusMismatchError(artifact.status)
+            if not await self._lock_referenced_secrets(
+                session,
+                deployment.orbit_id,
+                deployment.dynamic_attributes_secrets,
+                deployment.env_variables_secrets,
+            ):
+                raise NotFoundError("Orbit secret not found")
 
             db_dep = DeploymentOrm(**deployment.model_dump())
             session.add(db_dep)
@@ -218,6 +248,9 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
                 return None
 
             fields_to_update = update.model_dump(exclude_unset=True, exclude={"id"})
+            await self._lock_referenced_secrets(
+                session, orbit_id, fields_to_update.get("dynamic_attributes_secrets")
+            )
             monitoring_changed = (
                 "monitoring_mode" in fields_to_update
                 and fields_to_update["monitoring_mode"] is not None

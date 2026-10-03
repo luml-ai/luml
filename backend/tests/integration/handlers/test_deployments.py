@@ -1,4 +1,3 @@
-import uuid
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
 
@@ -7,11 +6,13 @@ from luml.handlers.deployments import DeploymentHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine as shared_engine
 from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.schemas.deployment import (
     DeploymentCreate,
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
 )
+from luml.schemas.orbit_secret import OrbitSecretCreate
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.seeds import SatelliteFixtureData
@@ -20,6 +21,13 @@ from tests.support.seeds import SatelliteFixtureData
 @pytest.fixture
 def repository(engine: AsyncEngine) -> DeploymentRepository:
     return DeploymentRepository(engine)
+
+
+async def _secret_id(data: SatelliteFixtureData) -> str:
+    secret = await OrbitSecretRepository(data.engine).create_orbit_secret(
+        OrbitSecretCreate(name="token", value="secret", orbit_id=data.orbit.id)
+    )
+    return str(secret.id)
 
 
 @pytest.fixture
@@ -39,7 +47,7 @@ class TestDeploymentHandler:
         repository: DeploymentRepository,
         seeded_satellite: SatelliteFixtureData,
     ) -> None:
-        secret_id = str(uuid.uuid7())
+        secret_id = await _secret_id(seeded_satellite)
         created, _ = await repository.create_deployment(
             DeploymentCreate(
                 name="original",
@@ -85,7 +93,9 @@ class TestDeploymentHandler:
                 satellite_id=seeded_satellite.satellite.id,
                 artifact_id=seeded_satellite.model.id,
                 status=DeploymentStatus.PENDING,
-                dynamic_attributes_secrets={"token": str(uuid.uuid7())},
+                dynamic_attributes_secrets={
+                    "token": await _secret_id(seeded_satellite)
+                },
             )
         )
 

@@ -162,7 +162,7 @@ export const deleteAPIKeyConfirmOptions = (accept: () => void): ConfirmationOpti
 })
 
 export const deleteSecretConfirmation: ConfirmationOptions = {
-  message: 'Ensure no active deployments are using this key, otherwise deletion will fail.',
+  message: 'A key that deployments use cannot be deleted.',
   header: 'Delete key?',
   acceptLabel: 'Delete key',
   rejectLabel: 'Cancel',
