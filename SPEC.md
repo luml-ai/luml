@@ -858,12 +858,12 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Add a relays test following the bucket secrets resource test, extend the orbits test for the relay reference, update `sdk/python/api/tests/unit/test_live_session_resources.py` and add a flows test following it
   - [x] Run ruff, mypy and pytest in `sdk/python/api/`
 
-- [ ] Adapt the agent and the expose command to the changed session contracts
-  - [ ] Split `tunnel/luml_tunnel/luml.py` into starting a bare session and serving a started session with heartbeats, renewed tokens and the clean end, so the SDK can reuse the second part
-  - [ ] Never connect with a token known to be expired in `tunnel/luml_tunnel/agent.py`; wait for the heartbeat that renews it, keeping a 400-range handshake refusal fatal
-  - [ ] Turn the name flag of `luml-tunnel expose` in `tunnel/luml_tunnel/cli.py` into an optional label and print the session's identifier and public address on start
-  - [ ] Update the fake LUML in `tunnel/tests/test_luml.py` for the changed session contracts, still signing tokens until the next task, and cover the scenarios: the bare session, the renewed token, the agent after an outage, the ended answer
-  - [ ] Run ruff format, ruff check, mypy and pytest in `tunnel/`
+- [x] Adapt the agent and the expose command to the changed session contracts
+  - [x] Split `tunnel/luml_tunnel/luml.py` into starting a bare session and serving a started session with heartbeats, renewed tokens and the clean end, so the SDK can reuse the second part
+  - [x] Never connect with a token known to be expired in `tunnel/luml_tunnel/agent.py`; wait for the heartbeat that renews it, keeping a 400-range handshake refusal fatal
+  - [x] Turn the name flag of `luml-tunnel expose` in `tunnel/luml_tunnel/cli.py` into an optional label and print the session's identifier and public address on start
+  - [x] Update the fake LUML in `tunnel/tests/test_luml.py` for the changed session contracts, still signing tokens until the next task, and cover the scenarios: the bare session, the renewed token, the agent after an outage, the ended answer
+  - [x] Run ruff format, ruff check, mypy and pytest in `tunnel/`
 
 - [ ] Validate tunnel tokens through LUML in the relay
   - [ ] Remove `tunnel/luml_tunnel/signing.py`, the JWKS verifier in `tunnel/luml_tunnel/verification.py`, the `dev` subcommands in `tunnel/luml_tunnel/cli.py` and the JWT dependency from the relay extra in `tunnel/pyproject.toml`; adjust `tunnel/tests/test_imports.py`

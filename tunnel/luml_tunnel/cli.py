@@ -57,14 +57,14 @@ def _dev_token(arguments: argparse.Namespace) -> int:
 
 
 def _expose(arguments: argparse.Namespace) -> int:
-    registration = (arguments.name, arguments.organization, arguments.orbit)
-    if arguments.relay_url is not None and any(registration):
-        print("Give either --relay-url or --name, --organization and --orbit", file=sys.stderr)
+    registration = (arguments.organization, arguments.orbit)
+    if arguments.relay_url is not None and (any(registration) or arguments.label):
+        print("Give either --relay-url or --organization and --orbit", file=sys.stderr)
         return 2
     if arguments.relay_url is None:
         if not all(registration):
             print(
-                "Give --name, --organization and --orbit to register with LUML, "
+                "Give --organization and --orbit to start a session at LUML, "
                 "or --relay-url and a token to connect directly",
                 file=sys.stderr,
             )
@@ -113,7 +113,7 @@ def _expose_through_luml(arguments: argparse.Namespace) -> int:
         service = LoopbackService(arguments.port, arguments.present_loopback_host)
         try:
             await expose_through_luml(
-                arguments.name, arguments.organization, arguments.orbit, service, stop
+                arguments.organization, arguments.orbit, arguments.label, service, stop
             )
         finally:
             await service.aclose()
@@ -196,7 +196,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     expose = commands.add_parser("expose", help="Expose a service on a loopback port")
     expose.add_argument("port", type=_port, help="Port of the service on the loopback address")
-    expose.add_argument("--name", help="Name of the session in LUML")
+    expose.add_argument("--label", help="Label of the session in LUML, for operators")
     expose.add_argument("--organization", help="Organization in LUML, by id or name")
     expose.add_argument("--orbit", help="Orbit in LUML, by id or name")
     expose.add_argument("--relay-url", help="Address agents connect to, to connect without LUML")

@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Awaitable
-from datetime import datetime
+from datetime import UTC, datetime
 
 import httpx
 from luml_api import APIStatusError, AsyncLumlClient, LumlAPIError
@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 API_KEY_ENV = "LUML_API_KEY"
 
-_NOT_SET_UP_STATUS = 501
-
 
 class LumlSessionError(Exception):
     """LUML cannot be used for the session; the message names the cause."""
@@ -30,32 +28,61 @@ class LumlTokens:
     def __init__(self, token: str, expires_at: datetime) -> None:
         self._token = token
         self.expires_at = expires_at
+        self._known_expired = False
+        self._renewed = asyncio.Event()
 
     async def token(self) -> str:
+        while self._known_expired or self.expires_at <= datetime.now(UTC):
+            logger.info("The token has expired; waiting for LUML to renew it")
+            self._renewed.clear()
+            await self._renewed.wait()
         return self._token
+
+    def expired(self, token: str) -> None:
+        if token == self._token:
+            self._known_expired = True
 
     def renew(self, token: str, expires_at: datetime) -> None:
         self._token = token
         self.expires_at = expires_at
+        self._known_expired = False
+        self._renewed.set()
 
 
 async def expose_through_luml(
-    name: str,
     organization: str,
     orbit: str,
+    label: str | None,
     service: LocalService,
     stop: asyncio.Event,
     reconnect: ReconnectPolicy | None = None,
 ) -> None:
-    """Start a session at LUML and serve it until `stop` is set or LUML ends it.
+    """Start a bare session at LUML and serve it until `stop` is set or LUML ends it.
 
     The API key and the address of LUML come from the environment variables the API
-    client reads. Setting `stop` ends the session at LUML. Raises LumlSessionError when
-    LUML cannot be used, and AgentRefusedError when the relay refuses the agent.
+    client reads. Raises LumlSessionError when LUML cannot be used, and
+    AgentRefusedError when the relay refuses the agent.
     """
     client = await _configured_client(organization, orbit)
-    started = await _call_luml("start the session", client.live_sessions.start(name))
-    print(f"Session {name!r} is live at {started.public_url}", flush=True)
+    started = await _call_luml("start the session", client.live_sessions.start(label))
+    print(f"Session {started.id} is live at {started.public_url}", flush=True)
+    await serve_session(client, started, service, stop, reconnect)
+
+
+async def serve_session(
+    client: AsyncLumlClient,
+    started: LiveSessionStart,
+    service: LocalService,
+    stop: asyncio.Event,
+    reconnect: ReconnectPolicy | None = None,
+) -> None:
+    """Serve a started session until `stop` is set or LUML ends it.
+
+    `client` must be configured with the session's organization and orbit. The agent
+    connects to the relay, heartbeats report its connection and bring renewed tokens.
+    Setting `stop` ends the session at LUML. Raises LumlSessionError when LUML refuses
+    a heartbeat for good, and AgentRefusedError when the relay refuses the agent.
+    """
     tokens = LumlTokens(started.expose_token, started.token_expires_at)
     agent = Agent(started.agent_url, tokens, service, reconnect)
     serving = asyncio.create_task(agent.run())
@@ -105,8 +132,6 @@ async def _call_luml[T](action: str, call: Awaitable[T]) -> T:
 def _refusal(action: str, error: APIStatusError) -> str:
     if error.status_code == 401:
         return f"LUML refused the API key in {API_KEY_ENV}"
-    if error.status_code == _NOT_SET_UP_STATUS:
-        return "Live sessions are not set up in this LUML deployment"
     detail = error.body.get("detail") if isinstance(error.body, dict) else error.body
     return f"LUML refused to {action} with status {error.status_code}: {detail}"
 

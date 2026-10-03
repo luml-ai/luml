@@ -13,7 +13,7 @@ from luml_tunnel.agent import (
     LoopbackService,
     ReconnectPolicy,
 )
-from luml_tunnel.frames import RelayLimits
+from luml_tunnel.frames import TOKEN_EXPIRED_CLOSE_CODE, RelayLimits
 from luml_tunnel.relay import Relay
 from luml_tunnel.signing import TokenSigner
 from luml_tunnel.tokens import TokenKind
@@ -158,6 +158,61 @@ async def test_renewed_token_keeps_the_connection_open(
         assert connection is not None and not connection.closed
         assert relay.agents.get(SESSION) is connection
     assert response.status_code == 200
+
+
+class RecordingTokens:
+    def __init__(self, token: str) -> None:
+        self._token = token
+        self.expired_tokens: list[str] = []
+
+    async def token(self) -> str:
+        return self._token
+
+    def expired(self, token: str) -> None:
+        self.expired_tokens.append(token)
+
+
+async def test_expiry_close_names_the_last_presented_token_to_the_source(
+    relay: Relay, relay_port: int, signer: TokenSigner, service_port: int, expose_token: str
+) -> None:
+    tokens = RecordingTokens(expose_token)
+    service = LoopbackService(service_port)
+    agent = Agent(relay_url(relay_port), tokens, service, FAST_RECONNECT)
+    running = asyncio.create_task(agent.run())
+    try:
+        await until(lambda: relay.agents.get(SESSION) is not None)
+        renewed = sign(signer, TokenKind.EXPOSE)
+        await agent.renew_token(renewed)
+        connection = relay.agents.get(SESSION)
+        assert connection is not None
+        await connection.close(TOKEN_EXPIRED_CLOSE_CODE, "token expired")
+
+        await until(lambda: tokens.expired_tokens == [renewed])
+    finally:
+        running.cancel()
+        await asyncio.gather(running, return_exceptions=True)
+        await service.aclose()
+
+
+async def test_other_closes_name_no_expired_token(
+    relay: Relay, relay_port: int, service_port: int, expose_token: str
+) -> None:
+    tokens = RecordingTokens(expose_token)
+    service = LoopbackService(service_port)
+    agent = Agent(relay_url(relay_port), tokens, service, FAST_RECONNECT)
+    running = asyncio.create_task(agent.run())
+    try:
+        await until(lambda: relay.agents.get(SESSION) is not None)
+        first = relay.agents.get(SESSION)
+        assert first is not None
+        await first.close(1001, "going away")
+        await until(lambda: relay.agents.get(SESSION) not in (None, first))
+
+        assert tokens.expired_tokens == []
+    finally:
+        running.cancel()
+        await asyncio.gather(running, return_exceptions=True)
+        await service.aclose()
 
 
 @pytest.mark.parametrize(

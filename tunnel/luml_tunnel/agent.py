@@ -20,6 +20,7 @@ from luml_tunnel.frames import (
     MAX_MESSAGE_BYTES,
     REPLACED_CLOSE_CODE,
     SUBPROTOCOL,
+    TOKEN_EXPIRED_CLOSE_CODE,
     Data,
     End,
     Headers,
@@ -48,7 +49,13 @@ _SERVICE_TIMEOUT = httpx.Timeout(None, connect=10.0)
 
 
 class TokenSource(Protocol):
-    async def token(self) -> str: ...
+    async def token(self) -> str:
+        """The token to connect with; a renewing source waits while it knows it expired."""
+        ...
+
+    def expired(self, token: str) -> None:
+        """The relay closed a connection because `token` expired."""
+        ...
 
 
 class LocalService(Protocol):
@@ -63,6 +70,9 @@ class FixedToken:
 
     async def token(self) -> str:
         return self._token
+
+    def expired(self, token: str) -> None:
+        pass
 
 
 class AgentRefusedError(Exception):
@@ -245,6 +255,7 @@ class Agent:
         self._service = service
         self._reconnect = reconnect or ReconnectPolicy()
         self._connection: AgentConnection | None = None
+        self._presented_token: str | None = None
         self._connected = asyncio.Event()
 
     @property
@@ -275,6 +286,7 @@ class Agent:
         if self._connection is not None:
             with contextlib.suppress(StreamResetError):
                 await self._connection.renew_token(token)
+                self._presented_token = token
 
     async def _connect_and_serve(self) -> bool:
         """Serve one connection until it ends; False when it could not be opened."""
@@ -299,6 +311,7 @@ class Agent:
                 raise AgentRefusedError("the relay does not speak " + SUBPROTOCOL)
             logger.info("Connected to the relay")
             self._connection = AgentConnection(_ClientWebSocketTransport(websocket))
+            self._presented_token = token
             self._connected.set()
             try:
                 await self._serve(self._connection)
@@ -307,6 +320,8 @@ class Agent:
                 self._connection = None
         if websocket.close_code == REPLACED_CLOSE_CODE:
             raise AgentRefusedError("another agent took over the session")
+        if websocket.close_code == TOKEN_EXPIRED_CLOSE_CODE and self._presented_token is not None:
+            self._tokens.expired(self._presented_token)
         logger.warning("The connection to the relay ended")
         return True
 
