@@ -1,9 +1,7 @@
 from time import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, Mock
 from urllib.parse import parse_qs, urlparse
-from uuid import UUID
 
-import httpx
 import jwt
 import pytest
 from luml.clients.oauth_providers import OAuthGoogleProvider
@@ -25,12 +23,13 @@ from luml.schemas.platform_admin import (
 from luml.schemas.user import AuthProvider, User
 from luml.settings import config
 
+from tests.support.ids import USER_ID
+from tests.support.mocks import CollaboratorMocks, mock_collaborators
+
 ADMIN_EMAIL = "admin@luml.ai"
 REDIRECT_URI = "https://api.example.com/v1/platform-admin/auth/google/callback"
 CODE_VERIFIER = "v" * 43
 PORT = 53682
-
-ADD_TOKEN = "luml.handlers.platform_admin_auth.TokenBlackListRepository.add_token"
 
 
 def _config(**overrides: object) -> PlatformAdminConfig:
@@ -44,46 +43,28 @@ def _config(**overrides: object) -> PlatformAdminConfig:
     return PlatformAdminConfig.from_settings(config.model_copy(update=settings))
 
 
-def _google_provider(userinfo: UserInfo) -> type[OAuthGoogleProvider]:
-    class FakeGoogleProvider(OAuthGoogleProvider):
-        @staticmethod
-        async def exchange_code_for_token(
-            client: httpx.AsyncClient, code: str, redirect_uri: str = ""
-        ) -> str:
-            assert redirect_uri == REDIRECT_URI
-            return "google-access-token"
-
-        @staticmethod
-        async def get_user_info(
-            client: httpx.AsyncClient, access_token: str
-        ) -> UserInfo:
-            return userinfo
-
-    return FakeGoogleProvider
-
-
-def _handler(
-    admin_config: PlatformAdminConfig | None = None,
-    userinfo: UserInfo | None = None,
-) -> PlatformAdminAuthHandler:
-    return PlatformAdminAuthHandler(
-        admin_config or _config(),
-        AuthHandler(secret_key=config.AUTH_SECRET_KEY),
-        _google_provider(
-            userinfo
-            or UserInfo(
-                email="Admin@luml.ai",
-                full_name="Admin",
-                email_verified=True,
-                hosted_domain="luml.ai",
-            )
-        ),
+@pytest.fixture
+def mocks() -> CollaboratorMocks[PlatformAdminAuthHandler]:
+    auth_handler = Mock(spec=AuthHandler)
+    google_provider = Mock(spec=OAuthGoogleProvider)
+    google_provider.exchange_code_for_token.return_value = "google-access-token"
+    google_provider.get_user_info.return_value = UserInfo(
+        email="Admin@luml.ai",
+        full_name="Admin",
+        email_verified=True,
+        hosted_domain="luml.ai",
     )
+    mocks = mock_collaborators(
+        PlatformAdminAuthHandler(_config(), auth_handler, google_provider)
+    )
+    mocks.auth_handler = auth_handler
+    mocks.google_provider = google_provider
+    return mocks
 
 
 def _db_user(disabled: bool = False) -> User:
     return User(
-        id=UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b"),
+        id=USER_ID,
         email=ADMIN_EMAIL,
         auth_method=AuthProvider.EMAIL,
         email_verified=True,
@@ -104,15 +85,15 @@ async def _google_login_code(handler: PlatformAdminAuthHandler) -> str:
     return _query(redirect)["code"]
 
 
-class TestPlatformAdminConfig:
-    def test_disabled_without_admin_email(self) -> None:
+class TestPlatformAdminAuthHandler:
+    def test_config_is_disabled_when_admin_email_missing(self) -> None:
         admin_config = _config(
             PLATFORM_ADMIN_EMAIL=None, PLATFORM_ADMIN_GOOGLE_REDIRECT_URI=None
         )
 
         assert not admin_config.enabled
 
-    def test_defaults_to_google_only(self) -> None:
+    def test_config_defaults_to_google_only_when_methods_unset(self) -> None:
         admin_config = PlatformAdminConfig.from_settings(
             config.model_copy(
                 update={
@@ -124,7 +105,7 @@ class TestPlatformAdminConfig:
 
         assert admin_config.auth_methods == {PlatformAdminAuthMethod.GOOGLE}
 
-    def test_normalizes_admin_email_and_methods(self) -> None:
+    def test_config_normalizes_admin_email_and_methods(self) -> None:
         admin_config = _config(
             PLATFORM_ADMIN_EMAIL="  Admin@LUML.ai ",
             PLATFORM_ADMIN_AUTH_METHODS=" email , google ",
@@ -133,11 +114,13 @@ class TestPlatformAdminConfig:
         assert admin_config.admin_email == ADMIN_EMAIL
         assert admin_config.auth_methods == set(PlatformAdminAuthMethod)
 
-    def test_google_requires_redirect_uri_when_enabled(self) -> None:
+    def test_config_raises_config_error_when_google_enabled_without_redirect_uri(
+        self,
+    ) -> None:
         with pytest.raises(PlatformAdminConfigError, match="REDIRECT_URI"):
             _config(PLATFORM_ADMIN_GOOGLE_REDIRECT_URI=None)
 
-    def test_email_only_does_not_require_redirect_uri(self) -> None:
+    def test_config_accepts_email_only_without_redirect_uri(self) -> None:
         admin_config = _config(
             PLATFORM_ADMIN_AUTH_METHODS="EMAIL", PLATFORM_ADMIN_GOOGLE_REDIRECT_URI=None
         )
@@ -145,48 +128,47 @@ class TestPlatformAdminConfig:
         assert admin_config.auth_methods == {PlatformAdminAuthMethod.EMAIL}
 
     @pytest.mark.parametrize("methods", ["MICROSOFT", "GOOGLE,SAML", " , "])
-    def test_rejects_unknown_or_empty_methods(self, methods: str) -> None:
+    def test_config_raises_config_error_when_methods_unknown_or_empty(
+        self, methods: str
+    ) -> None:
         with pytest.raises(PlatformAdminConfigError):
             _config(PLATFORM_ADMIN_AUTH_METHODS=methods)
 
-    def test_signing_key_differs_from_user_secret(self) -> None:
+    def test_config_derives_signing_key_different_from_user_secret(self) -> None:
         assert _config().signing_key != config.AUTH_SECRET_KEY
 
-
-class TestPlatformAdminTokens:
-    @patch.object(AuthHandler, "_authenticate_user", new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_password_grant_issues_verifiable_token(
-        self, mock_authenticate_user: AsyncMock
+    async def test_tokens_password_grant_issues_verifiable_token(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
-        mock_authenticate_user.return_value = _db_user()
-        handler = _handler()
+        mocks.auth_handler._authenticate_user.return_value = _db_user()
 
-        token = await handler.issue_token(
+        token = await mocks.handler.issue_token(
             PasswordGrant(grant_type="password", email="ADMIN@luml.ai", password="pw")
         )
-        admin = handler.authenticate(token.access_token)
+        admin = mocks.handler.authenticate(token.access_token)
 
         assert admin.email == ADMIN_EMAIL
         assert admin.auth_method == PlatformAdminAuthMethod.EMAIL
         assert token.expires_in == 3600
-        mock_authenticate_user.assert_awaited_once_with(ADMIN_EMAIL, "pw")
+        mocks.auth_handler._authenticate_user.assert_awaited_once_with(
+            ADMIN_EMAIL, "pw"
+        )
 
-    def test_user_access_token_is_not_an_admin_token(self) -> None:
+    def test_tokens_authenticate_rejects_user_access_token(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
         user_tokens = AuthHandler(secret_key=config.AUTH_SECRET_KEY)._create_tokens(
             ADMIN_EMAIL
         )
 
         with pytest.raises(AuthError):
-            _handler().authenticate(user_tokens.access_token)
+            mocks.handler.authenticate(user_tokens.access_token)
 
-    @patch.object(AuthHandler, "_authenticate_user", new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_admin_token_is_not_a_user_token(
-        self, mock_authenticate_user: AsyncMock
+    async def test_tokens_user_token_verification_rejects_admin_token(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
-        mock_authenticate_user.return_value = _db_user()
-        token = await _handler().issue_token(
+        mocks.auth_handler._authenticate_user.return_value = _db_user()
+        token = await mocks.handler.issue_token(
             PasswordGrant(grant_type="password", email=ADMIN_EMAIL, password="pw")
         )
 
@@ -195,23 +177,22 @@ class TestPlatformAdminTokens:
                 token.access_token
             )
 
-    @patch.object(AuthHandler, "_authenticate_user", new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_token_stops_working_when_admin_email_changes(
-        self, mock_authenticate_user: AsyncMock
+    async def test_tokens_authenticate_rejects_token_when_admin_email_changes(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
-        mock_authenticate_user.return_value = _db_user()
-        token = await _handler().issue_token(
+        mocks.auth_handler._authenticate_user.return_value = _db_user()
+        token = await mocks.handler.issue_token(
             PasswordGrant(grant_type="password", email=ADMIN_EMAIL, password="pw")
         )
 
-        replaced = _handler(_config(PLATFORM_ADMIN_EMAIL="new-admin@luml.ai"))
+        mocks.handler.config = _config(PLATFORM_ADMIN_EMAIL="new-admin@luml.ai")
 
         with pytest.raises(AuthError, match="Not a platform admin"):
-            replaced.authenticate(token.access_token)
+            mocks.handler.authenticate(token.access_token)
 
-    def test_expired_token_is_rejected(self) -> None:
-        admin_config = _config()
+    def test_tokens_authenticate_rejects_expired_token(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
         now = int(time())
         expired = jwt.encode(
             {
@@ -222,57 +203,56 @@ class TestPlatformAdminTokens:
                 "iat": now - 7200,
                 "exp": now - 3600,
             },
-            admin_config.signing_key,
+            mocks.handler.config.signing_key,
             algorithm="HS256",
         )
 
         with pytest.raises(AuthError, match="expired"):
-            _handler(admin_config).authenticate(expired)
+            mocks.handler.authenticate(expired)
 
-    @pytest.mark.asyncio
-    async def test_password_grant_disabled_by_default(self) -> None:
-        handler = _handler(_config(PLATFORM_ADMIN_AUTH_METHODS="GOOGLE"))
+    async def test_tokens_password_grant_raises_forbidden_when_email_method_disabled(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
+        mocks.handler.config = _config(PLATFORM_ADMIN_AUTH_METHODS="GOOGLE")
 
         with pytest.raises(AuthError) as error:
-            await handler.issue_token(
+            await mocks.handler.issue_token(
                 PasswordGrant(grant_type="password", email=ADMIN_EMAIL, password="pw")
             )
 
         assert error.value.status_code == 403
 
-    @patch.object(AuthHandler, "_authenticate_user", new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_password_grant_rejects_other_users_without_checking_password(
-        self, mock_authenticate_user: AsyncMock
+    async def test_tokens_password_grant_rejects_other_user_without_checking_password(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
         with pytest.raises(AuthError) as error:
-            await _handler().issue_token(
+            await mocks.handler.issue_token(
                 PasswordGrant(
                     grant_type="password", email="someone@luml.ai", password="pw"
                 )
             )
 
         assert error.value.status_code == 401
-        mock_authenticate_user.assert_not_awaited()
+        mocks.auth_handler._authenticate_user.assert_not_awaited()
 
-    @patch.object(AuthHandler, "_authenticate_user", new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_password_grant_rejects_disabled_admin(
-        self, mock_authenticate_user: AsyncMock
+    async def test_tokens_password_grant_raises_forbidden_when_admin_disabled(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
-        mock_authenticate_user.return_value = _db_user(disabled=True)
+        mocks.auth_handler._authenticate_user.return_value = _db_user(disabled=True)
 
         with pytest.raises(AuthError) as error:
-            await _handler().issue_token(
+            await mocks.handler.issue_token(
                 PasswordGrant(grant_type="password", email=ADMIN_EMAIL, password="pw")
             )
 
         assert error.value.status_code == 403
 
-
-class TestPlatformAdminGoogleLogin:
-    def test_login_url_targets_admin_callback(self) -> None:
-        login_url = _handler().google_login_url(PORT, code_challenge_for(CODE_VERIFIER))
+    def test_google_login_url_targets_admin_callback(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
+        login_url = mocks.handler.google_login_url(
+            PORT, code_challenge_for(CODE_VERIFIER)
+        )
         params = _query(login_url)
 
         assert login_url.startswith(config.GOOGLE_AUTH_URL)
@@ -281,43 +261,44 @@ class TestPlatformAdminGoogleLogin:
         assert params["prompt"] == "select_account"
         assert params["state"]
 
-    def test_login_disabled_when_google_not_allowed(self) -> None:
-        handler = _handler(_config(PLATFORM_ADMIN_AUTH_METHODS="EMAIL"))
+    def test_google_login_url_raises_forbidden_when_google_disabled(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
+        mocks.handler.config = _config(PLATFORM_ADMIN_AUTH_METHODS="EMAIL")
 
         with pytest.raises(AuthError) as error:
-            handler.google_login_url(PORT, code_challenge_for(CODE_VERIFIER))
+            mocks.handler.google_login_url(PORT, code_challenge_for(CODE_VERIFIER))
 
         assert error.value.status_code == 403
 
-    @patch(ADD_TOKEN, new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_login_code_exchanges_for_admin_token(
-        self, mock_add_token: AsyncMock
+    async def test_google_login_code_exchanges_for_admin_token(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
-        mock_add_token.return_value = True
-        handler = _handler()
-        login_code = await _google_login_code(handler)
+        mocks.token_black_list_repository.add_token.return_value = True
+        login_code = await _google_login_code(mocks.handler)
 
-        token = await handler.issue_token(
+        token = await mocks.handler.issue_token(
             GoogleCodeGrant(
                 grant_type="google_code", code=login_code, code_verifier=CODE_VERIFIER
             )
         )
 
-        admin = handler.authenticate(token.access_token)
+        admin = mocks.handler.authenticate(token.access_token)
         assert admin.email == ADMIN_EMAIL
         assert admin.auth_method == PlatformAdminAuthMethod.GOOGLE
-        mock_add_token.assert_awaited_once()
+        mocks.token_black_list_repository.add_token.assert_awaited_once()
+        mocks.google_provider.exchange_code_for_token.assert_awaited_once_with(
+            ANY, "google-code", redirect_uri=REDIRECT_URI
+        )
 
-    @patch(ADD_TOKEN, new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_login_code_is_single_use(self, mock_add_token: AsyncMock) -> None:
-        mock_add_token.return_value = False
-        handler = _handler()
-        login_code = await _google_login_code(handler)
+    async def test_google_login_code_raises_when_already_used(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
+        mocks.token_black_list_repository.add_token.return_value = False
+        login_code = await _google_login_code(mocks.handler)
 
         with pytest.raises(AuthError, match="already been used"):
-            await handler.issue_token(
+            await mocks.handler.issue_token(
                 GoogleCodeGrant(
                     grant_type="google_code",
                     code=login_code,
@@ -325,22 +306,26 @@ class TestPlatformAdminGoogleLogin:
                 )
             )
 
-    @patch(ADD_TOKEN, new_callable=AsyncMock)
-    @pytest.mark.asyncio
-    async def test_login_code_requires_matching_verifier(
-        self, mock_add_token: AsyncMock
+        mocks.google_provider.exchange_code_for_token.assert_awaited_once_with(
+            ANY, "google-code", redirect_uri=REDIRECT_URI
+        )
+
+    async def test_google_login_code_raises_when_verifier_mismatches(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
     ) -> None:
-        handler = _handler()
-        login_code = await _google_login_code(handler)
+        login_code = await _google_login_code(mocks.handler)
 
         with pytest.raises(AuthError, match="verifier"):
-            await handler.issue_token(
+            await mocks.handler.issue_token(
                 GoogleCodeGrant(
                     grant_type="google_code", code=login_code, code_verifier="w" * 43
                 )
             )
 
-        mock_add_token.assert_not_awaited()
+        mocks.token_black_list_repository.add_token.assert_not_awaited()
+        mocks.google_provider.exchange_code_for_token.assert_awaited_once_with(
+            ANY, "google-code", redirect_uri=REDIRECT_URI
+        )
 
     @pytest.mark.parametrize(
         "userinfo",
@@ -366,32 +351,41 @@ class TestPlatformAdminGoogleLogin:
         ],
         ids=["not-admin", "unverified-email", "outside-hosted-domain"],
     )
-    @pytest.mark.asyncio
-    async def test_callback_denies_non_admin_identities(
-        self, userinfo: UserInfo
+    async def test_google_callback_redirects_access_denied_when_identity_not_admin(
+        self,
+        mocks: CollaboratorMocks[PlatformAdminAuthHandler],
+        userinfo: UserInfo,
     ) -> None:
-        handler = _handler(userinfo=userinfo)
-        login_url = handler.google_login_url(PORT, code_challenge_for(CODE_VERIFIER))
+        mocks.google_provider.get_user_info.return_value = userinfo
+        login_url = mocks.handler.google_login_url(
+            PORT, code_challenge_for(CODE_VERIFIER)
+        )
 
-        redirect = await handler.google_callback_redirect(
+        redirect = await mocks.handler.google_callback_redirect(
             "google-code", _query(login_url)["state"], None
         )
 
         assert _query(redirect) == {"error": "access_denied"}
+        mocks.google_provider.exchange_code_for_token.assert_awaited_once_with(
+            ANY, "google-code", redirect_uri=REDIRECT_URI
+        )
 
-    @pytest.mark.asyncio
-    async def test_callback_forwards_google_errors_to_loopback(self) -> None:
-        handler = _handler()
-        login_url = handler.google_login_url(PORT, code_challenge_for(CODE_VERIFIER))
+    async def test_google_callback_forwards_google_error_to_loopback(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
+        login_url = mocks.handler.google_login_url(
+            PORT, code_challenge_for(CODE_VERIFIER)
+        )
 
-        redirect = await handler.google_callback_redirect(
+        redirect = await mocks.handler.google_callback_redirect(
             None, _query(login_url)["state"], "access_denied"
         )
 
         assert redirect == f"http://127.0.0.1:{PORT}/callback?error=access_denied"
 
-    @pytest.mark.asyncio
-    async def test_callback_rejects_forged_state(self) -> None:
+    async def test_google_callback_raises_when_state_forged(
+        self, mocks: CollaboratorMocks[PlatformAdminAuthHandler]
+    ) -> None:
         forged = jwt.encode(
             {"type": "platform_admin_oauth_state", "port": PORT, "aud": AUDIENCE},
             "not-the-signing-key",
@@ -399,4 +393,4 @@ class TestPlatformAdminGoogleLogin:
         )
 
         with pytest.raises(AuthError):
-            await _handler().google_callback_redirect("google-code", forged, None)
+            await mocks.handler.google_callback_redirect("google-code", forged, None)

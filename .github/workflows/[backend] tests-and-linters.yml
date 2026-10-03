@@ -11,56 +11,91 @@ on:
       - 'backend/**'
   workflow_dispatch:
 
+defaults:
+  run:
+    working-directory: backend
+
 jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: '3.14'
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
       - name: Install dependencies with uv
-        working-directory: backend
-        run: |
-          python -m pip install --upgrade uv
-          uv sync --group dev
+        run: uv sync --locked --group dev
 
       - name: Check formatting
-        working-directory: backend
-        run: |
-          uv run ruff format --check luml migrations tests utils
+        run: uv run ruff format --check luml migrations tests utils
 
       - name: Linting
-        working-directory: backend
-        run: |
-          uv run ruff check luml migrations tests utils
+        run: uv run ruff check luml migrations tests utils
 
       - name: Type checking
-        working-directory: backend
-        run: |
-          uv run mypy luml
+        run: uv run mypy luml utils tests
 
-      - name: Set up test database service
-        run: |
-          docker run -d \
-            --name test-postgres \
-            -e POSTGRES_USER=test_user \
-            -e POSTGRES_PASSWORD=test_password \
-            -e POSTGRES_DB=df_studio_test \
-            -p 5432:5432 \
-            postgres:15
-          
-          timeout 30 bash -c 'until docker exec test-postgres pg_isready -U test_user -d df_studio_test; do sleep 1; done'
+  unit-tests:
+    runs-on: ubuntu-latest
+    env:
+      PYTEST_VERSION: '1'
+      POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
+      AUTH_SECRET_KEY: test_secret_key_for_ci
+      BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Running tests
-        working-directory: backend
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.14'
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies with uv
+        run: uv sync --locked --group dev
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    env:
+      PYTEST_VERSION: '1'
+      POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
+      AUTH_SECRET_KEY: test_secret_key_for_ci
+      BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
+    services:
+      postgres:
+        image: postgres:15
         env:
-          PYTEST_VERSION: 1
-          POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
-          AUTH_SECRET_KEY: test_secret_key_for_ci
-          BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
-        run: |
-          uv run pytest
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: df_studio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d df_studio_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.14'
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies with uv
+        run: uv sync --locked --group dev
+
+      - name: Run integration tests
+        run: uv run pytest tests/integration
