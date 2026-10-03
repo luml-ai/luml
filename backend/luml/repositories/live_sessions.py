@@ -3,15 +3,19 @@ import string
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from luml.models import LiveSessionOrm
-from luml.models.live_session import live_session_unended
+from luml.models.live_session import (
+    live_session_end,
+    live_session_implied_end,
+    live_session_unended,
+    live_session_visible_to,
+)
 from luml.repositories.base import RepositoryBase, violates
 from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.live_session import (
-    LIVE_SESSION_ENDED_AFTER,
     LIVE_SESSION_LIST_RETENTION,
     LiveSession,
     LiveSessionCreate,
@@ -28,11 +32,6 @@ def new_session_id() -> str:
     )
 
 
-_last_sign_of_life = func.coalesce(
-    LiveSessionOrm.last_heartbeat_at, LiveSessionOrm.started_at
-)
-
-
 class LiveSessionRepository(RepositoryBase):
     async def check_session_slot(
         self, organization_id: UUID, limit: OrganizationResource
@@ -46,6 +45,7 @@ class LiveSessionRepository(RepositoryBase):
         organization_id: UUID,
         limit: OrganizationResource,
     ) -> LiveSession:
+        await self.delete_sessions_past_retention()
         # The primary key refuses an identifier that was handed out before;
         # a clash is retried with a new one.
         for _ in range(_MAX_ID_ATTEMPTS - 1):
@@ -81,16 +81,13 @@ class LiveSessionRepository(RepositoryBase):
         self, orbit_id: UUID, user_id: UUID
     ) -> list[LiveSession]:
         now = datetime.now(UTC)
-        ended_at = func.coalesce(
-            LiveSessionOrm.ended_at, _last_sign_of_life + LIVE_SESSION_ENDED_AFTER
-        )
         async with self._get_session() as session:
             result = await session.execute(
                 select(LiveSessionOrm)
                 .where(
                     LiveSessionOrm.orbit_id == orbit_id,
-                    LiveSessionOrm.user_id == user_id,
-                    ended_at > now - LIVE_SESSION_LIST_RETENTION,
+                    live_session_visible_to(user_id),
+                    live_session_end() > now - LIVE_SESSION_LIST_RETENTION,
                 )
                 .order_by(LiveSessionOrm.started_at.desc())
             )
@@ -125,11 +122,9 @@ class LiveSessionRepository(RepositoryBase):
             await session.commit()
 
     async def end_live_session(self, session_id: str) -> LiveSession | None:
-        # A session that went silent ended when its silence reached the limit,
-        # which keeps its place in the list from being extended by a late end.
-        ended_at = func.least(
-            datetime.now(UTC), _last_sign_of_life + LIVE_SESSION_ENDED_AFTER
-        )
+        # A session that ended by the shared rule ended when the rule says so,
+        # which keeps its retention from being extended by a late end.
+        ended_at = func.least(datetime.now(UTC), live_session_implied_end())
         async with self._get_session() as session:
             await session.execute(
                 update(LiveSessionOrm)
@@ -140,4 +135,18 @@ class LiveSessionRepository(RepositoryBase):
                 .values(ended_at=ended_at)
             )
             await session.commit()
-        return await self.get_live_session(session_id)
+        live_session = await self.get_live_session(session_id)
+        await self.delete_sessions_past_retention()
+        return live_session
+
+    async def delete_sessions_past_retention(self) -> None:
+        """Delete sessions ended over the retention ago, with what references them.
+
+        Runs on every start and end instead of on a schedule.
+        """
+        retained_since = datetime.now(UTC) - LIVE_SESSION_LIST_RETENTION
+        async with self._get_session() as session:
+            await session.execute(
+                delete(LiveSessionOrm).where(live_session_end() < retained_since)
+            )
+            await session.commit()

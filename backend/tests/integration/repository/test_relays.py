@@ -18,7 +18,12 @@ from luml.repositories.live_sessions import LiveSessionRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.relays import RelayRepository
 from luml.repositories.users import UserRepository
-from luml.schemas.live_session import LiveSession, LiveSessionCreate, LiveSessionStatus
+from luml.schemas.live_session import (
+    LiveSession,
+    LiveSessionCreate,
+    LiveSessionStatus,
+    LiveSessionVisibility,
+)
 from luml.schemas.orbit import (
     OrbitCreateIn,
     OrbitDetails,
@@ -115,7 +120,11 @@ async def _start_session(
 ) -> LiveSession:
     return await LiveSessionRepository(data.engine).create_live_session(
         LiveSessionCreate(
-            orbit_id=orbit.id, user_id=data.user.id, name="run", relay_id=relay.id
+            orbit_id=orbit.id,
+            user_id=data.user.id,
+            label="run",
+            visibility=LiveSessionVisibility.OWNER,
+            relay_id=relay.id,
         ),
         data.organization.id,
         OrganizationResource.OWN_RELAY_SESSIONS,
@@ -543,11 +552,23 @@ async def test_removing_a_relay_keeps_its_ended_sessions(
     await sessions.end_live_session(ended.id)
     silent = await _start_session(data, orbit, relay)
     await _silence(data.engine, silent.id, timedelta(minutes=61))
+    unviewed = await _start_session(data, orbit, relay)
+    async with AsyncSession(data.engine) as db:
+        await db.execute(
+            update(LiveSessionOrm)
+            .where(LiveSessionOrm.id == unviewed.id)
+            .values(
+                started_at=datetime.now(UTC) - timedelta(days=7, hours=2),
+                last_heartbeat_at=datetime.now(UTC),
+                connected=True,
+            )
+        )
+        await db.commit()
 
     assert await RelayRepository(data.engine).delete_relay(relay.id) is True
 
     listed = await sessions.list_live_sessions(orbit.id, data.user.id)
-    assert {session.id for session in listed} == {ended.id, silent.id}
+    assert {session.id for session in listed} == {ended.id, silent.id, unviewed.id}
     for session in listed:
         assert session.status == LiveSessionStatus.ENDED
         assert session.relay_id is None

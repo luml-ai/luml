@@ -6,8 +6,9 @@ from unittest.mock import patch
 
 import pytest
 from luml.infra.exceptions import OrganizationLimitReachedError
-from luml.models import LiveSessionOrm, OrganizationOrm
+from luml.models import LiveSessionOrm, LiveSessionTokenOrm, OrganizationOrm
 from luml.repositories.limits import OrganizationResource
+from luml.repositories.live_session_tokens import LiveSessionTokenRepository
 from luml.repositories.live_sessions import LiveSessionRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.relays import RelayRepository
@@ -16,12 +17,15 @@ from luml.schemas.live_session import (
     LiveSession,
     LiveSessionCreate,
     LiveSessionStatus,
+    LiveSessionTokenCreate,
+    LiveSessionVisibility,
+    TunnelTokenKind,
 )
 from luml.schemas.orbit import OrbitCreateIn, OrbitUpdate
 from luml.schemas.organization import OrganizationCreateIn
 from luml.schemas.relay import Relay, RelayCreate
 from luml.schemas.user import CreateUser
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
@@ -49,7 +53,7 @@ async def create_relay(
 async def start_session(
     data: OrbitFixtureData,
     user_id: uuid.UUID | None = None,
-    name: str = "run",
+    label: str | None = "run",
     relay: Relay | None = None,
     orbit_id: uuid.UUID | None = None,
 ) -> LiveSession:
@@ -58,7 +62,8 @@ async def start_session(
         LiveSessionCreate(
             orbit_id=orbit_id or data.orbit.id,
             user_id=user_id or data.user.id,
-            name=name,
+            label=label,
+            visibility=LiveSessionVisibility.OWNER,
             relay_id=relay.id,
         ),
         data.organization.id,
@@ -101,12 +106,13 @@ async def test_create_live_session(create_orbit: OrbitFixtureData) -> None:
 
     relay = await create_relay(data.engine, data.organization.id)
 
-    session = await start_session(data, name="training run", relay=relay)
+    session = await start_session(data, label="training run", relay=relay)
 
     assert re.fullmatch(r"[a-z0-9]+", session.id)
     assert session.orbit_id == data.orbit.id
     assert session.user_id == data.user.id
-    assert session.name == "training run"
+    assert session.label == "training run"
+    assert session.visibility == LiveSessionVisibility.OWNER
     assert session.relay_id == relay.id
     assert session.last_heartbeat_at is None
     assert session.ended_at is None
@@ -269,7 +275,7 @@ async def test_list_contains_only_own_sessions_of_the_orbit(
     first = await start_session(data)
     second = await start_session(data)
     await start_session(data, user_id=other_user_id)
-    await start_session(data, name="elsewhere", orbit_id=other_orbit.id)
+    await start_session(data, label="elsewhere", orbit_id=other_orbit.id)
 
     sessions = await repo.list_live_sessions(data.orbit.id, data.user.id)
 
@@ -283,10 +289,10 @@ async def test_list_drops_sessions_ended_over_a_day_ago(
     data = create_orbit
     repo = LiveSessionRepository(data.engine)
     now = datetime.now(UTC)
-    recent = await start_session(data, name="recent")
-    old = await start_session(data, name="old")
-    silent_recently = await start_session(data, name="silent recently")
-    silent_long_ago = await start_session(data, name="silent long ago")
+    recent = await start_session(data, label="recent")
+    old = await start_session(data, label="old")
+    silent_recently = await start_session(data, label="silent recently")
+    silent_long_ago = await start_session(data, label="silent long ago")
     await set_fields(data.engine, recent.id, ended_at=now - timedelta(hours=23))
     await set_fields(data.engine, old.id, ended_at=now - timedelta(hours=25))
     await set_fields(
@@ -304,7 +310,7 @@ async def test_list_drops_sessions_ended_over_a_day_ago(
 
     sessions = await repo.list_live_sessions(data.orbit.id, data.user.id)
 
-    assert {s.name for s in sessions} == {"recent", "silent recently"}
+    assert {s.label for s in sessions} == {"recent", "silent recently"}
 
 
 @pytest.mark.asyncio
@@ -454,7 +460,8 @@ async def test_limits_count_sessions_across_orbits_of_one_organization_only(
         LiveSessionCreate(
             orbit_id=other_orbit.id,
             user_id=data.user.id,
-            name="elsewhere",
+            label="elsewhere",
+            visibility=LiveSessionVisibility.OWNER,
             relay_id=other_relay.id,
         ),
         other_organization.id,
@@ -500,3 +507,238 @@ async def test_a_session_keeps_its_relay_when_the_orbit_is_reassigned(
     with pytest.raises(OrganizationLimitReachedError, match="its own relays"):
         await repo.check_session_slot(data.organization.id, OWN)
     await repo.check_session_slot(data.organization.id, MANAGED)
+
+
+async def unviewed_for(
+    engine: AsyncEngine, session_id: str, idle_for: timedelta
+) -> None:
+    """Make a session whose agent heartbeats but nobody has viewed for `idle_for`."""
+    now = datetime.now(UTC)
+    await set_fields(
+        engine,
+        session_id,
+        started_at=now - idle_for,
+        last_heartbeat_at=now - timedelta(seconds=10),
+        connected=True,
+    )
+
+
+async def count_tokens(engine: AsyncEngine, session_id: str) -> int:
+    async with AsyncSession(engine) as session:
+        count = await session.scalar(
+            select(func.count(LiveSessionTokenOrm.id)).where(
+                LiveSessionTokenOrm.session_id == session_id
+            )
+        )
+        return count or 0
+
+
+async def issue_expose_token(engine: AsyncEngine, session: LiveSession) -> None:
+    await LiveSessionTokenRepository(engine).issue_token(
+        LiveSessionTokenCreate(
+            kind=TunnelTokenKind.EXPOSE,
+            session_id=session.id,
+            user_id=session.user_id,
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_session_without_a_label_is_started(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    session = await start_session(create_orbit, label=None)
+
+    assert session.label is None
+    assert session.visibility == LiveSessionVisibility.OWNER
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_to_a_session_nobody_viewed_is_not_recorded(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    repo = LiveSessionRepository(create_orbit.engine)
+    session = await start_session(create_orbit)
+    await unviewed_for(create_orbit.engine, session.id, timedelta(days=7, minutes=1))
+    before = await repo.get_live_session(session.id)
+    assert before is not None
+
+    result = await repo.record_heartbeat(session.id, connected=True)
+
+    assert result is not None
+    assert result.status == LiveSessionStatus.ENDED
+    assert result.last_heartbeat_at == before.last_heartbeat_at
+
+
+@pytest.mark.asyncio
+async def test_viewer_activity_resets_the_idle_clock(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    repo = LiveSessionRepository(create_orbit.engine)
+    session = await start_session(create_orbit)
+    await unviewed_for(create_orbit.engine, session.id, timedelta(days=8))
+    await set_fields(
+        create_orbit.engine,
+        session.id,
+        last_viewer_activity_at=datetime.now(UTC) - timedelta(days=1),
+    )
+
+    result = await repo.record_heartbeat(session.id, connected=True)
+
+    assert result is not None
+    assert result.status == LiveSessionStatus.LIVE
+    assert [
+        s.id
+        for s in await repo.list_live_sessions(
+            create_orbit.orbit.id, create_orbit.user.id
+        )
+    ] == [session.id]
+    await repo.check_session_slot(create_orbit.organization.id, OWN)
+
+
+@pytest.mark.asyncio
+async def test_recorded_viewer_activity_keeps_a_session_open(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    repo = LiveSessionRepository(create_orbit.engine)
+    session = await start_session(create_orbit)
+    await unviewed_for(create_orbit.engine, session.id, timedelta(days=6, hours=23))
+
+    await repo.record_viewer_activity(session.id)
+    await unviewed_for(create_orbit.engine, session.id, timedelta(days=8))
+
+    stored = await repo.get_live_session(session.id)
+    assert stored is not None
+    assert stored.status == LiveSessionStatus.LIVE
+
+
+@pytest.mark.asyncio
+async def test_a_session_nobody_viewed_frees_its_place_in_the_limit(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    await set_limits(data.engine, data.organization.id, own_relay_sessions_limit=1)
+    unviewed = await start_session(data)
+    with pytest.raises(OrganizationLimitReachedError):
+        await start_session(data)
+
+    await unviewed_for(data.engine, unviewed.id, timedelta(days=7, minutes=1))
+
+    await start_session(data)
+
+
+@pytest.mark.asyncio
+async def test_ending_a_session_nobody_viewed_keeps_its_end_time(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    repo = LiveSessionRepository(create_orbit.engine)
+    session = await start_session(create_orbit)
+    await unviewed_for(create_orbit.engine, session.id, timedelta(days=7, hours=2))
+    stored = await repo.get_live_session(session.id)
+    assert stored is not None
+
+    ended = await repo.end_live_session(session.id)
+
+    assert ended is not None
+    assert ended.ended_at == stored.started_at + timedelta(days=7)
+
+
+@pytest.mark.asyncio
+async def test_list_keeps_a_session_ended_by_viewer_idleness_for_a_day(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = LiveSessionRepository(data.engine)
+    recently = await start_session(data, label="recently")
+    long_ago = await start_session(data, label="long ago")
+    await unviewed_for(data.engine, recently.id, timedelta(days=7, hours=23))
+    await unviewed_for(data.engine, long_ago.id, timedelta(days=8, hours=1))
+
+    sessions = await repo.list_live_sessions(data.orbit.id, data.user.id)
+
+    assert [(s.label, s.status) for s in sessions] == [
+        ("recently", LiveSessionStatus.ENDED)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_ended_sessions_are_removed_after_their_retention_on_start(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = LiveSessionRepository(data.engine)
+    now = datetime.now(UTC)
+    ended_by_owner = await start_session(data, label="ended by owner")
+    silent = await start_session(data, label="silent")
+    unviewed = await start_session(data, label="unviewed")
+    ended_recently = await start_session(data, label="ended recently")
+    for session in (ended_by_owner, silent, unviewed, ended_recently):
+        await issue_expose_token(data.engine, session)
+    await set_fields(
+        data.engine,
+        ended_by_owner.id,
+        started_at=now - timedelta(days=3),
+        ended_at=now - timedelta(days=2),
+    )
+    await set_fields(
+        data.engine,
+        silent.id,
+        started_at=now - timedelta(hours=30),
+        last_heartbeat_at=now - timedelta(hours=26),
+    )
+    await unviewed_for(data.engine, unviewed.id, timedelta(days=8, hours=1))
+    await set_fields(
+        data.engine, ended_recently.id, ended_at=now - timedelta(minutes=10)
+    )
+
+    await start_session(data, label="new")
+
+    for gone in (ended_by_owner, silent, unviewed):
+        assert await repo.get_live_session(gone.id) is None
+        assert await count_tokens(data.engine, gone.id) == 0
+    kept = await repo.get_live_session(ended_recently.id)
+    assert kept is not None
+    assert kept.status == LiveSessionStatus.ENDED
+    assert await count_tokens(data.engine, ended_recently.id) == 1
+    listed = await repo.list_live_sessions(data.orbit.id, data.user.id)
+    assert {s.label for s in listed} == {"ended recently", "new"}
+
+
+@pytest.mark.asyncio
+async def test_ended_sessions_are_removed_after_their_retention_on_end(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = LiveSessionRepository(data.engine)
+    old = await start_session(data)
+    current = await start_session(data)
+    await set_fields(
+        data.engine, old.id, ended_at=datetime.now(UTC) - timedelta(days=2)
+    )
+
+    ended = await repo.end_live_session(current.id)
+
+    assert ended is not None
+    assert ended.status == LiveSessionStatus.ENDED
+    assert await repo.get_live_session(old.id) is None
+    assert await repo.get_live_session(current.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_a_session_silent_for_a_day_but_ended_late_is_removed_by_its_silence(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = LiveSessionRepository(data.engine)
+    session = await start_session(data)
+    await set_fields(
+        data.engine,
+        session.id,
+        started_at=datetime.now(UTC) - timedelta(hours=27),
+        last_heartbeat_at=datetime.now(UTC) - timedelta(hours=26),
+    )
+
+    assert await repo.end_live_session(session.id) is not None
+
+    assert await repo.get_live_session(session.id) is None

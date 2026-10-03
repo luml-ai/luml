@@ -39,10 +39,12 @@ class Settings(BaseSettings):
     TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL: str
     TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL: str
 
-    # Live sessions are off unless the signing key and the relay are all set.
     LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS: int = 600
     LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS: int = 300
     LIVE_SESSION_RELAY_TOKEN_OVERLAP_SECONDS: int = 600
+    # A session nobody has viewed for this long ends even while its agent
+    # heartbeats, so a forgotten process cannot hold a limit slot forever.
+    LIVE_SESSION_VIEWER_IDLE_SECONDS: int = 604800
 
     CORS_ORIGINS: str = "https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
 

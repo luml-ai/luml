@@ -28,6 +28,7 @@ from luml.schemas.live_session import (
     LiveSessionTokenCreate,
     LiveSessionViewTokenIn,
     LiveSessionViewTokenOut,
+    LiveSessionVisibility,
     TunnelTokenKind,
 )
 from luml.schemas.permissions import Action, Resource
@@ -65,7 +66,6 @@ class LiveSessionHandler:
         self._view_lifetime = timedelta(
             seconds=settings.LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS
         )
-        self._app_url = settings.APP_EMAIL_URL.rstrip("/")
 
     async def _authorize(
         self,
@@ -120,30 +120,18 @@ class LiveSessionHandler:
             )
         return relay
 
-    @staticmethod
-    def _is_visible_to(live_session: LiveSession, user_id: UUID) -> bool:
-        return live_session.user_id == user_id
-
     async def _get_visible_session(
         self, user_id: UUID, orbit_id: UUID, session_id: str
     ) -> LiveSession:
-        # Sessions of other users answer "not found", so their existence stays hidden.
+        # Invisible sessions answer "not found", so their existence stays hidden.
         live_session = await self.__repo.get_live_session(session_id)
         if (
             live_session is None
             or live_session.orbit_id != orbit_id
-            or not self._is_visible_to(live_session, user_id)
+            or not live_session.is_visible_to(user_id)
         ):
             raise NotFoundError("Live session not found")
         return live_session
-
-    def _app_url_for(
-        self, organization_id: UUID, orbit_id: UUID, session_id: str
-    ) -> str:
-        return (
-            f"{self._app_url}/organization/{organization_id}"
-            f"/orbit/{orbit_id}/flow/{session_id}"
-        )
 
     async def start_session(
         self,
@@ -160,7 +148,8 @@ class LiveSessionHandler:
             LiveSessionCreate(
                 orbit_id=orbit_id,
                 user_id=user_id,
-                name=data.name,
+                label=data.label,
+                visibility=LiveSessionVisibility.OWNER,
                 relay_id=relay.id,
             ),
             organization_id,
@@ -172,7 +161,6 @@ class LiveSessionHandler:
         return LiveSessionStartOut(
             id=live_session.id,
             public_url=_public_url(relay, live_session.id),
-            app_url=self._app_url_for(organization_id, orbit_id, live_session.id),
             agent_url=relay.agent_url,
             expose_token=token,
             token_expires_at=expires_at,
@@ -182,8 +170,7 @@ class LiveSessionHandler:
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
     ) -> list[LiveSession]:
         await self._authorize(user_id, organization_id, orbit_id, Action.LIST)
-        sessions = await self.__repo.list_live_sessions(orbit_id, user_id)
-        return [s for s in sessions if self._is_visible_to(s, user_id)]
+        return await self.__repo.list_live_sessions(orbit_id, user_id)
 
     async def get_session(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID, session_id: str
@@ -261,7 +248,9 @@ class LiveSessionHandler:
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID, session_id: str
     ) -> LiveSession:
         await self._authorize(user_id, organization_id, orbit_id, Action.DELETE)
-        await self._get_visible_session(user_id, orbit_id, session_id)
+        visible = await self._get_visible_session(user_id, orbit_id, session_id)
+        if not visible.may_be_ended_by(user_id):
+            raise NotFoundError("Live session not found")
         live_session = await self.__repo.end_live_session(session_id)
         if live_session is None:
             raise NotFoundError("Live session not found")

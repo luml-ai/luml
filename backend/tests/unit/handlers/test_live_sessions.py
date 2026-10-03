@@ -22,6 +22,7 @@ from luml.schemas.live_session import (
     LiveSessionStatus,
     LiveSessionTokenCreate,
     LiveSessionViewTokenIn,
+    LiveSessionVisibility,
     TunnelTokenKind,
 )
 from luml.schemas.orbit import Orbit
@@ -93,15 +94,17 @@ def _session(
     connected: bool = True,
     ended_at: datetime | None = None,
     relay_id: UUID | None = RELAY_ID,
+    started_ago: timedelta = timedelta(hours=2),
 ) -> LiveSession:
     now = datetime.now(UTC)
     return LiveSession(
         id=SESSION_ID,
         orbit_id=ORBIT_ID,
         user_id=user_id,
-        name="training run",
+        label="training run",
+        visibility=LiveSessionVisibility.OWNER,
         relay_id=relay_id,
-        started_at=now - timedelta(hours=2),
+        started_at=now - started_ago,
         last_heartbeat_at=now - last_heartbeat_ago if last_heartbeat_ago else None,
         connected=connected,
         ended_at=ended_at,
@@ -157,7 +160,7 @@ async def test_start_session(
     handler = _handler()
 
     result = await handler.start_session(
-        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="training run")
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="training run")
     )
 
     check_permissions.assert_awaited_once_with(
@@ -170,22 +173,20 @@ async def test_start_session(
     )
     assert repo["create_live_session"].await_args is not None
     created, organization_id, limit = repo["create_live_session"].await_args.args
-    assert (created.orbit_id, created.user_id, created.name, created.relay_id) == (
-        ORBIT_ID,
-        USER_ID,
-        "training run",
-        RELAY_ID,
-    )
+    assert (
+        created.orbit_id,
+        created.user_id,
+        created.label,
+        created.visibility,
+        created.relay_id,
+    ) == (ORBIT_ID, USER_ID, "training run", LiveSessionVisibility.OWNER, RELAY_ID)
     assert (organization_id, limit) == (
         ORGANIZATION_ID,
         OrganizationResource.OWN_RELAY_SESSIONS,
     )
     assert result.id == SESSION_ID
     assert result.public_url == "https://k3f9x2ab.tunnel.example"
-    assert result.app_url == (
-        f"https://app.luml.ai/organization/{ORGANIZATION_ID}"
-        f"/orbit/{ORBIT_ID}/flow/{SESSION_ID}"
-    )
+    assert "app_url" not in result.model_dump()
     assert result.agent_url == AGENT_URL
     assert result.heartbeat_interval == 30
     [issued] = _issued(repo)
@@ -210,7 +211,7 @@ async def test_public_url_keeps_the_scheme_and_port_of_the_agent_address(
     handler = _handler()
 
     result = await handler.start_session(
-        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="dev")
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="dev")
     )
 
     assert result.public_url == "http://k3f9x2ab.tunnel.localhost:8090"
@@ -227,7 +228,7 @@ async def test_someone_outside_the_orbit_cannot_start_a_session(
             OTHER_USER_ID,
             ORGANIZATION_ID,
             ORBIT_ID,
-            LiveSessionStartIn(name="run"),
+            LiveSessionStartIn(label="run"),
         )
 
     repo["create_live_session"].assert_not_awaited()
@@ -294,8 +295,9 @@ async def test_heartbeat_well_before_expiry_carries_no_token(
     [
         _session(ended_at=datetime.now(UTC) - timedelta(minutes=1)),
         _session(last_heartbeat_ago=timedelta(hours=1, minutes=1)),
+        _session(started_ago=timedelta(days=8)),
     ],
-    ids=["ended", "silent-for-an-hour"],
+    ids=["ended", "silent-for-an-hour", "no-viewer-for-the-idle-period"],
 )
 @pytest.mark.asyncio
 async def test_heartbeat_to_an_ended_session_says_so_and_carries_no_token(
@@ -319,11 +321,16 @@ async def test_heartbeat_to_an_ended_session_says_so_and_carries_no_token(
     repo["issue_token"].assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    "stored",
+    [_session(ended_at=datetime.now(UTC)), _session(started_ago=timedelta(days=8))],
+    ids=["ended", "no-viewer-for-the-idle-period"],
+)
 @pytest.mark.asyncio
 async def test_view_token_is_refused_for_an_ended_session(
-    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock], stored: LiveSession
 ) -> None:
-    repo["get_live_session"].return_value = _session(ended_at=datetime.now(UTC))
+    repo["get_live_session"].return_value = stored
 
     with pytest.raises(LiveSessionEndedError):
         await _handler().issue_view_token(
@@ -389,11 +396,11 @@ async def test_view_token_stores_the_destination_outside_the_launch_address(
 
 
 @pytest.mark.asyncio
-async def test_list_contains_only_the_callers_sessions(
+async def test_list_asks_the_repository_for_the_callers_visible_sessions(
     check_permissions: AsyncMock, repo: dict[str, AsyncMock]
 ) -> None:
     own = _session()
-    repo["list_live_sessions"].return_value = [own, _session(user_id=OTHER_USER_ID)]
+    repo["list_live_sessions"].return_value = [own]
 
     result = await _handler().list_sessions(USER_ID, ORGANIZATION_ID, ORBIT_ID)
 
@@ -480,7 +487,7 @@ async def test_start_in_an_orbit_without_a_relay_is_refused(
 
     with pytest.raises(ApplicationError) as error:
         await _handler().start_session(
-            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="run")
         )
 
     assert error.value.status_code == 409
@@ -497,7 +504,7 @@ async def test_start_on_a_draining_relay_is_refused(
 
     with pytest.raises(ApplicationError) as error:
         await _handler().start_session(
-            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="run")
         )
 
     assert error.value.status_code == 409
@@ -514,7 +521,7 @@ async def test_start_on_a_managed_relay_counts_toward_the_managed_limit(
     repo["create_live_session"].return_value = _session(last_heartbeat_ago=None)
 
     await _handler().start_session(
-        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="run")
     )
 
     repo["check_session_slot"].assert_awaited_once_with(
@@ -536,7 +543,7 @@ async def test_start_at_the_limit_is_refused_before_anything_is_created(
 
     with pytest.raises(OrganizationLimitReachedError):
         await _handler().start_session(
-            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="run")
         )
 
     repo["create_live_session"].assert_not_awaited()

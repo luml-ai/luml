@@ -6,7 +6,12 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from luml.models.base import Base
-from luml.schemas.live_session import LIVE_SESSION_ENDED_AFTER, LiveSession
+from luml.schemas.live_session import (
+    LIVE_SESSION_ENDED_AFTER,
+    LiveSession,
+    LiveSessionVisibility,
+    viewer_idle_period,
+)
 
 
 class LiveSessionOrm(Base):
@@ -25,7 +30,8 @@ class LiveSessionOrm(Base):
         nullable=False,
         index=True,
     )
-    name: Mapped[str] = mapped_column(String, nullable=False)
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
+    visibility: Mapped[LiveSessionVisibility] = mapped_column(String, nullable=False)
     # Kept when the orbit is reassigned; emptied only when the relay is removed,
     # which is allowed once every session on it has ended.
     relay_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -54,12 +60,30 @@ class LiveSessionOrm(Base):
         return LiveSession.model_validate(self)
 
 
+def live_session_implied_end() -> ColumnElement[datetime | None]:
+    """SQL form of `LiveSession.implied_end`."""
+    started_at = LiveSessionOrm.started_at
+    return func.least(
+        func.coalesce(LiveSessionOrm.last_heartbeat_at, started_at)
+        + LIVE_SESSION_ENDED_AFTER,
+        func.coalesce(LiveSessionOrm.last_viewer_activity_at, started_at)
+        + viewer_idle_period(),
+    )
+
+
+def live_session_end() -> ColumnElement[datetime | None]:
+    """When the session ended or will end, recorded or implied."""
+    return func.coalesce(LiveSessionOrm.ended_at, live_session_implied_end())
+
+
 def live_session_unended(now: datetime) -> ColumnElement[bool]:
     """SQL form of the ended rule in `LiveSession.status`, negated."""
-    last_sign_of_life = func.coalesce(
-        LiveSessionOrm.last_heartbeat_at, LiveSessionOrm.started_at
-    )
+    return and_(LiveSessionOrm.ended_at.is_(None), live_session_implied_end() >= now)
+
+
+def live_session_visible_to(user_id: uuid.UUID) -> ColumnElement[bool]:
+    """SQL form of `LiveSession.is_visible_to`."""
     return and_(
-        LiveSessionOrm.ended_at.is_(None),
-        last_sign_of_life >= now - LIVE_SESSION_ENDED_AFTER,
+        LiveSessionOrm.visibility == LiveSessionVisibility.OWNER,
+        LiveSessionOrm.user_id == user_id,
     )

@@ -833,14 +833,14 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Add unit tests for issue, validate, launch once including two concurrent launches, the grant after the token's lifetime, the other relay, the ended session, the destination rule, the viewer activity time and the expiring rows, and route tests for the scope and a refused relay token
   - [x] Run ruff, mypy and pytest in `backend/`
 
-- [ ] Make session visibility explicit and end idle sessions
-  - [ ] Rename the session's name to an optional label in the model, the schemas in `backend/luml/schemas/live_session.py` and the start input, and add the visibility column with its single value and the viewer activity time; update the migration
-  - [ ] Implement visibility as one function used by list, read, viewer access and heartbeat, with the listing query in `backend/luml/repositories/live_sessions.py` filtering by the same rule; keep ending owner-only in the same place
-  - [ ] Add the viewer-idle setting with a seven-day default and apply the shared ended rule of the Design section Sessions in the computed status, the listing query, the heartbeat guard, token activity, the limit counts and the relay removal check
-  - [ ] Delete sessions ended more than 24 hours ago, with an end recorded or implied by the shared rule, whenever a session is started or ended, cascading to their stored tokens and flows
-  - [ ] Remove the app address from the session start answer
-  - [ ] Update `backend/tests/unit/test_live_session_status.py` and the handler, route and repository tests for the status table, the idle rule and the activity reset, the invisible session, the label and the removal of ended sessions after their retention
-  - [ ] Run ruff, mypy and pytest in `backend/`
+- [x] Make session visibility explicit and end idle sessions
+  - [x] Rename the session's name to an optional label in the model, the schemas in `backend/luml/schemas/live_session.py` and the start input, and add the visibility column with its single value and the viewer activity time; update the migration
+  - [x] Implement visibility as one function used by list, read, viewer access and heartbeat, with the listing query in `backend/luml/repositories/live_sessions.py` filtering by the same rule; keep ending owner-only in the same place
+  - [x] Add the viewer-idle setting with a seven-day default and apply the shared ended rule of the Design section Sessions in the computed status, the listing query, the heartbeat guard, token activity, the limit counts and the relay removal check
+  - [x] Delete sessions ended more than 24 hours ago, with an end recorded or implied by the shared rule, whenever a session is started or ended, cascading to their stored tokens and flows
+  - [x] Remove the app address from the session start answer
+  - [x] Update `backend/tests/unit/test_live_session_status.py` and the handler, route and repository tests for the status table, the idle rule and the activity reset, the invisible session, the label and the removal of ended sessions after their retention
+  - [x] Run ruff, mypy and pytest in `backend/`
 
 - [ ] Add flows to the backend
   - [ ] Add the flow model with orbit, creator, name and required session reference, the unique name per creator and orbit, register it and add it to the migration

@@ -51,7 +51,11 @@ from luml.schemas.artifacts import (
     ArtifactType,
 )
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
-from luml.schemas.live_session import LiveSession, LiveSessionCreate
+from luml.schemas.live_session import (
+    LiveSession,
+    LiveSessionCreate,
+    LiveSessionVisibility,
+)
 from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -543,7 +547,8 @@ class TestConcurrencyGuards:
                 LiveSessionCreate(
                     orbit_id=data.orbit.id,
                     user_id=data.user.id,
-                    name="run",
+                    label="run",
+                    visibility=LiveSessionVisibility.OWNER,
                     relay_id=relay.id,
                 ),
                 data.organization.id,

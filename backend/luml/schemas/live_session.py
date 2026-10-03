@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, computed_field, field_validator
 
 from luml.schemas.base import BaseOrmConfig
+from luml.settings import config
 
 LIVE_SESSION_DISCONNECTED_AFTER = timedelta(seconds=90)
 LIVE_SESSION_ENDED_AFTER = timedelta(hours=1)
@@ -19,6 +20,14 @@ class LiveSessionStatus(StrEnum):
     ENDED = "ended"
 
 
+class LiveSessionVisibility(StrEnum):
+    OWNER = "owner"
+
+
+def viewer_idle_period() -> timedelta:
+    return timedelta(seconds=config.LIVE_SESSION_VIEWER_IDLE_SECONDS)
+
+
 class TunnelTokenKind(StrEnum):
     EXPOSE = "expose"
     VIEW = "view"
@@ -28,7 +37,8 @@ class LiveSession(BaseModel, BaseOrmConfig):
     id: str
     orbit_id: UUID
     user_id: UUID
-    name: str
+    label: str | None = None
+    visibility: LiveSessionVisibility
     relay_id: UUID | None = None
     started_at: datetime
     last_heartbeat_at: datetime | None = None
@@ -36,35 +46,54 @@ class LiveSession(BaseModel, BaseOrmConfig):
     ended_at: datetime | None = None
     last_viewer_activity_at: datetime | None = None
 
+    @property
+    def implied_end(self) -> datetime:
+        """When the session ends unless it is ended explicitly.
+
+        Mirrored in SQL by `live_session_implied_end`; both silences are
+        counted from the start when nothing has happened yet.
+        """
+        return min(
+            (self.last_heartbeat_at or self.started_at) + LIVE_SESSION_ENDED_AFTER,
+            (self.last_viewer_activity_at or self.started_at) + viewer_idle_period(),
+        )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def status(self) -> LiveSessionStatus:
-        if self.ended_at is not None:
+        now = datetime.now(UTC)
+        if self.ended_at is not None or now > self.implied_end:
             return LiveSessionStatus.ENDED
-        # Before the first heartbeat, silence is counted from the start.
-        silent_for = datetime.now(UTC) - (self.last_heartbeat_at or self.started_at)
-        if silent_for > LIVE_SESSION_ENDED_AFTER:
-            return LiveSessionStatus.ENDED
+        silent_for = now - (self.last_heartbeat_at or self.started_at)
         if silent_for > LIVE_SESSION_DISCONNECTED_AFTER or not self.connected:
             return LiveSessionStatus.DISCONNECTED
         return LiveSessionStatus.LIVE
+
+    def is_visible_to(self, user_id: UUID) -> bool:
+        """Mirrored in SQL by `live_session_visible_to`."""
+        return self.visibility == LiveSessionVisibility.OWNER and (
+            self.user_id == user_id
+        )
+
+    def may_be_ended_by(self, user_id: UUID) -> bool:
+        return self.user_id == user_id
 
 
 class LiveSessionCreate(BaseModel):
     orbit_id: UUID
     user_id: UUID
-    name: str
+    label: str | None = None
+    visibility: LiveSessionVisibility
     relay_id: UUID
 
 
 class LiveSessionStartIn(BaseModel):
-    name: str = Field(min_length=1)
+    label: str | None = Field(default=None, min_length=1)
 
 
 class LiveSessionStartOut(BaseModel):
     id: str
     public_url: str
-    app_url: str
     agent_url: str
     expose_token: str
     token_expires_at: datetime

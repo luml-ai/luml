@@ -8,7 +8,12 @@ from uuid import UUID
 import pytest
 from luml.handlers.relay_worker import RelayWorkerHandler
 from luml.infra.exceptions import NotFoundError
-from luml.schemas.live_session import LiveSession, LiveSessionToken, TunnelTokenKind
+from luml.schemas.live_session import (
+    LiveSession,
+    LiveSessionToken,
+    LiveSessionVisibility,
+    TunnelTokenKind,
+)
 from luml.schemas.relay import (
     Relay,
     RelayStatus,
@@ -46,7 +51,8 @@ def _session(**overrides: Any) -> LiveSession:  # noqa: ANN401
         "id": SESSION_ID,
         "orbit_id": ORBIT_ID,
         "user_id": USER_ID,
-        "name": "run",
+        "label": "run",
+        "visibility": LiveSessionVisibility.OWNER,
         "relay_id": RELAY_ID,
         "started_at": now - timedelta(minutes=10),
         "last_heartbeat_at": now - timedelta(seconds=5),
@@ -199,6 +205,10 @@ INACTIVE_TOKENS: dict[str, tuple[LiveSessionToken, LiveSession] | None] = {
         _token(),
         _session(last_heartbeat_at=datetime.now(UTC) - timedelta(hours=1, seconds=1)),
     ),
+    "no-viewer-for-the-idle-period": (
+        _token(),
+        _session(started_at=datetime.now(UTC) - timedelta(days=8)),
+    ),
     "launched": (
         _token(
             launched_at=datetime.now(UTC),
@@ -343,6 +353,13 @@ INACTIVE_GRANTS: dict[str, tuple[LiveSessionToken, LiveSession] | None] = {
     ),
     "another-relay": (_grant(), _session(relay_id=OTHER_RELAY_ID)),
     "ended": (_grant(), _session(ended_at=datetime.now(UTC))),
+    "no-viewer-for-the-idle-period": (
+        _grant(),
+        _session(
+            started_at=datetime.now(UTC) - timedelta(days=20),
+            last_viewer_activity_at=datetime.now(UTC) - timedelta(days=8),
+        ),
+    ),
 }
 
 

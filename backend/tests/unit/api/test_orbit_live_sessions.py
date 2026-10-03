@@ -5,7 +5,12 @@ from uuid import UUID
 import pytest
 from fastapi.testclient import TestClient
 from luml.models import AuthUser
-from luml.schemas.live_session import LiveSession, LiveSessionStartOut
+from luml.schemas.live_session import (
+    LiveSession,
+    LiveSessionStartIn,
+    LiveSessionStartOut,
+    LiveSessionVisibility,
+)
 from luml.schemas.orbit import Orbit
 from luml.service import AppService
 from starlette.authentication import AuthCredentials
@@ -59,7 +64,7 @@ def test_start_in_an_orbit_without_a_relay_answers_a_conflict(
         bucket_secret_id=UUID("0199c337-09f5-7a3b-8c1d-2e3f4a5b6c7d"),
         created_at=datetime.now(UTC),
     )
-    response = TestClient(AppService()).post(BASE_PATH, json={"name": "run"})
+    response = TestClient(AppService()).post(BASE_PATH, json={"label": "run"})
 
     assert response.status_code == 409
     assert response.json() == {
@@ -69,8 +74,8 @@ def test_start_in_an_orbit_without_a_relay_answers_a_conflict(
 
 
 @patch(AUTHENTICATE, new_callable=AsyncMock, return_value=_signed_in())
-def test_start_requires_a_name(mock_authenticate: AsyncMock) -> None:
-    response = TestClient(AppService()).post(BASE_PATH, json={"name": ""})
+def test_start_refuses_an_empty_label(mock_authenticate: AsyncMock) -> None:
+    response = TestClient(AppService()).post(BASE_PATH, json={"label": ""})
 
     assert response.status_code == 422
 
@@ -91,20 +96,46 @@ def test_start_route(mock_authenticate: AsyncMock, mock_start: AsyncMock) -> Non
     mock_start.return_value = LiveSessionStartOut(
         id="k3f9x2ab",
         public_url="https://k3f9x2ab.tunnel.example",
-        app_url="https://app.luml.ai/flow/k3f9x2ab",
         agent_url="wss://tunnel.example/connect",
         expose_token="token",
         token_expires_at=datetime(2026, 9, 29, tzinfo=UTC),
     )
 
-    response = TestClient(AppService()).post(BASE_PATH, json={"name": "training run"})
+    response = TestClient(AppService()).post(BASE_PATH, json={"label": "training run"})
 
     assert response.status_code == 200
     assert response.json()["heartbeat_interval"] == 30
+    assert "app_url" not in response.json()
     assert mock_start.await_args is not None
     args = mock_start.await_args.args
     assert args[:3] == (USER_ID, ORGANIZATION_ID, ORBIT_ID)
-    assert args[3].name == "training run"
+    assert args[3].label == "training run"
+
+
+@pytest.mark.parametrize(
+    "body", [{}, {"visibility": "orbit"}], ids=["no-label", "visibility"]
+)
+@patch(
+    "luml.api.orbits.orbit_live_sessions.LiveSessionHandler.start_session",
+    new_callable=AsyncMock,
+)
+@patch(AUTHENTICATE, new_callable=AsyncMock, return_value=_signed_in())
+def test_start_takes_neither_a_label_nor_a_visibility(
+    mock_authenticate: AsyncMock, mock_start: AsyncMock, body: dict[str, str]
+) -> None:
+    mock_start.return_value = LiveSessionStartOut(
+        id="k3f9x2ab",
+        public_url="https://k3f9x2ab.tunnel.example",
+        agent_url="wss://tunnel.example/connect",
+        expose_token="token",
+        token_expires_at=datetime(2026, 9, 29, tzinfo=UTC),
+    )
+
+    response = TestClient(AppService()).post(BASE_PATH, json=body)
+
+    assert response.status_code == 200
+    assert mock_start.await_args is not None
+    assert mock_start.await_args.args[3] == LiveSessionStartIn()
 
 
 @pytest.mark.parametrize(
@@ -134,7 +165,8 @@ def test_session_routes_pass_the_caller_and_the_session(
         id="k3f9x2ab",
         orbit_id=ORBIT_ID,
         user_id=USER_ID,
-        name="run",
+        label="run",
+        visibility=LiveSessionVisibility.OWNER,
         relay_id=UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7d"),
         started_at=datetime.now(UTC),
         connected=False,
