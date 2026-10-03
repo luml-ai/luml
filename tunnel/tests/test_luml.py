@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 from starlette.applications import Starlette
@@ -18,13 +17,14 @@ from luml_tunnel.agent import AgentRefusedError, LoopbackService
 from luml_tunnel.cli import main
 from luml_tunnel.luml import LumlSessionError, LumlTokens, expose_through_luml
 from luml_tunnel.relay import Relay
-from luml_tunnel.signing import TokenSigner
 from luml_tunnel.tokens import TokenKind
 from tests.harness import (
     FAST_RECONNECT,
+    OTHER_RELAY_ID,
     RELAY_ID,
     SESSION,
     USER,
+    FakeRelayApi,
     bound_socket,
     create_relay,
     port_of,
@@ -49,9 +49,9 @@ class Heartbeat:
 
 @dataclass
 class FakeLuml:
-    """Answers the calls the agent makes, with tokens for the relay under test."""
+    """Answers the calls the agent makes, with tokens issued through the relay-facing API."""
 
-    signer: TokenSigner
+    relay_api: FakeRelayApi
     relay_port: int
     relay_id: str = RELAY_ID
     token_lifetime: timedelta = timedelta(minutes=10)
@@ -84,8 +84,8 @@ class FakeLuml:
         )
 
     def _token(self, lifetime: timedelta) -> tuple[str, datetime]:
-        token = self.signer.sign(TokenKind.EXPOSE, self.relay_id, SESSION, USER, lifetime)
-        return token, datetime.now(UTC) + lifetime
+        token = self.relay_api.issue(TokenKind.EXPOSE, lifetime=lifetime, relay=self.relay_id)
+        return token, self.relay_api.tokens[token].expires_at
 
     @staticmethod
     def _refused(request: Request) -> JSONResponse | None:
@@ -152,6 +152,7 @@ class FakeLuml:
             return refused
         self.end_calls += 1
         self.ended = True
+        self.relay_api.ended_sessions.add(SESSION)
         session = {
             "id": SESSION,
             "orbit_id": ORBIT_ID,
@@ -168,8 +169,8 @@ class FakeLuml:
 
 
 @pytest.fixture()
-def fake_luml(signer: TokenSigner, relay_port: int) -> FakeLuml:
-    return FakeLuml(signer, relay_port)
+def fake_luml(luml: FakeRelayApi, relay_port: int) -> FakeLuml:
+    return FakeLuml(luml, relay_port)
 
 
 @pytest.fixture()
@@ -264,16 +265,16 @@ async def test_agent_exits_when_luml_reports_the_session_ended(
 
 @pytest.mark.usefixtures("luml_port")
 async def test_heartbeats_report_a_dropped_connection_until_the_agent_reconnects(
-    fake_luml: FakeLuml, key_file: Path, service_port: int
+    fake_luml: FakeLuml, luml: FakeRelayApi, service_port: int
 ) -> None:
     relay_socket = bound_socket()
     fake_luml.relay_port = port_of(relay_socket)
-    first_relay = create_relay(key_file)
+    first_relay = create_relay(luml)
     async with exposing(service_port) as running:
         async with serve(first_relay, relay_socket):
             await until(lambda: fake_luml.last_connected is True)
         await until(lambda: fake_luml.last_connected is False)
-        second_relay = create_relay(key_file)
+        second_relay = create_relay(luml)
         async with serve(second_relay, bound_socket(fake_luml.relay_port)):
             await until(lambda: fake_luml.last_connected is True)
             assert second_relay.agents.get(SESSION) is not None
@@ -463,7 +464,7 @@ async def test_orbit_without_a_relay_names_the_cause(
 
 @pytest.mark.usefixtures("luml_port")
 async def test_agent_refused_by_the_relay_exits(fake_luml: FakeLuml, service_port: int) -> None:
-    fake_luml.relay_id = "another-relay"
+    fake_luml.relay_id = OTHER_RELAY_ID
     async with exposing(service_port) as running:
         with pytest.raises(AgentRefusedError):
             await running.task

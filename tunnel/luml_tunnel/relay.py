@@ -14,6 +14,7 @@ from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, R
 from starlette.types import Message, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from luml_tunnel.agent import ReconnectPolicy
 from luml_tunnel.cookies import COOKIE_NAME, ViewerCookie, ViewerCookies
 from luml_tunnel.frames import (
     REPLACED_CLOSE_CODE,
@@ -45,13 +46,25 @@ from luml_tunnel.protocol import (
     TooManyStreamsError,
     pass_messages,
 )
+from luml_tunnel.relay_api import (
+    LumlUnavailableError,
+    RelayApi,
+    RelayDescription,
+    RelayTokenRefusedError,
+)
 from luml_tunnel.routing import (
     AgentRegistry,
     HostnameSessionResolver,
     InMemoryAgentRegistry,
     SessionResolver,
 )
-from luml_tunnel.tokens import TokenKind, TokenRejectedError, TokenVerifier, TunnelClaims
+from luml_tunnel.tokens import (
+    TokenCheckUnavailableError,
+    TokenKind,
+    TokenRejectedError,
+    TokenVerifier,
+    TunnelClaims,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +73,9 @@ HEALTH_PATH = "/health"
 RELAY_PATH_PREFIX = "/.luml-tunnel/"
 LAUNCH_PATH = RELAY_PATH_PREFIX + "launch"
 LAUNCH_TOKEN_PARAMETER = "token"
+
+TRY_AGAIN = "LUML cannot be asked about access right now; try again in a moment"
+DESCRIPTION_RETRY = ReconnectPolicy(initial_delay=1.0, max_delay=30.0)
 
 _BODY_TOO_LARGE = "request body too large"
 _IDLE = "stream idle"
@@ -77,9 +93,6 @@ _FORWARDING_HEADERS = frozenset(
 @dataclass(frozen=True)
 class RelaySettings:
     base_domain: str
-    relay_id: str
-    issuer: str
-    issuer_keys: str
     limits: RelayLimits = field(default_factory=RelayLimits)
     app_origins: tuple[str, ...] = ()
     cookie_secret: bytes | None = None
@@ -131,7 +144,11 @@ class Relay:
         elif scope["type"] == "websocket":
             await WebSocket(scope, receive, send).close()
         elif scope["path"] == HEALTH_PATH:
-            await JSONResponse({"status": "ok"})(scope, receive, send)
+            problem = self._verifier.problem
+            health = (
+                {"status": "ok"} if problem is None else {"status": "degraded", "problem": problem}
+            )
+            await JSONResponse(health)(scope, receive, send)
         else:
             await PlainTextResponse("Not found", 404)(scope, receive, send)
 
@@ -147,6 +164,10 @@ class Relay:
         except TokenRejectedError as error:
             logger.info("Refused an agent: %s", error)
             await websocket.close(1008)
+            return
+        except TokenCheckUnavailableError:
+            # A 5xx answer, unlike a refusal, makes the agent retry.
+            await _respond_text(websocket.scope, websocket.receive, websocket.send, TRY_AGAIN, 503)
             return
         await websocket.accept(SUBPROTOCOL)
         connection = RelayConnection(_AsgiWebSocketTransport(websocket), self.settings.limits)
@@ -180,7 +201,7 @@ class Relay:
                 return
             try:
                 renewed = await self._verifier.verify(token, TokenKind.EXPOSE, claims.session)
-            except TokenRejectedError as error:
+            except (TokenRejectedError, TokenCheckUnavailableError) as error:
                 logger.info("Ignored a renewed token for session %s: %s", claims.session, error)
                 continue
             expires_at = max(expires_at, renewed.expires_at)
@@ -202,6 +223,9 @@ class Relay:
         except TokenRejectedError as error:
             logger.info("Refused a launch of session %s: %s", session, error)
             await self._access_needed(scope, receive, send, session)
+            return
+        except TokenCheckUnavailableError:
+            await _respond_text(scope, receive, send, TRY_AGAIN, 503)
             return
         cookie = self._cookies.issue(session, claims.user)
         response = RedirectResponse("/", 303)
@@ -259,6 +283,9 @@ class Relay:
             return
         except _CrossSiteError:
             await _respond_text(scope, receive, send, "Requests from other sites are refused", 403)
+            return
+        except TokenCheckUnavailableError:
+            await _respond_text(scope, receive, send, TRY_AGAIN, 503)
             return
         if cookie is not None:
             renewal = self._cookies.set_cookie_header(cookie)
@@ -489,6 +516,26 @@ class _AsgiWebSocketTransport:
     async def close(self, code: int, reason: str) -> None:
         with contextlib.suppress(RuntimeError, OSError):
             await self._websocket.close(code, reason)
+
+
+async def describe_relay(api: RelayApi) -> RelayDescription:
+    """Fetch the relay's description from LUML, retrying while LUML gives no answer.
+
+    Raises RelayTokenRefusedError at once, because retrying cannot help a refused token.
+    """
+    failed_attempts = 0
+    while True:
+        try:
+            return await api.describe()
+        except RelayTokenRefusedError:
+            raise
+        except LumlUnavailableError as error:
+            delay = DESCRIPTION_RETRY.delay(failed_attempts)
+            logger.warning(
+                "Could not fetch the relay's description, trying again in %.1f s: %s", delay, error
+            )
+            failed_attempts += 1
+            await asyncio.sleep(delay)
 
 
 class RelayServer(uvicorn.Server):

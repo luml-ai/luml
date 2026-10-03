@@ -5,7 +5,6 @@ from luml_tunnel.agent import Agent
 from luml_tunnel.frames import MAX_MESSAGE_BYTES, RelayLimits
 from luml_tunnel.headers import TOKEN_HEADER, USER_HEADER
 from luml_tunnel.relay import Relay
-from luml_tunnel.signing import TokenSigner
 from luml_tunnel.tokens import TokenKind
 from tests.conftest import WINDOW
 from tests.harness import (
@@ -13,10 +12,10 @@ from tests.harness import (
     SESSION_HOST,
     USER,
     EchoService,
+    FakeRelayApi,
     bound_socket,
     port_of,
     running_agent,
-    sign,
     until,
     viewer,
     viewer_websocket,
@@ -146,11 +145,11 @@ async def test_websocket_without_an_endpoint_is_refused(
 async def test_websocket_without_a_fitting_view_token_is_refused(
     connected: Agent,
     relay_port: int,
-    signer: TokenSigner,
+    luml: FakeRelayApi,
     echo: EchoService,
     token_kind: TokenKind | None,
 ) -> None:
-    token = sign(signer, token_kind) if token_kind is not None else None
+    token = luml.issue(token_kind) if token_kind is not None else None
     with pytest.raises(InvalidStatus) as refused:
         await viewer_websocket(relay_port, token, "/ws/echo")
 

@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-from pathlib import Path
-
 import httpx
 import pytest
 from websockets.asyncio.client import connect
@@ -11,17 +8,17 @@ from luml_tunnel.frames import RelayLimits
 from luml_tunnel.headers import TOKEN_HEADER, USER_HEADER
 from luml_tunnel.pages import ACCESS_NEEDED_MESSAGE
 from luml_tunnel.relay import LAUNCH_PATH, Relay
-from luml_tunnel.signing import TokenSigner
 from luml_tunnel.tokens import TokenKind
 from tests.harness import (
     BASE_DOMAIN,
     SESSION,
     SESSION_HOST,
     EchoService,
+    FakeClock,
+    FakeRelayApi,
     create_relay,
     running_agent,
     serve,
-    sign,
     viewer,
 )
 
@@ -32,22 +29,14 @@ MINUTE = 60.0
 HOUR = 60 * MINUTE
 
 
-@dataclass
-class FakeClock:
-    now: float = 1_000_000.0
-
-    def __call__(self) -> float:
-        return self.now
-
-
 @pytest.fixture()
 def clock() -> FakeClock:
     return FakeClock()
 
 
 @pytest.fixture()
-def relay(key_file: Path, relay_limits: RelayLimits, clock: FakeClock) -> Relay:
-    return create_relay(key_file, relay_limits, (APP_ORIGIN,), ViewerCookies(clock=clock))
+def relay(luml: FakeRelayApi, relay_limits: RelayLimits, clock: FakeClock) -> Relay:
+    return create_relay(luml, relay_limits, (APP_ORIGIN,), ViewerCookies(clock=clock))
 
 
 async def launch(client: httpx.AsyncClient, token: str) -> httpx.Response:
@@ -111,15 +100,15 @@ async def test_launch_token_is_accepted_once(
 
 @pytest.mark.parametrize("token_kind", [TokenKind.EXPOSE, "other-session", "missing"])
 async def test_launch_refuses_a_token_that_does_not_fit(
-    connected: None, relay_port: int, signer: TokenSigner, token_kind: TokenKind | str
+    connected: None, relay_port: int, luml: FakeRelayApi, token_kind: TokenKind | str
 ) -> None:
     async with viewer(relay_port, None) as client:
         if token_kind == "missing":
             response = await client.get(LAUNCH_PATH, follow_redirects=False)
         elif token_kind == "other-session":
-            response = await launch(client, sign(signer, TokenKind.VIEW, session="other1"))
+            response = await launch(client, luml.issue(TokenKind.VIEW, session="other1"))
         else:
-            response = await launch(client, sign(signer, TokenKind.EXPOSE))
+            response = await launch(client, luml.issue(TokenKind.EXPOSE))
 
     assert response.status_code == 401
     assert "set-cookie" not in response.headers
@@ -262,9 +251,9 @@ async def test_session_not_connected_page(relay_port: int, view_token: str) -> N
 
 
 async def test_what_the_service_sees_of_a_viewer_with_a_cookie(
-    connected: None, relay_port: int, signer: TokenSigner, echo: EchoService
+    connected: None, relay_port: int, luml: FakeRelayApi, echo: EchoService
 ) -> None:
-    cookie = await launched_cookie(relay_port, sign(signer, TokenKind.VIEW, user="U"))
+    cookie = await launched_cookie(relay_port, luml.issue(TokenKind.VIEW, user="U"))
     async with viewer(relay_port, None) as client:
         await client.get(
             "/", headers={"cookie": f"theme=dark; {cookie}; lang=en", USER_HEADER: "someone-else"}
@@ -290,13 +279,13 @@ async def test_framing_is_limited_to_the_luml_app(
 
 
 async def test_framing_is_forbidden_without_an_app_origin(
-    key_file: Path, signer: TokenSigner, service_port: int
+    luml: FakeRelayApi, service_port: int
 ) -> None:
-    relay = create_relay(key_file)
+    relay = create_relay(luml)
     async with (
         serve(relay) as relay_port,
-        running_agent(relay, relay_port, sign(signer, TokenKind.EXPOSE), service_port),
-        viewer(relay_port, sign(signer, TokenKind.VIEW)) as client,
+        running_agent(relay, relay_port, luml.issue(TokenKind.EXPOSE), service_port),
+        viewer(relay_port, luml.issue(TokenKind.VIEW)) as client,
     ):
         response = await client.get("/no-frames")
 

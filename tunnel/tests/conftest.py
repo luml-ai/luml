@@ -1,45 +1,29 @@
-import json
 from collections.abc import AsyncGenerator
-from pathlib import Path
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric import ec
 
 from luml_tunnel.agent import Agent
 from luml_tunnel.frames import RelayLimits
 from luml_tunnel.relay import Relay
-from luml_tunnel.signing import TokenSigner, generate_private_key, key_set
 from luml_tunnel.tokens import TokenKind
-from tests.harness import ISSUER, EchoService, create_relay, running_agent, serve, sign
+from tests.harness import EchoService, FakeRelayApi, create_relay, running_agent, serve
 
 WINDOW = 64 * 1024
 
 
 @pytest.fixture()
-def issuer_key() -> ec.EllipticCurvePrivateKey:
-    return generate_private_key()
+def luml() -> FakeRelayApi:
+    return FakeRelayApi()
 
 
 @pytest.fixture()
-def signer(issuer_key: ec.EllipticCurvePrivateKey) -> TokenSigner:
-    return TokenSigner(issuer_key, ISSUER)
+def expose_token(luml: FakeRelayApi) -> str:
+    return luml.issue(TokenKind.EXPOSE)
 
 
 @pytest.fixture()
-def key_file(tmp_path: Path, issuer_key: ec.EllipticCurvePrivateKey) -> Path:
-    path = tmp_path / "jwks.json"
-    path.write_text(json.dumps(key_set(issuer_key.public_key())))
-    return path
-
-
-@pytest.fixture()
-def expose_token(signer: TokenSigner) -> str:
-    return sign(signer, TokenKind.EXPOSE)
-
-
-@pytest.fixture()
-def view_token(signer: TokenSigner) -> str:
-    return sign(signer, TokenKind.VIEW)
+def view_token(luml: FakeRelayApi) -> str:
+    return luml.issue(TokenKind.VIEW)
 
 
 @pytest.fixture()
@@ -59,8 +43,8 @@ def relay_limits() -> RelayLimits:
 
 
 @pytest.fixture()
-def relay(key_file: Path, relay_limits: RelayLimits) -> Relay:
-    return create_relay(key_file, relay_limits)
+def relay(luml: FakeRelayApi, relay_limits: RelayLimits) -> Relay:
+    return create_relay(luml, relay_limits)
 
 
 @pytest.fixture()

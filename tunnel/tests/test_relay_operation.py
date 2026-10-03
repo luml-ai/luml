@@ -2,7 +2,6 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from datetime import timedelta
-from pathlib import Path
 
 import pytest
 
@@ -15,20 +14,19 @@ from luml_tunnel.agent import (
 )
 from luml_tunnel.frames import TOKEN_EXPIRED_CLOSE_CODE, RelayLimits
 from luml_tunnel.relay import Relay
-from luml_tunnel.signing import TokenSigner
 from luml_tunnel.tokens import TokenKind
 from tests.conftest import WINDOW
 from tests.harness import (
     FAST_RECONNECT,
     SESSION,
     EchoService,
+    FakeRelayApi,
     bound_socket,
     create_relay,
     port_of,
     relay_url,
     running_agent,
     serve,
-    sign,
     until,
     viewer,
 )
@@ -94,7 +92,7 @@ async def test_second_agent_replaces_the_first(
 
 
 async def test_agent_reconnects_when_the_relay_restarts(
-    key_file: Path,
+    luml: FakeRelayApi,
     expose_token: str,
     view_token: str,
     service_port: int,
@@ -103,13 +101,13 @@ async def test_agent_reconnects_when_the_relay_restarts(
     caplog.set_level(logging.INFO, logger="luml_tunnel.agent")
     relay_socket = bound_socket()
     relay_port = port_of(relay_socket)
-    first_relay = create_relay(key_file)
+    first_relay = create_relay(luml)
     async with serve(first_relay, relay_socket):
         running, service = _start_agent(relay_port, expose_token, service_port)
         await until(lambda: first_relay.agents.get(SESSION) is not None)
     try:
         await until(lambda: len(_reconnect_pauses(caplog)) >= 4)
-        second_relay = create_relay(key_file)
+        second_relay = create_relay(luml)
         async with serve(second_relay, bound_socket(relay_port)):
             await until(lambda: second_relay.agents.get(SESSION) is not None)
             async with viewer(relay_port, view_token) as client:
@@ -124,9 +122,9 @@ async def test_agent_reconnects_when_the_relay_restarts(
 
 
 async def test_connection_closes_when_its_token_expires(
-    relay: Relay, relay_port: int, signer: TokenSigner, service_port: int
+    relay: Relay, relay_port: int, luml: FakeRelayApi, service_port: int
 ) -> None:
-    short_token = sign(signer, TokenKind.EXPOSE, lifetime=timedelta(seconds=2))
+    short_token = luml.issue(TokenKind.EXPOSE, lifetime=timedelta(seconds=2))
     running, service = _start_agent(relay_port, short_token, service_port)
     try:
         await until(lambda: relay.agents.get(SESSION) is not None)
@@ -145,12 +143,12 @@ async def test_connection_closes_when_its_token_expires(
 
 
 async def test_renewed_token_keeps_the_connection_open(
-    relay: Relay, relay_port: int, signer: TokenSigner, service_port: int, view_token: str
+    relay: Relay, relay_port: int, luml: FakeRelayApi, service_port: int, view_token: str
 ) -> None:
-    short_token = sign(signer, TokenKind.EXPOSE, lifetime=timedelta(seconds=2))
+    short_token = luml.issue(TokenKind.EXPOSE, lifetime=timedelta(seconds=2))
     async with running_agent(relay, relay_port, short_token, service_port) as agent:
         connection = relay.agents.get(SESSION)
-        await agent.renew_token(sign(signer, TokenKind.EXPOSE))
+        await agent.renew_token(luml.issue(TokenKind.EXPOSE))
         await asyncio.sleep(3)
         async with viewer(relay_port, view_token) as client:
             response = await client.get("/")
@@ -173,7 +171,7 @@ class RecordingTokens:
 
 
 async def test_expiry_close_names_the_last_presented_token_to_the_source(
-    relay: Relay, relay_port: int, signer: TokenSigner, service_port: int, expose_token: str
+    relay: Relay, relay_port: int, luml: FakeRelayApi, service_port: int, expose_token: str
 ) -> None:
     tokens = RecordingTokens(expose_token)
     service = LoopbackService(service_port)
@@ -181,7 +179,7 @@ async def test_expiry_close_names_the_last_presented_token_to_the_source(
     running = asyncio.create_task(agent.run())
     try:
         await until(lambda: relay.agents.get(SESSION) is not None)
-        renewed = sign(signer, TokenKind.EXPOSE)
+        renewed = luml.issue(TokenKind.EXPOSE)
         await agent.renew_token(renewed)
         connection = relay.agents.get(SESSION)
         assert connection is not None
@@ -221,15 +219,15 @@ async def test_other_closes_name_no_expired_token(
 async def test_renewed_token_that_does_not_fit_is_ignored(
     relay: Relay,
     relay_port: int,
-    signer: TokenSigner,
+    luml: FakeRelayApi,
     service_port: int,
     kind: TokenKind,
     session: str,
 ) -> None:
-    short_token = sign(signer, TokenKind.EXPOSE, lifetime=timedelta(seconds=2))
+    short_token = luml.issue(TokenKind.EXPOSE, lifetime=timedelta(seconds=2))
     async with running_agent(relay, relay_port, short_token, service_port) as agent:
         connection = relay.agents.get(SESSION)
-        await agent.renew_token(sign(signer, kind, session=session))
+        await agent.renew_token(luml.issue(kind, session=session))
 
         assert connection is not None
         await until(lambda: connection.closed)

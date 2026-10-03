@@ -3,7 +3,6 @@ import os
 import subprocess
 import sys
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 import pytest
 from websockets.asyncio.client import connect
@@ -11,60 +10,43 @@ from websockets.exceptions import InvalidStatus
 from websockets.typing import Subprotocol
 
 from luml_tunnel.agent import AgentRefusedError
-from luml_tunnel.cli import KEY_SET_FILE, PRIVATE_KEY_FILE, TOKEN_ENV, main
+from luml_tunnel.cli import TOKEN_ENV
 from luml_tunnel.headers import TOKEN_HEADER, USER_HEADER
 from luml_tunnel.relay import Relay
-from luml_tunnel.signing import TokenSigner
 from luml_tunnel.tokens import TokenKind
 from tests.harness import (
     BASE_DOMAIN,
-    ISSUER,
     LARGE_BODY_CHUNK,
     LARGE_BODY_CHUNKS,
-    RELAY_ID,
     SESSION,
     SESSION_HOST,
-    USER,
     EchoService,
+    FakeRelayApi,
     bound_socket,
-    create_relay,
     port_of,
     relay_url,
     running_agent,
     serve,
-    sign,
     until,
     viewer,
 )
 
 
-async def test_package_works_without_luml(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], service_port: int
+async def test_agent_connects_directly_with_a_fixed_token(
+    relay: Relay, relay_port: int, expose_token: str, view_token: str, service_port: int
 ) -> None:
-    assert main(["dev", "keygen", "--directory", str(tmp_path)]) == 0
-
-    def dev_token(kind: TokenKind) -> str:
-        capsys.readouterr()
-        signing_options = ["--private-key", str(tmp_path / PRIVATE_KEY_FILE), "--kind", kind]
-        scope_options = ["--issuer", ISSUER, "--relay", RELAY_ID, "--session", SESSION]
-        assert main(["dev", "token", *signing_options, *scope_options, "--user", USER]) == 0
-        return capsys.readouterr().out.strip()
-
-    expose_token, view_token = dev_token(TokenKind.EXPOSE), dev_token(TokenKind.VIEW)
-    relay = create_relay(tmp_path / KEY_SET_FILE)
-    async with serve(relay) as relay_port:
-        command = [sys.executable, "-m", "luml_tunnel.cli", "expose", str(service_port)]
-        agent = subprocess.Popen(
-            [*command, "--relay-url", relay_url(relay_port)],
-            env={**os.environ, TOKEN_ENV: expose_token},
-        )
-        try:
-            await until(lambda: relay.agents.get(SESSION) is not None, timeout=15.0)
-            async with viewer(relay_port, view_token) as client:
-                response = await client.get("/")
-        finally:
-            agent.terminate()
-            agent.wait()
+    command = [sys.executable, "-m", "luml_tunnel.cli", "expose", str(service_port)]
+    agent = subprocess.Popen(
+        [*command, "--relay-url", relay_url(relay_port)],
+        env={**os.environ, TOKEN_ENV: expose_token},
+    )
+    try:
+        await until(lambda: relay.agents.get(SESSION) is not None, timeout=15.0)
+        async with viewer(relay_port, view_token) as client:
+            response = await client.get("/")
+    finally:
+        agent.terminate()
+        agent.wait()
 
     assert response.status_code == 200
     assert response.json() == {"path": "/", "body": ""}
@@ -202,9 +184,9 @@ async def test_service_that_does_not_answer(
 
 
 async def test_service_sees_the_viewer_but_not_its_credentials(
-    connected: None, relay_port: int, signer: TokenSigner, echo: EchoService
+    connected: None, relay_port: int, luml: FakeRelayApi, echo: EchoService
 ) -> None:
-    token = sign(signer, TokenKind.VIEW, user="U")
+    token = luml.issue(TokenKind.VIEW, user="U")
     async with viewer(relay_port, token) as client:
         await client.get("/", headers={USER_HEADER: "someone-else", "x-forwarded-for": "10.0.0.1"})
 
@@ -220,14 +202,14 @@ async def test_service_sees_the_viewer_but_not_its_credentials(
 async def test_viewer_without_a_fitting_view_token_is_refused(
     connected: None,
     relay_port: int,
-    signer: TokenSigner,
+    luml: FakeRelayApi,
     echo: EchoService,
     token_kind: TokenKind | str | None,
 ) -> None:
     token = {
         None: None,
-        TokenKind.EXPOSE: sign(signer, TokenKind.EXPOSE),
-        "other-session": sign(signer, TokenKind.VIEW, session="other1"),
+        TokenKind.EXPOSE: luml.issue(TokenKind.EXPOSE),
+        "other-session": luml.issue(TokenKind.VIEW, session="other1"),
     }[token_kind]
     async with viewer(relay_port, token) as client:
         response = await client.get("/")

@@ -1,59 +1,19 @@
 import argparse
 import asyncio
-import json
 import logging
 import os
-import re
 import signal
 import sys
 from collections.abc import Sequence
-from datetime import timedelta
-from pathlib import Path
 
 from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
-from luml_tunnel.tokens import TokenKind
+from luml_tunnel.relay_api import DEFAULT_BASE_URL, RelayApi, RelayTokenRefusedError
+from luml_tunnel.tokens import CACHE_WINDOW_SECONDS
 
-PRIVATE_KEY_FILE = "private-key.pem"
-KEY_SET_FILE = "jwks.json"
 TOKEN_ENV = "LUML_TUNNEL_TOKEN"
 COOKIE_SECRET_ENV = "LUML_TUNNEL_COOKIE_SECRET"
-
-_ORIGIN = re.compile(r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?")
-
-
-def _dev_keygen(arguments: argparse.Namespace) -> int:
-    from luml_tunnel.signing import generate_private_key, key_set, private_key_to_pem
-
-    directory: Path = arguments.directory
-    directory.mkdir(parents=True, exist_ok=True)
-    private_key = generate_private_key()
-    private_key_path = directory / PRIVATE_KEY_FILE
-    try:
-        private_key_path.touch(mode=0o600, exist_ok=False)
-    except FileExistsError:
-        print(f"{private_key_path} already exists", file=sys.stderr)
-        return 1
-    private_key_path.write_text(private_key_to_pem(private_key))
-    key_set_path = directory / KEY_SET_FILE
-    key_set_path.write_text(json.dumps(key_set(private_key.public_key()), indent=2) + "\n")
-    print(f"Private key: {private_key_path}")
-    print(f"Public keys: {key_set_path}")
-    return 0
-
-
-def _dev_token(arguments: argparse.Namespace) -> int:
-    from luml_tunnel.signing import TokenSigner, load_private_key
-
-    signer = TokenSigner(load_private_key(arguments.private_key.read_text()), arguments.issuer)
-    token = signer.sign(
-        kind=TokenKind(arguments.kind),
-        relay=arguments.relay,
-        session=arguments.session,
-        user=arguments.user,
-        lifetime=timedelta(seconds=arguments.lifetime),
-    )
-    print(token)
-    return 0
+RELAY_TOKEN_ENV = "LUML_TUNNEL_RELAY_TOKEN"
+BASE_URL_ENV = "LUML_BASE_URL"
 
 
 def _expose(arguments: argparse.Namespace) -> int:
@@ -127,37 +87,57 @@ def _expose_through_luml(arguments: argparse.Namespace) -> int:
 
 
 def _relay(arguments: argparse.Namespace) -> int:
+    relay_token = os.environ.get(RELAY_TOKEN_ENV)
+    if not relay_token:
+        print(f"Set {RELAY_TOKEN_ENV} to the relay's token from LUML", file=sys.stderr)
+        return 1
+    base_url = os.environ.get(BASE_URL_ENV) or DEFAULT_BASE_URL
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    try:
+        asyncio.run(_serve_relay(RelayApi(base_url, relay_token), arguments))
+    except RelayTokenRefusedError as error:
+        print(
+            f"LUML at {base_url} refused the relay token in {RELAY_TOKEN_ENV} ({error}); "
+            "set it to the relay's current token",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+async def _serve_relay(api: RelayApi, arguments: argparse.Namespace) -> None:
+    """Serve sessions once LUML has described the relay."""
     import uvicorn
 
-    from luml_tunnel.relay import Relay, RelayServer, RelaySettings
-    from luml_tunnel.verification import IssuerKeys, JwksTokenVerifier
+    from luml_tunnel.relay import Relay, RelayServer, RelaySettings, describe_relay
+    from luml_tunnel.tokens import LumlTokenVerifier
 
-    settings = RelaySettings(
-        base_domain=arguments.base_domain,
-        relay_id=arguments.relay_id,
-        issuer=arguments.issuer,
-        issuer_keys=arguments.issuer_keys,
-        limits=RelayLimits(
-            max_concurrent_streams=arguments.max_concurrent_streams,
-            max_request_body_bytes=arguments.max_request_body_bytes,
-            idle_timeout_seconds=arguments.idle_timeout,
-        ),
-        app_origins=tuple(arguments.app_origins),
-        cookie_secret=os.environ.get(COOKIE_SECRET_ENV, "").encode() or None,
-    )
-    verifier = JwksTokenVerifier(
-        IssuerKeys(settings.issuer_keys), settings.issuer, settings.relay_id
-    )
-    relay = Relay(settings, verifier)
-    config = uvicorn.Config(
-        relay,
-        host=arguments.host,
-        port=arguments.port,
-        ws="websockets-sansio",
-        ws_max_size=MAX_FRAME_BYTES,
-    )
-    RelayServer(relay, config).run()
-    return 0
+    try:
+        description = await describe_relay(api)
+        logging.getLogger(__name__).info(
+            "Serving sessions of relay %s under %s", description.label, description.base_domain
+        )
+        settings = RelaySettings(
+            base_domain=description.base_domain,
+            limits=RelayLimits(
+                max_concurrent_streams=arguments.max_concurrent_streams,
+                max_request_body_bytes=arguments.max_request_body_bytes,
+                idle_timeout_seconds=arguments.idle_timeout,
+            ),
+            app_origins=description.app_origins,
+            cookie_secret=os.environ.get(COOKIE_SECRET_ENV, "").encode() or None,
+        )
+        relay = Relay(settings, LumlTokenVerifier(api, arguments.cache_window))
+        config = uvicorn.Config(
+            relay,
+            host=arguments.host,
+            port=arguments.port,
+            ws="websockets-sansio",
+            ws_max_size=MAX_FRAME_BYTES,
+        )
+        await RelayServer(relay, config).serve()
+    finally:
+        await api.aclose()
 
 
 def _port(value: str) -> int:
@@ -184,12 +164,6 @@ def _positive_float(value: str) -> float:
     return number
 
 
-def _origin(value: str) -> str:
-    if not _ORIGIN.fullmatch(value):
-        raise argparse.ArgumentTypeError(f"{value!r} is not an origin like https://app.example")
-    return value
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="luml-tunnel")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -210,11 +184,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     expose.set_defaults(handler=_expose)
 
-    relay = commands.add_parser("relay", help="Run the relay")
-    relay.add_argument("--base-domain", required=True)
-    relay.add_argument("--relay-id", required=True)
-    relay.add_argument("--issuer", required=True)
-    relay.add_argument("--issuer-keys", required=True, help="Address or file of the issuer's JWKS")
+    relay = commands.add_parser(
+        "relay",
+        help="Run the relay",
+        description=f"Run the relay. It reads the address of LUML from ${BASE_URL_ENV}, its "
+        f"token from ${RELAY_TOKEN_ENV} and, optionally, the secret that signs its cookies "
+        f"from ${COOKIE_SECRET_ENV}; everything else it learns from LUML.",
+    )
     relay.add_argument("--host", default="0.0.0.0")
     relay.add_argument("--port", type=int, default=8080)
     default_limits = RelayLimits()
@@ -236,31 +212,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Seconds a request may pass without any data before the relay ends it",
     )
     relay.add_argument(
-        "--app-origin",
-        dest="app_origins",
-        type=_origin,
-        action="append",
-        default=[],
-        help="Origin of the LUML app that may show sessions in a frame; may be repeated",
+        "--cache-window",
+        type=_positive_float,
+        default=CACHE_WINDOW_SECONDS,
+        help="Seconds a verdict of LUML on a token is reused before LUML is asked again",
     )
     relay.set_defaults(handler=_relay)
-
-    dev = commands.add_parser("dev", help="Create keys and tokens for use without LUML")
-    dev_commands = dev.add_subparsers(dest="dev_command", required=True)
-
-    keygen = dev_commands.add_parser("keygen", help="Create a signing key and its JWKS file")
-    keygen.add_argument("--directory", type=Path, required=True)
-    keygen.set_defaults(handler=_dev_keygen)
-
-    token = dev_commands.add_parser("token", help="Sign an expose or a view token")
-    token.add_argument("--private-key", type=Path, required=True)
-    token.add_argument("--kind", choices=[kind.value for kind in TokenKind], required=True)
-    token.add_argument("--issuer", required=True)
-    token.add_argument("--relay", required=True)
-    token.add_argument("--session", required=True)
-    token.add_argument("--user", required=True)
-    token.add_argument("--lifetime", type=int, default=3600, help="Lifetime in seconds")
-    token.set_defaults(handler=_dev_token)
 
     return parser
 

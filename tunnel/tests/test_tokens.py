@@ -1,224 +1,342 @@
-import json
-from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
+import asyncio
+import logging
+from datetime import timedelta
 
 import httpx
-import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import ec
+from websockets.asyncio.client import connect
+from websockets.exceptions import InvalidStatus
+from websockets.typing import Subprotocol
 
-from luml_tunnel.signing import TokenSigner, generate_private_key, key_set
-from luml_tunnel.tokens import TokenKind, TokenRejectedError
-from luml_tunnel.verification import IssuerKeys, JwksTokenVerifier
+from luml_tunnel.agent import Agent, AgentRefusedError, FixedToken, LoopbackService
+from luml_tunnel.frames import SUBPROTOCOL, RelayLimits
+from luml_tunnel.relay import TRY_AGAIN, Relay
+from luml_tunnel.relay_api import RelayApi
+from luml_tunnel.tokens import (
+    LumlTokenVerifier,
+    TokenCheckUnavailableError,
+    TokenKind,
+    TokenRejectedError,
+)
+from tests.harness import (
+    BASE_DOMAIN,
+    FAST_RECONNECT,
+    LUML_URL,
+    OTHER_RELAY_ID,
+    SESSION,
+    USER,
+    EchoService,
+    FakeClock,
+    FakeRelayApi,
+    Outage,
+    create_relay,
+    create_verifier,
+    relay_url,
+    running_agent,
+    until,
+    viewer,
+    viewer_websocket,
+)
 
-ISSUER = "https://luml.example"
-RELAY = "relay-1"
-SESSION = "k3f9x2ab"
-USER = "user-1"
-LIFETIME = timedelta(minutes=10)
+WINDOW = 60.0
 
 
 @pytest.fixture()
-def issuer_key() -> ec.EllipticCurvePrivateKey:
-    return generate_private_key()
+def clock() -> FakeClock:
+    return FakeClock()
 
 
 @pytest.fixture()
-def signer(issuer_key: ec.EllipticCurvePrivateKey) -> TokenSigner:
-    return TokenSigner(issuer_key, ISSUER)
+def verifier(luml: FakeRelayApi, clock: FakeClock) -> LumlTokenVerifier:
+    return create_verifier(luml, WINDOW, clock)
 
 
 @pytest.fixture()
-def key_file(tmp_path: Path, issuer_key: ec.EllipticCurvePrivateKey) -> Path:
-    path = tmp_path / "jwks.json"
-    path.write_text(json.dumps(key_set(issuer_key.public_key())))
-    return path
+def relay(luml: FakeRelayApi, relay_limits: RelayLimits, verifier: LumlTokenVerifier) -> Relay:
+    return create_relay(luml, relay_limits, verifier=verifier)
 
 
-@pytest.fixture()
-def verifier(key_file: Path) -> JwksTokenVerifier:
-    return JwksTokenVerifier(IssuerKeys(str(key_file)), ISSUER, RELAY)
-
-
-def _sign(
-    signer: TokenSigner,
-    kind: TokenKind = TokenKind.EXPOSE,
-    relay: str = RELAY,
-    session: str = SESSION,
-) -> str:
-    return signer.sign(kind, relay, session, USER, LIFETIME)
-
-
-async def test_fitting_token_yields_its_claims(
-    signer: TokenSigner, verifier: JwksTokenVerifier
+async def test_active_token_yields_its_claims(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier
 ) -> None:
-    claims = await verifier.verify(_sign(signer, TokenKind.VIEW), TokenKind.VIEW, SESSION)
+    claims = await verifier.verify(luml.issue(TokenKind.VIEW), TokenKind.VIEW, SESSION)
 
-    assert claims.issuer == ISSUER
-    assert claims.relay == RELAY
-    assert claims.session == SESSION
-    assert claims.kind is TokenKind.VIEW
-    assert claims.user == USER
-    assert claims.token_id
-    assert claims.expires_at > datetime.now(UTC)
+    assert (claims.session, claims.kind, claims.user) == (SESSION, TokenKind.VIEW, USER)
 
 
 async def test_session_is_taken_from_token_when_not_given(
-    signer: TokenSigner, verifier: JwksTokenVerifier
+    luml: FakeRelayApi, verifier: LumlTokenVerifier
 ) -> None:
-    claims = await verifier.verify(_sign(signer), TokenKind.EXPOSE)
+    claims = await verifier.verify(luml.issue(TokenKind.EXPOSE), TokenKind.EXPOSE)
 
     assert claims.session == SESSION
 
 
-async def test_every_token_has_its_own_identifier(
-    signer: TokenSigner, verifier: JwksTokenVerifier
+async def test_verdict_is_cached_for_the_window(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier, clock: FakeClock
 ) -> None:
-    first = await verifier.verify(_sign(signer), TokenKind.EXPOSE)
-    second = await verifier.verify(_sign(signer), TokenKind.EXPOSE)
+    token = luml.issue(TokenKind.VIEW)
+    await verifier.verify(token, TokenKind.VIEW, SESSION)
+    clock.now += WINDOW - 1
+    await verifier.verify(token, TokenKind.VIEW, SESSION)
+    assert luml.validations_of(token) == 1
 
-    assert first.token_id != second.token_id
+    clock.now += 1
+    await verifier.verify(token, TokenKind.VIEW, SESSION)
 
-
-def _foreign_key(signer: TokenSigner) -> str:
-    return _sign(TokenSigner(generate_private_key(), ISSUER))
-
-
-def _other_issuer(signer: TokenSigner) -> str:
-    return _sign(TokenSigner(signer.private_key, "https://other.example"))
+    assert luml.validations_of(token) == 2
 
 
-def _other_relay(signer: TokenSigner) -> str:
-    return _sign(signer, relay="relay-2")
+async def test_claims_are_cached_no_longer_than_the_token_lives(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier, clock: FakeClock
+) -> None:
+    token = luml.issue(TokenKind.VIEW, lifetime=timedelta(seconds=10))
+    await verifier.verify(token, TokenKind.VIEW, SESSION)
+    clock.now += 11
 
-
-def _other_session(signer: TokenSigner) -> str:
-    return _sign(signer, session="zz99yy88")
-
-
-def _expired(signer: TokenSigner) -> str:
-    issued = datetime.now(UTC) - LIFETIME - timedelta(seconds=1)
-    return signer.sign(TokenKind.EXPOSE, RELAY, SESSION, USER, LIFETIME, now=issued)
+    with pytest.raises(TokenRejectedError):
+        await verifier.verify(token, TokenKind.VIEW, SESSION)
+    assert luml.validations_of(token) == 2
 
 
 @pytest.mark.parametrize(
-    "make_token",
-    [_foreign_key, _other_issuer, _other_relay, _other_session, _expired],
+    "inactive",
+    ["unknown", "expired", "ended session", "another relay"],
 )
-async def test_token_that_does_not_fit_is_refused(
-    signer: TokenSigner,
-    verifier: JwksTokenVerifier,
-    make_token: Callable[[TokenSigner], str],
+async def test_inactive_token_is_refused_and_the_refusal_cached(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier, inactive: str
 ) -> None:
-    with pytest.raises(TokenRejectedError):
-        await verifier.verify(make_token(signer), TokenKind.EXPOSE, SESSION)
+    token = {
+        "unknown": "not-issued",
+        "expired": luml.issue(TokenKind.VIEW, lifetime=timedelta(seconds=-1)),
+        "ended session": luml.issue(TokenKind.VIEW),
+        "another relay": luml.issue(TokenKind.VIEW, relay=OTHER_RELAY_ID),
+    }[inactive]
+    if inactive == "ended session":
+        luml.ended_sessions.add(SESSION)
+
+    for _ in range(5):
+        with pytest.raises(TokenRejectedError):
+            await verifier.verify(token, TokenKind.VIEW, SESSION)
+
+    assert luml.validations_of(token) == 1
 
 
-@pytest.mark.parametrize("token", ["", "not-a-token", "a.b.c"])
-async def test_malformed_token_is_refused(verifier: JwksTokenVerifier, token: str) -> None:
-    with pytest.raises(TokenRejectedError):
-        await verifier.verify(token, TokenKind.VIEW, SESSION)
-
-
-async def test_token_with_another_algorithm_is_refused(verifier: JwksTokenVerifier) -> None:
-    token = jwt.encode(
-        {"iss": ISSUER, "aud": RELAY, "sub": USER, "sid": SESSION, "kind": "view", "jti": "x"},
-        "shared-secret-that-is-long-enough-for-hs256",
-        algorithm="HS256",
-        headers={"kid": "any"},
-    )
-
-    with pytest.raises(TokenRejectedError):
-        await verifier.verify(token, TokenKind.VIEW, SESSION)
-
-
-async def test_view_token_is_not_accepted_as_expose(
-    signer: TokenSigner, verifier: JwksTokenVerifier
+async def test_claims_that_do_not_fit_are_refused_without_asking_again(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier
 ) -> None:
-    with pytest.raises(TokenRejectedError):
-        await verifier.verify(_sign(signer, TokenKind.VIEW), TokenKind.EXPOSE, SESSION)
+    token = luml.issue(TokenKind.VIEW)
 
-
-async def test_expose_token_is_not_accepted_as_view(
-    signer: TokenSigner, verifier: JwksTokenVerifier
-) -> None:
-    with pytest.raises(TokenRejectedError):
-        await verifier.verify(_sign(signer, TokenKind.EXPOSE), TokenKind.VIEW, SESSION)
-
-
-class _Clock:
-    def __init__(self) -> None:
-        self.now = 0.0
-
-    def __call__(self) -> float:
-        return self.now
-
-
-class _PublishedKeys:
-    def __init__(self, *keys: ec.EllipticCurvePrivateKey) -> None:
-        self.keys = list(keys)
-        self.reads = 0
-
-    def handle(self, request: httpx.Request) -> httpx.Response:
-        self.reads += 1
-        return httpx.Response(200, json=key_set(*(key.public_key() for key in self.keys)))
-
-
-async def test_relay_learns_a_new_issuer_key(issuer_key: ec.EllipticCurvePrivateKey) -> None:
-    published = _PublishedKeys(issuer_key)
-    clock = _Clock()
-    async with httpx.AsyncClient(transport=httpx.MockTransport(published.handle)) as client:
-        keys = IssuerKeys("https://luml.example/.well-known/jwks.json", client, clock=clock)
-        verifier = JwksTokenVerifier(keys, ISSUER, RELAY)
-        await verifier.verify(_sign(TokenSigner(issuer_key, ISSUER)), TokenKind.EXPOSE)
-        second_key = generate_private_key()
-        published.keys.append(second_key)
-        clock.now = 60.0
-
-        claims = await verifier.verify(_sign(TokenSigner(second_key, ISSUER)), TokenKind.EXPOSE)
+    with pytest.raises(TokenRejectedError, match="expected a expose token"):
+        await verifier.verify(token, TokenKind.EXPOSE)
+    with pytest.raises(TokenRejectedError, match="another session"):
+        await verifier.verify(token, TokenKind.VIEW, "other1")
+    claims = await verifier.verify(token, TokenKind.VIEW, SESSION)
 
     assert claims.session == SESSION
-    assert published.reads == 2
+    assert luml.validations_of(token) == 1
 
 
-async def test_known_keys_are_served_from_cache(issuer_key: ec.EllipticCurvePrivateKey) -> None:
-    published = _PublishedKeys(issuer_key)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(published.handle)) as client:
-        verifier = JwksTokenVerifier(IssuerKeys("https://luml.example/jwks", client), ISSUER, RELAY)
-        for _ in range(3):
-            await verifier.verify(_sign(TokenSigner(issuer_key, ISSUER)), TokenKind.EXPOSE)
-
-    assert published.reads == 1
-
-
-async def test_unknown_keys_do_not_trigger_reads_within_the_interval(
-    issuer_key: ec.EllipticCurvePrivateKey,
+async def test_ended_session_is_refused_after_the_window(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier, clock: FakeClock
 ) -> None:
-    published = _PublishedKeys(issuer_key)
-    clock = _Clock()
-    foreign_signer = TokenSigner(generate_private_key(), ISSUER)
-    async with httpx.AsyncClient(transport=httpx.MockTransport(published.handle)) as client:
-        keys = IssuerKeys("https://luml.example/jwks", client, min_refresh_interval=30, clock=clock)
-        verifier = JwksTokenVerifier(keys, ISSUER, RELAY)
-        for _ in range(3):
-            with pytest.raises(TokenRejectedError):
-                await verifier.verify(_sign(foreign_signer), TokenKind.EXPOSE)
-
-    assert published.reads == 1
-
-
-async def test_unreadable_keys_refuse_tokens(signer: TokenSigner, tmp_path: Path) -> None:
-    verifier = JwksTokenVerifier(IssuerKeys(str(tmp_path / "missing.json")), ISSUER, RELAY)
+    token = luml.issue(TokenKind.VIEW)
+    await verifier.verify(token, TokenKind.VIEW, SESSION)
+    luml.ended_sessions.add(SESSION)
+    await verifier.verify(token, TokenKind.VIEW, SESSION)
+    clock.now += WINDOW
 
     with pytest.raises(TokenRejectedError):
-        await verifier.verify(_sign(signer), TokenKind.EXPOSE)
+        await verifier.verify(token, TokenKind.VIEW, SESSION)
 
 
-async def test_failing_key_address_refuses_tokens(signer: TokenSigner) -> None:
-    transport = httpx.MockTransport(lambda request: httpx.Response(503))
-    async with httpx.AsyncClient(transport=transport) as client:
-        verifier = JwksTokenVerifier(IssuerKeys("https://luml.example/jwks", client), ISSUER, RELAY)
+@pytest.mark.parametrize("outage", list(Outage))
+async def test_cached_claims_outlive_their_window_while_luml_gives_no_answer(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier, clock: FakeClock, outage: Outage
+) -> None:
+    token = luml.issue(TokenKind.VIEW, lifetime=timedelta(minutes=5))
+    await verifier.verify(token, TokenKind.VIEW, SESSION)
+    luml.outage = outage
+    clock.now += 4 * WINDOW
 
-        with pytest.raises(TokenRejectedError):
-            await verifier.verify(_sign(signer), TokenKind.EXPOSE)
+    claims = await verifier.verify(token, TokenKind.VIEW, SESSION)
+    assert claims.user == USER
+    with pytest.raises(TokenCheckUnavailableError):
+        await verifier.verify(luml.issue(TokenKind.VIEW), TokenKind.VIEW, SESSION)
+
+    clock.now += 2 * WINDOW
+    with pytest.raises(TokenCheckUnavailableError):
+        await verifier.verify(token, TokenKind.VIEW, SESSION)
+
+
+async def test_refusal_is_not_reused_past_its_window_while_luml_gives_no_answer(
+    luml: FakeRelayApi, verifier: LumlTokenVerifier, clock: FakeClock
+) -> None:
+    with pytest.raises(TokenRejectedError):
+        await verifier.verify("not-issued", TokenKind.VIEW, SESSION)
+    luml.outage = Outage.FAILING
+    clock.now += WINDOW
+
+    with pytest.raises(TokenCheckUnavailableError):
+        await verifier.verify("not-issued", TokenKind.VIEW, SESSION)
+
+
+async def test_refused_relay_token_is_logged_and_reported_each_time(
+    luml: FakeRelayApi,
+    verifier: LumlTokenVerifier,
+    clock: FakeClock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    cached = luml.issue(TokenKind.VIEW)
+    await verifier.verify(cached, TokenKind.VIEW, SESSION)
+    luml.relay_tokens.clear()
+    clock.now += WINDOW
+
+    for _ in range(2):
+        with pytest.raises(TokenCheckUnavailableError):
+            await verifier.verify(luml.issue(TokenKind.VIEW), TokenKind.VIEW, SESSION)
+    assert (await verifier.verify(cached, TokenKind.VIEW, SESSION)).user == USER
+
+    errors = [record for record in caplog.records if record.levelno == logging.ERROR]
+    assert len(errors) == 3
+    assert all("refused the relay token" in record.getMessage() for record in errors)
+    assert verifier.problem == "LUML refuses the relay token"
+
+
+async def test_a_silent_luml_is_given_up_on_after_the_timeout(luml: FakeRelayApi) -> None:
+    luml.outage = Outage.SILENT
+    verifier = LumlTokenVerifier(RelayApi(LUML_URL, "token", luml.transport(), timeout=0.1))
+
+    async with asyncio.timeout(2):
+        with pytest.raises(TokenCheckUnavailableError):
+            await verifier.verify(luml.issue(TokenKind.VIEW), TokenKind.VIEW, SESSION)
+
+
+async def test_relay_asks_luml_once_per_window(
+    connected: None, luml: FakeRelayApi, relay_port: int, view_token: str, clock: FakeClock
+) -> None:
+    async with viewer(relay_port, view_token) as client:
+        first = [await client.get("/"), await client.get("/")]
+        validations_within_the_window = luml.validations_of(view_token)
+        clock.now += WINDOW
+        after = await client.get("/")
+
+    assert [response.status_code for response in [*first, after]] == [200, 200, 200]
+    assert validations_within_the_window == 1
+    assert luml.validations_of(view_token) == 2
+
+
+async def test_relay_caches_a_refused_token(
+    connected: None, luml: FakeRelayApi, relay_port: int, echo: EchoService
+) -> None:
+    async with viewer(relay_port, "not-issued") as client:
+        responses = [await client.get("/") for _ in range(5)]
+
+    assert [response.status_code for response in responses] == [401] * 5
+    assert luml.validations_of("not-issued") == 1
+    assert echo.requests == []
+
+
+async def test_relay_refuses_claims_that_do_not_fit_without_asking_again(
+    connected: None, relay: Relay, luml: FakeRelayApi, relay_port: int, service_port: int
+) -> None:
+    token = luml.issue(TokenKind.VIEW)
+
+    with pytest.raises(AgentRefusedError):
+        async with running_agent(relay, relay_port, token, service_port):
+            pass
+    async with viewer(relay_port, token, host=f"other1.{BASE_DOMAIN}") as client:
+        other_session = await client.get("/")
+    async with viewer(relay_port, token) as client:
+        own_session = await client.get("/")
+
+    assert other_session.status_code == 401
+    assert own_session.status_code == 200
+    assert luml.validations_of(token) == 1
+
+
+async def test_relay_serves_cached_viewers_and_asks_new_ones_to_try_again_while_luml_is_down(
+    connected: None,
+    relay: Relay,
+    luml: FakeRelayApi,
+    relay_port: int,
+    view_token: str,
+    clock: FakeClock,
+) -> None:
+    async with viewer(relay_port, view_token) as client:
+        assert (await client.get("/")).status_code == 200
+        luml.outage = Outage.UNREACHABLE
+        clock.now += 3 * WINDOW
+        stale = await client.get("/")
+    async with viewer(relay_port, luml.issue(TokenKind.VIEW)) as client:
+        unseen = await client.get("/")
+    with pytest.raises(InvalidStatus) as refused_websocket:
+        await viewer_websocket(relay_port, luml.issue(TokenKind.VIEW), "/ws/echo")
+
+    assert stale.status_code == 200
+    assert unseen.status_code == 503
+    assert unseen.text == TRY_AGAIN
+    assert refused_websocket.value.response.status_code == 503
+    assert relay.agents.get(SESSION) is not None
+
+
+async def test_agent_retries_while_luml_is_down_and_connects_once_it_answers(
+    luml: FakeRelayApi,
+    relay: Relay,
+    relay_port: int,
+    expose_token: str,
+    service_port: int,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="luml_tunnel.agent")
+    luml.outage = Outage.FAILING
+    service = LoopbackService(service_port)
+    agent = Agent(relay_url(relay_port), FixedToken(expose_token), service, FAST_RECONNECT)
+    running = asyncio.create_task(agent.run())
+    try:
+        await until(lambda: caplog.text.count("Could not connect to the relay") >= 2)
+        assert "503" in caplog.text
+        assert not running.done()
+
+        luml.outage = None
+        await until(lambda: relay.agents.get(SESSION) is not None)
+        assert not running.done()
+    finally:
+        running.cancel()
+        await asyncio.gather(running, return_exceptions=True)
+        await service.aclose()
+
+
+async def test_relay_keeps_serving_when_luml_refuses_its_token(
+    connected: None,
+    relay: Relay,
+    luml: FakeRelayApi,
+    relay_port: int,
+    view_token: str,
+    clock: FakeClock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async with viewer(relay_port, view_token) as client:
+        assert (await client.get("/")).status_code == 200
+    luml.relay_tokens.clear()
+    clock.now += WINDOW
+
+    async with viewer(relay_port, view_token) as client:
+        cached = await client.get("/")
+    async with viewer(relay_port, luml.issue(TokenKind.VIEW)) as client:
+        unseen = await client.get("/")
+    with pytest.raises(InvalidStatus) as new_agent:
+        await connect(
+            relay_url(relay_port),
+            subprotocols=[Subprotocol(SUBPROTOCOL)],
+            additional_headers={"Authorization": f"Bearer {luml.issue(TokenKind.EXPOSE)}"},
+        )
+    async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{relay_port}") as client:
+        health = await client.get("/health")
+
+    assert cached.status_code == 200
+    assert unseen.status_code == 503
+    assert new_agent.value.response.status_code == 503
+    assert relay.agents.get(SESSION) is not None
+    assert health.json() == {"status": "degraded", "problem": "LUML refuses the relay token"}
+    assert "refused the relay token" in caplog.text
