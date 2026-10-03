@@ -1,4 +1,4 @@
-"""Live sessions, relays and organization session limits
+"""Live sessions, relays, tunnel tokens and organization session limits
 
 Revision ID: 042
 Revises: 041
@@ -67,6 +67,7 @@ def upgrade() -> None:
         sa.Column("last_heartbeat_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("connected", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_viewer_activity_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["orbit_id"], ["orbits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["relay_id"], ["relays.id"], ondelete="SET NULL"),
@@ -80,6 +81,41 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_live_sessions_relay_id"), "live_sessions", ["relay_id"], unique=False
+    )
+    op.create_table(
+        "live_session_tokens",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("token_hash", sa.String(), nullable=False),
+        sa.Column("kind", sa.String(), nullable=False),
+        sa.Column("session_id", sa.String(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("launched_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("destination", sa.String(), nullable=True),
+        sa.ForeignKeyConstraint(
+            ["session_id"], ["live_sessions.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("token_hash"),
+    )
+    op.create_index(
+        op.f("ix_live_session_tokens_session_id"),
+        "live_session_tokens",
+        ["session_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_live_session_tokens_user_id"),
+        "live_session_tokens",
+        ["user_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_live_session_tokens_expires_at"),
+        "live_session_tokens",
+        ["expires_at"],
+        unique=False,
     )
     op.add_column("orbits", sa.Column("relay_id", sa.UUID(), nullable=True))
     op.create_foreign_key(
@@ -115,6 +151,16 @@ def downgrade() -> None:
     op.drop_column("organizations", "managed_relay_sessions_limit")
     op.drop_constraint("orbits_relay_id_fkey", "orbits", type_="foreignkey")
     op.drop_column("orbits", "relay_id")
+    op.drop_index(
+        op.f("ix_live_session_tokens_expires_at"), table_name="live_session_tokens"
+    )
+    op.drop_index(
+        op.f("ix_live_session_tokens_user_id"), table_name="live_session_tokens"
+    )
+    op.drop_index(
+        op.f("ix_live_session_tokens_session_id"), table_name="live_session_tokens"
+    )
+    op.drop_table("live_session_tokens")
     op.drop_index(op.f("ix_live_sessions_relay_id"), table_name="live_sessions")
     op.drop_index(op.f("ix_live_sessions_user_id"), table_name="live_sessions")
     op.drop_index(op.f("ix_live_sessions_orbit_id"), table_name="live_sessions")

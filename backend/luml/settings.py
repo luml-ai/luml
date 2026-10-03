@@ -40,7 +40,6 @@ class Settings(BaseSettings):
     TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL: str
 
     # Live sessions are off unless the signing key and the relay are all set.
-    LIVE_SESSION_SIGNING_KEY: str | None = None
     LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS: int = 600
     LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS: int = 300
     LIVE_SESSION_RELAY_TOKEN_OVERLAP_SECONDS: int = 600

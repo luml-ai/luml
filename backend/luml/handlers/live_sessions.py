@@ -9,16 +9,11 @@ from luml.infra.db import engine
 from luml.infra.exceptions import (
     ApplicationError,
     LiveSessionEndedError,
-    LiveSessionsNotConfiguredError,
     NotFoundError,
     OrbitNotFoundError,
 )
-from luml.infra.live_session_tokens import (
-    TunnelTokenKind,
-    TunnelTokenSigner,
-    load_signing_key,
-)
 from luml.repositories.limits import OrganizationResource
+from luml.repositories.live_session_tokens import LiveSessionTokenRepository
 from luml.repositories.live_sessions import LiveSessionRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.relays import RelayRepository
@@ -30,7 +25,10 @@ from luml.schemas.live_session import (
     LiveSessionStartIn,
     LiveSessionStartOut,
     LiveSessionStatus,
+    LiveSessionTokenCreate,
+    LiveSessionViewTokenIn,
     LiveSessionViewTokenOut,
+    TunnelTokenKind,
 )
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.relay import Relay, RelayKind, RelayStatus
@@ -53,20 +51,14 @@ def _public_url(relay: Relay, session_id: str) -> str:
     return f"{scheme}://{session_id}.{relay.base_domain}{port}"
 
 
-def _signer_from(settings: Settings) -> TunnelTokenSigner | None:
-    if not settings.LIVE_SESSION_SIGNING_KEY:
-        return None
-    return TunnelTokenSigner(load_signing_key(settings.LIVE_SESSION_SIGNING_KEY))
-
-
 class LiveSessionHandler:
     __repo = LiveSessionRepository(engine)
+    __token_repo = LiveSessionTokenRepository(engine)
     __orbit_repo = OrbitRepository(engine)
     __relay_repo = RelayRepository(engine)
     __permissions_handler = PermissionsHandler()
 
     def __init__(self, settings: Settings = config) -> None:
-        self._signer = _signer_from(settings)
         self._expose_lifetime = timedelta(
             seconds=settings.LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS
         )
@@ -75,22 +67,35 @@ class LiveSessionHandler:
         )
         self._app_url = settings.APP_EMAIL_URL.rstrip("/")
 
-    def public_keys(self) -> dict[str, list[dict[str, str]]]:
-        return {"keys": [self._signer.public_jwk] if self._signer else []}
-
     async def _authorize(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
         action: Action,
-    ) -> TunnelTokenSigner:
-        if self._signer is None:
-            raise LiveSessionsNotConfiguredError()
+    ) -> None:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.LIVE_SESSION, action, orbit_id
         )
-        return self._signer
+
+    async def _issue_token(
+        self,
+        kind: TunnelTokenKind,
+        live_session: LiveSession,
+        lifetime: timedelta,
+        destination: str | None = None,
+    ) -> tuple[str, datetime]:
+        expires_at = datetime.now(UTC) + lifetime
+        token = await self.__token_repo.issue_token(
+            LiveSessionTokenCreate(
+                kind=kind,
+                session_id=live_session.id,
+                user_id=live_session.user_id,
+                expires_at=expires_at,
+                destination=destination,
+            )
+        )
+        return token, expires_at
 
     async def _relay_for_new_session(
         self, organization_id: UUID, orbit_id: UUID
@@ -147,9 +152,7 @@ class LiveSessionHandler:
         orbit_id: UUID,
         data: LiveSessionStartIn,
     ) -> LiveSessionStartOut:
-        signer = await self._authorize(
-            user_id, organization_id, orbit_id, Action.CREATE
-        )
+        await self._authorize(user_id, organization_id, orbit_id, Action.CREATE)
         relay = await self._relay_for_new_session(organization_id, orbit_id)
         limit = _SESSION_LIMITS[relay.kind]
         await self.__repo.check_session_slot(organization_id, limit)
@@ -163,12 +166,8 @@ class LiveSessionHandler:
             organization_id,
             limit,
         )
-        token, expires_at = signer.sign(
-            TunnelTokenKind.EXPOSE,
-            str(relay.id),
-            live_session.id,
-            str(user_id),
-            self._expose_lifetime,
+        token, expires_at = await self._issue_token(
+            TunnelTokenKind.EXPOSE, live_session, self._expose_lifetime
         )
         return LiveSessionStartOut(
             id=live_session.id,
@@ -200,9 +199,7 @@ class LiveSessionHandler:
         session_id: str,
         data: LiveSessionHeartbeatIn,
     ) -> LiveSessionHeartbeatOut:
-        signer = await self._authorize(
-            user_id, organization_id, orbit_id, Action.UPDATE
-        )
+        await self._authorize(user_id, organization_id, orbit_id, Action.UPDATE)
         await self._get_visible_session(user_id, orbit_id, session_id)
         live_session = await self.__repo.record_heartbeat(session_id, data.connected)
         if live_session is None:
@@ -219,12 +216,8 @@ class LiveSessionHandler:
         remaining = data.token_expires_at - datetime.now(UTC)
         if remaining > self._expose_lifetime / 2:
             return LiveSessionHeartbeatOut(status=live_session.status)
-        token, expires_at = signer.sign(
-            TunnelTokenKind.EXPOSE,
-            str(live_session.relay_id),
-            live_session.id,
-            str(user_id),
-            self._expose_lifetime,
+        token, expires_at = await self._issue_token(
+            TunnelTokenKind.EXPOSE, live_session, self._expose_lifetime
         )
         return LiveSessionHeartbeatOut(
             status=live_session.status,
@@ -233,9 +226,14 @@ class LiveSessionHandler:
         )
 
     async def issue_view_token(
-        self, user_id: UUID, organization_id: UUID, orbit_id: UUID, session_id: str
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        session_id: str,
+        data: LiveSessionViewTokenIn | None = None,
     ) -> LiveSessionViewTokenOut:
-        signer = await self._authorize(user_id, organization_id, orbit_id, Action.READ)
+        await self._authorize(user_id, organization_id, orbit_id, Action.READ)
         live_session = await self._get_visible_session(user_id, orbit_id, session_id)
         relay = (
             await self.__relay_repo.get_relay(live_session.relay_id)
@@ -244,13 +242,13 @@ class LiveSessionHandler:
         )
         if live_session.status == LiveSessionStatus.ENDED or relay is None:
             raise LiveSessionEndedError()
-        token, expires_at = signer.sign(
+        token, expires_at = await self._issue_token(
             TunnelTokenKind.VIEW,
-            str(relay.id),
-            live_session.id,
-            str(user_id),
+            live_session,
             self._view_lifetime,
+            data.destination if data else None,
         )
+        await self.__repo.record_viewer_activity(live_session.id)
         launch_url = (
             f"{_public_url(relay, live_session.id)}{LAUNCH_PATH}"
             f"?{urlencode({'token': token})}"

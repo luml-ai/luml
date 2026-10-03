@@ -1,20 +1,13 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
-import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
-from luml.api.orbits.orbit_live_sessions import live_session_handler
-from luml.handlers.live_sessions import LiveSessionHandler
-from luml.infra.live_session_tokens import TunnelTokenKind
 from luml.models import AuthUser
 from luml.schemas.live_session import LiveSession, LiveSessionStartOut
 from luml.schemas.orbit import Orbit
 from luml.service import AppService
-from luml.settings import config
 from starlette.authentication import AuthCredentials
 
 USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -23,6 +16,11 @@ ORBIT_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 BASE_PATH = f"/v1/organizations/{ORGANIZATION_ID}/orbits/{ORBIT_ID}/live-sessions"
 AUTHENTICATE = "luml.infra.security.JWTAuthenticationBackend.authenticate"
 REPO = "luml.handlers.live_sessions.LiveSessionRepository"
+VIEW_TOKEN_OUT = {
+    "token": "t",
+    "launch_url": "https://k3f9x2ab.tunnel.example/.luml-tunnel/launch?token=t",
+    "expires_at": "2026-09-29T12:00:00Z",
+}
 
 
 def _signed_in() -> tuple[AuthCredentials, AuthUser]:
@@ -31,62 +29,11 @@ def _signed_in() -> tuple[AuthCredentials, AuthUser]:
     )
 
 
-def _enabled_handler() -> LiveSessionHandler:
-    pem = (
-        ec.generate_private_key(ec.SECP256R1())
-        .private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        )
-        .decode()
-    )
-    return LiveSessionHandler(
-        config.model_copy(update={"LIVE_SESSION_SIGNING_KEY": pem})
-    )
-
-
 @patch(AUTHENTICATE, new_callable=AsyncMock, return_value=None)
-def test_public_keys_are_published_without_sign_in(
-    mock_authenticate: AsyncMock,
-) -> None:
-    enabled = _enabled_handler()
-    with patch.object(live_session_handler, "_signer", enabled._signer):
-        response = TestClient(AppService()).get("/.well-known/jwks.json")
+def test_public_keys_are_no_longer_published(mock_authenticate: AsyncMock) -> None:
+    response = TestClient(AppService()).get("/.well-known/jwks.json")
 
-    assert response.status_code == 200
-    keys = response.json()["keys"]
-    assert [key["kid"] for key in keys] == [enabled.public_keys()["keys"][0]["kid"]]
-    assert enabled._signer is not None
-    token, _ = enabled._signer.sign(
-        TunnelTokenKind.VIEW,
-        "relay-1",
-        "k3f9x2ab",
-        str(USER_ID),
-        timedelta(minutes=5),
-    )
-    claims = jwt.decode(
-        token,
-        jwt.PyJWK(keys[0], algorithm="ES256").key,
-        algorithms=["ES256"],
-        audience="relay-1",
-        issuer="luml",
-    )
-    assert claims["sid"] == "k3f9x2ab"
-
-
-@patch(f"{REPO}.create_live_session", new_callable=AsyncMock)
-@patch(AUTHENTICATE, new_callable=AsyncMock, return_value=_signed_in())
-def test_start_fails_with_its_own_status_when_the_feature_is_off(
-    mock_authenticate: AsyncMock, mock_create: AsyncMock
-) -> None:
-    response = TestClient(AppService()).post(BASE_PATH, json={"name": "run"})
-
-    assert response.status_code == 501
-    assert response.json() == {
-        "detail": "Live sessions are not set up in this deployment"
-    }
-    mock_create.assert_not_awaited()
+    assert response.status_code == 404
 
 
 @patch(f"{REPO}.create_live_session", new_callable=AsyncMock)
@@ -112,8 +59,7 @@ def test_start_in_an_orbit_without_a_relay_answers_a_conflict(
         bucket_secret_id=UUID("0199c337-09f5-7a3b-8c1d-2e3f4a5b6c7d"),
         created_at=datetime.now(UTC),
     )
-    with patch.object(live_session_handler, "_signer", _enabled_handler()._signer):
-        response = TestClient(AppService()).post(BASE_PATH, json={"name": "run"})
+    response = TestClient(AppService()).post(BASE_PATH, json={"name": "run"})
 
     assert response.status_code == 409
     assert response.json() == {
@@ -197,11 +143,7 @@ def test_session_routes_pass_the_caller_and_the_session(
         "list_sessions": [session],
         "get_session": session,
         "record_heartbeat": {"status": "live"},
-        "issue_view_token": {
-            "token": "t",
-            "launch_url": "https://k3f9x2ab.tunnel.example/.luml-tunnel/launch?token=t",
-            "expires_at": "2026-09-29T12:00:00Z",
-        },
+        "issue_view_token": VIEW_TOKEN_OUT,
         "end_session": session,
     }
     with patch(
@@ -218,3 +160,49 @@ def test_session_routes_pass_the_caller_and_the_session(
     assert args[:3] == (USER_ID, ORGANIZATION_ID, ORBIT_ID)
     if path:
         assert args[3] == "k3f9x2ab"
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "https://evil.example/experiments",
+        "//evil.example/experiments",
+        "experiments/42",
+        "/\\evil.example/experiments",
+        "/\t/evil.example/experiments",
+    ],
+    ids=["full-address", "two-slashes", "no-slash", "backslash", "tab"],
+)
+@patch(
+    "luml.api.orbits.orbit_live_sessions.LiveSessionHandler.issue_view_token",
+    new_callable=AsyncMock,
+)
+@patch(AUTHENTICATE, new_callable=AsyncMock, return_value=_signed_in())
+def test_view_token_with_a_destination_that_is_not_a_relative_path_is_refused(
+    mock_authenticate: AsyncMock, mock_issue: AsyncMock, destination: str
+) -> None:
+    response = TestClient(AppService()).post(
+        f"{BASE_PATH}/k3f9x2ab/view-token", json={"destination": destination}
+    )
+
+    assert response.status_code == 422
+    mock_issue.assert_not_awaited()
+
+
+@patch(
+    "luml.api.orbits.orbit_live_sessions.LiveSessionHandler.issue_view_token",
+    new_callable=AsyncMock,
+    return_value=VIEW_TOKEN_OUT,
+)
+@patch(AUTHENTICATE, new_callable=AsyncMock, return_value=_signed_in())
+def test_view_token_passes_the_destination(
+    mock_authenticate: AsyncMock, mock_issue: AsyncMock
+) -> None:
+    response = TestClient(AppService()).post(
+        f"{BASE_PATH}/k3f9x2ab/view-token",
+        json={"destination": "/experiments/42?tab=metrics"},
+    )
+
+    assert response.status_code == 200
+    assert mock_issue.await_args is not None
+    assert mock_issue.await_args.args[4].destination == "/experiments/42?tab=metrics"

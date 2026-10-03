@@ -11,6 +11,7 @@ from luml.schemas.live_session import (
     LiveSessionHeartbeatOut,
     LiveSessionStartIn,
     LiveSessionStartOut,
+    LiveSessionViewTokenIn,
     LiveSessionViewTokenOut,
 )
 
@@ -82,10 +83,14 @@ async def record_live_session_heartbeat(
     response_model=LiveSessionViewTokenOut,
 )
 async def issue_live_session_view_token(
-    request: Request, organization_id: UUID, orbit_id: UUID, session_id: str
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    session_id: str,
+    view_token: LiveSessionViewTokenIn | None = None,
 ) -> LiveSessionViewTokenOut:
     return await live_session_handler.issue_view_token(
-        request.user.id, organization_id, orbit_id, session_id
+        request.user.id, organization_id, orbit_id, session_id, view_token
     )
 
 

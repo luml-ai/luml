@@ -46,6 +46,9 @@ class LiveSessionOrm(Base):
     ended_at: Mapped[datetime | None] = mapped_column(
         postgresql.TIMESTAMP(timezone=True), nullable=True
     )
+    last_viewer_activity_at: Mapped[datetime | None] = mapped_column(
+        postgresql.TIMESTAMP(timezone=True), nullable=True
+    )
 
     def to_live_session(self) -> LiveSession:
         return LiveSession.model_validate(self)

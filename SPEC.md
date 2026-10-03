@@ -824,14 +824,14 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Update the migration; update `backend/tests/unit/handlers/test_live_sessions.py`, `backend/tests/unit/api/test_orbit_live_sessions.py` and `backend/tests/integration/repository/test_live_sessions.py`, and add a concurrent-start check to `backend/tests/integration/repository/test_concurrency_guards.py`, covering the start refusals, both limits, the disconnected session that keeps its place, the orbit assignment, and relay removal and address changes with live, disconnected and ended sessions
   - [x] Run ruff, mypy and pytest in `backend/`
 
-- [ ] Store tunnel tokens at LUML and add the relay-facing API
-  - [ ] Add the stored token model with the fields from the Design section Stored tunnel tokens, register it and add it to the migration
-  - [ ] Replace `backend/luml/infra/live_session_tokens.py` with a repository that issues opaque tokens hashed as API keys are, looks them up by hash, launches a `view` token once atomically with the twelve-hour extension, checks grants, and deletes expired rows on every issue and launch as `backend/luml/repositories/monitoring.py` does
-  - [ ] Issue opaque tokens in `backend/luml/handlers/live_sessions.py` for the start, the heartbeat renewal and viewer access; accept and validate the optional destination with the rule from the Design and store it on the token
-  - [ ] Remove the signing key setting from the settings and both env files, the not-configured error from `backend/luml/infra/exceptions.py`, and `backend/luml/api/well_known.py` with its registration in `backend/luml/service.py`
-  - [ ] Add the relay-facing router in `backend/luml/api/`, following `satellites.py` and requiring the relay scope, with describe, validate, check grant and report as in the Design table in The relay-facing API, each scoped to the calling relay, answering verdicts with status 200 and the token's own claims, and recording the viewer activity time on the session
-  - [ ] Add unit tests for issue, validate, launch once including two concurrent launches, the grant after the token's lifetime, the other relay, the ended session, the destination rule, the viewer activity time and the expiring rows, and route tests for the scope and a refused relay token
-  - [ ] Run ruff, mypy and pytest in `backend/`
+- [x] Store tunnel tokens at LUML and add the relay-facing API
+  - [x] Add the stored token model with the fields from the Design section Stored tunnel tokens, register it and add it to the migration
+  - [x] Replace `backend/luml/infra/live_session_tokens.py` with a repository that issues opaque tokens hashed as API keys are, looks them up by hash, launches a `view` token once atomically with the twelve-hour extension, checks grants, and deletes expired rows on every issue and launch as `backend/luml/repositories/monitoring.py` does
+  - [x] Issue opaque tokens in `backend/luml/handlers/live_sessions.py` for the start, the heartbeat renewal and viewer access; accept and validate the optional destination with the rule from the Design and store it on the token
+  - [x] Remove the signing key setting from the settings and both env files, the not-configured error from `backend/luml/infra/exceptions.py`, and `backend/luml/api/well_known.py` with its registration in `backend/luml/service.py`
+  - [x] Add the relay-facing router in `backend/luml/api/`, following `satellites.py` and requiring the relay scope, with describe, validate, check grant and report as in the Design table in The relay-facing API, each scoped to the calling relay, answering verdicts with status 200 and the token's own claims, and recording the viewer activity time on the session
+  - [x] Add unit tests for issue, validate, launch once including two concurrent launches, the grant after the token's lifetime, the other relay, the ended session, the destination rule, the viewer activity time and the expiring rows, and route tests for the scope and a refused relay token
+  - [x] Run ruff, mypy and pytest in `backend/`
 
 - [ ] Make session visibility explicit and end idle sessions
   - [ ] Rename the session's name to an optional label in the model, the schemas in `backend/luml/schemas/live_session.py` and the start input, and add the visibility column with its single value and the viewer activity time; update the migration

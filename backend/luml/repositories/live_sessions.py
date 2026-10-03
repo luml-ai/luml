@@ -115,6 +115,15 @@ class LiveSessionRepository(RepositoryBase):
             await session.commit()
         return live_session or await self.get_live_session(session_id)
 
+    async def record_viewer_activity(self, session_id: str) -> None:
+        async with self._get_session() as session:
+            await session.execute(
+                update(LiveSessionOrm)
+                .where(LiveSessionOrm.id == session_id)
+                .values(last_viewer_activity_at=datetime.now(UTC))
+            )
+            await session.commit()
+
     async def end_live_session(self, session_id: str) -> LiveSession | None:
         # A session that went silent ended when its silence reached the limit,
         # which keeps its place in the list from being extended by a late end.

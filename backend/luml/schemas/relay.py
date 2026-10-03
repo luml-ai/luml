@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, computed_field, field_validator
 
 from luml.schemas.base import BaseOrmConfig
+from luml.schemas.live_session import TunnelTokenKind
 
 RELAY_ONLINE_WINDOW = timedelta(minutes=5)
 
@@ -113,3 +114,43 @@ class Relay(BaseModel, BaseOrmConfig):
 class RelayTokenOut(BaseModel):
     relay: Relay
     token: str
+
+
+class RelayDescription(BaseModel):
+    id: UUID
+    label: str
+    base_domain: str
+    agent_url: str
+    status: RelayStatus
+    app_origins: list[str]
+    app_url: str
+
+
+class TunnelTokenValidateIn(BaseModel):
+    token: str
+    launch: bool = False
+
+
+class TunnelTokenVerdict(BaseModel):
+    active: bool
+    kind: TunnelTokenKind | None = None
+    session_id: str | None = None
+    user_id: UUID | None = None
+    expires_at: datetime | None = None
+    grant_id: UUID | None = None
+    destination: str | None = None
+
+
+class TunnelGrantCheckIn(BaseModel):
+    grant_id: UUID
+
+
+class TunnelGrantVerdict(BaseModel):
+    active: bool
+    session_id: str | None = None
+    user_id: UUID | None = None
+    expires_at: datetime | None = None
+
+
+class RelayReportIn(BaseModel):
+    connected_agents: int = Field(ge=0)

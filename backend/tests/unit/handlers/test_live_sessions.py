@@ -5,16 +5,12 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
-import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec
 from luml.handlers.live_sessions import LiveSessionHandler
 from luml.infra.exceptions import (
     ApplicationError,
     InsufficientPermissionsError,
     LiveSessionEndedError,
-    LiveSessionsNotConfiguredError,
     NotFoundError,
     OrganizationLimitReachedError,
 )
@@ -24,6 +20,9 @@ from luml.schemas.live_session import (
     LiveSessionHeartbeatIn,
     LiveSessionStartIn,
     LiveSessionStatus,
+    LiveSessionTokenCreate,
+    LiveSessionViewTokenIn,
+    TunnelTokenKind,
 )
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
@@ -43,21 +42,11 @@ AGENT_URL = "wss://tunnel.example/connect"
 REPO = "luml.handlers.live_sessions.LiveSessionRepository"
 ORBIT_REPO = "luml.handlers.live_sessions.OrbitRepository"
 RELAY_REPO = "luml.handlers.live_sessions.RelayRepository"
+TOKEN_REPO = "luml.handlers.live_sessions.LiveSessionTokenRepository"
 CHECK_PERMISSIONS = "luml.handlers.live_sessions.PermissionsHandler.check_permissions"
 
 
-def _private_key_pem() -> str:
-    private_key = ec.generate_private_key(ec.SECP256R1())
-    return private_key.private_bytes(
-        serialization.Encoding.PEM,
-        serialization.PrivateFormat.PKCS8,
-        serialization.NoEncryption(),
-    ).decode()
-
-
-SIGNING_KEY = _private_key_pem()
 ENABLED_SETTINGS: dict[str, Any] = {
-    "LIVE_SESSION_SIGNING_KEY": SIGNING_KEY,
     "LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS": 600,
     "LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS": 300,
     "APP_EMAIL_URL": "https://app.luml.ai/",
@@ -119,22 +108,13 @@ def _session(
     )
 
 
-def _decode(handler: LiveSessionHandler, token: str) -> dict[str, Any]:
-    """Check a token against the published keys the way the relay does."""
-    key_id = jwt.get_unverified_header(token)["kid"]
-    keys = {key["kid"]: key for key in handler.public_keys()["keys"]}
-    claims: dict[str, Any] = jwt.decode(
-        token,
-        jwt.PyJWK(keys[key_id], algorithm="ES256").key,
-        algorithms=["ES256"],
-        issuer="luml",
-        audience=str(RELAY_ID),
-        options={
-            "require": ["iss", "aud", "sub", "exp", "jti", "sid", "kind"],
-            "strict_aud": True,
-        },
-    )
-    return claims
+def _issued(repo: dict[str, AsyncMock]) -> list[LiveSessionTokenCreate]:
+    return [call.args[0] for call in repo["issue_token"].await_args_list]
+
+
+def _assert_lifetime(issued: LiveSessionTokenCreate, seconds: int) -> None:
+    remaining = issued.expires_at - datetime.now(UTC)
+    assert timedelta(seconds=seconds - 5) < remaining <= timedelta(seconds=seconds)
 
 
 @pytest.fixture
@@ -154,6 +134,8 @@ def repo() -> Iterator[dict[str, AsyncMock]]:
         "end_live_session": f"{REPO}.end_live_session",
         "get_orbit_simple": f"{ORBIT_REPO}.get_orbit_simple",
         "get_relay": f"{RELAY_REPO}.get_relay",
+        "record_viewer_activity": f"{REPO}.record_viewer_activity",
+        "issue_token": f"{TOKEN_REPO}.issue_token",
     }
     patches = {
         name: patch(target, new_callable=AsyncMock) for name, target in targets.items()
@@ -161,6 +143,7 @@ def repo() -> Iterator[dict[str, AsyncMock]]:
     mocks = {name: p.start() for name, p in patches.items()}
     mocks["get_orbit_simple"].return_value = _orbit()
     mocks["get_relay"].return_value = _relay()
+    mocks["issue_token"].side_effect = [f"opaque-{n}" for n in range(5)]
     yield mocks
     for p in patches.values():
         p.stop()
@@ -205,12 +188,15 @@ async def test_start_session(
     )
     assert result.agent_url == AGENT_URL
     assert result.heartbeat_interval == 30
-    claims = _decode(handler, result.expose_token)
-    assert claims["kind"] == "expose"
-    assert claims["sid"] == SESSION_ID
-    assert claims["sub"] == str(USER_ID)
-    assert claims["exp"] - claims["iat"] == 600
-    assert datetime.fromtimestamp(claims["exp"], UTC) == result.token_expires_at
+    [issued] = _issued(repo)
+    assert (issued.kind, issued.session_id, issued.user_id) == (
+        TunnelTokenKind.EXPOSE,
+        SESSION_ID,
+        USER_ID,
+    )
+    _assert_lifetime(issued, 600)
+    assert result.expose_token == "opaque-0"
+    assert result.token_expires_at == issued.expires_at
 
 
 @pytest.mark.asyncio
@@ -228,80 +214,6 @@ async def test_public_url_keeps_the_scheme_and_port_of_the_agent_address(
     )
 
     assert result.public_url == "http://k3f9x2ab.tunnel.localhost:8090"
-
-
-@pytest.mark.asyncio
-async def test_signing_key_with_escaped_newlines_is_accepted(
-    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
-) -> None:
-    repo["create_live_session"].return_value = _session(last_heartbeat_ago=None)
-    handler = _handler(LIVE_SESSION_SIGNING_KEY=SIGNING_KEY.replace("\n", "\\n"))
-
-    result = await handler.start_session(
-        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
-    )
-
-    assert _decode(handler, result.expose_token)["sid"] == SESSION_ID
-
-
-def test_signing_key_on_another_curve_is_refused() -> None:
-    other_curve_key = (
-        ec.generate_private_key(ec.SECP384R1())
-        .private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        )
-        .decode()
-    )
-
-    with pytest.raises(ValueError, match="P-256"):
-        _handler(LIVE_SESSION_SIGNING_KEY=other_curve_key)
-
-
-@pytest.mark.parametrize("unset_value", [None, ""], ids=["none", "empty"])
-@pytest.mark.parametrize(
-    "operation",
-    ["start", "list", "get", "heartbeat", "view_token", "end"],
-)
-@pytest.mark.asyncio
-async def test_every_operation_fails_the_same_way_when_the_feature_is_off(
-    check_permissions: AsyncMock,
-    repo: dict[str, AsyncMock],
-    unset_value: str | None,
-    operation: str,
-) -> None:
-    handler = _handler(LIVE_SESSION_SIGNING_KEY=unset_value)
-    calls: dict[str, Callable[[], Awaitable[object]]] = {
-        "start": lambda: handler.start_session(
-            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
-        ),
-        "list": lambda: handler.list_sessions(USER_ID, ORGANIZATION_ID, ORBIT_ID),
-        "get": lambda: handler.get_session(
-            USER_ID, ORGANIZATION_ID, ORBIT_ID, SESSION_ID
-        ),
-        "heartbeat": lambda: handler.record_heartbeat(
-            USER_ID,
-            ORGANIZATION_ID,
-            ORBIT_ID,
-            SESSION_ID,
-            LiveSessionHeartbeatIn(connected=True, token_expires_at=datetime.now(UTC)),
-        ),
-        "view_token": lambda: handler.issue_view_token(
-            USER_ID, ORGANIZATION_ID, ORBIT_ID, SESSION_ID
-        ),
-        "end": lambda: handler.end_session(
-            USER_ID, ORGANIZATION_ID, ORBIT_ID, SESSION_ID
-        ),
-    }
-
-    with pytest.raises(LiveSessionsNotConfiguredError) as error:
-        await calls[operation]()
-
-    assert error.value.status_code == 501
-    assert error.value.message == "Live sessions are not set up in this deployment"
-    for mock in repo.values():
-        mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -345,10 +257,11 @@ async def test_heartbeat_renews_a_token_about_to_expire(
     )
     repo["record_heartbeat"].assert_awaited_once_with(SESSION_ID, True)
     assert result.status == LiveSessionStatus.LIVE
-    assert result.expose_token is not None
-    claims = _decode(handler, result.expose_token)
-    assert (claims["kind"], claims["sid"]) == ("expose", SESSION_ID)
-    assert datetime.fromtimestamp(claims["exp"], UTC) == result.token_expires_at
+    [issued] = _issued(repo)
+    assert (issued.kind, issued.session_id) == (TunnelTokenKind.EXPOSE, SESSION_ID)
+    _assert_lifetime(issued, 600)
+    assert result.expose_token == "opaque-0"
+    assert result.token_expires_at == issued.expires_at
 
 
 @pytest.mark.asyncio
@@ -373,6 +286,7 @@ async def test_heartbeat_well_before_expiry_carries_no_token(
     assert result.status == LiveSessionStatus.DISCONNECTED
     assert result.expose_token is None
     assert result.token_expires_at is None
+    repo["issue_token"].assert_not_awaited()
 
 
 @pytest.mark.parametrize(
@@ -402,6 +316,7 @@ async def test_heartbeat_to_an_ended_session_says_so_and_carries_no_token(
 
     assert result.status == LiveSessionStatus.ENDED
     assert result.expose_token is None
+    repo["issue_token"].assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -414,6 +329,9 @@ async def test_view_token_is_refused_for_an_ended_session(
         await _handler().issue_view_token(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, SESSION_ID
         )
+
+    repo["issue_token"].assert_not_awaited()
+    repo["record_viewer_activity"].assert_not_awaited()
 
 
 @pytest.mark.parametrize("connected", [True, False], ids=["live", "disconnected"])
@@ -431,17 +349,42 @@ async def test_view_token_fits_one_viewer_and_one_session(
     check_permissions.assert_awaited_once_with(
         ORGANIZATION_ID, USER_ID, Resource.LIVE_SESSION, Action.READ, ORBIT_ID
     )
-    claims = _decode(handler, result.token)
     repo["get_relay"].assert_awaited_once_with(RELAY_ID)
-    assert claims["kind"] == "view"
-    assert claims["sid"] == SESSION_ID
-    assert claims["aud"] == str(RELAY_ID)
-    assert claims["sub"] == str(USER_ID)
-    assert claims["exp"] - claims["iat"] == 300
+    [issued] = _issued(repo)
+    assert (issued.kind, issued.session_id, issued.user_id, issued.destination) == (
+        TunnelTokenKind.VIEW,
+        SESSION_ID,
+        USER_ID,
+        None,
+    )
+    _assert_lifetime(issued, 300)
+    assert (result.token, result.expires_at) == ("opaque-0", issued.expires_at)
+    repo["record_viewer_activity"].assert_awaited_once_with(SESSION_ID)
     launch = urlsplit(result.launch_url)
     assert f"{launch.scheme}://{launch.netloc}{launch.path}" == (
         "https://k3f9x2ab.tunnel.example/.luml-tunnel/launch"
     )
+    assert parse_qs(launch.query) == {"token": [result.token]}
+
+
+@pytest.mark.asyncio
+async def test_view_token_stores_the_destination_outside_the_launch_address(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["get_live_session"].return_value = _session()
+
+    result = await _handler().issue_view_token(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        SESSION_ID,
+        LiveSessionViewTokenIn(destination="/experiments/42?tab=metrics"),
+    )
+
+    [issued] = _issued(repo)
+    assert issued.destination == "/experiments/42?tab=metrics"
+    launch = urlsplit(result.launch_url)
+    assert launch.path == "/.luml-tunnel/launch"
     assert parse_qs(launch.query) == {"token": [result.token]}
 
 
@@ -506,6 +449,7 @@ async def test_a_session_of_someone_else_is_not_found(
 
     repo["record_heartbeat"].assert_not_awaited()
     repo["end_live_session"].assert_not_awaited()
+    repo["issue_token"].assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -526,20 +470,6 @@ async def test_end_session(
     check_permissions.assert_awaited_once_with(
         ORGANIZATION_ID, USER_ID, Resource.LIVE_SESSION, Action.DELETE, ORBIT_ID
     )
-
-
-def test_public_keys_carry_an_identifier() -> None:
-    keys = _handler().public_keys()["keys"]
-
-    assert len(keys) == 1
-    assert keys[0]["kid"]
-    assert keys[0]["kty"] == "EC"
-    assert keys[0]["crv"] == "P-256"
-    assert "d" not in keys[0]
-
-
-def test_no_public_keys_without_a_signing_key() -> None:
-    assert _handler(LIVE_SESSION_SIGNING_KEY=None).public_keys() == {"keys": []}
 
 
 @pytest.mark.asyncio
@@ -636,8 +566,8 @@ async def test_a_session_keeps_its_relay_when_the_orbit_is_reassigned(
     )
 
     assert heartbeat.expose_token is not None
-    assert _decode(handler, heartbeat.expose_token)["aud"] == str(RELAY_ID)
-    assert _decode(handler, view.token)["aud"] == str(RELAY_ID)
+    assert [issued.session_id for issued in _issued(repo)] == [SESSION_ID] * 2
+    assert view.launch_url.startswith("https://k3f9x2ab.tunnel.example/")
     repo["get_relay"].assert_awaited_once_with(RELAY_ID)
     repo["get_orbit_simple"].assert_not_awaited()
 
@@ -686,3 +616,4 @@ async def test_a_session_whose_relay_was_removed_gets_no_credentials(
 
     assert heartbeat.status == LiveSessionStatus.ENDED
     assert heartbeat.expose_token is None
+    repo["issue_token"].assert_not_awaited()
