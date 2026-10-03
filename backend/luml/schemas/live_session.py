@@ -23,7 +23,7 @@ class LiveSession(BaseModel, BaseOrmConfig):
     orbit_id: UUID
     user_id: UUID
     name: str
-    relay_id: str
+    relay_id: UUID | None = None
     started_at: datetime
     last_heartbeat_at: datetime | None = None
     connected: bool
@@ -47,7 +47,7 @@ class LiveSessionCreate(BaseModel):
     orbit_id: UUID
     user_id: UUID
     name: str
-    relay_id: str
+    relay_id: UUID
 
 
 class LiveSessionStartIn(BaseModel):

@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
@@ -8,12 +9,15 @@ from luml.infra.exceptions import NotFoundError, OrganizationLimitReachedError
 from luml.models import (
     ArtifactOrm,
     CollectionOrm,
+    LiveSessionOrm,
     OrbitOrm,
     OrganizationMemberOrm,
     OrganizationOrm,
+    RelayOrm,
     SatelliteOrm,
     UserOrm,
 )
+from luml.models.live_session import live_session_unended
 
 
 class OrganizationResource(StrEnum):
@@ -21,6 +25,8 @@ class OrganizationResource(StrEnum):
     ORBITS = "orbits"
     SATELLITES = "satellites"
     MEMBERS = "members"
+    MANAGED_RELAY_SESSIONS = "managed_relay_sessions"
+    OWN_RELAY_SESSIONS = "own_relay_sessions"
 
 
 ORGANIZATION_MEMBERSHIP_LIMIT = 5
@@ -36,7 +42,29 @@ _LIMIT_MESSAGES = {
         "Organization reached maximum number of satellites"
     ),
     OrganizationResource.MEMBERS: "Organization reached maximum number of users",
+    OrganizationResource.MANAGED_RELAY_SESSIONS: (
+        "Organization reached maximum number of sessions on managed relays"
+    ),
+    OrganizationResource.OWN_RELAY_SESSIONS: (
+        "Organization reached maximum number of sessions on its own relays"
+    ),
 }
+
+
+def _relay_sessions_usage_query(
+    organization_id: UUID, managed: bool
+) -> Select[tuple[int]]:
+    relay_owner = RelayOrm.organization_id
+    return (
+        select(func.count(LiveSessionOrm.id))
+        .join(OrbitOrm, LiveSessionOrm.orbit_id == OrbitOrm.id)
+        .join(RelayOrm, LiveSessionOrm.relay_id == RelayOrm.id)
+        .where(
+            OrbitOrm.organization_id == organization_id,
+            relay_owner.is_(None) if managed else relay_owner.is_not(None),
+            live_session_unended(datetime.now(UTC)),
+        )
+    )
 
 
 def _usage_query(
@@ -53,6 +81,10 @@ def _usage_query(
         return select(func.count(OrbitOrm.id)).where(
             OrbitOrm.organization_id == organization_id
         )
+    if resource is OrganizationResource.MANAGED_RELAY_SESSIONS:
+        return _relay_sessions_usage_query(organization_id, managed=True)
+    if resource is OrganizationResource.OWN_RELAY_SESSIONS:
+        return _relay_sessions_usage_query(organization_id, managed=False)
     if resource is OrganizationResource.SATELLITES:
         return (
             select(func.count(SatelliteOrm.id))
@@ -65,14 +97,19 @@ def _usage_query(
 
 
 async def reserve_organization_slot(
-    session: AsyncSession, organization_id: UUID, resource: OrganizationResource
+    session: AsyncSession,
+    organization_id: UUID,
+    resource: OrganizationResource,
+    lock: bool = True,
 ) -> None:
+    """Refuse when the organization has used up its limit for the resource.
+
+    With `lock`, the organization row stays locked until the caller's
+    transaction ends, so concurrent inserts are counted one after another.
+    """
     limit_column = getattr(OrganizationOrm, f"{resource.value}_limit")
-    limit = await session.scalar(
-        select(limit_column)
-        .where(OrganizationOrm.id == organization_id)
-        .with_for_update()
-    )
+    query = select(limit_column).where(OrganizationOrm.id == organization_id)
+    limit = await session.scalar(query.with_for_update() if lock else query)
     if limit is None:
         raise NotFoundError("Organization not found")
     used = await session.scalar(_usage_query(resource, organization_id)) or 0

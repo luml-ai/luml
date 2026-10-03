@@ -21,7 +21,6 @@ def make_session(
         orbit_id=ORBIT_ID,
         user_id=USER_ID,
         name="training run",
-        relay_id="default",
         started_at=now - started_ago,
         last_heartbeat_at=None if heartbeat_ago is None else now - heartbeat_ago,
         connected=connected,

@@ -11,18 +11,23 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from luml.handlers.live_sessions import LiveSessionHandler
 from luml.infra.exceptions import (
+    ApplicationError,
     InsufficientPermissionsError,
     LiveSessionEndedError,
     LiveSessionsNotConfiguredError,
     NotFoundError,
+    OrganizationLimitReachedError,
 )
+from luml.repositories.limits import OrganizationResource
 from luml.schemas.live_session import (
     LiveSession,
     LiveSessionHeartbeatIn,
     LiveSessionStartIn,
     LiveSessionStatus,
 )
+from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
+from luml.schemas.relay import Relay, RelayStatus
 from luml.settings import config
 
 USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -30,11 +35,14 @@ OTHER_USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24c")
 ORGANIZATION_ID = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 ORBIT_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 SESSION_ID = "k3f9x2ab"
-RELAY_ID = "relay-1"
+RELAY_ID = UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7d")
+OTHER_RELAY_ID = UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7e")
 BASE_DOMAIN = "tunnel.example"
 AGENT_URL = "wss://tunnel.example/connect"
 
 REPO = "luml.handlers.live_sessions.LiveSessionRepository"
+ORBIT_REPO = "luml.handlers.live_sessions.OrbitRepository"
+RELAY_REPO = "luml.handlers.live_sessions.RelayRepository"
 CHECK_PERMISSIONS = "luml.handlers.live_sessions.PermissionsHandler.check_permissions"
 
 
@@ -50,9 +58,6 @@ def _private_key_pem() -> str:
 SIGNING_KEY = _private_key_pem()
 ENABLED_SETTINGS: dict[str, Any] = {
     "LIVE_SESSION_SIGNING_KEY": SIGNING_KEY,
-    "LIVE_SESSION_RELAY_ID": RELAY_ID,
-    "LIVE_SESSION_RELAY_BASE_DOMAIN": BASE_DOMAIN,
-    "LIVE_SESSION_RELAY_AGENT_URL": AGENT_URL,
     "LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS": 600,
     "LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS": 300,
     "APP_EMAIL_URL": "https://app.luml.ai/",
@@ -64,11 +69,41 @@ def _handler(**overrides: Any) -> LiveSessionHandler:  # noqa: ANN401
     return LiveSessionHandler(settings)
 
 
+def _relay(
+    relay_id: UUID = RELAY_ID,
+    organization_id: UUID | None = ORGANIZATION_ID,
+    status: RelayStatus = RelayStatus.ENABLED,
+    base_domain: str = BASE_DOMAIN,
+    agent_url: str = AGENT_URL,
+) -> Relay:
+    return Relay(
+        id=relay_id,
+        organization_id=organization_id,
+        label="lab",
+        base_domain=base_domain,
+        agent_url=agent_url,
+        status=status,
+        created_at=datetime.now(UTC),
+    )
+
+
+def _orbit(relay_id: UUID | None = RELAY_ID) -> Orbit:
+    return Orbit(
+        id=ORBIT_ID,
+        name="orbit",
+        organization_id=ORGANIZATION_ID,
+        bucket_secret_id=UUID("0199c337-09f5-7a3b-8c1d-2e3f4a5b6c7d"),
+        relay_id=relay_id,
+        created_at=datetime.now(UTC),
+    )
+
+
 def _session(
     user_id: UUID = USER_ID,
     last_heartbeat_ago: timedelta | None = timedelta(seconds=5),
     connected: bool = True,
     ended_at: datetime | None = None,
+    relay_id: UUID | None = RELAY_ID,
 ) -> LiveSession:
     now = datetime.now(UTC)
     return LiveSession(
@@ -76,7 +111,7 @@ def _session(
         orbit_id=ORBIT_ID,
         user_id=user_id,
         name="training run",
-        relay_id=RELAY_ID,
+        relay_id=relay_id,
         started_at=now - timedelta(hours=2),
         last_heartbeat_at=now - last_heartbeat_ago if last_heartbeat_ago else None,
         connected=connected,
@@ -93,7 +128,7 @@ def _decode(handler: LiveSessionHandler, token: str) -> dict[str, Any]:
         jwt.PyJWK(keys[key_id], algorithm="ES256").key,
         algorithms=["ES256"],
         issuer="luml",
-        audience=RELAY_ID,
+        audience=str(RELAY_ID),
         options={
             "require": ["iss", "aud", "sub", "exp", "jti", "sid", "kind"],
             "strict_aud": True,
@@ -110,17 +145,24 @@ def check_permissions() -> Iterator[AsyncMock]:
 
 @pytest.fixture
 def repo() -> Iterator[dict[str, AsyncMock]]:
-    names = [
-        "create_live_session",
-        "get_live_session",
-        "list_live_sessions",
-        "record_heartbeat",
-        "end_live_session",
-    ]
-    patches = [patch(f"{REPO}.{name}", new_callable=AsyncMock) for name in names]
-    mocks = [p.start() for p in patches]
-    yield dict(zip(names, mocks, strict=True))
-    for p in patches:
+    targets = {
+        "check_session_slot": f"{REPO}.check_session_slot",
+        "create_live_session": f"{REPO}.create_live_session",
+        "get_live_session": f"{REPO}.get_live_session",
+        "list_live_sessions": f"{REPO}.list_live_sessions",
+        "record_heartbeat": f"{REPO}.record_heartbeat",
+        "end_live_session": f"{REPO}.end_live_session",
+        "get_orbit_simple": f"{ORBIT_REPO}.get_orbit_simple",
+        "get_relay": f"{RELAY_REPO}.get_relay",
+    }
+    patches = {
+        name: patch(target, new_callable=AsyncMock) for name, target in targets.items()
+    }
+    mocks = {name: p.start() for name, p in patches.items()}
+    mocks["get_orbit_simple"].return_value = _orbit()
+    mocks["get_relay"].return_value = _relay()
+    yield mocks
+    for p in patches.values():
         p.stop()
 
 
@@ -138,13 +180,22 @@ async def test_start_session(
     check_permissions.assert_awaited_once_with(
         ORGANIZATION_ID, USER_ID, Resource.LIVE_SESSION, Action.CREATE, ORBIT_ID
     )
+    repo["get_orbit_simple"].assert_awaited_once_with(ORBIT_ID, ORGANIZATION_ID)
+    repo["get_relay"].assert_awaited_once_with(RELAY_ID)
+    repo["check_session_slot"].assert_awaited_once_with(
+        ORGANIZATION_ID, OrganizationResource.OWN_RELAY_SESSIONS
+    )
     assert repo["create_live_session"].await_args is not None
-    created = repo["create_live_session"].await_args.args[0]
+    created, organization_id, limit = repo["create_live_session"].await_args.args
     assert (created.orbit_id, created.user_id, created.name, created.relay_id) == (
         ORBIT_ID,
         USER_ID,
         "training run",
         RELAY_ID,
+    )
+    assert (organization_id, limit) == (
+        ORGANIZATION_ID,
+        OrganizationResource.OWN_RELAY_SESSIONS,
     )
     assert result.id == SESSION_ID
     assert result.public_url == "https://k3f9x2ab.tunnel.example"
@@ -167,10 +218,10 @@ async def test_public_url_keeps_the_scheme_and_port_of_the_agent_address(
     check_permissions: AsyncMock, repo: dict[str, AsyncMock]
 ) -> None:
     repo["create_live_session"].return_value = _session(last_heartbeat_ago=None)
-    handler = _handler(
-        LIVE_SESSION_RELAY_BASE_DOMAIN="tunnel.localhost",
-        LIVE_SESSION_RELAY_AGENT_URL="ws://tunnel.localhost:8090/connect",
+    repo["get_relay"].return_value = _relay(
+        base_domain="tunnel.localhost", agent_url="ws://tunnel.localhost:8090/connect"
     )
+    handler = _handler()
 
     result = await handler.start_session(
         USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="dev")
@@ -208,15 +259,6 @@ def test_signing_key_on_another_curve_is_refused() -> None:
         _handler(LIVE_SESSION_SIGNING_KEY=other_curve_key)
 
 
-@pytest.mark.parametrize(
-    "missing",
-    [
-        "LIVE_SESSION_SIGNING_KEY",
-        "LIVE_SESSION_RELAY_ID",
-        "LIVE_SESSION_RELAY_BASE_DOMAIN",
-        "LIVE_SESSION_RELAY_AGENT_URL",
-    ],
-)
 @pytest.mark.parametrize("unset_value", [None, ""], ids=["none", "empty"])
 @pytest.mark.parametrize(
     "operation",
@@ -226,11 +268,10 @@ def test_signing_key_on_another_curve_is_refused() -> None:
 async def test_every_operation_fails_the_same_way_when_the_feature_is_off(
     check_permissions: AsyncMock,
     repo: dict[str, AsyncMock],
-    missing: str,
     unset_value: str | None,
     operation: str,
 ) -> None:
-    handler = _handler(**{missing: unset_value})
+    handler = _handler(LIVE_SESSION_SIGNING_KEY=unset_value)
     calls: dict[str, Callable[[], Awaitable[object]]] = {
         "start": lambda: handler.start_session(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
@@ -391,9 +432,10 @@ async def test_view_token_fits_one_viewer_and_one_session(
         ORGANIZATION_ID, USER_ID, Resource.LIVE_SESSION, Action.READ, ORBIT_ID
     )
     claims = _decode(handler, result.token)
+    repo["get_relay"].assert_awaited_once_with(RELAY_ID)
     assert claims["kind"] == "view"
     assert claims["sid"] == SESSION_ID
-    assert claims["aud"] == RELAY_ID
+    assert claims["aud"] == str(RELAY_ID)
     assert claims["sub"] == str(USER_ID)
     assert claims["exp"] - claims["iat"] == 300
     launch = urlsplit(result.launch_url)
@@ -498,3 +540,149 @@ def test_public_keys_carry_an_identifier() -> None:
 
 def test_no_public_keys_without_a_signing_key() -> None:
     assert _handler(LIVE_SESSION_SIGNING_KEY=None).public_keys() == {"keys": []}
+
+
+@pytest.mark.asyncio
+async def test_start_in_an_orbit_without_a_relay_is_refused(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["get_orbit_simple"].return_value = _orbit(relay_id=None)
+
+    with pytest.raises(ApplicationError) as error:
+        await _handler().start_session(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+        )
+
+    assert error.value.status_code == 409
+    assert "assign a relay in orbit settings" in error.value.message
+    repo["check_session_slot"].assert_not_awaited()
+    repo["create_live_session"].assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_start_on_a_draining_relay_is_refused(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["get_relay"].return_value = _relay(status=RelayStatus.DRAINING)
+
+    with pytest.raises(ApplicationError) as error:
+        await _handler().start_session(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.message == ("Relay 'lab' is draining and takes no new sessions")
+    repo["check_session_slot"].assert_not_awaited()
+    repo["create_live_session"].assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_start_on_a_managed_relay_counts_toward_the_managed_limit(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["get_relay"].return_value = _relay(organization_id=None)
+    repo["create_live_session"].return_value = _session(last_heartbeat_ago=None)
+
+    await _handler().start_session(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+    )
+
+    repo["check_session_slot"].assert_awaited_once_with(
+        ORGANIZATION_ID, OrganizationResource.MANAGED_RELAY_SESSIONS
+    )
+    assert repo["create_live_session"].await_args is not None
+    assert repo["create_live_session"].await_args.args[2] == (
+        OrganizationResource.MANAGED_RELAY_SESSIONS
+    )
+
+
+@pytest.mark.asyncio
+async def test_start_at_the_limit_is_refused_before_anything_is_created(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["check_session_slot"].side_effect = OrganizationLimitReachedError(
+        "Organization reached maximum number of sessions on its own relays"
+    )
+
+    with pytest.raises(OrganizationLimitReachedError):
+        await _handler().start_session(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(name="run")
+        )
+
+    repo["create_live_session"].assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_session_keeps_its_relay_when_the_orbit_is_reassigned(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["get_orbit_simple"].return_value = _orbit(relay_id=OTHER_RELAY_ID)
+    repo["get_live_session"].return_value = _session()
+    repo["record_heartbeat"].return_value = _session()
+    handler = _handler()
+
+    heartbeat = await handler.record_heartbeat(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        SESSION_ID,
+        LiveSessionHeartbeatIn(
+            connected=True,
+            token_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        ),
+    )
+    view = await handler.issue_view_token(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, SESSION_ID
+    )
+
+    assert heartbeat.expose_token is not None
+    assert _decode(handler, heartbeat.expose_token)["aud"] == str(RELAY_ID)
+    assert _decode(handler, view.token)["aud"] == str(RELAY_ID)
+    repo["get_relay"].assert_awaited_once_with(RELAY_ID)
+    repo["get_orbit_simple"].assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_draining_relay_keeps_renewing_its_sessions(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    repo["get_relay"].return_value = _relay(status=RelayStatus.DRAINING)
+    repo["get_live_session"].return_value = _session()
+    repo["record_heartbeat"].return_value = _session()
+
+    result = await _handler().record_heartbeat(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        SESSION_ID,
+        LiveSessionHeartbeatIn(
+            connected=True,
+            token_expires_at=datetime.now(UTC) + timedelta(minutes=1),
+        ),
+    )
+
+    assert result.status == LiveSessionStatus.LIVE
+    assert result.expose_token is not None
+
+
+@pytest.mark.asyncio
+async def test_a_session_whose_relay_was_removed_gets_no_credentials(
+    check_permissions: AsyncMock, repo: dict[str, AsyncMock]
+) -> None:
+    ended = _session(ended_at=datetime.now(UTC), relay_id=None)
+    repo["get_live_session"].return_value = ended
+    repo["record_heartbeat"].return_value = ended
+    handler = _handler()
+
+    heartbeat = await handler.record_heartbeat(
+        USER_ID,
+        ORGANIZATION_ID,
+        ORBIT_ID,
+        SESSION_ID,
+        LiveSessionHeartbeatIn(connected=True, token_expires_at=datetime.now(UTC)),
+    )
+    with pytest.raises(LiveSessionEndedError):
+        await handler.issue_view_token(USER_ID, ORGANIZATION_ID, ORBIT_ID, SESSION_ID)
+
+    assert heartbeat.status == LiveSessionStatus.ENDED
+    assert heartbeat.expose_token is None

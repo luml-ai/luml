@@ -1,11 +1,13 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, and_, or_, select, update
+from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from luml.infra.exceptions import DatabaseConstraintError
-from luml.models import RelayOrm
+from luml.infra.exceptions import DatabaseConstraintError, RelayHasUnendedSessionsError
+from luml.models import LiveSessionOrm, RelayOrm
+from luml.models.live_session import live_session_unended
 from luml.repositories.base import RepositoryBase
 from luml.schemas.relay import Relay, RelayCreate, RelayUpdateIn
 
@@ -15,6 +17,16 @@ def _usable_by(organization_id: UUID) -> ColumnElement[bool]:
         RelayOrm.organization_id == organization_id,
         RelayOrm.organization_id.is_(None),
     )
+
+
+async def _count_unended_sessions(session: AsyncSession, relay_id: UUID) -> int:
+    unended = await session.scalar(
+        select(func.count(LiveSessionOrm.id)).where(
+            LiveSessionOrm.relay_id == relay_id,
+            live_session_unended(datetime.now(UTC)),
+        )
+    )
+    return unended or 0
 
 
 class RelayRepository(RepositoryBase):
@@ -50,11 +62,27 @@ class RelayRepository(RepositoryBase):
             return relay.to_relay()
 
     async def update_relay(self, relay_id: UUID, data: RelayUpdateIn) -> Relay | None:
+        """Update a relay, refusing an address change while it has unended sessions.
+
+        Running sessions derive their public addresses from the base domain
+        and the agent address, so those wait until every session has ended.
+        """
+        changes = data.model_dump(exclude_unset=True)
         async with self._get_session() as session:
-            relay = await session.get(RelayOrm, relay_id)
+            # The row lock makes a concurrent session start on this relay wait
+            # for its foreign key check, so the count below cannot go stale.
+            relay = await session.get(RelayOrm, relay_id, with_for_update=True)
             if relay is None:
                 return None
-            for field, value in data.model_dump(exclude_unset=True).items():
+            moves = any(
+                field in changes and changes[field] != getattr(relay, field)
+                for field in ("base_domain", "agent_url")
+            )
+            if moves and (unended := await _count_unended_sessions(session, relay_id)):
+                raise RelayHasUnendedSessionsError(
+                    "change the base domain or agent address", unended
+                )
+            for field, value in changes.items():
                 setattr(relay, field, value)
             try:
                 await session.commit()
@@ -112,10 +140,17 @@ class RelayRepository(RepositoryBase):
             return relay.to_relay() if relay else None
 
     async def delete_relay(self, relay_id: UUID) -> bool:
+        """Remove a relay once every session on it has ended.
+
+        Its orbits lose the assignment and its ended sessions lose the
+        reference, both through their foreign keys.
+        """
         async with self._get_session() as session:
-            relay = await session.get(RelayOrm, relay_id)
+            relay = await session.get(RelayOrm, relay_id, with_for_update=True)
             if relay is None:
                 return False
+            if unended := await _count_unended_sessions(session, relay_id):
+                raise RelayHasUnendedSessionsError("remove the relay", unended)
             await session.delete(relay)
             await session.commit()
             return True

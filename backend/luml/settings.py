@@ -41,9 +41,6 @@ class Settings(BaseSettings):
 
     # Live sessions are off unless the signing key and the relay are all set.
     LIVE_SESSION_SIGNING_KEY: str | None = None
-    LIVE_SESSION_RELAY_ID: str | None = None
-    LIVE_SESSION_RELAY_BASE_DOMAIN: str | None = None
-    LIVE_SESSION_RELAY_AGENT_URL: str | None = None
     LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS: int = 600
     LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS: int = 300
     LIVE_SESSION_RELAY_TOKEN_OVERLAP_SECONDS: int = 600

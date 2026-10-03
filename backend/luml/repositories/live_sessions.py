@@ -7,7 +7,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from luml.models import LiveSessionOrm
+from luml.models.live_session import live_session_unended
 from luml.repositories.base import RepositoryBase, violates
+from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.live_session import (
     LIVE_SESSION_ENDED_AFTER,
     LIVE_SESSION_LIST_RETENTION,
@@ -32,19 +34,36 @@ _last_sign_of_life = func.coalesce(
 
 
 class LiveSessionRepository(RepositoryBase):
-    async def create_live_session(self, data: LiveSessionCreate) -> LiveSession:
+    async def check_session_slot(
+        self, organization_id: UUID, limit: OrganizationResource
+    ) -> None:
+        async with self._get_session() as session:
+            await reserve_organization_slot(session, organization_id, limit, lock=False)
+
+    async def create_live_session(
+        self,
+        data: LiveSessionCreate,
+        organization_id: UUID,
+        limit: OrganizationResource,
+    ) -> LiveSession:
         # The primary key refuses an identifier that was handed out before;
         # a clash is retried with a new one.
         for _ in range(_MAX_ID_ATTEMPTS - 1):
             try:
-                return await self._insert_live_session(data)
+                return await self._insert_live_session(data, organization_id, limit)
             except IntegrityError as error:
                 if not violates(error, "live_sessions_pkey"):
                     raise
-        return await self._insert_live_session(data)
+        return await self._insert_live_session(data, organization_id, limit)
 
-    async def _insert_live_session(self, data: LiveSessionCreate) -> LiveSession:
+    async def _insert_live_session(
+        self,
+        data: LiveSessionCreate,
+        organization_id: UUID,
+        limit: OrganizationResource,
+    ) -> LiveSession:
         async with self._get_session() as session:
+            await reserve_organization_slot(session, organization_id, limit)
             db_session = LiveSessionOrm(
                 id=new_session_id(), started_at=datetime.now(UTC), **data.model_dump()
             )
@@ -88,11 +107,7 @@ class LiveSessionRepository(RepositoryBase):
         async with self._get_session() as session:
             recorded = await session.scalar(
                 update(LiveSessionOrm)
-                .where(
-                    LiveSessionOrm.id == session_id,
-                    LiveSessionOrm.ended_at.is_(None),
-                    _last_sign_of_life >= now - LIVE_SESSION_ENDED_AFTER,
-                )
+                .where(LiveSessionOrm.id == session_id, live_session_unended(now))
                 .values(last_heartbeat_at=now, connected=connected)
                 .returning(LiveSessionOrm)
             )

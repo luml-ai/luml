@@ -1,4 +1,4 @@
-"""Live sessions and relays
+"""Live sessions, relays and organization session limits
 
 Revision ID: 042
 Revises: 041
@@ -62,13 +62,14 @@ def upgrade() -> None:
         sa.Column("orbit_id", sa.UUID(), nullable=False),
         sa.Column("user_id", sa.UUID(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("relay_id", sa.String(), nullable=False),
+        sa.Column("relay_id", sa.UUID(), nullable=True),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("last_heartbeat_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("connected", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["orbit_id"], ["orbits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["relay_id"], ["relays.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -77,9 +78,44 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_live_sessions_user_id"), "live_sessions", ["user_id"], unique=False
     )
+    op.create_index(
+        op.f("ix_live_sessions_relay_id"), "live_sessions", ["relay_id"], unique=False
+    )
+    op.add_column("orbits", sa.Column("relay_id", sa.UUID(), nullable=True))
+    op.create_foreign_key(
+        "orbits_relay_id_fkey",
+        "orbits",
+        "relays",
+        ["relay_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.add_column(
+        "organizations",
+        sa.Column(
+            "managed_relay_sessions_limit",
+            sa.Integer(),
+            server_default="0",
+            nullable=False,
+        ),
+    )
+    op.add_column(
+        "organizations",
+        sa.Column(
+            "own_relay_sessions_limit",
+            sa.Integer(),
+            server_default="5",
+            nullable=False,
+        ),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("organizations", "own_relay_sessions_limit")
+    op.drop_column("organizations", "managed_relay_sessions_limit")
+    op.drop_constraint("orbits_relay_id_fkey", "orbits", type_="foreignkey")
+    op.drop_column("orbits", "relay_id")
+    op.drop_index(op.f("ix_live_sessions_relay_id"), table_name="live_sessions")
     op.drop_index(op.f("ix_live_sessions_user_id"), table_name="live_sessions")
     op.drop_index(op.f("ix_live_sessions_orbit_id"), table_name="live_sessions")
     op.drop_table("live_sessions")

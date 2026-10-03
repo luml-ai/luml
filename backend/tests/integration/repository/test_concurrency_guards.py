@@ -32,7 +32,10 @@ from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.invites import InviteRepository
+from luml.repositories.limits import OrganizationResource
+from luml.repositories.live_sessions import LiveSessionRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.relays import RelayRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.token_blacklist import TokenBlackListRepository
 from luml.repositories.tracks import (
@@ -48,6 +51,7 @@ from luml.schemas.artifacts import (
     ArtifactType,
 )
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
+from luml.schemas.live_session import LiveSession, LiveSessionCreate
 from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -56,6 +60,7 @@ from luml.schemas.organization import (
     OrganizationMemberCreate,
     OrgRole,
 )
+from luml.schemas.relay import RelayCreate
 from luml.schemas.satellite import Satellite, SatelliteCreate
 from luml.schemas.tracks import (
     StageCreate,
@@ -515,6 +520,44 @@ class TestConcurrencyGuards:
         assert len(winners) == 1
         assert len(losers) == 1
         assert "maximum number of satellites" in str(losers[0])
+
+    @pytest.mark.asyncio
+    async def test_own_relay_session_quota_holds_under_concurrency(
+        self, create_collection: CollectionFixtureData
+    ) -> None:
+        data = create_collection
+        repo = LiveSessionRepository(data.engine)
+        relay = await RelayRepository(data.engine).create_relay(
+            RelayCreate(
+                label="lab",
+                base_domain="tunnel.example",
+                agent_url="wss://tunnel.example/connect",
+                organization_id=data.organization.id,
+                token_hash="lab",
+            )
+        )
+        await _set_limit(data.engine, data.organization.id, own_relay_sessions_limit=2)
+
+        async def start() -> LiveSession:
+            return await repo.create_live_session(
+                LiveSessionCreate(
+                    orbit_id=data.orbit.id,
+                    user_id=data.user.id,
+                    name="run",
+                    relay_id=relay.id,
+                ),
+                data.organization.id,
+                OrganizationResource.OWN_RELAY_SESSIONS,
+            )
+
+        await start()
+        winners, losers = _split(
+            await _race(start(), start()), OrganizationLimitReachedError
+        )
+
+        assert len(winners) == 1
+        assert len(losers) == 1
+        assert "own relays" in str(losers[0])
 
     @pytest.mark.asyncio
     async def test_member_quotas_hold_under_concurrency(

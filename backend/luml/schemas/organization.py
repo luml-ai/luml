@@ -144,6 +144,8 @@ class OrganizationDetails(Organization):
     orbits_limit: int = 0
     satellites_limit: int = 0
     artifacts_limit: int = 0
+    managed_relay_sessions_limit: int = 0
+    own_relay_sessions_limit: int = 0
     total_orbits: int = 0
     total_members: int = 0
     total_satellites: int = 0

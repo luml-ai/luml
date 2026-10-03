@@ -2,16 +2,30 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from luml.handlers.orbits import OrbitHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.handlers.relays import RelayHandler
 from luml.infra.exceptions import (
     ApplicationError,
     DatabaseConstraintError,
     InsufficientPermissionsError,
+    NotFoundError,
+    RelayHasUnendedSessionsError,
 )
+from luml.models import LiveSessionOrm
+from luml.repositories.limits import OrganizationResource
+from luml.repositories.live_sessions import LiveSessionRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.relays import RelayRepository
 from luml.repositories.users import UserRepository
+from luml.schemas.live_session import LiveSession, LiveSessionCreate, LiveSessionStatus
+from luml.schemas.orbit import (
+    OrbitCreateIn,
+    OrbitDetails,
+    OrbitMemberCreate,
+    OrbitRole,
+    OrbitUpdate,
+)
 from luml.schemas.organization import (
     OrganizationCreateIn,
     OrganizationMemberCreate,
@@ -26,7 +40,8 @@ from luml.schemas.relay import (
     RelayUpdateIn,
 )
 from luml.schemas.user import CreateUser
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from tests.conftest import OrganizationFixtureData
 
@@ -80,6 +95,42 @@ async def _add_user(
         )
     )
     return user.id
+
+
+async def _create_orbit(data: OrganizationFixtureData, relay: Relay) -> OrbitDetails:
+    orbit = await OrbitRepository(data.engine).create_orbit(
+        data.organization.id,
+        OrbitCreateIn(
+            name=f"orbit {uuid.uuid4().hex[:6]}",
+            bucket_secret_id=data.bucket_secret.id,
+            relay_id=relay.id,
+        ),
+    )
+    assert orbit is not None
+    return orbit
+
+
+async def _start_session(
+    data: OrganizationFixtureData, orbit: OrbitDetails, relay: Relay
+) -> LiveSession:
+    return await LiveSessionRepository(data.engine).create_live_session(
+        LiveSessionCreate(
+            orbit_id=orbit.id, user_id=data.user.id, name="run", relay_id=relay.id
+        ),
+        data.organization.id,
+        OrganizationResource.OWN_RELAY_SESSIONS,
+    )
+
+
+async def _silence(engine: AsyncEngine, session_id: str, silent_for: timedelta) -> None:
+    since = datetime.now(UTC) - silent_for
+    async with AsyncSession(engine) as session:
+        await session.execute(
+            update(LiveSessionOrm)
+            .where(LiveSessionOrm.id == session_id)
+            .values(started_at=since, last_heartbeat_at=since, connected=True)
+        )
+        await session.commit()
 
 
 @pytest.fixture
@@ -439,3 +490,216 @@ async def test_handler_refuses_a_taken_base_domain_with_a_conflict(
     assert "base domain" in refusal.value.message
     listed = await relay_handler.list_relays(data.user.id, data.organization.id)
     assert len(listed) == 1
+
+
+@pytest.mark.asyncio
+async def test_removing_a_relay_with_unended_sessions_is_refused(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    repo = RelayRepository(data.engine)
+    sessions = LiveSessionRepository(data.engine)
+    relay = await _create_relay(
+        data.engine, "tunnel.example", "lab", organization_id=data.organization.id
+    )
+    orbit = await _create_orbit(data, relay)
+    live = await _start_session(data, orbit, relay)
+    await sessions.record_heartbeat(live.id, connected=True)
+    silent = await _start_session(data, orbit, relay)
+    await _silence(data.engine, silent.id, timedelta(minutes=5))
+
+    with pytest.raises(RelayHasUnendedSessionsError) as refusal:
+        await repo.delete_relay(relay.id)
+
+    assert refusal.value.status_code == 409
+    assert refusal.value.message == (
+        "Cannot remove the relay: the relay has 2 sessions that have not ended"
+    )
+    assert await repo.get_relay(relay.id) is not None
+
+    await repo.update_relay(relay.id, RelayUpdateIn(status=RelayStatus.DRAINING))
+    await sessions.end_live_session(live.id)
+    await sessions.end_live_session(silent.id)
+
+    assert await repo.delete_relay(relay.id) is True
+    unassigned = await OrbitRepository(data.engine).get_orbit_simple(
+        orbit.id, data.organization.id
+    )
+    assert unassigned is not None
+    assert unassigned.relay_id is None
+
+
+@pytest.mark.asyncio
+async def test_removing_a_relay_keeps_its_ended_sessions(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    sessions = LiveSessionRepository(data.engine)
+    relay = await _create_relay(
+        data.engine, "tunnel.example", "lab", organization_id=data.organization.id
+    )
+    orbit = await _create_orbit(data, relay)
+    ended = await _start_session(data, orbit, relay)
+    await sessions.end_live_session(ended.id)
+    silent = await _start_session(data, orbit, relay)
+    await _silence(data.engine, silent.id, timedelta(minutes=61))
+
+    assert await RelayRepository(data.engine).delete_relay(relay.id) is True
+
+    listed = await sessions.list_live_sessions(orbit.id, data.user.id)
+    assert {session.id for session in listed} == {ended.id, silent.id}
+    for session in listed:
+        assert session.status == LiveSessionStatus.ENDED
+        assert session.relay_id is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "change",
+    [
+        RelayUpdateIn(base_domain="moved.example"),
+        RelayUpdateIn(agent_url="wss://moved.example/connect"),
+    ],
+    ids=["base-domain", "agent-address"],
+)
+async def test_changing_the_address_of_a_relay_with_unended_sessions_is_refused(
+    create_organization_with_user: OrganizationFixtureData,
+    change: RelayUpdateIn,
+) -> None:
+    data = create_organization_with_user
+    repo = RelayRepository(data.engine)
+    relay = await _create_relay(
+        data.engine, "tunnel.example", "lab", organization_id=data.organization.id
+    )
+    orbit = await _create_orbit(data, relay)
+    disconnected = await _start_session(data, orbit, relay)
+
+    relabeled = await repo.update_relay(
+        relay.id,
+        RelayUpdateIn(
+            label="lab 2",
+            status=RelayStatus.DRAINING,
+            base_domain=relay.base_domain,
+            agent_url=relay.agent_url,
+        ),
+    )
+    with pytest.raises(RelayHasUnendedSessionsError) as refusal:
+        await repo.update_relay(relay.id, change)
+
+    assert relabeled is not None
+    assert relabeled.label == "lab 2"
+    assert refusal.value.message == (
+        "Cannot change the base domain or agent address: the relay has "
+        "1 session that has not ended"
+    )
+    unchanged = await repo.get_relay(relay.id)
+    assert unchanged is not None
+    assert (unchanged.base_domain, unchanged.agent_url) == (
+        relay.base_domain,
+        relay.agent_url,
+    )
+
+    await LiveSessionRepository(data.engine).end_live_session(disconnected.id)
+    moved = await repo.update_relay(relay.id, change)
+
+    assert moved is not None
+    assert moved.model_dump(include=change.model_fields_set) == change.model_dump(
+        exclude_unset=True
+    )
+
+
+@pytest.fixture
+def orbit_handler(
+    relay_handler: RelayHandler,
+    create_organization_with_user: OrganizationFixtureData,
+    monkeypatch: pytest.MonkeyPatch,
+) -> OrbitHandler:
+    engine = create_organization_with_user.engine
+    for attribute, repository in (
+        ("__orbits_repository", OrbitRepository(engine)),
+        ("__user_repository", UserRepository(engine)),
+        ("__relay_repository", RelayRepository(engine)),
+    ):
+        monkeypatch.setattr(OrbitHandler, f"_OrbitHandler{attribute}", repository)
+    return OrbitHandler()
+
+
+@pytest.mark.asyncio
+async def test_an_orbit_is_assigned_an_own_or_a_managed_relay_only(
+    create_organization_with_user: OrganizationFixtureData,
+    orbit_handler: OrbitHandler,
+) -> None:
+    data = create_organization_with_user
+    organization_id = data.organization.id
+    lab = await _create_relay(
+        data.engine, "lab.example", "lab", organization_id=organization_id
+    )
+    eu = await _create_relay(data.engine, "eu.luml.example", "eu", label="eu")
+    other_organization = await UserRepository(data.engine).create_organization(
+        data.user.id, OrganizationCreateIn(name="other org")
+    )
+    foreign = await _create_relay(
+        data.engine, "foreign.example", "foreign", organization_id=other_organization.id
+    )
+    orbit = await _create_orbit(data, lab)
+    created_without_relay = await orbit_handler.create_organization_orbit(
+        data.user.id,
+        organization_id,
+        OrbitCreateIn(name="plain", bucket_secret_id=data.bucket_secret.id),
+    )
+    with pytest.raises(NotFoundError, match="Relay not found"):
+        await orbit_handler.create_organization_orbit(
+            data.user.id,
+            organization_id,
+            OrbitCreateIn(
+                name="foreign",
+                bucket_secret_id=data.bucket_secret.id,
+                relay_id=foreign.id,
+            ),
+        )
+
+    to_lab = await orbit_handler.update_orbit(
+        data.user.id, organization_id, orbit.id, OrbitUpdate(relay_id=lab.id)
+    )
+    to_eu = await orbit_handler.update_orbit(
+        data.user.id, organization_id, orbit.id, OrbitUpdate(relay_id=eu.id)
+    )
+    with pytest.raises(NotFoundError, match="Relay not found"):
+        await orbit_handler.update_orbit(
+            data.user.id, organization_id, orbit.id, OrbitUpdate(relay_id=foreign.id)
+        )
+    unchanged = await orbit_handler.get_orbit(data.user.id, organization_id, orbit.id)
+    cleared = await orbit_handler.update_orbit(
+        data.user.id, organization_id, orbit.id, OrbitUpdate(relay_id=None)
+    )
+
+    assert created_without_relay.relay_id is None
+    assert to_lab.relay_id == lab.id
+    assert to_eu.relay_id == eu.id
+    assert unchanged.relay_id == eu.id
+    assert cleared.relay_id is None
+
+
+@pytest.mark.asyncio
+async def test_orbit_members_see_the_assigned_relay_when_listing_orbits(
+    create_organization_with_user: OrganizationFixtureData,
+    test_user_create: CreateUser,
+) -> None:
+    data = create_organization_with_user
+    orbits = OrbitRepository(data.engine)
+    member_id = await _add_user(data, test_user_create, OrgRole.MEMBER)
+    relay = await _create_relay(
+        data.engine, "lab.example", "lab", organization_id=data.organization.id
+    )
+    orbit = await _create_orbit(data, relay)
+    await orbits.create_orbit_member(
+        OrbitMemberCreate(user_id=member_id, orbit_id=orbit.id, role=OrbitRole.MEMBER)
+    )
+
+    listed = await orbits.get_organization_orbits_for_user(
+        data.organization.id, member_id
+    )
+
+    assert [(listed_orbit.id, listed_orbit.relay_id) for listed_orbit in listed] == [
+        (orbit.id, relay.id)
+    ]

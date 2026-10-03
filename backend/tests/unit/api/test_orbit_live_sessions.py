@@ -12,6 +12,7 @@ from luml.handlers.live_sessions import LiveSessionHandler
 from luml.infra.live_session_tokens import TunnelTokenKind
 from luml.models import AuthUser
 from luml.schemas.live_session import LiveSession, LiveSessionStartOut
+from luml.schemas.orbit import Orbit
 from luml.service import AppService
 from luml.settings import config
 from starlette.authentication import AuthCredentials
@@ -41,14 +42,7 @@ def _enabled_handler() -> LiveSessionHandler:
         .decode()
     )
     return LiveSessionHandler(
-        config.model_copy(
-            update={
-                "LIVE_SESSION_SIGNING_KEY": pem,
-                "LIVE_SESSION_RELAY_ID": "relay-1",
-                "LIVE_SESSION_RELAY_BASE_DOMAIN": "tunnel.example",
-                "LIVE_SESSION_RELAY_AGENT_URL": "wss://tunnel.example/connect",
-            }
-        )
+        config.model_copy(update={"LIVE_SESSION_SIGNING_KEY": pem})
     )
 
 
@@ -91,6 +85,39 @@ def test_start_fails_with_its_own_status_when_the_feature_is_off(
     assert response.status_code == 501
     assert response.json() == {
         "detail": "Live sessions are not set up in this deployment"
+    }
+    mock_create.assert_not_awaited()
+
+
+@patch(f"{REPO}.create_live_session", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.live_sessions.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.live_sessions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(AUTHENTICATE, new_callable=AsyncMock, return_value=_signed_in())
+def test_start_in_an_orbit_without_a_relay_answers_a_conflict(
+    mock_authenticate: AsyncMock,
+    mock_check_permissions: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_create: AsyncMock,
+) -> None:
+    mock_get_orbit.return_value = Orbit(
+        id=ORBIT_ID,
+        name="orbit",
+        organization_id=ORGANIZATION_ID,
+        bucket_secret_id=UUID("0199c337-09f5-7a3b-8c1d-2e3f4a5b6c7d"),
+        created_at=datetime.now(UTC),
+    )
+    with patch.object(live_session_handler, "_signer", _enabled_handler()._signer):
+        response = TestClient(AppService()).post(BASE_PATH, json={"name": "run"})
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "The orbit has no relay; assign a relay in orbit settings"
     }
     mock_create.assert_not_awaited()
 
@@ -162,7 +189,7 @@ def test_session_routes_pass_the_caller_and_the_session(
         orbit_id=ORBIT_ID,
         user_id=USER_ID,
         name="run",
-        relay_id="relay-1",
+        relay_id=UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7d"),
         started_at=datetime.now(UTC),
         connected=False,
     )
