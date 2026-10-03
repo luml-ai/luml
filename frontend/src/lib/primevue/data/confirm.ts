@@ -296,3 +296,18 @@ export const unlinkArtifactConfirmOptions = (accept: () => void): ConfirmationOp
   },
   accept,
 })
+
+export const deleteRelayConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message:
+    'The relay will be removed and unassigned from every orbit that uses it. Its token stops working.',
+  header: 'Remove relay?',
+  rejectProps: {
+    label: 'Cancel',
+  },
+  acceptProps: {
+    label: 'Remove',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})

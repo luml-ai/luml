@@ -902,13 +902,13 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Extend `dev/seed.py` to register the relay as the dev organization's own with the hash of the token and assign it to the sample orbit, both only when missing
   - [x] Name the relay in the services table of `dev/README.md`, check the compose file with `docker compose config`, run the stack and walk through the scenario for a flow in the dev stack
 
-- [ ] Add a relays tab to organization settings
-  - [ ] Add a relays API module in `frontend/src/lib/api/` following `bucket-secrets/`, register it in `frontend/src/lib/api/api.ts`, and add a store in `frontend/src/stores/` following `buckets.ts`
-  - [ ] Add the child route in `frontend/src/router/index.ts` and the tab in `frontend/src/components/organizations/OrganizationTabs.vue`, named like the buckets route and tab
-  - [ ] Build the tab under `frontend/src/components/organizations/` following `registry/OrganizationRegistry.vue` and `registry/OrganizationRegistryTable.vue`, with the columns and menus from the Design section Organization settings: the relays tab
-  - [ ] Build the create dialog, the token dialog following `frontend/src/components/satellites/SatellitesApiKeyModal.vue` with the environment variables and the run command, and the settings dialog following `registry/BucketSettings.vue` with edit, status toggle, rotate and remove
-  - [ ] Add unit tests beside the components for the list with managed and own rows, the add dialog, the token shown once, rotation and a refused removal shown with its message
-  - [ ] Run the type check, the linter and the unit tests in `frontend/`
+- [x] Add a relays tab to organization settings
+  - [x] Add a relays API module in `frontend/src/lib/api/` following `bucket-secrets/`, register it in `frontend/src/lib/api/api.ts`, and add a store in `frontend/src/stores/` following `buckets.ts`
+  - [x] Add the child route in `frontend/src/router/index.ts` and the tab in `frontend/src/components/organizations/OrganizationTabs.vue`, named like the buckets route and tab
+  - [x] Build the tab under `frontend/src/components/organizations/` following `registry/OrganizationRegistry.vue` and `registry/OrganizationRegistryTable.vue`, with the columns and menus from the Design section Organization settings: the relays tab
+  - [x] Build the create dialog, the token dialog following `frontend/src/components/satellites/SatellitesApiKeyModal.vue` with the environment variables and the run command, and the settings dialog following `registry/BucketSettings.vue` with edit, status toggle, rotate and remove
+  - [x] Add unit tests beside the components for the list with managed and own rows, the add dialog, the token shown once, rotation and a refused removal shown with its message
+  - [x] Run the type check, the linter and the unit tests in `frontend/`
 
 - [ ] Add the relay choice to the orbit dialogs
   - [ ] Add the nullable relay reference to the orbit interfaces and payloads in `frontend/src/lib/api/api.interfaces.ts` and the two limits to the organization interface

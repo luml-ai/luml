@@ -223,6 +223,7 @@ export interface OrganizationPermissions {
   organization_invite: Omit<PermissionEnum, PermissionEnum.update & PermissionEnum.deploy>
   billing: [PermissionEnum.read, PermissionEnum.update]
   orbit: [PermissionEnum.create]
+  relay?: PermissionEnum[]
 }
 
 export interface OrbitPermissions {

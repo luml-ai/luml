@@ -303,6 +303,11 @@ const router = createRouter({
           name: 'organization-buckets',
           component: () => import('../components/organizations/registry/OrganizationRegistry.vue'),
         },
+        {
+          path: 'relays',
+          name: 'organization-relays',
+          component: () => import('../components/organizations/relays/OrganizationRelays.vue'),
+        },
       ],
     },
     {
