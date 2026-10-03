@@ -925,7 +925,7 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Rewrite `frontend/src/pages/orbits/__tests__/OrbitFlowView.test.ts`, update `frontend/src/router/__tests__/flow-routes.test.ts`, `frontend/src/components/layout/__tests__/LayoutSidebar.test.ts` and `frontend/src/pages/orbits/__tests__/SetupPage.test.ts`, and add tests for the empty page, the local flow added, not reachable and offline, the relayed choice with and without a relay, opening and removing a relayed flow, and the old route gone
   - [x] Run the type check, the linter and the unit tests in `frontend/`
 
-- [ ] Document relayed flows
-  - [ ] Write `docs/docs/apps/lumlflow/relayed_flows.md` with the content and in the style of the Design section The relayed flows docs page, with the front matter of `docs/docs/apps/lumlflow/uploading.md`
-  - [ ] Read the page once against the style paragraph of that section and remove every sentence that can go without losing meaning
-  - [ ] Add the page to the Flow category in `docs/sidebars.ts` after the existing pages
+- [x] Document relayed flows
+  - [x] Write `docs/docs/apps/lumlflow/relayed_flows.md` with the content and in the style of the Design section The relayed flows docs page, with the front matter of `docs/docs/apps/lumlflow/uploading.md`
+  - [x] Read the page once against the style paragraph of that section and remove every sentence that can go without losing meaning
+  - [x] Add the page to the Flow category in `docs/sidebars.ts` after the existing pages

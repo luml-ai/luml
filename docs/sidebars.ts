@@ -98,6 +98,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'apps/lumlflow/uploading',
             'apps/lumlflow/experiment_view',
+            'apps/lumlflow/relayed_flows',
           ],
         },
         {
