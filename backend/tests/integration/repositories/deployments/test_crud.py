@@ -289,6 +289,8 @@ class TestDeploymentRepositoryCrud:
             )
         )
 
+        refs = {"A": str(existing.id), "B": str(uuid.uuid7())}
+
         with pytest.raises(NotFoundError, match="Orbit secret not found"):
             await repository.create_deployment(
                 DeploymentCreate(
@@ -297,7 +299,12 @@ class TestDeploymentRepositoryCrud:
                     satellite_id=seeded_satellite.satellite.id,
                     artifact_id=seeded_satellite.model.id,
                     status=DeploymentStatus.PENDING,
-                    **{binding: {"A": str(existing.id), "B": str(uuid.uuid7())}},
+                    dynamic_attributes_secrets=(
+                        refs if binding == "dynamic_attributes_secrets" else {}
+                    ),
+                    env_variables_secrets=(
+                        refs if binding == "env_variables_secrets" else {}
+                    ),
                 )
             )
 

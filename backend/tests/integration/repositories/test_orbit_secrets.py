@@ -208,6 +208,7 @@ class TestOrbitSecretRepository:
                 name="token", value="secret", orbit_id=seeded_satellite.orbit.id
             )
         )
+        refs = {"TOKEN": str(secret.id)}
         await DeploymentRepository(seeded_satellite.engine).create_deployment(
             DeploymentCreate(
                 name="uses-token",
@@ -215,7 +216,12 @@ class TestOrbitSecretRepository:
                 satellite_id=seeded_satellite.satellite.id,
                 artifact_id=seeded_satellite.model.id,
                 status=DeploymentStatus.PENDING,
-                **{binding: {"TOKEN": str(secret.id)}},
+                dynamic_attributes_secrets=(
+                    refs if binding == "dynamic_attributes_secrets" else {}
+                ),
+                env_variables_secrets=refs
+                if binding == "env_variables_secrets"
+                else {},
             )
         )
 
