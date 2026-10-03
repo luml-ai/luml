@@ -81,6 +81,39 @@
             </template>
           </Select>
         </div>
+
+        <div class="field">
+          <label for="relay" class="label">Relay</label>
+          <Select
+            v-model="initialValues.relay_id"
+            name="relay_id"
+            :options="relayOptions"
+            option-label="name"
+            option-value="id"
+            id="relay"
+            placeholder="Select a relay for exposing flows"
+            show-clear
+            fluid
+            :pt="multiSelectPt"
+          >
+            <template #footer>
+              <div v-if="!relayOptions.length" class="select-footer">
+                <d-button variant="text" as-child v-slot="slotProps" size="small">
+                  <RouterLink
+                    :to="{
+                      name: 'organization-relays',
+                      params: { id: organizationId },
+                    }"
+                    :class="slotProps.class"
+                  >
+                    <Plus :size="14" />
+                    <span>Add a relay</span>
+                  </RouterLink>
+                </d-button>
+              </div>
+            </template>
+          </Select>
+        </div>
       </div>
 
       <div class="checkbox">
@@ -103,6 +136,8 @@ import { computed, ref, watch } from 'vue'
 import { useOrganizationStore } from '@/stores/organization'
 import { OrbitRoleEnum } from '../orbits.interfaces'
 import { useBucketsStore } from '@/stores/buckets'
+import { useRelaysStore } from '@/stores/relays'
+import { getRelayOptions } from '../relay-options'
 import { Plus } from 'lucide-vue-next'
 import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
@@ -153,6 +188,7 @@ const memberRoleOptions = [OrbitRoleEnum.admin, OrbitRoleEnum.member]
 
 const organizationStore = useOrganizationStore()
 const bucketsStore = useBucketsStore()
+const relaysStore = useRelaysStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const userStore = useUserStore()
@@ -166,12 +202,15 @@ const membersList = computed(() => {
 
 const visible = defineModel<boolean>('visible')
 
+const relayOptions = computed(() => getRelayOptions(relaysStore.relays))
+
 const resolver = orbitCreatorResolver(orbitsStore.orbitsList)
 
 const initialValues = ref<Partial<CreateOrbitPayload>>({
   name: '',
   members: [],
   bucket_secret_id: undefined,
+  relay_id: null,
   notify: true,
 })
 const loading = ref(false)
@@ -211,10 +250,12 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 watch(visible, (val) => {
   if (val) {
     bucketsStore.getBuckets(props.organizationId)
+    relaysStore.getRelays(props.organizationId)
     initialValues.value = {
       name: '',
       members: [],
       bucket_secret_id: undefined,
+      relay_id: null,
       notify: true,
     }
   }

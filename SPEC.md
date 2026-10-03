@@ -910,11 +910,11 @@ The backend goes first and fixes the routes of the relay-facing API, so the tunn
   - [x] Add unit tests beside the components for the list with managed and own rows, the add dialog, the token shown once, rotation and a refused removal shown with its message
   - [x] Run the type check, the linter and the unit tests in `frontend/`
 
-- [ ] Add the relay choice to the orbit dialogs
-  - [ ] Add the nullable relay reference to the orbit interfaces and payloads in `frontend/src/lib/api/api.interfaces.ts` and the two limits to the organization interface
-  - [ ] Add the relay select under the bucket select in `frontend/src/components/orbits/creator/OrbitCreator.vue` and `frontend/src/components/orbits/editor/OrbitEditor.vue`: enabled relays by label from the relays store, managed ones marked, may be left empty, clearable in the editor, the current draining relay shown marked, a hint pointing to the relays tab when there is none
-  - [ ] Extend `frontend/src/components/orbits/creator/OrbitCreator.test.ts` and `frontend/src/components/orbits/editor/OrbitEditor.test.ts` for the scenario about the orbit dialogs
-  - [ ] Run the type check, the linter and the unit tests in `frontend/`
+- [x] Add the relay choice to the orbit dialogs
+  - [x] Add the nullable relay reference to the orbit interfaces and payloads in `frontend/src/lib/api/api.interfaces.ts` and the two limits to the organization interface
+  - [x] Add the relay select under the bucket select in `frontend/src/components/orbits/creator/OrbitCreator.vue` and `frontend/src/components/orbits/editor/OrbitEditor.vue`: enabled relays by label from the relays store, managed ones marked, may be left empty, clearable in the editor, the current draining relay shown marked, a hint pointing to the relays tab when there is none
+  - [x] Extend `frontend/src/components/orbits/creator/OrbitCreator.test.ts` and `frontend/src/components/orbits/editor/OrbitEditor.test.ts` for the scenario about the orbit dialogs
+  - [x] Run the type check, the linter and the unit tests in `frontend/`
 
 - [ ] Rebuild the Flow page with flow cards
   - [ ] Add a flows API module in `frontend/src/lib/api/` and a store in `frontend/src/stores/` following `satellites.ts`; add a local flows store over one key in `frontend/src/utils/services/LocalStorageService.ts` that reads neither orbit nor user; keep `frontend/src/lib/api/live-sessions/` for viewer access and remove `frontend/src/stores/live-sessions.ts` with its test, since nothing lists sessions any more

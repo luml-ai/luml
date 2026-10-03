@@ -32,6 +32,35 @@
           change the bucket
         </p>
       </div>
+      <div class="form-item">
+        <label for="relay" class="label">Relay</label>
+        <Select
+          :options="relayOptions"
+          option-label="name"
+          option-value="id"
+          name="relay_id"
+          id="relay"
+          placeholder="Select a relay for exposing flows"
+          show-clear
+        >
+          <template #footer>
+            <div v-if="!relayOptions.length" class="select-footer">
+              <d-button variant="text" as-child v-slot="slotProps" size="small">
+                <RouterLink
+                  :to="{
+                    name: 'organization-relays',
+                    params: { id: orbit.organization_id },
+                  }"
+                  :class="slotProps.class"
+                >
+                  <Plus :size="14" />
+                  <span>Add a relay</span>
+                </RouterLink>
+              </d-button>
+            </div>
+          </template>
+        </Select>
+      </div>
     </Form>
   </UiDialogRight>
 </template>
@@ -44,11 +73,13 @@ import {
 } from '@/lib/api/api.interfaces'
 import { computed, ref, watch } from 'vue'
 import { InputText, Select, useToast, useConfirm } from 'primevue'
-import { Orbit } from 'lucide-vue-next'
+import { Orbit, Plus } from 'lucide-vue-next'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { useBucketsStore } from '@/stores/buckets'
+import { useRelaysStore } from '@/stores/relays'
+import { getRelayOptions } from '../relay-options'
 import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { deleteOrbitConfirmOptions } from '@/lib/primevue/data/confirm'
@@ -59,6 +90,7 @@ const resolver = zodResolver(
   z.object({
     name: z.string().min(1).max(100),
     bucket_secret_id: z.string(),
+    relay_id: z.string().nullable(),
   }),
 )
 
@@ -71,6 +103,7 @@ const props = defineProps<Props>()
 const visible = defineModel<boolean>('visible')
 
 const bucketsStore = useBucketsStore()
+const relaysStore = useRelaysStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const confirm = useConfirm()
@@ -78,7 +111,10 @@ const confirm = useConfirm()
 const initialValues = computed(() => ({
   name: props.orbit.name,
   bucket_secret_id: props.orbit.bucket_secret_id,
+  relay_id: props.orbit.relay_id,
 }))
+
+const relayOptions = computed(() => getRelayOptions(relaysStore.relays, props.orbit.relay_id))
 
 const leftButton = computed<FooterButton | undefined>(() => {
   if (props.orbit.permissions.orbit.includes(PermissionEnum.delete)) {
@@ -114,6 +150,7 @@ const loading = ref(false)
 type FormValues = {
   name: string
   bucket_secret_id: string
+  relay_id: string | null
 }
 
 async function saveChanges({ valid, values }: FormSubmitEvent) {
@@ -125,6 +162,7 @@ async function saveChanges({ valid, values }: FormSubmitEvent) {
       id: props.orbit.id,
       name: formValues.name,
       bucket_secret_id: formValues.bucket_secret_id,
+      relay_id: formValues.relay_id ?? null,
     }
     await orbitsStore.updateOrbit(props.orbit.organization_id, payload)
     toast.add(simpleSuccessToast('Orbit info successfully updated'))
@@ -154,7 +192,9 @@ async function deleteOrbit() {
 }
 
 watch(visible, (val) => {
-  if (val) bucketsStore.getBuckets(props.orbit.organization_id)
+  if (!val) return
+  bucketsStore.getBuckets(props.orbit.organization_id)
+  relaysStore.getRelays(props.orbit.organization_id)
 })
 </script>
 
@@ -183,5 +223,9 @@ watch(visible, (val) => {
 }
 .message {
   font-size: 12px;
+}
+.select-footer {
+  padding: 4px 12px;
+  border-top: 1px solid var(--p-divider-border-color);
 }
 </style>
