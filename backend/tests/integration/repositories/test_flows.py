@@ -264,10 +264,28 @@ async def test_delete_flow_leaves_its_session(seeded_orbit: OrbitFixtureData) ->
     data = seeded_orbit
     flow, _ = await expose(data)
 
-    await FlowRepository(data.engine).delete_flow(flow.id)
+    await FlowRepository(data.engine).delete_flow(flow.id, flow.session.id)
 
     assert await count_flows(data.engine) == 0
     assert await LiveSessionRepository(data.engine).get_live_session(flow.session.id)
+
+
+@pytest.mark.asyncio
+async def test_delete_flow_keeps_a_flow_exposed_again_meanwhile(
+    seeded_orbit: OrbitFixtureData,
+) -> None:
+    data = seeded_orbit
+    removed, _ = await expose(data)
+    exposed_again, _ = await expose(data)
+
+    await FlowRepository(data.engine).delete_flow(removed.id, removed.session.id)
+
+    assert exposed_again.id == removed.id
+    kept = await FlowRepository(data.engine).get_flow(
+        data.orbit.id, removed.id, data.user.id
+    )
+    assert kept is not None
+    assert kept.session.id == exposed_again.session.id
 
 
 @pytest.mark.asyncio

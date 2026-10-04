@@ -97,4 +97,4 @@ class FlowHandler:
         await self._live_sessions.end_session(
             user_id, organization_id, orbit_id, flow.session.id
         )
-        await self.__repo.delete_flow(flow.id)
+        await self.__repo.delete_flow(flow.id, flow.session.id)

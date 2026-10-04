@@ -105,7 +105,13 @@ class FlowRepository(RepositoryBase):
             )
             return db_flow.to_flow() if db_flow else None
 
-    async def delete_flow(self, flow_id: UUID) -> None:
+    async def delete_flow(self, flow_id: UUID, session_id: str) -> None:
+        """Delete the flow only while it still points at `session_id`; a flow
+        exposed again meanwhile points at its new session and stays."""
         async with self._get_session() as session:
-            await session.execute(delete(FlowOrm).where(FlowOrm.id == flow_id))
+            await session.execute(
+                delete(FlowOrm).where(
+                    FlowOrm.id == flow_id, FlowOrm.session_id == session_id
+                )
+            )
             await session.commit()

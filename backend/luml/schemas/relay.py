@@ -65,6 +65,11 @@ def validate_agent_url(value: str) -> str:
     address = urlsplit(value)
     if address.scheme not in ("ws", "wss") or not address.hostname:
         raise ValueError("Connection address must be a ws or wss address")
+    try:
+        # urlsplit checks the port only when it is read.
+        address.port  # noqa: B018
+    except ValueError as error:
+        raise ValueError("Connection address has an invalid port") from error
     return value
 
 

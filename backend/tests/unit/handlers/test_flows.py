@@ -279,7 +279,7 @@ async def test_removing_a_flow_ends_its_session_then_deletes_it(
     assert mocks["end_session"].await_args == call(
         USER_ID, ORGANIZATION_ID, ORBIT_ID, OLD_SESSION_ID
     )
-    mocks["delete_flow"].assert_awaited_once_with(FLOW_ID)
+    mocks["delete_flow"].assert_awaited_once_with(FLOW_ID, OLD_SESSION_ID)
 
 
 @pytest.mark.parametrize("operation", ["get", "remove"])

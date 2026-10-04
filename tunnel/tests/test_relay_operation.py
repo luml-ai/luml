@@ -1,11 +1,13 @@
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from datetime import timedelta
 
 import httpx
 import pytest
-from websockets.asyncio.client import connect
+from starlette.websockets import WebSocket
+from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import InvalidStatus
 from websockets.typing import Subprotocol
 
@@ -313,6 +315,49 @@ async def test_idle_stream_is_closed(
     assert other.status_code == 200
     assert idle.status_code == 504
     assert after.status_code == 200
+
+
+async def test_agents_arriving_together_cannot_exceed_the_cap(
+    luml: FakeRelayApi, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relay = create_relay(luml, max_agents=1)
+    accepting = 0
+    both_accepting = asyncio.Event()
+    accept = WebSocket.accept
+
+    async def accept_together(websocket: WebSocket, subprotocol: str | None = None) -> None:
+        # Hold each accept until a second agent reaches it too, which only an
+        # agent let past the cap check can do.
+        nonlocal accepting
+        accepting += 1
+        if accepting == 2:
+            both_accepting.set()
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(both_accepting.wait(), timeout=0.5)
+        await accept(websocket, subprotocol)
+
+    monkeypatch.setattr(WebSocket, "accept", accept_together)
+
+    async def join(session: str) -> ClientConnection | InvalidStatus:
+        token = luml.issue(TokenKind.EXPOSE, session=session)
+        try:
+            return await connect(
+                relay_url(relay_port),
+                subprotocols=[Subprotocol(SUBPROTOCOL)],
+                additional_headers={"Authorization": f"Bearer {token}"},
+            )
+        except InvalidStatus as error:
+            return error
+
+    async with serve(relay) as relay_port:
+        results = await asyncio.gather(join("first1"), join("second2"))
+        registered = len(relay.agents.connections())
+        for result in results:
+            if isinstance(result, ClientConnection):
+                await result.close()
+
+    assert registered == 1
+    assert [isinstance(result, InvalidStatus) for result in results].count(True) == 1
 
 
 async def test_agent_over_the_cap_is_refused_and_connected_agents_are_untouched(

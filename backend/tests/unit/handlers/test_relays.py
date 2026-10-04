@@ -304,6 +304,15 @@ def test_agent_address_must_be_a_ws_or_wss_address(agent_url: str) -> None:
         RelayCreateIn(label="lab", base_domain="tunnel.example", agent_url=agent_url)
 
 
+@pytest.mark.parametrize(
+    "agent_url",
+    ["wss://relay.example:99999/connect", "ws://relay.example:port/connect"],
+)
+def test_agent_address_must_have_a_valid_port(agent_url: str) -> None:
+    with pytest.raises(ValidationError, match="invalid port"):
+        RelayCreateIn(label="lab", base_domain="tunnel.example", agent_url=agent_url)
+
+
 def test_update_validates_only_the_given_fields() -> None:
     with pytest.raises(ValidationError, match="port"):
         RelayUpdateIn(base_domain="tunnel.example:80")

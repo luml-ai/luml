@@ -138,6 +138,23 @@ def test_start_takes_neither_a_label_nor_a_visibility(
     assert mock_start.await_args.args[3] == LiveSessionStartIn()
 
 
+@patch(
+    "luml.api.orbits.orbit_live_sessions.LiveSessionHandler.record_heartbeat",
+    new_callable=AsyncMock,
+)
+@patch(AUTHENTICATE, new_callable=AsyncMock, return_value=_signed_in())
+def test_heartbeat_refuses_a_token_expiry_without_a_timezone(
+    mock_authenticate: AsyncMock, mock_record_heartbeat: AsyncMock
+) -> None:
+    response = TestClient(AppService()).post(
+        f"{BASE_PATH}/k3f9x2ab/heartbeat",
+        json={"connected": True, "token_expires_at": "2026-10-04T08:00:00"},
+    )
+
+    assert response.status_code == 422
+    mock_record_heartbeat.assert_not_awaited()
+
+
 @pytest.mark.parametrize(
     ("method", "path", "handler_method", "body"),
     [

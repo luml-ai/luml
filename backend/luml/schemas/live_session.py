@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, computed_field, field_validator
 
 from luml.schemas.base import BaseOrmConfig
 from luml.settings import config
@@ -102,7 +102,7 @@ class LiveSessionStartOut(BaseModel):
 
 class LiveSessionHeartbeatIn(BaseModel):
     connected: bool
-    token_expires_at: datetime
+    token_expires_at: AwareDatetime
 
 
 class LiveSessionHeartbeatOut(BaseModel):

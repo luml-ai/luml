@@ -132,6 +132,8 @@ class Relay:
         self._cookies = cookies or ViewerCookies(settings.cookie_secret)
         self._reports_to = reports_to
         self._report_refused = False
+        # Slots of new agents that passed the cap check but are not registered yet.
+        self._reserved_agent_slots = 0
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
@@ -185,15 +187,22 @@ class Relay:
             await _respond_text(websocket.scope, websocket.receive, websocket.send, TRY_AGAIN, 503)
             return
         max_agents = self.settings.max_agents
-        if self.agents.get(claims.session) is None and len(self.agents.connections()) >= max_agents:
+        is_new = self.agents.get(claims.session) is None
+        if is_new and len(self.agents.connections()) + self._reserved_agent_slots >= max_agents:
             logger.warning("Refused an agent: the relay serves its cap of %d agents", max_agents)
             refusal = f"The relay serves its cap of {max_agents} agents; try again later"
             await _respond_text(websocket.scope, websocket.receive, websocket.send, refusal, 503)
             return
-        await websocket.accept(SUBPROTOCOL)
-        connection = RelayConnection(_AsgiWebSocketTransport(websocket), self.settings.limits)
-        previous = self.agents.get(claims.session)
-        self.agents.register(claims.session, connection)
+        if is_new:
+            self._reserved_agent_slots += 1
+        try:
+            await websocket.accept(SUBPROTOCOL)
+            connection = RelayConnection(_AsgiWebSocketTransport(websocket), self.settings.limits)
+            previous = self.agents.get(claims.session)
+            self.agents.register(claims.session, connection)
+        finally:
+            if is_new:
+                self._reserved_agent_slots -= 1
         if previous is not None:
             logger.info("A new agent replaces the one of session %s", claims.session)
             await previous.close(REPLACED_CLOSE_CODE, "replaced by another agent")
