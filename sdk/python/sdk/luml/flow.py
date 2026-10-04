@@ -35,11 +35,11 @@ CONNECT_TIMEOUT = 15.0
 _SignalHandler = Callable[[int, FrameType | None], Any] | int | None
 
 
-class LiveFlowError(Exception):
-    """A LiveFlow cannot start; the message names the cause."""
+class RelayedFlowError(Exception):
+    """A RelayedFlow cannot start; the message names the cause."""
 
 
-class LiveFlow:
+class RelayedFlow:
     """Shows a Flow instance as a flow on an orbit's Flow page while it runs.
 
     Use it as a context manager, or call `start` and `stop` where a block cannot
@@ -83,7 +83,7 @@ class LiveFlow:
     def start(self) -> str:
         """Expose the flow and return its address in the LUML app."""
         if self._started:
-            raise LiveFlowError("This LiveFlow was already started")
+            raise RelayedFlowError("This RelayedFlow was already started")
         self._started = True
         try:
             app_url = self._expose()
@@ -106,7 +106,7 @@ class LiveFlow:
     def _expose(self) -> str:
         client = LumlClient(organization=self.organization, orbit=self.orbit)
         if client.organization is None or client.orbit is None:
-            raise LiveFlowError(
+            raise RelayedFlowError(
                 "The API key reaches several organizations or orbits; "
                 "name the organization and the orbit"
             )
@@ -210,7 +210,7 @@ class _BackgroundServing:
         waiting.cancel()
         if self._task.done():
             self._task.result()
-            raise LiveFlowError("LUML ended the session before Flow connected")
+            raise RelayedFlowError("LUML ended the session before Flow connected")
         if not connected.is_set():
             logger.warning("Flow has not reached the relay yet. Retrying.")
         self._task.add_done_callback(_report_serving_end)
@@ -262,7 +262,7 @@ def _remove_flow(client: LumlClient, flow_id: str) -> None:
 
 def _lumlflow_answers(port: int) -> bool:
     """Whether Flow answers on the loopback port; False when nothing listens."""
-    in_use = LiveFlowError(f"Port {port} is in use by a server that is not Flow")
+    in_use = RelayedFlowError(f"Port {port} is in use by a server that is not Flow")
     try:
         response = httpx.get(
             f"http://127.0.0.1:{port}{STATUS_PATH}", timeout=2.0, trust_env=False
@@ -287,9 +287,9 @@ def _lumlflow_answers(port: int) -> bool:
 def _start_lumlflow(port: int, store_path: str | None) -> subprocess.Popen[bytes]:
     command = shutil.which("lumlflow")
     if command is None:
-        raise LiveFlowError(
+        raise RelayedFlowError(
             f"Nothing answers on port {port} and the lumlflow command is not on "
-            "the path; install lumlflow to have LiveFlow start one"
+            "the path; install lumlflow to have RelayedFlow start one"
         )
     arguments = [command, "ui", "--port", str(port), "--no-browser"]
     if store_path is not None:
@@ -308,11 +308,11 @@ def _wait_until_answering(process: subprocess.Popen[bytes], port: int) -> None:
     deadline = time.monotonic() + LUMLFLOW_START_TIMEOUT
     while not _lumlflow_answers(port):
         if process.poll() is not None:
-            raise LiveFlowError(
+            raise RelayedFlowError(
                 f"Flow exited with code {process.returncode} before answering"
             )
         if time.monotonic() > deadline:
-            raise LiveFlowError(
+            raise RelayedFlowError(
                 f"Flow did not answer on port {port} "
                 f"within {LUMLFLOW_START_TIMEOUT:g} seconds"
             )

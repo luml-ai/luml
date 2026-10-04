@@ -13,7 +13,7 @@ import httpx
 import pytest
 
 import luml.flow as flow_module
-from luml.flow import LiveFlow, LiveFlowError
+from luml.flow import RelayedFlow, RelayedFlowError
 from tests.flow.fakes import (
     APP_URL,
     FLOW_ID,
@@ -113,7 +113,7 @@ def test_started_lumlflow_is_exposed_and_stopped_with_the_block(
     stub_record: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    with LiveFlow(
+    with RelayedFlow(
         "training",
         organization="Lab",
         orbit="Experiments",
@@ -148,7 +148,7 @@ def test_running_lumlflow_is_exposed_and_left_running(
     clients: FakeClients, serving: FakeServing, port: int
 ) -> None:
     with local_server(port, answers_as_lumlflow=True):
-        with LiveFlow("training", port=port):
+        with RelayedFlow("training", port=port):
             assert clients.flows.exposed == ["training"]
 
         assert clients.flows.removed == [FLOW_ID]
@@ -162,9 +162,9 @@ def test_port_in_use_fails_before_anything_is_created(
 ) -> None:
     with (
         local_server(port, answers_as_lumlflow=False),
-        pytest.raises(LiveFlowError, match=f"Port {port} is in use"),
+        pytest.raises(RelayedFlowError, match=f"Port {port} is in use"),
     ):
-        LiveFlow("training", port=port).start()
+        RelayedFlow("training", port=port).start()
 
     assert clients.flows.exposed == []
     assert _stub_starts(stub_record) == []
@@ -172,8 +172,8 @@ def test_port_in_use_fails_before_anything_is_created(
 
 @pytest.mark.usefixtures("serving", "no_lumlflow")
 def test_missing_lumlflow_says_to_install_it(clients: FakeClients, port: int) -> None:
-    with pytest.raises(LiveFlowError, match="install lumlflow"):
-        LiveFlow("training", port=port).start()
+    with pytest.raises(RelayedFlowError, match="install lumlflow"):
+        RelayedFlow("training", port=port).start()
 
     assert clients.flows.exposed == []
 
@@ -182,7 +182,7 @@ def test_missing_lumlflow_says_to_install_it(clients: FakeClients, port: int) ->
 def test_explicit_start_and_stop_across_cells(
     clients: FakeClients, serving: FakeServing, port: int
 ) -> None:
-    flow = LiveFlow("training", port=port)
+    flow = RelayedFlow("training", port=port)
 
     assert flow.start() == APP_URL
     assert clients.flows.removed == []
@@ -193,14 +193,14 @@ def test_explicit_start_and_stop_across_cells(
 
     assert clients.flows.removed == [FLOW_ID]
     assert serving.cancelled == 1
-    with pytest.raises(LiveFlowError, match="already started"):
+    with pytest.raises(RelayedFlowError, match="already started"):
         flow.start()
 
 
 @pytest.mark.usefixtures("serving", "stub_record")
 def test_default_name_is_the_host_name(clients: FakeClients, port: int) -> None:
     for _ in range(2):
-        with LiveFlow(port=port):
+        with RelayedFlow(port=port):
             pass
 
     assert clients.flows.exposed == [socket.gethostname()] * 2
@@ -213,7 +213,7 @@ def test_failed_serving_raises_its_cause_and_cleans_up(
     serving.failure = RuntimeError("the relay refused the agent")
 
     with pytest.raises(RuntimeError, match="the relay refused the agent"):
-        LiveFlow("training", port=port).start()
+        RelayedFlow("training", port=port).start()
 
     assert clients.flows.removed == [FLOW_ID]
     assert not _answers(port)
@@ -228,7 +228,7 @@ def test_unreachable_luml_on_stop_still_stops_local_parts(
 ) -> None:
     clients.flows.remove_error = httpx.ConnectError("LUML is down")
 
-    with caplog.at_level(logging.WARNING), LiveFlow("training", port=port):
+    with caplog.at_level(logging.WARNING), RelayedFlow("training", port=port):
         pass
 
     assert "ends by silence" in caplog.text
@@ -246,7 +246,7 @@ def test_termination_stops_the_flow_once_and_chains(
         received.append(signum)
 
     signal.signal(signal.SIGTERM, previous_handler)
-    flow = LiveFlow("training", port=port)
+    flow = RelayedFlow("training", port=port)
     flow.start()
     handler = signal.getsignal(signal.SIGTERM)
     assert callable(handler)
@@ -264,7 +264,7 @@ def test_termination_stops_the_flow_once_and_chains(
 def test_no_interruption_handler_is_installed(port: int) -> None:
     before = signal.getsignal(signal.SIGINT)
 
-    with LiveFlow("training", port=port):
+    with RelayedFlow("training", port=port):
         assert signal.getsignal(signal.SIGINT) == before
 
 
@@ -284,7 +284,7 @@ clients = FakeClients()
 clients.flows.on_remove = record_removal
 luml.flow.LumlClient = clients
 luml.flow.serve_session = FakeServing()
-luml.flow.LiveFlow("training", port=int(sys.argv[2])).start()
+luml.flow.RelayedFlow("training", port=int(sys.argv[2])).start()
 if sys.argv[3] == "terminate":
     os.kill(os.getpid(), signal.SIGTERM)
     time.sleep(10)

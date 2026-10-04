@@ -94,7 +94,7 @@ def exposed_flow(name: str) -> FlowExposed:
 
 @dataclass
 class FakeFlows:
-    """The flows API of LUML as `LiveFlow` calls it through the sync client."""
+    """The flows API of LUML as `RelayedFlow` calls it through the sync client."""
 
     exposed: list[str] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)

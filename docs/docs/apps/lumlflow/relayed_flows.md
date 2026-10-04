@@ -28,23 +28,23 @@ export LUML_API_KEY="luml_your_api_key"
 
 ## Exposing a flow
 
-The `LiveFlow` object from `luml.flow` exposes a flow for as long as it is active. In a script it is used as a block around the training code.
+The `RelayedFlow` object from `luml.flow` exposes a flow for as long as it is active. In a script it is used as a block around the training code.
 
 ```python
-from luml.flow import LiveFlow
+from luml.flow import RelayedFlow
 
-with LiveFlow(organization="My organization", orbit="Research"):
+with RelayedFlow(organization="My organization", orbit="Research"):
     train()
 ```
 
-When it starts, `LiveFlow` checks whether Flow answers on port 5000 of the local machine. A running Flow is exposed as it is. When nothing answers, `LiveFlow` starts `lumlflow ui` on the default store and stops it again at the end. When another program answers on the port, starting fails with a message that names the port. The `store_path` and `port` arguments change the store and the port. The organization and the orbit can be left out when the API key reaches only one of each.
+When it starts, `RelayedFlow` checks whether Flow answers on port 5000 of the local machine. A running Flow is exposed as it is. When nothing answers, `RelayedFlow` starts `lumlflow ui` on the default store and stops it again at the end. When another program answers on the port, starting fails with a message that names the port. The `store_path` and `port` arguments change the store and the port. The organization and the orbit can be left out when the API key reaches only one of each.
 
 A flow has a name, which defaults to the machine's host name. Each user has one flow of a given name in an orbit.
 
 A block cannot span notebook cells, so in a notebook the flow is started and stopped explicitly.
 
 ```python
-flow = LiveFlow(name="resnet-sweep")
+flow = RelayedFlow(name="resnet-sweep")
 flow.start()
 ```
 
@@ -56,7 +56,7 @@ Starting prints the address of the orbit's Flow page in the LUML app. The flow a
 
 ## When a flow ends
 
-Leaving the block or calling `stop` removes the flow from the Flow page. A Flow instance that `LiveFlow` started is stopped, and one it found running is left alone. The same happens when the interpreter exits or the process receives a termination signal.
+Leaving the block or calling `stop` removes the flow from the Flow page. A Flow instance that `RelayedFlow` started is stopped, and one it found running is left alone. The same happens when the interpreter exits or the process receives a termination signal.
 
 A run that crashes or is killed cannot remove its flow. The card turns to disconnected and stays until an hour has passed without a heartbeat. Until then the flow counts toward the organization's limit. A rerun under the same name replaces the flow at once.
 
