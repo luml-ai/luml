@@ -5,13 +5,13 @@
     </template>
   </Button>
   <Dialog
-    v-model:visible="visible"
+    :visible="visible"
     :draggable="false"
     :closable="!loading"
-    :close-on-escape="!loading"
     modal
     :pt="dialogPt"
     header="Manage Orbit Members"
+    @update:visible="!loading && (visible = $event)"
   >
     <div class="dialog-content">
       <p class="text">

@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import PrimeVue from 'primevue/config'
+import { Dialog } from 'primevue'
 import type { Member, OrbitMember } from '@/lib/api/api.interfaces'
 import { OrganizationRoleEnum } from './organization.interfaces'
 import { OrbitRoleEnum } from '../orbits/orbits.interfaces'
@@ -253,5 +255,62 @@ describe('OrganizationOrbitSettings', () => {
         .props('suggestions')
         .map((item: Member) => item.user.id),
     ).toEqual(['new', 'other'])
+  })
+
+  describe('Escape with the PrimeVue dialog', () => {
+    beforeEach(() => {
+      wrapper.unmount()
+      wrapper = mount(OrganizationOrbitSettings, {
+        props: { orbitId: 'orbit' },
+        global: {
+          plugins: [PrimeVue],
+          stubs: {
+            transition: false,
+            teleport: true,
+            AutoComplete: true,
+            Select: true,
+            Avatar: true,
+          },
+        },
+      })
+    })
+
+    it('stays open while initially loading and closes on Escape after loading completes', async () => {
+      let resolveDetails!: (value: { members: OrbitMember[] }) => void
+      mocks.getOrbitDetails.mockReturnValueOnce(
+        new Promise((resolve) => (resolveDetails = resolve)),
+      )
+      await open()
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }))
+      await flushPromises()
+      expect(wrapper.findComponent(Dialog).props('visible')).toBe(true)
+
+      resolveDetails({ members: [savedMember] })
+      await flushPromises()
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }))
+      await flushPromises()
+      await vi.waitFor(() => expect(wrapper.find('[role="dialog"]').exists()).toBe(false))
+    })
+
+    it('prevents Escape from closing during an addition and allows closing after it finishes', async () => {
+      let resolveAdd!: (value: OrbitMember) => void
+      mocks.addMemberToOrbit.mockReturnValueOnce(new Promise((resolve) => (resolveAdd = resolve)))
+      await open()
+      await selectUsers('new')
+      await button('Add members').trigger('click')
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }))
+      await flushPromises()
+      expect(wrapper.findComponent(Dialog).props('visible')).toBe(true)
+
+      resolveAdd(orbitMember('new'))
+      await flushPromises()
+      expect(wrapper.text()).toContain('new')
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }))
+      await flushPromises()
+      await vi.waitFor(() => expect(wrapper.find('[role="dialog"]').exists()).toBe(false))
+    })
   })
 })
