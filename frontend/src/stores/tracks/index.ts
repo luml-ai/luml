@@ -21,8 +21,7 @@ export const useTracksStore = defineStore('tracks', () => {
     id: string
     name: string
     description: string | undefined
-    stages: string[]
-    lockedStages: string[]
+    stages: TrackStage[]
   } | null>(null)
   const trackStages = ref<TrackStage[]>([])
 
@@ -44,8 +43,7 @@ export const useTracksStore = defineStore('tracks', () => {
     id: string
     name: string
     description: string | undefined
-    stages: string[]
-    lockedStages: string[]
+    stages: TrackStage[]
   }) {
     editableTrack.value = track
   }

@@ -7,6 +7,7 @@ export interface Track {
   artifact_type: ArtifactTypeEnum
   description: string | null
   tags: string[] | null
+  stages: TrackStage[]
   created_by: string
   next_version: number
   total_entries: number
@@ -26,12 +27,14 @@ export interface TrackUpdateIn {
   name?: string | null
   description?: string | null
   tags?: string[] | null
+  stages?: { id?: string; name: string }[]
 }
 
 export interface TrackStage {
   id: string
   track_id: string
   name: string
+  is_used: boolean
   created_at: string
   updated_at: string | null
 }

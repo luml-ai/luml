@@ -35,10 +35,9 @@
             id="stages"
             name="stages"
             placeholder="Type to add stages"
-            disabled
             :items="['Production', 'Pre-Production', 'Staging']"
             :itemsTooltips="stagesTooltips"
-            :disabledValues="tracksStore.editableTrack?.lockedStages ?? []"
+            :disabledValues="lockedStages"
           />
         </div>
       </div>
@@ -96,13 +95,19 @@ const footerActions = computed<FooterActions>(() => {
 })
 
 const stagesTooltips = computed(() => {
-  if (!tracksStore.editableTrack) return {}
-  return tracksStore.editableTrack.lockedStages.reduce(
+  return lockedStages.value.reduce(
     (acc, stage) => {
       acc[stage] = `This stage was linked to an artifact. To remove it, unlink the stage.`
       return acc
     },
     {} as Record<string, string>,
+  )
+})
+
+const lockedStages = computed(() => {
+  return (
+    tracksStore.editableTrack?.stages.filter((stage) => stage.is_used).map((stage) => stage.name) ??
+    []
   )
 })
 
@@ -132,10 +137,14 @@ async function submit({ values, valid, reset }: FormSubmitEvent) {
   if (!valid) return
   try {
     saveLoading.value = true
-    const { name, description } = values
+    const { name, description, stages } = values
     const payload: TrackUpdateIn = {
       name,
       description,
+      stages: stages.map((name: string) => {
+        const existingStage = tracksStore.editableTrack?.stages.find((stage) => stage.name === name)
+        return existingStage ? { id: existingStage.id, name } : { name }
+      }),
     }
     if (!tracksStore.editableTrack?.id) throw new Error('Track ID is required')
     await tracksStore.updateTrack(tracksStore.editableTrack.id, payload)
@@ -154,8 +163,9 @@ watch(
   (track) => {
     initialValues.value.name = track?.name ?? ''
     initialValues.value.description = track?.description ?? ''
-    initialValues.value.stages = track?.lockedStages ?? []
+    initialValues.value.stages = track?.stages.map((stage) => stage.name) ?? []
   },
+  { immediate: true },
 )
 </script>
 

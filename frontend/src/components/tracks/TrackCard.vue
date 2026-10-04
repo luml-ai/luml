@@ -44,7 +44,6 @@ function showEditor() {
     name: props.name,
     description: props.description,
     stages: props.stages,
-    lockedStages: ['Production', 'Pre-Production'],
   })
 }
 </script>
