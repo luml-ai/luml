@@ -198,7 +198,7 @@ services:
       NPM_CONFIG_FUND: "false"
       NPM_CONFIG_AUDIT: "false"
       VITE_API_URL: http://localhost:8000
-      VITE_DOCS_URL: http://localhost:5173
+      VITE_DOCS_URL: https://docs.luml.ai
     command:
       - sh
       - -c

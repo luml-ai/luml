@@ -47,18 +47,16 @@
           <div class="content">
             <div class="title">{{ card.title }}</div>
             <p class="text">{{ card.description }}</p>
-            <a v-if="card.link" :href="card.link.href" target="_blank" class="link">
-              {{ card.link.label }}
-            </a>
           </div>
-        </div>
-
-        <div v-if="currentTab === TABS.flow" class="card card--flow">
-          <FlowCommandCard
-            title="Run Flow locally"
-            :hints="RUN_LOCALLY_HINTS"
-            :commands="RUN_LOCALLY_COMMANDS"
-          />
+          <div v-if="card.commands" class="commands">
+            <div v-for="command in card.commands" :key="command.label" class="command">
+              <span class="command-label">{{ command.label }}</span>
+              <code class="command-code">{{ command.code }}</code>
+            </div>
+          </div>
+          <a v-if="card.link" :href="card.link.href" target="_blank" class="link">
+            {{ card.link.label }}
+          </a>
         </div>
       </div>
 
@@ -83,11 +81,10 @@ import OrbitCreator from '@/components/orbits/creator/OrbitCreator.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import type { Orbit } from '@/lib/api/api.interfaces'
 import { TAB_TO_ROUTE } from '@/constants/orbit-navigation'
-import FlowCommandCard from '@/components/flow/FlowCommandCard.vue'
 import {
+  LOCAL_FLOW_COMMANDS,
   RELAYED_FLOWS_DOCS_URL,
-  RUN_LOCALLY_COMMANDS,
-  RUN_LOCALLY_HINTS,
+  type FlowCommand,
 } from '@/components/flow/flow-commands'
 
 const route = useRoute()
@@ -140,7 +137,12 @@ const TABS: Record<
   {
     title: string
     icon: unknown
-    cards: { title: string; description: string; link?: { label: string; href: string } }[]
+    cards: {
+      title: string
+      description: string
+      commands?: FlowCommand[]
+      link?: { label: string; href: string }
+    }[]
   }
 > = {
   registry: {
@@ -196,9 +198,14 @@ const TABS: Record<
     icon: ChartSpline,
     cards: [
       {
-        title: 'Relayed flows',
-        description: 'Open a Flow that runs on a remote machine.',
-        link: { label: 'Read how to expose a flow', href: RELAYED_FLOWS_DOCS_URL },
+        title: 'Local flow',
+        description: 'Run Flow on this computer.',
+        commands: LOCAL_FLOW_COMMANDS,
+      },
+      {
+        title: 'Relayed flow',
+        description: 'Open a Flow that runs on a remote machine. Expose it with the LUML SDK.',
+        link: { label: 'How to expose a flow', href: RELAYED_FLOWS_DOCS_URL },
       },
     ],
   },
@@ -272,8 +279,36 @@ function onOrbitCreated(orbit: Orbit) {
   gap: 16px;
 }
 
-.card--flow {
+.commands {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.command {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
   align-items: center;
+  gap: 8px;
+}
+
+.command-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--p-text-muted-color);
+}
+
+.command-code {
+  font-family: var(--p-font-family-mono, ui-monospace, monospace);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--p-content-hover-background);
+  border: 1px solid var(--p-divider-border-color);
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .title {
@@ -292,8 +327,6 @@ function onOrbitCreated(orbit: Orbit) {
 }
 
 .link {
-  display: inline-block;
-  margin-top: 8px;
   font-size: 14px;
   color: var(--p-primary-color);
 }
