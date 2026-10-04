@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from luml.schemas.relay import Relay, RelayReportIn, RelayStatus, TunnelTokenVerdict
+from luml.schemas.relay import Relay, RelayReportIn, RelayStatus, SessionTokenVerdict
 from luml.schemas.user import UserOut
 from luml.service import AppService
 
@@ -25,8 +25,8 @@ def _relay() -> Relay:
         id=RELAY_ID,
         organization_id=ORGANIZATION_ID,
         label="lab",
-        base_domain="tunnel.example",
-        agent_url="wss://tunnel.example/connect",
+        base_domain="sessions.example",
+        agent_url="wss://sessions.example/connect",
         status=RelayStatus.ENABLED,
         created_at=datetime.now(UTC),
     )
@@ -100,7 +100,7 @@ def test_a_relay_token_is_refused_on_organization_routes(
 def test_validate_passes_the_calling_relay_and_answers_inactive_with_200(
     mock_find_relay: AsyncMock, mock_validate: AsyncMock
 ) -> None:
-    mock_validate.return_value = TunnelTokenVerdict(active=False)
+    mock_validate.return_value = SessionTokenVerdict(active=False)
 
     response = TestClient(AppService()).post(
         "/relays/v1/tokens/validate",
@@ -200,7 +200,7 @@ def test_describe_answers_the_calling_relay(
 
     assert response.status_code == 200
     body = response.json()
-    assert (body["id"], body["base_domain"]) == (str(RELAY_ID), "tunnel.example")
+    assert (body["id"], body["base_domain"]) == (str(RELAY_ID), "sessions.example")
     assert body["app_origins"]
     assert body["app_url"]
     mock_get_relay.assert_awaited_once_with(RELAY_ID)

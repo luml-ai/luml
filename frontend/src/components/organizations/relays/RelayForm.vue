@@ -17,7 +17,7 @@
         :id="`${formId}-base-domain`"
         v-model="model.base_domain"
         name="base_domain"
-        placeholder="tunnel.example.com"
+        placeholder="sessions.example.com"
         required
         fluid
       />
@@ -29,7 +29,7 @@
         :id="`${formId}-agent-url`"
         v-model="model.agent_url"
         name="agent_url"
-        placeholder="wss://tunnel.example.com"
+        placeholder="wss://relay.example.com/connect"
         required
         fluid
       />

@@ -6,21 +6,21 @@ import signal
 import sys
 from collections.abc import Sequence
 
-from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
-from luml_tunnel.protocol import MAX_RENEWALS_PER_MINUTE
-from luml_tunnel.relay_api import (
+from luml_relay.frames import MAX_FRAME_BYTES, RelayLimits
+from luml_relay.protocol import MAX_RENEWALS_PER_MINUTE
+from luml_relay.relay_api import (
     DEFAULT_BASE_URL,
     MAX_REQUESTS_IN_FLIGHT,
     REPORT_INTERVAL_SECONDS,
     RelayApi,
     RelayTokenRefusedError,
 )
-from luml_tunnel.routing import MAX_AGENTS
-from luml_tunnel.tokens import CACHE_WINDOW_SECONDS, MAX_CACHE_ENTRIES
+from luml_relay.routing import MAX_AGENTS
+from luml_relay.tokens import CACHE_WINDOW_SECONDS, MAX_CACHE_ENTRIES
 
-TOKEN_ENV = "LUML_TUNNEL_TOKEN"
-COOKIE_SECRET_ENV = "LUML_TUNNEL_COOKIE_SECRET"
-RELAY_TOKEN_ENV = "LUML_TUNNEL_RELAY_TOKEN"
+TOKEN_ENV = "LUML_SESSION_TOKEN"
+COOKIE_SECRET_ENV = "LUML_RELAY_COOKIE_SECRET"
+RELAY_TOKEN_ENV = "LUML_RELAY_TOKEN"
 BASE_URL_ENV = "LUML_BASE_URL"
 
 
@@ -42,7 +42,7 @@ def _expose(arguments: argparse.Namespace) -> int:
 
 
 def _expose_directly(arguments: argparse.Namespace) -> int:
-    from luml_tunnel.agent import Agent, AgentRefusedError, FixedToken, LoopbackService
+    from luml_relay.agent import Agent, AgentRefusedError, FixedToken, LoopbackService
 
     token = arguments.token or os.environ.get(TOKEN_ENV)
     if not token:
@@ -68,8 +68,8 @@ def _expose_directly(arguments: argparse.Namespace) -> int:
 
 
 def _expose_through_luml(arguments: argparse.Namespace) -> int:
-    from luml_tunnel.agent import AgentRefusedError, LoopbackService
-    from luml_tunnel.luml import LumlSessionError, expose_through_luml
+    from luml_relay.agent import AgentRefusedError, LoopbackService
+    from luml_relay.luml import LumlSessionError, expose_through_luml
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -118,8 +118,8 @@ async def _serve_relay(api: RelayApi, arguments: argparse.Namespace) -> None:
     """Serve sessions once LUML has described the relay."""
     import uvicorn
 
-    from luml_tunnel.relay import Relay, RelayServer, RelaySettings, describe_relay
-    from luml_tunnel.tokens import LumlTokenVerifier
+    from luml_relay.relay import Relay, RelayServer, RelaySettings, describe_relay
+    from luml_relay.tokens import LumlTokenVerifier
 
     try:
         description = await describe_relay(api)
@@ -181,7 +181,7 @@ def _positive_float(value: str) -> float:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="luml-tunnel")
+    parser = argparse.ArgumentParser(prog="luml-relay")
     commands = parser.add_subparsers(dest="command", required=True)
 
     expose = commands.add_parser("expose", help="Expose a service on a loopback port")
@@ -201,7 +201,7 @@ def _build_parser() -> argparse.ArgumentParser:
     expose.set_defaults(handler=_expose)
 
     relay = commands.add_parser(
-        "relay",
+        "serve",
         help="Run the relay",
         description=f"Run the relay. It reads the address of LUML from ${BASE_URL_ENV}, its "
         f"token from ${RELAY_TOKEN_ENV} and, optionally, the secret that signs its cookies "
@@ -277,9 +277,9 @@ def main(arguments: Sequence[str] | None = None) -> int:
     try:
         return int(parsed.handler(parsed))
     except ModuleNotFoundError as error:
-        extra = "luml" if (error.name or "").startswith("luml_api") else "relay"
+        extra = "luml" if (error.name or "").startswith("luml_api") else "server"
         print(
-            f"{error.name} is missing; install luml-tunnel[{extra}] for this command",
+            f"{error.name} is missing; install luml-relay[{extra}] for this command",
             file=sys.stderr,
         )
         return 1

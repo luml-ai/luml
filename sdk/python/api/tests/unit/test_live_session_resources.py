@@ -54,8 +54,8 @@ def _session_record(**overrides: Any) -> dict[str, Any]:  # noqa: ANN401
 
 START_RESPONSE: dict[str, Any] = {
     "id": SESSION_ID,
-    "public_url": f"https://{SESSION_ID}.tunnel.example",
-    "agent_url": "wss://tunnel.example/.luml-tunnel/agent",
+    "public_url": f"https://{SESSION_ID}.sessions.example",
+    "agent_url": "wss://sessions.example/.luml-relay/agent",
     "expose_token": "expose-token",
     "token_expires_at": "2026-09-29T12:10:00Z",
     "heartbeat_interval": 30,
@@ -67,7 +67,7 @@ HEARTBEAT_RESPONSE: dict[str, Any] = {
 }
 VIEW_TOKEN_RESPONSE: dict[str, Any] = {
     "token": "view-token",
-    "launch_url": f"https://{SESSION_ID}.tunnel.example/.luml-tunnel/launch?token=view-token",
+    "launch_url": f"https://{SESSION_ID}.sessions.example/.luml-relay/launch?token=view-token",
     "expires_at": "2026-09-29T12:05:00Z",
 }
 
@@ -264,7 +264,7 @@ def test_start_answer_carries_no_app_address(
     started = client_with_mocks.live_sessions.start()
 
     assert "app_url" not in started.model_dump()
-    assert started.public_url == f"https://{SESSION_ID}.tunnel.example"
+    assert started.public_url == f"https://{SESSION_ID}.sessions.example"
 
 
 def test_session_without_label_or_relay_is_typed(

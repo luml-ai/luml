@@ -63,8 +63,8 @@ def _flow(session_id: str = OLD_SESSION_ID) -> Flow:
 def _started() -> LiveSessionStartOut:
     return LiveSessionStartOut(
         id=NEW_SESSION_ID,
-        public_url=f"https://{NEW_SESSION_ID}.tunnel.example",
-        agent_url="wss://tunnel.example/connect",
+        public_url=f"https://{NEW_SESSION_ID}.sessions.example",
+        agent_url="wss://sessions.example/connect",
         expose_token="opaque",
         token_expires_at=datetime.now(UTC),
     )

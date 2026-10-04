@@ -441,7 +441,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
     @cached_property
     def live_sessions(self) -> "AsyncLiveSessionResource":
-        """Live sessions exposed through the tunnel."""
+        """Live sessions exposed through a relay."""
         from luml_api.resources.live_sessions import AsyncLiveSessionResource
 
         return AsyncLiveSessionResource(self)
@@ -687,7 +687,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
 
     @cached_property
     def live_sessions(self) -> "LiveSessionResource":
-        """Live sessions exposed through the tunnel."""
+        """Live sessions exposed through a relay."""
         from luml_api.resources.live_sessions import LiveSessionResource
 
         return LiveSessionResource(self)

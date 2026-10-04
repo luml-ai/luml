@@ -5,13 +5,13 @@ import pytest
 from luml.models import LiveSessionOrm, LiveSessionTokenOrm
 from luml.repositories.live_session_tokens import (
     LiveSessionTokenRepository,
-    hash_tunnel_token,
+    hash_session_token,
 )
 from luml.repositories.live_sessions import LiveSessionRepository
 from luml.schemas.live_session import (
     LiveSession,
     LiveSessionTokenCreate,
-    TunnelTokenKind,
+    SessionTokenKind,
 )
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -25,7 +25,7 @@ GRANT_LIFETIME = timedelta(hours=12)
 async def issue(
     repo: LiveSessionTokenRepository,
     live_session: LiveSession,
-    kind: TunnelTokenKind = TunnelTokenKind.VIEW,
+    kind: SessionTokenKind = SessionTokenKind.VIEW,
     lifetime: timedelta = timedelta(minutes=5),
     destination: str | None = None,
 ) -> str:
@@ -44,7 +44,7 @@ async def expire(engine: AsyncEngine, token: str, ago: timedelta) -> None:
     async with AsyncSession(engine) as session:
         await session.execute(
             update(LiveSessionTokenOrm)
-            .where(LiveSessionTokenOrm.token_hash == hash_tunnel_token(token))
+            .where(LiveSessionTokenOrm.token_hash == hash_session_token(token))
             .values(expires_at=datetime.now(UTC) - ago)
         )
         await session.commit()
@@ -69,7 +69,7 @@ async def test_only_the_hash_of_a_token_is_stored(
         rows = (await session.execute(text("SELECT * FROM live_session_tokens"))).all()
     assert len(rows) == 1
     assert all(token not in str(value) for value in rows[0])
-    assert await stored_hashes(data.engine) == {hash_tunnel_token(token)}
+    assert await stored_hashes(data.engine) == {hash_session_token(token)}
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_a_token_is_found_with_its_session(
     assert found is not None
     stored, owner = found
     assert (stored.kind, stored.session_id, stored.user_id) == (
-        TunnelTokenKind.VIEW,
+        SessionTokenKind.VIEW,
         live_session.id,
         data.user.id,
     )
@@ -102,15 +102,15 @@ async def test_expired_tokens_are_removed_when_a_token_is_issued(
     data = seeded_orbit
     repo = LiveSessionTokenRepository(data.engine)
     live_session = await start_session(data)
-    expired = await issue(repo, live_session, TunnelTokenKind.EXPOSE)
+    expired = await issue(repo, live_session, SessionTokenKind.EXPOSE)
     valid = await issue(repo, live_session)
     await expire(data.engine, expired, timedelta(hours=1))
 
-    fresh = await issue(repo, live_session, TunnelTokenKind.EXPOSE)
+    fresh = await issue(repo, live_session, SessionTokenKind.EXPOSE)
 
     assert await stored_hashes(data.engine) == {
-        hash_tunnel_token(valid),
-        hash_tunnel_token(fresh),
+        hash_session_token(valid),
+        hash_session_token(fresh),
     }
 
 
@@ -129,7 +129,7 @@ async def test_expired_tokens_are_removed_when_a_token_is_launched(
 
     await repo.launch_view_token(found[0].id, datetime.now(UTC) + GRANT_LIFETIME)
 
-    assert await stored_hashes(data.engine) == {hash_tunnel_token(launched)}
+    assert await stored_hashes(data.engine) == {hash_session_token(launched)}
 
 
 @pytest.mark.asyncio
@@ -181,14 +181,14 @@ async def test_of_two_concurrent_launches_exactly_one_succeeds(
 @pytest.mark.parametrize(
     ("kind", "lifetime"),
     [
-        (TunnelTokenKind.EXPOSE, timedelta(minutes=10)),
-        (TunnelTokenKind.VIEW, -timedelta(seconds=1)),
+        (SessionTokenKind.EXPOSE, timedelta(minutes=10)),
+        (SessionTokenKind.VIEW, -timedelta(seconds=1)),
     ],
     ids=["expose", "expired-view"],
 )
 @pytest.mark.asyncio
 async def test_only_an_unexpired_view_token_launches(
-    seeded_orbit: OrbitFixtureData, kind: TunnelTokenKind, lifetime: timedelta
+    seeded_orbit: OrbitFixtureData, kind: SessionTokenKind, lifetime: timedelta
 ) -> None:
     data = seeded_orbit
     repo = LiveSessionTokenRepository(data.engine)

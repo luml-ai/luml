@@ -27,8 +27,8 @@ def _own_relay(**overrides: Any) -> dict[str, Any]:  # noqa: ANN401
         "organization_id": ORG,
         "kind": "own",
         "label": "office",
-        "base_domain": "tunnel.example.com",
-        "agent_url": "wss://tunnel.example.com/.luml-tunnel/agent",
+        "base_domain": "sessions.example.com",
+        "agent_url": "wss://sessions.example.com/.luml-relay/agent",
         "status": "enabled",
         "online": True,
         "last_seen_at": "2026-10-01T12:00:00Z",
@@ -52,7 +52,7 @@ def _managed_relay() -> dict[str, Any]:
         kind="managed",
         label="eu",
         base_domain="eu.luml.example",
-        agent_url="wss://eu.luml.example/.luml-tunnel/agent",
+        agent_url="wss://eu.luml.example/.luml-relay/agent",
         online=False,
         last_seen_at=None,
         connected_agents=0,
@@ -145,16 +145,16 @@ def test_relay_create_returns_plaintext_token_once(mock_sync_client: Mock) -> No
 
     created = RelayResource(mock_sync_client).create(
         "office",
-        "tunnel.example.com",
-        "wss://tunnel.example.com/.luml-tunnel/agent",
+        "sessions.example.com",
+        "wss://sessions.example.com/.luml-relay/agent",
     )
 
     mock_sync_client.post.assert_called_once_with(
         RELAYS_PATH,
         json={
             "label": "office",
-            "base_domain": "tunnel.example.com",
-            "agent_url": "wss://tunnel.example.com/.luml-tunnel/agent",
+            "base_domain": "sessions.example.com",
+            "agent_url": "wss://sessions.example.com/.luml-relay/agent",
         },
     )
     assert isinstance(created, RelayWithToken)
@@ -249,16 +249,16 @@ async def test_async_relay_create(mock_async_client: AsyncMock) -> None:
 
     created = await AsyncRelayResource(mock_async_client).create(
         "office",
-        "tunnel.example.com",
-        "wss://tunnel.example.com/.luml-tunnel/agent",
+        "sessions.example.com",
+        "wss://sessions.example.com/.luml-relay/agent",
     )
 
     mock_async_client.post.assert_called_once_with(
         RELAYS_PATH,
         json={
             "label": "office",
-            "base_domain": "tunnel.example.com",
-            "agent_url": "wss://tunnel.example.com/.luml-tunnel/agent",
+            "base_domain": "sessions.example.com",
+            "agent_url": "wss://sessions.example.com/.luml-relay/agent",
         },
     )
     assert created.token == RELAY_TOKEN

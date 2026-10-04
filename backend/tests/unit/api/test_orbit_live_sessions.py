@@ -23,7 +23,7 @@ AUTHENTICATE = "luml.infra.security.JWTAuthenticationBackend.authenticate"
 REPO = "luml.handlers.live_sessions.LiveSessionRepository"
 VIEW_TOKEN_OUT = {
     "token": "t",
-    "launch_url": "https://k3f9x2ab.tunnel.example/.luml-tunnel/launch?token=t",
+    "launch_url": "https://k3f9x2ab.sessions.example/.luml-relay/launch?token=t",
     "expires_at": "2026-09-29T12:00:00Z",
 }
 
@@ -95,8 +95,8 @@ def test_operations_require_sign_in(mock_authenticate: AsyncMock) -> None:
 def test_start_route(mock_authenticate: AsyncMock, mock_start: AsyncMock) -> None:
     mock_start.return_value = LiveSessionStartOut(
         id="k3f9x2ab",
-        public_url="https://k3f9x2ab.tunnel.example",
-        agent_url="wss://tunnel.example/connect",
+        public_url="https://k3f9x2ab.sessions.example",
+        agent_url="wss://sessions.example/connect",
         expose_token="token",
         token_expires_at=datetime(2026, 9, 29, tzinfo=UTC),
     )
@@ -125,8 +125,8 @@ def test_start_takes_neither_a_label_nor_a_visibility(
 ) -> None:
     mock_start.return_value = LiveSessionStartOut(
         id="k3f9x2ab",
-        public_url="https://k3f9x2ab.tunnel.example",
-        agent_url="wss://tunnel.example/connect",
+        public_url="https://k3f9x2ab.sessions.example",
+        agent_url="wss://sessions.example/connect",
         expose_token="token",
         token_expires_at=datetime(2026, 9, 29, tzinfo=UTC),
     )

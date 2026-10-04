@@ -24,15 +24,15 @@ from starlette.websockets import WebSocket
 from websockets.asyncio.client import connect
 from websockets.typing import Subprotocol
 
-from luml_tunnel.agent import Agent, FixedToken, LoopbackService, ReconnectPolicy
-from luml_tunnel.cookies import ViewerCookies
-from luml_tunnel.frames import MAX_FRAME_BYTES, RelayLimits
-from luml_tunnel.headers import TOKEN_HEADER
-from luml_tunnel.protocol import MAX_RENEWALS_PER_MINUTE
-from luml_tunnel.relay import CONNECT_PATH, Relay, RelayServer, RelaySettings
-from luml_tunnel.relay_api import MAX_REQUESTS_IN_FLIGHT, REPORT_INTERVAL_SECONDS, RelayApi
-from luml_tunnel.routing import MAX_AGENTS
-from luml_tunnel.tokens import (
+from luml_relay.agent import Agent, FixedToken, LoopbackService, ReconnectPolicy
+from luml_relay.cookies import ViewerCookies
+from luml_relay.frames import MAX_FRAME_BYTES, RelayLimits
+from luml_relay.headers import TOKEN_HEADER
+from luml_relay.protocol import MAX_RENEWALS_PER_MINUTE
+from luml_relay.relay import CONNECT_PATH, Relay, RelayServer, RelaySettings
+from luml_relay.relay_api import MAX_REQUESTS_IN_FLIGHT, REPORT_INTERVAL_SECONDS, RelayApi
+from luml_relay.routing import MAX_AGENTS
+from luml_relay.tokens import (
     CACHE_WINDOW_SECONDS,
     MAX_CACHE_ENTRIES,
     LumlTokenVerifier,
@@ -43,7 +43,7 @@ LUML_URL = "http://luml.test"
 RELAY_TOKEN = "dfsrelay_lab"
 RELAY_ID = "relay-1"
 OTHER_RELAY_ID = "relay-2"
-BASE_DOMAIN = "tunnel.example"
+BASE_DOMAIN = "sessions.example"
 APP_URL = "https://app.luml.example"
 SESSION = "k3f9x2ab"
 SESSION_HOST = f"{SESSION}.{BASE_DOMAIN}"

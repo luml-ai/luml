@@ -29,13 +29,13 @@ from luml.schemas.live_session import (
     LiveSessionViewTokenIn,
     LiveSessionViewTokenOut,
     LiveSessionVisibility,
-    TunnelTokenKind,
+    SessionTokenKind,
 )
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.relay import SESSIONS_CAPABILITY, Relay, RelayKind, RelayStatus
 from luml.settings import Settings, config
 
-LAUNCH_PATH = "/.luml-tunnel/launch"
+LAUNCH_PATH = "/.luml-relay/launch"
 _HTTP_SCHEMES = {"ws": "http", "wss": "https"}
 _SESSION_LIMITS = {
     RelayKind.MANAGED: OrganizationResource.MANAGED_RELAY_SESSIONS,
@@ -80,7 +80,7 @@ class LiveSessionHandler:
 
     async def _issue_token(
         self,
-        kind: TunnelTokenKind,
+        kind: SessionTokenKind,
         live_session: LiveSession,
         lifetime: timedelta,
         destination: str | None = None,
@@ -168,7 +168,7 @@ class LiveSessionHandler:
             replacing,
         )
         token, expires_at = await self._issue_token(
-            TunnelTokenKind.EXPOSE, live_session, self._expose_lifetime
+            SessionTokenKind.EXPOSE, live_session, self._expose_lifetime
         )
         return LiveSessionStartOut(
             id=live_session.id,
@@ -216,7 +216,7 @@ class LiveSessionHandler:
         if remaining > self._expose_lifetime / 2:
             return LiveSessionHeartbeatOut(status=live_session.status)
         token, expires_at = await self._issue_token(
-            TunnelTokenKind.EXPOSE, live_session, self._expose_lifetime
+            SessionTokenKind.EXPOSE, live_session, self._expose_lifetime
         )
         return LiveSessionHeartbeatOut(
             status=live_session.status,
@@ -242,7 +242,7 @@ class LiveSessionHandler:
         if live_session.status == LiveSessionStatus.ENDED or relay is None:
             raise LiveSessionEndedError()
         token, expires_at = await self._issue_token(
-            TunnelTokenKind.VIEW,
+            SessionTokenKind.VIEW,
             live_session,
             self._view_lifetime,
             data.destination if data else None,

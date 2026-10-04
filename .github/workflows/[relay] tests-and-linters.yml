@@ -1,18 +1,18 @@
-name: Tunnel Tests and Linters
+name: Relay Tests and Linters
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'tunnel/**'
+      - 'relay/**'
       - 'sdk/python/api/**'
-      - '.github/workflows/*tunnel*tests-and-linters.yml'
+      - '.github/workflows/*relay*tests-and-linters.yml'
   pull_request:
     branches: [ main ]
     paths:
-      - 'tunnel/**'
+      - 'relay/**'
       - 'sdk/python/api/**'
-      - '.github/workflows/*tunnel*tests-and-linters.yml'
+      - '.github/workflows/*relay*tests-and-linters.yml'
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: tunnel
+        working-directory: relay
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

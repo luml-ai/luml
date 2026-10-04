@@ -15,7 +15,7 @@ from websockets.exceptions import (
 )
 from websockets.typing import Subprotocol
 
-from luml_tunnel.frames import (
+from luml_relay.frames import (
     MAX_FRAME_BYTES,
     MAX_MESSAGE_BYTES,
     REPLACED_CLOSE_CODE,
@@ -27,13 +27,13 @@ from luml_tunnel.frames import (
     OpenHttp,
     OpenWebSocket,
 )
-from luml_tunnel.headers import (
+from luml_relay.headers import (
     decode_raw_headers,
     has_body,
     header_value,
     without_hop_by_hop,
 )
-from luml_tunnel.protocol import (
+from luml_relay.protocol import (
     AgentConnection,
     PeerClosed,
     Stream,

@@ -81,9 +81,9 @@ def exposed_flow(name: str) -> FlowExposed:
             },
             "session": {
                 "id": SESSION_ID,
-                "public_url": f"http://{SESSION_ID}.tunnel.example",
-                "agent_url": "ws://tunnel.example/agent",
-                "expose_token": "luml_tunnel_token",
+                "public_url": f"http://{SESSION_ID}.sessions.example",
+                "agent_url": "ws://sessions.example/agent",
+                "expose_token": "luml_relay_token",
                 "token_expires_at": "2099-01-01T00:00:00Z",
                 "heartbeat_interval": 30,
             },
@@ -136,7 +136,7 @@ class FakeClient:
 
 @dataclass
 class FakeServing:
-    """The tunnel's serving step: connects at once and serves until cancelled."""
+    """The relay package's serving step: connects at once and serves until cancelled."""
 
     served: list[tuple[str, str | None, str | None]] = field(default_factory=list)
     cancelled: int = 0

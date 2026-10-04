@@ -1,4 +1,4 @@
-"""Live sessions, relays, tunnel tokens, flows and organization session limits
+"""Live sessions, relays, session tokens, flows and organization session limits
 
 Revision ID: 043
 Revises: 042

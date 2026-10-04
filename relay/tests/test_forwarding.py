@@ -9,11 +9,11 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
 from websockets.typing import Subprotocol
 
-from luml_tunnel.agent import AgentRefusedError
-from luml_tunnel.cli import TOKEN_ENV
-from luml_tunnel.headers import TOKEN_HEADER, USER_HEADER
-from luml_tunnel.relay import Relay
-from luml_tunnel.tokens import TokenKind
+from luml_relay.agent import AgentRefusedError
+from luml_relay.cli import TOKEN_ENV
+from luml_relay.headers import TOKEN_HEADER, USER_HEADER
+from luml_relay.relay import Relay
+from luml_relay.tokens import TokenKind
 from tests.harness import (
     BASE_DOMAIN,
     LARGE_BODY_CHUNK,
@@ -35,7 +35,7 @@ from tests.harness import (
 async def test_agent_connects_directly_with_a_fixed_token(
     relay: Relay, relay_port: int, expose_token: str, view_token: str, service_port: int
 ) -> None:
-    command = [sys.executable, "-m", "luml_tunnel.cli", "expose", str(service_port)]
+    command = [sys.executable, "-m", "luml_relay.cli", "expose", str(service_port)]
     agent = subprocess.Popen(
         [*command, "--relay-url", relay_url(relay_port)],
         env={**os.environ, TOKEN_ENV: expose_token},
@@ -119,7 +119,7 @@ async def test_large_body_does_not_block_other_viewers(
     assert small.json()["path"] == "/small"
 
 
-@pytest.mark.parametrize("path", ["/.luml-tunnel/other", "/.luml-tunnel", "/a/../.luml-tunnel/x"])
+@pytest.mark.parametrize("path", ["/.luml-relay/other", "/.luml-relay", "/a/../.luml-relay/x"])
 async def test_relay_paths_are_not_forwarded(
     connected: None, relay_port: int, view_token: str, echo: EchoService, path: str
 ) -> None:
@@ -234,7 +234,7 @@ async def test_agent_with_another_protocol_version_is_refused(
     with pytest.raises(InvalidStatus):
         await connect(
             relay_url(relay_port),
-            subprotocols=[Subprotocol("luml-tunnel.v2")],
+            subprotocols=[Subprotocol("luml-relay.v2")],
             additional_headers={"Authorization": f"Bearer {expose_token}"},
         )
 

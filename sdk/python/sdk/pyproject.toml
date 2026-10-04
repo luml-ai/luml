@@ -33,7 +33,7 @@ llm = [
     "openai>=1.0.0,<3.0.0",
 ]
 flow = [
-    "luml-tunnel[luml]>=0.1.0,<0.2.0",
+    "luml-relay[luml]>=0.1.0,<0.2.0",
     "luml-api>=0.4.0,<0.5.0",
 ]
 
@@ -80,12 +80,12 @@ dev = [
     "xgboost>=3.2.0",
     "pandas-stubs>=3.0.0.260204",
     "scipy-stubs>=1.17.1.4",
-    "luml-tunnel[luml]>=0.1.0,<0.2.0",
+    "luml-relay[luml]>=0.1.0,<0.2.0",
     "luml-api>=0.4.0,<0.5.0",
 ]
 
 [tool.uv.sources]
-luml-tunnel = { path = "../../../tunnel", editable = true }
+luml-relay = { path = "../../../relay", editable = true }
 luml-api = { path = "../api", editable = true }
 
 [tool.ruff]

@@ -10,12 +10,12 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /bin/uv
 COPY pyproject.toml uv.lock /app/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra relay --no-install-project
+    uv sync --frozen --no-dev --extra server --no-install-project
 
-COPY luml_tunnel /app/luml_tunnel
+COPY luml_relay /app/luml_relay
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra relay && \
+    uv sync --frozen --no-dev --extra server && \
     chgrp -R 0 /app && \
     chmod -R g=u /app
 
@@ -23,4 +23,4 @@ USER 10001:0
 
 EXPOSE 8080
 
-ENTRYPOINT ["luml-tunnel", "relay"]
+ENTRYPOINT ["luml-relay", "serve"]

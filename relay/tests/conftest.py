@@ -2,10 +2,10 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
-from luml_tunnel.agent import Agent
-from luml_tunnel.frames import RelayLimits
-from luml_tunnel.relay import Relay
-from luml_tunnel.tokens import TokenKind
+from luml_relay.agent import Agent
+from luml_relay.frames import RelayLimits
+from luml_relay.relay import Relay
+from luml_relay.tokens import TokenKind
 from tests.harness import EchoService, FakeRelayApi, create_relay, running_agent, serve
 
 WINDOW = 64 * 1024

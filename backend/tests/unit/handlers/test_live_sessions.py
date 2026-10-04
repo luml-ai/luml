@@ -23,7 +23,7 @@ from luml.schemas.live_session import (
     LiveSessionTokenCreate,
     LiveSessionViewTokenIn,
     LiveSessionVisibility,
-    TunnelTokenKind,
+    SessionTokenKind,
 )
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
@@ -37,8 +37,8 @@ ORBIT_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 SESSION_ID = "k3f9x2ab"
 RELAY_ID = UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7d")
 OTHER_RELAY_ID = UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7e")
-BASE_DOMAIN = "tunnel.example"
-AGENT_URL = "wss://tunnel.example/connect"
+BASE_DOMAIN = "sessions.example"
+AGENT_URL = "wss://sessions.example/connect"
 SESSIONS: dict[str, dict[str, Any]] = {"sessions": {"version": 1, "api_versions": [1]}}
 
 REPO = "luml.handlers.live_sessions.LiveSessionRepository"
@@ -191,13 +191,13 @@ async def test_start_session(
         OrganizationResource.OWN_RELAY_SESSIONS,
     )
     assert result.id == SESSION_ID
-    assert result.public_url == "https://k3f9x2ab.tunnel.example"
+    assert result.public_url == "https://k3f9x2ab.sessions.example"
     assert "app_url" not in result.model_dump()
     assert result.agent_url == AGENT_URL
     assert result.heartbeat_interval == 30
     [issued] = _issued(repo)
     assert (issued.kind, issued.session_id, issued.user_id) == (
-        TunnelTokenKind.EXPOSE,
+        SessionTokenKind.EXPOSE,
         SESSION_ID,
         USER_ID,
     )
@@ -212,7 +212,8 @@ async def test_public_url_keeps_the_scheme_and_port_of_the_agent_address(
 ) -> None:
     repo["create_live_session"].return_value = _session(last_heartbeat_ago=None)
     repo["get_relay"].return_value = _relay(
-        base_domain="tunnel.localhost", agent_url="ws://tunnel.localhost:8090/connect"
+        base_domain="sessions.localhost",
+        agent_url="ws://sessions.localhost:8090/connect",
     )
     handler = _handler()
 
@@ -220,7 +221,7 @@ async def test_public_url_keeps_the_scheme_and_port_of_the_agent_address(
         USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="dev")
     )
 
-    assert result.public_url == "http://k3f9x2ab.tunnel.localhost:8090"
+    assert result.public_url == "http://k3f9x2ab.sessions.localhost:8090"
 
 
 @pytest.mark.asyncio
@@ -265,7 +266,7 @@ async def test_heartbeat_renews_a_token_about_to_expire(
     repo["record_heartbeat"].assert_awaited_once_with(SESSION_ID, True)
     assert result.status == LiveSessionStatus.LIVE
     [issued] = _issued(repo)
-    assert (issued.kind, issued.session_id) == (TunnelTokenKind.EXPOSE, SESSION_ID)
+    assert (issued.kind, issued.session_id) == (SessionTokenKind.EXPOSE, SESSION_ID)
     _assert_lifetime(issued, 600)
     assert result.expose_token == "opaque-0"
     assert result.token_expires_at == issued.expires_at
@@ -365,7 +366,7 @@ async def test_view_token_fits_one_viewer_and_one_session(
     repo["get_relay"].assert_awaited_once_with(RELAY_ID)
     [issued] = _issued(repo)
     assert (issued.kind, issued.session_id, issued.user_id, issued.destination) == (
-        TunnelTokenKind.VIEW,
+        SessionTokenKind.VIEW,
         SESSION_ID,
         USER_ID,
         None,
@@ -375,7 +376,7 @@ async def test_view_token_fits_one_viewer_and_one_session(
     repo["record_viewer_activity"].assert_awaited_once_with(SESSION_ID)
     launch = urlsplit(result.launch_url)
     assert f"{launch.scheme}://{launch.netloc}{launch.path}" == (
-        "https://k3f9x2ab.tunnel.example/.luml-tunnel/launch"
+        "https://k3f9x2ab.sessions.example/.luml-relay/launch"
     )
     assert parse_qs(launch.query) == {"token": [result.token]}
 
@@ -397,7 +398,7 @@ async def test_view_token_stores_the_destination_outside_the_launch_address(
     [issued] = _issued(repo)
     assert issued.destination == "/experiments/42?tab=metrics"
     launch = urlsplit(result.launch_url)
-    assert launch.path == "/.luml-tunnel/launch"
+    assert launch.path == "/.luml-relay/launch"
     assert parse_qs(launch.query) == {"token": [result.token]}
 
 
@@ -629,7 +630,7 @@ async def test_a_session_keeps_its_relay_when_the_orbit_is_reassigned(
 
     assert heartbeat.expose_token is not None
     assert [issued.session_id for issued in _issued(repo)] == [SESSION_ID] * 2
-    assert view.launch_url.startswith("https://k3f9x2ab.tunnel.example/")
+    assert view.launch_url.startswith("https://k3f9x2ab.sessions.example/")
     repo["get_relay"].assert_awaited_once_with(RELAY_ID)
     repo["get_orbit_simple"].assert_not_awaited()
 

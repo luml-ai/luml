@@ -318,7 +318,7 @@ def test_process_end_removes_the_flow_once_and_stops_lumlflow(
 def test_flow_module_needs_the_flow_extra() -> None:
     script = (
         "import sys\n"
-        "sys.modules['luml_tunnel'] = None\n"
+        "sys.modules['luml_relay'] = None\n"
         "import luml\n"
         "print('sdk imported')\n"
         "import luml.flow\n"

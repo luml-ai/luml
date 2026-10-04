@@ -1,4 +1,4 @@
-"""Frames exchanged between agent and relay over the `luml-tunnel.v1` subprotocol.
+"""Frames exchanged between agent and relay over the `luml-relay.v1` subprotocol.
 
 Every frame is one binary WebSocket message:
 
@@ -38,7 +38,7 @@ from dataclasses import asdict, dataclass, fields
 from enum import IntEnum
 from typing import Any
 
-SUBPROTOCOL = "luml-tunnel.v1"
+SUBPROTOCOL = "luml-relay.v1"
 CONNECTION_STREAM_ID = 0
 REPLACED_CLOSE_CODE = 4000
 TOKEN_EXPIRED_CLOSE_CODE = 4001

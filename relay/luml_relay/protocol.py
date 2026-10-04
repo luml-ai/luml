@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import Protocol
 
-from luml_tunnel.frames import (
+from luml_relay.frames import (
     MAX_MESSAGE_BYTES,
     ConnectionFrame,
     Data,
@@ -373,7 +373,7 @@ async def pass_messages(stream: Stream, peer: WebSocketPeer) -> None:
             closed = outbound.result()
             await stream.send_close(closed.code, closed.reason)
     except StreamResetError:
-        await peer.close(1011, "tunnel stream reset")
+        await peer.close(1011, "stream reset")
     finally:
         outbound.cancel()
         inbound.cancel()

@@ -68,15 +68,15 @@ Only the user who exposed a flow sees it on the Flow page and can open it. Whoev
 
 A relay is registered in the Relays tab with a label, a base domain and an agent address. Each flow gets a hostname under the base domain. The agent address is the `wss` address agents connect to, such as `wss://relay.example.net/connect`. Registering shows the relay's token once.
 
-The relay is the container image `ghcr.io/luml-ai/luml-tunnel-relay`. It reads the address of LUML from `LUML_BASE_URL` and its token from `LUML_TUNNEL_RELAY_TOKEN`, and it listens on port 8080.
+The relay is the container image `ghcr.io/luml-ai/luml-relay`. It reads the address of LUML from `LUML_BASE_URL` and its token from `LUML_RELAY_TOKEN`, and it listens on port 8080.
 
 ```bash
 docker run -d -p 8080:8080 \
   -e LUML_BASE_URL=https://api.luml.ai \
-  -e LUML_TUNNEL_RELAY_TOKEN=dfsrelay_your_relay_token \
-  ghcr.io/luml-ai/luml-tunnel-relay:latest
+  -e LUML_RELAY_TOKEN=dfsrelay_your_relay_token \
+  ghcr.io/luml-ai/luml-relay:latest
 ```
 
 The relay serves plain HTTP, so TLS is terminated in front of it. The base domain needs a wildcard DNS record and a wildcard certificate, for example for `*.flows.example.net`. The base domain must not share a registered domain with the LUML app, because pages served through the relay would otherwise count as the same site as the app.
 
-*Note:* Without `LUML_TUNNEL_COOKIE_SECRET`, a restarted relay forgets the browser sessions of viewers, who then open their flows again from the LUML app.
+*Note:* Without `LUML_RELAY_COOKIE_SECRET`, a restarted relay forgets the browser sessions of viewers, who then open their flows again from the LUML app.

@@ -24,7 +24,7 @@ First run builds two images and runs `npm install` — subsequent runs are fast.
 | http://localhost:8000 | Backend (uvicorn `--reload`) |
 | http://localhost:8000/docs | API docs |
 | http://localhost:9001 | MinIO console (`minioadmin` / `minioadmin`) |
-| http://&lt;session&gt;.tunnel.localhost:8080 | Relay serving flows; agents connect at `ws://localhost:8080/connect` |
+| http://&lt;session&gt;.sessions.localhost:8080 | Relay serving flows; agents connect at `ws://localhost:8080/connect` |
 | localhost:5432 | Postgres (`user` / `password` / `df_studio`) |
 
 App login: `admin@example.com` / `admin12345`.

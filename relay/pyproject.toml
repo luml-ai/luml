@@ -1,7 +1,7 @@
 [project]
-name = "luml-tunnel"
+name = "luml-relay"
 version = "0.1.0"
-description = "Reverse tunnel that exposes local web services through a LUML relay"
+description = "Relay and agent that expose local web services through LUML"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1,<1.0.0",
@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-relay = [
+server = [
     "starlette>=0.47.0,<1.0.0",
     "uvicorn>=0.38.0,<1.0.0",
 ]
@@ -18,14 +18,14 @@ luml = [
 ]
 
 [project.scripts]
-luml-tunnel = "luml_tunnel.cli:main"
+luml-relay = "luml_relay.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["luml_tunnel"]
+packages = ["luml_relay"]
 
 [tool.uv.sources]
 luml-api = { path = "../sdk/python/api", editable = true }
@@ -48,7 +48,7 @@ testpaths = ["tests"]
 target-version = "py312"
 line-length = 100
 indent-width = 4
-src = ["luml_tunnel", "tests"]
+src = ["luml_relay", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "ANN", "C4", "SIM", "TID252"]
@@ -65,11 +65,11 @@ line-ending = "auto"
 [tool.ruff.lint.isort]
 combine-as-imports = true
 force-wrap-aliases = true
-known-first-party = ["luml_tunnel"]
+known-first-party = ["luml_relay"]
 split-on-trailing-comma = true
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 explicit_package_bases = true
-files = ["luml_tunnel", "tests"]
+files = ["luml_relay", "tests"]

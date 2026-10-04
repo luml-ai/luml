@@ -4,11 +4,11 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
-from luml_tunnel import relay as relay_module
-from luml_tunnel.agent import ReconnectPolicy
-from luml_tunnel.cli import BASE_URL_ENV, COOKIE_SECRET_ENV, RELAY_TOKEN_ENV, main
-from luml_tunnel.frames import RelayLimits
-from luml_tunnel.relay import Relay, RelayServer
+from luml_relay import relay as relay_module
+from luml_relay.agent import ReconnectPolicy
+from luml_relay.cli import BASE_URL_ENV, COOKIE_SECRET_ENV, RELAY_TOKEN_ENV, main
+from luml_relay.frames import RelayLimits
+from luml_relay.relay import Relay, RelayServer
 from tests.harness import (
     APP_URL,
     BASE_DOMAIN,
@@ -35,10 +35,10 @@ def test_expose_accepts_only_a_port(arguments: list[str]) -> None:
 def test_expose_without_a_token_names_the_cause(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.delenv("LUML_TUNNEL_TOKEN", raising=False)
+    monkeypatch.delenv("LUML_SESSION_TOKEN", raising=False)
 
     assert main(["expose", "5000", "--relay-url", "ws://relay.example/connect"]) == 1
-    assert "LUML_TUNNEL_TOKEN" in capsys.readouterr().err
+    assert "LUML_SESSION_TOKEN" in capsys.readouterr().err
 
 
 @pytest.fixture()
@@ -65,7 +65,7 @@ async def luml_url(luml: FakeRelayApi, monkeypatch: pytest.MonkeyPatch) -> Async
 
 async def run_relay(*options: str) -> int:
     # The command runs its own event loop, so it runs beside the one of the fake LUML.
-    return await asyncio.to_thread(main, ["relay", *options])
+    return await asyncio.to_thread(main, ["serve", *options])
 
 
 def served_relay(started: list[RelayServer]) -> Relay:
@@ -130,7 +130,7 @@ def test_relay_help_documents_the_bounds_and_their_defaults(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit):
-        main(["relay", "--help"])
+        main(["serve", "--help"])
 
     help_text = " ".join(capsys.readouterr().out.split())
     for option in (
@@ -151,7 +151,7 @@ async def test_relay_retries_until_luml_answers(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    caplog.set_level(logging.WARNING, logger="luml_tunnel.relay")
+    caplog.set_level(logging.WARNING, logger="luml_relay.relay")
     luml_socket = bound_socket()
     monkeypatch.setenv(BASE_URL_ENV, f"http://127.0.0.1:{port_of(luml_socket)}")
     monkeypatch.setenv(RELAY_TOKEN_ENV, RELAY_TOKEN)
@@ -189,7 +189,7 @@ def test_relay_without_a_token_names_the_variable(
 ) -> None:
     monkeypatch.delenv(RELAY_TOKEN_ENV, raising=False)
 
-    assert main(["relay"]) == 1
+    assert main(["serve"]) == 1
     assert RELAY_TOKEN_ENV in capsys.readouterr().err
 
 
@@ -210,7 +210,7 @@ def test_relay_without_a_token_names_the_variable(
 )
 def test_relay_refuses_options_that_are_not_positive(option: list[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        main(["relay", *option])
+        main(["serve", *option])
 
     assert exit_info.value.code == 2
 
@@ -218,7 +218,7 @@ def test_relay_refuses_options_that_are_not_positive(option: list[str]) -> None:
 @pytest.mark.parametrize("removed", ["--base-domain", "--issuer-keys", "--app-origin"])
 def test_relay_no_longer_takes_what_luml_describes(removed: str) -> None:
     with pytest.raises(SystemExit) as exit_info:
-        main(["relay", removed, "tunnel.example"])
+        main(["serve", removed, "sessions.example"])
 
     assert exit_info.value.code == 2
 

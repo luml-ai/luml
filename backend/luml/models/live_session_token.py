@@ -6,11 +6,11 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from luml.models.base import Base
-from luml.schemas.live_session import LiveSessionToken, TunnelTokenKind
+from luml.schemas.live_session import LiveSessionToken, SessionTokenKind
 
 
 class LiveSessionTokenOrm(Base):
-    """A tunnel token; a launched `view` token is a viewer grant."""
+    """A session token; a launched `view` token is a viewer grant."""
 
     __tablename__ = "live_session_tokens"
 
@@ -18,7 +18,7 @@ class LiveSessionTokenOrm(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     token_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    kind: Mapped[TunnelTokenKind] = mapped_column(String, nullable=False)
+    kind: Mapped[SessionTokenKind] = mapped_column(String, nullable=False)
     session_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("live_sessions.id", ondelete="CASCADE"),

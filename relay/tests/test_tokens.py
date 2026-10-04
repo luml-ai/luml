@@ -8,11 +8,11 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
 from websockets.typing import Subprotocol
 
-from luml_tunnel.agent import Agent, AgentRefusedError, FixedToken, LoopbackService
-from luml_tunnel.frames import SUBPROTOCOL, RelayLimits
-from luml_tunnel.relay import TRY_AGAIN, Relay
-from luml_tunnel.relay_api import RelayApi
-from luml_tunnel.tokens import (
+from luml_relay.agent import Agent, AgentRefusedError, FixedToken, LoopbackService
+from luml_relay.frames import SUBPROTOCOL, RelayLimits
+from luml_relay.relay import TRY_AGAIN, Relay
+from luml_relay.relay_api import RelayApi
+from luml_relay.tokens import (
     LumlTokenVerifier,
     TokenCheckUnavailableError,
     TokenKind,
@@ -313,7 +313,7 @@ async def test_agent_retries_while_luml_is_down_and_connects_once_it_answers(
     service_port: int,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    caplog.set_level(logging.INFO, logger="luml_tunnel.agent")
+    caplog.set_level(logging.INFO, logger="luml_relay.agent")
     luml.outage = Outage.FAILING
     service = LoopbackService(service_port)
     agent = Agent(relay_url(relay_port), FixedToken(expose_token), service, FAST_RECONNECT)

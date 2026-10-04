@@ -364,7 +364,7 @@ dev = [
 ]
 
 [[package]]
-name = "luml-tunnel"
+name = "luml-relay"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -376,7 +376,7 @@ dependencies = [
 luml = [
     { name = "luml-api" },
 ]
-relay = [
+server = [
     { name = "starlette" },
     { name = "uvicorn" },
 ]
@@ -394,11 +394,11 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1,<1.0.0" },
     { name = "luml-api", marker = "extra == 'luml'", editable = "../sdk/python/api" },
-    { name = "starlette", marker = "extra == 'relay'", specifier = ">=0.47.0,<1.0.0" },
-    { name = "uvicorn", marker = "extra == 'relay'", specifier = ">=0.38.0,<1.0.0" },
+    { name = "starlette", marker = "extra == 'server'", specifier = ">=0.47.0,<1.0.0" },
+    { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.38.0,<1.0.0" },
     { name = "websockets", specifier = ">=15.0.1,<18.0.0" },
 ]
-provides-extras = ["relay", "luml"]
+provides-extras = ["server", "luml"]
 
 [package.metadata.requires-dev]
 dev = [

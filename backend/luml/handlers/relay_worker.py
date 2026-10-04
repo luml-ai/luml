@@ -12,14 +12,14 @@ from luml.schemas.live_session import (
     LiveSession,
     LiveSessionStatus,
     LiveSessionToken,
-    TunnelTokenKind,
+    SessionTokenKind,
 )
 from luml.schemas.relay import (
     RelayDescription,
     RelayReportIn,
-    TunnelGrantVerdict,
-    TunnelTokenValidateIn,
-    TunnelTokenVerdict,
+    SessionTokenValidateIn,
+    SessionTokenVerdict,
+    ViewerGrantVerdict,
 )
 from luml.settings import Settings, config
 
@@ -74,18 +74,18 @@ class RelayWorkerHandler:
         )
 
     async def validate_token(
-        self, relay_id: UUID, data: TunnelTokenValidateIn
-    ) -> TunnelTokenVerdict:
+        self, relay_id: UUID, data: SessionTokenValidateIn
+    ) -> SessionTokenVerdict:
         found = await self.__token_repo.get_token_with_session(data.token)
         if found is None:
             _log_inactive(relay_id, "token", "unknown")
-            return TunnelTokenVerdict(active=False)
+            return SessionTokenVerdict(active=False)
         token, live_session = found
         reason = _inactive_reason(token, live_session, relay_id)
         if token.launched_at is not None:
             # From its launch on, the row is a grant reachable only by its id.
             reason = "already launched"
-        elif data.launch and token.kind != TunnelTokenKind.VIEW:
+        elif data.launch and token.kind != SessionTokenKind.VIEW:
             reason = "only view tokens launch"
         if reason is None and data.launch:
             launched = await self.__token_repo.launch_view_token(
@@ -97,11 +97,11 @@ class RelayWorkerHandler:
                 token = launched
         if reason is not None:
             _log_inactive(relay_id, "token", reason)
-            return TunnelTokenVerdict(active=False)
+            return SessionTokenVerdict(active=False)
 
-        if token.kind == TunnelTokenKind.VIEW:
+        if token.kind == SessionTokenKind.VIEW:
             await self.__session_repo.record_viewer_activity(token.session_id)
-        return TunnelTokenVerdict(
+        return SessionTokenVerdict(
             active=True,
             kind=token.kind,
             session_id=token.session_id,
@@ -111,21 +111,21 @@ class RelayWorkerHandler:
             destination=token.destination if data.launch else None,
         )
 
-    async def check_grant(self, relay_id: UUID, grant_id: UUID) -> TunnelGrantVerdict:
+    async def check_grant(self, relay_id: UUID, grant_id: UUID) -> ViewerGrantVerdict:
         found = await self.__token_repo.get_grant_with_session(grant_id)
         if found is None:
             _log_inactive(relay_id, "grant", "unknown")
-            return TunnelGrantVerdict(active=False)
+            return ViewerGrantVerdict(active=False)
         grant, live_session = found
         reason = _inactive_reason(grant, live_session, relay_id)
         if grant.launched_at is None:
             reason = "not launched"
         if reason is not None:
             _log_inactive(relay_id, "grant", reason)
-            return TunnelGrantVerdict(active=False)
+            return ViewerGrantVerdict(active=False)
 
         await self.__session_repo.record_viewer_activity(grant.session_id)
-        return TunnelGrantVerdict(
+        return ViewerGrantVerdict(
             active=True,
             session_id=grant.session_id,
             user_id=grant.user_id,

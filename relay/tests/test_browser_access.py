@@ -5,12 +5,12 @@ import pytest
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
 
-from luml_tunnel.cookies import COOKIE_NAME, ViewerCookies
-from luml_tunnel.frames import RelayLimits
-from luml_tunnel.headers import TOKEN_HEADER, USER_HEADER
-from luml_tunnel.pages import ACCESS_NEEDED_MESSAGE, access_needed_page
-from luml_tunnel.relay import LAUNCH_PATH, Relay
-from luml_tunnel.tokens import TokenKind
+from luml_relay.cookies import COOKIE_NAME, ViewerCookies
+from luml_relay.frames import RelayLimits
+from luml_relay.headers import TOKEN_HEADER, USER_HEADER
+from luml_relay.pages import ACCESS_NEEDED_MESSAGE, access_needed_page
+from luml_relay.relay import LAUNCH_PATH, Relay
+from luml_relay.tokens import TokenKind
 from tests.harness import (
     APP_URL,
     BASE_DOMAIN,

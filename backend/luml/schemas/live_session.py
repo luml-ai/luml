@@ -28,7 +28,7 @@ def viewer_idle_period() -> timedelta:
     return timedelta(seconds=config.LIVE_SESSION_VIEWER_IDLE_SECONDS)
 
 
-class TunnelTokenKind(StrEnum):
+class SessionTokenKind(StrEnum):
     EXPOSE = "expose"
     VIEW = "view"
 
@@ -141,7 +141,7 @@ class LiveSessionViewTokenOut(BaseModel):
 
 class LiveSessionToken(BaseModel, BaseOrmConfig):
     id: UUID
-    kind: TunnelTokenKind
+    kind: SessionTokenKind
     session_id: str
     user_id: UUID
     expires_at: datetime
@@ -150,7 +150,7 @@ class LiveSessionToken(BaseModel, BaseOrmConfig):
 
 
 class LiveSessionTokenCreate(BaseModel):
-    kind: TunnelTokenKind
+    kind: SessionTokenKind
     session_id: str
     user_id: UUID
     expires_at: datetime

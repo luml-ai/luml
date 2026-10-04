@@ -1,7 +1,7 @@
 import html
 import json
 
-ACCESS_NEEDED_MESSAGE = "luml-tunnel:access-needed"
+ACCESS_NEEDED_MESSAGE = "luml-relay:access-needed"
 
 _PAGE = """<!doctype html>
 <html lang="en">

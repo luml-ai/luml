@@ -11,16 +11,16 @@ from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import InvalidStatus
 from websockets.typing import Subprotocol
 
-from luml_tunnel.agent import (
+from luml_relay.agent import (
     Agent,
     AgentRefusedError,
     FixedToken,
     LoopbackService,
     ReconnectPolicy,
 )
-from luml_tunnel.frames import SUBPROTOCOL, TOKEN_EXPIRED_CLOSE_CODE, RelayLimits
-from luml_tunnel.relay import TRY_AGAIN, Relay
-from luml_tunnel.tokens import TokenKind
+from luml_relay.frames import SUBPROTOCOL, TOKEN_EXPIRED_CLOSE_CODE, RelayLimits
+from luml_relay.relay import TRY_AGAIN, Relay
+from luml_relay.tokens import TokenKind
 from tests.conftest import WINDOW
 from tests.harness import (
     FAST_RECONNECT,
@@ -109,7 +109,7 @@ async def test_agent_reconnects_when_the_relay_restarts(
     service_port: int,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    caplog.set_level(logging.INFO, logger="luml_tunnel.agent")
+    caplog.set_level(logging.INFO, logger="luml_relay.agent")
     relay_socket = bound_socket()
     relay_port = port_of(relay_socket)
     first_relay = create_relay(luml)
@@ -469,7 +469,7 @@ async def test_failed_reports_are_logged_and_retried_without_affecting_serving(
     service_port: int,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    caplog.set_level(logging.WARNING, logger="luml_tunnel.relay")
+    caplog.set_level(logging.WARNING, logger="luml_relay.relay")
     relay = create_relay(luml, reports_to=create_api(luml), report_interval=0.05)
     async with (
         serve(relay) as relay_port,

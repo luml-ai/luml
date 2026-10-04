@@ -64,8 +64,8 @@ def _relay() -> Relay:
         id=RELAY_ID,
         organization_id=ORGANIZATION_ID,
         label="lab",
-        base_domain="tunnel.example",
-        agent_url="wss://relay.tunnel.example/connect",
+        base_domain="sessions.example",
+        agent_url="wss://relay.sessions.example/connect",
         status=RelayStatus.ENABLED,
         created_at=datetime.now(UTC),
     )
@@ -118,8 +118,8 @@ def test_create_relay_answers_the_plaintext_token(
         RELAYS_PATH,
         json={
             "label": "lab",
-            "base_domain": "Tunnel.Example",
-            "agent_url": "wss://relay.tunnel.example/connect",
+            "base_domain": "Sessions.Example",
+            "agent_url": "wss://relay.sessions.example/connect",
         },
     )
 
@@ -127,7 +127,7 @@ def test_create_relay_answers_the_plaintext_token(
     assert response.json()["token"] == "dfsrelay_secret"
     assert response.json()["relay"]["kind"] == "own"
     created = mock_create_relay.await_args_list[0].args[2]
-    assert created.base_domain == "tunnel.example"
+    assert created.base_domain == "sessions.example"
 
 
 @patch(f"{HANDLER}.create_relay", new_callable=AsyncMock)
@@ -138,8 +138,8 @@ def test_create_relay_with_an_invalid_address_is_refused(
         RELAYS_PATH,
         json={
             "label": "lab",
-            "base_domain": "tunnel.example",
-            "agent_url": "https://relay.tunnel.example/connect",
+            "base_domain": "sessions.example",
+            "agent_url": "https://relay.sessions.example/connect",
         },
     )
 

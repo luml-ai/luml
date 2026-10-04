@@ -15,7 +15,7 @@ from pydantic import (
 )
 
 from luml.schemas.base import BaseOrmConfig
-from luml.schemas.live_session import TunnelTokenKind
+from luml.schemas.live_session import SessionTokenKind
 from luml.schemas.satellite import CapabilityValidationError, CapabilityVersion
 
 RELAY_ONLINE_WINDOW = timedelta(minutes=5)
@@ -57,7 +57,7 @@ def normalize_base_domain(value: str) -> str:
         raise ValueError("Base domain must not end with a dot")
     domain = value.lower()
     if len(domain) > _MAX_HOSTNAME_LENGTH or not _HOSTNAME.fullmatch(domain):
-        raise ValueError("Base domain must be a bare hostname such as tunnel.example")
+        raise ValueError("Base domain must be a bare hostname such as sessions.example")
     return domain
 
 
@@ -229,14 +229,14 @@ class RelayDescription(BaseModel):
     app_url: str
 
 
-class TunnelTokenValidateIn(BaseModel):
+class SessionTokenValidateIn(BaseModel):
     token: str
     launch: bool = False
 
 
-class TunnelTokenVerdict(BaseModel):
+class SessionTokenVerdict(BaseModel):
     active: bool
-    kind: TunnelTokenKind | None = None
+    kind: SessionTokenKind | None = None
     session_id: str | None = None
     user_id: UUID | None = None
     expires_at: datetime | None = None
@@ -244,11 +244,11 @@ class TunnelTokenVerdict(BaseModel):
     destination: str | None = None
 
 
-class TunnelGrantCheckIn(BaseModel):
+class ViewerGrantCheckIn(BaseModel):
     grant_id: UUID
 
 
-class TunnelGrantVerdict(BaseModel):
+class ViewerGrantVerdict(BaseModel):
     active: bool
     session_id: str | None = None
     user_id: UUID | None = None

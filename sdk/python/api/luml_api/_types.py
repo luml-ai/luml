@@ -486,7 +486,7 @@ class LiveSessionVisibility(StrEnum):
 
 
 class LiveSession(BaseModel):
-    """A service exposed through the tunnel, as the Platform records it."""
+    """A service exposed through a relay, as the Platform records it."""
 
     id: str
     orbit_id: str

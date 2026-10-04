@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class LiveSessionResource:
-    """Live sessions of the configured orbit, exposed through the tunnel."""
+    """Live sessions of the configured orbit, exposed through a relay."""
 
     def __init__(self, client: "LumlClient") -> None:
         self._client = client

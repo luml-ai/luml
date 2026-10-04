@@ -37,8 +37,8 @@ def _relay(organization_id: UUID | None = ORGANIZATION_ID) -> Relay:
         id=RELAY_ID,
         organization_id=organization_id,
         label="lab",
-        base_domain="tunnel.example",
-        agent_url="wss://relay.tunnel.example/connect",
+        base_domain="sessions.example",
+        agent_url="wss://relay.sessions.example/connect",
         status=RelayStatus.ENABLED,
         created_at=datetime.now(UTC),
     )
@@ -47,8 +47,8 @@ def _relay(organization_id: UUID | None = ORGANIZATION_ID) -> Relay:
 def _create_in() -> RelayCreateIn:
     return RelayCreateIn(
         label="lab",
-        base_domain="tunnel.example",
-        agent_url="wss://relay.tunnel.example/connect",
+        base_domain="sessions.example",
+        agent_url="wss://relay.sessions.example/connect",
     )
 
 
@@ -272,11 +272,11 @@ async def test_authenticate_token_looks_up_by_hash(
 @pytest.mark.parametrize(
     ("base_domain", "problem"),
     [
-        ("https://tunnel.example", "scheme"),
-        ("tunnel.example:8443", "port"),
-        ("tunnel.example/path", "path"),
-        ("tunnel.example.", "dot"),
-        ("tunnel_example", "bare hostname"),
+        ("https://sessions.example", "scheme"),
+        ("sessions.example:8443", "port"),
+        ("sessions.example/path", "path"),
+        ("sessions.example.", "dot"),
+        ("sessions_example", "bare hostname"),
         ("", "bare hostname"),
     ],
 )
@@ -289,10 +289,10 @@ def test_base_domain_must_be_a_bare_hostname(base_domain: str, problem: str) -> 
 
 def test_base_domain_is_stored_lower_case() -> None:
     relay = RelayCreateIn(
-        label="lab", base_domain="Tunnel.Example", agent_url="ws://relay.example"
+        label="lab", base_domain="Sessions.Example", agent_url="ws://relay.example"
     )
 
-    assert relay.base_domain == "tunnel.example"
+    assert relay.base_domain == "sessions.example"
 
 
 @pytest.mark.parametrize(
@@ -301,7 +301,7 @@ def test_base_domain_is_stored_lower_case() -> None:
 )
 def test_agent_address_must_be_a_ws_or_wss_address(agent_url: str) -> None:
     with pytest.raises(ValidationError, match="ws or wss"):
-        RelayCreateIn(label="lab", base_domain="tunnel.example", agent_url=agent_url)
+        RelayCreateIn(label="lab", base_domain="sessions.example", agent_url=agent_url)
 
 
 @pytest.mark.parametrize(
@@ -310,12 +310,12 @@ def test_agent_address_must_be_a_ws_or_wss_address(agent_url: str) -> None:
 )
 def test_agent_address_must_have_a_valid_port(agent_url: str) -> None:
     with pytest.raises(ValidationError, match="invalid port"):
-        RelayCreateIn(label="lab", base_domain="tunnel.example", agent_url=agent_url)
+        RelayCreateIn(label="lab", base_domain="sessions.example", agent_url=agent_url)
 
 
 def test_update_validates_only_the_given_fields() -> None:
     with pytest.raises(ValidationError, match="port"):
-        RelayUpdateIn(base_domain="tunnel.example:80")
+        RelayUpdateIn(base_domain="sessions.example:80")
 
     assert RelayUpdateIn(label="new").model_dump(exclude_unset=True) == {"label": "new"}
 

@@ -19,7 +19,7 @@ from luml.schemas.live_session import (
     LiveSessionStatus,
     LiveSessionTokenCreate,
     LiveSessionVisibility,
-    TunnelTokenKind,
+    SessionTokenKind,
 )
 from luml.schemas.orbit import OrbitCreateIn, OrbitUpdate
 from luml.schemas.organization import OrganizationCreateIn
@@ -42,8 +42,8 @@ async def create_relay(
     return await RelayRepository(engine).create_relay(
         RelayCreate(
             label=label,
-            base_domain=f"{unique}.tunnel.example",
-            agent_url="wss://tunnel.example/connect",
+            base_domain=f"{unique}.sessions.example",
+            agent_url="wss://sessions.example/connect",
             organization_id=organization_id,
             token_hash=unique,
         )
@@ -536,7 +536,7 @@ async def count_tokens(engine: AsyncEngine, session_id: str) -> int:
 async def issue_expose_token(engine: AsyncEngine, session: LiveSession) -> None:
     await LiveSessionTokenRepository(engine).issue_token(
         LiveSessionTokenCreate(
-            kind=TunnelTokenKind.EXPOSE,
+            kind=SessionTokenKind.EXPOSE,
             session_id=session.id,
             user_id=session.user_id,
             expires_at=datetime.now(UTC) + timedelta(minutes=10),

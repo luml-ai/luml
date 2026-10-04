@@ -12,15 +12,15 @@ from luml.schemas.live_session import (
     LiveSession,
     LiveSessionToken,
     LiveSessionVisibility,
-    TunnelTokenKind,
+    SessionTokenKind,
 )
 from luml.schemas.relay import (
     Relay,
     RelayReportIn,
     RelayStatus,
-    TunnelGrantVerdict,
-    TunnelTokenValidateIn,
-    TunnelTokenVerdict,
+    SessionTokenValidateIn,
+    SessionTokenVerdict,
+    ViewerGrantVerdict,
 )
 from luml.settings import config
 
@@ -63,7 +63,7 @@ def _session(**overrides: Any) -> LiveSession:  # noqa: ANN401
 
 
 def _token(
-    kind: TunnelTokenKind = TunnelTokenKind.VIEW,
+    kind: SessionTokenKind = SessionTokenKind.VIEW,
     **overrides: Any,  # noqa: ANN401
 ) -> LiveSessionToken:
     fields: dict[str, Any] = {
@@ -111,8 +111,8 @@ async def test_describe_answers_the_relay_and_the_app(
         id=RELAY_ID,
         organization_id=None,
         label="lab",
-        base_domain="tunnel.example",
-        agent_url="wss://tunnel.example/connect",
+        base_domain="sessions.example",
+        agent_url="wss://sessions.example/connect",
         status=status,
         created_at=datetime.now(UTC),
     )
@@ -123,8 +123,8 @@ async def test_describe_answers_the_relay_and_the_app(
     assert description.model_dump() == {
         "id": RELAY_ID,
         "label": "lab",
-        "base_domain": "tunnel.example",
-        "agent_url": "wss://tunnel.example/connect",
+        "base_domain": "sessions.example",
+        "agent_url": "wss://sessions.example/connect",
         "status": status,
         "app_origins": ["https://app.luml.ai", "https://dev.luml.ai"],
         "app_url": "https://app.luml.ai",
@@ -149,13 +149,13 @@ async def test_a_view_token_in_the_header_answers_its_claims_and_is_not_consumed
     repo["get_token_with_session"].return_value = (token, _session())
 
     verdict = await _handler().validate_token(
-        RELAY_ID, TunnelTokenValidateIn(token=TOKEN)
+        RELAY_ID, SessionTokenValidateIn(token=TOKEN)
     )
 
     repo["get_token_with_session"].assert_awaited_once_with(TOKEN)
-    assert verdict == TunnelTokenVerdict(
+    assert verdict == SessionTokenVerdict(
         active=True,
-        kind=TunnelTokenKind.VIEW,
+        kind=SessionTokenKind.VIEW,
         session_id=SESSION_ID,
         user_id=USER_ID,
         expires_at=token.expires_at,
@@ -168,14 +168,14 @@ async def test_a_view_token_in_the_header_answers_its_claims_and_is_not_consumed
 async def test_an_expose_token_answers_its_claims_without_viewer_activity(
     repo: dict[str, AsyncMock],
 ) -> None:
-    token = _token(TunnelTokenKind.EXPOSE, destination=None)
+    token = _token(SessionTokenKind.EXPOSE, destination=None)
     repo["get_token_with_session"].return_value = (token, _session())
 
     verdict = await _handler().validate_token(
-        RELAY_ID, TunnelTokenValidateIn(token=TOKEN)
+        RELAY_ID, SessionTokenValidateIn(token=TOKEN)
     )
 
-    assert (verdict.active, verdict.kind) == (True, TunnelTokenKind.EXPOSE)
+    assert (verdict.active, verdict.kind) == (True, SessionTokenKind.EXPOSE)
     repo["record_viewer_activity"].assert_not_awaited()
 
 
@@ -186,7 +186,7 @@ async def test_a_draining_relays_session_is_still_validated(
     repo["get_token_with_session"].return_value = (_token(), _session())
 
     verdict = await _handler().validate_token(
-        RELAY_ID, TunnelTokenValidateIn(token=TOKEN)
+        RELAY_ID, SessionTokenValidateIn(token=TOKEN)
     )
 
     assert verdict.active
@@ -235,7 +235,7 @@ async def test_an_inactive_token_answers_inactive_without_a_reason(
 
     with caplog.at_level(logging.INFO, logger=MODULE):
         verdict = await _handler().validate_token(
-            RELAY_ID, TunnelTokenValidateIn(token=TOKEN, launch=launch)
+            RELAY_ID, SessionTokenValidateIn(token=TOKEN, launch=launch)
         )
 
     assert verdict.model_dump() == {
@@ -263,7 +263,7 @@ async def test_a_launch_consumes_the_view_token_and_answers_the_grant(
     )
 
     verdict = await _handler().validate_token(
-        RELAY_ID, TunnelTokenValidateIn(token=TOKEN, launch=True)
+        RELAY_ID, SessionTokenValidateIn(token=TOKEN, launch=True)
     )
 
     assert repo["launch_view_token"].await_args is not None
@@ -274,9 +274,9 @@ async def test_a_launch_consumes_the_view_token_and_answers_the_grant(
         < requested_expiry - datetime.now(UTC)
         <= timedelta(hours=12)
     )
-    assert verdict == TunnelTokenVerdict(
+    assert verdict == SessionTokenVerdict(
         active=True,
-        kind=TunnelTokenKind.VIEW,
+        kind=SessionTokenKind.VIEW,
         session_id=SESSION_ID,
         user_id=USER_ID,
         expires_at=grant_expires_at,
@@ -294,25 +294,25 @@ async def test_a_launch_lost_to_a_concurrent_launch_is_inactive(
     repo["launch_view_token"].return_value = None
 
     verdict = await _handler().validate_token(
-        RELAY_ID, TunnelTokenValidateIn(token=TOKEN, launch=True)
+        RELAY_ID, SessionTokenValidateIn(token=TOKEN, launch=True)
     )
 
-    assert verdict == TunnelTokenVerdict(active=False)
+    assert verdict == SessionTokenVerdict(active=False)
     repo["record_viewer_activity"].assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_an_expose_token_never_launches(repo: dict[str, AsyncMock]) -> None:
     repo["get_token_with_session"].return_value = (
-        _token(TunnelTokenKind.EXPOSE),
+        _token(SessionTokenKind.EXPOSE),
         _session(),
     )
 
     verdict = await _handler().validate_token(
-        RELAY_ID, TunnelTokenValidateIn(token=TOKEN, launch=True)
+        RELAY_ID, SessionTokenValidateIn(token=TOKEN, launch=True)
     )
 
-    assert verdict == TunnelTokenVerdict(active=False)
+    assert verdict == SessionTokenVerdict(active=False)
     repo["launch_view_token"].assert_not_awaited()
 
 
@@ -336,7 +336,7 @@ async def test_a_grant_outlives_the_view_tokens_lifetime(
     verdict = await _handler().check_grant(RELAY_ID, TOKEN_ID)
 
     repo["get_grant_with_session"].assert_awaited_once_with(TOKEN_ID)
-    assert verdict == TunnelGrantVerdict(
+    assert verdict == ViewerGrantVerdict(
         active=True,
         session_id=SESSION_ID,
         user_id=USER_ID,

@@ -1,7 +1,7 @@
-from luml_tunnel.frames import Headers
+from luml_relay.frames import Headers
 
-TOKEN_HEADER = "x-luml-tunnel-token"
-USER_HEADER = "x-luml-tunnel-user"
+TOKEN_HEADER = "x-luml-relay-token"
+USER_HEADER = "x-luml-relay-user"
 
 _HOP_BY_HOP = frozenset(
     {

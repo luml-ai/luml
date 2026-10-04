@@ -1,24 +1,24 @@
-name: Publish Tunnel Relay Image
+name: Publish Relay Image
 
 on:
   push:
     branches: [main, staging, production]
     tags:
-      - "luml-tunnel/relay/v*"
+      - "luml-relay/image/v*"
     paths:
-      - tunnel/Dockerfile
-      - tunnel/pyproject.toml
-      - tunnel/uv.lock
-      - tunnel/luml_tunnel/**
+      - relay/Dockerfile
+      - relay/pyproject.toml
+      - relay/uv.lock
+      - relay/luml_relay/**
   workflow_dispatch:
 
 concurrency:
-  group: publish-tunnel-relay-image-${{ github.ref_name }}
+  group: publish-relay-image-${{ github.ref_name }}
   cancel-in-progress: true
 
 env:
   GHCR_REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-tunnel-relay
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-relay
 
 jobs:
   resolve-image-tag:
@@ -31,7 +31,7 @@ jobs:
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             TAG="${{ github.ref_name }}"
 
-            if [[ ! "$TAG" =~ ^luml-tunnel/relay/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            if [[ ! "$TAG" =~ ^luml-relay/image/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
               echo "Unsupported release tag: $TAG" >&2
               exit 1
             fi
@@ -71,8 +71,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: tunnel
-          file: tunnel/Dockerfile
+          context: relay
+          file: relay/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}

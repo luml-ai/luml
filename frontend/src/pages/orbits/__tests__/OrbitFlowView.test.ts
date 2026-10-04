@@ -10,7 +10,7 @@ import type { LocalFlow } from '@/utils/services/LocalStorageService.interfaces'
 
 const ORG = '0199c50e-57ac-7823-b010-d5473e5eead1'
 const ORBIT = '0199c8cf-4d35-783b-9f81-cb3cec788074'
-const LAUNCH_URL = 'https://k3j9x2.tunnel.example/_luml/launch?token=t'
+const LAUNCH_URL = 'https://k3j9x2.sessions.example/_luml/launch?token=t'
 
 const flowsApi = vi.hoisted(() => ({ getList: vi.fn(), remove: vi.fn() }))
 const liveSessionsApi = vi.hoisted(() => ({ issueViewToken: vi.fn() }))

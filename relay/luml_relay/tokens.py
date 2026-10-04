@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 
-from luml_tunnel.relay_api import (
+from luml_relay.relay_api import (
     ActiveToken,
     LumlUnavailableError,
     RelayApi,
@@ -29,7 +29,7 @@ class TokenKind(StrEnum):
 
 
 @dataclass(frozen=True)
-class TunnelClaims:
+class SessionClaims:
     session: str
     kind: TokenKind
     user: str
@@ -38,7 +38,7 @@ class TunnelClaims:
 
 @dataclass(frozen=True)
 class Launch:
-    claims: TunnelClaims
+    claims: SessionClaims
     grant: str
     destination: str | None
 
@@ -52,7 +52,9 @@ class TokenCheckUnavailableError(Exception):
 
 
 class TokenVerifier(Protocol):
-    async def verify(self, token: str, kind: TokenKind, session: str | None = None) -> TunnelClaims:
+    async def verify(
+        self, token: str, kind: TokenKind, session: str | None = None
+    ) -> SessionClaims:
         """Return the claims of a token that fits, or raise TokenRejectedError.
 
         `session` is None when the session is taken from the token itself, as when an
@@ -69,7 +71,7 @@ class TokenVerifier(Protocol):
         """
         ...
 
-    async def check_grant(self, grant: str, session: str) -> TunnelClaims:
+    async def check_grant(self, grant: str, session: str) -> SessionClaims:
         """Return the claims of an active grant of the session; raises as `verify` does."""
         ...
 
@@ -81,7 +83,7 @@ class TokenVerifier(Protocol):
 
 @dataclass(frozen=True)
 class _Verdict:
-    claims: TunnelClaims | None
+    claims: SessionClaims | None
     fresh_until: float
 
     def usable(self, now: float) -> bool:
@@ -123,11 +125,13 @@ class LumlTokenVerifier:
     def problem(self) -> str | None:
         return "LUML refuses the relay token" if self._relay_token_refused else None
 
-    async def verify(self, token: str, kind: TokenKind, session: str | None = None) -> TunnelClaims:
+    async def verify(
+        self, token: str, kind: TokenKind, session: str | None = None
+    ) -> SessionClaims:
         claims = await self._cached(_token_key(token), lambda: self._ask_about_token(token))
         return self._fitting(claims, kind, session)
 
-    async def check_grant(self, grant: str, session: str) -> TunnelClaims:
+    async def check_grant(self, grant: str, session: str) -> SessionClaims:
         claims = await self._cached(_GRANT_KEY_PREFIX + grant, lambda: self._ask_about_grant(grant))
         return self._fitting(claims, TokenKind.VIEW, session)
 
@@ -146,8 +150,8 @@ class LumlTokenVerifier:
         return Launch(claims, answer.grant, answer.destination)
 
     def _fitting(
-        self, claims: TunnelClaims | None, kind: TokenKind, session: str | None
-    ) -> TunnelClaims:
+        self, claims: SessionClaims | None, kind: TokenKind, session: str | None
+    ) -> SessionClaims:
         if claims is None or claims.expires_at.timestamp() <= self._clock():
             raise TokenRejectedError("LUML does not accept the token")
         if claims.kind != kind:
@@ -156,19 +160,19 @@ class LumlTokenVerifier:
             raise TokenRejectedError("token is for another session")
         return claims
 
-    async def _ask_about_token(self, token: str) -> TunnelClaims | None:
+    async def _ask_about_token(self, token: str) -> SessionClaims | None:
         answer = await self._api.validate(token)
         return None if answer is None else _claims_of(answer)
 
-    async def _ask_about_grant(self, grant: str) -> TunnelClaims | None:
+    async def _ask_about_grant(self, grant: str) -> SessionClaims | None:
         answer = await self._api.check_grant(grant)
         if answer is None:
             return None
-        return TunnelClaims(answer.session, TokenKind.VIEW, answer.user, answer.expires_at)
+        return SessionClaims(answer.session, TokenKind.VIEW, answer.user, answer.expires_at)
 
     async def _cached(
-        self, key: str, ask: Callable[[], Awaitable[TunnelClaims | None]]
-    ) -> TunnelClaims | None:
+        self, key: str, ask: Callable[[], Awaitable[SessionClaims | None]]
+    ) -> SessionClaims | None:
         now = self._clock()
         self._forget_unusable(now)
         cached = self._verdicts.get(key)
@@ -213,13 +217,13 @@ def _token_key(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _claims_of(answer: ActiveToken) -> TunnelClaims | None:
+def _claims_of(answer: ActiveToken) -> SessionClaims | None:
     if answer.kind not in tuple(TokenKind):
         return None
-    return TunnelClaims(answer.session, TokenKind(answer.kind), answer.user, answer.expires_at)
+    return SessionClaims(answer.session, TokenKind(answer.kind), answer.user, answer.expires_at)
 
 
-def _stale_claims(cached: _Verdict | None, now: float) -> TunnelClaims:
+def _stale_claims(cached: _Verdict | None, now: float) -> SessionClaims:
     # A refusal past its window is not reused: it has no expiry of its own to bound it.
     if cached is None or cached.claims is None or not cached.usable(now):
         raise TokenCheckUnavailableError("LUML cannot be asked about the token")

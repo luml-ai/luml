@@ -1,11 +1,11 @@
 import pytest
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
-from luml_tunnel.agent import Agent
-from luml_tunnel.frames import MAX_MESSAGE_BYTES, RelayLimits
-from luml_tunnel.headers import TOKEN_HEADER, USER_HEADER
-from luml_tunnel.relay import Relay
-from luml_tunnel.tokens import TokenKind
+from luml_relay.agent import Agent
+from luml_relay.frames import MAX_MESSAGE_BYTES, RelayLimits
+from luml_relay.headers import TOKEN_HEADER, USER_HEADER
+from luml_relay.relay import Relay
+from luml_relay.tokens import TokenKind
 from tests.conftest import WINDOW
 from tests.harness import (
     SESSION,
@@ -161,7 +161,7 @@ async def test_websocket_to_a_relay_path_is_not_forwarded(
     connected: Agent, relay_port: int, view_token: str, echo: EchoService
 ) -> None:
     with pytest.raises(InvalidStatus) as refused:
-        await viewer_websocket(relay_port, view_token, "/.luml-tunnel/launch")
+        await viewer_websocket(relay_port, view_token, "/.luml-relay/launch")
 
     assert refused.value.response.status_code == 404
     assert echo.websocket_requests == []

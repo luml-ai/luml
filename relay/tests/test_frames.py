@@ -3,7 +3,7 @@ import struct
 
 import pytest
 
-from luml_tunnel.frames import (
+from luml_relay.frames import (
     Data,
     End,
     Frame,

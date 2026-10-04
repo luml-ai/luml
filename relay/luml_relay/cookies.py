@@ -11,7 +11,7 @@ from typing import Any
 
 # `__Host-` makes browsers refuse the cookie unless it is Secure, host-only and on `/`,
 # so a page on another session's hostname cannot plant it.
-COOKIE_NAME = "__Host-luml-tunnel"
+COOKIE_NAME = "__Host-luml-relay"
 IDLE_LIFETIME_SECONDS = 30 * 60
 MAX_LIFETIME_SECONDS = 12 * 60 * 60
 

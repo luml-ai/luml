@@ -15,9 +15,9 @@ from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, R
 from starlette.types import Message, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from luml_tunnel.agent import ReconnectPolicy
-from luml_tunnel.cookies import COOKIE_NAME, ViewerCookie, ViewerCookies
-from luml_tunnel.frames import (
+from luml_relay.agent import ReconnectPolicy
+from luml_relay.cookies import COOKIE_NAME, ViewerCookie, ViewerCookies
+from luml_relay.frames import (
     REPLACED_CLOSE_CODE,
     SUBPROTOCOL,
     TOKEN_EXPIRED_CLOSE_CODE,
@@ -27,7 +27,7 @@ from luml_tunnel.frames import (
     RelayLimits,
     ResponseHead,
 )
-from luml_tunnel.headers import (
+from luml_relay.headers import (
     TOKEN_HEADER,
     USER_HEADER,
     cookie_value,
@@ -38,8 +38,8 @@ from luml_tunnel.headers import (
     without_cookie,
     without_hop_by_hop,
 )
-from luml_tunnel.pages import access_needed_page, not_connected_page
-from luml_tunnel.protocol import (
+from luml_relay.pages import access_needed_page, not_connected_page
+from luml_relay.protocol import (
     MAX_RENEWALS_PER_MINUTE,
     PeerClosed,
     RelayConnection,
@@ -48,33 +48,33 @@ from luml_tunnel.protocol import (
     TooManyStreamsError,
     pass_messages,
 )
-from luml_tunnel.relay_api import (
+from luml_relay.relay_api import (
     REPORT_INTERVAL_SECONDS,
     LumlUnavailableError,
     RelayApi,
     RelayDescription,
     RelayTokenRefusedError,
 )
-from luml_tunnel.routing import (
+from luml_relay.routing import (
     MAX_AGENTS,
     AgentRegistry,
     HostnameSessionResolver,
     InMemoryAgentRegistry,
     SessionResolver,
 )
-from luml_tunnel.tokens import (
+from luml_relay.tokens import (
+    SessionClaims,
     TokenCheckUnavailableError,
     TokenKind,
     TokenRejectedError,
     TokenVerifier,
-    TunnelClaims,
 )
 
 logger = logging.getLogger(__name__)
 
 CONNECT_PATH = "/connect"
 HEALTH_PATH = "/health"
-RELAY_PATH_PREFIX = "/.luml-tunnel/"
+RELAY_PATH_PREFIX = "/.luml-relay/"
 LAUNCH_PATH = RELAY_PATH_PREFIX + "launch"
 LAUNCH_TOKEN_PARAMETER = "token"
 
@@ -216,7 +216,7 @@ class Relay:
             watching_expiry.cancel()
             self.agents.unregister(claims.session, connection)
 
-    async def _close_on_expiry(self, connection: RelayConnection, claims: TunnelClaims) -> None:
+    async def _close_on_expiry(self, connection: RelayConnection, claims: SessionClaims) -> None:
         """Close the connection when its token expires, unless the agent renews it first.
 
         Renewals beyond the rate are dropped unchecked, so an agent cannot make the relay

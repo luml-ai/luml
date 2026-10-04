@@ -43,8 +43,8 @@ EXPOSE_RESPONSE: dict[str, Any] = {
     "flow": _flow_record(),
     "session": {
         "id": SESSION_ID,
-        "public_url": f"https://{SESSION_ID}.tunnel.example",
-        "agent_url": "wss://tunnel.example/.luml-tunnel/agent",
+        "public_url": f"https://{SESSION_ID}.sessions.example",
+        "agent_url": "wss://sessions.example/.luml-relay/agent",
         "expose_token": "expose-token",
         "token_expires_at": "2026-09-29T12:10:00Z",
         "heartbeat_interval": 30,

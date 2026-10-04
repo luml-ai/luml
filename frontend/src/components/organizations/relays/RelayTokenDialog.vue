@@ -57,7 +57,7 @@ import { Copy } from 'lucide-vue-next'
 import { simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { computed } from 'vue'
 
-const RELAY_IMAGE = 'ghcr.io/luml-ai/luml-tunnel-relay:latest'
+const RELAY_IMAGE = 'ghcr.io/luml-ai/luml-relay:latest'
 const RELAY_PORT = 8080
 
 type Props = {
@@ -91,14 +91,14 @@ const maskedToken = computed(() => {
 })
 
 function environmentFor(token: string) {
-  return `LUML_BASE_URL=${lumlBaseUrl}\nLUML_TUNNEL_RELAY_TOKEN=${token}`
+  return `LUML_BASE_URL=${lumlBaseUrl}\nLUML_RELAY_TOKEN=${token}`
 }
 
 function commandFor(token: string) {
   return (
     `docker run -d -p ${RELAY_PORT}:${RELAY_PORT} \\\n` +
     `  -e LUML_BASE_URL=${lumlBaseUrl} \\\n` +
-    `  -e LUML_TUNNEL_RELAY_TOKEN=${token} \\\n` +
+    `  -e LUML_RELAY_TOKEN=${token} \\\n` +
     `  ${RELAY_IMAGE}`
   )
 }

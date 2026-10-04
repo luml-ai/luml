@@ -11,7 +11,7 @@ from luml_api import APIStatusError, AsyncLumlClient, LumlAPIError
 from luml_api._exceptions import ResourceNotFoundError
 from luml_api._types import LiveSessionStart, LiveSessionStatus
 
-from luml_tunnel.agent import Agent, LocalService, ReconnectPolicy
+from luml_relay.agent import Agent, LocalService, ReconnectPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,7 @@ async def _send_heartbeats(
     """Report the connection to LUML until LUML reports the session as ended.
 
     A heartbeat that LUML does not answer is sent again at the next interval; the
-    tunnel stays open meanwhile. The first heartbeat goes out once the agent connects.
+    connection stays open meanwhile. The first heartbeat goes out once the agent connects.
     """
     interval = started.heartbeat_interval
     with contextlib.suppress(TimeoutError):

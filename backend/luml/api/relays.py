@@ -6,10 +6,10 @@ from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.relay import (
     RelayDescription,
     RelayReportIn,
-    TunnelGrantCheckIn,
-    TunnelGrantVerdict,
-    TunnelTokenValidateIn,
-    TunnelTokenVerdict,
+    SessionTokenValidateIn,
+    SessionTokenVerdict,
+    ViewerGrantCheckIn,
+    ViewerGrantVerdict,
 )
 
 relay_worker_router = APIRouter(
@@ -31,22 +31,22 @@ async def describe_relay(request: Request) -> RelayDescription:
 @relay_worker_router.post(
     "/tokens/validate",
     responses=endpoint_responses,
-    response_model=TunnelTokenVerdict,
+    response_model=SessionTokenVerdict,
 )
-async def validate_tunnel_token(
-    request: Request, data: TunnelTokenValidateIn
-) -> TunnelTokenVerdict:
+async def validate_session_token(
+    request: Request, data: SessionTokenValidateIn
+) -> SessionTokenVerdict:
     return await relay_worker_handler.validate_token(request.user.id, data)
 
 
 @relay_worker_router.post(
     "/grants/check",
     responses=endpoint_responses,
-    response_model=TunnelGrantVerdict,
+    response_model=ViewerGrantVerdict,
 )
-async def check_tunnel_grant(
-    request: Request, data: TunnelGrantCheckIn
-) -> TunnelGrantVerdict:
+async def check_viewer_grant(
+    request: Request, data: ViewerGrantCheckIn
+) -> ViewerGrantVerdict:
     return await relay_worker_handler.check_grant(request.user.id, data.grant_id)
 
 

@@ -176,7 +176,7 @@ async def test_managed_relay_is_created_without_owner_and_usable_by_all(
 
     managed = await _create_relay(data.engine, "eu.luml.example", "managed", label="eu")
     own = await _create_relay(
-        data.engine, "tunnel.example", "own", organization_id=data.organization.id
+        data.engine, "sessions.example", "own", organization_id=data.organization.id
     )
 
     assert managed.organization_id is None
@@ -220,7 +220,7 @@ async def test_base_domain_is_unique_across_relays_in_lower_case(
     data = seeded_organization
     repo = RelayRepository(data.engine)
     await _create_relay(
-        data.engine, "tunnel.example", "first", organization_id=data.organization.id
+        data.engine, "sessions.example", "first", organization_id=data.organization.id
     )
 
     with pytest.raises(DatabaseConstraintError):
@@ -228,7 +228,7 @@ async def test_base_domain_is_unique_across_relays_in_lower_case(
             RelayCreate(
                 **RelayCreateIn(
                     label="shadow",
-                    base_domain="Tunnel.Example",
+                    base_domain="Sessions.Example",
                     agent_url="ws://shadow.example/connect",
                 ).model_dump(),
                 token_hash=TOKEN_HASHER.hash_token("second"),
@@ -246,7 +246,7 @@ async def test_changing_base_domain_to_a_taken_one_is_refused(
     repo = RelayRepository(data.engine)
     await _create_relay(data.engine, "eu.luml.example", "managed")
     own = await _create_relay(
-        data.engine, "tunnel.example", "own", organization_id=data.organization.id
+        data.engine, "sessions.example", "own", organization_id=data.organization.id
     )
 
     with pytest.raises(DatabaseConstraintError):
@@ -254,7 +254,7 @@ async def test_changing_base_domain_to_a_taken_one_is_refused(
 
     unchanged = await repo.get_relay(own.id)
     assert unchanged is not None
-    assert unchanged.base_domain == "tunnel.example"
+    assert unchanged.base_domain == "sessions.example"
 
 
 @pytest.mark.asyncio
@@ -264,7 +264,7 @@ async def test_rotation_keeps_the_previous_token_for_the_overlap(
     data = seeded_organization
     repo = RelayRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "first", organization_id=data.organization.id
+        data.engine, "sessions.example", "first", organization_id=data.organization.id
     )
 
     await repo.rotate_token(
@@ -284,7 +284,7 @@ async def test_previous_token_is_refused_once_the_overlap_has_passed(
     data = seeded_organization
     repo = RelayRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "first", organization_id=data.organization.id
+        data.engine, "sessions.example", "first", organization_id=data.organization.id
     )
 
     await repo.rotate_token(
@@ -304,7 +304,7 @@ async def test_second_rotation_within_the_overlap_retires_the_first_token(
     data = seeded_organization
     repo = RelayRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "first", organization_id=data.organization.id
+        data.engine, "sessions.example", "first", organization_id=data.organization.id
     )
     overlap_end = datetime.now(UTC) + timedelta(minutes=10)
 
@@ -323,7 +323,7 @@ async def test_report_records_liveness_connected_agents_and_capabilities(
     data = seeded_organization
     repo = RelayRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "first", organization_id=data.organization.id
+        data.engine, "sessions.example", "first", organization_id=data.organization.id
     )
 
     capabilities = {
@@ -349,7 +349,7 @@ async def test_relay_is_removed(
     data = seeded_organization
     repo = RelayRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "first", organization_id=data.organization.id
+        data.engine, "sessions.example", "first", organization_id=data.organization.id
     )
 
     assert await repo.delete_relay(relay.id) is True
@@ -367,7 +367,7 @@ async def test_own_relays_are_deleted_with_the_organization(
         data.user.id, OrganizationCreateIn(name="short-lived org")
     )
     own = await _create_relay(
-        data.engine, "tunnel.example", "own", organization_id=organization.id
+        data.engine, "sessions.example", "own", organization_id=organization.id
     )
     managed = await _create_relay(data.engine, "eu.luml.example", "managed")
 
@@ -396,7 +396,7 @@ async def test_owners_and_admins_manage_own_relays(
         organization_id,
         RelayCreateIn(
             label="lab",
-            base_domain="tunnel.example",
+            base_domain="sessions.example",
             agent_url="wss://relay.example/connect",
         ),
     )
@@ -425,7 +425,7 @@ async def test_members_may_list_and_read_relays_but_not_change_them(
     organization_id = data.organization.id
     member_id = await _add_user(data, new_user, OrgRole.MEMBER)
     own = await _create_relay(
-        data.engine, "tunnel.example", "own", organization_id=organization_id
+        data.engine, "sessions.example", "own", organization_id=organization_id
     )
     managed = await _create_relay(data.engine, "eu.luml.example", "managed")
 
@@ -487,7 +487,7 @@ async def test_handler_refuses_a_taken_base_domain_with_a_conflict(
     relay_handler: RelayHandler,
 ) -> None:
     data = seeded_organization
-    await _create_relay(data.engine, "tunnel.example", "first")
+    await _create_relay(data.engine, "sessions.example", "first")
 
     with pytest.raises(ApplicationError) as refusal:
         await relay_handler.create_relay(
@@ -495,7 +495,7 @@ async def test_handler_refuses_a_taken_base_domain_with_a_conflict(
             data.organization.id,
             RelayCreateIn(
                 label="lab",
-                base_domain="Tunnel.Example",
+                base_domain="Sessions.Example",
                 agent_url="wss://relay.example/connect",
             ),
         )
@@ -514,7 +514,7 @@ async def test_removing_a_relay_with_unended_sessions_is_refused(
     repo = RelayRepository(data.engine)
     sessions = LiveSessionRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "lab", organization_id=data.organization.id
+        data.engine, "sessions.example", "lab", organization_id=data.organization.id
     )
     orbit = await _create_orbit(data, relay)
     live = await _start_session(data, orbit, relay)
@@ -550,7 +550,7 @@ async def test_removing_a_relay_keeps_its_ended_sessions(
     data = seeded_organization
     sessions = LiveSessionRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "lab", organization_id=data.organization.id
+        data.engine, "sessions.example", "lab", organization_id=data.organization.id
     )
     orbit = await _create_orbit(data, relay)
     ended = await _start_session(data, orbit, relay)
@@ -595,7 +595,7 @@ async def test_changing_the_address_of_a_relay_with_unended_sessions_is_refused(
     data = seeded_organization
     repo = RelayRepository(data.engine)
     relay = await _create_relay(
-        data.engine, "tunnel.example", "lab", organization_id=data.organization.id
+        data.engine, "sessions.example", "lab", organization_id=data.organization.id
     )
     orbit = await _create_orbit(data, relay)
     disconnected = await _start_session(data, orbit, relay)

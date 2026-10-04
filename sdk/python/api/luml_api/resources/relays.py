@@ -57,7 +57,7 @@ class RelayResource:
         Args:
             label: Name shown for the relay.
             base_domain: Bare hostname sessions get subdomains of,
-                e.g. `tunnel.example.com`.
+                e.g. `sessions.example.com`.
             agent_url: The `ws://` or `wss://` address agents connect to.
 
         Returns:

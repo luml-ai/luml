@@ -70,8 +70,8 @@ function relay(overrides: Partial<Relay> = {}): Relay {
     id: 'relay-own',
     organization_id: 'org-1',
     label: 'lab',
-    base_domain: 'tunnel.lab.example',
-    agent_url: 'wss://tunnel.lab.example',
+    base_domain: 'sessions.lab.example',
+    agent_url: 'wss://sessions.lab.example',
     status: RelayStatusEnum.enabled,
     kind: RelayKindEnum.own,
     online: false,
@@ -173,21 +173,21 @@ describe('OrganizationRelays', () => {
       .find((button) => button.text() === 'New relay')
       ?.trigger('click')
     await wrapper.find('#relayCreateForm-label').setValue('new')
-    await wrapper.find('#relayCreateForm-base-domain').setValue('tunnel.new.example')
-    await wrapper.find('#relayCreateForm-agent-url').setValue('wss://tunnel.new.example')
+    await wrapper.find('#relayCreateForm-base-domain').setValue('sessions.new.example')
+    await wrapper.find('#relayCreateForm-agent-url').setValue('wss://sessions.new.example')
     await wrapper.find('form#relayCreateForm').trigger('submit')
     await flushPromises()
 
     expect(relaysApi.createRelay).toHaveBeenCalledWith('org-1', {
       label: 'new',
-      base_domain: 'tunnel.new.example',
-      agent_url: 'wss://tunnel.new.example',
+      base_domain: 'sessions.new.example',
+      agent_url: 'wss://sessions.new.example',
     })
     expect(rows(wrapper)).toHaveLength(3)
     const tokenDialog = wrapper.findComponent(RelayTokenDialog)
     expect(tokenDialog.exists()).toBe(true)
     expect(tokenDialog.text()).toContain('dfsrelay_')
-    expect(tokenDialog.text()).toContain('LUML_TUNNEL_RELAY_TOKEN=')
+    expect(tokenDialog.text()).toContain('LUML_RELAY_TOKEN=')
 
     tokenDialog.vm.$emit('close')
     await flushPromises()
@@ -247,17 +247,17 @@ describe('OrganizationRelays', () => {
     const wrapper = await mountTab()
 
     await wrapper.find('[aria-label="Relay settings"]').trigger('click')
-    await wrapper.find('#relaySettingsForm-base-domain').setValue('tunnel.other.example')
+    await wrapper.find('#relaySettingsForm-base-domain').setValue('sessions.other.example')
     await wrapper.find('form#relaySettingsForm').trigger('submit')
     await flushPromises()
 
     expect(relaysApi.updateRelay).toHaveBeenLastCalledWith('org-1', 'relay-own', {
-      base_domain: 'tunnel.other.example',
+      base_domain: 'sessions.other.example',
     })
     expect(lastToast().detail).toContain('1 unended session')
     expect(wrapper.find('.right-dialog').exists()).toBe(true)
 
-    await wrapper.find('#relaySettingsForm-base-domain').setValue('tunnel.lab.example')
+    await wrapper.find('#relaySettingsForm-base-domain').setValue('sessions.lab.example')
     await wrapper.find('#relaySettingsForm-label').setValue('lab-2')
     await wrapper.find('form#relaySettingsForm').trigger('submit')
     await flushPromises()
@@ -324,7 +324,7 @@ describe('RelayTokenDialog', () => {
 
     expect(wrapper.find('input').element.value).toMatch(/^dfsrelay_a\*+TAIL01$/)
     expect(wrapper.text()).toContain(`LUML_BASE_URL=${import.meta.env.VITE_API_URL}`)
-    expect(wrapper.text()).toContain('ghcr.io/luml-ai/luml-tunnel-relay')
+    expect(wrapper.text()).toContain('ghcr.io/luml-ai/luml-relay')
     expect(wrapper.text()).toContain('-p 8080:8080')
     expect(wrapper.text()).toContain('wildcard DNS record')
     expect(wrapper.text()).not.toContain(token)
@@ -339,7 +339,7 @@ describe('RelayTokenDialog', () => {
 
     const writeText = vi.mocked(navigator.clipboard.writeText)
     expect(writeText).toHaveBeenNthCalledWith(1, token)
-    expect(writeText.mock.calls[1]?.[0]).toContain(`LUML_TUNNEL_RELAY_TOKEN=${token}`)
+    expect(writeText.mock.calls[1]?.[0]).toContain(`LUML_RELAY_TOKEN=${token}`)
     expect(writeText.mock.calls[1]?.[0]).toContain('docker run')
   })
 })

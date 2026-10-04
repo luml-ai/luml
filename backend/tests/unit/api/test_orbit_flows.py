@@ -47,8 +47,8 @@ def test_expose_route(mock_authenticate: AsyncMock, mock_expose: AsyncMock) -> N
         flow=FLOW,
         session=LiveSessionStartOut(
             id="k3f9x2ab",
-            public_url="https://k3f9x2ab.tunnel.example",
-            agent_url="wss://tunnel.example/connect",
+            public_url="https://k3f9x2ab.sessions.example",
+            agent_url="wss://sessions.example/connect",
             expose_token="token",
             token_expires_at=datetime(2026, 9, 29, tzinfo=UTC),
         ),
@@ -66,7 +66,7 @@ def test_expose_route(mock_authenticate: AsyncMock, mock_expose: AsyncMock) -> N
         "started_at": "2026-09-29T00:00:00Z",
         "last_heartbeat_at": "2026-09-29T00:00:30Z",
     }
-    assert body["session"]["public_url"] == "https://k3f9x2ab.tunnel.example"
+    assert body["session"]["public_url"] == "https://k3f9x2ab.sessions.example"
     assert "app_url" not in body["session"]
     assert body["app_url"] == f"{app_url}/flow"
     assert mock_expose.await_args is not None

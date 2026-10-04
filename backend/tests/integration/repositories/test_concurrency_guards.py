@@ -559,8 +559,8 @@ class TestConcurrencyGuards:
         relay = await RelayRepository(engine).create_relay(
             RelayCreate(
                 label="lab",
-                base_domain="tunnel.example",
-                agent_url="wss://tunnel.example/connect",
+                base_domain="sessions.example",
+                agent_url="wss://sessions.example/connect",
                 organization_id=seeded_orbit.organization.id,
                 token_hash="lab",
             )

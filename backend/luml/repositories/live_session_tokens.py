@@ -13,12 +13,12 @@ from luml.schemas.live_session import (
     LiveSession,
     LiveSessionToken,
     LiveSessionTokenCreate,
-    TunnelTokenKind,
+    SessionTokenKind,
 )
 from luml.settings import config
 
 
-def hash_tunnel_token(token: str) -> str:
+def hash_session_token(token: str) -> str:
     return hmac.new(
         config.AUTH_SECRET_KEY.encode(), token.encode(), hashlib.sha256
     ).hexdigest()
@@ -40,7 +40,7 @@ class LiveSessionTokenRepository(RepositoryBase):
             await _delete_expired_tokens(session)
             session.add(
                 LiveSessionTokenOrm(
-                    token_hash=hash_tunnel_token(token), **data.model_dump()
+                    token_hash=hash_session_token(token), **data.model_dump()
                 )
             )
             await session.commit()
@@ -50,7 +50,7 @@ class LiveSessionTokenRepository(RepositoryBase):
         self, token: str
     ) -> tuple[LiveSessionToken, LiveSession] | None:
         return await self._get_with_session(
-            LiveSessionTokenOrm.token_hash == hash_tunnel_token(token)
+            LiveSessionTokenOrm.token_hash == hash_session_token(token)
         )
 
     async def get_grant_with_session(
@@ -90,7 +90,7 @@ class LiveSessionTokenRepository(RepositoryBase):
                 update(LiveSessionTokenOrm)
                 .where(
                     LiveSessionTokenOrm.id == token_id,
-                    LiveSessionTokenOrm.kind == TunnelTokenKind.VIEW,
+                    LiveSessionTokenOrm.kind == SessionTokenKind.VIEW,
                     LiveSessionTokenOrm.launched_at.is_(None),
                     LiveSessionTokenOrm.expires_at > now,
                 )

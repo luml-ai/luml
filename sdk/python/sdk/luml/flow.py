@@ -18,8 +18,8 @@ try:
     import httpx
     from luml_api import APIStatusError, AsyncLumlClient, LumlClient, NotFoundError
     from luml_api._types import LiveSessionStart
-    from luml_tunnel.agent import LoopbackService
-    from luml_tunnel.luml import serve_session
+    from luml_relay.agent import LoopbackService
+    from luml_relay.luml import serve_session
 except ModuleNotFoundError as error:
     raise ImportError(
         f"{error.name} is missing; install luml_sdk[flow] to use luml.flow"
@@ -168,7 +168,7 @@ class RelayedFlow:
 
 
 class _BackgroundServing:
-    """Serves a session with the tunnel on a thread with its own event loop."""
+    """Serves a session with the relay package on a thread with its own event loop."""
 
     def __init__(self) -> None:
         self._loop = asyncio.new_event_loop()

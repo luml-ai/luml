@@ -14,11 +14,11 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from luml_tunnel.agent import AgentRefusedError, LoopbackService
-from luml_tunnel.cli import main
-from luml_tunnel.luml import LumlSessionError, LumlTokens, expose_through_luml, serve_session
-from luml_tunnel.relay import Relay
-from luml_tunnel.tokens import TokenKind
+from luml_relay.agent import AgentRefusedError, LoopbackService
+from luml_relay.cli import main
+from luml_relay.luml import LumlSessionError, LumlTokens, expose_through_luml, serve_session
+from luml_relay.relay import Relay
+from luml_relay.tokens import TokenKind
 from tests.harness import (
     FAST_RECONNECT,
     OTHER_RELAY_ID,
@@ -38,7 +38,7 @@ from tests.harness import (
 API_KEY = "luml_test_key"
 ORGANIZATION_ID = "0199c455-21ec-7c74-8efe-41470e29bae5"
 ORBIT_ID = "0199c455-21ed-7aba-9fe5-5231611220de"
-PUBLIC_URL = f"http://{SESSION}.tunnel.example"
+PUBLIC_URL = f"http://{SESSION}.sessions.example"
 CREATED_AT = "2026-09-29T10:00:00Z"
 
 
@@ -304,7 +304,7 @@ async def test_heartbeats_report_a_dropped_connection_until_the_agent_reconnects
         assert not running.task.done()
 
 
-async def test_tunnel_stays_open_while_luml_does_not_answer_heartbeats(
+async def test_connection_stays_open_while_luml_does_not_answer_heartbeats(
     fake_luml: FakeLuml,
     luml_port: int,
     relay_port: int,
@@ -312,7 +312,7 @@ async def test_tunnel_stays_open_while_luml_does_not_answer_heartbeats(
     view_token: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    caplog.set_level(logging.WARNING, logger="luml_tunnel.luml")
+    caplog.set_level(logging.WARNING, logger="luml_relay.luml")
     async with exposing(service_port) as running:
         await until(lambda: fake_luml.last_connected is True)
         fake_luml.unanswered_heartbeats = 2
@@ -325,7 +325,7 @@ async def test_tunnel_stays_open_while_luml_does_not_answer_heartbeats(
         assert not running.task.done()
 
 
-async def test_tunnel_stays_open_while_luml_cannot_be_reached(
+async def test_connection_stays_open_while_luml_cannot_be_reached(
     fake_luml: FakeLuml,
     relay: Relay,
     relay_port: int,
@@ -334,7 +334,7 @@ async def test_tunnel_stays_open_while_luml_cannot_be_reached(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    caplog.set_level(logging.WARNING, logger="luml_tunnel.luml")
+    caplog.set_level(logging.WARNING, logger="luml_relay.luml")
     luml_socket = bound_socket()
     luml_port = port_of(luml_socket)
     monkeypatch.setenv("LUML_BASE_URL", f"http://127.0.0.1:{luml_port}")
@@ -501,7 +501,7 @@ async def test_command_ends_the_session_on_a_signal(
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
-        "luml_tunnel.cli",
+        "luml_relay.cli",
         "expose",
         str(service_port),
         "--label",

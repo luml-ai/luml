@@ -1,7 +1,7 @@
 import re
 from typing import Protocol
 
-from luml_tunnel.protocol import RelayConnection
+from luml_relay.protocol import RelayConnection
 
 MAX_AGENTS = 1000
 
