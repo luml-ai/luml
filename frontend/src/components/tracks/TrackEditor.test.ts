@@ -166,6 +166,63 @@ describe('TrackEditor stages', () => {
     expect(store.tracksList[0].stages).toEqual(stages)
   })
 
+  it('allows Backspace to remove unused stages and retains linked stages when saving', async () => {
+    const { wrapper } = mountPanel()
+    await openPanel(wrapper)
+    const input = wrapper.get('input[role="combobox"]')
+    await input.trigger('keydown', { key: 'Backspace', code: 'Backspace' })
+    expect(wrapper.findAll('[data-pc-name="chip"]').map((chip) => chip.text())).toEqual(['Review'])
+    await input.trigger('keydown', { key: 'Backspace', code: 'Backspace' })
+    await input.trigger('keydown', { key: 'Backspace', code: 'Backspace' })
+    expect(wrapper.findAll('[data-pc-name="chip"]').map((chip) => chip.text())).toEqual(['Review'])
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.updateTrack).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1', {
+      name: 'Release track',
+      description: '',
+      stages: [{ id: 'stage-1', name: 'Review' }],
+    })
+  })
+
+  it('protects linked stages selected with arrow keys while allowing unused stages to be removed', async () => {
+    const { wrapper } = mountPanel()
+    await openPanel(wrapper)
+    const input = wrapper.get('input[role="combobox"]')
+    await input.trigger('focus')
+    await input.trigger('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' })
+    const listbox = wrapper.get('ul[role="listbox"][aria-orientation="horizontal"]')
+    await listbox.trigger('keydown', { key: 'ArrowLeft', code: 'ArrowLeft' })
+    await listbox.trigger('keydown', { key: 'Backspace', code: 'Backspace' })
+    expect(wrapper.findAll('[data-pc-name="chip"]').map((chip) => chip.text())).toEqual([
+      'Review',
+      'Staging',
+    ])
+
+    await listbox.trigger('keydown', { key: 'ArrowRight', code: 'ArrowRight' })
+    await listbox.trigger('keydown', { key: 'Backspace', code: 'Backspace' })
+    expect(wrapper.findAll('[data-pc-name="chip"]').map((chip) => chip.text())).toEqual(['Review'])
+  })
+
+  it('allows Backspace to edit stage input text when the last selected stage is linked', async () => {
+    const { wrapper } = mountPanel()
+    await openPanel(wrapper)
+    await wrapper.findAll('.remove-icon')[1].trigger('click')
+    const input = wrapper.get('input[role="combobox"]')
+    await input.setValue('Canary')
+    const event = new KeyboardEvent('keydown', {
+      key: 'Backspace',
+      code: 'Backspace',
+      bubbles: true,
+      cancelable: true,
+    })
+    input.element.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(wrapper.findAll('[data-pc-name="chip"]').map((chip) => chip.text())).toEqual(['Review'])
+  })
+
   it.each([{ names: [] }, { names: [''] }, { names: ['s'.repeat(101)] }])(
     'rejects invalid stages $names',
     async ({ names }) => {
