@@ -96,6 +96,16 @@ class BucketSecretInUseError(ApplicationError):
         super().__init__(message, status.HTTP_409_CONFLICT)
 
 
+class OrbitSecretInUseError(ApplicationError):
+    def __init__(self, deployment_names: list[str]) -> None:
+        self.deployment_names = deployment_names
+        super().__init__(
+            "Cannot delete secret that is used by deployments: "
+            + ", ".join(deployment_names),
+            status.HTTP_409_CONFLICT,
+        )
+
+
 class UserAPIKeyCreateError(ApplicationError):
     def __init__(self, message: str = "Error creating api key for user") -> None:
         super().__init__(message, status.HTTP_409_CONFLICT)

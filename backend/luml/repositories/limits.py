@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, SQLColumnExpression, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from luml.infra.exceptions import NotFoundError, OrganizationLimitReachedError
@@ -29,8 +29,6 @@ class OrganizationResource(StrEnum):
     OWN_RELAY_SESSIONS = "own_relay_sessions"
 
 
-ORGANIZATION_MEMBERSHIP_LIMIT = 5
-
 MEMBERSHIP_LIMIT_MESSAGE = (
     "You’ve reached the limit of organizations you can join or create"
 )
@@ -52,7 +50,9 @@ _LIMIT_MESSAGES = {
 
 
 def _relay_sessions_usage_query(
-    organization_id: UUID, managed: bool, excluded_session_id: str | None
+    organization_id: UUID | SQLColumnExpression[UUID],
+    managed: bool,
+    excluded_session_id: str | None,
 ) -> Select[tuple[int]]:
     relay_owner = RelayOrm.organization_id
     query = (
@@ -70,9 +70,9 @@ def _relay_sessions_usage_query(
     return query
 
 
-def _usage_query(
+def organization_usage_query(
     resource: OrganizationResource,
-    organization_id: UUID,
+    organization_id: UUID | SQLColumnExpression[UUID],
     excluded_session_id: str | None = None,
 ) -> Select[tuple[int]]:
     if resource is OrganizationResource.ARTIFACTS:
@@ -124,20 +124,24 @@ async def reserve_organization_slot(
     limit = await session.scalar(query.with_for_update() if lock else query)
     if limit is None:
         raise NotFoundError("Organization not found")
-    usage = _usage_query(resource, organization_id, excluded_session_id)
+    usage = organization_usage_query(resource, organization_id, excluded_session_id)
     used = await session.scalar(usage) or 0
     if used >= limit:
         raise OrganizationLimitReachedError(_LIMIT_MESSAGES[resource])
 
 
 async def reserve_user_membership_slot(
-    session: AsyncSession, user_id: UUID, limit: int
+    session: AsyncSession, user_id: UUID, limit: int | None = None
 ) -> None:
-    locked = await session.scalar(
-        select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
+    user_limit = await session.scalar(
+        select(UserOrm.organizations_limit)
+        .where(UserOrm.id == user_id)
+        .with_for_update()
     )
-    if locked is None:
+    if user_limit is None:
         raise NotFoundError("User not found")
+    if limit is None:
+        limit = user_limit
     used = (
         await session.scalar(
             select(func.count(OrganizationMemberOrm.id)).where(

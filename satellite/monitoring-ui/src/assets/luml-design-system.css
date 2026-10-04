@@ -1,7 +1,7 @@
 /**
  * LUML Design System — colors & type tokens
  * Distilled from frontend/src/assets/theme/{light,dark}-theme.css in luml-ai/luml.
- * Source palette: PrimeVue-based system with Slate neutrals + blue brand (#2673fd).
+ * Source palette: PrimeVue with Slate light neutrals, Zinc dark neutrals and blue brand.
  */
 
 @import url('https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900&display=swap');
@@ -67,12 +67,28 @@
 
   /* ── TRACE SPAN ICONS ────────────────────────────────────── */
   /* One hue per span type, mirroring the Platform's trace viewer. */
-  --luml-span-icon-1: #64748b;  /* default */
-  --luml-span-icon-2: #0ea5e9;  /* chat */
-  --luml-span-icon-3: #f97316;  /* tool */
-  --luml-span-icon-4: #22c55e;  /* embedder */
-  --luml-span-icon-5: #a855f7;  /* reranker */
-  --luml-span-icon-6: #6366f1;  /* agent */
+  --luml-span-icon-1: #2673fd;  /* default */
+  --luml-span-icon-2: #dfa3f0;  /* chat */
+  --luml-span-icon-3: #ff7f0e;  /* tool */
+  --luml-span-icon-4: #2ca02c;  /* embedder */
+  --luml-span-icon-5: #ffbe49;  /* reranker */
+  --luml-span-icon-6: #17becf;  /* agent */
+
+  /* chart series match the platform palette */
+  --luml-chart-1: #2673fd;
+  --luml-chart-2: #dfa3f0;
+  --luml-chart-3: #ff7f0e;
+  --luml-chart-4: #2ca02c;
+  --luml-chart-5: #d62728;
+  --luml-chart-6: #9467bd;
+  --luml-chart-7: #17becf;
+  --luml-chart-8: #bcbd22;
+  --luml-chart-9: #7f7f7f;
+  --luml-chart-10: #e377c2;
+  --luml-chart-11: #ff5714;
+  --luml-chart-12: #7b68ee;
+  --luml-chart-13: #3ddc3d;
+  --luml-chart-14: #60888b;
 
   /* ── TYPE ────────────────────────────────────────────────── */
   --luml-font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -154,24 +170,54 @@
 }
 
 [data-theme='dark'] {
-  --luml-bg:            #0f172a;
-  --luml-bg-hover:      #1e293b;
-  --luml-bg-card:       #1e293b;
-  --luml-border:        #334155;
-  --luml-border-strong: #475569;
-
-  --luml-fg:            #e2e8f0;
-  --luml-fg-strong:     #f1f5f9;
-  --luml-fg-muted:      #94a3b8;
-  --luml-fg-faint:      #64748b;
-
-  --luml-brand-tint:        #172554;
-  --luml-brand-tint-strong: #1e3a8a;
-
-  --luml-success-tint-bg: #052e16;
-  --luml-info-tint-bg:    #082f49;
-  --luml-warn-tint-bg:    #431407;
-  --luml-danger-tint-bg:  #450a0a;
+  --luml-bg: #0a0a0a;
+  --luml-bg-hover: #18181b;
+  --luml-bg-card: #18181b;
+  --luml-border: #27272a;
+  --luml-border-strong: #52525b;
+  --luml-fg: #ffffff;
+  --luml-fg-strong: #ffffff;
+  --luml-fg-muted: #a1a1aa;
+  --luml-fg-faint: #71717a;
+  --luml-brand: #1d4ed8;
+  --luml-brand-hover: #2563eb;
+  --luml-brand-active: #2673fd;
+  --luml-brand-tint: #2673fd40;
+  --luml-brand-tint-strong: #2673fd4d;
+  --luml-success: #4ade80;
+  --luml-info: #38bdf8;
+  --luml-warn: #fb923c;
+  --luml-danger: #f87171;
+  --luml-success-tint-bg: #22c55e29;
+  --luml-success-tint-fg: #86efac;
+  --luml-info-tint-bg: #0ea5e929;
+  --luml-info-tint-fg: #7dd3fc;
+  --luml-warn-tint-bg: #f9731629;
+  --luml-warn-tint-fg: #fdba74;
+  --luml-danger-tint-bg: #ef444429;
+  --luml-danger-tint-fg: #fca5a5;
+  --luml-surface-0: #18181b;
+  --luml-surface-50: #18181b;
+  --luml-surface-100: #27272a;
+  --luml-surface-200: #27272a;
+  --luml-surface-300: #52525b;
+  --luml-surface-400: #71717a;
+  --luml-span-icon-1: #1d4ed8;
+  --luml-chart-1: #2462d0;
+  --luml-chart-2: #b888c6;
+  --luml-chart-3: #ff7f0e;
+  --luml-chart-4: #298629;
+  --luml-chart-5: #b12526;
+  --luml-chart-6: #7c589d;
+  --luml-chart-7: #189eab;
+  --luml-chart-8: #9c9d21;
+  --luml-chart-9: #6c6c6c;
+  --luml-chart-10: #bc65a1;
+  --luml-chart-11: #e55237;
+  --luml-chart-12: #7966f0;
+  --luml-chart-13: #40ca40;
+  --luml-chart-14: #55797b;
+  --luml-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5);
 
   color-scheme: dark;
 }

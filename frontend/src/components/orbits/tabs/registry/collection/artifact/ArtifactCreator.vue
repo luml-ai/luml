@@ -6,7 +6,12 @@
     :draggable="false"
     :pt="dialogPt"
   >
-    <Form :initial-values="formData" :resolver="artifactCreateResolver" @submit="onSubmit">
+    <Form
+      v-if="visible"
+      :initial-values="formData"
+      :resolver="artifactCreateResolver"
+      @submit="onSubmit"
+    >
       <div class="inputs">
         <div class="field">
           <label for="name" class="label required">Name</label>
@@ -65,11 +70,26 @@
         @select-file="onSelectFile"
         @remove-file="onRemoveFile"
       />
-      <div v-if="progress !== null" class="upload-section">
+      <div v-if="loading" class="upload-section">
         <p class="upload-description">Artifact uploading</p>
-        <ProgressBar :value="progress" showValue />
+        <ProgressBar
+          :value="progress ?? undefined"
+          :mode="progress === null ? 'indeterminate' : 'determinate'"
+          aria-label="Artifact upload progress"
+          showValue
+        />
       </div>
-      <Button type="submit" fluid rounded :loading="loading">Add</Button>
+      <Button
+        v-if="loading"
+        type="button"
+        fluid
+        rounded
+        severity="secondary"
+        @click="visible = false"
+      >
+        Cancel
+      </Button>
+      <Button v-else type="submit" fluid rounded>Add</Button>
     </Form>
   </Dialog>
 </template>
@@ -78,7 +98,7 @@
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
 import type { FormSubmitEvent } from '@primevue/forms'
 import { useRoute } from 'vue-router'
-import { computed, onBeforeMount, ref, watch } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { artifactCreateResolver } from '@/utils/forms/resolvers'
 import { Form } from '@primevue/forms'
 import {
@@ -137,6 +157,7 @@ const ARTIFACT_TYPE_OPTIONS = [
 ]
 
 const { upload, progress } = useArtifactUpload()
+let uploadController: AbortController | null = null
 const { getTagsByQuery, loadTags } = useArtifactsTags()
 const toast = useToast()
 const route = useRoute()
@@ -231,8 +252,11 @@ function getInitialArtifactType() {
 }
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid || !formData.value.file) return
+  if (!valid || !formData.value.file || loading.value) return
 
+  const controller = new AbortController()
+  uploadController = controller
+  const name = formData.value.name
   loading.value = true
 
   try {
@@ -242,24 +266,35 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       formData.value.type,
       formData.value.description,
       formData.value.tags,
+      undefined,
+      controller.signal,
     )
     toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: `${formData.value.name} has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-collections" data-params="{}">Go to Collections</a>`,
+      detail: `${name} has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-collections" data-params="{}">Go to Collections</a>`,
       life: 5000,
     })
-    reset()
-    visible.value = false
+    if (!controller.signal.aborted) visible.value = false
   } catch (e) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))
+    if (!controller.signal.aborted)
+      toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))
   } finally {
-    loading.value = false
+    if (uploadController === controller) {
+      loading.value = false
+      uploadController = null
+    }
   }
 }
 
 function reset() {
+  uploadController?.abort()
+  uploadController = null
+  loading.value = false
+  progress.value = null
   formData.value = makeInitialFormData()
+  formData.value.type = getInitialArtifactType()
+  autocompleteItems.value = []
   resetFile()
 }
 
@@ -285,10 +320,16 @@ onBeforeMount(() => {
   formData.value.type = getInitialArtifactType()
 })
 
-watch(visible, (val) => {
-  if (val) initTags()
-  else reset()
-})
+onBeforeUnmount(() => uploadController?.abort())
+
+watch(
+  visible,
+  (val) => {
+    if (val) initTags()
+    else reset()
+  },
+  { flush: 'sync' },
+)
 
 watch(() => formData.value.type, resetFile)
 </script>

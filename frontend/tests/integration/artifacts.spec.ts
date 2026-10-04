@@ -88,6 +88,53 @@ test.describe('Artifacts', () => {
     await mockArtifactsBaseline(apiMocks)
   })
 
+  test('Pick All selects all collection pages and keeps rows selected after scrolling', async ({
+    page,
+    apiMocks,
+  }) => {
+    const artifacts = Array.from({ length: 45 }, (_, index) =>
+      makeArtifact({ id: generatedArtifactId(index), name: `model-${index}` }),
+    )
+    const cursors: Array<string | null> = []
+    let finishLoading!: () => void
+    const nextPageGate = new Promise<void>((resolve) => {
+      finishLoading = resolve
+    })
+    await apiMocks.get(
+      new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
+      async (request: { url: () => string }) => {
+        const cursor = new URL(request.url()).searchParams.get('cursor') || null
+        cursors.push(cursor)
+        if (cursor === '20') await nextPageGate
+        const start = cursor ? Number(cursor) : 0
+        return {
+          items: artifacts.slice(start, start + 20),
+          cursor: start + 20 < artifacts.length ? String(start + 20) : null,
+        }
+      },
+    )
+
+    await page.goto(collectionPageUrl)
+    await expect(page.getByText('model-0', { exact: true })).toBeVisible()
+    await page.locator('.p-datatable-thead input[type="checkbox"]').first().check()
+    await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeDisabled()
+    finishLoading()
+    await expect(page.getByText('45 Selected')).toBeVisible()
+    expect(cursors).toEqual([null, '20', '40'])
+
+    await page.locator('.p-virtualscroller').evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    await expect(page.getByText('model-44', { exact: true })).toBeVisible()
+    const rowCheckboxes = page.locator('.p-datatable-tbody input[type="checkbox"]')
+    for (const checkbox of await rowCheckboxes.all()) await expect(checkbox).toBeChecked()
+    await expect(page.getByText('45 Selected')).toBeVisible()
+
+    await page.locator('.p-datatable-thead input[type="checkbox"]').first().uncheck()
+    await expect(page.getByText('0 Selected')).toBeVisible()
+    for (const checkbox of await rowCheckboxes.all()) await expect(checkbox).not.toBeChecked()
+  })
+
   test.describe('Deletion blockers', () => {
     test('shows deployment and track blockers with links', async ({ page, apiMocks }) => {
       await apiMocks.get(

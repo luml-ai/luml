@@ -4,12 +4,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { chartGridColor, chartTooltipTheme } from '@/lib/theme'
+import { chartGridColor, chartTextColor, chartTooltipTheme, chartColor } from '@/lib/theme'
+import { formatChartNumber } from '@/lib/format'
+import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING } from '@/lib/charts'
 import type { Series } from '@/api/types'
 
 const props = withDefaults(
   defineProps<{ series: Series; color?: string; threshold?: number; height?: number | string }>(),
-  { color: '#2673fd', threshold: undefined, height: 180 },
+  { color: 'var(--luml-chart-1)', threshold: undefined, height: CHART_HEIGHT },
 )
 
 const hasBaseline = computed(() => (props.series.baseline?.length ?? 0) > 0)
@@ -25,7 +27,10 @@ const chartSeries = computed(() => {
     main,
     {
       name: 'Compared period',
-      data: (props.series.baseline ?? []).map((point) => [new Date(point.t).getTime(), point.value]),
+      data: (props.series.baseline ?? []).map((point) => [
+        new Date(point.t).getTime(),
+        point.value,
+      ]),
     },
   ]
 })
@@ -47,9 +52,7 @@ const hasIsolatedPoints = computed(() => {
   const points = props.series.points
   return points.some(
     (point, index) =>
-      point.value != null &&
-      points[index - 1]?.value == null &&
-      points[index + 1]?.value == null,
+      point.value != null && points[index - 1]?.value == null && points[index + 1]?.value == null,
   )
 })
 
@@ -61,19 +64,18 @@ const hasIsolatedPoints = computed(() => {
  * gains a little on a taller canvas. Only a little: what makes an isolated point invisible
  * is not being drawn at all, and past a point a dot stops marking a value and covers it.
  */
-const CARD_HEIGHT = 180
 const CARD_MARKER_SIZE = 4
 const MAX_MARKER_SIZE = 6
 
 const renderedHeight = computed(() => {
   const value = typeof props.height === 'number' ? props.height : parseFloat(props.height)
-  return Number.isFinite(value) ? value : CARD_HEIGHT
+  return Number.isFinite(value) ? value : CHART_HEIGHT
 })
 
 const markerSize = computed(() => {
   if (measured.value === 0) return 0
   if (measured.value > 3 && !hasIsolatedPoints.value) return 0
-  const scaled = (CARD_MARKER_SIZE * renderedHeight.value) / CARD_HEIGHT
+  const scaled = (CARD_MARKER_SIZE * renderedHeight.value) / CHART_HEIGHT
   return Math.min(MAX_MARKER_SIZE, Math.max(CARD_MARKER_SIZE, Math.round(scaled)))
 })
 
@@ -86,24 +88,8 @@ const flatZero = computed(
     props.series.points.every((point) => point.value == null || point.value === 0),
 )
 
-/**
- * Axis labels the eye can read: a rate as a percentage, a count as an integer, and a
- * score like PSI with just enough decimals. Rounding everything to integers collapsed
- * PSI 0.26 to "0"; printing it raw gave 0.29999999999999999.
- */
 function formatTick(value: number | null): string {
-  if (value == null) return ''
-  if (isRatio.value) return `${(value * 100).toFixed(1)}%`
-  if (Number.isInteger(value)) return String(value)
-  const magnitude = Math.abs(value)
-  if (magnitude >= 100) return value.toFixed(0)
-  if (magnitude >= 1) return trim(value.toFixed(2))
-  return trim(value.toFixed(3))
-}
-
-/** 0.250 -> 0.25, 1.50 -> 1.5 */
-function trim(text: string): string {
-  return text.includes('.') ? text.replace(/0+$/, '').replace(/\.$/, '') : text
+  return formatChartNumber(value, { percent: isRatio.value })
 }
 
 const options = computed(() => ({
@@ -111,30 +97,38 @@ const options = computed(() => ({
     toolbar: { show: false },
     zoom: { enabled: false },
     fontFamily: 'inherit',
+    foreColor: chartTextColor.value,
     sparkline: { enabled: false },
   },
-  colors: hasBaseline.value ? [props.color, '#94a3b8'] : [props.color],
+  colors: hasBaseline.value
+    ? [chartColor(props.color), chartTextColor.value]
+    : [chartColor(props.color)],
   dataLabels: { enabled: false },
+  legend: CHART_LEGEND,
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
   // Baseline: dashed, grey, no fill.
   stroke: hasBaseline.value
     ? { curve: 'smooth', width: [2, 2], dashArray: [0, 5] }
     : { curve: 'smooth', width: 2 },
   fill: hasBaseline.value
-    ? { type: ['gradient', 'solid'], gradient: { opacityFrom: 0.25, opacityTo: 0.02 }, opacity: [1, 0] }
+    ? {
+        type: ['gradient', 'solid'],
+        gradient: { opacityFrom: 0.25, opacityTo: 0.02 },
+        opacity: [1, 0],
+      }
     : { type: 'gradient', gradient: { opacityFrom: 0.25, opacityTo: 0.02 } },
-  grid: { borderColor: chartGridColor.value, strokeDashArray: 4 },
+  grid: { borderColor: chartGridColor.value, strokeDashArray: 4, padding: CHART_GRID_PADDING },
   xaxis: {
     type: 'datetime',
     axisBorder: { show: false },
     axisTicks: { show: false },
-    labels: { style: { colors: '#94a3b8', fontSize: '11px' } },
+    labels: { style: { colors: chartTextColor.value, fontSize: '11px' } },
   },
   yaxis: {
     min: flatZero.value ? 0 : undefined,
     max: flatZero.value ? 0.01 : undefined,
     labels: {
-      style: { colors: '#94a3b8', fontSize: '11px' },
+      style: { colors: chartTextColor.value, fontSize: '11px' },
       formatter: (value: number) => formatTick(value),
     },
   },
@@ -150,11 +144,11 @@ const options = computed(() => ({
         yaxis: [
           {
             y: props.threshold,
-            borderColor: '#94a3b8',
+            borderColor: chartTextColor.value,
             strokeDashArray: 4,
             label: {
               text: 'threshold',
-              style: { fontSize: '10px', color: '#64748b', background: 'transparent' },
+              style: { fontSize: '10px', color: chartTextColor.value, background: 'transparent' },
             },
           },
         ],

@@ -42,10 +42,10 @@
     <ArtifactTabs
       :card-disabled="!isCardAvailable"
       :experiment-snapshot-disabled="!isExperimentSnapshotCardAvailable"
-      :model-attachments-disabled="!isModelAttachmentsAvailable"
       :show-data-tab="isDataTabVisible"
       :show-card="true"
       :show-experiment-snapshot="isExperimentSnapshotVisible"
+      :model-attachments-disabled="!isModelAttachmentsAvailable"
       :show-model-attachments="isModelAttachmentsVisible"
     ></ArtifactTabs>
     <div class="view-wrapper">
@@ -120,14 +120,6 @@ const isExperimentSnapshotVisible = computed(() => {
   )
 })
 
-const isModelAttachmentsVisible = computed(() => {
-  if (!artifactsStore.currentArtifact) return false
-  return (
-    artifactsStore.currentArtifact.type === ArtifactTypeEnum.model ||
-    artifactsStore.currentArtifact.type === ArtifactTypeEnum.experiment
-  )
-})
-
 const isCardAvailable = computed(() => {
   if (!artifactsStore.currentArtifact) return false
   const fileIndex = artifactsStore.currentArtifact.file_index
@@ -141,11 +133,18 @@ const isExperimentSnapshotCardAvailable = computed(() => {
   return !!FnnxService.findExperimentSnapshotArchiveName(fileIndex)
 })
 
-const isModelAttachmentsAvailable = computed(() => {
+const isModelAttachmentsVisible = computed(() => {
   if (!artifactsStore.currentArtifact) return false
-  const fileIndex = artifactsStore.currentArtifact.file_index
-  if (!fileIndex) return false
-  return FnnxService.hasAttachments(fileIndex)
+  return (
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.model ||
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.experiment
+  )
+})
+
+const isModelAttachmentsAvailable = computed(() => {
+  return (
+    artifactsStore.attachmentsStatus === 'available' || artifactsStore.attachmentsStatus === 'error'
+  )
 })
 
 function initDeploy() {
@@ -219,6 +218,7 @@ async function onArtifactIdChange(artifactId: string | string[] | null) {
     }
     const artifact = await artifactsStore.getArtifact(artifactId, requestInfo)
     artifactsStore.setCurrentArtifact(artifact)
+    await artifactsStore.loadCurrentArtifactAttachments(artifact)
   } catch (e) {
     const message = getErrorMessage(e, 'Failed to set current artifact')
     toast.add(simpleErrorToast(message))

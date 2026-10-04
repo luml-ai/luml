@@ -28,7 +28,11 @@
         :hidden-tracks="props.existingTracks.map((track) => track.id)"
       />
       <StageSelect :options="tracksStore.trackStages" />
-      <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
+      <StageWarning
+        v-if="artifactWithSelectedStage"
+        :artifact="artifactWithSelectedStage"
+        :allow-reassignment="false"
+      />
     </Form>
   </UiDialogRight>
 </template>

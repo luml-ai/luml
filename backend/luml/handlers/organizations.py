@@ -17,7 +17,6 @@ from luml.infra.exceptions import (
     OrganizationMemberNotFoundError,
 )
 from luml.repositories.invites import InviteRepository
-from luml.repositories.limits import ORGANIZATION_MEMBERSHIP_LIMIT
 from luml.repositories.users import UserRepository
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -49,8 +48,6 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __organization_membership_limit = ORGANIZATION_MEMBERSHIP_LIMIT
-
     def _set_organizations_permissions(
         self, organizations: list[OrganizationSwitcher]
     ) -> list[OrganizationSwitcher]:
@@ -63,13 +60,16 @@ class OrganizationHandler:
         return organizations
 
     async def _organization_membership_limit_check(self, user_id: UUID) -> None:
+        limit = await self.__user_repository.get_user_organizations_limit(user_id)
+        if limit is None:
+            raise NotFoundError("User not found")
         membership_num = (
             await self.__user_repository.get_user_organizations_membership_count(
                 user_id
             )
         )
 
-        if membership_num >= self.__organization_membership_limit:
+        if membership_num >= limit:
             raise OrganizationLimitReachedError(
                 "You’ve reached the limit of organizations you can join or create"
             )

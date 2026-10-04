@@ -1,5 +1,5 @@
 from collections.abc import Awaitable, Callable
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
@@ -12,34 +12,26 @@ from luml.schemas.orbit import OrbitRole
 from luml.schemas.organization import OrgRole
 from luml.schemas.permissions import Action, Resource
 
-handler = PermissionsHandler()
-
-USER_A = UUID("0199c337-0a00-7d8f-b0c4-b68349bbe24b")
-ORG_A = UUID("0199c337-0a01-7af1-af5e-83fd7a5b51a0")
-ORBIT_A = UUID("0199c337-0a02-753e-9def-b27745e69be6")
-ORG_V = UUID("0199c337-0a03-7af1-af5e-83fd7a5b51a1")
-ORBIT_V = UUID("0199c337-0a04-753e-9def-b27745e69be7")
+from tests.support.ids import (
+    ORBIT_ID,
+    ORGANIZATION_ID,
+    OTHER_ORBIT_ID,
+    OTHER_ORGANIZATION_ID,
+    USER_ID,
+)
+from tests.support.mocks import CollaboratorMocks, mock_collaborators
 
 ORBIT_NOT_FOUND = (404, "Orbit not found")
 
 
-def test_get_orbit_permissions_include_orbit_role_for_org_admin() -> None:
-    permissions = handler.get_orbit_permissions_by_role(OrgRole.ADMIN, OrbitRole.ADMIN)
-
-    assert Action.DELETE.value in permissions[Resource.ORBIT.value]
-
-
-def test_get_orbit_permissions_do_not_grant_org_admin_orbit_delete() -> None:
-    permissions = handler.get_orbit_permissions_by_role(OrgRole.ADMIN)
-
-    assert Action.DELETE.value not in permissions[Resource.ORBIT.value]
+@pytest.fixture
+def mocks() -> CollaboratorMocks[PermissionsHandler]:
+    return mock_collaborators(PermissionsHandler())
 
 
-def scoped_orbit_lookup(
+def _scoped_orbit_lookup(
     orbit_id: UUID, organization_id: UUID
 ) -> Callable[[UUID, UUID], Awaitable[Mock | None]]:
-    """Fake the repository predicate: an orbit is only visible in its own org."""
-
     async def _get_orbit_simple(
         requested_orbit_id: UUID, requested_organization_id: UUID
     ) -> Mock | None:
@@ -53,364 +45,278 @@ def scoped_orbit_lookup(
     return _get_orbit_simple
 
 
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_permission_user_not_org_member(
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
-
-    mock_get_organization_member_role.side_effect = InsufficientPermissionsError
-
-    with pytest.raises(InsufficientPermissionsError) as error:
-        await handler.check_permissions(
-            organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
+class TestPermissionsHandler:
+    def test_get_orbit_permissions_by_role_grants_orbit_delete_when_orbit_admin(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        permissions = mocks.handler.get_orbit_permissions_by_role(
+            OrgRole.ADMIN, OrbitRole.ADMIN
         )
 
-    assert error.value.status_code == 403
-    mock_get_organization_member_role.assert_awaited_once_with(organization_id, user_id)
+        assert Action.DELETE.value in permissions[Resource.ORBIT.value]
 
+    def test_get_orbit_permissions_by_role_denies_orbit_delete_when_only_org_admin(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        permissions = mocks.handler.get_orbit_permissions_by_role(OrgRole.ADMIN)
 
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_organization_permission_insufficient_permissions(
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+        assert Action.DELETE.value not in permissions[Resource.ORBIT.value]
 
-    mock_get_organization_member_role.return_value = "member"
-
-    with pytest.raises(InsufficientPermissionsError):
-        await handler.check_permissions(
-            organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
+    async def test_check_permissions_raises_forbidden_when_not_org_member(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.side_effect = (
+            InsufficientPermissionsError
         )
 
-    mock_get_organization_member_role.assert_awaited_once_with(organization_id, user_id)
+        with pytest.raises(InsufficientPermissionsError) as error:
+            await mocks.handler.check_permissions(
+                ORGANIZATION_ID, USER_ID, Resource.ORGANIZATION, Action.DELETE
+            )
 
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_organization_permission_success(
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
-
-    mock_get_organization_member_role.return_value = OrgRole.OWNER.value
-
-    await handler.check_permissions(
-        organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
-    )
-
-    mock_get_organization_member_role.assert_awaited_once_with(organization_id, user_id)
-
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_orbit_permission_user_not_member(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-    organization_id = UUID("0199c337-09f3-753e-9def-b27745e69b76")
-
-    mock_get_organization_member_role.return_value = OrgRole.MEMBER.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(orbit_id, organization_id)
-    mock_get_orbit_member_role.side_effect = InsufficientPermissionsError
-
-    with pytest.raises(InsufficientPermissionsError) as error:
-        await handler.check_permissions(
-            organization_id, user_id, Resource.SATELLITE, Action.LIST, orbit_id
+        assert error.value.status_code == 403
+        mocks.user_repository.get_organization_member_role.assert_awaited_once_with(
+            ORGANIZATION_ID, USER_ID
         )
 
-    assert error.value.status_code == 403
-    mock_get_orbit_member_role.assert_awaited_once_with(orbit_id, user_id)
+    async def test_check_permissions_raises_forbidden_when_org_role_lacks_action(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = "member"
 
+        with pytest.raises(InsufficientPermissionsError):
+            await mocks.handler.check_permissions(
+                ORGANIZATION_ID, USER_ID, Resource.ORGANIZATION, Action.DELETE
+            )
 
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_orbit_permission_success(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-    organization_id = UUID("0199c337-09f3-753e-9def-b27745e69b76")
-
-    mock_get_organization_member_role.return_value = OrgRole.MEMBER.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(orbit_id, organization_id)
-    mock_get_orbit_member_role.return_value = OrbitRole.MEMBER.value
-
-    await handler.check_permissions(
-        organization_id, user_id, Resource.SATELLITE, Action.LIST, orbit_id
-    )
-
-    mock_get_orbit_member_role.assert_awaited_once_with(orbit_id, user_id)
-
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_orbit_action_access_org_admin(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-
-    mock_get_organization_member_role.return_value = OrgRole.ADMIN.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(orbit_id, organization_id)
-
-    await handler.check_permissions(
-        organization_id, user_id, Resource.SATELLITE, Action.LIST, orbit_id
-    )
-
-    mock_get_organization_member_role.assert_awaited_once_with(organization_id, user_id)
-    mock_get_orbit_member_role.assert_not_awaited()
-
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_orbit_action_access_orbit_member(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-
-    mock_get_organization_member_role.return_value = OrbitRole.MEMBER.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(orbit_id, organization_id)
-    mock_get_orbit_member_role.return_value = OrbitRole.MEMBER.value
-
-    await handler.check_permissions(
-        organization_id, user_id, Resource.SATELLITE, Action.LIST, orbit_id
-    )
-
-    mock_get_organization_member_role.assert_awaited_once_with(organization_id, user_id)
-    mock_get_orbit_member_role.assert_awaited_once_with(orbit_id, user_id)
-
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_permissions_foreign_orbit_under_own_organization(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    mock_get_organization_member_role.return_value = OrgRole.OWNER.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(ORBIT_V, ORG_V)
-
-    with pytest.raises(NotFoundError) as error:
-        await handler.check_permissions(
-            ORG_A, USER_A, Resource.ORBIT_SECRET, Action.READ, ORBIT_V
+        mocks.user_repository.get_organization_member_role.assert_awaited_once_with(
+            ORGANIZATION_ID, USER_ID
         )
 
-    assert (error.value.status_code, error.value.message) == ORBIT_NOT_FOUND
-    mock_get_orbit_simple.assert_awaited_once_with(ORBIT_V, ORG_A)
-    mock_get_orbit_member_role.assert_not_awaited()
-
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_permissions_missing_orbit_matches_foreign_orbit_failure(
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    unknown_orbit_id = UUID("0199c337-0a05-753e-9def-b27745e69be8")
-
-    mock_get_organization_member_role.return_value = OrgRole.OWNER.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(ORBIT_A, ORG_A)
-
-    with pytest.raises(NotFoundError) as error:
-        await handler.check_permissions(
-            ORG_A, USER_A, Resource.ORBIT_SECRET, Action.READ, unknown_orbit_id
+    async def test_check_permissions_passes_when_org_role_allows_action(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.OWNER.value
         )
 
-    assert (error.value.status_code, error.value.message) == ORBIT_NOT_FOUND
-
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_permissions_non_member_cannot_probe_orbit_existence(
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    mock_get_organization_member_role.return_value = None
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(ORBIT_V, ORG_V)
-
-    with pytest.raises(InsufficientPermissionsError) as error:
-        await handler.check_permissions(
-            ORG_V, USER_A, Resource.ORBIT_SECRET, Action.READ, ORBIT_V
+        await mocks.handler.check_permissions(
+            ORGANIZATION_ID, USER_ID, Resource.ORGANIZATION, Action.DELETE
         )
 
-    assert error.value.status_code == 403
-    mock_get_orbit_simple.assert_not_awaited()
-
-
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_permissions_org_member_without_orbit_membership(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    mock_get_organization_member_role.return_value = OrgRole.MEMBER.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(ORBIT_V, ORG_V)
-    mock_get_orbit_member_role.return_value = None
-
-    with pytest.raises(InsufficientPermissionsError) as error:
-        await handler.check_permissions(
-            ORG_V, USER_A, Resource.ORBIT_SECRET, Action.READ, ORBIT_V
+        mocks.user_repository.get_organization_member_role.assert_awaited_once_with(
+            ORGANIZATION_ID, USER_ID
         )
 
-    assert error.value.status_code == 403
-    mock_get_orbit_member_role.assert_awaited_once_with(ORBIT_V, USER_A)
+    async def test_check_permissions_raises_forbidden_when_not_orbit_member(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.MEMBER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            ORBIT_ID, ORGANIZATION_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.side_effect = (
+            InsufficientPermissionsError
+        )
 
+        with pytest.raises(InsufficientPermissionsError) as error:
+            await mocks.handler.check_permissions(
+                ORGANIZATION_ID, USER_ID, Resource.SATELLITE, Action.LIST, ORBIT_ID
+            )
 
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_permissions_own_orbit_unaffected(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    mock_get_organization_member_role.return_value = OrgRole.OWNER.value
-    mock_get_orbit_simple.side_effect = scoped_orbit_lookup(ORBIT_A, ORG_A)
+        assert error.value.status_code == 403
+        mocks.orbits_repository.get_orbit_member_role.assert_awaited_once_with(
+            ORBIT_ID, USER_ID
+        )
 
-    await handler.check_permissions(
-        ORG_A, USER_A, Resource.ORBIT_SECRET, Action.READ, ORBIT_A
-    )
+    async def test_check_permissions_passes_when_orbit_role_allows_action(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.MEMBER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            ORBIT_ID, ORGANIZATION_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.return_value = (
+            OrbitRole.MEMBER.value
+        )
 
-    mock_get_orbit_simple.assert_awaited_once_with(ORBIT_A, ORG_A)
-    mock_get_orbit_member_role.assert_not_awaited()
+        await mocks.handler.check_permissions(
+            ORGANIZATION_ID, USER_ID, Resource.SATELLITE, Action.LIST, ORBIT_ID
+        )
 
+        mocks.orbits_repository.get_orbit_member_role.assert_awaited_once_with(
+            ORBIT_ID, USER_ID
+        )
 
-@patch(
-    "luml.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.permissions.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_permissions_without_orbit_skips_orbit_lookup(
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    mock_get_organization_member_role.return_value = OrgRole.OWNER.value
+    async def test_check_permissions_skips_orbit_role_when_org_admin(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.ADMIN.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            ORBIT_ID, ORGANIZATION_ID
+        )
 
-    await handler.check_permissions(ORG_A, USER_A, Resource.ORBIT, Action.CREATE)
+        await mocks.handler.check_permissions(
+            ORGANIZATION_ID, USER_ID, Resource.SATELLITE, Action.LIST, ORBIT_ID
+        )
 
-    mock_get_orbit_simple.assert_not_awaited()
+        mocks.user_repository.get_organization_member_role.assert_awaited_once_with(
+            ORGANIZATION_ID, USER_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.assert_not_awaited()
+
+    async def test_check_permissions_checks_orbit_role_when_org_member(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrbitRole.MEMBER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            ORBIT_ID, ORGANIZATION_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.return_value = (
+            OrbitRole.MEMBER.value
+        )
+
+        await mocks.handler.check_permissions(
+            ORGANIZATION_ID, USER_ID, Resource.SATELLITE, Action.LIST, ORBIT_ID
+        )
+
+        mocks.user_repository.get_organization_member_role.assert_awaited_once_with(
+            ORGANIZATION_ID, USER_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.assert_awaited_once_with(
+            ORBIT_ID, USER_ID
+        )
+
+    async def test_check_permissions_raises_not_found_when_orbit_in_other_organization(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.OWNER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            OTHER_ORBIT_ID, OTHER_ORGANIZATION_ID
+        )
+
+        with pytest.raises(NotFoundError) as error:
+            await mocks.handler.check_permissions(
+                ORGANIZATION_ID,
+                USER_ID,
+                Resource.ORBIT_SECRET,
+                Action.READ,
+                OTHER_ORBIT_ID,
+            )
+
+        assert (error.value.status_code, error.value.message) == ORBIT_NOT_FOUND
+        mocks.orbits_repository.get_orbit_simple.assert_awaited_once_with(
+            OTHER_ORBIT_ID, ORGANIZATION_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.assert_not_awaited()
+
+    async def test_check_permissions_raises_same_not_found_when_orbit_missing(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.OWNER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            ORBIT_ID, ORGANIZATION_ID
+        )
+
+        with pytest.raises(NotFoundError) as error:
+            await mocks.handler.check_permissions(
+                ORGANIZATION_ID,
+                USER_ID,
+                Resource.ORBIT_SECRET,
+                Action.READ,
+                OTHER_ORBIT_ID,
+            )
+
+        assert (error.value.status_code, error.value.message) == ORBIT_NOT_FOUND
+
+    async def test_check_permissions_hides_orbit_existence_when_not_org_member(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = None
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            OTHER_ORBIT_ID, OTHER_ORGANIZATION_ID
+        )
+
+        with pytest.raises(InsufficientPermissionsError) as error:
+            await mocks.handler.check_permissions(
+                OTHER_ORGANIZATION_ID,
+                USER_ID,
+                Resource.ORBIT_SECRET,
+                Action.READ,
+                OTHER_ORBIT_ID,
+            )
+
+        assert error.value.status_code == 403
+        mocks.orbits_repository.get_orbit_simple.assert_not_awaited()
+
+    async def test_check_permissions_raises_forbidden_when_no_orbit_role(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.MEMBER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            OTHER_ORBIT_ID, OTHER_ORGANIZATION_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.return_value = None
+
+        with pytest.raises(InsufficientPermissionsError) as error:
+            await mocks.handler.check_permissions(
+                OTHER_ORGANIZATION_ID,
+                USER_ID,
+                Resource.ORBIT_SECRET,
+                Action.READ,
+                OTHER_ORBIT_ID,
+            )
+
+        assert error.value.status_code == 403
+        mocks.orbits_repository.get_orbit_member_role.assert_awaited_once_with(
+            OTHER_ORBIT_ID, USER_ID
+        )
+
+    async def test_check_permissions_passes_when_orbit_in_own_organization(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.OWNER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            ORBIT_ID, ORGANIZATION_ID
+        )
+
+        await mocks.handler.check_permissions(
+            ORGANIZATION_ID, USER_ID, Resource.ORBIT_SECRET, Action.READ, ORBIT_ID
+        )
+
+        mocks.orbits_repository.get_orbit_simple.assert_awaited_once_with(
+            ORBIT_ID, ORGANIZATION_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.assert_not_awaited()
+
+    async def test_check_permissions_skips_orbit_lookup_when_no_orbit_given(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.OWNER.value
+        )
+
+        await mocks.handler.check_permissions(
+            ORGANIZATION_ID, USER_ID, Resource.ORBIT, Action.CREATE
+        )
+
+        mocks.orbits_repository.get_orbit_simple.assert_not_awaited()
 
 
 LIVE_SESSION_ACTIONS = {
@@ -423,21 +329,29 @@ LIVE_SESSION_ACTIONS = {
 
 
 @pytest.mark.parametrize("org_role", [OrgRole.OWNER, OrgRole.ADMIN])
-def test_org_roles_that_work_in_orbits_have_live_sessions(org_role: OrgRole) -> None:
+def test_org_roles_that_work_in_orbits_have_live_sessions(
+    mocks: CollaboratorMocks[PermissionsHandler], org_role: OrgRole
+) -> None:
     for action in LIVE_SESSION_ACTIONS:
-        assert handler.has_organization_permission(
+        assert mocks.handler.has_organization_permission(
             org_role, Resource.LIVE_SESSION, action
         )
 
 
 @pytest.mark.parametrize("orbit_role", [OrbitRole.ADMIN, OrbitRole.MEMBER])
-def test_every_orbit_role_has_live_sessions(orbit_role: OrbitRole) -> None:
+def test_every_orbit_role_has_live_sessions(
+    mocks: CollaboratorMocks[PermissionsHandler], orbit_role: OrbitRole
+) -> None:
     for action in LIVE_SESSION_ACTIONS:
-        assert handler.has_orbit_permission(orbit_role, Resource.LIVE_SESSION, action)
+        assert mocks.handler.has_orbit_permission(
+            orbit_role, Resource.LIVE_SESSION, action
+        )
 
 
-def test_org_member_role_alone_has_no_live_sessions() -> None:
-    assert not handler.has_organization_permission(
+def test_org_member_role_alone_has_no_live_sessions(
+    mocks: CollaboratorMocks[PermissionsHandler],
+) -> None:
+    assert not mocks.handler.has_organization_permission(
         OrgRole.MEMBER, Resource.LIVE_SESSION, Action.CREATE
     )
 
@@ -452,9 +366,11 @@ def test_org_member_role_alone_has_no_live_sessions() -> None:
     ],
 )
 def test_orbit_permissions_list_live_sessions(
-    org_role: OrgRole | None, orbit_role: OrbitRole | None
+    mocks: CollaboratorMocks[PermissionsHandler],
+    org_role: OrgRole | None,
+    orbit_role: OrbitRole | None,
 ) -> None:
-    permissions = handler.get_orbit_permissions_by_role(org_role, orbit_role)
+    permissions = mocks.handler.get_orbit_permissions_by_role(org_role, orbit_role)
 
     assert set(permissions[Resource.LIVE_SESSION.value]) == {
         action.value for action in LIVE_SESSION_ACTIONS

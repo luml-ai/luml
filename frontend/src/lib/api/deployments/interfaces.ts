@@ -52,10 +52,10 @@ export interface Deployment {
 }
 
 export interface UpdateDeploymentPayload {
-  name: string
-  description: string
-  tags: string[]
-  dynamic_attributes_secrets: Record<string, string>
+  name?: string
+  description?: string
+  tags?: string[]
+  dynamic_attributes_secrets?: Record<string, string>
   monitoring_mode?: MonitoringMode
 }
 

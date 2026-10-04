@@ -1,6 +1,6 @@
 <template>
-  <div class="scatter">
-    <div class="legend" data-testid="pca-legend">
+  <div ref="container" class="scatter">
+    <div class="legend" :style="{ height: `${CHART_LEGEND_HEIGHT}px` }" data-testid="pca-legend">
       <span class="entry">
         <svg class="swatch" viewBox="0 0 22 12" aria-hidden="true">
           <ellipse class="swatch-ellipse reference" cx="11" cy="6" rx="10" ry="5" />
@@ -23,7 +23,13 @@
       </span>
     </div>
 
-    <svg :viewBox="`0 0 ${W} ${H}`" class="plot" role="img" aria-label="PC1 × PC2 projection">
+    <svg
+      :viewBox="`0 0 ${W} ${H}`"
+      class="plot"
+      :style="{ height: `${H}px` }"
+      role="img"
+      aria-label="PC1 × PC2 projection"
+    >
       <line
         v-for="tick in yTicks"
         :key="`gy-${tick.value}`"
@@ -118,11 +124,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { formatChartNumber } from '@/lib/format'
+import { CHART_HEIGHT, CHART_LEGEND_HEIGHT } from '@/lib/charts'
 import type { PcaPoint } from '@/api/types'
 
-const W = 640
-const H = 260
+const W = ref(640)
+const container = ref<HTMLElement | null>(null)
+let observer: ResizeObserver | undefined
+
+onMounted(() => {
+  if (!container.value || !globalThis.ResizeObserver) return
+  observer = new ResizeObserver(([entry]) => {
+    if (entry && entry.contentRect.width > 0) W.value = entry.contentRect.width
+  })
+  observer.observe(container.value)
+})
+onBeforeUnmount(() => observer?.disconnect())
 const PAD_L = 58
 const PAD_R = 12
 const PAD_T = 12
@@ -134,13 +152,16 @@ const PAD_SHARE = 0.08
 
 const props = withDefaults(
   defineProps<{
+    height?: number
     reference: PcaPoint[]
     current: PcaPoint[]
     referenceEllipse?: PcaPoint[]
     currentEllipse?: PcaPoint[]
   }>(),
-  { referenceEllipse: () => [], currentEllipse: () => [] },
+  { height: CHART_HEIGHT, referenceEllipse: () => [], currentEllipse: () => [] },
 )
+
+const H = computed(() => props.height - CHART_LEGEND_HEIGHT)
 
 function quantile(sorted: number[], q: number): number {
   if (!sorted.length) return 0
@@ -183,12 +204,12 @@ const yRange = computed(() =>
 
 function scaleX(value: number): number {
   const [low, high] = xRange.value
-  return PAD_L + ((value - low) / (high - low)) * (W - PAD_L - PAD_R)
+  return PAD_L + ((value - low) / (high - low)) * (W.value - PAD_L - PAD_R)
 }
 
 function scaleY(value: number): number {
   const [low, high] = yRange.value
-  return H - PAD_B - ((value - low) / (high - low)) * (H - PAD_T - PAD_B)
+  return H.value - PAD_B - ((value - low) / (high - low)) * (H.value - PAD_T - PAD_B)
 }
 
 /** Points outside the drawn range are pinned to the edge rather than dropped silently. */
@@ -224,11 +245,9 @@ const currentPolygon = computed(() => polygon(props.currentEllipse))
 function ticks(bounds: [number, number], count: number, toPos: (v: number) => number) {
   const [low, high] = bounds
   const step = (high - low) / count
-  const magnitude = Math.max(Math.abs(low), Math.abs(high))
-  const digits = magnitude >= 100 ? 0 : magnitude >= 10 ? 1 : 2
   return Array.from({ length: count + 1 }, (_, i) => {
     const value = low + step * i
-    return { value, pos: toPos(value), label: value.toFixed(digits) }
+    return { value, pos: toPos(value), label: formatChartNumber(value) }
   })
 }
 
@@ -240,9 +259,11 @@ const yTicks = computed(() => ticks(yRange.value, 4, scaleY))
 .legend {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
+  overflow-y: auto;
+  box-sizing: border-box;
   justify-content: flex-end;
-  gap: var(--luml-space-4);
-  margin-bottom: var(--luml-space-2);
+  gap: 4px var(--luml-space-4);
 }
 .entry {
   display: inline-flex;
@@ -285,7 +306,7 @@ const yTicks = computed(() => ticks(yRange.value, 4, scaleY))
 }
 .plot {
   width: 100%;
-  height: auto;
+  display: block;
 }
 .grid {
   stroke: var(--luml-border);

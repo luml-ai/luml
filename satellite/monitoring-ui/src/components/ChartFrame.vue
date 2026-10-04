@@ -16,7 +16,7 @@
       </button>
     </div>
 
-    <slot :height="height" :expanded="false" />
+    <slot :height="CHART_HEIGHT" :expanded="false" />
 
     <!--
       Teleported to the body so a chart opened from inside a drawer covers the drawer too,
@@ -58,16 +58,15 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { Maximize2, X } from 'lucide-vue-next'
+import { CHART_HEIGHT } from '@/lib/charts'
 
 withDefaults(
   defineProps<{
     title?: string
     subtitle?: string
     eyebrow?: string
-    /** Height the chart renders at in place; full screen computes its own. */
-    height?: number | string
   }>(),
-  { title: '', subtitle: '', eyebrow: '', height: 180 },
+  { title: '', subtitle: '', eyebrow: '' },
 )
 
 // Room taken by the header and the page's own padding, so the chart fills what is left.

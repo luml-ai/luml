@@ -4,7 +4,7 @@
 
     <div v-else-if="collectionsStore.currentCollection" class="page-content">
       <CollectionBreadcrumb></CollectionBreadcrumb>
-      <RouterView></RouterView>
+      <RouterView :key="String(route.params.artifactId ?? '')"></RouterView>
     </div>
 
     <Ui404 v-else></Ui404>
@@ -72,7 +72,7 @@ watch(
 )
 
 watch(
-  () => [route.params.organizationId, route.params.id, route.params.collectionId] as const,
+  [() => route.params.organizationId, () => route.params.id, () => route.params.collectionId],
   async ([organizationId, orbitId, collectionId]) => {
     await init(ensureString(organizationId), ensureString(orbitId), ensureString(collectionId))
   },

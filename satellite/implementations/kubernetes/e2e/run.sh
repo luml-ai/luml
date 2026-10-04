@@ -104,8 +104,16 @@ sed \
   "$SCRIPT_DIR/fake-platform.yaml" | kubectl -n "$NAMESPACE" apply -f -
 kubectl -n "$NAMESPACE" rollout status deployment/fake-platform --timeout=5m
 
+# install with defaults from before these groups existed, then upgrade the current chart.
+PREVIOUS_CHART="$WORK_DIR/previous-chart"
+cp -R "$CHART" "$PREVIOUS_CHART"
+sed \
+  -e '/^probes:/,/^rbac:/{ /^rbac:/!d; }' \
+  -e '/^    objectStorage:/,/^    retention:/{ /^    retention:/!d; }' \
+  "$CHART/values.yaml" > "$PREVIOUS_CHART/values.yaml"
+
 HELM_ARGUMENTS=(
-  upgrade --install "$RELEASE" "$CHART"
+  upgrade --install "$RELEASE" "$PREVIOUS_CHART"
   --namespace "$NAMESPACE"
   --values "$CHART/ci/$PRESET-values.yaml"
   --set-string satellite.derivationKey=

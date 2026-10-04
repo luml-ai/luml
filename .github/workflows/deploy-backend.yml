@@ -44,12 +44,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      # Environments whose DigitalOcean app runs migrations as a PRE_DEPLOY job set
+      # MIGRATIONS_IN_APP_PLATFORM=true; their DB is not reachable from GitHub runners.
       - name: Install dependencies
+        if: vars.MIGRATIONS_IN_APP_PLATFORM != 'true'
         working-directory: backend
         run: |
           python -m pip install --upgrade uv
           uv sync
       - name: Run migrations
+        if: vars.MIGRATIONS_IN_APP_PLATFORM != 'true'
         working-directory: backend
         env:
           POSTGRESQL_DSN: ${{ secrets.POSTGRESQL_DSN }}

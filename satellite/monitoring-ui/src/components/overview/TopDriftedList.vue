@@ -8,7 +8,7 @@
         <div class="row-head">
           <span class="name mono">{{ feature.feature }}</span>
           <span class="psi"
-            >PSI <strong>{{ feature.psi.toFixed(2) }}</strong></span
+            >PSI <strong>{{ formatChartNumber(feature.psi) }}</strong></span
           >
         </div>
         <div class="track">
@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import { Severity, type DriftedFeature } from '@/api/types'
+import { formatChartNumber } from '@/lib/format'
 
 defineProps<{ features: DriftedFeature[] }>()
 

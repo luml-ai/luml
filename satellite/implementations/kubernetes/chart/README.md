@@ -123,6 +123,24 @@ To use a GreptimeDB cluster that you operate yourself:
 External mode removes only the in-chart store workload, its Service and its volume. It points
 the dashboard, worker, collector and network-policy egress at the external store.
 
+## Upgrades
+
+Upgrade with `helm upgrade <release> ./chart --namespace <namespace> --reuse-values`.
+Groups and nested values missing from the previous release fall back to the current chart
+defaults. Empty maps and null values use those defaults too; explicit false, zero, empty
+strings and empty lists are preserved. Values still have to pass the chart schema.
+
+Helm does not expose `values.yaml` to templates, so `defaults.yaml` packages the same defaults
+for rendering upgrades. Keep both files identical when changing a default or adding a group;
+the tests check this.
+
+Kubernetes forbids changes to a StatefulSet's volume claim template. Before changing
+`monitoring.store.persistence.enabled`, its size, storage class or access modes on an existing
+release, back up the store and delete only its StatefulSet, then upgrade. Use the StatefulSet
+name shown by `kubectl -n <namespace> get statefulsets`. Existing PVCs remain; changes to claim
+settings do not resize or migrate them. Disabling persistence uses an empty volume, so the
+existing stored data is unavailable. Recreating the StatefulSet interrupts the store.
+
 ## Network policy and meshes
 
 The policy is on by default. It selects only the pods that carry this release's

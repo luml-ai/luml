@@ -148,15 +148,19 @@ then offers it as a deployment target. Inference and the monitoring dashboard an
 
 ### Upgrade the release
 
-Upgrade with `--reset-then-reuse-values`, not with `--reuse-values`. The second flag keeps the
-previous values verbatim. A value that the chart gained after the install then renders as
-null.
+Upgrade with `--reuse-values`. The chart fills missing value groups and nested values from
+its current defaults while preserving the release's configured values.
 
 Kubernetes forbids a change to the claim template of a StatefulSet. To switch the store's
 persistence on or off after the install:
 
-1. Remove the StatefulSet with `kubectl -n luml delete statefulset <release>-store`.
+1. Back up the store, then remove its StatefulSet using the name from
+   `kubectl -n luml get statefulsets`.
 2. Run the upgrade again.
+
+The deletion interrupts the store and keeps its existing PVCs. Disabling persistence starts
+with an empty volume; the existing stored data is unavailable. Changing claim size, storage
+class or access modes also requires recreation and does not resize or migrate existing PVCs.
 
 ### Remove the stand
 

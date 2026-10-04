@@ -4,7 +4,7 @@
       <Folders :size="20" class="page-header__icon" />
       <h1 class="page-header__title">Registry</h1>
     </div>
-    <template v-if="authStore.isAuth">
+    <template v-if="authStore.isAuth && createAvailable">
       <d-button :label="buttonProps.label" @click="buttonProps.action">
         <template #icon>
           <Plus :size="14" />
@@ -19,13 +19,22 @@ import { Folders, Plus } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useCollectionsStore } from '@/stores/collections'
 import { useTracksStore } from '@/stores/tracks'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
 
 const authStore = useAuthStore()
 const collectionsStore = useCollectionsStore()
 const tracksStore = useTracksStore()
+const orbitsStore = useOrbitsStore()
 const route = useRoute()
+
+const createAvailable = computed(
+  () =>
+    route.name !== 'orbit-tracks' ||
+    orbitsStore.getCurrentOrbitPermissions?.track.includes(PermissionEnum.create),
+)
 
 const buttonProps = computed(() => {
   return route.name === 'orbit-tracks'
