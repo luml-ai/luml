@@ -44,7 +44,7 @@ def normalize_base_domain(value: str) -> str:
 def validate_agent_url(value: str) -> str:
     address = urlsplit(value)
     if address.scheme not in ("ws", "wss") or not address.hostname:
-        raise ValueError("Agent address must be a ws or wss address")
+        raise ValueError("Connection address must be a ws or wss address")
     return value
 
 

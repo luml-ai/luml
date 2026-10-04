@@ -27,7 +27,6 @@
       </Button>
     </template>
     <span data-testid="flow-address">{{ localFlowKey(flow) }}</span>
-    <span>{{ status.text }}</span>
   </FlowCard>
 </template>
 
@@ -53,16 +52,12 @@ defineEmits<Emits>()
 
 const status = computed(() => {
   if (props.reachable === null) {
-    return { className: '', tooltip: 'Checking', text: 'Checking whether lumlflow answers' }
+    return { className: '', tooltip: 'Checking the connection' }
   }
   if (props.reachable) {
-    return { className: 'status--success', tooltip: 'Answering', text: 'lumlflow answers' }
+    return { className: 'status--success', tooltip: 'Active flow' }
   }
-  return {
-    className: 'status--danger',
-    tooltip: 'Not answering right now',
-    text: 'Not answering right now',
-  }
+  return { className: 'status--danger', tooltip: 'Not connected' }
 })
 </script>
 

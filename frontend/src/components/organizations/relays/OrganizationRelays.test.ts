@@ -105,7 +105,7 @@ const ownerPermissions = [
 
 async function mountTab(permissions: string[] = ownerPermissions) {
   organizationStore.currentOrganization.permissions.relay = permissions
-  const wrapper = mount(OrganizationRelays, { global: { stubs } })
+  const wrapper = mount(OrganizationRelays, { global: { stubs, directives: { tooltip: {} } } })
   await flushPromises()
   return wrapper
 }
@@ -127,7 +127,7 @@ describe('OrganizationRelays', () => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn() } })
   })
 
-  it('lists own and managed relays with kind, status, connection and agents', async () => {
+  it('lists own and managed relays with kind, status and sessions', async () => {
     const wrapper = await mountTab()
 
     expect(relaysApi.getRelays).toHaveBeenCalledWith('org-1')
@@ -135,13 +135,11 @@ describe('OrganizationRelays', () => {
     const [own, managed] = rows(wrapper)
     expect(own?.text()).toContain('lab')
     expect(own?.text()).toContain('Own')
-    expect(own?.text()).toContain('Enabled')
     expect(own?.text()).toContain('Offline')
-    expect(own?.text()).toContain('never seen')
+    expect(own?.text()).not.toContain('Draining')
     expect(own?.find('[aria-label="Relay settings"]').exists()).toBe(true)
-    expect(managed?.text()).toContain('Managed · read-only')
+    expect(managed?.text()).toContain('Managed')
     expect(managed?.text()).toContain('Online')
-    expect(managed?.text()).toContain('last seen')
     expect(managed?.text()).toContain('3')
     expect(managed?.find('[aria-label="Relay settings"]').exists()).toBe(false)
   })
@@ -187,7 +185,9 @@ describe('OrganizationRelays', () => {
   })
 
   it('shows the backend message when a relay cannot be created', async () => {
-    relaysApi.createRelay.mockRejectedValue(apiError('Agent address must be a ws or wss address'))
+    relaysApi.createRelay.mockRejectedValue(
+      apiError('Connection address must be a ws or wss address'),
+    )
     const wrapper = await mountTab()
 
     await wrapper
@@ -197,20 +197,22 @@ describe('OrganizationRelays', () => {
     await wrapper.find('form#relayCreateForm').trigger('submit')
     await flushPromises()
 
-    expect(lastToast().detail).toBe('Agent address must be a ws or wss address')
+    expect(lastToast().detail).toBe('Connection address must be a ws or wss address')
     expect(wrapper.findComponent(RelayTokenDialog).exists()).toBe(false)
     expect(rows(wrapper)).toHaveLength(2)
   })
 
-  it('rotates the token and shows the new one once', async () => {
+  it('rotates the token after the confirmation and shows the new one once', async () => {
     relaysApi.rotateRelayToken.mockResolvedValue({ relay: relay(), token: 'dfsrelay_rotated' })
     const wrapper = await mountTab()
 
     await wrapper.find('[aria-label="Relay settings"]').trigger('click')
     await wrapper
       .findAll('button')
-      .find((button) => button.text() === 'Rotate token')
+      .find((button) => button.text() === 'Rotate')
       ?.trigger('click')
+    expect(relaysApi.rotateRelayToken).not.toHaveBeenCalled()
+    confirmRequire.mock.calls.at(-1)?.[0].accept()
     await flushPromises()
 
     expect(relaysApi.rotateRelayToken).toHaveBeenCalledWith('org-1', 'relay-own')
@@ -225,7 +227,9 @@ describe('OrganizationRelays', () => {
 
   it('sends only the changed fields and shows a refused address change', async () => {
     relaysApi.updateRelay.mockRejectedValueOnce(
-      apiError('Cannot change the base domain or agent address of a relay with 1 unended session'),
+      apiError(
+        'Cannot change the base domain or connection address of a relay with 1 unended session',
+      ),
     )
     relaysApi.updateRelay.mockResolvedValueOnce(relay({ label: 'lab-2' }))
     const wrapper = await mountTab()

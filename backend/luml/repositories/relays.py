@@ -80,7 +80,7 @@ class RelayRepository(RepositoryBase):
             )
             if moves and (unended := await _count_unended_sessions(session, relay_id)):
                 raise RelayHasUnendedSessionsError(
-                    "change the base domain or agent address", unended
+                    "change the base domain or connection address", unended
                 )
             for field, value in changes.items():
                 setattr(relay, field, value)

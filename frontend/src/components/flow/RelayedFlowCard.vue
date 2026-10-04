@@ -27,7 +27,7 @@
         <template #icon><Trash2 :size="14" /></template>
       </Button>
     </template>
-    <span data-testid="flow-heartbeat">{{ heartbeatText }}</span>
+    <span data-testid="flow-updated">{{ updatedText }}</span>
   </FlowCard>
 </template>
 
@@ -41,7 +41,7 @@ import { LiveSessionStatusEnum } from '@/lib/api/live-sessions/interfaces'
 import { useFlowsStore } from '@/stores/flows'
 import { removeFlowConfirmOptions } from '@/lib/primevue/data/confirm'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { getErrorMessage, getLastUpdateText } from '@/helpers/helpers'
 import FlowCard from './FlowCard.vue'
 
 type Props = {
@@ -62,15 +62,13 @@ const isLive = computed(() => props.flow.session.status === LiveSessionStatusEnu
 
 const status = computed(() =>
   isLive.value
-    ? { className: 'status--success', tooltip: 'Live: the agent is connected' }
-    : { className: 'status--warn', tooltip: 'Disconnected: no recent heartbeat from the agent' },
+    ? { className: 'status--success', tooltip: 'Active flow' }
+    : { className: 'status--warn', tooltip: 'The flow appears to be offline' },
 )
 
-const heartbeatText = computed(() => {
-  const lastHeartbeat = props.flow.session.last_heartbeat_at
-  if (!lastHeartbeat) return 'No heartbeat yet'
-  return `Last heartbeat at ${new Date(lastHeartbeat).toLocaleString()}`
-})
+const updatedText = computed(() =>
+  getLastUpdateText(props.flow.session.last_heartbeat_at ?? props.flow.session.started_at),
+)
 
 async function openInNewTab() {
   // Opened before the token request, while the click still allows a new tab.

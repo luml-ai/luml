@@ -46,7 +46,7 @@ describe('local flows store', () => {
     store.addLocalFlow({ name: 'training', address: 'localhost', port: 5000 })
 
     expect(() => store.addLocalFlow({ name: 'other', address: 'localhost', port: 5000 })).toThrow(
-      'localhost:5000 is already on the page as "training".',
+      'localhost:5000 is already added as "training".',
     )
     expect(store.localFlows).toHaveLength(1)
   })

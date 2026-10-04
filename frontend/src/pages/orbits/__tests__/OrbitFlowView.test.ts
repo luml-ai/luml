@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import OrbitFlowView from '../OrbitFlowView.vue'
+import { getLastUpdateText } from '@/helpers/helpers'
 import { LiveSessionStatusEnum } from '@/lib/api/live-sessions/interfaces'
 import type { Flow } from '@/lib/api/flows/interfaces'
 import type { LocalFlow } from '@/utils/services/LocalStorageService.interfaces'
@@ -185,7 +186,7 @@ describe('OrbitFlowView', () => {
     await addLocalFlow(wrapper, 5000)
 
     expect(wrapper.get('[data-testid="local-error"]').text()).toBe(
-      'localhost:5000 is already on the page as "first".',
+      'localhost:5000 is already added as "first".',
     )
     expect(wrapper.findAll('[data-testid^="flow-card-"]')).toHaveLength(4)
   })
@@ -224,7 +225,7 @@ describe('OrbitFlowView', () => {
     await addLocalFlow(wrapper, 5000)
 
     expect(wrapper.get('[data-testid="local-error"]').text()).toBe(
-      'localhost:5000 did not answer. Only localhost is reliably reachable from this page, in a browser that allows it.',
+      'No Flow at localhost:5000. This page can reach only localhost.',
     )
     expect(localStorage.getItem('localFlows')).toBeNull()
     expect(localCards(wrapper)).toHaveLength(0)
@@ -236,7 +237,6 @@ describe('OrbitFlowView', () => {
 
     const card = () => localCards(wrapper)[0]!
     expect(card().get('.status').classes()).toContain('status--danger')
-    expect(card().text()).toContain('Not answering right now')
     expect(card().get('[data-testid="flow-kind"]').text()).toBe('Local')
 
     reachablePorts.add(5000)
@@ -263,7 +263,7 @@ describe('OrbitFlowView', () => {
     await wrapper.get('[data-testid="choice-relayed"]').trigger('click')
 
     const info = wrapper.get('[data-testid="relayed-info"]')
-    expect(info.text()).toContain('exposed from the machine where it runs')
+    expect(info.text()).toContain('Expose a Flow from a remote machine')
     expect(info.get('[data-testid="docs-link"]').attributes('href')).toMatch(
       /\/apps\/lumlflow\/relayed_flows$/,
     )
@@ -341,7 +341,7 @@ describe('OrbitFlowView', () => {
     expect(relayedCards(wrapper)).toHaveLength(0)
   })
 
-  it('offers no open action on a disconnected flow and shows its last heartbeat', async () => {
+  it('offers no open action on a disconnected flow and shows when it was last updated', async () => {
     const lastHeartbeat = '2026-10-03T09:00:00Z'
     flowsApi.getList.mockResolvedValue([
       relayedFlow({
@@ -354,9 +354,7 @@ describe('OrbitFlowView', () => {
     const card = relayedCards(wrapper)[0]!
     expect(card.find('[data-testid="open-flow"]').exists()).toBe(false)
     expect(card.get('.status').classes()).toContain('status--warn')
-    expect(card.get('[data-testid="flow-heartbeat"]').text()).toBe(
-      `Last heartbeat at ${new Date(lastHeartbeat).toLocaleString()}`,
-    )
+    expect(card.get('[data-testid="flow-updated"]').text()).toBe(getLastUpdateText(lastHeartbeat))
   })
 
   it('refreshes relayed flows on the interval and stops when left', async () => {

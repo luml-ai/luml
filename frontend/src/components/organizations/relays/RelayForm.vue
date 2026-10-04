@@ -21,10 +21,10 @@
         required
         fluid
       />
-      <div class="hint">A bare hostname, without a scheme, a port or a trailing dot.</div>
+      <div class="hint">Hostname only. No scheme, port or trailing dot.</div>
     </div>
     <div class="field">
-      <label :for="`${formId}-agent-url`" class="label required">Agent address</label>
+      <label :for="`${formId}-agent-url`" class="label required">Connection address</label>
       <InputText
         :id="`${formId}-agent-url`"
         v-model="model.agent_url"
@@ -33,7 +33,7 @@
         required
         fluid
       />
-      <div class="hint">The ws or wss address agents connect to.</div>
+      <div class="hint">A ws:// or wss:// address.</div>
     </div>
   </form>
 </template>

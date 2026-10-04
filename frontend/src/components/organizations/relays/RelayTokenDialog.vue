@@ -7,9 +7,7 @@
     :draggable="false"
     @update:visible="emit('close')"
   >
-    <div class="text">
-      Copy the token now. It is shown only once; rotate the token if it is lost.
-    </div>
+    <div class="text">Copy the token now. You cannot see it again.</div>
     <InputGroup>
       <InputText :value="maskedToken" readonly />
       <InputGroupAddon>
@@ -19,7 +17,7 @@
       </InputGroupAddon>
     </InputGroup>
     <div class="section-title">
-      <span>Environment of the relay</span>
+      <span>Environment</span>
       <Button
         variant="text"
         severity="secondary"
@@ -43,8 +41,8 @@
     </div>
     <pre class="code">{{ commandFor(maskedToken) }}</pre>
     <div class="note">
-      The base domain needs a wildcard DNS record and a wildcard certificate. Terminate TLS in front
-      of the relay.
+      The base domain needs a wildcard DNS record and a wildcard certificate. Put TLS in front of
+      the relay.
     </div>
     <template #footer>
       <Button label="Done" @click="emit('close')" />

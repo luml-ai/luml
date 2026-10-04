@@ -15,7 +15,7 @@
       <div class="setting">
         <div>
           <div class="setting-title">Draining</div>
-          <div class="setting-hint">A draining relay keeps its sessions but takes no new ones.</div>
+          <div class="setting-hint">Takes no new sessions.</div>
         </div>
         <ToggleSwitch
           :model-value="relay.status === RelayStatusEnum.draining"
@@ -24,13 +24,15 @@
         />
       </div>
       <div class="setting">
-        <div>
-          <div class="setting-title">Token</div>
-          <div class="setting-hint">
-            The previous token keeps working for a few minutes after a rotation.
-          </div>
-        </div>
-        <Button label="Rotate token" severity="secondary" :loading="rotating" @click="rotate" />
+        <div class="setting-title">Token</div>
+        <Button
+          label="Rotate"
+          severity="secondary"
+          variant="outlined"
+          size="small"
+          :loading="rotating"
+          @click="onRotate"
+        />
       </div>
     </div>
   </UiDialogRight>
@@ -49,7 +51,10 @@ import { Button, ToggleSwitch, useConfirm, useToast } from 'primevue'
 import { Bolt } from 'lucide-vue-next'
 import { useRelaysStore } from '@/stores/relays'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { deleteRelayConfirmOptions } from '@/lib/primevue/data/confirm'
+import {
+  deleteRelayConfirmOptions,
+  rotateRelayTokenConfirmOptions,
+} from '@/lib/primevue/data/confirm'
 import { getErrorMessage } from '@/helpers/helpers'
 import UiDialogRight, { type FooterActions } from '@/components/ui/dialogs/UiDialogRight.vue'
 import RelayForm from './RelayForm.vue'
@@ -136,6 +141,10 @@ async function save() {
 async function setDraining(draining: boolean) {
   const status = draining ? RelayStatusEnum.draining : RelayStatusEnum.enabled
   await update({ status }, `Relay is ${status}.`, 'Failed to change relay status')
+}
+
+function onRotate() {
+  confirm.require(rotateRelayTokenConfirmOptions(rotate))
 }
 
 async function rotate() {

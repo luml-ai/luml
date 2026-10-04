@@ -91,7 +91,7 @@
             option-label="name"
             option-value="id"
             id="relay"
-            placeholder="Select a relay for exposing flows"
+            placeholder="Select a relay"
             show-clear
             fluid
             :pt="multiSelectPt"

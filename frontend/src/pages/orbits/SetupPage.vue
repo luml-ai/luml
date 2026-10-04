@@ -197,8 +197,7 @@ const TABS: Record<
     cards: [
       {
         title: 'Relayed flows',
-        description:
-          'Expose a lumlflow running inside a job on a cluster or another machine, and open it from the Flow page of your orbit.',
+        description: 'Open a Flow that runs on a remote machine.',
         link: { label: 'Read how to expose a flow', href: RELAYED_FLOWS_DOCS_URL },
       },
     ],

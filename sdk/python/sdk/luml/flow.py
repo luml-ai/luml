@@ -1,4 +1,4 @@
-"""Expose a lumlflow on an orbit's Flow page from Python; needs the `flow` extra."""
+"""Expose Flow on an orbit's Flow page from Python; needs the `flow` extra."""
 
 import asyncio
 import atexit
@@ -40,11 +40,11 @@ class LiveFlowError(Exception):
 
 
 class LiveFlow:
-    """Shows a lumlflow as a flow on an orbit's Flow page while it runs.
+    """Shows a Flow instance as a flow on an orbit's Flow page while it runs.
 
     Use it as a context manager, or call `start` and `stop` where a block cannot
     span the work, as across notebook cells. The API key and the address of LUML
-    come from the environment variables the API client reads. A lumlflow already
+    come from the environment variables the API client reads. A Flow already
     answering on the port is exposed as it is; otherwise one is started on
     `store_path` and stopped with the flow.
     """
@@ -113,8 +113,7 @@ class LiveFlow:
         if _lumlflow_answers(self.port):
             if self.store_path is not None:
                 logger.warning(
-                    "lumlflow already answers on port %s; its own store is exposed, "
-                    "not %s",
+                    "Flow already answers on port %s; its own store is exposed, not %s",
                     self.port,
                     self.store_path,
                 )
@@ -211,9 +210,9 @@ class _BackgroundServing:
         waiting.cancel()
         if self._task.done():
             self._task.result()
-            raise LiveFlowError("LUML ended the session before the agent connected")
+            raise LiveFlowError("LUML ended the session before Flow connected")
         if not connected.is_set():
-            logger.warning("The agent has not reached the relay yet and keeps trying")
+            logger.warning("Flow has not reached the relay yet. Retrying.")
         self._task.add_done_callback(_report_serving_end)
 
     async def _cancel(self) -> None:
@@ -262,8 +261,8 @@ def _remove_flow(client: LumlClient, flow_id: str) -> None:
 
 
 def _lumlflow_answers(port: int) -> bool:
-    """Whether lumlflow answers on the loopback port; False when nothing listens."""
-    in_use = LiveFlowError(f"Port {port} is in use by a server that is not lumlflow")
+    """Whether Flow answers on the loopback port; False when nothing listens."""
+    in_use = LiveFlowError(f"Port {port} is in use by a server that is not Flow")
     try:
         response = httpx.get(
             f"http://127.0.0.1:{port}{STATUS_PATH}", timeout=2.0, trust_env=False
@@ -310,11 +309,11 @@ def _wait_until_answering(process: subprocess.Popen[bytes], port: int) -> None:
     while not _lumlflow_answers(port):
         if process.poll() is not None:
             raise LiveFlowError(
-                f"lumlflow exited with code {process.returncode} before answering"
+                f"Flow exited with code {process.returncode} before answering"
             )
         if time.monotonic() > deadline:
             raise LiveFlowError(
-                f"lumlflow did not answer on port {port} "
+                f"Flow did not answer on port {port} "
                 f"within {LUMLFLOW_START_TIMEOUT:g} seconds"
             )
         time.sleep(0.2)

@@ -610,7 +610,7 @@ async def test_changing_the_address_of_a_relay_with_unended_sessions_is_refused(
     assert relabeled is not None
     assert relabeled.label == "lab 2"
     assert refusal.value.message == (
-        "Cannot change the base domain or agent address: the relay has "
+        "Cannot change the base domain or connection address: the relay has "
         "1 session that has not ended"
     )
     unchanged = await repo.get_relay(relay.id)

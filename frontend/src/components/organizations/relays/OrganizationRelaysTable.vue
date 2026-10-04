@@ -5,11 +5,9 @@
         <div class="simple-table__row">
           <div>Label</div>
           <div>Base domain</div>
-          <div>Agent address</div>
           <div>Kind</div>
           <div>Status</div>
-          <div>Connection</div>
-          <div>Agents</div>
+          <div>Sessions</div>
           <div></div>
         </div>
       </div>
@@ -25,20 +23,14 @@
         >
           <div class="cell">{{ relay.label }}</div>
           <div class="cell">{{ relay.base_domain }}</div>
-          <div class="cell">{{ relay.agent_url }}</div>
           <div>
-            <Tag
-              v-if="relay.kind === RelayKindEnum.managed"
-              value="Managed · read-only"
-              severity="secondary"
-            />
+            <Tag v-if="relay.kind === RelayKindEnum.managed" value="Managed" severity="secondary" />
             <Tag v-else value="Own" severity="info" />
           </div>
-          <div>{{ relay.status === RelayStatusEnum.draining ? 'Draining' : 'Enabled' }}</div>
-          <div class="connection">
+          <div class="connection" v-tooltip.top="lastSeenText(relay.last_seen_at)">
             <span :class="['dot', { 'dot--online': relay.online }]"></span>
             <span>{{ relay.online ? 'Online' : 'Offline' }}</span>
-            <span class="muted">{{ lastSeenText(relay.last_seen_at) }}</span>
+            <span v-if="relay.status === RelayStatusEnum.draining" class="muted">Draining</span>
           </div>
           <div>{{ relay.connected_agents }}</div>
           <div>
@@ -73,7 +65,7 @@ const relaysStore = useRelaysStore()
 const toast = useToast()
 
 function lastSeenText(lastSeenAt: string | null) {
-  return lastSeenAt ? `last seen ${new Date(lastSeenAt).toLocaleString()}` : 'never seen'
+  return lastSeenAt ? `Last seen ${new Date(lastSeenAt).toLocaleString()}` : 'Never seen'
 }
 
 onMounted(async () => {
@@ -98,11 +90,11 @@ onMounted(async () => {
 }
 
 .table {
-  min-width: 1100px;
+  min-width: 720px;
 }
 
 .simple-table__row {
-  grid-template-columns: 1fr 1fr 1fr 150px 90px 220px 60px 35px;
+  grid-template-columns: 1fr 1fr 100px 160px 70px 35px;
 }
 
 .cell {

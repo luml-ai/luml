@@ -5,7 +5,7 @@ import { ref } from 'vue'
 
 const REACHABILITY_TIMEOUT_MS = 3000
 
-// lumlflow answers this path without a key and allows every origin.
+// Flow answers this path without a key and allows every origin.
 const LUMLFLOW_STATUS_PATH = '/api/auth/status'
 
 export function localFlowUrl(flow: Pick<LocalFlow, 'address' | 'port'>) {
@@ -17,7 +17,7 @@ export function localFlowKey(flow: Pick<LocalFlow, 'address' | 'port'>) {
 }
 
 export function localFlowExistsMessage(existing: LocalFlow) {
-  return `${localFlowKey(existing)} is already on the page as "${existing.name}".`
+  return `${localFlowKey(existing)} is already added as "${existing.name}".`
 }
 
 export async function isLocalFlowReachable(flow: Pick<LocalFlow, 'address' | 'port'>) {

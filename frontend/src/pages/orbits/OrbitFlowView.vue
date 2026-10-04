@@ -20,7 +20,7 @@
     <UiCardAdd
       v-if="!localFlowsStore.localFlows.length && !flowsStore.flowsList.length"
       title="Add a flow"
-      text="Open a lumlflow running on this computer or relayed from another machine."
+      text="Open a Flow on this computer or on a remote machine."
       @add="addDialogVisible = true"
     />
     <template v-else>

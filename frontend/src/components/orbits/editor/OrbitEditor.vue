@@ -40,7 +40,7 @@
           option-value="id"
           name="relay_id"
           id="relay"
-          placeholder="Select a relay for exposing flows"
+          placeholder="Select a relay"
           show-clear
         >
           <template #footer>

@@ -17,7 +17,7 @@
       >
         <Laptop :size="20" />
         <span class="choice__title">Local</span>
-        <span class="choice__text">A lumlflow running on this computer</span>
+        <span class="choice__text">On this computer</span>
       </button>
       <button
         type="button"
@@ -28,7 +28,7 @@
       >
         <Globe :size="20" />
         <span class="choice__title">Relayed</span>
-        <span class="choice__text">A lumlflow running on another machine</span>
+        <span class="choice__text">On a remote machine</span>
       </button>
     </div>
 
@@ -64,17 +64,13 @@
 
     <div v-else-if="choice === 'relayed'" class="relayed" data-testid="relayed-info">
       <template v-if="orbitHasRelay">
-        <p>
-          A relayed flow is exposed from the machine where it runs, with the flow object of the LUML
-          SDK. Use it to look into an experiment while it runs inside a job on a cluster or another
-          machine nobody can reach.
-        </p>
+        <p>Expose a Flow from a remote machine with the LUML SDK.</p>
         <a :href="RELAYED_FLOWS_DOCS_URL" target="_blank" class="link" data-testid="docs-link">
           Read how to expose a flow
         </a>
       </template>
       <template v-else>
-        <p>This orbit has no relay, so no flow can be relayed into it yet.</p>
+        <p>This orbit has no relay.</p>
         <router-link
           :to="{ name: 'organization-orbits', params: { organizationId } }"
           class="link"
@@ -161,7 +157,7 @@ async function addLocal() {
   try {
     checking.value = true
     if (!(await isLocalFlowReachable(flow))) {
-      error.value = `${localFlowKey(flow)} did not answer. Only localhost is reliably reachable from this page, in a browser that allows it.`
+      error.value = `No Flow at ${localFlowKey(flow)}. This page can reach only localhost.`
       return
     }
   } finally {
