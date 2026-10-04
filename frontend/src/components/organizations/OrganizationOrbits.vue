@@ -34,7 +34,19 @@
             </div>
             <div class="cell">{{ orbit.total_members }}</div>
             <div class="cell">{{ new Date(orbit.created_at).toLocaleDateString() }}</div>
-            <div class="cell">
+            <div class="cell actions">
+              <Button
+                v-if="updateAvailable"
+                severity="secondary"
+                variant="text"
+                aria-label="Orbit settings"
+                :loading="loadingOrbitId === orbit.id"
+                @click="openEditor(orbit.id)"
+              >
+                <template #icon>
+                  <Bolt :size="14" />
+                </template>
+              </Button>
               <OrganizationOrbitSettings :orbit-id="orbit.id"></OrganizationOrbitSettings>
             </div>
           </div>
@@ -49,21 +61,51 @@
       v-model:visible="showCreator"
       :organization-id="organizationStore.currentOrganization.id"
     ></OrbitCreator>
+    <OrbitEditor v-if="editedOrbit" v-model:visible="editorVisible" :orbit="editedOrbit" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useOrganizationStore } from '@/stores/organization'
-import { Button } from 'primevue'
-import { Plus } from 'lucide-vue-next'
-import { PermissionEnum } from '@/lib/api/api.interfaces'
+import { Button, useToast } from 'primevue'
+import { Bolt, Plus } from 'lucide-vue-next'
+import { PermissionEnum, type OrbitDetails } from '@/lib/api/api.interfaces'
 import { computed, ref } from 'vue'
+import { useOrbitsStore } from '@/stores/orbits'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import OrganizationOrbitSettings from './OrganizationOrbitSettings.vue'
 import OrbitCreator from '../orbits/creator/OrbitCreator.vue'
+import OrbitEditor from '../orbits/editor/OrbitEditor.vue'
 
 const organizationStore = useOrganizationStore()
 
+const orbitsStore = useOrbitsStore()
+const toast = useToast()
+
 const showCreator = ref(false)
+const editorVisible = ref(false)
+const editedOrbit = ref<OrbitDetails | null>(null)
+const loadingOrbitId = ref<string | null>(null)
+
+const updateAvailable = computed(() => {
+  return !!organizationStore.currentOrganization?.permissions?.orbit?.includes(
+    PermissionEnum.update,
+  )
+})
+
+async function openEditor(orbitId: string) {
+  const organizationId = organizationStore.currentOrganization?.id
+  if (!organizationId) return
+  try {
+    loadingOrbitId.value = orbitId
+    editedOrbit.value = await orbitsStore.getOrbitDetails(organizationId, orbitId)
+    editorVisible.value = true
+  } catch {
+    toast.add(simpleErrorToast('Failed to load orbit details'))
+  } finally {
+    loadingOrbitId.value = null
+  }
+}
 
 const createAvailable = computed(() => {
   return !!organizationStore.currentOrganization?.permissions?.orbit?.includes(
@@ -121,9 +163,14 @@ const createAvailable = computed(() => {
 }
 .row {
   display: grid;
-  grid-template-columns: 1fr 180px 120px 35px;
+  grid-template-columns: 1fr 180px 120px 80px;
   align-items: center;
   gap: 40px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
 }
 .cell-user {
   display: flex;
