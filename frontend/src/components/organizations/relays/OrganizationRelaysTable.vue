@@ -21,7 +21,15 @@
           class="simple-table__row"
           data-test="relay-row"
         >
-          <div class="cell">{{ relay.label }}</div>
+          <div class="label-cell">
+            <span class="cell">{{ relay.label }}</span>
+            <Cable
+              v-if="relay.present_capabilities.includes('sessions')"
+              v-tooltip.top="'Sessions'"
+              :size="14"
+              data-test="sessions-capability"
+            />
+          </div>
           <div class="cell">{{ relay.base_domain }}</div>
           <div>
             <Tag v-if="relay.kind === RelayKindEnum.managed" value="Managed" severity="secondary" />
@@ -50,6 +58,7 @@
 import { RelayKindEnum, RelayStatusEnum } from '@/lib/api/relays/interfaces'
 import { useRelaysStore } from '@/stores/relays'
 import { useToast, Tag } from 'primevue'
+import { Cable } from 'lucide-vue-next'
 import { onMounted } from 'vue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
@@ -100,6 +109,13 @@ onMounted(async () => {
 .cell {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.label-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .connection {

@@ -33,6 +33,11 @@ def _own_relay(**overrides: Any) -> dict[str, Any]:  # noqa: ANN401
         "online": True,
         "last_seen_at": "2026-10-01T12:00:00Z",
         "connected_agents": 2,
+        "capabilities": {
+            "sessions": {"version": 1, "api_versions": [1]},
+            "custom.replay": {"version": 2},
+        },
+        "present_capabilities": ["sessions", "custom.replay"],
         "created_at": "2026-09-30T12:00:00Z",
         "updated_at": None,
     }
@@ -80,6 +85,8 @@ def test_relay_list_marks_managed_relays(mock_sync_client: Mock) -> None:
     assert relays[1].organization_id is None
     assert relays[0].online is True
     assert relays[0].connected_agents == 2
+    assert relays[0].present_capabilities == ["sessions", "custom.replay"]
+    assert relays[0].capabilities["custom.replay"] == {"version": 2}
 
 
 def test_relay_list_drops_a_hash_the_backend_might_send(

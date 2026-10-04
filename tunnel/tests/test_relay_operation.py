@@ -395,6 +395,16 @@ async def test_validations_in_flight_are_bounded_and_the_rest_try_again(
     assert echo.requests == []
 
 
+async def test_relay_reports_its_sessions_capability(
+    luml: FakeRelayApi,
+) -> None:
+    relay = create_relay(luml, reports_to=create_api(luml), report_interval=0.05)
+    async with serve(relay):
+        await until(lambda: bool(luml.reported_capabilities))
+
+    assert luml.reported_capabilities[0] == {"sessions": {"version": 1, "api_versions": [1]}}
+
+
 async def test_relay_reports_its_connected_agents(
     luml: FakeRelayApi, expose_token: str, service_port: int
 ) -> None:

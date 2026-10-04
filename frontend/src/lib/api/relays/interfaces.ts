@@ -19,6 +19,8 @@ export interface Relay {
   online: boolean
   last_seen_at: string | null
   connected_agents: number
+  capabilities: Record<string, Record<string, unknown>>
+  present_capabilities: string[]
   created_at: string
   updated_at: string | null
 }

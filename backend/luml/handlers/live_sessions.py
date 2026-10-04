@@ -32,7 +32,7 @@ from luml.schemas.live_session import (
     TunnelTokenKind,
 )
 from luml.schemas.permissions import Action, Resource
-from luml.schemas.relay import Relay, RelayKind, RelayStatus
+from luml.schemas.relay import SESSIONS_CAPABILITY, Relay, RelayKind, RelayStatus
 from luml.settings import Settings, config
 
 LAUNCH_PATH = "/.luml-tunnel/launch"
@@ -116,6 +116,11 @@ class LiveSessionHandler:
         if relay.status == RelayStatus.DRAINING:
             raise ApplicationError(
                 f"Relay '{relay.label}' is draining and takes no new sessions",
+                status.HTTP_409_CONFLICT,
+            )
+        if SESSIONS_CAPABILITY not in relay.present_capabilities:
+            raise ApplicationError(
+                f"Relay '{relay.label}' does not support sessions",
                 status.HTTP_409_CONFLICT,
             )
         return relay

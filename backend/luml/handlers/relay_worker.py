@@ -16,6 +16,7 @@ from luml.schemas.live_session import (
 )
 from luml.schemas.relay import (
     RelayDescription,
+    RelayReportIn,
     TunnelGrantVerdict,
     TunnelTokenValidateIn,
     TunnelTokenVerdict,
@@ -131,5 +132,7 @@ class RelayWorkerHandler:
             expires_at=grant.expires_at,
         )
 
-    async def report(self, relay_id: UUID, connected_agents: int) -> None:
-        await self.__relay_repo.record_report(relay_id, connected_agents)
+    async def report(self, relay_id: UUID, report: RelayReportIn) -> None:
+        await self.__relay_repo.record_report(
+            relay_id, report.connected_agents, report.capabilities
+        )

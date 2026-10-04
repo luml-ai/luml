@@ -134,8 +134,12 @@ class RelayApi:
                 f"LUML answered a grant check unreadably: {error!r}"
             ) from error
 
-    async def report(self, connected_agents: int) -> None:
-        await self._send("POST", "/report", {"connected_agents": connected_agents})
+    async def report(self, connected_agents: int, capabilities: dict[str, dict[str, Any]]) -> None:
+        await self._send(
+            "POST",
+            "/report",
+            {"connected_agents": connected_agents, "capabilities": capabilities},
+        )
 
     async def _send(
         self, method: str, path: str, body: dict[str, Any] | None = None

@@ -242,6 +242,7 @@ class FakeRelayApi:
     grant_checks: list[str] = field(default_factory=list)
     descriptions: int = 0
     reports: list[int] = field(default_factory=list)
+    reported_capabilities: list[dict[str, Any]] = field(default_factory=list)
     validation_delay: float = 0.0
     open_validations: int = 0
     most_open_validations: int = 0
@@ -362,7 +363,9 @@ class FakeRelayApi:
     async def _report(self, request: Request) -> Response:
         if self._caller(request) is None:
             return JSONResponse({"detail": "Invalid relay token"}, 401)
-        self.reports.append((await request.json())["connected_agents"])
+        report = await request.json()
+        self.reports.append(report["connected_agents"])
+        self.reported_capabilities.append(report["capabilities"])
         return Response(status_code=204)
 
     def _active(self, stored: StoredToken, relay: str) -> bool:

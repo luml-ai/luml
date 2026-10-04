@@ -56,4 +56,4 @@ async def check_tunnel_grant(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def report_relay(request: Request, data: RelayReportIn) -> None:
-    await relay_worker_handler.report(request.user.id, data.connected_agents)
+    await relay_worker_handler.report(request.user.id, data)

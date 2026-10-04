@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision: str = "042"
 down_revision: str | None = "041"
@@ -33,6 +34,12 @@ def upgrade() -> None:
         ),
         sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("connected_agents", sa.Integer(), server_default="0", nullable=False),
+        sa.Column(
+            "capabilities",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default="{}",
+            nullable=False,
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

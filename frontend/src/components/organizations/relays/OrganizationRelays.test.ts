@@ -77,6 +77,8 @@ function relay(overrides: Partial<Relay> = {}): Relay {
     online: false,
     last_seen_at: null,
     connected_agents: 0,
+    capabilities: {},
+    present_capabilities: [],
     created_at: '2026-10-01T00:00:00Z',
     updated_at: null,
     ...overrides,
@@ -93,6 +95,8 @@ const managedRelay = relay({
   online: true,
   last_seen_at: '2026-10-03T10:00:00Z',
   connected_agents: 3,
+  capabilities: { sessions: { version: 1, api_versions: [1] } },
+  present_capabilities: ['sessions'],
 })
 
 const ownerPermissions = [
@@ -142,6 +146,14 @@ describe('OrganizationRelays', () => {
     expect(managed?.text()).toContain('Online')
     expect(managed?.text()).toContain('3')
     expect(managed?.find('[aria-label="Relay settings"]').exists()).toBe(false)
+  })
+
+  it('marks only the relays that report the sessions capability', async () => {
+    const wrapper = await mountTab()
+
+    const [own, managed] = rows(wrapper)
+    expect(own?.find('[data-test="sessions-capability"]').exists()).toBe(false)
+    expect(managed?.find('[data-test="sessions-capability"]').exists()).toBe(true)
   })
 
   it('hides the add button and the settings without the permissions to change relays', async () => {

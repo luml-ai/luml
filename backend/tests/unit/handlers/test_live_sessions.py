@@ -39,6 +39,7 @@ RELAY_ID = UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7d")
 OTHER_RELAY_ID = UUID("0199c337-09f4-7a3b-8c1d-2e3f4a5b6c7e")
 BASE_DOMAIN = "tunnel.example"
 AGENT_URL = "wss://tunnel.example/connect"
+SESSIONS: dict[str, dict[str, Any]] = {"sessions": {"version": 1, "api_versions": [1]}}
 
 REPO = "luml.handlers.live_sessions.LiveSessionRepository"
 ORBIT_REPO = "luml.handlers.live_sessions.OrbitRepository"
@@ -65,6 +66,7 @@ def _relay(
     status: RelayStatus = RelayStatus.ENABLED,
     base_domain: str = BASE_DOMAIN,
     agent_url: str = AGENT_URL,
+    capabilities: dict[str, dict[str, Any]] | None = None,
 ) -> Relay:
     return Relay(
         id=relay_id,
@@ -73,6 +75,7 @@ def _relay(
         base_domain=base_domain,
         agent_url=agent_url,
         status=status,
+        capabilities=SESSIONS if capabilities is None else capabilities,
         created_at=datetime.now(UTC),
     )
 
@@ -512,6 +515,34 @@ async def test_start_on_a_draining_relay_is_refused(
 
     assert error.value.status_code == 409
     assert error.value.message == ("Relay 'lab' is draining and takes no new sessions")
+    repo["check_session_slot"].assert_not_awaited()
+    repo["create_live_session"].assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    [
+        {},
+        {"sessions": {"version": 2, "api_versions": [2]}},
+        {"sessions": {"version": 1, "api_versions": [2]}},
+        {"custom.replay": {"version": 1}},
+    ],
+)
+@pytest.mark.asyncio
+async def test_start_on_a_relay_without_sessions_is_refused(
+    check_permissions: AsyncMock,
+    repo: dict[str, AsyncMock],
+    capabilities: dict[str, dict[str, Any]],
+) -> None:
+    repo["get_relay"].return_value = _relay(capabilities=capabilities)
+
+    with pytest.raises(ApplicationError) as error:
+        await _handler().start_session(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, LiveSessionStartIn(label="run")
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.message == "Relay 'lab' does not support sessions"
     repo["check_session_slot"].assert_not_awaited()
     repo["create_live_session"].assert_not_awaited()
 

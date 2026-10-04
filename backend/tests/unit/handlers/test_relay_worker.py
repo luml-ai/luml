@@ -16,6 +16,7 @@ from luml.schemas.live_session import (
 )
 from luml.schemas.relay import (
     Relay,
+    RelayReportIn,
     RelayStatus,
     TunnelGrantVerdict,
     TunnelTokenValidateIn,
@@ -388,9 +389,13 @@ async def test_an_inactive_grant_answers_inactive_without_a_reason(
 
 
 @pytest.mark.asyncio
-async def test_report_records_the_connected_agents(
+async def test_report_records_the_connected_agents_and_capabilities(
     repo: dict[str, AsyncMock],
 ) -> None:
-    await _handler().report(RELAY_ID, 3)
+    capabilities = {"sessions": {"version": 1, "api_versions": [1]}}
 
-    repo["record_report"].assert_awaited_once_with(RELAY_ID, 3)
+    await _handler().report(
+        RELAY_ID, RelayReportIn(connected_agents=3, capabilities=capabilities)
+    )
+
+    repo["record_report"].assert_awaited_once_with(RELAY_ID, 3, capabilities)

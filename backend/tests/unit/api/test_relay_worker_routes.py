@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from luml.schemas.relay import Relay, RelayStatus, TunnelTokenVerdict
+from luml.schemas.relay import Relay, RelayReportIn, RelayStatus, TunnelTokenVerdict
 from luml.schemas.user import UserOut
 from luml.service import AppService
 
@@ -40,7 +40,7 @@ ROUTES = [
     ("get", "/relays/v1/self", None),
     ("post", "/relays/v1/tokens/validate", {"token": "t"}),
     ("post", "/relays/v1/grants/check", {"grant_id": str(GRANT_ID)}),
-    ("post", "/relays/v1/report", {"connected_agents": 3}),
+    ("post", "/relays/v1/report", {"connected_agents": 3, "capabilities": {}}),
 ]
 
 
@@ -137,14 +137,39 @@ def test_check_grant_passes_the_calling_relay(
 def test_report_records_the_connected_agents_of_the_calling_relay(
     mock_find_relay: AsyncMock, mock_report: AsyncMock
 ) -> None:
+    capabilities = {"sessions": {"version": 1, "api_versions": [1]}}
+
     response = TestClient(AppService()).post(
         "/relays/v1/report",
-        json={"connected_agents": 3},
+        json={"connected_agents": 3, "capabilities": capabilities},
         headers=_bearer(RELAY_TOKEN),
     )
 
     assert response.status_code == 204
-    mock_report.assert_awaited_once_with(RELAY_ID, 3)
+    mock_report.assert_awaited_once_with(
+        RELAY_ID, RelayReportIn(connected_agents=3, capabilities=capabilities)
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"connected_agents": 3},
+        {"connected_agents": 3, "capabilities": {"replay": {"version": 1}}},
+        {"connected_agents": 3, "capabilities": {"sessions": {"version": 0}}},
+    ],
+)
+@patch(f"{HANDLER}.report", new_callable=AsyncMock)
+@patch(FIND_RELAY, new_callable=AsyncMock, return_value=_relay())
+def test_report_refuses_missing_or_invalid_capabilities(
+    mock_find_relay: AsyncMock, mock_report: AsyncMock, body: dict[str, object]
+) -> None:
+    response = TestClient(AppService()).post(
+        "/relays/v1/report", json=body, headers=_bearer(RELAY_TOKEN)
+    )
+
+    assert response.status_code == 422
+    mock_report.assert_not_awaited()
 
 
 @patch(f"{HANDLER}.report", new_callable=AsyncMock)
@@ -154,7 +179,7 @@ def test_report_refuses_a_negative_count(
 ) -> None:
     response = TestClient(AppService()).post(
         "/relays/v1/report",
-        json={"connected_agents": -1},
+        json={"connected_agents": -1, "capabilities": {}},
         headers=_bearer(RELAY_TOKEN),
     )
 

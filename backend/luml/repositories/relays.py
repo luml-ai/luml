@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, func, or_, select, update
@@ -112,13 +113,20 @@ class RelayRepository(RepositoryBase):
             await session.commit()
             return rotated
 
-    async def record_report(self, relay_id: UUID, connected_agents: int) -> None:
+    async def record_report(
+        self,
+        relay_id: UUID,
+        connected_agents: int,
+        capabilities: dict[str, dict[str, Any]],
+    ) -> None:
         async with self._get_session() as session:
             await session.execute(
                 update(RelayOrm)
                 .where(RelayOrm.id == relay_id)
                 .values(
-                    last_seen_at=datetime.now(UTC), connected_agents=connected_agents
+                    last_seen_at=datetime.now(UTC),
+                    connected_agents=connected_agents,
+                    capabilities=capabilities,
                 )
             )
             await session.commit()

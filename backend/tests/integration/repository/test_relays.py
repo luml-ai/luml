@@ -317,7 +317,7 @@ async def test_second_rotation_within_the_overlap_retires_the_first_token(
 
 
 @pytest.mark.asyncio
-async def test_report_records_liveness_and_connected_agents(
+async def test_report_records_liveness_connected_agents_and_capabilities(
     create_organization_with_user: OrganizationFixtureData,
 ) -> None:
     data = create_organization_with_user
@@ -326,13 +326,20 @@ async def test_report_records_liveness_and_connected_agents(
         data.engine, "tunnel.example", "first", organization_id=data.organization.id
     )
 
-    await repo.record_report(relay.id, 3)
+    capabilities = {
+        "sessions": {"version": 1, "api_versions": [1]},
+        "custom.replay": {"version": 3},
+    }
+
+    await repo.record_report(relay.id, 3, capabilities)
 
     reported = await repo.get_relay(relay.id)
     assert reported is not None
     assert reported.connected_agents == 3
     assert reported.last_seen_at is not None
     assert reported.online is True
+    assert reported.capabilities == capabilities
+    assert reported.present_capabilities == ["sessions", "custom.replay"]
 
 
 @pytest.mark.asyncio

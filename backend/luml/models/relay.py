@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import UUID, ForeignKey, Integer, String
 from sqlalchemy.dialects import postgresql
@@ -43,6 +44,9 @@ class RelayOrm(TimestampMixin, Base):
     )
     connected_agents: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
+    )
+    capabilities: Mapped[dict[str, Any]] = mapped_column(
+        postgresql.JSONB, nullable=False, default=dict, server_default="{}"
     )
 
     def to_relay(self) -> Relay:

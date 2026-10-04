@@ -80,6 +80,8 @@ LAUNCH_TOKEN_PARAMETER = "token"
 
 TRY_AGAIN = "LUML cannot be asked about access right now; try again in a moment"
 DESCRIPTION_RETRY = ReconnectPolicy(initial_delay=1.0, max_delay=30.0)
+# What this relay can do, reported to LUML, which uses a relay only for what it declares.
+CAPABILITIES: dict[str, dict[str, object]] = {"sessions": {"version": 1, "api_versions": [1]}}
 
 _BODY_TOO_LARGE = "request body too large"
 _IDLE = "stream idle"
@@ -256,7 +258,7 @@ class Relay:
         interval = self.settings.report_interval
         while True:
             try:
-                await api.report(len(self.agents.connections()))
+                await api.report(len(self.agents.connections()), CAPABILITIES)
             except RelayTokenRefusedError as error:
                 self._report_refused = True
                 logger.error("LUML refused the relay token when the relay reported: %s", error)

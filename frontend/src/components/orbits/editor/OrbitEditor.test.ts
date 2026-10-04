@@ -20,6 +20,8 @@ function makeRelay(id: string, kind: RelayKindEnum, status: RelayStatusEnum): Re
     online: true,
     last_seen_at: null,
     connected_agents: 0,
+    capabilities: {},
+    present_capabilities: [],
     created_at: '2026-10-01T00:00:00Z',
     updated_at: null,
   }

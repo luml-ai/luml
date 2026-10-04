@@ -584,6 +584,8 @@ class Relay(BaseModel):
     online: bool
     last_seen_at: str | None = None
     connected_agents: int = 0
+    capabilities: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    present_capabilities: list[str] = Field(default_factory=list)
     created_at: str
     updated_at: str | None = None
 
