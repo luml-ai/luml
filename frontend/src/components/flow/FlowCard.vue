@@ -18,7 +18,7 @@
         <span>Local</span>
       </template>
       <template v-else>
-        <Globe :size="12" />
+        <RadioTower :size="12" />
         <span>Relayed</span>
       </template>
     </div>
@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { Globe, Laptop } from 'lucide-vue-next'
+import { Laptop, RadioTower } from 'lucide-vue-next'
 
 type Props = {
   name: string

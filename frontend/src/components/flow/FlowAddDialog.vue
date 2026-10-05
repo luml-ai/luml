@@ -26,7 +26,7 @@
         data-testid="choice-relayed"
         @click="choice = 'relayed'"
       >
-        <Globe :size="20" />
+        <RadioTower :size="20" />
         <span class="choice__title">Relayed</span>
         <span class="choice__text">On a remote machine</span>
       </button>
@@ -88,7 +88,7 @@ import type { DialogPassThroughOptions } from 'primevue'
 import type { LocalFlow } from '@/utils/services/LocalStorageService.interfaces'
 import { computed, ref } from 'vue'
 import { Button, Dialog, InputNumber, InputText } from 'primevue'
-import { Globe, Laptop } from 'lucide-vue-next'
+import { Laptop, RadioTower } from 'lucide-vue-next'
 import {
   isLocalFlowReachable,
   localFlowExistsMessage,
