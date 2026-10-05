@@ -58,6 +58,7 @@ export type CellStatus =
 export type StaleKind =
   | 'definition-changed'
   | 'deps-rewired'
+  | 'env-changed'
   | 'parent-rematerialized'
   | 'workspace-code-changed'
 

@@ -147,6 +147,7 @@ def record_run(
         inputs=inputs,
         memo_key=memo_key,
         outputs={"data": output_record(content)},
+        env_lock_hash=store.index.env_lock_hash(),
     )
     store.commit([run], intent=f"ran {accepted.slug}", actor="user", branch=branch_id)
     return run
@@ -173,6 +174,7 @@ def run_recorded(
     inputs: dict[str, InputRef] | None = None,
     identity_dependent: bool = False,
     external: bool = False,
+    env_lock_hash: str | None = None,
 ) -> RunRecorded:
     return RunRecorded(
         mat_id=mat_id or new_ulid(),
@@ -185,6 +187,7 @@ def run_recorded(
         outputs=outputs or {"data": output_record()},
         identity_dependent=identity_dependent,
         external=external,
+        env_lock_hash=env_lock_hash,
         cost_seconds=1.5,
         started_step=1,
         finished_step=2,

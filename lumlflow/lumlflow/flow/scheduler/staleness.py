@@ -28,6 +28,7 @@ StaleState = Literal["synced", "unsynced", "unmaterialized", "failed"]
 CauseKind = Literal[
     "definition-changed",
     "deps-rewired",
+    "env-changed",
     "parent-rematerialized",
     "workspace-code-changed",
 ]
@@ -79,6 +80,7 @@ class _Derivation:
         self.index = index
         self.here = index.slice_versions(branch_id)
         self.tree = index.workspace_tree()
+        self.env_lock_hash = index.env_lock_hash()
         baselines = index.baselines(branch_id)
         self.mats = {
             uid: mat
@@ -97,6 +99,7 @@ class _Derivation:
             *self._code_causes(version, mat),
             *self._input_causes(mat),
             *self._workspace_causes(mat),
+            *self._env_causes(version, mat),
         )
         if mat.state != "succeeded":
             return Verdict(uid, version.slug, "failed", causes)
@@ -172,6 +175,20 @@ class _Derivation:
             if current_key == mat.memo_key:
                 return ()
         return (Cause("workspace-code-changed", _changed_files(self.tree)),)
+
+    def _env_causes(
+        self, version: VersionRow, mat: MaterializationRow
+    ) -> tuple[Cause, ...]:
+        """An opted-in cell's key holds the current lock hash, not the one it ran under.
+
+        A run that recorded none is behind a workspace that has since observed
+        one; two absences are no move.
+        """
+        if not version.manifest.env_sensitive:
+            return ()
+        if mat.env_lock_hash == self.env_lock_hash:
+            return ()
+        return (Cause("env-changed", "the workspace's packages changed"),)
 
 
 def _with_upstream(

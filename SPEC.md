@@ -289,10 +289,10 @@ Each task is one agent session with its tests; the engine fixes come first and t
   - [x] Add queue tests in `lumlflow/tests/flow/test_queue.py` for the cancelled, late-landing, shared-run and gate-waiting cases and for a run asked for after a rewind, using the harness's holding executor; the late-landing case needs the stub to ignore cancel for a named cell and finish on release, which the harness does not do yet
   - [x] Add a daemon test in `lumlflow/tests/daemon/` covering rewind during a run end to end
 
-- [ ] fix: judge env-sensitive staleness against the current lockfile
-  - [ ] In `lumlflow/lumlflow/flow/scheduler/staleness.py`, add the environment comparison with the workspace's current lock hash for environment-sensitive cells, add the `env-changed` cause kind, and keep the workspace-code cause for code changes only
-  - [ ] Add the kind to the workbench's cause-kind union in `lumlflow/frontend/src/flow/workbench/model/types.ts`
-  - [ ] Add staleness tests in `lumlflow/tests/flow/test_staleness.py`, including the workspace without a lockfile and a run that recorded no lock hash once the workspace observes one, and extend the environment tests in `lumlflow/tests/daemon/test_envs.py` with the producer-and-consumer cases; narrow the module docstring of `lumlflow/tests/daemon/test_envs.py` and the quiesce comment in `lumlflow/lumlflow/flow/daemon/hub.py` to cells that did not opt in
+- [x] fix: judge env-sensitive staleness against the current lockfile
+  - [x] In `lumlflow/lumlflow/flow/scheduler/staleness.py`, add the environment comparison with the workspace's current lock hash for environment-sensitive cells, add the `env-changed` cause kind, and keep the workspace-code cause for code changes only
+  - [x] Add the kind to the workbench's cause-kind union in `lumlflow/frontend/src/flow/workbench/model/types.ts`
+  - [x] Add staleness tests in `lumlflow/tests/flow/test_staleness.py`, including the workspace without a lockfile and a run that recorded no lock hash once the workspace observes one, and extend the environment tests in `lumlflow/tests/daemon/test_envs.py` with the producer-and-consumer cases; narrow the module docstring of `lumlflow/tests/daemon/test_envs.py` and the quiesce comment in `lumlflow/lumlflow/flow/daemon/hub.py` to cells that did not opt in
 
 - [ ] fix: keep unpersisted outputs readable by their consumers
   - [ ] In `lumlflow/lumlflow_kernel/executor.py`, retain unpersisted values in memory by their run-unique reference, keep a copy of an unpersisted file output's bytes outside the run's scratch directory and remove the copies when the kernel stops or a new kernel starts, reference them from the output record, and let `_load_inputs` serve an input from that memory

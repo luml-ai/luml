@@ -7,7 +7,7 @@ from lumlflow.flow.scheduler.planner import Planner
 from lumlflow.flow.scheduler.staleness import Verdict
 from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.flowstore import FlowStore
-from lumlflow.flow.store.models import InputRef, WorkspaceCodeChanged
+from lumlflow.flow.store.models import EnvChanged, InputRef, WorkspaceCodeChanged
 
 from tests.flow.helpers import accept, input_ref, output_record, record_run
 
@@ -28,6 +28,17 @@ def verdicts(store: FlowStore, branch: str = MAIN_BRANCH) -> dict[str, Verdict]:
 
 def causes(verdict: Verdict) -> list[tuple[str, str]]:
     return [(cause.kind, cause.detail) for cause in verdict.causes]
+
+
+def observe_env(store: FlowStore, lock_hash: str) -> None:
+    store.commit(
+        [EnvChanged(lock_hash=lock_hash, packages={"pandas": lock_hash[:5]})],
+        intent="env changed",
+        actor="system",
+    )
+
+
+ENV_CHANGED = ("env-changed", "the workspace's packages changed")
 
 
 class TestStates:
@@ -201,6 +212,111 @@ class TestCauses:
         verdict = verdicts(store)["plot"]
         assert (verdict.state, verdict.causes) == ("synced", ())
         assert verdict.upstream == ("features",)
+
+
+class TestEnvironment:
+    """An opted-in cell's key holds the lock hash the workspace has now."""
+
+    def test_an_env_change_is_its_own_cause_not_a_code_change(
+        self, store: FlowStore
+    ) -> None:
+        observe_env(store, "a" * 64)
+        record_run(store, accept(store, "pinned", env_sensitive=True))
+        observe_env(store, "b" * 64)
+
+        verdict = verdicts(store)["pinned"]
+        assert verdict.state == "unsynced"
+        assert causes(verdict) == [ENV_CHANGED]
+        assert Planner(store).auto_targets(MAIN_BRANCH) == ["pinned"]
+
+    def test_a_cell_that_did_not_opt_in_ignores_an_env_change(
+        self, store: FlowStore
+    ) -> None:
+        observe_env(store, "a" * 64)
+        record_run(store, accept(store, "features"))
+        observe_env(store, "b" * 64)
+
+        verdict = verdicts(store)["features"]
+        assert (verdict.state, verdict.causes) == ("synced", ())
+
+    def test_a_workspace_without_a_lockfile_leaves_the_cell_synced(
+        self, store: FlowStore
+    ) -> None:
+        record_run(store, accept(store, "pinned", env_sensitive=True))
+
+        verdict = verdicts(store)["pinned"]
+        assert (verdict.state, verdict.causes) == ("synced", ())
+
+    def test_a_run_that_recorded_no_lock_hash_is_behind_an_observed_one(
+        self, store: FlowStore
+    ) -> None:
+        record_run(store, accept(store, "pinned", env_sensitive=True))
+        observe_env(store, "a" * 64)
+
+        verdict = verdicts(store)["pinned"]
+        assert verdict.state == "unsynced"
+        assert causes(verdict) == [ENV_CHANGED]
+
+    def test_moving_the_env_back_clears_the_cause(self, store: FlowStore) -> None:
+        observe_env(store, "a" * 64)
+        record_run(store, accept(store, "pinned", env_sensitive=True))
+        observe_env(store, "b" * 64)
+        observe_env(store, "a" * 64)
+
+        verdict = verdicts(store)["pinned"]
+        assert (verdict.state, verdict.causes) == ("synced", ())
+
+    def test_shared_code_and_env_moving_together_list_both_causes(
+        self, store: FlowStore
+    ) -> None:
+        tree_a = "a" * 64
+        store.commit(
+            [WorkspaceCodeChanged(tree_hash=tree_a, changed_paths=["helpers.py"])],
+            intent="shared code discovered",
+            actor="system",
+        )
+        observe_env(store, "c" * 64)
+        pinned = accept(store, "pinned", env_sensitive=True)
+        version = store.index.version(pinned.version_id)
+        assert version is not None
+        record_run(store, pinned, memo_key=memo.key_for(store.index, version, {}))
+        store.commit(
+            [
+                WorkspaceCodeChanged(
+                    tree_hash="b" * 64,
+                    previous_tree_hash=tree_a,
+                    changed_paths=["helpers.py"],
+                )
+            ],
+            intent="shared code changed",
+            actor="system",
+        )
+        observe_env(store, "d" * 64)
+
+        verdict = verdicts(store)["pinned"]
+        assert verdict.state == "unsynced"
+        assert causes(verdict) == [
+            ("workspace-code-changed", "`helpers.py` changed"),
+            ENV_CHANGED,
+        ]
+
+    def test_an_env_change_alone_does_not_read_as_shared_code(
+        self, store: FlowStore
+    ) -> None:
+        """With a tree recorded, the code comparison keys on the run's own env."""
+        store.commit(
+            [WorkspaceCodeChanged(tree_hash="a" * 64, changed_paths=["helpers.py"])],
+            intent="shared code discovered",
+            actor="system",
+        )
+        observe_env(store, "c" * 64)
+        pinned = accept(store, "pinned", env_sensitive=True)
+        version = store.index.version(pinned.version_id)
+        assert version is not None
+        record_run(store, pinned, memo_key=memo.key_for(store.index, version, {}))
+        observe_env(store, "d" * 64)
+
+        assert causes(verdicts(store)["pinned"]) == [ENV_CHANGED]
 
 
 class TestCarriedPointers:

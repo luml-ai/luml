@@ -319,9 +319,10 @@ class Hub:
         )
         if workspace_changed:
             session.kernel.evict_workspace_modules()
-        # The env is recorded, never acted on: a run that starts after an
-        # install records the pins it ran under, and the kernel keeps the
-        # modules it already imported until somebody restarts it.
+        # For a cell that did not opt in, the env is recorded, never acted on:
+        # a run that starts after an install records the pins it ran under, and
+        # the kernel keeps the modules it already imported until somebody
+        # restarts it. An env-sensitive cell is the exception: it goes stale.
         env_changed = envs.sync(session.workspace_dir, [session])
         moved = session.reconcile(tier=tier, actor=actor).moved
         if workspace_changed or env_changed or moved:

@@ -1,9 +1,10 @@
 """The workspace env: which interpreter runs a kernel, what the lockfile pins,
 and what an install does to a kernel already holding the old imports.
 
-The rule under all of it is that an env change is provenance, never
-invalidation: what already ran keeps the pins it ran under, and the only thing
-an install moves is what the next kernel imports.
+The rule under all of it, for a cell that did not opt in with
+`env_sensitive`, is that an env change is provenance, never invalidation: what
+already ran keeps the pins it ran under, and the only thing an install moves is
+what the next kernel imports. An env-sensitive cell goes stale instead.
 """
 
 import sys
@@ -13,6 +14,7 @@ from unittest.mock import patch
 import pytest
 from lumlflow.flow.daemon import envs
 from lumlflow.flow.errors import EnvError
+from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.models import EnvChanged, RunRecorded
 
 from tests.daemon.helpers import (
@@ -335,6 +337,28 @@ class Pinned:
 PINNED_BEFORE = "1.0.0"
 PINNED_AFTER = "9.9.9"
 
+# Reads the lockfile itself, so its answer moves with the pins the way a real
+# library's behaviour would.
+READS_PINS_CELL = """
+class Pins:
+    env_sensitive = True
+    produces = {"pins": "asset"}
+
+    def materialize(self, ctx):
+        from pathlib import Path
+
+        return {"pins": Path(LOCK_PATH).read_text()}
+"""
+
+PINNED_CONSUMER_CELL = """
+class Uses:
+    consumes = {"pins": "pins.pins"}
+    produces = {"used": "asset"}
+
+    def materialize(self, ctx, pins):
+        return {"used": len(pins)}
+"""
+
 
 class TestExternalChange:
     async def test_a_change_leaves_results_alone_and_asks_for_a_restart(
@@ -401,3 +425,50 @@ class TestExternalChange:
 
         assert again["score"]["pruned"] == ["score"]
         assert again["pinned"]["executed"] == ["pinned"]
+
+    async def test_an_env_sensitive_ancestor_reruns_after_the_lockfile_moves(
+        self, tmp_path: Path
+    ) -> None:
+        root = make_workspace(tmp_path / "project")
+        lock = write_lock(root, {"pandas": PINNED_BEFORE})
+        write_cell(
+            root / "churn.flow",
+            "pins",
+            READS_PINS_CELL.replace("LOCK_PATH", repr(str(lock))),
+        )
+        write_cell(root / "churn.flow", "uses", PINNED_CONSUMER_CELL)
+
+        async with daemon_api(root) as api:
+            await api.run({"flow": "churn", "target": "uses"})
+            write_lock(root, {"pandas": PINNED_AFTER})
+            listed = await api.cells_list({"flow": "churn"})
+            plan = api.hub.session("churn").planner.plan("uses", branch=MAIN_BRANCH)
+            again = await api.run({"flow": "churn", "target": "uses"})
+
+        producer = next(entry for entry in listed["cells"] if entry["slug"] == "pins")
+        assert (producer["state"], producer["causes"]) == (
+            "unsynced",
+            ["the workspace's packages changed"],
+        )
+        assert [step.slug for step in plan.steps] == ["pins", "uses"]
+        assert again["executed"] == ["pins", "uses"]
+
+    async def test_an_unchanged_env_sensitive_output_prunes_its_consumer(
+        self, tmp_path: Path
+    ) -> None:
+        root = make_workspace(tmp_path / "project")
+        write_lock(root, {"pandas": PINNED_BEFORE})
+        write_cell(root / "churn.flow", "pins", ENV_SENSITIVE_CELL)
+        write_cell(
+            root / "churn.flow",
+            "uses",
+            PINNED_CONSUMER_CELL.replace("pins.pins", "pins.reading"),
+        )
+
+        async with daemon_api(root) as api:
+            await api.run({"flow": "churn", "target": "uses"})
+            write_lock(root, {"pandas": PINNED_AFTER})
+            again = await api.run({"flow": "churn", "target": "uses"})
+
+        assert again["executed"] == ["pins"]
+        assert again["pruned"] == ["uses"]
