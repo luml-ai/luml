@@ -46,7 +46,8 @@ class RelayedFlow:
     span the work, as across notebook cells. The API key and the address of LUML
     come from the environment variables the API client reads. A Flow already
     answering on the port is exposed as it is; otherwise one is started on
-    `store_path` and stopped with the flow.
+    `store_path` and stopped with the flow. Stopping ends the session this
+    object started, so a later run that took over the name keeps its own.
     """
 
     def __init__(
@@ -67,7 +68,7 @@ class RelayedFlow:
         self._started = False
         self._running = False
         self._client: LumlClient | None = None
-        self._flow_id: str | None = None
+        self._session_id: str | None = None
         self._lumlflow: subprocess.Popen[bytes] | None = None
         self._serving: _BackgroundServing | None = None
         self._previous_termination_handler: _SignalHandler = None
@@ -96,7 +97,7 @@ class RelayedFlow:
         return app_url
 
     def stop(self) -> None:
-        """Remove the flow at LUML and stop what `start` started; harmless twice."""
+        """End the session at LUML and stop what `start` started; harmless twice."""
         if not self._running:
             return
         self._running = False
@@ -121,7 +122,7 @@ class RelayedFlow:
             self._lumlflow = _start_lumlflow(self.port, self.store_path)
         self._client = client
         exposed = client.flows.expose(self.name)
-        self._flow_id = exposed.flow.id
+        self._session_id = exposed.session.id
         self._serving = _BackgroundServing()
         self._serving.start(
             client.organization, client.orbit, exposed.session, self.port
@@ -130,8 +131,8 @@ class RelayedFlow:
         return exposed.app_url
 
     def _release(self) -> None:
-        if self._client is not None and self._flow_id is not None:
-            _remove_flow(self._client, self._flow_id)
+        if self._client is not None and self._session_id is not None:
+            _end_session(self._client, self._session_id)
         if self._serving is not None:
             self._serving.stop()
         if self._lumlflow is not None:
@@ -233,7 +234,7 @@ async def _serve(
     client.orbit = orbit
     service = LoopbackService(port)
     try:
-        # Never set: the flow is removed through the API and serving is cancelled.
+        # Never set: the session is ended through the API and serving is cancelled.
         await serve_session(client, session, service, asyncio.Event(), None, connected)
     finally:
         await service.aclose()
@@ -249,14 +250,15 @@ def _report_serving_end(task: asyncio.Task[None]) -> None:
         logger.error("The flow is no longer served: %s", error)
 
 
-def _remove_flow(client: LumlClient, flow_id: str) -> None:
+def _end_session(client: LumlClient, session_id: str) -> None:
+    # Ending an already ended session succeeds; only one gone past retention is 404.
     try:
-        client.flows.remove(flow_id)
+        client.live_sessions.end(session_id)
     except NotFoundError:
-        logger.info("The flow was already gone at LUML")
+        logger.info("The flow's session was already gone at LUML")
     except (httpx.HTTPError, APIStatusError) as error:
         logger.warning(
-            "Could not remove the flow at LUML; its session ends by silence: %s", error
+            "Could not end the flow's session at LUML; it ends by silence: %s", error
         )
 
 
