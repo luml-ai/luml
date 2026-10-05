@@ -246,3 +246,74 @@ class TestTrackStageRepositorySyncStages:
         assert {s.name for s in updated.stages} == {"New", "Fresh"}
         stages = await stage_repository.list_stages(track.id)
         assert {s.name for s in stages} == {"New", "Fresh"}
+
+    async def test_update_track_raises_conflict_and_keeps_stages_when_snapshot_is_stale(
+        self,
+        repository: TrackRepository,
+        stage_repository: TrackStageRepository,
+        seeded_orbit: OrbitFixtureData,
+    ) -> None:
+        track = await repository.create_track(
+            TrackCreate(
+                orbit_id=seeded_orbit.orbit.id,
+                name="stale-track",
+                artifact_type=ArtifactType.MODEL,
+            )
+        )
+        review = await stage_repository.create_stage(
+            StageCreate(track_id=track.id, name="Review")
+        )
+        await stage_repository.create_stage(
+            StageCreate(track_id=track.id, name="Added elsewhere")
+        )
+
+        with pytest.raises(ApplicationError) as exc:
+            await repository.update_track(
+                track.id,
+                TrackUpdate(name="renamed"),
+                stages=[
+                    StageUpsertIn(id=review.id, name="Review"),
+                    StageUpsertIn(name="Canary"),
+                ],
+                expected_stage_ids=[review.id],
+            )
+        assert exc.value.status_code == 409
+
+        after = await repository.get_track(track.id)
+        assert after is not None
+        assert after.name == "stale-track"
+        stages = await stage_repository.list_stages(track.id)
+        assert {s.name for s in stages} == {"Review", "Added elsewhere"}
+
+    async def test_update_track_syncs_stages_when_expected_stages_match(
+        self,
+        repository: TrackRepository,
+        stage_repository: TrackStageRepository,
+        seeded_orbit: OrbitFixtureData,
+    ) -> None:
+        track = await repository.create_track(
+            TrackCreate(
+                orbit_id=seeded_orbit.orbit.id,
+                name="fresh-track",
+                artifact_type=ArtifactType.MODEL,
+            )
+        )
+        review = await stage_repository.create_stage(
+            StageCreate(track_id=track.id, name="Review")
+        )
+        staging = await stage_repository.create_stage(
+            StageCreate(track_id=track.id, name="Staging")
+        )
+
+        updated = await repository.update_track(
+            track.id,
+            TrackUpdate(),
+            stages=[
+                StageUpsertIn(id=review.id, name="Review"),
+                StageUpsertIn(name="Canary"),
+            ],
+            expected_stage_ids=[staging.id, review.id],
+        )
+
+        assert updated is not None
+        assert {s.name for s in updated.stages} == {"Review", "Canary"}

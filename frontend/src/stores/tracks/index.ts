@@ -21,8 +21,7 @@ export const useTracksStore = defineStore('tracks', () => {
     id: string
     name: string
     description: string | undefined
-    stages: string[]
-    lockedStages: string[]
+    stages: TrackStage[]
   } | null>(null)
   const trackStages = ref<TrackStage[]>([])
 
@@ -44,8 +43,7 @@ export const useTracksStore = defineStore('tracks', () => {
     id: string
     name: string
     description: string | undefined
-    stages: string[]
-    lockedStages: string[]
+    stages: TrackStage[]
   }) {
     editableTrack.value = track
   }
@@ -84,6 +82,15 @@ export const useTracksStore = defineStore('tracks', () => {
     )
     const newTracks = tracksList.value.filter((track) => track.id !== trackId)
     setTracksList(newTracks)
+  }
+
+  async function refreshTrackStages(trackId: string) {
+    const { stages } = await getTrackById(trackId)
+    setTracksList(
+      tracksList.value.map((track) => (track.id === trackId ? { ...track, stages } : track)),
+    )
+    if (editableTrack.value?.id === trackId) editableTrack.value.stages = stages
+    return stages
   }
 
   function setTracksList(tracks: Track[]) {
@@ -186,5 +193,6 @@ export const useTracksStore = defineStore('tracks', () => {
     updateStage,
     deleteStage,
     getTrackById,
+    refreshTrackStages,
   }
 })

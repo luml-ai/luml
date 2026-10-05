@@ -15,6 +15,7 @@ from luml.schemas.tracks import (
     TrackUpdateIn,
 )
 from luml.utils.pagination import encode_cursor
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from tests.support.ids import (
@@ -363,6 +364,37 @@ class TestTracks:
         assert update_call is not None
         assert update_call.kwargs["stages"] == desired
         mocks.track_repository.get_track.assert_not_awaited()
+
+    async def test_update_track_passes_expected_stage_ids_to_repository(
+        self, mocks: CollaboratorMocks[TracksHandler]
+    ) -> None:
+        mocks.orbit_repository.get_orbit_simple.return_value = Mock(
+            organization_id=ORGANIZATION_ID
+        )
+        mocks.track_repository.update_track.return_value = _make_track()
+
+        data = TrackUpdateIn(
+            name="t",
+            stages=[StageUpsertIn(id=STAGE_ID, name="Review")],
+            expected_stage_ids=[STAGE_ID],
+        )
+        await mocks.handler.update_track(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, TRACK_ID, data
+        )
+
+        update_call = mocks.track_repository.update_track.await_args
+        assert update_call is not None
+        assert update_call.kwargs["expected_stage_ids"] == [STAGE_ID]
+        passed_update = update_call.args[1]
+        assert passed_update.model_dump(exclude_unset=True, exclude={"id"}) == {
+            "name": "t"
+        }
+
+    async def test_track_update_rejects_expected_stage_ids_without_stages(
+        self,
+    ) -> None:
+        with pytest.raises(ValidationError, match="expected_stage_ids requires stages"):
+            TrackUpdateIn(name="t", expected_stage_ids=[STAGE_ID])
 
     async def test_update_track_skips_stage_sync_when_stages_are_omitted(
         self, mocks: CollaboratorMocks[TracksHandler]

@@ -113,14 +113,6 @@ export const collectionEditorResolver: Resolver = zodResolver(
   }),
 )
 
-export const trackEditorResolver: Resolver = zodResolver(
-  z.object({
-    name: z.string().min(1).max(100),
-    description: z.string().max(1000).optional(),
-    stages: z.array(z.string().min(1).max(100)).min(1),
-  }),
-)
-
 export const artifactCreateResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(1),
