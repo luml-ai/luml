@@ -888,6 +888,9 @@ class Api:
             actor=actor,
             intent=params.get("intent"),
         )
+        # Nothing between the rewind line and leaving may yield: a run settling
+        # in that gap would land on the lane and move it forward again.
+        session.queue.abandon(branch)
         session.store.save_manifest()
         moved = session.store.branches.get(branch)
         self._moved_by[(session.ref.address, moved.branch_id)] = actor

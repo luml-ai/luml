@@ -1140,6 +1140,61 @@ async def test_cancelling_during_kernel_start_never_runs_the_cell(
     assert not marker.exists()
 
 
+async def test_rewinding_a_lane_mid_run_leaves_the_run_and_keeps_the_lane_back(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    started = tmp_path / "started"
+    release = tmp_path / "release"
+    release.touch()
+    write_cell(
+        root / "churn.flow",
+        "slow",
+        f"""
+        class Slow:
+            produces = {{"value": "asset"}}
+
+            def materialize(self, ctx):
+                import time
+                from pathlib import Path
+
+                Path({str(started)!r}).touch()
+                while not Path({str(release)!r}).exists():
+                    time.sleep(0.01)
+                return {{"value": 1}}
+        """,
+    )
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "slow"})
+        session = api.hub.session("churn")
+        (ran_at,) = [
+            transaction.step
+            for transaction in transactions(session)
+            if any(isinstance(op, RunRecorded) for op in transaction.ops)
+        ]
+        started.unlink()
+        release.unlink()
+        running = asyncio.create_task(
+            api.run({"flow": "churn", "target": "slow", "force": True})
+        )
+        async with asyncio.timeout(30):
+            while not started.exists():
+                await asyncio.sleep(0.01)
+        await api.rewind({"flow": "churn", "to_step": ran_at})
+        release.touch()
+        outcome = await running
+        async with asyncio.timeout(30):
+            while session.queue.busy:
+                await asyncio.sleep(0.01)
+        runs = ops_of(session, RunRecorded)
+        lane = session.store.branches.get("main")
+
+    assert outcome["abandoned"] is True
+    assert len(runs) == 1
+    assert lane.head_step == ran_at
+
+
 async def test_a_failing_cell_is_recorded_not_raised(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", BROKEN_CELL)

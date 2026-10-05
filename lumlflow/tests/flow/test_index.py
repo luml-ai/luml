@@ -285,6 +285,38 @@ class TestFold:
         (baseline,) = rows(index, "SELECT * FROM baselines")
         assert baseline["mat_id"] == run.mat_id
 
+    def test_the_last_rewind_step_survives_later_changes_on_the_branch(
+        self, index: Index
+    ) -> None:
+        accepted = cell_accepted()
+        index.apply(transaction(1, [BranchCreated(branch_id="b1", name="main")]))
+        index.apply(transaction(2, [accepted], branch="b1"))
+        index.apply(transaction(3, [Rewound(branch_id="b1", to_step=1)], branch="b1"))
+        index.apply(
+            transaction(
+                4,
+                [
+                    SelectionSet(
+                        branch_id="b1", uid=accepted.uid, version_id=accepted.version_id
+                    )
+                ],
+                branch="b1",
+            )
+        )
+        index.apply(transaction(5, [WorktreeBound(flow_id="f", branch_id="b1")]))
+
+        branch = index.branch("main")
+        assert branch is not None
+        assert branch.head_step is None
+        assert branch.rewound_step == 3
+
+    def test_a_branch_never_rewound_has_no_rewind_step(self, index: Index) -> None:
+        index.apply(transaction(1, [BranchCreated(branch_id="b1", name="main")]))
+
+        branch = index.branch("main")
+        assert branch is not None
+        assert branch.rewound_step is None
+
     def test_workspace_code_changes_keep_one_current_row(self, index: Index) -> None:
         index.apply(transaction(1, [WorkspaceCodeChanged(tree_hash="a" * 64)]))
         index.apply(

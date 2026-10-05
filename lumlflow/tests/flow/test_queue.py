@@ -505,6 +505,160 @@ class TestPlanChanges:
         assert flow.ops(MemoHit) == []
 
 
+def rewind(flow: Flow, to_step: int, branch: str = MAIN_BRANCH) -> None:
+    """What the rewind verb does: journal the move, then leave the lane's runs."""
+    flow.store.branches.rewind(branch, to_step=to_step)
+    flow.queue.abandon(branch)
+
+
+def runs_on(flow: Flow, branch: str) -> list[RunRecorded]:
+    branch_id = flow.store.branches.get(branch).branch_id
+    return [op for op in flow.ops(RunRecorded) if op.branch_id == branch_id]
+
+
+class TestRewinds:
+    async def test_a_rewind_cancels_the_run_and_journals_nothing(
+        self, flow: Flow
+    ) -> None:
+        flow.add("train")
+        await flow.run("train")
+        at = flow.store.next_step - 1
+        restored = baseline_mat(flow, "train")
+        flow.edit("train", "v2")
+        flow.executor.holding.add("train")
+        flow.executor.started.clear()
+        running = asyncio.create_task(flow.run("train"))
+        await flow.executor.started.wait()
+
+        rewind(flow, at)
+        outcome = await running
+        await settle()
+
+        assert outcome.abandoned is True
+        assert len(flow.executor.cancelled) == 1
+        assert len(runs_on(flow, MAIN_BRANCH)) == 1
+        assert flow.store.branches.get(MAIN_BRANCH).head_step == at
+        assert baseline_mat(flow, "train") == restored
+
+    async def test_a_result_landing_after_a_rewind_does_not_move_the_lane(
+        self, flow: Flow
+    ) -> None:
+        flow.add("train")
+        await flow.run("train")
+        at = flow.store.next_step - 1
+        restored = baseline_mat(flow, "train")
+        flow.edit("train", "v2")
+        flow.executor.holding.add("train")
+        flow.executor.uninterruptible.add("train")
+        flow.executor.started.clear()
+        running = asyncio.create_task(flow.run("train"))
+        await flow.executor.started.wait()
+
+        rewind(flow, at)
+        flow.executor.release()
+        outcome = await running
+        await settle()
+
+        assert outcome.abandoned is True
+        assert len(flow.executor.cancelled) == 1
+        assert len(runs_on(flow, MAIN_BRANCH)) == 1
+        assert flow.store.branches.get(MAIN_BRANCH).head_step == at
+        assert baseline_mat(flow, "train") == restored
+
+    async def test_a_rewind_keeps_a_run_another_lane_asked_for_going(
+        self, flow: Flow
+    ) -> None:
+        flow.add("train")
+        at = flow.store.next_step - 1
+        flow.store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+        flow.executor.holding.add("train")
+        sweep = asyncio.create_task(flow.queue.submit("train", branch="sweep"))
+        await flow.executor.started.wait()
+        main = asyncio.create_task(flow.run("train"))
+        await settle()
+
+        rewind(flow, at)
+        await settle()
+        assert flow.executor.cancelled == []
+        flow.executor.release()
+
+        assert (await sweep).executed == ("train",)
+        assert (await main).abandoned is True
+        assert len(runs_on(flow, "sweep")) == 1
+        assert runs_on(flow, MAIN_BRANCH) == []
+        assert flow.store.branches.get(MAIN_BRANCH).head_step == at
+
+    async def test_a_lane_that_joined_a_rewound_lanes_run_runs_its_own(
+        self, flow: Flow
+    ) -> None:
+        flow.add("train")
+        at = flow.store.next_step - 1
+        flow.store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+        flow.executor.holding.add("train")
+        main = asyncio.create_task(flow.run("train"))
+        await flow.executor.started.wait()
+        sweep = asyncio.create_task(flow.queue.submit("train", branch="sweep"))
+        await settle()
+
+        rewind(flow, at)
+        flow.executor.release()
+
+        assert (await main).abandoned is True
+        assert (await sweep).executed == ("train",)
+        assert [request.branch for request in flow.executor.requests] == [
+            MAIN_BRANCH,
+            "sweep",
+        ]
+        assert runs_on(flow, MAIN_BRANCH) == []
+        assert len(runs_on(flow, "sweep")) == 1
+        assert flow.ops(MemoHit) == []
+
+    async def test_a_run_waiting_at_the_gate_when_its_lane_is_rewound_is_dropped(
+        self, flow: Flow
+    ) -> None:
+        """The rewind keeps the cell's version, so the checks before the kernel
+        pass: only the anchor taken when the run was asked for catches it."""
+        flow.add("train")
+        flow.add("blocker")
+        at = flow.store.next_step - 1
+        for name in ("sweep", "other"):
+            flow.store.branches.fork(name, from_branch=MAIN_BRANCH)
+        flow.executor.holding.add("blocker")
+        blocking = asyncio.create_task(flow.queue.submit("blocker", branch="other"))
+        await flow.executor.started.wait()
+        main = asyncio.create_task(flow.run("train"))
+        await settle()
+        sweep = asyncio.create_task(flow.queue.submit("train", branch="sweep"))
+        await settle()
+
+        rewind(flow, at)
+        flow.executor.release()
+
+        await blocking
+        assert (await main).abandoned is True
+        assert (await sweep).executed == ("train",)
+        assert [
+            (request.slug, request.branch) for request in flow.executor.requests
+        ] == [("blocker", "other"), ("train", MAIN_BRANCH), ("train", "sweep")]
+        assert runs_on(flow, MAIN_BRANCH) == []
+        assert len(runs_on(flow, "sweep")) == 1
+
+    async def test_a_run_asked_for_after_a_rewind_lands_normally(
+        self, flow: Flow
+    ) -> None:
+        flow.add("train")
+        await flow.run("train")
+        at = flow.store.next_step - 1
+        flow.edit("train", "v2")
+        rewind(flow, at)
+
+        outcome = await flow.run("train", force=True)
+
+        assert outcome.executed == ("train",)
+        assert len(runs_on(flow, MAIN_BRANCH)) == 2
+        assert flow.store.branches.get(MAIN_BRANCH).head_step is None
+
+
 class TestQueueOrder:
     async def test_the_watched_branch_goes_first_when_the_gate_frees(
         self, flow: Flow

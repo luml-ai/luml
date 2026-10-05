@@ -127,6 +127,9 @@ class _Flight:
     key: str
     run_id: str
     origin: str
+    #: The journal step at which the origin asked for this run — a rewind of
+    #: the origin at or after it means the result belongs nowhere on that lane.
+    asked_step: int
     slug: str = ""
     waiters: list[_Waiter] = field(default_factory=list)
     task: "asyncio.Task[None] | None" = None
@@ -312,7 +315,13 @@ class RunQueue:
         *,
         actor: str,
     ) -> StepOutcome:
-        flight = _Flight(key=key, run_id=new_ulid(), origin=plan.branch, slug=step.slug)
+        flight = _Flight(
+            key=key,
+            run_id=new_ulid(),
+            origin=plan.branch,
+            asked_step=self._store.next_step,
+            slug=step.slug,
+        )
         self._flights[flight.run_id] = flight
         waiter = self._wait_on(flight, plan.branch)
         # The run is the queue's, not the caller's: the caller may walk away
@@ -367,7 +376,9 @@ class RunQueue:
         inputs: dict[str, Bound],
         *,
         actor: str,
-    ) -> RunResult:
+    ) -> RunResult | None:
+        """None when the lane was rewound since it asked: the result is dropped,
+        and whoever else awaits it runs their own."""
         request = self._request(flight.run_id, plan, step, inputs)
         # Read before the run, not after it: an install landing mid-run moves
         # the lockfile, and the result still came out of the modules the kernel
@@ -379,6 +390,10 @@ class RunQueue:
         )
         try:
             result = await self._executor.run(request)
+            if self._rewound_since(plan.branch_id, flight.asked_step):
+                # Even a cancelled record is a change, and would move the lane
+                # off the step it was rewound to.
+                return None
             flight.mat_id = self._record_run(
                 plan,
                 step,
@@ -392,6 +407,14 @@ class RunQueue:
         finally:
             self._store.index.release_values(flight.run_id)
         return result
+
+    def _rewound_since(self, branch_id: str, step: int) -> bool:
+        branch = self._store.index.branch_by_id(branch_id)
+        return (
+            branch is not None
+            and branch.rewound_step is not None
+            and branch.rewound_step >= step
+        )
 
     def _request(
         self, run_id: str, plan: Plan, step: Step, inputs: dict[str, Bound]

@@ -47,7 +47,7 @@ from lumlflow.flow.store.models import (
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 15
+INDEX_SCHEMA_VERSION = 16
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -85,7 +85,10 @@ CREATE TABLE branches (
     head_step INTEGER,
     -- The last verb that rewrote this branch's files, and the line it landed on.
     rewrite_verb TEXT,
-    rewrite_step INTEGER
+    rewrite_step INTEGER,
+    -- The line of the branch's last rewind. Unlike `head_step` and
+    -- `rewrite_step`, nothing later clears or overwrites it.
+    rewound_step INTEGER
 );
 
 CREATE TABLE selections (
@@ -200,6 +203,8 @@ class BranchRow:
     #: Where the branch stands when that is not its newest own step: a rewind
     #: sets it, the next change on the branch clears it.
     head_step: int | None = None
+    #: The step of the branch's last rewind line, kept through later changes.
+    rewound_step: int | None = None
 
 
 @dataclass(frozen=True)
@@ -970,8 +975,8 @@ class Index:
                 self._rewind(op)
                 self._conn.execute(
                     "UPDATE branches SET head_step = ?, rewrite_verb = 'rewind', "
-                    "rewrite_step = ? WHERE branch_id = ?",
-                    (op.to_step, step, op.branch_id),
+                    "rewrite_step = ?, rewound_step = ? WHERE branch_id = ?",
+                    (op.to_step, step, step, op.branch_id),
                 )
             case RunRecorded():
                 self._record_run(op)
@@ -1196,6 +1201,7 @@ def _branch(row: sqlite3.Row) -> BranchRow:
         archived=bool(row["archived"]),
         parent_step=row["parent_step"],
         head_step=row["head_step"],
+        rewound_step=row["rewound_step"],
     )
 
 

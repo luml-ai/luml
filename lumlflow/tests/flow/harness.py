@@ -103,6 +103,9 @@ class StubExecutor:
     external: set[str] = field(default_factory=set)
     failing: set[str] = field(default_factory=set)
     holding: set[str] = field(default_factory=set)
+    #: Held cells that ignore a cancel, like a kernel busy in a C call: they
+    #: finish only on release.
+    uninterruptible: set[str] = field(default_factory=set)
     cancelled: list[str] = field(default_factory=list)
     started: asyncio.Event = field(default_factory=asyncio.Event)
     _release: asyncio.Event = field(default_factory=asyncio.Event)
@@ -124,7 +127,9 @@ class StubExecutor:
     async def run(self, request: RunRequest) -> RunResult:
         self.requests.append(request)
         self.started.set()
-        if request.slug in self.holding and not await self._wait(request.run_id):
+        if request.slug in self.holding and not await self._wait(
+            request.run_id, interruptible=request.slug not in self.uninterruptible
+        ):
             return RunResult(state="cancelled")
         cost = self.costs.get(request.slug, 0.1)
         if request.slug in self.failing:
@@ -137,10 +142,11 @@ class StubExecutor:
             cost_seconds=cost,
         )
 
-    async def _wait(self, run_id: str) -> bool:
+    async def _wait(self, run_id: str, *, interruptible: bool) -> bool:
         """Block until released or cancelled. False means cancelled."""
         stop = asyncio.Event()
-        self._live[run_id] = stop
+        if interruptible:
+            self._live[run_id] = stop
         waits = [
             asyncio.create_task(self._release.wait()),
             asyncio.create_task(stop.wait()),
