@@ -29,6 +29,7 @@ from lumlflow.flow.dsl.portable import PortableCell
 from lumlflow.flow.errors import (
     EditConflict,
     FlowError,
+    LaneMoved,
     ValueNotStored,
 )
 from lumlflow.flow.ids import new_ulid
@@ -38,6 +39,27 @@ from lumlflow.flow.store import gc
 from lumlflow.flow.store.flowstore import FlowStore, store_dir
 from lumlflow.flow.store.index import VersionRow
 from lumlflow.flow.store.models import AgentBegin, AgentEnd, OutputRecord, Reactivity
+
+# The calls that change a lane. An agent making one onto a lane somebody else
+# moved since the agent last saw where it stood is refused before it lands —
+# see `Api.fence`. `fork` and `rewind` are absent on purpose: starting a lane
+# from wherever this one stands, or moving it yourself, is the remedy.
+_FENCED = frozenset(
+    {
+        "cells.new",
+        "cells.edit",
+        "cells.reorder",
+        "cells.delete",
+        "cells.eager",
+        "run",
+        "adopt",
+        "rename",
+        "checkpoint",
+    }
+)
+# What tells an agent where the lane stands: the brief it reads first, and
+# its own changes and moves, which it knows the outcome of.
+_OBSERVES = _FENCED | {"context", "rewind"}
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
 AttachmentCheck = Callable[[str], dict[str, Any]]
@@ -77,6 +99,12 @@ class Api:
         # Upload jobs in flight. A task nothing references may be collected
         # mid-upload; the set holds each until its done callback drops it.
         self._uploads: set[asyncio.Task[None]] = set()
+        # Where each agent last saw each lane stand: (flow, actor, branch_id)
+        # to the lane's position step. The daemon's memory, like a lease — an
+        # agent that reconnects starts over, which is what a new session is.
+        self._lane_seen: dict[tuple[str, str, str], int] = {}
+        # Who last moved each lane, for the sentence a refused agent reads.
+        self._moved_by: dict[tuple[str, str], str] = {}
         self.methods: dict[str, Method] = {
             "ping": self.ping,
             "status": self.status,
@@ -806,6 +834,8 @@ class Api:
             intent=params.get("intent"),
         )
         session.store.save_manifest()
+        moved = session.store.branches.get(branch)
+        self._moved_by[(session.ref.address, moved.branch_id)] = actor
         return (
             await self._flow_brief(session)
             | {
@@ -1220,6 +1250,74 @@ class Api:
             if session.ref.address == flow:
                 self._announce_agents(session)
                 return
+
+    def fence(self, method: str, params: dict[str, Any]) -> None:
+        """Refuse an agent's change onto a lane that was moved under it.
+
+        A rewind puts the lane on an earlier step, and the next change on it
+        moves it on from there, leaving every step after behind. A person is
+        asked before that happens; an agent mid-task has no way to know it is
+        about to — it read where the lane stood when it began, and the lane is
+        not there any more. So the change is refused, nothing lands, and the
+        agent is told what moved and what its choices are. Telling it is what
+        catches it up: the same call made again goes through.
+
+        Only a lane that stands on a moved-to step counts. Somebody editing at
+        the lane's newest step moves it on as well, and that is two people
+        working on one lane, which is what pairing is.
+        """
+        if method not in _FENCED:
+            return
+        actor = _actor(params)
+        try:
+            session = self._session(params, actor=actor)
+            branch = _branch(session, params)
+            row = session.store.branches.get(branch)
+        except FlowError:
+            # Whatever does not resolve here, the call itself will say.
+            return
+        key = (session.ref.address, actor, row.branch_id)
+        standing = session.store.index.head_step(row.branch_id)
+        seen = self._lane_seen.get(key)
+        if seen is None:
+            # Nothing this agent was shown to hold the lane to.
+            self._lane_seen[key] = standing
+            return
+        if row.head_step is None or standing == seen:
+            return
+        self._lane_seen[key] = standing
+        by = self._moved_by.get((session.ref.address, row.branch_id), "somebody")
+        raise LaneMoved(
+            f"`{branch}` was moved to step {standing} by {by} while you were "
+            f"working; you last saw it at step {seen}. Nothing was changed. "
+            f"A change now would move `{branch}` on from step {standing} and "
+            f"leave the steps after it behind. Call `context` to see where it "
+            f"stands. To keep your work apart from that step, start a lane "
+            f"with `new-lane` first; to carry on from step {standing}, make "
+            f"the same call again.",
+            branch=branch,
+            to_step=standing,
+            by=by,
+        )
+
+    def observed(self, method: str, params: dict[str, Any]) -> None:
+        """Note where the lane stands now that an agent has been shown it."""
+        if method not in _OBSERVES:
+            return
+        actor = _actor(params)
+        try:
+            session = self._session(params, actor=actor)
+            row = session.store.branches.get(_branch(session, params))
+        except FlowError:
+            return
+        self._lane_seen[(session.ref.address, actor, row.branch_id)] = (
+            session.store.index.head_step(row.branch_id)
+        )
+
+    def forget_agent(self, actor: str) -> None:
+        """Drop what an agent was shown, once its connection is gone."""
+        for key in [held for held in self._lane_seen if held[1] == actor]:
+            del self._lane_seen[key]
 
     def announce_activity(
         self,

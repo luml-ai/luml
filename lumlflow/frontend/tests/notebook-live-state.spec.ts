@@ -21,7 +21,12 @@ import type { StreamFrame } from '@/api/streams/flow'
 
 vi.mock('@/api/slices/workspace/workspace.api', () => ({
   workspaceApi: {
-    tree: vi.fn(),
+    tree: vi.fn(async () => ({
+      flow: 'churn',
+      branches: [{ branch: 'main', branch_id: 'b-main', checked_out: true, head_step: 2 }],
+      agent_sessions: [{ actor: 'codex-7', label: 'Codex', begun_step: 2, leased: true }],
+    })),
+    rewindBranch: vi.fn(async () => ({})),
     cellsList: vi.fn(async () => ({ flow: 'churn', branch: 'main', cells: [] })),
     journalSince: vi.fn(async () => ({
       flow: 'churn',
@@ -50,6 +55,7 @@ const FLOW = '/p/churn.flow'
 
 const MAIN: BranchRecord = {
   branch: 'main',
+  branch_id: 'b-main',
   parent: null,
   cells: 2,
   checked_out: true,
@@ -236,6 +242,62 @@ describe('live cell states in the store', () => {
     store.receiveLiveFrame(activity('started', 'context', null))
     expect(Object.keys(store.cellLiveStates)).toEqual(['train'])
     expect(store.currentActivity?.tool).toBe('context')
+  })
+})
+
+describe('when the lane is moved under the agent', () => {
+  function rewound(branchId: string): StreamFrame {
+    return {
+      channel: 'journal',
+      type: 'transaction',
+      flow: FLOW,
+      step: 9,
+      transaction: {
+        step: 9,
+        ts: '2026-10-05T10:00:00Z',
+        actor: 'user',
+        intent: 'moved main to step 2',
+        offline: false,
+        settled: false,
+        branch: branchId,
+        ops: [{ op: 'rewound', branch_id: branchId, to_step: 2 }],
+      },
+    }
+  }
+
+  it('lets go of the cell the agent was on when somebody rewinds this lane', () => {
+    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
+    expect(store.cellLiveStates.train?.kind).toBe('agent')
+
+    store.receiveLiveFrame(rewound('b-main'))
+    expect(store.cellLiveStates.train).toBeUndefined()
+    expect(store.currentActivity).toBeNull()
+  })
+
+  it('does not carry the focus back when a call that began before the move ends', () => {
+    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+    store.receiveLiveFrame(rewound('b-main'))
+    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
+    expect(store.cellLiveStates.train).toBeUndefined()
+
+    // The agent's next call is a new start, and puts it back on a cell.
+    store.receiveLiveFrame(activity('started', 'context', null))
+    store.receiveLiveFrame(activity('started', 'cells.show', 'score'))
+    expect(store.cellLiveStates.score?.kind).toBe('agent')
+  })
+
+  it('leaves the focus alone when another lane is rewound', () => {
+    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+    store.receiveLiveFrame(rewound('b-other'))
+    expect(store.cellLiveStates.train?.kind).toBe('agent')
+  })
+
+  it('lets go of it when this tab rewinds the lane itself', async () => {
+    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
+    await store.rewindBranch(2)
+    expect(store.cellLiveStates.train).toBeUndefined()
   })
 })
 

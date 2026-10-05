@@ -451,6 +451,10 @@ export const useFlowStore = defineStore('flow', () => {
     }
     if (frame.type === 'activity') {
       const held = agentFocus.value.find((entry) => entry.actor === frame.actor)
+      // Only a call's start puts an agent on a cell. The end of a call this
+      // tab did not see begin — or dropped when the lane was moved under it —
+      // is not a reason to mark one.
+      if (frame.phase === 'ended' && !held) return
       const others = agentFocus.value.filter((entry) => entry.actor !== frame.actor)
       // A call that names no cell — `context`, `diff` — is the agent looking
       // around, and the cell it was on stays its; only a call naming another
@@ -488,7 +492,31 @@ export const useFlowStore = defineStore('flow', () => {
       scheduleLiveRefetch()
       return
     }
+    if (frame.type === 'transaction' && rewindsCurrentLane(frame.transaction.ops)) {
+      leaveMovedLane()
+    }
     scheduleLiveRefetch()
+  }
+
+  /** A rewind of the lane on screen, from this tab or any other. */
+  function rewindsCurrentLane(ops: unknown[]): boolean {
+    const branchId = currentBranch.value?.branch_id
+    if (!branchId) return false
+    return ops.some((op) => {
+      const held = op as { op?: string; branch_id?: string }
+      return held.op === 'rewound' && held.branch_id === branchId
+    })
+  }
+
+  /**
+   * The lane was moved to another step. Whatever cell an agent was on, it was
+   * on it at the step the lane left: the card now shows that cell as it stood
+   * at the step the lane went to, and nobody is working on that version. The
+   * agent's next call puts it back on a cell — and a change it tries is
+   * refused by the daemon until it has been told the lane moved.
+   */
+  function leaveMovedLane() {
+    setFocus([])
   }
 
   function receiveKernelFrame(frame: Extract<StreamFrame, { type: 'kernel' }>) {
@@ -723,6 +751,7 @@ export const useFlowStore = defineStore('flow', () => {
     const branch = currentBranch.value?.branch
     if (!branch) throw new Error('No branch to rewind')
     await workspaceApi.rewindBranch(branch, step, currentFlow.value ?? undefined)
+    leaveMovedLane()
     await fetchBranches()
   }
 

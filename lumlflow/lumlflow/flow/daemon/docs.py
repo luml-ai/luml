@@ -69,6 +69,11 @@ behind its newest one. A change made from there moves the lane on from that
 step. To keep the later steps reachable as they were, start a lane with
 `new-lane` first — it starts from where the lane stands.
 
+Somebody else may move the lane while you work. Your next change to it is
+then refused, nothing lands, and the refusal names the step the lane went to.
+Call `context`, then start a lane with `new-lane` or make the change again to
+carry on from that step.
+
 Address a flow by path, a cell by name (`features`), an output as
 `cell.output`, and a lane by name. There are no ids or hashes in the agent
 surface.

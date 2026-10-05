@@ -302,6 +302,7 @@ class Daemon:
         # A call the connection died inside of never reaches its `ended`;
         # cleared here so no card stays dimmed for an agent that is gone.
         for flow, actor, _ in ended:
+            self.api.forget_agent(actor)
             if flow:
                 with contextlib.suppress(FlowError, OSError):
                     self.api.end_activity(flow, actor=actor)
@@ -434,6 +435,10 @@ class Daemon:
         if activity is not None:
             self._announce_activity(activity, "started")
         try:
+            if activity is not None:
+                # A leased agent's change onto a lane moved under it is
+                # refused here, before the method can land it.
+                self.api.fence(str(message["method"]), params)
             result = await method(params)
         except FlowError as failure:
             _reply(
@@ -451,6 +456,9 @@ class Daemon:
         else:
             _reply(writer, request_id, result=result)
             name = str(message["method"])
+            if activity is not None:
+                with contextlib.suppress(FlowError, OSError):
+                    self.api.observed(name, params)
             _leased(leased, name, params, result)
             if (
                 name == "agent.begin"

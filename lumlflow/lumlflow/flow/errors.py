@@ -72,6 +72,22 @@ class RewindTargetNotFound(FlowError):
     """No transaction to rewind to, or none this branch existed at."""
 
 
+class LaneMoved(FlowError):
+    """Somebody else moved the lane while an agent was working on it.
+
+    Raised before an agent's change lands, never after: the change was not
+    applied. The lane's position is not the agent's to assume once a rewind
+    put it somewhere else — the next change would move it on from there and
+    leave every step after it behind, which is a decision, not a side effect.
+    """
+
+    def __init__(self, message: str, *, branch: str, to_step: int, by: str) -> None:
+        super().__init__(message)
+        self.branch = branch
+        self.to_step = to_step
+        self.by = by
+
+
 class EditConflict(FlowError):
     """A daemon-originated edit started from a version the head has moved past.
 

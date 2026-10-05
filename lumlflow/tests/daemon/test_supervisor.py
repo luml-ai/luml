@@ -27,7 +27,7 @@ from lumlflow.cli import app
 from lumlflow.flow.daemon import client, harnesses, web, workspace
 from lumlflow.flow.daemon.main import ALREADY_RUNNING, INVALID_REQUEST, _activity
 from lumlflow.flow.daemon.workspace import DaemonRecord
-from lumlflow.flow.errors import FlowNotFound, ServerError
+from lumlflow.flow.errors import FlowError, FlowNotFound, ServerError
 from typer.testing import CliRunner
 
 from tests.daemon.conftest import Reap
@@ -985,3 +985,63 @@ def test_a_browser_is_told_what_a_leased_agent_is_doing_and_when_it_stops(
     )
     assert started["flow"] == address
     assert (ended["tool"], ended["slug"]) == ("cells.show", "score")
+
+
+FENCE_NOTE = '''
+class Note:
+    """A note on the lane."""
+'''
+FENCED_AGENT = "codex-1"
+
+
+def _fenced_agent(**params: Any) -> dict[str, Any]:
+    return {"flow": "churn", "actor": FENCED_AGENT} | params
+
+
+def test_a_leased_agent_is_refused_over_the_socket_and_nothing_lands(
+    tmp_path: Path, start: Starter
+) -> None:
+    """The bracket the daemon puts around a leased call is where the fence is:
+    the refusal crosses the wire as a `LaneMoved`, the lane keeps no trace of
+    the change, and the agent's retry lands on the step it was moved to."""
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    with start(root) as live:
+        live.call("flow.open", {"flow": "churn"})
+        live.call("cells.new", {"flow": "churn", "slug": "first", "source": FENCE_NOTE})
+        first = live.call("cells.show", {"flow": "churn", "slug": "first"})
+        live.call(
+            "cells.new", {"flow": "churn", "slug": "second", "source": FENCE_NOTE}
+        )
+
+        paired = client.attach(live.record, timeout=30)
+        try:
+            paired.call(
+                "agent.begin",
+                {
+                    "flow": "churn",
+                    "actor": FENCED_AGENT,
+                    "label": "Codex",
+                    "lease": True,
+                },
+            )
+            paired.call("context", _fenced_agent())
+            live.call("rewind", {"flow": "churn", "to_step": first["created_step"]})
+
+            with pytest.raises(FlowError) as refused:
+                paired.call("cells.new", _fenced_agent(slug="third", source=FENCE_NOTE))
+            behind = live.call("cells.list", {"flow": "churn"})["cells"]
+
+            landed = paired.call(
+                "cells.new", _fenced_agent(slug="third", source=FENCE_NOTE)
+            )
+            after = live.call("cells.list", {"flow": "churn"})["cells"]
+        finally:
+            paired.close()
+
+    assert "moved to step" in str(refused.value)
+    assert "Nothing was changed" in str(refused.value)
+    assert {cell["slug"] for cell in behind} == {"score", "first"}
+    assert landed["slug"] == "third"
+    assert {cell["slug"] for cell in after} == {"score", "first", "third"}
