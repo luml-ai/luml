@@ -4,14 +4,24 @@
     :class="{
       'card--running': live?.kind === 'running',
       'card--queued': live?.kind === 'queued',
-      'card--agent': live?.kind === 'agent',
+      'card--agent': live?.kind === 'agent' && live.active,
+      'card--held': live?.kind === 'agent' && !live.active,
     }"
     :data-live="live?.kind ?? null"
     :style="live?.kind === 'agent' ? { '--agent-color': live.color } : undefined"
   >
     <NotebookCellHeader :title="title" :icon="icon" :cost-seconds="costSeconds" :cell="cell" />
     <div
-      v-if="live"
+      v-if="live?.kind === 'agent' && !live.active"
+      class="held-note"
+      role="status"
+      :title="lockHint"
+    >
+      <Lock :size="12" class="shrink-0" />
+      <span class="truncate">Held by {{ live.label }}</span>
+    </div>
+    <div
+      v-else-if="live"
       class="live-strip"
       :class="`live-strip--${live.kind}`"
       role="status"
@@ -147,9 +157,20 @@ const outputs = computed(() =>
 .card--agent {
   border-color: var(--agent-color);
 }
-/* The agent has the cell: its body steps back until the call lands. */
+/* The agent is at work on the cell: its body steps back, but stays yours to
+   click — an agent's hold never closes a cell to a person. */
 .card--agent .live-body {
-  @apply opacity-50 pointer-events-none select-none;
+  @apply opacity-60;
+}
+/* Held, not worked on: a thin line in the agent's colour, nothing dimmed. */
+.card--held {
+  border-color: color-mix(in srgb, var(--agent-color) 45%, var(--p-content-border-color));
+}
+.held-note {
+  @apply flex items-center gap-1.5 mt-2 text-xs text-muted-color;
+}
+.held-note :deep(svg) {
+  color: var(--agent-color);
 }
 .card--running .live-body {
   @apply opacity-80;

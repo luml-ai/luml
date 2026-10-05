@@ -1493,6 +1493,18 @@ class Api:
             self._claims[(key[0], key[1], renamed.casefold())] = held
         self._announce_claims(session)
 
+    def expire_claims(self) -> None:
+        """Let go of every claim left alone for `CLAIM_IDLE_S`, and say so.
+
+        A claim also lapses lazily, on the next call that looks at it; this is
+        for the flow nobody calls into any more, so its watchers and its next
+        catch-up stop naming a holder that is long gone.
+        """
+        now = self.clock()
+        for session in self.hub.opened():
+            if self._expire(session.ref.address, now):
+                self._announce_claims(session)
+
     def _expire(self, flow: str, now: float) -> bool:
         lapsed = [
             key

@@ -189,3 +189,25 @@ async def test_a_second_window_of_the_same_harness_gets_a_number(
 def test_codex_is_known_by_the_name_it_gives_in_the_handshake() -> None:
     assert harnesses.client_harness_id("codex-mcp-client") == "codex"
     assert harnesses.client_harness_id("Claude Code") == "claude-code"
+
+
+async def test_a_lapsed_claim_is_let_go_of_without_another_call(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    async with daemon_api(root) as api:
+        await _lane(api)
+        clock = _Clock()
+        api.clock = clock
+        api.claim("cells.edit", _by("codex-1", slug="first"), label="codex")
+        held = list(api._claims)
+
+        clock.now += CLAIM_IDLE_S - 1
+        api.expire_claims()
+        still = list(api._claims)
+        clock.now += 1
+        api.expire_claims()
+
+    assert held == still
+    assert len(held) == 1
+    assert list(api._claims) == []

@@ -49,7 +49,7 @@ vi.mock('primevue/usetoast', () => ({
 
 import NotebookCell from '@/components/notebooks/cell/NotebookCell.vue'
 import NotebookPairAgent from '@/components/notebooks/NotebookPairAgent.vue'
-import { AGENT_COLORS, useFlowStore } from '@/store/flow'
+import { AGENT_ACTIVE_MS, AGENT_COLORS, useFlowStore } from '@/store/flow'
 import { settle } from './fakes'
 
 const FLOW = '/p/churn.flow'
@@ -214,6 +214,7 @@ describe('live cell states in the store', () => {
       label: 'Codex',
       tool: null,
       inCall: false,
+      active: true,
       color: AGENT_COLORS[0],
     })
 
@@ -357,6 +358,42 @@ describe('the card', () => {
     store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
     await wrapper.vm.$nextTick()
     expect(wrapper.find('.live-strip').text()).toBe('Codex is working on this cell')
+  })
+})
+
+describe('a card an agent holds but has stopped working on', () => {
+  it('reads as worked on just after a call, then only as held', () => {
+    vi.useFakeTimers()
+    try {
+      store.receiveLiveFrame(claims(held('train')))
+      expect(store.cellLiveStates.train).toMatchObject({ kind: 'agent', active: true })
+      vi.advanceTimersByTime(AGENT_ACTIVE_MS + 5_000)
+      expect(store.cellLiveStates.train).toMatchObject({ kind: 'agent', active: false })
+      // Inside a call it is working, however long ago the hold began.
+      store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+      expect(store.cellLiveStates.train).toMatchObject({ active: true, inCall: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows a held card quietly, undimmed, and never closes it to the person', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = card('train')
+      store.receiveLiveFrame(claims(held('train')))
+      await wrapper.vm.$nextTick()
+      expect(wrapper.classes()).toContain('card--agent')
+
+      vi.advanceTimersByTime(AGENT_ACTIVE_MS + 5_000)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.classes()).toContain('card--held')
+      expect(wrapper.classes()).not.toContain('card--agent')
+      expect(wrapper.find('.live-strip').exists()).toBe(false)
+      expect(wrapper.find('.held-note').text()).toBe('Held by Codex')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

@@ -45,6 +45,12 @@ export type CellLiveState =
       /** The daemon method the holder is inside of on this cell, if any. */
       tool: string | null
       inCall: boolean
+      /**
+       * Inside a call on this cell, or named it moments ago: the agent is at
+       * work on it. Otherwise it only holds it — closed to other agents, but
+       * nobody is doing anything to it right now.
+       */
+      active: boolean
       color: string
     }
 
@@ -63,6 +69,14 @@ export const AGENT_COLORS = [
 
 /** How long a claim lasts untouched, until a frame says otherwise. */
 export const DEFAULT_CLAIM_IDLE_MS = 180_000
+
+/**
+ * How long after its last call on a cell an agent still reads as working on
+ * it. Past this it only holds the cell: the hold lasts minutes so an agent
+ * thinking between calls keeps it, but a card that looks busy for minutes
+ * after the agent finished says something that is not true.
+ */
+export const AGENT_ACTIVE_MS = 30_000
 
 /** One connected agent, as the toolbar shows it. */
 export interface PairedAgent {
@@ -168,7 +182,6 @@ export const useFlowStore = defineStore('flow', () => {
 
   const reactivity = ref<'lazy' | 'auto'>('auto')
   const autoThresholdSeconds = ref(5)
-
 
   const branches = ref<BranchRecord[]>([])
   const currentFlow = ref<string | null>(null)
@@ -286,6 +299,7 @@ export const useFlowStore = defineStore('flow', () => {
         label: claim.label,
         tool: onThis ? call.tool : null,
         inCall: onThis,
+        active: onThis || now.value - claim.last < AGENT_ACTIVE_MS,
         color: agentColor(claim.actor),
       }
     }

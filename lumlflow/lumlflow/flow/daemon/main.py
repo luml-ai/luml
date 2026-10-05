@@ -344,11 +344,13 @@ class Daemon:
             self._announce_agents(flow)
 
     async def _sweep_quiet(self) -> None:
-        """End, every little while, the sessions whose agent stopped calling."""
+        """Every little while, end the sessions whose agent stopped calling and
+        the claims nobody has touched."""
         while True:
             await asyncio.sleep(_QUIET_SWEEP_S)
             try:
                 await self.end_quiet()
+                self.api.expire_claims()
             except Exception:
                 logger.exception("ending quiet agent sessions failed")
 
