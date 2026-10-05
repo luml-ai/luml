@@ -119,7 +119,8 @@ watch(modelValue, (value) => {
   cursor: pointer;
 }
 .remove-icon-disabled {
-  opacity: 0.6;
+  cursor: not-allowed;
+  opacity: 0.3;
 }
 :deep(.p-autocomplete:has(.p-autocomplete-chip-item) .p-autocomplete-input-chip) {
   display: none;
