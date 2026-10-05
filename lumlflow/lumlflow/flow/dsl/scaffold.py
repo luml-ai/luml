@@ -10,6 +10,8 @@ bound source a run executes is the class node alone — so nothing here reaches
 the workspace venv, which holds no lumlflow code.
 """
 
+import keyword
+import unicodedata
 from collections.abc import Sequence
 
 TYPING_MODULE = "lumlflow_typing"
@@ -64,14 +66,34 @@ def cell_source(
 
 
 def class_name(slug: str) -> str:
-    """`train_model` → `TrainModel`.
+    """`train_model` → `TrainModel`, `2d-plot` → `Cell2dPlot`, `none` → `CellNone`.
+
+    Any name the daemon accepts as a file name yields a valid identifier: words
+    break at every character an identifier cannot hold, and a result that
+    starts with a digit or is a keyword gets a `Cell` prefix.
 
     The digits of a placeholder like `untitled_3` are not part of a class name:
     carrying them through would have the daemon suggest renaming the new cell to
     the placeholder it was just given.
     """
-    name = "".join(part.title() for part in slug.split("_") if not part.isdigit())
-    return name or "Untitled"
+    words = [word for word in _words(slug) if not word.isdigit()]
+    name = "".join(word[0].upper() + word[1:] for word in words)
+    if not name:
+        return "Untitled"
+    if not name.isidentifier() or keyword.iskeyword(name):
+        return f"Cell{name}"
+    return name
+
+
+def _words(slug: str) -> list[str]:
+    # Python reads identifiers NFKC-normalized, so `x²` becomes `x2` before the
+    # split rather than splitting at a character no identifier may hold.
+    normalized = unicodedata.normalize("NFKC", slug)
+    spaced = "".join(
+        char if char != "_" and f"x{char}".isidentifier() else " "
+        for char in normalized
+    )
+    return spaced.split()
 
 
 def _literal(consumes: dict[str, str]) -> str:

@@ -187,11 +187,11 @@ The scenarios are the regression tests, grouped per fix in the order of the Desi
   - [x] Add an MCP-level test in `lumlflow/tests/daemon/test_mcp.py` mirroring the review's trigger: `new-cell` consumer, `new-cell` producer, `run` consumer on a lane without files
   - [x] Run `uv run pytest tests/daemon/test_api.py tests/daemon/test_mcp.py tests/flow/test_accept.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`
 
-- [ ] Scaffold a valid class name from any cell name
-  - [ ] In `lumlflow/lumlflow/flow/dsl/scaffold.py`, make `class_name` split on underscores and non-alphanumeric runs, upper-case each word's first letter, drop digit-only words, prefix `Cell` when the result is not a valid identifier or is a keyword, and keep `Untitled` for an empty result
-  - [ ] Extend `lumlflow/tests/flow/test_scaffold.py` with the names from the Scenarios, asserting the class name and that `loader.parse` finds the class with no flags
-  - [ ] Add a daemon test in `lumlflow/tests/daemon/test_api.py` that `cells_new` with `train-model` stores a parseable version with no parse flag
-  - [ ] Run `uv run pytest tests/flow/test_scaffold.py tests/daemon/test_api.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`
+- [x] Scaffold a valid class name from any cell name
+  - [x] In `lumlflow/lumlflow/flow/dsl/scaffold.py`, make `class_name` split on underscores and non-alphanumeric runs, upper-case each word's first letter, drop digit-only words, prefix `Cell` when the result is not a valid identifier or is a keyword, and keep `Untitled` for an empty result
+  - [x] Extend `lumlflow/tests/flow/test_scaffold.py` with the names from the Scenarios, asserting the class name and that `loader.parse` finds the class with no flags
+  - [x] Add a daemon test in `lumlflow/tests/daemon/test_api.py` that `cells_new` with `train-model` stores a parseable version with no parse flag
+  - [x] Run `uv run pytest tests/flow/test_scaffold.py tests/daemon/test_api.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`
 
 - [ ] Refresh the notebook on order and experiment state frames
   - [ ] In `lumlflow/frontend/src/store/flow/index.ts`, stop dropping state frames in `receiveLiveFrame`: call the existing settle-delayed refetch on `order_changed`, and on `experiment_removed` when the frame's lane is the current branch; ignore `refreshing`

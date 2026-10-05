@@ -22,7 +22,7 @@ from lumlflow.flow.daemon import envs, queries, workspace
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.stream import Streams
-from lumlflow.flow.dsl import portable
+from lumlflow.flow.dsl import loader, portable
 from lumlflow.flow.errors import FlowAlreadyExists, FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import INDEX_NAME, store_dir
 from lumlflow.flow.store.index import VersionRow
@@ -597,6 +597,22 @@ async def test_delete_drops_the_key_and_rewind_uses_the_creation_step(
 
     assert restored["order"] == str(restored["created_step"])
     assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+
+
+async def test_a_hyphenated_name_scaffolds_a_parseable_cell(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.cells_new({"flow": "churn", "slug": "train-model"})
+        session = api.hub.session("churn")
+        version = slice_of(session, "main")["train-model"]
+        stored = session.store.objects.get(version.raw_source_ref).decode("utf-8")
+
+    parsed = loader.parse(stored)
+    assert parsed.cell is not None
+    assert parsed.cell.name == "TrainModel"
+    assert version.flags == []
 
 
 async def test_slug_index_tracks_all_lanes_and_rewind_restores_a_deleted_slug(

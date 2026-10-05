@@ -46,6 +46,30 @@ def test_a_placeholder_name_does_not_become_the_class_name():
     assert scaffold.class_name("train_model") == "TrainModel"
 
 
+@pytest.mark.parametrize(
+    ("slug", "expected"),
+    [
+        ("train-model", "TrainModel"),
+        ("my cell", "MyCell"),
+        ("2d_plot", "Cell2dPlot"),
+        ("none", "CellNone"),
+        ("résumé", "Résumé"),
+        ("untitled_3", "Untitled"),
+        ("3", "Untitled"),
+        ("--", "Untitled"),
+        ("true", "CellTrue"),
+        ("x²", "X2"),
+        ("load.data (v2)", "LoadDataV2"),
+    ],
+)
+def test_every_accepted_name_scaffolds_a_class_that_parses(slug: str, expected: str):
+    parsed = loader.parse(scaffold.cell_source(slug))
+
+    assert parsed.cell is not None
+    assert parsed.cell.name == expected
+    assert parsed.flags == []
+
+
 @pytest.mark.parametrize("producer", [None, "score"])
 def test_what_is_scaffolded_passes_the_type_check_its_footer_asks_for(
     tmp_path: Path, producer: str | None
