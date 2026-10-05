@@ -233,8 +233,10 @@ def test_a_run_that_took_over_the_name_outlives_the_first(
     assert clients.live_sessions.ended == [SESSION_ID]
     assert clients.live_sessions.live == {"s2"}
     assert clients.flows.removed == []
+    assert _answers(port)
     second.stop()
     assert clients.live_sessions.live == set()
+    assert not _answers(port)
 
 
 @pytest.mark.parametrize("gone", [True, False])

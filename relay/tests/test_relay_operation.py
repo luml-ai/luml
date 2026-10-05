@@ -71,6 +71,10 @@ def test_reconnect_pauses_grow_up_to_a_maximum() -> None:
     assert [policy.delay(failed) for failed in range(6)] == [1.0, 2.0, 4.0, 8.0, 10.0, 10.0]
 
 
+def test_reconnect_pause_stays_at_the_maximum_after_a_long_outage() -> None:
+    assert ReconnectPolicy(initial_delay=1.0, max_delay=60.0).delay(5000) == 60.0
+
+
 async def test_second_agent_replaces_the_first(
     relay: Relay,
     relay_port: int,

@@ -69,7 +69,7 @@ class RelayedFlow:
         self._running = False
         self._client: LumlClient | None = None
         self._session_id: str | None = None
-        self._lumlflow: subprocess.Popen[bytes] | None = None
+        self._lumlflow: _SharedLumlflow | None = None
         self._serving: _BackgroundServing | None = None
         self._previous_termination_handler: _SignalHandler = None
         self._handles_termination = False
@@ -111,15 +111,7 @@ class RelayedFlow:
                 "The API key reaches several organizations or orbits; "
                 "name the organization and the orbit"
             )
-        if _lumlflow_answers(self.port):
-            if self.store_path is not None:
-                logger.warning(
-                    "Flow already answers on port %s; its own store is exposed, not %s",
-                    self.port,
-                    self.store_path,
-                )
-        else:
-            self._lumlflow = _start_lumlflow(self.port, self.store_path)
+        self._lumlflow = _acquire_lumlflow(self.port, self.store_path)
         self._client = client
         exposed = client.flows.expose(self.name)
         self._session_id = exposed.session.id
@@ -136,7 +128,8 @@ class RelayedFlow:
         if self._serving is not None:
             self._serving.stop()
         if self._lumlflow is not None:
-            _stop_process(self._lumlflow)
+            _release_lumlflow(self._lumlflow)
+            self._lumlflow = None
 
     def _register_cleanup(self) -> None:
         atexit.register(self.stop)
@@ -259,6 +252,54 @@ def _end_session(client: LumlClient, session_id: str) -> None:
     except (httpx.HTTPError, APIStatusError) as error:
         logger.warning(
             "Could not end the flow's session at LUML; it ends by silence: %s", error
+        )
+
+
+class _SharedLumlflow:
+    """A Flow server this process started, stopped when its last user releases it."""
+
+    def __init__(self, port: int, process: subprocess.Popen[bytes]) -> None:
+        self.port = port
+        self.process = process
+        self.users = 1
+
+
+_started_lumlflows: dict[int, _SharedLumlflow] = {}
+_started_lumlflows_lock = threading.Lock()
+
+
+def _acquire_lumlflow(port: int, store_path: str | None) -> _SharedLumlflow | None:
+    """Share or start Flow on the port; None when another process serves it."""
+    with _started_lumlflows_lock:
+        shared = _started_lumlflows.get(port)
+        if shared is not None and shared.process.poll() is None:
+            _warn_store_not_exposed(port, store_path)
+            shared.users += 1
+            return shared
+        if _lumlflow_answers(port):
+            _warn_store_not_exposed(port, store_path)
+            return None
+        shared = _SharedLumlflow(port, _start_lumlflow(port, store_path))
+        _started_lumlflows[port] = shared
+        return shared
+
+
+def _release_lumlflow(shared: _SharedLumlflow) -> None:
+    with _started_lumlflows_lock:
+        shared.users -= 1
+        if shared.users > 0:
+            return
+        if _started_lumlflows.get(shared.port) is shared:
+            del _started_lumlflows[shared.port]
+    _stop_process(shared.process)
+
+
+def _warn_store_not_exposed(port: int, store_path: str | None) -> None:
+    if store_path is not None:
+        logger.warning(
+            "Flow already answers on port %s; its own store is exposed, not %s",
+            port,
+            store_path,
         )
 
 

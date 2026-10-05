@@ -85,7 +85,8 @@ class ReconnectPolicy:
     max_delay: float = 60.0
 
     def delay(self, failed_attempts: int) -> float:
-        return min(self.initial_delay * 2.0**failed_attempts, self.max_delay)
+        # Beyond 2**64 the delay is past any sane maximum; larger powers overflow.
+        return min(self.initial_delay * 2.0 ** min(failed_attempts, 64), self.max_delay)
 
 
 class LoopbackService:
