@@ -26,7 +26,10 @@ def main(argv: list[str] | None = None) -> int:
     token = args.token_file.read_text("utf-8").strip() if args.token_file else None
     link = rpc.connect(args.socket, token=token)
     kernel = Kernel(flow_dir=flow_dir, workspace_dir=workspace_dir, link=link)
-    link.serve(kernel)
+    try:
+        link.serve(kernel)
+    finally:
+        kernel.executor.close()
     return 0
 
 

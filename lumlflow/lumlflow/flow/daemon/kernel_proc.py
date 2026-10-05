@@ -730,6 +730,11 @@ def _run_payload(request: RunRequest) -> dict[str, Any]:
         "inputs": {
             name: {
                 "value_ref": bound.value_ref,
+                # An unpersisted output's run-unique hash names the value the
+                # kernel kept in memory for it.
+                "unpersisted_ref": (
+                    bound.content_hash if bound.value_ref is None else None
+                ),
                 "kind": bound.kind,
             }
             for name, bound in request.inputs.items()

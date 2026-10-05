@@ -50,6 +50,7 @@ from lumlflow_kernel.tracker import (
 )
 
 SCRATCH_DIRNAME = "scratch"
+UNPERSISTED_DIRNAME = "unpersisted"
 NON_INTERACTIVE_HINT = "cells are non-interactive — take values via `params`"
 
 _CACHE_ENTRIES = 8
@@ -111,6 +112,12 @@ class Executor:
         self._logs = Cas(store / "logs")
         self._index_path = store / "store.sqlite"
         self._scratch_root = store / "kernel" / SCRATCH_DIRNAME
+        self._unpersisted_root = store / "kernel" / UNPERSISTED_DIRNAME
+        # Whatever a kernel that died left behind belongs to values nobody holds.
+        shutil.rmtree(self._unpersisted_root, ignore_errors=True)
+        # Keyed by the run-unique content hash of the output's record, and never
+        # evicted: a plan in progress must find every value its producers made.
+        self._unpersisted: dict[str, Any] = {}
         self._cache: OrderedDict[tuple[str, str], Any] = OrderedDict()
         self._tracker_client: tuple[Path, SdkTrackerClient] | None = None
         self._lock = threading.Lock()
@@ -231,6 +238,10 @@ class Executor:
             record["error"] = error
         self._emit("materialized" if state == "succeeded" else "failed", record)
         return record
+
+    def close(self) -> None:
+        self._unpersisted.clear()
+        shutil.rmtree(self._unpersisted_root, ignore_errors=True)
 
     def cancel(self, run_id: str) -> bool:
         """Raise `Cancelled` inside the running thread at its next bytecode.
@@ -379,13 +390,17 @@ class Executor:
         loaded = {}
         for name, spec in inputs.items():
             value_ref = str((spec or {}).get("value_ref") or "")
+            unpersisted_ref = str((spec or {}).get("unpersisted_ref") or "")
             kind = str((spec or {}).get("kind") or "")
-            if not value_ref or not self._values.exists(value_ref):
+            if value_ref and self._values.exists(value_ref):
+                value = self._deserialize(self._registry.get(kind), kind, value_ref)
+            elif unpersisted_ref in self._unpersisted:
+                value = self._unpersisted[unpersisted_ref]
+            else:
                 raise CellError(
                     f"`{version.slug}` needs `{name}`, whose value is not stored — "
                     "run the cell that produces it"
                 )
-            value = self._deserialize(self._registry.get(kind), kind, value_ref)
             if kind == "experiment":
                 if experiment_client is None or not isinstance(value, ExperimentRef):
                     raise CellError("stored experiment reference is invalid")
@@ -466,9 +481,15 @@ class Executor:
             # Declared unpersisted: a token unique to this materialization
             # stands in for the content hash, so no consumer ever memo-hits
             # across a rematerialization it cannot read the bytes of.
-            record["content_hash"] = hash_bytes(f"{run_id}/{name}".encode())
+            content_hash = hash_bytes(f"{run_id}/{name}".encode())
+            record["content_hash"] = content_hash
             record["value_ref"] = None
             record["size"] = 0
+            self._unpersisted[content_hash] = (
+                self._keep_file(content_hash, Path(value))
+                if resolution.kind == "file"
+                else value
+            )
             return record
         value_ref, size = self._persist(run_id, asset_type.serialize(value), scratch)
         custom = getattr(asset_type, "content_hash", None)
@@ -476,6 +497,14 @@ class Executor:
         record["value_ref"] = value_ref
         record["size"] = size
         return record
+
+    def _keep_file(self, content_hash: str, source: Path) -> Path:
+        """Copy a file out of the run's scratch directory, which the run's end
+        removes, so a consumer still finds the producer's bytes."""
+        kept = self._unpersisted_root / content_hash / source.name
+        kept.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, kept)
+        return kept
 
     def _persist(
         self, run_id: str, serialized: bytes | Path, scratch: Path

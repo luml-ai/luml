@@ -11,6 +11,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from lumlflow.flow.store import gc
@@ -341,6 +342,131 @@ def test_an_input_whose_value_is_not_stored_says_which_cell_to_run(tmp_path):
     assert "run the cell that produces it" in record["error"]["message"]
 
 
+_UNPERSISTED = {"probe": {"type": "asset", "persist": False}}
+
+_READS_PROBE = """
+def materialize(self, ctx, probe):
+    return {"seen": str(probe)}
+"""
+
+_WRITES_UNPERSISTED_FILE = """
+def materialize(self, ctx):
+    weights = ctx.tempdir() / "weights.bin"
+    weights.write_bytes(b"WEIGHTS")
+    return {"probe": weights}
+"""
+
+_READS_PROBE_FILE = """
+def materialize(self, ctx, probe):
+    return {"seen": probe.read_text()}
+"""
+
+
+def test_a_consumer_reads_an_unpersisted_output_from_the_kernels_memory(tmp_path):
+    kernel, _ = make_kernel(tmp_path)
+    produced = run(kernel, _RETURNS_NOTE, produces=_UNPERSISTED, run_id="producer")
+    record = run(
+        kernel,
+        _READS_PROBE,
+        run_id="consumer",
+        produces={"seen": "asset"},
+        inputs={"probe": _unpersisted_input(produced, "probe")},
+    )
+
+    assert record["state"] == "succeeded", record.get("error")
+    assert stored_value(kernel, record, "seen") == b"a note"
+    assert produced["outputs"]["probe"]["value_ref"] is None
+    assert produced["outputs"]["probe"]["persisted"] is False
+
+
+def test_every_run_of_an_unpersisted_producer_stays_readable(tmp_path):
+    """Two lanes running one producer interleave, so a consumer may ask for an
+    earlier run's value after a later run made another."""
+    kernel, _ = make_kernel(tmp_path)
+    first = run(kernel, _RETURNS_NOTE, produces=_UNPERSISTED, run_id="first")
+    run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"probe": "another note"}
+        """,
+        produces=_UNPERSISTED,
+        run_id="second",
+    )
+    record = run(
+        kernel,
+        _READS_PROBE,
+        run_id="consumer",
+        produces={"seen": "asset"},
+        inputs={"probe": _unpersisted_input(first, "probe")},
+    )
+
+    assert stored_value(kernel, record, "seen") == b"a note"
+
+
+def test_an_unpersisted_value_a_previous_kernel_held_is_not_stored(tmp_path):
+    kernel, _ = make_kernel(tmp_path)
+    produced = run(kernel, _RETURNS_NOTE, produces=_UNPERSISTED, run_id="producer")
+    kernel.executor.close()
+    restarted, _ = make_kernel(tmp_path)
+    record = run(
+        restarted,
+        _READS_PROBE,
+        slug="report",
+        run_id="consumer",
+        produces={"seen": "asset"},
+        inputs={"probe": _unpersisted_input(produced, "probe")},
+    )
+
+    assert record["state"] == "failed"
+    assert "`probe`, whose value is not stored" in record["error"]["message"]
+    assert "run the cell that produces it" in record["error"]["message"]
+
+
+def test_a_consumer_reads_an_unpersisted_file_after_the_scratch_is_gone(tmp_path):
+    kernel, _ = make_kernel(tmp_path)
+    produced = run(
+        kernel, _WRITES_UNPERSISTED_FILE, produces=_UNPERSISTED, run_id="producer"
+    )
+    record = run(
+        kernel,
+        _READS_PROBE_FILE,
+        run_id="consumer",
+        produces={"seen": "asset"},
+        inputs={"probe": _unpersisted_input(produced, "probe")},
+    )
+
+    scratch = kernel.flow_dir / ".lumlflow" / "kernel" / "scratch"
+    assert list(scratch.iterdir()) == []
+    assert record["state"] == "succeeded", record.get("error")
+    assert stored_value(kernel, record, "seen") == b"WEIGHTS"
+    assert produced["outputs"]["probe"]["filename"] == "weights.bin"
+
+
+def test_copies_of_unpersisted_files_go_when_the_kernel_stops(tmp_path):
+    kernel, _ = make_kernel(tmp_path)
+    run(kernel, _WRITES_UNPERSISTED_FILE, produces=_UNPERSISTED, run_id="producer")
+    copies = kernel.flow_dir / ".lumlflow" / "kernel" / "unpersisted"
+    assert [path.name for path in copies.rglob("*") if path.is_file()] == [
+        "weights.bin"
+    ]
+
+    kernel.executor.close()
+
+    assert not copies.exists()
+
+
+def test_copies_a_dead_kernel_left_behind_go_when_the_next_kernel_starts(tmp_path):
+    kernel, _ = make_kernel(tmp_path)
+    run(kernel, _WRITES_UNPERSISTED_FILE, produces=_UNPERSISTED, run_id="producer")
+    copies = kernel.flow_dir / ".lumlflow" / "kernel" / "unpersisted"
+    assert copies.is_dir()
+
+    make_kernel(tmp_path)
+
+    assert not copies.exists()
+
+
 def test_a_run_puts_back_the_environment_and_the_working_directory(tmp_path):
     kernel, _ = make_kernel(tmp_path)
     before = Path.cwd()
@@ -565,3 +691,13 @@ def _await(condition, timeout: float = DEADLINE_S) -> None:
             return
         time.sleep(0.01)
     raise AssertionError("the run never got going")
+
+
+def _unpersisted_input(record: dict[str, Any], output: str) -> dict[str, Any]:
+    """What the daemon binds for an output kept only in the kernel's memory."""
+    produced = record["outputs"][output]
+    return {
+        "value_ref": None,
+        "unpersisted_ref": produced["content_hash"],
+        "kind": produced["kind"],
+    }

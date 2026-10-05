@@ -294,10 +294,10 @@ Each task is one agent session with its tests; the engine fixes come first and t
   - [x] Add the kind to the workbench's cause-kind union in `lumlflow/frontend/src/flow/workbench/model/types.ts`
   - [x] Add staleness tests in `lumlflow/tests/flow/test_staleness.py`, including the workspace without a lockfile and a run that recorded no lock hash once the workspace observes one, and extend the environment tests in `lumlflow/tests/daemon/test_envs.py` with the producer-and-consumer cases; narrow the module docstring of `lumlflow/tests/daemon/test_envs.py` and the quiesce comment in `lumlflow/lumlflow/flow/daemon/hub.py` to cells that did not opt in
 
-- [ ] fix: keep unpersisted outputs readable by their consumers
-  - [ ] In `lumlflow/lumlflow_kernel/executor.py`, retain unpersisted values in memory by their run-unique reference, keep a copy of an unpersisted file output's bytes outside the run's scratch directory and remove the copies when the kernel stops or a new kernel starts, reference them from the output record, and let `_load_inputs` serve an input from that memory
-  - [ ] Carry the reference from the output record to the kernel payload alongside the stored reference; the hops in between are the implementer's to trace, among them the planner's input binding in `lumlflow/lumlflow/flow/scheduler/planner.py`, `lumlflow/lumlflow/flow/daemon/kernel_proc.py`, and `lumlflow/lumlflow/flow/store/models.py` if a new field is chosen
-  - [ ] Add kernel tests in `lumlflow/tests/kernel/test_executor.py`, including a file output and the removal of its copy, and a daemon test in `lumlflow/tests/daemon/` running a producer and consumer through the real kernel
+- [x] fix: keep unpersisted outputs readable by their consumers
+  - [x] In `lumlflow/lumlflow_kernel/executor.py`, retain unpersisted values in memory by their run-unique reference, keep a copy of an unpersisted file output's bytes outside the run's scratch directory and remove the copies when the kernel stops or a new kernel starts, reference them from the output record, and let `_load_inputs` serve an input from that memory
+  - [x] Carry the reference from the output record to the kernel payload alongside the stored reference; the hops in between are the implementer's to trace, among them the planner's input binding in `lumlflow/lumlflow/flow/scheduler/planner.py`, `lumlflow/lumlflow/flow/daemon/kernel_proc.py`, and `lumlflow/lumlflow/flow/store/models.py` if a new field is chosen
+  - [x] Add kernel tests in `lumlflow/tests/kernel/test_executor.py`, including a file output and the removal of its copy, and a daemon test in `lumlflow/tests/daemon/` running a producer and consumer through the real kernel
 
 - [ ] fix: resolve env status against the requested workspace
   - [ ] In `lumlflow/lumlflow/flow/daemon/api.py`, resolve the directory in `env_status` the way other verbs do and pass it through `_env`
