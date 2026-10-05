@@ -965,3 +965,26 @@ def _await(condition: Callable[[], bool]) -> None:
             return
         time.sleep(0.01)
     raise AssertionError("the run never reached the expected point")
+
+
+def test_a_metric_logged_over_steps_keeps_its_curve_in_the_record(
+    tmp_path: Path, tracker_store: Path
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            for step, loss in enumerate([0.9, 0.5, 0.2]):
+                ctx.tracker.log_metric("loss", loss, step=step)
+            ctx.tracker.log_metric("auc", 0.91)
+            return {"experiment": ctx.tracker.record}
+        """,
+        slug="train",
+        run_id="train-run",
+        produces={"experiment": "experiment"},
+        identity=_identity(kernel, run_id="train-run"),
+    )
+    snapshot = json.loads(stored_value(kernel, record, "experiment"))["snapshot"]
+    assert snapshot["metrics"] == {"loss": 0.2, "auc": 0.91}
+    assert snapshot["history"] == {"loss": [0.9, 0.5, 0.2]}

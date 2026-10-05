@@ -1,6 +1,6 @@
 <template>
   <NotebookCell
-    class="w-[400px]"
+    class="w-[400px] max-h-[608px]"
     :class="{ 'border-primary!': isSelected }"
     :title="asset.name"
     :icon="NOTEBOOK_ASSET_ICONS[asset.type]"
@@ -13,7 +13,7 @@
     <NotebookCellTabs v-model="activeTab" :tabs="tabs" class="mb-4" />
     <NotebookCode v-if="activeTab === CODE_TAB_ID" :slug="cell.slug" />
     <NotebookLogs v-else-if="activeTab === LOGS_TAB_ID" :slug="cell.slug" />
-    <CellOutputTabContent v-else :content="content" />
+    <CellOutputTabContent v-else :content="content" compact :slug="cell.slug" />
   </NotebookCell>
 </template>
 

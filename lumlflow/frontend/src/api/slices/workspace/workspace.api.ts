@@ -148,12 +148,16 @@ export const workspaceApi = {
       },
     ),
 
-  checkpointBranch: (branch: string, intent: string, flow?: string) =>
-    call<{ flow?: string; branch: string; intent: string }, CheckpointedBranch>('checkpoint', {
-      ...(flow ? { flow } : {}),
-      branch,
-      intent,
-    }),
+  checkpointBranch: (branch: string, intent: string, flow?: string, step?: number) =>
+    call<{ flow?: string; branch: string; intent: string; step?: number }, CheckpointedBranch>(
+      'checkpoint',
+      {
+        ...(flow ? { flow } : {}),
+        ...(step !== undefined ? { step } : {}),
+        branch,
+        intent,
+      },
+    ),
 
   cellsList: (flow?: string, branch?: string) =>
     call<{ flow?: string; branch?: string }, CellsPage>('cells.list', {

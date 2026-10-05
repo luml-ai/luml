@@ -1,8 +1,16 @@
 <template>
-  <div>
-    <Button variant="text" class="px-2.5! w-full" @click="toggle">
-      <Flag :size="14" />
-      <span>Mark as Point</span>
+  <div @click.stop>
+    <Button
+      v-tooltip.top="'Mark as point'"
+      variant="outlined"
+      severity="secondary"
+      class="point-button"
+      aria-label="Mark as point"
+      @click="toggle"
+    >
+      <template #icon>
+        <Flag :size="14" />
+      </template>
     </Button>
     <Popover ref="popoverRef" :pt="POPOVER_WITHOUT_ARROW_PT" class="w-80" @hide="resetForm">
       <Form
@@ -49,6 +57,8 @@ import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
 import { POPOVER_WITHOUT_ARROW_PT } from '@/prime-vue/pass-through/popover.pt'
 
+const props = defineProps<{ step: number }>()
+
 const toast = useToast()
 
 const flowStore = useFlowStore()
@@ -87,7 +97,7 @@ function submit(event: FormSubmitEvent) {
 async function createPoint(name: string) {
   loading.value = true
   try {
-    await flowStore.createPoint(name)
+    await flowStore.createPoint(name, props.step)
     popoverRef.value?.hide()
     toast.add(successToast('Point created successfully'))
   } catch (error) {
@@ -103,5 +113,8 @@ async function createPoint(name: string) {
 
 .form {
   @apply flex flex-col gap-4;
+}
+.point-button {
+  @apply w-8 h-8 p-0 text-primary! border-(--p-highlight-color)! bg-(--p-content-background)!;
 }
 </style>

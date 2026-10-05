@@ -7,6 +7,8 @@
     v-else-if="content.status === 'ready'"
     :blocks="content.blocks"
     :truncated="content.truncated"
+    :compact="compact"
+    :slug="slug"
   />
 </template>
 

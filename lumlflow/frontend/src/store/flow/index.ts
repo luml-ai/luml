@@ -800,10 +800,11 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchBranches()
   }
 
-  async function createPoint(name: string) {
+  /** Mark a step of the lane on screen as a point; its newest step when none is named. */
+  async function createPoint(name: string, step?: number) {
     const branch = currentBranch.value?.branch
     if (!branch) throw new Error('No branch to mark')
-    await workspaceApi.checkpointBranch(branch, name, currentFlow.value ?? undefined)
+    await workspaceApi.checkpointBranch(branch, name, currentFlow.value ?? undefined, step)
     await fetchJournal()
   }
 

@@ -216,6 +216,10 @@ class Tracker:
         self.store = store
         self._params = dict(params)
         self._metrics: dict[str, float] = {}
+        # Every value each metric was logged with, in order: the curve a
+        # preview draws. The tracker store has it too, with its steps; this
+        # is the part a stored output carries without opening the store.
+        self._history: dict[str, list[float]] = {}
 
     @classmethod
     def start(
@@ -266,6 +270,7 @@ class Tracker:
             key, value, step=step, experiment_id=self.experiment_id
         )
         self._metrics[key] = value
+        self._history.setdefault(key, []).append(float(value))
 
     def log_metrics(self, values: Mapping[str, float], step: int | None = None) -> None:
         for name, value in values.items():
@@ -280,6 +285,20 @@ class Tracker:
             snapshot={
                 "params": dict(self._params),
                 "metrics": dict(self._metrics),
+                # Only a metric logged more than once has a curve. A run that
+                # logs each metric once keeps the snapshot — and the content
+                # hash — it always had.
+                **(
+                    {"history": curves}
+                    if (
+                        curves := {
+                            name: list(values)
+                            for name, values in self._history.items()
+                            if len(values) > 1
+                        }
+                    )
+                    else {}
+                ),
             },
         )
 

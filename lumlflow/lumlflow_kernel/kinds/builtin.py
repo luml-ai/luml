@@ -207,6 +207,7 @@ class ExperimentKind:
         payload = json.loads(source.read_bytes())
         try:
             snapshot = dict(payload["snapshot"])
+            history = dict(snapshot.get("history") or {})
             return ExperimentRef(
                 experiment_id=str(payload["experiment_id"]),
                 group=str(payload["group"]),
@@ -214,6 +215,7 @@ class ExperimentKind:
                 snapshot={
                     "params": dict(snapshot["params"]),
                     "metrics": dict(snapshot["metrics"]),
+                    **({"history": history} if history else {}),
                 },
             )
         except (KeyError, TypeError, ValueError) as failure:
@@ -221,16 +223,28 @@ class ExperimentKind:
 
     def preview(self, value: Any) -> list[Block]:
         snapshot = _experiment_ref(value).snapshot
+        history = snapshot.get("history") or {}
         blocks: list[Block] = []
         for section in _EXPERIMENT_SECTIONS:
             entries = snapshot.get(section) or {}
-            if entries:
-                rendered = (
-                    preview.metric(entries)
-                    if section == "metrics"
-                    else preview.kv(entries)
-                )
-                blocks.extend([preview.markdown(f"**{section}**"), rendered])
+            if not entries:
+                continue
+            blocks.append(preview.markdown(f"**{section}**"))
+            if section != "metrics":
+                blocks.append(preview.kv(entries))
+                continue
+            # A metric logged over steps is drawn as its curve, side by side
+            # with the others; one logged once is a single number.
+            blocks.extend(
+                preview.series(str(name), values)
+                for name, values in history.items()
+                if name in entries
+            )
+            once = {
+                name: entry for name, entry in entries.items() if name not in history
+            }
+            if once:
+                blocks.append(preview.metric(once))
         return blocks or [preview.markdown("*this run recorded nothing*")]
 
     def content_hash(self, value: Any) -> str:

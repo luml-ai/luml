@@ -125,7 +125,12 @@ const outputs = computed(() =>
 @reference "@/assets/css/index.css";
 
 .card {
-  @apply bg-(--p-card-background) border border-surface rounded-lg overflow-hidden p-5 shadow-(--p-card-shadow) relative transition-colors;
+  @apply bg-(--p-card-background) border border-surface rounded-lg overflow-hidden p-5 shadow-(--p-card-shadow) relative transition-colors flex flex-col;
+}
+/* A card given a height cap keeps its header and footer, and its body shows
+   as much as fits between them. */
+.live-body {
+  @apply min-h-0 flex-1 overflow-hidden;
 }
 .card--running {
   @apply border-primary;

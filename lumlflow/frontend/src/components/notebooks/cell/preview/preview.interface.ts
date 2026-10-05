@@ -1,16 +1,21 @@
 import type {
   FileBlock,
   ImageBlock,
-  KvBlock,
   MarkdownBlock,
   PreviewBlock,
-  SeriesBlock,
   TableBlock,
 } from '@/api/slices/workspace/workspace.interface'
 import type { CellTabContent } from '@/composables/useCellTabs'
+import type { KvValue, PreviewSection } from './preview.helpers'
 
-export interface CellBarChartProps {
-  entries: [string, number][]
+export interface CellChartProps {
+  section: Extract<PreviewSection, { kind: 'lines' | 'bars' }>
+  /** Metrics left out of the chart, by their place in it. */
+  hidden: Set<number>
+}
+
+export interface CellChartFilterProps {
+  metrics: { name: string; color: string }[]
 }
 
 export interface CellFileBlockProps {
@@ -18,11 +23,9 @@ export interface CellFileBlockProps {
 }
 
 export interface CellKeyValueBlockProps {
-  block: KvBlock
-}
-
-export interface CellLineChartProps {
-  block: SeriesBlock
+  entries: [string, KvValue][]
+  /** Show only this many rows; null shows them all. */
+  limit?: number | null
 }
 
 export interface CellMarkdownBlockProps {
@@ -31,6 +34,10 @@ export interface CellMarkdownBlockProps {
 
 export interface CellOutputTabContentProps {
   content: CellTabContent
+  /** On a canvas card: long lists give way to charts. */
+  compact?: boolean
+  /** The cell, for the expand action a compact preview offers. */
+  slug?: string
 }
 
 export interface CellPlotImageProps {
@@ -40,6 +47,8 @@ export interface CellPlotImageProps {
 export interface CellPreviewBlocksProps {
   blocks: PreviewBlock[]
   truncated: boolean
+  compact?: boolean
+  slug?: string
 }
 
 export interface CellTableBlockProps {

@@ -803,3 +803,45 @@ def test_the_report_lists_the_builtins_in_priority_order(
         (builtin.PICKLE, 1000),
     ]
     assert all(entry["python_types"] for entry in builtins)
+
+
+def test_an_experiment_draws_a_metric_logged_over_steps_as_its_curve(
+    kinds: registry.Registry, tmp_path: Path
+) -> None:
+    """Curves side by side, under the one heading; what was logged once stays
+    a number. The history survives the store, and a run without one keeps the
+    snapshot it always had."""
+    asset_type = kinds.get(builtin.EXPERIMENT)
+    assert isinstance(asset_type, builtin.ExperimentKind)
+    ref = ExperimentRef(
+        experiment_id="exp-1",
+        group="churn",
+        store=tmp_path / "store",
+        snapshot={
+            "params": {"lr": 3e-4},
+            "metrics": {"loss": 0.2, "val_loss": 0.3, "auc": 0.91},
+            "history": {"loss": [0.9, 0.5, 0.2], "val_loss": [1.0, 0.6, 0.3]},
+        },
+    )
+    blocks = asset_type.preview(ref)
+    assert [block["block"] for block in blocks] == [
+        "markdown",
+        "kv",
+        "markdown",
+        "series",
+        "series",
+        "kv",
+    ]
+    assert [block.get("name") for block in blocks if block["block"] == "series"] == [
+        "loss",
+        "val_loss",
+    ]
+    assert blocks[3]["points"] == [[0, 0.9], [1, 0.5], [2, 0.2]]
+    assert blocks[5] == {"block": "kv", "entries": {"auc": 0.91}}
+
+    stored = tmp_path / "experiment.json"
+    serialized = asset_type.serialize(ref)
+    stored.write_bytes(
+        serialized if isinstance(serialized, bytes) else serialized.read_bytes()
+    )
+    assert asset_type.deserialize(stored).snapshot["history"] == ref.snapshot["history"]
