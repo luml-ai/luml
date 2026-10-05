@@ -5,7 +5,7 @@
 <script setup lang="ts">
 import type { NotebookOutputProps } from '@/components/notebooks/cell/cell.interface'
 import type { CellTabContent } from '@/composables/useCellTabs'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useFlowStore } from '@/store/flow'
 import { useCellPanelPayload } from '@/composables/useCellPanelPayload'
 import CellOutputTabContent from '@/components/notebooks/cell/preview/CellOutputTabContent.vue'
@@ -16,7 +16,7 @@ const flowStore = useFlowStore()
 
 const content = ref<CellTabContent>({ status: 'loading' })
 
-useCellPanelPayload({
+const { reload } = useCellPanelPayload({
   slug: () => props.slug,
   follows: (cell) => cell.mat_id,
   fetch: () => flowStore.fetchAssetPreview(props.slug, props.name),
@@ -32,6 +32,8 @@ useCellPanelPayload({
     }
   },
 })
+
+watch(() => flowStore.experimentRemovals[props.slug], reload)
 </script>
 
 <style scoped></style>

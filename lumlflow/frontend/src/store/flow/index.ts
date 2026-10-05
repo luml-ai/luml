@@ -210,6 +210,12 @@ export const useFlowStore = defineStore('flow', () => {
   const expandedCellId = ref<string | null>(null)
   const uploadExperimentId = ref<string | null>(null)
   const uploadModelTarget = ref<{ slug: string; output: string } | null>(null)
+  /**
+   * How many times the daemon said an experiment a cell's result refers to was
+   * deleted, by cell on the lane on screen. Neither the cell's version nor its
+   * result moves on a deletion, so this is what an output panel follows.
+   */
+  const experimentRemovals = ref<Record<string, number>>({})
 
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
@@ -511,7 +517,11 @@ export const useFlowStore = defineStore('flow', () => {
    */
   function receiveLiveFrame(frame: StreamFrame) {
     if (!('channel' in frame) || frame.channel !== 'journal') return
-    if (frame.type === 'lagged' || frame.type === 'state') return
+    if (frame.type === 'lagged') return
+    if (frame.type === 'state') {
+      receiveStateFrame(frame)
+      return
+    }
     if (frame.type === 'agents') {
       // The whole list at that moment, lease state included — replace it.
       // Nothing else in the tree moved, so no refetch is owed for it. An
@@ -570,6 +580,26 @@ export const useFlowStore = defineStore('flow', () => {
     }
     if (frame.type === 'transaction' && rewindsCurrentLane(frame.transaction.ops)) {
       leaveMovedLane()
+    }
+    scheduleLiveRefetch()
+  }
+
+  /**
+   * A change with no transaction behind it. `refreshing` is left to the run
+   * frames that follow it; a removal on another lane changes nothing on screen.
+   */
+  function receiveStateFrame(frame: Extract<StreamFrame, { type: 'state' }>) {
+    if (frame.state === 'order_changed') {
+      scheduleLiveRefetch()
+      return
+    }
+    if (frame.state !== 'experiment_removed') return
+    if (!frame.lane || frame.lane !== currentBranch.value?.branch) return
+    if (frame.cell) {
+      experimentRemovals.value = {
+        ...experimentRemovals.value,
+        [frame.cell]: (experimentRemovals.value[frame.cell] ?? 0) + 1,
+      }
     }
     scheduleLiveRefetch()
   }
@@ -903,6 +933,7 @@ export const useFlowStore = defineStore('flow', () => {
     expandedCellId.value = null
     uploadExperimentId.value = null
     uploadModelTarget.value = null
+    experimentRemovals.value = {}
   }
 
   return {
@@ -978,5 +1009,6 @@ export const useFlowStore = defineStore('flow', () => {
     cellLiveStates,
     isAnythingRunning,
     receiveLiveFrame,
+    experimentRemovals,
   }
 })

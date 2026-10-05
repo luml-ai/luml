@@ -193,11 +193,11 @@ The scenarios are the regression tests, grouped per fix in the order of the Desi
   - [x] Add a daemon test in `lumlflow/tests/daemon/test_api.py` that `cells_new` with `train-model` stores a parseable version with no parse flag
   - [x] Run `uv run pytest tests/flow/test_scaffold.py tests/daemon/test_api.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`
 
-- [ ] Refresh the notebook on order and experiment state frames
-  - [ ] In `lumlflow/frontend/src/store/flow/index.ts`, stop dropping state frames in `receiveLiveFrame`: call the existing settle-delayed refetch on `order_changed`, and on `experiment_removed` when the frame's lane is the current branch; ignore `refreshing`
-  - [ ] Give the output panel a way to reload for the cell an `experiment_removed` frame names, alongside what `useCellPanelPayload` already follows in `lumlflow/frontend/src/composables/useCellPanelPayload.ts` and `lumlflow/frontend/src/components/notebooks/cell/NotebookOutput.vue`
-  - [ ] Add tests in `lumlflow/frontend/tests/notebook-live-state.spec.ts`, or a new spec beside it, feeding state frames through `store.receiveLiveFrame`: refetch on order change, refetch and panel reload on a matching experiment removal, nothing on another lane, one refetch for a burst, nothing on refreshing
-  - [ ] Run `npm run test`, `npm run type-check` and `npm run lint` from `lumlflow/frontend/`
+- [x] Refresh the notebook on order and experiment state frames
+  - [x] In `lumlflow/frontend/src/store/flow/index.ts`, stop dropping state frames in `receiveLiveFrame`: call the existing settle-delayed refetch on `order_changed`, and on `experiment_removed` when the frame's lane is the current branch; ignore `refreshing`
+  - [x] Give the output panel a way to reload for the cell an `experiment_removed` frame names, alongside what `useCellPanelPayload` already follows in `lumlflow/frontend/src/composables/useCellPanelPayload.ts` and `lumlflow/frontend/src/components/notebooks/cell/NotebookOutput.vue`
+  - [x] Add tests in `lumlflow/frontend/tests/notebook-live-state.spec.ts`, or a new spec beside it, feeding state frames through `store.receiveLiveFrame`: refetch on order change, refetch and panel reload on a matching experiment removal, nothing on another lane, one refetch for a burst, nothing on refreshing
+  - [x] Run `npm run test`, `npm run type-check` and `npm run lint` from `lumlflow/frontend/`
 
 - [ ] Scope the workbench's environment read to the flow's workspace
   - [ ] In `lumlflow/lumlflow/flow/daemon/api.py`, add `workspace` to `_flow_brief` from `session.workspace_dir`
