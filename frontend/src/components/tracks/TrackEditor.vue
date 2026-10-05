@@ -7,9 +7,10 @@
     @update:visible="updateVisible"
   >
     <Form
+      v-slot="$form"
       id="track-edit-form"
       :initialValues
-      :resolver="trackEditorResolver"
+      :resolver="resolver"
       class="form"
       @submit="submit"
     >
@@ -17,6 +18,9 @@
         <div class="field">
           <label for="name" class="label">Name</label>
           <InputText id="name" name="name" placeholder="Name your track" fluid />
+          <Message v-if="$form.name?.invalid" severity="error" size="small" variant="simple">
+            {{ $form.name.error?.message }}
+          </Message>
         </div>
         <div class="field">
           <label for="description" class="label">Description</label>
@@ -27,6 +31,9 @@
             class="textarea"
             fluid
           ></Textarea>
+          <Message v-if="$form.description?.invalid" severity="error" size="small" variant="simple">
+            {{ $form.description.error?.message }}
+          </Message>
         </div>
         <div class="field">
           <label for="stages" class="label">Stages</label>
@@ -39,6 +46,9 @@
             :itemsTooltips="stagesTooltips"
             :disabledValues="lockedStages"
           />
+          <Message v-if="$form.stages?.invalid" severity="error" size="small" variant="simple">
+            {{ $form.stages.error?.message }}
+          </Message>
         </div>
       </div>
     </Form>
@@ -46,8 +56,8 @@
 </template>
 
 <script setup lang="ts">
-import type { TrackUpdateIn } from '@/lib/api/orbit-tracks/interfaces'
-import { InputText, Textarea, useToast, useConfirm } from 'primevue'
+import type { TrackStage, TrackUpdateIn } from '@/lib/api/orbit-tracks/interfaces'
+import { InputText, Message, Textarea, useToast, useConfirm } from 'primevue'
 import { useTracksStore } from '@/stores/tracks'
 import { Bolt } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
@@ -55,7 +65,8 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { deleteTrackConfirmOptions } from '@/lib/primevue/data/confirm'
-import { trackEditorResolver } from '@/utils/forms/resolvers'
+import { zodResolver } from '@primevue/forms/resolvers/zod'
+import z from 'zod'
 import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 
@@ -68,6 +79,24 @@ const initialValues = ref<{ name: string; description: string; stages: string[] 
   description: '',
   stages: [],
 })
+
+const resolver = zodResolver(
+  z.object({
+    name: z.string().min(1, 'Name is required').max(100, 'Name must be at most 100 characters'),
+    description: z.string().max(1000, 'Description must be at most 1000 characters').optional(),
+    stages: z
+      .array(z.string())
+      .refine(
+        (stages) => stages.length > 0 || !stagesChanged(stages),
+        'At least one stage is required',
+      )
+      .refine((stages) => stages.every((stage) => stage.length > 0), 'Stage name is required')
+      .refine(
+        (stages) => stages.every((stage) => stage.length <= 100),
+        'Stage names must be at most 100 characters',
+      ),
+  }),
+)
 
 const deleteLoading = ref(false)
 const saveLoading = ref(false)
@@ -111,6 +140,22 @@ const lockedStages = computed(() => {
   )
 })
 
+function stagesChanged(names: string[]) {
+  const original = tracksStore.editableTrack?.stages.map((stage) => stage.name) ?? []
+  return names.length !== original.length || names.some((name, index) => name !== original[index])
+}
+
+async function buildStagesPayload(trackId: string, names: string[]) {
+  const snapshot = tracksStore.editableTrack?.stages ?? []
+  const removedIds = new Set(
+    snapshot.filter((stage) => !names.includes(stage.name)).map((stage) => stage.id),
+  )
+  const current: TrackStage[] = await tracksStore.getStages(trackId)
+  const kept = current.filter((stage) => !removedIds.has(stage.id))
+  const added = names.filter((name) => !kept.some((stage) => stage.name === name))
+  return [...kept.map(({ id, name }) => ({ id, name })), ...added.map((name) => ({ name }))]
+}
+
 function updateVisible(visible: boolean) {
   if (!visible) tracksStore.hideEditor()
 }
@@ -138,16 +183,11 @@ async function submit({ values, valid, reset }: FormSubmitEvent) {
   try {
     saveLoading.value = true
     const { name, description, stages } = values
-    const payload: TrackUpdateIn = {
-      name,
-      description,
-      stages: stages.map((name: string) => {
-        const existingStage = tracksStore.editableTrack?.stages.find((stage) => stage.name === name)
-        return existingStage ? { id: existingStage.id, name } : { name }
-      }),
-    }
-    if (!tracksStore.editableTrack?.id) throw new Error('Track ID is required')
-    await tracksStore.updateTrack(tracksStore.editableTrack.id, payload)
+    const trackId = tracksStore.editableTrack?.id
+    if (!trackId) throw new Error('Track ID is required')
+    const payload: TrackUpdateIn = { name, description }
+    if (stagesChanged(stages)) payload.stages = await buildStagesPayload(trackId, stages)
+    await tracksStore.updateTrack(trackId, payload)
     reset()
     tracksStore.hideEditor()
     toast.add(simpleSuccessToast('Track has been successfully updated'))

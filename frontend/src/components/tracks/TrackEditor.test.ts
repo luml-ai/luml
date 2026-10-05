@@ -12,9 +12,11 @@ import TracksList from './TracksList.vue'
 enableAutoUnmount(afterEach)
 afterEach(() => vi.unstubAllGlobals())
 
-const mocks = vi.hoisted(() => ({ updateTrack: vi.fn(), toastAdd: vi.fn() }))
+const mocks = vi.hoisted(() => ({ updateTrack: vi.fn(), listStages: vi.fn(), toastAdd: vi.fn() }))
 
-vi.mock('@/lib/api', () => ({ api: { orbitTracks: mocks } }))
+vi.mock('@/lib/api', () => ({
+  api: { orbitTracks: { updateTrack: mocks.updateTrack, listStages: mocks.listStages } },
+}))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { organizationId: 'org-1', id: 'orbit-1' } }),
 }))
@@ -57,11 +59,11 @@ const track = {
   updated_at: null,
 }
 
-function mountPanel() {
+function mountPanel(initialTrack = track) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useTracksStore()
-  store.setTracksList([structuredClone(track)])
+  store.setTracksList([structuredClone(initialTrack)])
   const wrapper = mount(
     defineComponent({
       components: { TracksList, TrackEditor },
@@ -108,6 +110,8 @@ describe('TrackEditor stages', () => {
       removeEventListener: vi.fn(),
     }))
     mocks.updateTrack.mockReset().mockResolvedValue(track)
+    mocks.listStages.mockReset().mockResolvedValue(structuredClone(stages))
+    mocks.toastAdd.mockReset()
   })
 
   it('displays the configured stages instead of defaults or track tags', async () => {
@@ -221,6 +225,67 @@ describe('TrackEditor stages', () => {
 
     expect(event.defaultPrevented).toBe(false)
     expect(wrapper.findAll('[data-pc-name="chip"]').map((chip) => chip.text())).toEqual(['Review'])
+  })
+
+  it('saves metadata changes without sending or fetching stages', async () => {
+    const { wrapper } = mountPanel()
+    await openPanel(wrapper)
+    await wrapper.get('#description').setValue('New description')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.listStages).not.toHaveBeenCalled()
+    expect(mocks.updateTrack).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1', {
+      name: 'Release track',
+      description: 'New description',
+    })
+  })
+
+  it('keeps stages added by someone else since the panel was opened', async () => {
+    const { wrapper } = mountPanel()
+    await openPanel(wrapper)
+    const addedElsewhere = { ...stages[1], id: 'stage-9', name: 'Hotfix' }
+    mocks.listStages.mockResolvedValue([...structuredClone(stages), addedElsewhere])
+    await wrapper.findAll('.remove-icon')[1].trigger('click')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.updateTrack).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1', {
+      name: 'Release track',
+      description: '',
+      stages: [
+        { id: 'stage-1', name: 'Review' },
+        { id: 'stage-9', name: 'Hotfix' },
+      ],
+    })
+  })
+
+  it('saves metadata of a track without stages', async () => {
+    const { wrapper } = mountPanel({ ...track, stages: [] })
+    await openPanel(wrapper)
+    await wrapper.get('#name').setValue('Renamed track')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.updateTrack).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1', {
+      name: 'Renamed track',
+      description: '',
+    })
+  })
+
+  it('shows a validation message when every stage is removed', async () => {
+    const { wrapper } = mountPanel({ ...track, stages: [stages[1]] })
+    await openPanel(wrapper)
+    await wrapper.get('.remove-icon').trigger('click')
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.updateTrack).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('At least one stage is required')
   })
 
   it.each([{ names: [] }, { names: [''] }, { names: ['s'.repeat(101)] }])(

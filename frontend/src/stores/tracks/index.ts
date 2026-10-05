@@ -135,6 +135,14 @@ export const useTracksStore = defineStore('tracks', () => {
     )
   }
 
+  function getStages(trackId: string) {
+    return api.orbitTracks.listStages(
+      requestInfo.value.organizationId,
+      requestInfo.value.orbitId,
+      trackId,
+    )
+  }
+
   async function updateStage(trackId: string, stageId: string, payload: TrackStageUpdateIn) {
     return await api.orbitTracks.updateStage(
       requestInfo.value.organizationId,
@@ -180,6 +188,7 @@ export const useTracksStore = defineStore('tracks', () => {
     createStage,
     trackStages,
     listStages,
+    getStages,
     resetTrackStages,
     updateStage,
     deleteStage,
