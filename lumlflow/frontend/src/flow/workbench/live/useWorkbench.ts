@@ -74,7 +74,9 @@ export function useWorkbench(session: FlowSessionHandle): WorkbenchRecords {
 
   async function refreshEnv(): Promise<void> {
     try {
-      report.value = await session.request('env.status', {})
+      report.value = await session.request('env.status', {
+        directory: session.brief.value?.workspace,
+      })
     } catch {
       // Same: the packages panel keeps what it had rather than emptying.
     }

@@ -790,6 +790,8 @@ export interface FlowBrief {
   flow_id: string
   /** Absolute path of the `<name>.flow` directory; the daemon's flow address. */
   path: string
+  /** Absolute path of the workspace whose code and environment the flow uses. */
+  workspace: string
   branch: string
   checked_out: boolean
   /** The newest registration's label, leased or not — attribution, not pairing. */

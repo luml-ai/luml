@@ -296,7 +296,7 @@ export interface FlowMethods {
     { flow: string; settings: FlowSettingsReport }
   >
   /** Workspace-scoped: one venv, every flow under it. */
-  'env.status': Method<Record<string, never>, EnvReport>
+  'env.status': Method<{ directory?: string }, EnvReport>
   'kernel.restart': Method<FlowScoped, { flow: string; kernel: KernelReport }>
   'journal.since': Method<FlowScoped & { cursor: number }, JournalPage>
 }

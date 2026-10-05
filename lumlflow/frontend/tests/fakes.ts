@@ -24,6 +24,7 @@ import { SETTLE_MS, useFlowSession } from '@/flow/workbench/live/useFlowSession'
 import type { FlowSessionHandle } from '@/flow/workbench/live/useFlowSession'
 
 export const FLOW = 'churn.flow'
+export const WORKSPACE = '/tmp/project'
 
 export class FakeSocket implements SocketLike {
   sent: string[] = []
@@ -108,6 +109,7 @@ export function flowStatus(overrides: Partial<FlowStatus> = {}): FlowStatus {
     flow: 'churn',
     flow_id: 'flow-1',
     path: FLOW,
+    workspace: WORKSPACE,
     branch: 'main',
     checked_out: true,
     agent: null,

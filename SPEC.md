@@ -199,9 +199,9 @@ The scenarios are the regression tests, grouped per fix in the order of the Desi
   - [x] Add tests in `lumlflow/frontend/tests/notebook-live-state.spec.ts`, or a new spec beside it, feeding state frames through `store.receiveLiveFrame`: refetch on order change, refetch and panel reload on a matching experiment removal, nothing on another lane, one refetch for a burst, nothing on refreshing
   - [x] Run `npm run test`, `npm run type-check` and `npm run lint` from `lumlflow/frontend/`
 
-- [ ] Scope the workbench's environment read to the flow's workspace
-  - [ ] In `lumlflow/lumlflow/flow/daemon/api.py`, add `workspace` to `_flow_brief` from `session.workspace_dir`
-  - [ ] Add `workspace` to `FlowBrief` in `lumlflow/frontend/src/flow/api/types.ts` and let `env.status` in `lumlflow/frontend/src/flow/api/client.ts` take an optional `directory`
-  - [ ] In `lumlflow/frontend/src/flow/workbench/live/useWorkbench.ts`, send the brief's workspace as `directory` from `refreshEnv`
-  - [ ] Add a daemon test in `lumlflow/tests/daemon/test_api.py` for the brief's workspace across two workspaces, and a workbench test in `lumlflow/frontend/tests/flow-live-workbench.spec.ts` asserting the `env.status` handler receives the status's workspace on attach and after a kernel restart
-  - [ ] Run `uv run pytest tests/daemon/test_api.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`, then `npm run test`, `npm run type-check`, `npm run lint` from `lumlflow/frontend/`
+- [x] Scope the workbench's environment read to the flow's workspace
+  - [x] In `lumlflow/lumlflow/flow/daemon/api.py`, add `workspace` to `_flow_brief` from `session.workspace_dir`
+  - [x] Add `workspace` to `FlowBrief` in `lumlflow/frontend/src/flow/api/types.ts` and let `env.status` in `lumlflow/frontend/src/flow/api/client.ts` take an optional `directory`
+  - [x] In `lumlflow/frontend/src/flow/workbench/live/useWorkbench.ts`, send the brief's workspace as `directory` from `refreshEnv`
+  - [x] Add a daemon test in `lumlflow/tests/daemon/test_api.py` for the brief's workspace across two workspaces, and a workbench test in `lumlflow/frontend/tests/flow-live-workbench.spec.ts` asserting the `env.status` handler receives the status's workspace on attach and after a kernel restart
+  - [x] Run `uv run pytest tests/daemon/test_api.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`, then `npm run test`, `npm run type-check`, `npm run lint` from `lumlflow/frontend/`

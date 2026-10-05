@@ -1607,6 +1607,7 @@ class Api:
             "flow": session.ref.name,
             "flow_id": session.store.manifest.flow_id,
             "path": session.ref.address,
+            "workspace": str(session.workspace_dir),
             "branch": session.branch,
             "checked_out": session.worktree.bound() is not None,
             "agent": sessions[0].label if sessions else None,

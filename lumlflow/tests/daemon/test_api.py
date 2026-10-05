@@ -268,6 +268,22 @@ async def test_a_flow_opened_from_outside_runs_under_its_own_workspace(
     assert hosted == {"churn": root}
 
 
+async def test_the_brief_names_the_workspace_each_flow_runs_under(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    other = make_workspace(tmp_path / "other", flows=("sales",))
+
+    async with daemon_api(root) as api:
+        here = await api.flow_open({"flow": "churn"})
+        elsewhere = await api.flow_open({"flow": str(other / "sales.flow")})
+        status = await api.status({"directory": str(other)})
+
+    assert here["workspace"] == str(root.resolve())
+    assert elsewhere["workspace"] == str(other.resolve())
+    assert flow_named(status, "sales")["workspace"] == str(other.resolve())
+
+
 async def test_a_nested_flow_runs_from_its_containing_directory(
     tmp_path: Path,
 ) -> None:

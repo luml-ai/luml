@@ -1330,6 +1330,45 @@ describe('the session is a journal subscription', () => {
     wrapper.unmount()
   })
 
+  /**
+   * The daemon answers an unscoped env read for the directory it was launched
+   * in. A flow opened from another workspace has to name its own, or the panel
+   * describes an interpreter and pins this flow never runs on.
+   */
+  it('reads the env of the workspace the viewed flow runs under', async () => {
+    const elsewhere = '/tmp/other'
+    const { wrapper, live } = await workbench({
+      handlers: {
+        'flow.open': () => flowStatus({ cells: MAIN, workspace: elsewhere }),
+        'env.status': (params) =>
+          params.directory === elsewhere
+            ? {
+                ...ENV,
+                workspace: elsewhere,
+                packages: [{ name: 'polars', version: '1.9.0' }],
+                flows: [{ ...ENV.flows[0], restart_required: true, behind: ['polars'] }],
+              }
+            : ENV,
+        'kernel.restart': () => ({
+          flow: 'churn',
+          kernel: { state: 'running', restart_required: false, behind: [] },
+        }),
+      },
+    })
+
+    expect(asked(live, 'env.status')).toEqual([{ directory: elsewhere }])
+    await openPanel(wrapper, 'packages')
+    expect(wrapper.text()).toContain('polars')
+    expect(wrapper.text()).not.toContain('lightgbm')
+
+    await clickText(wrapper, 'button', 'Restart kernel')
+    expect(asked(live, 'kernel.restart')).toHaveLength(1)
+    const reads = asked(live, 'env.status')
+    expect(reads.length).toBeGreaterThan(1)
+    expect(reads.every((params) => params.directory === elsewhere)).toBe(true)
+    wrapper.unmount()
+  })
+
   it('flips to the paired agent the moment the daemon says its connection holds', async () => {
     const { wrapper, live } = await workbench()
 
