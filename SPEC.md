@@ -180,12 +180,12 @@ The scenarios are the regression tests, grouped per fix in the order of the Desi
   - [x] Confirm the tests that start a real kernel through `spawn_environment` still pass, which covers the staged package being importable
   - [x] Run `uv run pytest tests/daemon/test_kernel_proc.py tests/kernel`, `uv run mypy`, `uv run ruff check` from `lumlflow/`
 
-- [ ] Rebind a lane's consumers after a daemon-originated cell change
-  - [ ] In `lumlflow/lumlflow/flow/daemon/api.py`, after the acceptance in `cells_new`, `cells_edit` and `import_cells`, re-accept the lane's other cells through `session.acceptance.reaccept` (or an equivalent that selects the affected ones) before `_edited` projects the files
-  - [ ] Keep the unchanged check in `Acceptance._accept` as the guarantee that an unaffected cell gets no new version
-  - [ ] Add tests in `lumlflow/tests/daemon/test_api.py` for the unchecked-out producer-after-consumer case including a successful run, the edit that removes an output, the unaffected cells, the other lane staying unchanged, and the checked-out file
-  - [ ] Add an MCP-level test in `lumlflow/tests/daemon/test_mcp.py` mirroring the review's trigger: `new-cell` consumer, `new-cell` producer, `run` consumer on a lane without files
-  - [ ] Run `uv run pytest tests/daemon/test_api.py tests/daemon/test_mcp.py tests/flow/test_accept.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`
+- [x] Rebind a lane's consumers after a daemon-originated cell change
+  - [x] In `lumlflow/lumlflow/flow/daemon/api.py`, after the acceptance in `cells_new`, `cells_edit` and `import_cells`, re-accept the lane's other cells through `session.acceptance.reaccept` (or an equivalent that selects the affected ones) before `_edited` projects the files
+  - [x] Keep the unchanged check in `Acceptance._accept` as the guarantee that an unaffected cell gets no new version
+  - [x] Add tests in `lumlflow/tests/daemon/test_api.py` for the unchecked-out producer-after-consumer case including a successful run, the edit that removes an output, the unaffected cells, the other lane staying unchanged, and the checked-out file
+  - [x] Add an MCP-level test in `lumlflow/tests/daemon/test_mcp.py` mirroring the review's trigger: `new-cell` consumer, `new-cell` producer, `run` consumer on a lane without files
+  - [x] Run `uv run pytest tests/daemon/test_api.py tests/daemon/test_mcp.py tests/flow/test_accept.py`, `uv run mypy`, `uv run ruff check` from `lumlflow/`
 
 - [ ] Scaffold a valid class name from any cell name
   - [ ] In `lumlflow/lumlflow/flow/dsl/scaffold.py`, make `class_name` split on underscores and non-alphanumeric runs, upper-case each word's first letter, drop digit-only words, prefix `Cell` when the result is not a valid identifier or is a keyword, and keep `Untitled` for an empty result

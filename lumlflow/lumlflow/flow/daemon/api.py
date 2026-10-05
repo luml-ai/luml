@@ -524,6 +524,7 @@ class Api:
         except BaseException:
             session.store.manifest.order = previous_order
             raise
+        _rebind(session, {accepted.uid}, branch=branch, actor=_actor(params))
         return self._edited(session, accepted, branch=branch)
 
     async def cells_reorder(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -610,6 +611,7 @@ class Api:
             intent=params.get("intent") or f"edited {slug}",
             uid=head.uid,
         )
+        _rebind(session, {accepted.uid}, branch=branch, actor=_actor(params))
         return self._edited(
             session,
             accepted,
@@ -787,6 +789,12 @@ class Api:
             )
             if rewire:
                 self._rewire(session, rewire, branch=branch, actor=actor)
+            _rebind(
+                session,
+                {accepted_cell.uid for accepted_cell in batch.accepted},
+                branch=branch,
+                actor=actor,
+            )
         return {
             "flow": session.ref.name,
             "branch": branch,
@@ -1748,6 +1756,26 @@ def _one_cell_per_identity(carried: Sequence[PortableCell]) -> None:
                 "own, under its own name, with no `uid` line"
             )
         seen[parsed.uid] = cell.slug
+
+
+def _rebind(
+    session: FlowSession, accepted: set[str], *, branch: str, actor: str
+) -> None:
+    """Re-accept the lane's consumers against the namespace a change just moved.
+
+    Only the checked-out lane is rescanned after a commit; every other lane
+    would keep the bindings its consumers had. A consumer whose binding did not
+    move writes nothing, so this reads every consumer rather than guessing which.
+    The accepted cells are left out: re-accepting one would lose the flags only
+    its own acceptance could give it.
+    """
+    branch_id = session.store.branches.get(branch).branch_id
+    consumers = [
+        uid
+        for uid, version in session.store.index.slice_versions(branch_id).items()
+        if uid not in accepted and version.manifest.consumes
+    ]
+    session.acceptance.reaccept(uids=consumers, branch=branch, actor=actor)
 
 
 def _accept_carried(

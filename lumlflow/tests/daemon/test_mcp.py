@@ -25,6 +25,7 @@ from lumlflow.flow.errors import ServerError
 from lumlflow.flow.store.models import AgentBegin, AgentEnd
 
 from tests.daemon.helpers import (
+    REPORT_CELL,
     SCORE_CELL,
     LocalDaemon,
     cell_files,
@@ -170,6 +171,25 @@ def test_run_tool_accepts_no_target_and_runs_the_lane(talk: Talk) -> None:
     outcome = answered(answers, 3)
     assert outcome["targets"] == ["score"]
     assert outcome["executed"] == ["score"]
+
+
+def test_a_consumer_added_before_its_producer_runs_on_a_lane_without_files(
+    talk: Talk, workspace: Path
+) -> None:
+    answers = talk(
+        hello(),
+        tool(1, "init-flow", {"name": "churn"}),
+        tool(2, "new-cell", {"slug": "report", "source": REPORT_CELL, "intent": "r"}),
+        tool(3, "new-cell", {"slug": "score", "source": SCORE_CELL, "intent": "s"}),
+        tool(4, "run", {"target": "report"}),
+    )
+
+    outcome = answered(answers, 4)
+    assert [flag["code"] for flag in answered(answers, 2)["flags"]] == [
+        "dangling_ref"
+    ]
+    assert (outcome["failed"], outcome["executed"]) == (None, ["score", "report"])
+    assert cell_files(workspace / "churn.flow") == []
 
 
 def test_the_session_is_named_after_the_client_and_ends_when_it_hangs_up(talk: Talk):

@@ -273,6 +273,14 @@ class Acceptance:
         accepted: list[AcceptedCell] = []
         for uid, version in selected:
             source = self._store.objects.get(version.raw_source_ref).decode("utf-8")
+            # The stored source of an undecodable file is already lossy: only
+            # reading the file again could clear its flag, never this rebind.
+            encoding_flags = [
+                flag
+                for flag in version.flags
+                if flag.code == "invalid"
+                and (flag.detail or "").startswith("UTF-8 decoding failed:")
+            ]
             accepted.append(
                 self._accept(
                     version.slug,
@@ -282,6 +290,8 @@ class Acceptance:
                     actor=actor,
                     intent=intent or f"rebound {version.slug}",
                     uid=uid,
+                    source_flags=encoding_flags,
+                    write_back=not encoding_flags,
                 )
             )
         return accepted

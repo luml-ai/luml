@@ -25,6 +25,7 @@ from lumlflow.flow.daemon.stream import Streams
 from lumlflow.flow.dsl import portable
 from lumlflow.flow.errors import FlowAlreadyExists, FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import INDEX_NAME, store_dir
+from lumlflow.flow.store.index import VersionRow
 from lumlflow.flow.store.models import RunRecorded
 from lumlflow.tracker import TrackerProvider
 
@@ -109,6 +110,47 @@ class Evaluate:
         return {"score": 1}
 """
 
+
+RESULT_SCORE_CELL = """
+class Score:
+    produces = {"result": "asset"}
+
+    def materialize(self, ctx):
+        return {"result": 3}
+"""
+
+SUMMARY_SCORE_CELL = """
+class Score:
+    produces = {"summary": "asset"}
+
+    def materialize(self, ctx):
+        return {"summary": 3}
+"""
+
+RESULT_REPORT_CELL = """
+class Report:
+    consumes = {"result": "score.result"}
+    produces = {"report": "asset"}
+
+    def materialize(self, ctx, result):
+        return {"report": result * 2}
+"""
+
+PLOT_CELL = """
+class Plot:
+    produces = {"plot": "asset"}
+
+    def materialize(self, ctx):
+        return {"plot": [1, 2]}
+"""
+
+AUDIT_CELL = """
+class Audit:
+    produces = {"audit": "asset"}
+
+    def materialize(self, ctx):
+        return {"audit": True}
+"""
 
 async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
     tmp_path: Path,
@@ -1345,6 +1387,172 @@ async def test_deleting_on_an_off_disk_lane_flags_its_consumers(
     assert (flow / "cells" / "score.py").exists()
 
 
+async def test_a_producer_added_after_its_consumer_binds_it_on_an_off_disk_lane(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "sweep"})
+        await _add(api, "sweep", "report", RESULT_REPORT_CELL)
+        session = api.hub.session("churn")
+        dangling = slice_of(session, "sweep")["report"]
+
+        await _add(api, "sweep", "score", RESULT_SCORE_CELL)
+        here = slice_of(session, "sweep")
+        outcome = await api.run(
+            {"flow": "churn", "branch": "sweep", "target": "report"}
+        )
+
+    assert _codes(dangling) == ["dangling_ref"]
+    assert here["report"].version_id != dangling.version_id
+    assert here["report"].manifest.consumes["result"].uid == here["score"].uid
+    assert _codes(here["report"]) == []
+    assert (outcome["failed"], outcome["executed"]) == (None, ["score", "report"])
+
+
+async def test_an_imported_producer_binds_an_existing_consumer_on_an_off_disk_lane(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    carried = portable.render(
+        [portable.PortableCell(slug="score", source=RESULT_SCORE_CELL)],
+        flow="churn",
+        branch="sweep",
+    )
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "sweep"})
+        await _add(api, "sweep", "report", RESULT_REPORT_CELL)
+
+        await api.import_cells({"flow": "churn", "branch": "sweep", "source": carried})
+        here = slice_of(api.hub.session("churn"), "sweep")
+
+    assert here["report"].manifest.consumes["result"].uid == here["score"].uid
+    assert _codes(here["report"]) == []
+
+async def test_an_edit_that_removes_an_output_leaves_its_consumer_dangling(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "sweep"})
+        await _add(api, "sweep", "score", RESULT_SCORE_CELL)
+        await _add(api, "sweep", "report", RESULT_REPORT_CELL)
+        session = api.hub.session("churn")
+        bound = slice_of(session, "sweep")["report"]
+
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "branch": "sweep",
+                "slug": "score",
+                "source": SUMMARY_SCORE_CELL,
+            }
+        )
+        report = slice_of(session, "sweep")["report"]
+
+    assert _codes(bound) == []
+    assert report.version_id != bound.version_id
+    assert _codes(report) == ["dangling_ref"]
+    assert "score.result" in str(report.flags[0].detail)
+
+
+async def test_adding_an_unrelated_cell_writes_no_consumer_version(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "sweep"})
+        await _add(api, "sweep", "score", RESULT_SCORE_CELL)
+        await _add(api, "sweep", "report", RESULT_REPORT_CELL)
+        await _add(api, "sweep", "plot", PLOT_CELL)
+        session = api.hub.session("churn")
+        before = slice_of(session, "sweep")
+        steps = len(transactions(session))
+
+        await _add(api, "sweep", "audit", AUDIT_CELL)
+        after = slice_of(session, "sweep")
+
+    assert after["report"].version_id == before["report"].version_id
+    assert after["plot"].version_id == before["plot"].version_id
+    assert len(transactions(session)) == steps + 1
+
+
+async def test_adding_an_unrelated_cell_leaves_an_undecodable_consumer_alone(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", RESULT_SCORE_CELL)
+    report_path = flow / "cells" / "report.py"
+    report_bytes = b"# r\xe9sum\xe9\n" + RESULT_REPORT_CELL.encode("utf-8")
+    report_path.write_bytes(report_bytes)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        before = slice_of(session, "main")["report"]
+
+        await _add(api, "main", "audit", AUDIT_CELL)
+        after = slice_of(session, "main")["report"]
+
+    assert _codes(before) == ["invalid"]
+    assert before.manifest.consumes["result"].uid is not None
+    assert after.version_id == before.version_id
+    assert report_path.read_bytes() == report_bytes
+
+
+async def test_rebinding_stays_on_the_lane_that_changed(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await _add(api, "main", "report", RESULT_REPORT_CELL)
+        await api.fork({"flow": "churn", "name": "sweep"})
+        session = api.hub.session("churn")
+        on_main = slice_of(session, "main")["report"]
+
+        await _add(api, "sweep", "score", RESULT_SCORE_CELL)
+        sweep = slice_of(session, "sweep")
+        main = slice_of(session, "main")
+
+    assert sweep["report"].manifest.consumes["result"].uid == sweep["score"].uid
+    assert _codes(sweep["report"]) == []
+    assert main["report"].version_id == on_main.version_id
+    assert _codes(main["report"]) == ["dangling_ref"]
+
+
+async def test_the_checked_out_lane_carries_the_rebound_consumer_into_its_file(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "report", RESULT_REPORT_CELL.replace("score.result", "result"))
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        dangling = slice_of(session, "main")["report"]
+
+        added = await _add(api, "main", "score", RESULT_SCORE_CELL)
+        here = slice_of(session, "main")
+        report = here["report"]
+        stored = session.store.objects.get(report.raw_source_ref).decode("utf-8")
+        on_disk = source_of(flow, "report")
+
+    assert added["written_to_files"] is True
+    assert _codes(dangling) == ["dangling_ref"]
+    assert report.manifest.consumes["result"].uid == here["score"].uid
+    assert '"score.result"' in stored
+    assert on_disk == stored
+
 async def test_importing_a_renamed_cell_rewires_existing_consumers(
     tmp_path: Path,
 ) -> None:
@@ -1960,6 +2168,15 @@ async def test_workspace_files_are_never_versioned_by_a_flow(tmp_path: Path):
 
     assert slugs(opened) == ["score"]
 
+
+async def _add(api: Api, branch: str, slug: str, source: str) -> dict[str, Any]:
+    return await api.cells_new(
+        {"flow": "churn", "branch": branch, "slug": slug, "source": source}
+    )
+
+
+def _codes(version: VersionRow) -> list[str]:
+    return [flag.code for flag in version.flags]
 
 def _definition_hashes(session: FlowSession) -> dict[str, str]:
     return {
