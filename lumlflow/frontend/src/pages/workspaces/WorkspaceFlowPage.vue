@@ -11,7 +11,6 @@
       <NotebooksSidebar />
       <div>
         <NotebookToolbar class="mb-2" />
-        <NotebookTerminalView v-if="flowStore.isTerminalOpen" />
         <NotebookBaseView v-if="flowStore.viewMode === 'notebook'" />
         <NotebookCanvasView v-else-if="flowStore.viewMode === 'canvas'" />
       </div>
@@ -48,7 +47,6 @@ import NotebooksSidebar from '@/components/notebooks/NotebooksSidebar.vue'
 import NotebookToolbar from '@/components/notebooks/NotebookToolbar.vue'
 import NotebookBaseView from '@/components/notebooks/NotebookBaseView.vue'
 import NotebookCanvasView from '@/components/notebooks/NotebookCanvasView.vue'
-import NotebookTerminalView from '@/components/notebooks/NotebookTerminalView.vue'
 import ExpandedCell from '@/components/notebooks/cell/ExpandedCell.vue'
 import UploadModal from '@/components/upload/UploadModal.vue'
 import CreateLaneDialog from '@/components/notebooks/lanes/CreateLaneDialog.vue'

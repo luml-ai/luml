@@ -72,7 +72,6 @@ import NotebooksCanvasToolbar from '@/components/notebooks/NotebooksCanvasToolba
 import {
   NOTEBOOK_CANVAS_LEVEL_HEIGHT,
   NOTEBOOK_CANVAS_NODE_WIDTH,
-  NOTEBOOK_TERMINAL_HEIGHT,
 } from '@/components/notebooks/notebooks.const'
 
 function producerOf(reference: string): string {
@@ -197,11 +196,7 @@ const zoomValue = ref((viewport.value.zoom * 100).toFixed())
 
 const isFullScreen = ref(false)
 
-const wrapperHeight = computed(() =>
-  flowStore.isTerminalOpen
-    ? `calc(100vh - 211px - ${NOTEBOOK_TERMINAL_HEIGHT}px - 8px)`
-    : 'calc(100vh - 211px)',
-)
+const wrapperHeight = 'calc(100vh - 211px)'
 
 function toggleFullScreen() {
   isFullScreen.value = !isFullScreen.value

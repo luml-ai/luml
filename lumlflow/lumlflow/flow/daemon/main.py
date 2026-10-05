@@ -9,6 +9,7 @@ import secrets
 import signal
 import socket
 import sys
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,18 @@ FLOW_ERROR = -32000
 
 logger = logging.getLogger(__name__)
 
+# How long a connected agent may make no call before it stops counting as
+# here. The connection is not enough: a harness can keep its MCP server alive
+# long after the session that started it ended — Codex's app-server does —
+# and an agent that is gone but still connected would keep its name, its
+# colour and its place in the pairing line for as long as that lasts.
+QUIET_AFTER_S = 15 * 60
+# How often the daemon looks for agents that have gone quiet.
+_QUIET_SWEEP_S = 30.0
+# Calls that say nothing about an agent being at work: the handshake and the
+# probes a harness sends to see whether the daemon is there.
+_NOT_PRESENCE = frozenset({"ping", "authenticate"})
+
 
 class Daemon:
     def __init__(self, directory: Path) -> None:
@@ -79,6 +92,14 @@ class Daemon:
         self._calls: set[asyncio.Task[None]] = set()
         self._clients: set[asyncio.StreamWriter] = set()
         self._client_leases: dict[asyncio.StreamWriter, Leases] = {}
+        # Sessions ended because their agent went quiet, per connection: the
+        # connection is still there, and the agent's next call brings the
+        # session back under the same lease without the agent knowing.
+        self._quiet: dict[asyncio.StreamWriter, Leases] = {}
+        # When each (flow, actor) a connection carries last made a call.
+        self._last_call: dict[tuple[str | None, str], float] = {}
+        self.clock: Callable[[], float] = time.monotonic
+        self._sweeper: asyncio.Task[None] | None = None
         self._stopped = asyncio.Event()
 
     def stop(self) -> None:
@@ -137,6 +158,7 @@ class Daemon:
                 self.watcher.start()
             except OSError as unwatchable:
                 logger.warning("not watching flows: %s", unwatchable)
+            self._sweeper = asyncio.create_task(self._sweep_quiet())
             self._announce(record)
             if announce is not None:
                 announce(record)
@@ -178,6 +200,10 @@ class Daemon:
         # The socket goes first, then the calls it is still carrying: a request
         # still awaiting a kernel has to unwind before the stores it would
         # write to are closed under it, and nothing new may arrive behind it.
+        if self._sweeper is not None:
+            self._sweeper.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._sweeper
         await self._stop_web()
         await self._stop_serving()
         await self._end_calls()
@@ -239,6 +265,7 @@ class Daemon:
         leased: Leases = set()
         self._clients.add(writer)
         self._client_leases[writer] = leased
+        self._quiet[writer] = set()
         try:
             while True:
                 try:
@@ -279,7 +306,12 @@ class Daemon:
                 call.cancel()
             self._clients.discard(writer)
             self._client_leases.pop(writer, None)
+            # A session that already went quiet was ended then; nothing of it
+            # is left to release.
+            self._quiet.pop(writer, None)
             writer.close()
+            for _, actor, _ in leased:
+                self._forget_calls(actor)
             await self._release(leased)
 
     async def _release(self, leased: "Leases") -> None:
@@ -310,6 +342,92 @@ class Daemon:
             with contextlib.suppress(FlowError, OSError):
                 await self.api.agent_end({"flow": flow, "actor": actor})
             self._announce_agents(flow)
+
+    async def _sweep_quiet(self) -> None:
+        """End, every little while, the sessions whose agent stopped calling."""
+        while True:
+            await asyncio.sleep(_QUIET_SWEEP_S)
+            try:
+                await self.end_quiet()
+            except Exception:
+                logger.exception("ending quiet agent sessions failed")
+
+    async def end_quiet(self) -> None:
+        """End the session of every connected agent quiet for `QUIET_AFTER_S`.
+
+        Ended the way a dropped connection ends one — committed, announced,
+        its claims and calls let go — so it leaves the pairing line, gives its
+        name back, and stops counting as a second author. The connection is
+        kept, and the lease set aside rather than forgotten: the agent's next
+        call is what brings it back.
+        """
+        if self._stopped.is_set():
+            return
+        now = self.clock()
+        for writer, leased in list(self._client_leases.items()):
+            quiet = {
+                lease
+                for lease in leased
+                if now - self._last_call.get((lease[0], lease[1]), now) >= QUIET_AFTER_S
+            }
+            if not quiet:
+                continue
+            leased.difference_update(quiet)
+            self._quiet.setdefault(writer, set()).update(quiet)
+            for flow, actor, label in sorted(quiet, key=lambda lease: lease[1]):
+                self.api.forget_agent(actor)
+                if not flow:
+                    continue
+                with contextlib.suppress(FlowError, OSError):
+                    self.api.end_activity(flow, actor=actor)
+                with contextlib.suppress(FlowError, OSError):
+                    await self.api.agent_end(
+                        {
+                            "flow": flow,
+                            "actor": actor,
+                            "intent": f"{label} went quiet",
+                        }
+                    )
+                self._announce_agents(flow)
+
+    async def _revive(
+        self, writer: asyncio.StreamWriter, leased: Leases, actor: str
+    ) -> None:
+        """Bring back the sessions this agent had before it went quiet."""
+        quiet = self._quiet.get(writer)
+        if not quiet:
+            return
+        returning = [lease for lease in quiet if lease[1] == actor]
+        for lease in returning:
+            quiet.discard(lease)
+            flow, _, label = lease
+            if not flow:
+                continue
+            try:
+                begun = await self.api.agent_begin(
+                    {
+                        "flow": flow,
+                        "actor": actor,
+                        "label": label,
+                        "lease": True,
+                        "intent": f"{label} is back",
+                    }
+                )
+            except FlowError:
+                continue
+            leased.add((flow, actor, str(begun.get("label") or label)))
+            self._last_call[(flow, actor)] = self.clock()
+            self._announce_agents(flow)
+
+    def _heard_from(self, leased: Leases, actor: str) -> None:
+        now = self.clock()
+        for flow, held, _ in leased:
+            if held == actor:
+                self._last_call[(flow, actor)] = now
+
+    def _forget_calls(self, actor: str) -> None:
+        for key in [key for key in self._last_call if key[1] == actor]:
+            del self._last_call[key]
 
     def _leases(self) -> Leases:
         """Every agent session a live connection is carrying right now."""
@@ -431,6 +549,19 @@ class Daemon:
             )
             return
         params = message.get("params") or {}
+        caller = str(params.get("actor") or "")
+        if caller and str(message["method"]) not in _NOT_PRESENCE:
+            # Any call is the agent being here. One that went quiet is brought
+            # back first, so the call below runs under its lease as before.
+            if str(message["method"]) != "agent.end":
+                await self._revive(writer, leased, caller)
+            else:
+                # Ending a session that already went quiet ends nothing more.
+                quiet = self._quiet.get(writer, set())
+                quiet.difference_update(
+                    {lease for lease in quiet if lease[1] == caller}
+                )
+            self._heard_from(leased, caller)
         activity = _activity(leased, str(message["method"]), params)
         announced = False
         try:
@@ -465,6 +596,8 @@ class Daemon:
                     self.api.observed(name, params)
                     self.api.settled(name, params)
             _leased(leased, name, params, result)
+            if name == "agent.begin" and caller:
+                self._heard_from(leased, caller)
             if (
                 name == "agent.begin"
                 and isinstance(result, dict)

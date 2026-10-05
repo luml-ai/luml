@@ -3,7 +3,6 @@ import type {
   BranchRecord,
   CancelledRun,
   CellSummary,
-  EvalResult,
   JournalTransaction,
   RanCell,
   RanLane,
@@ -170,8 +169,6 @@ export const useFlowStore = defineStore('flow', () => {
   const reactivity = ref<'lazy' | 'auto'>('auto')
   const autoThresholdSeconds = ref(5)
 
-  const isTerminalOpen = ref(false)
-  const terminalHistory = ref<{ text: string; response?: string }[]>([])
 
   const branches = ref<BranchRecord[]>([])
   const currentFlow = ref<string | null>(null)
@@ -605,14 +602,6 @@ export const useFlowStore = defineStore('flow', () => {
     }
   }
 
-  function toggleTerminal() {
-    isTerminalOpen.value = !isTerminalOpen.value
-  }
-
-  async function evalScratch(code: string): Promise<EvalResult> {
-    return workspaceApi.evalCode(code, currentFlow.value ?? undefined, currentBranch.value?.branch)
-  }
-
   function setFlow(flow: string | null) {
     if (currentFlow.value === flow) return
     currentFlow.value = flow
@@ -852,8 +841,6 @@ export const useFlowStore = defineStore('flow', () => {
     viewMode.value = 'canvas'
     reactivity.value = 'auto'
     autoThresholdSeconds.value = 5
-    isTerminalOpen.value = false
-    terminalHistory.value = []
     branches.value = []
     agentSessions.value = []
     liveRuns.value = []
@@ -883,10 +870,6 @@ export const useFlowStore = defineStore('flow', () => {
     autoThresholdSeconds,
     setAutoThresholdSeconds,
     fetchSettings,
-    isTerminalOpen,
-    toggleTerminal,
-    terminalHistory,
-    evalScratch,
     branches,
     currentFlow,
     setFlow,

@@ -2,14 +2,6 @@
   <div class="toolbar">
     <div class="toolbar-left">
       <NotebookCellCreator />
-      <Button
-        variant="text"
-        :severity="flowStore.isTerminalOpen ? 'primary' : 'secondary'"
-        @click="flowStore.toggleTerminal()"
-      >
-        <Terminal :size="14" />
-        {{ flowStore.isTerminalOpen ? 'Hide Scratch' : 'Scratch' }}
-      </Button>
     </div>
     <div class="toolbar-right">
       <Button
@@ -32,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { Pause, Play, Terminal } from 'lucide-vue-next'
+import { Pause, Play } from 'lucide-vue-next'
 import { Button } from 'primevue'
 import { ref } from 'vue'
 import { useToast } from 'primevue/usetoast'

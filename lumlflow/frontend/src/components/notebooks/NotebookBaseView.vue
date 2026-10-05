@@ -22,18 +22,13 @@
 import { computed, nextTick, watch } from 'vue'
 import {
   NOTEBOOK_ASSET_ICONS,
-  NOTEBOOK_TERMINAL_HEIGHT,
 } from '@/components/notebooks/notebooks.const'
 import { useFlowStore } from '@/store/flow'
 import NotebookCell from '@/components/notebooks/cell/NotebookCell.vue'
 
 const flowStore = useFlowStore()
 
-const wrapperHeight = computed(() =>
-  flowStore.isTerminalOpen
-    ? `calc(100vh - 211px - ${NOTEBOOK_TERMINAL_HEIGHT}px - 8px)`
-    : 'calc(100vh - 211px)',
-)
+const wrapperHeight = 'calc(100vh - 211px)'
 
 const cells = computed(() => {
   const bySlug = new Map(flowStore.cells.map((cell) => [cell.slug, cell]))
