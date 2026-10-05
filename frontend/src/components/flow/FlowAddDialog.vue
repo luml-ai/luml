@@ -72,7 +72,7 @@
       <template v-else>
         <p>This orbit has no relay.</p>
         <router-link
-          :to="{ name: 'organization-orbits', params: { organizationId } }"
+          :to="{ name: 'organization-orbits', params: { id: organizationId } }"
           class="link"
           data-testid="orbits-link"
         >

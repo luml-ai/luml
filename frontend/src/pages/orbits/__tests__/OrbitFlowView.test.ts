@@ -281,7 +281,7 @@ describe('OrbitFlowView', () => {
     expect(info.text()).toContain('This orbit has no relay')
     expect(JSON.parse(info.get('[data-testid="orbits-link"]').attributes('data-to')!)).toEqual({
       name: 'organization-orbits',
-      params: { organizationId: ORG },
+      params: { id: ORG },
     })
     expect(info.find('[data-testid="docs-link"]').exists()).toBe(false)
   })

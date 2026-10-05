@@ -114,10 +114,10 @@ Gating the orbit settings button on the role hides it from an organization membe
   - [x] Extend the fakes in `sdk/python/sdk/tests/flow/fakes.py` with the session end operation and add tests in `sdk/python/sdk/tests/flow/test_relayed_flow.py` for the scenarios: the second run outlives the first, the run that still owns the flow, stopping after LUML ended the session, stopping when LUML cannot be reached
   - [x] Run ruff, mypy and pytest in `sdk/python/sdk/`
 
-- [ ] Fix the relay-setup link's route parameter in the add-flow dialog
-  - [ ] Pass the organization's identifier as the `id` parameter of the `organization-orbits` route in `frontend/src/components/flow/FlowAddDialog.vue`
-  - [ ] Correct the assertion on the link's target in `frontend/src/pages/orbits/__tests__/OrbitFlowView.test.ts`
-  - [ ] Run the type check, the linter and the unit tests in `frontend/`
+- [x] Fix the relay-setup link's route parameter in the add-flow dialog
+  - [x] Pass the organization's identifier as the `id` parameter of the `organization-orbits` route in `frontend/src/components/flow/FlowAddDialog.vue`
+  - [x] Correct the assertion on the link's target in `frontend/src/pages/orbits/__tests__/OrbitFlowView.test.ts`
+  - [x] Run the type check, the linter and the unit tests in `frontend/`
 
 - [ ] Show the orbit settings button to organization owners and admins
   - [ ] Gate the settings button in `frontend/src/components/organizations/OrganizationOrbits.vue` on the current organization's role being owner or admin, leaving the create button's gate as it is

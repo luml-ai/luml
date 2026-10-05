@@ -22,4 +22,10 @@ describe('flow routes', () => {
 
     expect(route.name).toBe('404')
   })
+
+  it("resolves the add-flow dialog's relay-setup link to the organization's orbits tab", () => {
+    const route = router.resolve({ name: 'organization-orbits', params: { id: ORGANIZATION_ID } })
+
+    expect(route.path).toBe(`/organization/${ORGANIZATION_ID}/orbits-list`)
+  })
 })
