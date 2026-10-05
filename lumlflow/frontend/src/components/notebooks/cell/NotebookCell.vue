@@ -7,10 +7,22 @@
       'card--agent': live?.kind === 'agent',
     }"
     :data-live="live?.kind ?? null"
+    :style="live?.kind === 'agent' ? { '--agent-color': live.color } : undefined"
   >
     <NotebookCellHeader :title="title" :icon="icon" :cost-seconds="costSeconds" :cell="cell" />
-    <div v-if="live" class="live-strip" :class="`live-strip--${live.kind}`" role="status">
-      <LoaderCircle v-if="live.kind !== 'queued'" :size="14" class="animate-spin shrink-0" />
+    <div
+      v-if="live"
+      class="live-strip"
+      :class="`live-strip--${live.kind}`"
+      role="status"
+      :title="lockHint"
+    >
+      <LoaderCircle
+        v-if="live.kind === 'running' || (live.kind === 'agent' && live.inCall)"
+        :size="14"
+        class="animate-spin shrink-0"
+      />
+      <Lock v-else-if="live.kind === 'agent'" :size="14" class="shrink-0" />
       <Clock v-else :size="14" class="shrink-0" />
       <span class="truncate">{{ liveLabel }}</span>
     </div>
@@ -59,7 +71,7 @@
 import type { NotebookCellProps } from '@/components/notebooks/cell/cell.interface'
 import { computed, ref } from 'vue'
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
-import { Clock, LoaderCircle } from 'lucide-vue-next'
+import { Clock, LoaderCircle, Lock } from 'lucide-vue-next'
 import { useFlowStore } from '@/store/flow'
 import { agentToolVerb } from '@/components/notebooks/cell/cell.const'
 import {
@@ -82,7 +94,7 @@ const activePanels = ref<string[]>(['code'])
 
 // What is happening to this cell right now, as the daemon's live frames say:
 // a run the kernel is inside of, one the queue holds, or a paired agent that
-// has this cell — inside a call naming it, or between calls since one did.
+// holds this cell — the daemon refuses it to every other agent meanwhile.
 // The stored state in the footer is what it was.
 const live = computed(() => flowStore.cellLiveStates[props.cell.slug] ?? null)
 
@@ -91,8 +103,17 @@ const liveLabel = computed(() => {
   if (!state) return ''
   if (state.kind === 'running') return 'Running…'
   if (state.kind === 'queued') return 'Queued'
-  if (state.inCall) return `${state.label} is ${agentToolVerb(state.tool)} this cell…`
+  if (state.inCall && state.tool) {
+    return `${state.label} is ${agentToolVerb(state.tool)} this cell…`
+  }
   return `${state.label} is working on this cell`
+})
+
+// A held cell is closed to every other agent, and the strip says until when.
+const lockHint = computed(() => {
+  const state = live.value
+  if (state?.kind !== 'agent') return undefined
+  return `Other agents can't change or run this cell until ${state.label} moves to another cell, disconnects, or leaves it alone for ${Math.round(flowStore.claimIdleMinutes)} minutes.`
 })
 
 const outputs = computed(() =>
@@ -119,7 +140,7 @@ const outputs = computed(() =>
   @apply border-dashed;
 }
 .card--agent {
-  @apply border-(--p-tag-info-color);
+  border-color: var(--agent-color);
 }
 /* The agent has the cell: its body steps back until the call lands. */
 .card--agent .live-body {
@@ -138,7 +159,8 @@ const outputs = computed(() =>
   @apply bg-(--p-content-hover-background) text-muted-color;
 }
 .live-strip--agent {
-  @apply bg-(--p-tag-info-background) text-(--p-tag-info-color);
+  color: var(--agent-color);
+  background: color-mix(in srgb, var(--agent-color) 12%, transparent);
 }
 @keyframes live-sweep {
   0% {

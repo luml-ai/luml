@@ -168,7 +168,7 @@ describe('the notebooks pairing line', () => {
   it('detects harnesses whenever the dialog opens, and renders each with its state', async () => {
     const { wrapper } = pairingLine([])
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.toolbar-pair-button').trigger('click')
     await settle()
 
     expect(mocked.agentHarnesses).toHaveBeenCalledTimes(1)
@@ -188,7 +188,7 @@ describe('the notebooks pairing line', () => {
     })
     const { wrapper } = pairingLine([])
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.toolbar-pair-button').trigger('click')
     await settle()
     const checkbox = document.body.querySelector<HTMLInputElement>('input[type="checkbox"]')
     expect(checkbox, 'no harness to select').toBeTruthy()
@@ -215,7 +215,7 @@ describe('the notebooks pairing line', () => {
     mocked.removeAgentHarness.mockResolvedValue({ ...CLAUDE_HARNESS, state: 'removed by you' })
     const { wrapper } = pairingLine([])
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.toolbar-pair-button').trigger('click')
     await settle()
     await clickInOverlay('Remove')
 
@@ -228,7 +228,7 @@ describe('the notebooks pairing line', () => {
     mocked.endAgentSession.mockResolvedValue({ flow: '/p/churn.flow', actor: 'codex', label: 'Codex' })
     const { wrapper } = pairingLine([LIVE_CLAUDE, STALE_CODEX])
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('.toolbar-pair-button').trigger('click')
     await settle()
 
     const rows = [...document.body.querySelectorAll<HTMLElement>('[data-actor]')]

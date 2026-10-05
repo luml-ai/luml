@@ -13,8 +13,10 @@ import asyncio
 import os
 import shutil
 import tempfile
+import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, get_args
@@ -27,6 +29,7 @@ from lumlflow.flow.dsl import loader, portable, scaffold
 from lumlflow.flow.dsl.accept import PLACEHOLDER_SLUG, AcceptedCell, Batch
 from lumlflow.flow.dsl.portable import PortableCell
 from lumlflow.flow.errors import (
+    CellClaimed,
     EditConflict,
     FlowError,
     LaneMoved,
@@ -60,6 +63,54 @@ _FENCED = frozenset(
 # What tells an agent where the lane stands: the brief it reads first, and
 # its own changes and moves, which it knows the outcome of.
 _OBSERVES = _FENCED | {"context", "rewind"}
+
+# How long a cell stays an agent's once it stops naming it. Agents think
+# between calls — reading an answer, writing the next cell — and a claim that
+# lapsed in the middle of that would hand the cell to the next agent while the
+# first is still writing it. Long enough for that; short enough that an agent
+# that wandered off without moving on does not hold a cell all afternoon.
+CLAIM_IDLE_S = 180.0
+
+# What another agent may not do to a cell somebody holds: change it, move it,
+# take it, or run it. Reading it is never refused.
+_TOUCHES = frozenset(
+    {
+        "cells.new",
+        "cells.edit",
+        "cells.reorder",
+        "cells.delete",
+        "cells.eager",
+        "rename",
+        "adopt",
+        "run",
+    }
+)
+
+
+@dataclass
+class _Claim:
+    """One agent working on one cell of one lane."""
+
+    flow: str
+    branch: str
+    branch_id: str
+    slug: str
+    actor: str
+    label: str
+    since: float
+    last: float
+
+    def row(self) -> dict[str, Any]:
+        return {
+            "actor": self.actor,
+            "label": self.label,
+            "slug": self.slug,
+            "branch": self.branch,
+            "branch_id": self.branch_id,
+            "since": int(self.since * 1000),
+            "last": int(self.last * 1000),
+        }
+
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
 AttachmentCheck = Callable[[str], dict[str, Any]]
@@ -105,6 +156,10 @@ class Api:
         self._lane_seen: dict[tuple[str, str, str], int] = {}
         # Who last moved each lane, for the sentence a refused agent reads.
         self._moved_by: dict[tuple[str, str], str] = {}
+        # Which agent holds which cell: (flow, branch_id, slug casefolded).
+        self._claims: dict[tuple[str, str, str], _Claim] = {}
+        # The clock claims age by. A test moves it instead of waiting.
+        self.clock: Callable[[], float] = time.time
         self.methods: dict[str, Method] = {
             "ping": self.ping,
             "status": self.status,
@@ -836,6 +891,12 @@ class Api:
         session.store.save_manifest()
         moved = session.store.branches.get(branch)
         self._moved_by[(session.ref.address, moved.branch_id)] = actor
+        # Every cell on the lane now shows the version at the step it went to,
+        # and nobody was working on that one.
+        self._release_where(
+            session,
+            lambda claim: claim.branch_id == moved.branch_id,
+        )
         return (
             await self._flow_brief(session)
             | {
@@ -917,6 +978,8 @@ class Api:
         session = self._session(params)
         label = str(params.get("label") or params.get("actor") or "agent")
         actor = str(params.get("actor") or label)
+        if params.get("lease"):
+            label = self._distinct_label(session, label, actor=actor)
         # Open the bracket over a settled file plane: edits made before the
         # session began belong to whoever was there before it.
         await self.hub.quiesce(session)
@@ -1202,6 +1265,27 @@ class Api:
             "hygiene": queries.hygiene(session),
         }
 
+    def _distinct_label(self, session: FlowSession, label: str, *, actor: str) -> str:
+        """A label no other connected agent on this flow is using.
+
+        Two windows of the same harness introduce themselves the same way, and
+        a pairing line that reads `codex · editing train` twice says nothing
+        about which one. The second is numbered while the first is connected;
+        a registration nobody is behind does not hold its name.
+        """
+        leased = self._leased_actors(session)
+        taken = {
+            row.label
+            for row in session.store.index.agent_sessions()
+            if row.actor in leased and row.actor != actor
+        }
+        if label not in taken:
+            return label
+        number = 2
+        while f"{label} {number}" in taken:
+            number += 1
+        return f"{label} {number}"
+
     def _leased_actors(self, session: FlowSession) -> frozenset[str]:
         """The actors whose session a live connection is carrying on this flow."""
         if self._leases is None:
@@ -1315,9 +1399,134 @@ class Api:
         )
 
     def forget_agent(self, actor: str) -> None:
-        """Drop what an agent was shown, once its connection is gone."""
+        """Drop what an agent was shown and held, once its connection is gone."""
         for key in [held for held in self._lane_seen if held[1] == actor]:
             del self._lane_seen[key]
+        for session in self.hub.opened():
+            self._release_where(session, lambda claim: claim.actor == actor)
+
+    def claim(self, method: str, params: dict[str, Any], *, label: str) -> None:
+        """Hold the cell a leased agent's call names, or refuse the call.
+
+        An agent holds one cell at a time on a flow: the last one a call of
+        its named. Naming another moves the hold there; disconnecting, the
+        lane being rewound, or leaving the cell alone for `CLAIM_IDLE_S` lets
+        it go. While one agent holds a cell, another agent's call that would
+        change or run it is refused before anything lands. Reading it is not:
+        a look takes nothing and is never in the way.
+
+        People are never held to this. It is between agents, and the workbench
+        is where a person overrides whatever an agent is doing.
+        """
+        slug = _cell_named(params)
+        if slug is None:
+            return
+        actor = _actor(params)
+        try:
+            session = self._session(params, actor=actor)
+            branch = _branch(session, params)
+            row = session.store.branches.get(branch)
+        except FlowError:
+            return
+        flow = session.ref.address
+        now = self.clock()
+        changed = self._expire(flow, now)
+        key = (flow, row.branch_id, slug.casefold())
+        held = self._claims.get(key)
+        if held is not None and held.actor != actor:
+            if changed:
+                self._announce_claims(session)
+            if method not in _TOUCHES:
+                return
+            left = max(0, int(CLAIM_IDLE_S - (now - held.last)))
+            raise CellClaimed(
+                f"`{held.slug}` is being worked on by {held.label}. Nothing was "
+                f"changed. It frees up when {held.label} moves to another cell, "
+                f"disconnects, or leaves it alone for "
+                f"{int(CLAIM_IDLE_S // 60)} minutes ({left}s from now if it "
+                f"does nothing more with it). Work on another cell meanwhile; "
+                f"you can still read this one.",
+                slug=held.slug,
+                holder=held.actor,
+                label=held.label,
+            )
+        for other, claim in list(self._claims.items()):
+            if claim.actor == actor and claim.flow == flow and other != key:
+                del self._claims[other]
+        if held is None:
+            self._claims[key] = _Claim(
+                flow=flow,
+                branch=branch,
+                branch_id=row.branch_id,
+                slug=slug,
+                actor=actor,
+                label=label,
+                since=now,
+                last=now,
+            )
+        else:
+            held.last = now
+        self._announce_claims(session)
+
+    def settled(self, method: str, params: dict[str, Any]) -> None:
+        """Follow a held cell through what its holder just did to it."""
+        if method not in {"rename", "cells.delete"}:
+            return
+        slug = _cell_named(params)
+        if slug is None:
+            return
+        actor = _actor(params)
+        try:
+            session = self._session(params, actor=actor)
+            row = session.store.branches.get(_branch(session, params))
+        except FlowError:
+            return
+        key = (session.ref.address, row.branch_id, slug.casefold())
+        held = self._claims.pop(key, None)
+        if held is None or held.actor != actor:
+            if held is not None:
+                self._claims[key] = held
+            return
+        if method == "rename" and params.get("to"):
+            renamed = portable.cell_name(str(params["to"]))
+            held.slug = renamed
+            self._claims[(key[0], key[1], renamed.casefold())] = held
+        self._announce_claims(session)
+
+    def _expire(self, flow: str, now: float) -> bool:
+        lapsed = [
+            key
+            for key, claim in self._claims.items()
+            if claim.flow == flow and now - claim.last >= CLAIM_IDLE_S
+        ]
+        for key in lapsed:
+            del self._claims[key]
+        return bool(lapsed)
+
+    def _release_where(
+        self, session: FlowSession, released: Callable[[_Claim], bool]
+    ) -> None:
+        flow = session.ref.address
+        dropped = [
+            key
+            for key, claim in self._claims.items()
+            if claim.flow == flow and released(claim)
+        ]
+        for key in dropped:
+            del self._claims[key]
+        if dropped:
+            self._announce_claims(session)
+
+    def _announce_claims(self, session: FlowSession) -> None:
+        if session.streams is None:
+            return
+        flow = session.ref.address
+        session.streams.claims(
+            flow,
+            [claim.row() for claim in self._claims.values() if claim.flow == flow],
+            step=session.store.next_step - 1,
+            idle_after_s=CLAIM_IDLE_S,
+        )
 
     def announce_activity(
         self,
@@ -1711,6 +1920,15 @@ def _unstored(slug: str, output: str, materialized: bool) -> str:
 def _flow_name(params: dict[str, Any]) -> str | None:
     name = params.get("flow")
     return str(name) if name else None
+
+
+def _cell_named(params: dict[str, Any]) -> str | None:
+    """The cell a call is about: its `slug`, or the cell half of `target`."""
+    named = params.get("slug") or params.get("target")
+    if not named:
+        return None
+    cell = str(named).split(".", 1)[0].strip()
+    return cell or None
 
 
 def _named(value: Any) -> str | None:

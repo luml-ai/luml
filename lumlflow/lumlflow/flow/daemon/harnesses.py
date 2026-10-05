@@ -89,6 +89,9 @@ class Harness:
     verification: tuple[str, ...]
     stdio_type: str | None = None
     tools: tuple[str, ...] | None = None
+    #: What the harness calls itself in an MCP handshake, when that is
+    #: neither its id nor its display name.
+    client_names: tuple[str, ...] = ()
 
     @property
     def writer(self) -> ConfigShape | None:
@@ -245,6 +248,7 @@ HARNESSES: list[Harness] = [
         shell=True,
         post_write_hint="restart Codex",
         config_hint="$CODEX_HOME/config.toml (normally ~/.codex/config.toml)",
+        client_names=("codex-mcp-client",),
         verification=(
             f"{_DOCS_SCHEME}developers.openai.com/codex/config-basic/#configuration-precedence",
             f"{_DOCS_SCHEME}developers.openai.com/codex/mcp/#configure-with-configtoml",
@@ -371,6 +375,7 @@ def client_harness_id(name: str) -> str | None:
         if normalized in {
             _normalized_name(harness.id),
             _normalized_name(harness.display_name),
+            *(_normalized_name(alias) for alias in harness.client_names),
         }:
             return harness.id
     return None

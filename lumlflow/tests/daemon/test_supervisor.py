@@ -1045,3 +1045,93 @@ def test_a_leased_agent_is_refused_over_the_socket_and_nothing_lands(
     assert {cell["slug"] for cell in behind} == {"score", "first"}
     assert landed["slug"] == "third"
     assert {cell["slug"] for cell in after} == {"score", "first", "third"}
+
+
+def test_two_leased_agents_cannot_change_the_same_cell_at_once(
+    tmp_path: Path, start: Starter
+) -> None:
+    """The first agent to name a cell holds it. The second is refused before
+    anything lands and is never announced as on that cell; it can still read
+    it. Once the first moves on, the cell is the second's to change."""
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    address = str(root / "churn.flow")
+    edited = SCORE_CELL.replace("0.91", "0.95")
+
+    with start(root) as live:
+        live.call("flow.open", {"flow": "churn"})
+        live.call("cells.new", {"flow": "churn", "slug": "notes", "source": FENCE_NOTE})
+        codex = client.attach(live.record, timeout=30)
+        claude = client.attach(live.record, timeout=30)
+        try:
+            for agent, actor, label in (
+                (codex, "codex-1", "codex"),
+                (claude, "claude-1", "claude-code"),
+            ):
+                agent.call(
+                    "agent.begin",
+                    {"flow": "churn", "actor": actor, "label": label, "lease": True},
+                )
+            with _watch(live.record, address) as socket:
+                _caught_up(socket)
+                codex.call(
+                    "cells.show", {"flow": "churn", "actor": "codex-1", "slug": "score"}
+                )
+                held = _until(
+                    socket,
+                    lambda frame: frame.get("type") == "claims" and frame["claims"],
+                )
+                with pytest.raises(FlowError) as refused:
+                    claude.call(
+                        "cells.edit",
+                        {
+                            "flow": "churn",
+                            "actor": "claude-1",
+                            "slug": "score",
+                            "source": edited,
+                        },
+                    )
+                looked = claude.call(
+                    "cells.show",
+                    {"flow": "churn", "actor": "claude-1", "slug": "score"},
+                )
+                codex.call(
+                    "cells.show", {"flow": "churn", "actor": "codex-1", "slug": "notes"}
+                )
+                claude.call(
+                    "cells.edit",
+                    {
+                        "flow": "churn",
+                        "actor": "claude-1",
+                        "slug": "score",
+                        "source": edited,
+                    },
+                )
+                seen: list[dict[str, Any]] = []
+                _until(
+                    socket,
+                    lambda frame: (
+                        seen.append(frame) is None
+                        and frame.get("type") == "activity"
+                        and frame.get("tool") == "cells.edit"
+                        and frame.get("phase") == "ended"
+                    ),
+                )
+        finally:
+            codex.close()
+            claude.close()
+
+    assert [(claim["actor"], claim["slug"]) for claim in held["claims"]] == [
+        ("codex-1", "score")
+    ]
+    assert "`score` is being worked on by codex" in str(refused.value)
+    assert looked["slug"] == "score"
+    # The refused edit was never announced: the only edit the watcher saw
+    # is the one that landed after codex moved on.
+    edits = [
+        frame
+        for frame in seen
+        if frame.get("type") == "activity" and frame.get("tool") == "cells.edit"
+    ]
+    assert {frame["phase"] for frame in edits} == {"started", "ended"}
+    assert len(edits) == 2

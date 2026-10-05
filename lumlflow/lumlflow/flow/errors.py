@@ -88,6 +88,20 @@ class LaneMoved(FlowError):
         self.by = by
 
 
+class CellClaimed(FlowError):
+    """Another agent is working on this cell, and it is theirs until they stop.
+
+    Raised before the change lands: nothing was written. Reading the cell is
+    never refused — only what would change or run it under somebody else.
+    """
+
+    def __init__(self, message: str, *, slug: str, holder: str, label: str) -> None:
+        super().__init__(message)
+        self.slug = slug
+        self.holder = holder
+        self.label = label
+
+
 class EditConflict(FlowError):
     """A daemon-originated edit started from a version the head has moved past.
 

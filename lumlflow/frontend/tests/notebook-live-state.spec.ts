@@ -49,7 +49,8 @@ vi.mock('primevue/usetoast', () => ({
 
 import NotebookCell from '@/components/notebooks/cell/NotebookCell.vue'
 import NotebookPairAgent from '@/components/notebooks/NotebookPairAgent.vue'
-import { AGENT_FOCUS_MS, useFlowStore } from '@/store/flow'
+import { AGENT_COLORS, useFlowStore } from '@/store/flow'
+import { settle } from './fakes'
 
 const FLOW = '/p/churn.flow'
 
@@ -88,17 +89,39 @@ function kernel(
   return { channel: 'journal', type: 'kernel', flow: FLOW, step: 4, event, run_id, slug, awaiting }
 }
 
-function activity(phase: 'started' | 'ended', tool: string, slug: string | null): StreamFrame {
+function activity(
+  phase: 'started' | 'ended',
+  tool: string,
+  slug: string | null,
+  actor = 'codex-7',
+  label = 'Codex',
+): StreamFrame {
   return {
     channel: 'journal',
     type: 'activity',
     flow: FLOW,
     step: 4,
     phase,
-    actor: 'codex-7',
-    label: 'Codex',
+    actor,
+    label,
     tool,
     slug,
+  }
+}
+
+function held(slug: string, actor = 'codex-7', label = 'Codex', branch_id = 'b-main') {
+  const now = Date.now()
+  return { actor, label, slug, branch: 'main', branch_id, since: now, last: now }
+}
+
+function claims(...entries: ReturnType<typeof held>[]): StreamFrame {
+  return {
+    channel: 'journal',
+    type: 'claims',
+    flow: FLOW,
+    step: 4,
+    claims: entries,
+    idle_after_s: 180,
   }
 }
 
@@ -157,7 +180,7 @@ describe('live cell states in the store', () => {
     expect(store.cellLiveStates.score).toBeUndefined()
   })
 
-  it('takes the runs in flight from the catch-up, and drops them when the kernel stops', () => {
+  it('takes runs and holds from the catch-up, and drops the runs when the kernel stops', () => {
     store.receiveLiveFrame({
       channel: 'journal',
       type: 'caught_up',
@@ -165,9 +188,11 @@ describe('live cell states in the store', () => {
       step: 4,
       running: [{ run_id: 'run-3', slug: 'load' }],
       activity: [{ actor: 'codex-7', label: 'Codex', tool: 'cells.edit', slug: 'train' }],
+      claims: [held('train')],
+      claim_idle_s: 180,
     })
     expect(store.cellLiveStates.load).toEqual({ kind: 'running', run_id: 'run-3' })
-    expect(store.cellLiveStates.train?.kind).toBe('agent')
+    expect(store.cellLiveStates.train).toMatchObject({ kind: 'agent', inCall: true })
 
     store.receiveLiveFrame({
       channel: 'journal',
@@ -181,46 +206,55 @@ describe('live cell states in the store', () => {
     expect(store.cellLiveStates.train?.kind).toBe('agent')
   })
 
-  it('keeps the cell an agent call named after the call, until the agent moves on', () => {
-    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+  it('shows the cell the daemon says an agent holds, and what it is doing on it', () => {
+    store.receiveLiveFrame(claims(held('train')))
     expect(store.cellLiveStates.train).toEqual({
       kind: 'agent',
       actor: 'codex-7',
       label: 'Codex',
-      tool: 'cells.edit',
-      inCall: true,
+      tool: null,
+      inCall: false,
+      color: AGENT_COLORS[0],
     })
 
-    // The call lasted milliseconds; the agent is still on the cell.
+    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+    expect(store.cellLiveStates.train).toMatchObject({ tool: 'cells.edit', inCall: true })
     store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
-    expect(store.cellLiveStates.train?.kind).toBe('agent')
-    expect(store.cellLiveStates.train).toMatchObject({ inCall: false })
-    // Looking around names no cell and moves nothing.
-    store.receiveLiveFrame(activity('started', 'context', null))
-    store.receiveLiveFrame(activity('ended', 'context', null))
-    expect(store.cellLiveStates.train?.kind).toBe('agent')
+    expect(store.cellLiveStates.train).toMatchObject({ tool: null, inCall: false })
 
-    // Naming another cell does.
+    // A call that names another cell it does not hold is not on this one.
     store.receiveLiveFrame(activity('started', 'cells.show', 'score'))
-    store.receiveLiveFrame(activity('ended', 'cells.show', 'score'))
+    expect(store.cellLiveStates.train).toMatchObject({ inCall: false })
+    expect(store.cellLiveStates.score).toBeUndefined()
+
+    store.receiveLiveFrame(claims())
     expect(store.cellLiveStates.train).toBeUndefined()
-    expect(store.cellLiveStates.score?.kind).toBe('agent')
   })
 
-  it('lets go of the cell when the agent goes quiet, or its lease drops', () => {
+  it('gives each connected agent its own colour, oldest first', () => {
+    store.agentSessions = [
+      { actor: 'claude-3', label: 'claude-code', begun_step: 5, leased: true },
+      { actor: 'codex-7', label: 'Codex', begun_step: 2, leased: true },
+    ]
+    store.receiveLiveFrame(claims(held('train'), held('score', 'claude-3', 'claude-code')))
+    expect(store.cellLiveStates.train).toMatchObject({ color: AGENT_COLORS[0] })
+    expect(store.cellLiveStates.score).toMatchObject({ color: AGENT_COLORS[1] })
+    expect(store.pairedAgents.map((agent) => [agent.label, agent.slug])).toEqual([
+      ['Codex', 'train'],
+      ['claude-code', 'score'],
+    ])
+  })
+
+  it('lets a hold lapse on time, and drops it when the lease does', () => {
     vi.useFakeTimers()
     try {
-      store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
-      store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
-      vi.advanceTimersByTime(AGENT_FOCUS_MS - 10_000)
+      store.receiveLiveFrame(claims(held('train')))
+      vi.advanceTimersByTime(170_000)
       expect(store.cellLiveStates.train?.kind).toBe('agent')
       vi.advanceTimersByTime(15_000)
       expect(store.cellLiveStates.train).toBeUndefined()
-      expect(store.currentActivity).toBeNull()
 
-      store.receiveLiveFrame(activity('started', 'cells.edit', 'score'))
-      store.receiveLiveFrame(activity('ended', 'cells.edit', 'score'))
-      expect(store.cellLiveStates.score?.kind).toBe('agent')
+      store.receiveLiveFrame(claims(held('score')))
       store.receiveLiveFrame({
         channel: 'journal',
         type: 'agents',
@@ -234,14 +268,16 @@ describe('live cell states in the store', () => {
     }
   })
 
-  it('lets a run the agent asked for win over the call that asked', () => {
+  it('shows only the holds on the lane on screen', () => {
+    store.receiveLiveFrame(claims(held('train', 'codex-7', 'Codex', 'b-other')))
+    expect(store.cellLiveStates.train).toBeUndefined()
+  })
+
+  it('lets a run the agent asked for win over its hold', () => {
+    store.receiveLiveFrame(claims(held('train')))
     store.receiveLiveFrame(activity('started', 'run', 'train'))
     store.receiveLiveFrame(kernel('started', 'run-4', 'train'))
     expect(store.cellLiveStates.train?.kind).toBe('running')
-    // A call that names no cell marks nothing on a card; the tag still says.
-    store.receiveLiveFrame(activity('started', 'context', null))
-    expect(Object.keys(store.cellLiveStates)).toEqual(['train'])
-    expect(store.currentActivity?.tool).toBe('context')
   })
 })
 
@@ -265,37 +301,20 @@ describe('when the lane is moved under the agent', () => {
     }
   }
 
-  it('lets go of the cell the agent was on when somebody rewinds this lane', () => {
-    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
-    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
-    expect(store.cellLiveStates.train?.kind).toBe('agent')
-
+  it('lets go of the cell the agent held when somebody rewinds this lane', () => {
+    store.receiveLiveFrame(claims(held('train')))
     store.receiveLiveFrame(rewound('b-main'))
     expect(store.cellLiveStates.train).toBeUndefined()
-    expect(store.currentActivity).toBeNull()
   })
 
-  it('does not carry the focus back when a call that began before the move ends', () => {
-    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
-    store.receiveLiveFrame(rewound('b-main'))
-    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
-    expect(store.cellLiveStates.train).toBeUndefined()
-
-    // The agent's next call is a new start, and puts it back on a cell.
-    store.receiveLiveFrame(activity('started', 'context', null))
-    store.receiveLiveFrame(activity('started', 'cells.show', 'score'))
-    expect(store.cellLiveStates.score?.kind).toBe('agent')
-  })
-
-  it('leaves the focus alone when another lane is rewound', () => {
-    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+  it('leaves the hold alone when another lane is rewound', () => {
+    store.receiveLiveFrame(claims(held('train')))
     store.receiveLiveFrame(rewound('b-other'))
     expect(store.cellLiveStates.train?.kind).toBe('agent')
   })
 
   it('lets go of it when this tab rewinds the lane itself', async () => {
-    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
-    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
+    store.receiveLiveFrame(claims(held('train')))
     await store.rewindBranch(2)
     expect(store.cellLiveStates.train).toBeUndefined()
   })
@@ -321,29 +340,94 @@ describe('the card', () => {
     expect(wrapper.attributes('data-live')).toBeUndefined()
   })
 
-  it('dims under the agent and names what it is doing', async () => {
+  it('takes the colour of the agent holding it and says what it is doing', async () => {
     const wrapper = card('train')
     const other = card('score')
+    store.receiveLiveFrame(claims(held('train')))
     store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
     await wrapper.vm.$nextTick()
     expect(wrapper.attributes('data-live')).toBe('agent')
+    expect(wrapper.attributes('style')).toContain(`--agent-color: ${AGENT_COLORS[0]}`)
     expect(wrapper.find('.live-strip').text()).toBe('Codex is editing this cell…')
+    expect(wrapper.find('.live-strip').attributes('title')).toContain(
+      "Other agents can't change or run this cell until Codex",
+    )
     expect(other.attributes('data-live')).toBeUndefined()
+
+    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.live-strip').text()).toBe('Codex is working on this cell')
   })
 })
 
-describe('the pairing tag', () => {
-  it('names the call the agent is inside of', async () => {
+describe('the pairing line', () => {
+  function line(): VueWrapper {
     const wrapper = mount(NotebookPairAgent, {
+      attachTo: document.body,
       global: { plugins: [ToastService] },
     })
     mounted.push(wrapper)
-    expect(wrapper.text()).toContain('Codex paired')
+    return wrapper
+  }
+
+  it('reads one agent in full, with the cell it is on', async () => {
+    const wrapper = line()
+    expect(wrapper.find('.agents-trigger').text()).toBe('Codex paired')
+
+    store.receiveLiveFrame(claims(held('train')))
     store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
     await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('Codex · editing train')
-    store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
+    expect(wrapper.find('.agents-trigger').text()).toBe('Codex · editing train')
+  })
+
+  it('folds several agents into one count, however many there are', async () => {
+    store.agentSessions = [
+      { actor: 'codex-7', label: 'Codex', begun_step: 2, leased: true },
+      { actor: 'claude-3', label: 'claude-code', begun_step: 5, leased: true },
+      { actor: 'codex-9', label: 'Codex 2', begun_step: 6, leased: true },
+    ]
+    const wrapper = line()
+    expect(wrapper.findAll('.agents-trigger')).toHaveLength(1)
+    expect(wrapper.find('.agents-trigger').text()).toBe('3 agents')
+    expect(wrapper.findAll('.agents-trigger .agent-dot')).toHaveLength(3)
+
+    store.agentSessions = Array.from({ length: 10 }, (_, at) => ({
+      actor: `codex-${at}`,
+      label: at ? `codex ${at + 1}` : 'codex',
+      begun_step: at,
+      leased: true,
+    }))
     await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('Codex · working on train')
+    expect(wrapper.find('.agents-trigger').text()).toBe('10 agents')
+    expect(wrapper.findAll('.agents-trigger .agent-dot')).toHaveLength(4)
+    expect(document.body.querySelectorAll('.agents-row')).toHaveLength(0)
+  })
+
+  it('lists every agent and the cell it holds on click, and goes to that cell', async () => {
+    store.agentSessions = [
+      { actor: 'codex-7', label: 'Codex', begun_step: 2, leased: true },
+      { actor: 'claude-3', label: 'claude-code', begun_step: 5, leased: true },
+    ]
+    store.receiveLiveFrame(claims(held('train')))
+    store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
+    const wrapper = line()
+
+    await wrapper.find('.agents-trigger').trigger('click')
+    await settle()
+    const rows = [...document.body.querySelectorAll<HTMLElement>('.agents-row')]
+    expect(rows.map((row) => row.dataset.agent)).toEqual(['codex-7', 'claude-3'])
+    expect(rows[0]?.textContent).toContain('editing')
+    expect(rows[0]?.textContent).toContain('train')
+    expect(rows[1]?.textContent).toContain('idle')
+
+    rows[0]?.querySelector<HTMLButtonElement>('.agents-row-cell')?.click()
+    expect(store.selectedCellId).toBe('train')
+  })
+
+  it('says unpaired when nobody is connected', () => {
+    store.agentSessions = []
+    const wrapper = line()
+    expect(wrapper.text()).toContain('Unpaired')
+    expect(wrapper.find('.agents-trigger').exists()).toBe(false)
   })
 })

@@ -287,6 +287,8 @@ def _subscribed(
         # running on train", and a tab that opens during it would otherwise
         # see the cell change with nobody named as changing it.
         "activity": streams.activities(flow),
+        "claims": streams.claimed(flow),
+        "claim_idle_s": streams.claim_idle_s,
     }
     return [
         *(

@@ -21,7 +21,7 @@ import { errorToast } from '@/toasts'
 import { formatUpdatedAgo } from '@/helpers/date'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FlowStream, streamToken } from '@/api/streams/flow'
-import type { AgentActivity, StreamFrame } from '@/api/streams/flow'
+import type { AgentActivity, AgentClaim, StreamFrame } from '@/api/streams/flow'
 
 /** A run the daemon has announced and not yet seen end, by the cell it is of. */
 export interface LiveRun {
@@ -39,25 +39,41 @@ export interface LiveRun {
 export type CellLiveState =
   | { kind: 'running'; run_id: string }
   | { kind: 'queued'; run_id: string }
-  | { kind: 'agent'; actor: string; label: string; tool: string; inCall: boolean }
+  | {
+      kind: 'agent'
+      actor: string
+      label: string
+      /** The daemon method the holder is inside of on this cell, if any. */
+      tool: string | null
+      inCall: boolean
+      color: string
+    }
 
 /**
- * How long a cell stays the agent's after its last call named it. The daemon
- * sees an agent only inside a call, and a call lasts milliseconds; the work —
- * reading the answer, deciding the next edit — happens between them. A cell
- * the agent touched is its until it touches another, leaves, or goes quiet
- * this long. The same idle window the workbench's task line uses.
+ * The colours agents are told apart by: the first connected agent takes the
+ * first, and keeps it for as long as it stays connected.
  */
-export const AGENT_FOCUS_MS = 90_000
+export const AGENT_COLORS = [
+  'var(--p-blue-500)',
+  'var(--p-orange-500)',
+  'var(--p-purple-500)',
+  'var(--p-teal-500)',
+  'var(--p-pink-500)',
+  'var(--p-green-500)',
+]
 
-/**
- * What an agent is doing, or just did. `inCall` says the daemon is inside the
- * call right now; afterwards `since` is when it answered, and the entry stands
- * until the agent moves on or the focus window closes.
- */
-export interface AgentFocus extends AgentActivity {
-  inCall: boolean
-  since: number
+/** How long a claim lasts untouched, until a frame says otherwise. */
+export const DEFAULT_CLAIM_IDLE_MS = 180_000
+
+/** One connected agent, as the toolbar shows it. */
+export interface PairedAgent {
+  actor: string
+  label: string
+  color: string
+  /** The cell it holds on the lane on screen, if any. */
+  slug: string | null
+  /** The daemon method it is inside of right now, if any. */
+  tool: string | null
 }
 
 function formatStepCount(count: number, noun: string): string {
@@ -186,58 +202,94 @@ export const useFlowStore = defineStore('flow', () => {
   /**
    * Paired means somebody is on the other end: a leased session. A row without
    * a lease was registered by hand for attribution, and nobody is behind it.
+   * Oldest connection first, which is what keeps each agent's colour stable.
    */
-  const pairedAgent = computed(() =>
+  const leasedSessions = computed(() =>
     currentBranch.value?.checked_out
-      ? (agentSessions.value.find((session) => session.leased) ?? null)
-      : null,
+      ? agentSessions.value
+          .filter((session) => session.leased)
+          .sort((left, right) => left.begun_step - right.begun_step)
+      : [],
   )
+  const pairedAgent = computed(() => leasedSessions.value[0] ?? null)
   const pairedAgentLabel = computed(() => pairedAgent.value?.label ?? null)
+  function agentColor(actor: string): string {
+    const at = leasedSessions.value.findIndex((session) => session.actor === actor)
+    return AGENT_COLORS[Math.max(at, 0) % AGENT_COLORS.length] as string
+  }
   /**
    * The runs in flight, as the daemon announces them. Not journaled, so this is
    * fed by the live frames alone and replaced whole by every catch-up.
    */
   const liveRuns = ref<LiveRun[]>([])
-  /** One entry per leased agent: the call it is in, or the last one it made. */
-  const agentFocus = ref<AgentFocus[]>([])
-  // The clock the focus window is measured against. Ticks only while there is
-  // a focus to expire, so an idle page runs no timer.
+  /**
+   * Which agent holds which cell, as the daemon decides it. The daemon is the
+   * one that refuses a second agent, so the card shows its word rather than a
+   * guess made from the calls going by.
+   */
+  const agentClaims = ref<AgentClaim[]>([])
+  const claimIdleMs = ref(DEFAULT_CLAIM_IDLE_MS)
+  const claimIdleMinutes = computed(() => claimIdleMs.value / 60_000)
+  /** The call each agent is inside of right now, by actor. */
+  const agentCalls = ref<Record<string, AgentActivity>>({})
+  // A claim lapses on its own, unannounced, and this is the clock the card
+  // lets go by. It ticks only while there is a claim to lapse.
   const now = ref(Date.now())
-  let focusClock: ReturnType<typeof setInterval> | null = null
+  let claimClock: ReturnType<typeof setInterval> | null = null
   function keepClock() {
-    const wanted = agentFocus.value.some((entry) => !entry.inCall)
-    if (wanted && focusClock === null) {
-      focusClock = setInterval(() => {
+    const wanted = agentClaims.value.length > 0
+    if (wanted && claimClock === null) {
+      claimClock = setInterval(() => {
         now.value = Date.now()
       }, 5_000)
-    } else if (!wanted && focusClock !== null) {
-      clearInterval(focusClock)
-      focusClock = null
+    } else if (!wanted && claimClock !== null) {
+      clearInterval(claimClock)
+      claimClock = null
     }
   }
-  function setFocus(entries: AgentFocus[]) {
-    agentFocus.value = entries
+  function setClaims(claims: AgentClaim[]) {
+    agentClaims.value = claims
     now.value = Date.now()
     keepClock()
   }
-  /** The agents still at work: in a call, or within the window after one. */
-  const agentActivity = computed<AgentFocus[]>(() =>
-    agentFocus.value.filter((entry) => entry.inCall || now.value - entry.since < AGENT_FOCUS_MS),
-  )
-  /** What the paired agent is doing this moment, if anything. */
-  const currentActivity = computed<AgentFocus | null>(
-    () => agentActivity.value[agentActivity.value.length - 1] ?? null,
+  /** The claims standing on the lane on screen. */
+  const liveClaims = computed(() => {
+    const branchId = currentBranch.value?.branch_id
+    return agentClaims.value.filter(
+      (claim) => claim.branch_id === branchId && now.value - claim.last < claimIdleMs.value,
+    )
+  })
+  function callOn(actor: string, slug: string | null): AgentActivity | null {
+    const call = agentCalls.value[actor]
+    if (!call) return null
+    return slug === null || call.slug === null || call.slug === slug ? call : null
+  }
+  /** Every connected agent, with the cell it holds and the call it is in. */
+  const pairedAgents = computed<PairedAgent[]>(() =>
+    leasedSessions.value.map((session) => {
+      const claim = liveClaims.value.find((held) => held.actor === session.actor)
+      const slug = claim?.slug ?? null
+      return {
+        actor: session.actor,
+        label: session.label,
+        color: agentColor(session.actor),
+        slug,
+        tool: callOn(session.actor, slug)?.tool ?? null,
+      }
+    }),
   )
   const cellLiveStates = computed<Record<string, CellLiveState>>(() => {
     const states: Record<string, CellLiveState> = {}
-    for (const activity of agentActivity.value) {
-      if (!activity.slug) continue
-      states[activity.slug] = {
+    for (const claim of liveClaims.value) {
+      const call = agentCalls.value[claim.actor]
+      const onThis = call !== undefined && call.slug === claim.slug
+      states[claim.slug] = {
         kind: 'agent',
-        actor: activity.actor,
-        label: activity.label,
-        tool: activity.tool,
-        inCall: activity.inCall,
+        actor: claim.actor,
+        label: claim.label,
+        tool: onThis ? call.tool : null,
+        inCall: onThis,
+        color: agentColor(claim.actor),
       }
     }
     for (const run of liveRuns.value) {
@@ -398,7 +450,8 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   function disconnectCascadeStream() {
-    setFocus([])
+    setClaims([])
+    agentCalls.value = {}
     stopCascadeFrame?.()
     stopCascadeFrame = null
     cascadeStream?.close()
@@ -441,36 +494,36 @@ export const useFlowStore = defineStore('flow', () => {
     if (frame.type === 'agents') {
       // The whole list at that moment, lease state included — replace it.
       // Nothing else in the tree moved, so no refetch is owed for it. An
-      // agent whose lease is gone is not working on anything any more.
+      // agent whose lease is gone holds nothing and is in no call; the
+      // daemon's own claims frame follows, this only gets there first.
       agentSessions.value = frame.sessions
       const leased = new Set(
         frame.sessions.filter((session) => session.leased).map((session) => session.actor),
       )
-      setFocus(agentFocus.value.filter((entry) => leased.has(entry.actor)))
+      setClaims(agentClaims.value.filter((claim) => leased.has(claim.actor)))
+      agentCalls.value = Object.fromEntries(
+        Object.entries(agentCalls.value).filter(([actor]) => leased.has(actor)),
+      )
+      return
+    }
+    if (frame.type === 'claims') {
+      claimIdleMs.value = frame.idle_after_s * 1000
+      setClaims(frame.claims)
       return
     }
     if (frame.type === 'activity') {
-      const held = agentFocus.value.find((entry) => entry.actor === frame.actor)
-      // Only a call's start puts an agent on a cell. The end of a call this
-      // tab did not see begin — or dropped when the lane was moved under it —
-      // is not a reason to mark one.
-      if (frame.phase === 'ended' && !held) return
-      const others = agentFocus.value.filter((entry) => entry.actor !== frame.actor)
-      // A call that names no cell — `context`, `diff` — is the agent looking
-      // around, and the cell it was on stays its; only a call naming another
-      // cell moves it on.
-      const slug = frame.slug ?? held?.slug ?? null
-      setFocus([
-        ...others,
-        {
+      const calls = { ...agentCalls.value }
+      if (frame.phase === 'started') {
+        calls[frame.actor] = {
           actor: frame.actor,
           label: frame.label,
           tool: frame.tool,
-          slug,
-          inCall: frame.phase === 'started',
-          since: Date.now(),
-        },
-      ])
+          slug: frame.slug,
+        }
+      } else {
+        delete calls[frame.actor]
+      }
+      agentCalls.value = calls
       return
     }
     if (frame.type === 'caught_up') {
@@ -480,9 +533,11 @@ export const useFlowStore = defineStore('flow', () => {
         phase: 'running',
       }))
       // A tab that was away keeps nothing it inferred; what the daemon says
-      // is in flight is the whole truth at that moment.
-      setFocus(
-        (frame.activity ?? []).map((entry) => ({ ...entry, inCall: true, since: Date.now() })),
+      // is held and in flight is the whole truth at that moment.
+      if (frame.claim_idle_s) claimIdleMs.value = frame.claim_idle_s * 1000
+      setClaims(frame.claims ?? [])
+      agentCalls.value = Object.fromEntries(
+        (frame.activity ?? []).map((entry) => [entry.actor, entry]),
       )
       scheduleLiveRefetch()
       return
@@ -509,14 +564,15 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   /**
-   * The lane was moved to another step. Whatever cell an agent was on, it was
-   * on it at the step the lane left: the card now shows that cell as it stood
-   * at the step the lane went to, and nobody is working on that version. The
-   * agent's next call puts it back on a cell — and a change it tries is
-   * refused by the daemon until it has been told the lane moved.
+   * The lane was moved to another step. Whatever cell an agent held, it held
+   * it at the step the lane left: the card now shows that cell as it stood at
+   * the step the lane went to, and nobody is working on that version. The
+   * daemon lets those claims go and says so; this only gets there first.
    */
   function leaveMovedLane() {
-    setFocus([])
+    const branchId = currentBranch.value?.branch_id
+    setClaims(agentClaims.value.filter((claim) => claim.branch_id !== branchId))
+    agentCalls.value = {}
   }
 
   function receiveKernelFrame(frame: Extract<StreamFrame, { type: 'kernel' }>) {
@@ -801,7 +857,8 @@ export const useFlowStore = defineStore('flow', () => {
     branches.value = []
     agentSessions.value = []
     liveRuns.value = []
-    setFocus([])
+    setClaims([])
+    agentCalls.value = {}
     currentFlow.value = null
     isBranchesLoading.value = false
     isSwitchingBranch.value = false
@@ -886,8 +943,9 @@ export const useFlowStore = defineStore('flow', () => {
     pairedAgentLabel,
     endAgentSession,
     liveRuns,
-    agentActivity,
-    currentActivity,
+    agentClaims,
+    claimIdleMinutes,
+    pairedAgents,
     cellLiveStates,
     isAnythingRunning,
     receiveLiveFrame,

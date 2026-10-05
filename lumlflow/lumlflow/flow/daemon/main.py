@@ -432,13 +432,17 @@ class Daemon:
             return
         params = message.get("params") or {}
         activity = _activity(leased, str(message["method"]), params)
-        if activity is not None:
-            self._announce_activity(activity, "started")
+        announced = False
         try:
             if activity is not None:
-                # A leased agent's change onto a lane moved under it is
-                # refused here, before the method can land it.
+                # A leased agent's change onto a lane moved under it, or onto
+                # a cell another agent holds, is refused here — before the
+                # method can land it, and before any watcher is told the
+                # agent is on that cell, because it never was.
                 self.api.fence(str(message["method"]), params)
+                self.api.claim(str(message["method"]), params, label=activity[2])
+                self._announce_activity(activity, "started")
+                announced = True
             result = await method(params)
         except FlowError as failure:
             _reply(
@@ -459,6 +463,7 @@ class Daemon:
             if activity is not None:
                 with contextlib.suppress(FlowError, OSError):
                     self.api.observed(name, params)
+                    self.api.settled(name, params)
             _leased(leased, name, params, result)
             if (
                 name == "agent.begin"
@@ -467,7 +472,7 @@ class Daemon:
             ):
                 self._announce_agents(result.get("flow"))
         finally:
-            if activity is not None:
+            if activity is not None and announced:
                 self._announce_activity(activity, "ended")
         # The caller may already be gone — an answer nobody is there for is not
         # a daemon-level failure.

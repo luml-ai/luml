@@ -149,6 +149,10 @@ class Streams:
         # (flow, actor). Like a run in flight it is the daemon's memory, not
         # the journal's: a tab opened mid-call learns of it from its catch-up.
         self._activity: OrderedDict[tuple[str, str], dict[str, Any]] = OrderedDict()
+        # Which agent holds which cell, per flow, as the API last announced it.
+        # Kept whole so a catch-up can hand a late joiner the same list.
+        self._claims: dict[str, list[dict[str, Any]]] = {}
+        self._claim_idle_s: float = 0.0
         self._ring = ring
         self._runs = runs
 
@@ -257,6 +261,43 @@ class Streams:
             "slug": slug,
         }
         self._deliver(lambda subscription: flow in subscription.journals, frame)
+
+    def claims(
+        self,
+        flow: str,
+        claims: list[dict[str, Any]],
+        *,
+        step: int,
+        idle_after_s: float,
+    ) -> None:
+        """Every cell an agent holds on this flow, whole, as it is now.
+
+        A watcher replaces rather than merges, like the agents list. A claim
+        ends by itself once its holder has left it alone for `idle_after_s`,
+        and nothing announces that: the frame carries the window so a surface
+        lets go at the same moment the daemon would.
+        """
+        self._claims[flow] = [dict(claim) for claim in claims]
+        self._claim_idle_s = idle_after_s
+        self._deliver(
+            lambda subscription: flow in subscription.journals,
+            {
+                "channel": "journal",
+                "type": "claims",
+                "flow": flow,
+                "step": step,
+                "claims": claims,
+                "idle_after_s": idle_after_s,
+            },
+        )
+
+    def claimed(self, flow: str) -> list[dict[str, Any]]:
+        """The claims last announced on a flow, for a catch-up."""
+        return [dict(claim) for claim in self._claims.get(flow, [])]
+
+    @property
+    def claim_idle_s(self) -> float:
+        return self._claim_idle_s
 
     def active(self, flow: str, actor: str) -> dict[str, Any] | None:
         """What this actor is doing on the flow right now, if anything."""

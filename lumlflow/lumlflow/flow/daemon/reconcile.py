@@ -44,6 +44,10 @@ Tier = Literal["live", "quiesce", "cold"]
 
 MIXED_EDITING = "mixed_editing"
 MIXED_EDITING_DETAIL = "attribution uncertain. two authors edited in one window"
+SEVERAL_AGENTS_DETAIL = (
+    "attribution uncertain. {count} agents were registered, and any of them "
+    "or you could have written this"
+)
 
 # One pass names every cell, a second binds the references that pass one could
 # not resolve, and a third takes up the files a rename rewired. Nothing a
@@ -125,6 +129,16 @@ def reconcile(
     ops: list[Op] = list(batch.ops)
     if not explicit and sole_agent is not None:
         ops.append(FlagSet(flag=MIXED_EDITING, detail=MIXED_EDITING_DETAIL))
+    elif not explicit and len(registered) > 1:
+        # A file edit names nobody, and with several agents registered there
+        # is no one to credit: it goes under the person, and says it might
+        # not be theirs, rather than crediting them with confidence.
+        ops.append(
+            FlagSet(
+                flag=MIXED_EDITING,
+                detail=SEVERAL_AGENTS_DETAIL.format(count=len(registered)),
+            )
+        )
     transaction = session.store.commit(
         ops,
         intent=intent or _intent(tier, batch.accepted, removed),

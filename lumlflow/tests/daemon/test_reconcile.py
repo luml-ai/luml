@@ -542,6 +542,7 @@ async def test_a_user_verb_attributes_a_file_edit_to_the_one_registered_agent(
 async def test_a_user_verb_attributes_a_file_edit_to_user_with_two_agents(
     tmp_path: Path,
 ) -> None:
+    """Nobody to credit, so the person — and the edit says it may not be theirs."""
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -557,7 +558,10 @@ async def test_a_user_verb_attributes_a_file_edit_to_user_with_two_agents(
         landed = transactions(session)[-1]
         version = slice_of(session, "main")["score"]
 
+    flags = [op for op in landed.ops if isinstance(op, FlagSet)]
     assert (landed.actor, version.author) == ("user", "user")
+    assert [flag.flag for flag in flags] == [MIXED_EDITING]
+    assert "2 agents were registered" in str(flags[0].detail)
 
 
 async def test_an_explicit_agent_caller_owns_the_reconcile_it_triggers(

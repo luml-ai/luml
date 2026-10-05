@@ -383,6 +383,32 @@ export interface ActivityFrame extends AgentActivity {
   phase: 'started' | 'ended'
 }
 
+/**
+ * One agent holding one cell of one lane: the cell its last call named. Other
+ * agents cannot change or run it until the holder names another cell,
+ * disconnects, the lane is rewound, or `last` is `idle_after_s` behind.
+ * `since` and `last` are epoch milliseconds.
+ */
+export interface AgentClaim {
+  actor: string
+  label: string
+  slug: string
+  branch: string
+  branch_id: string
+  since: number
+  last: number
+}
+
+/** Every claim on the flow, whole. Replaces, never merges; never replayed. */
+export interface ClaimsFrame {
+  channel: 'journal'
+  type: 'claims'
+  flow: string
+  step: number
+  claims: AgentClaim[]
+  idle_after_s: number
+}
+
 export interface CaughtUpFrame {
   channel: 'journal'
   type: 'caught_up'
@@ -390,6 +416,8 @@ export interface CaughtUpFrame {
   step: number
   running: { run_id: string; slug: string; awaiting?: number }[]
   activity?: AgentActivity[]
+  claims?: AgentClaim[]
+  claim_idle_s?: number
 }
 
 /** This client stopped reading long enough to be dropped. Replay from cursor. */
@@ -419,6 +447,7 @@ export type StreamFrame =
   | StateFrame
   | AgentsFrame
   | ActivityFrame
+  | ClaimsFrame
   | CaughtUpFrame
   | LaggedFrame
   | LogFrame

@@ -410,3 +410,23 @@ async def test_an_agent_call_is_announced_and_remembered_until_it_ends() -> None
     )
     assert (ended["type"], ended["phase"], ended["step"]) == ("activity", "ended", 5)
     await quiet(subscription)
+
+
+async def test_claims_are_announced_whole_and_kept_for_a_catch_up() -> None:
+    streams = Streams()
+    subscription = streams.subscribe()
+    subscription.journals.add("churn")
+    held = [{"actor": "codex-1", "label": "codex", "slug": "train"}]
+
+    streams.claims("churn", held, step=3, idle_after_s=180.0)
+    streams.claims("sales", [], step=1, idle_after_s=180.0)
+
+    (frame,) = await frames(subscription, 1)
+    assert (frame["type"], frame["claims"], frame["idle_after_s"]) == (
+        "claims",
+        held,
+        180.0,
+    )
+    assert streams.claimed("churn") == held
+    assert streams.claimed("other") == []
+    await quiet(subscription)

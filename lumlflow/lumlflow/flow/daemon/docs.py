@@ -74,6 +74,12 @@ then refused, nothing lands, and the refusal names the step the lane went to.
 Call `context`, then start a lane with `new-lane` or make the change again to
 carry on from that step.
 
+Another agent may be working on the same flow. The cell your last call named
+is yours until you name another one, disconnect, or leave it alone for three
+minutes, and no other agent can change or run it meanwhile. A change to a
+cell somebody else holds is refused, nothing lands, and the refusal names who
+holds it. Read it if you need to, and work on another cell until it frees up.
+
 Address a flow by path, a cell by name (`features`), an output as
 `cell.output`, and a lane by name. There are no ids or hashes in the agent
 surface.
