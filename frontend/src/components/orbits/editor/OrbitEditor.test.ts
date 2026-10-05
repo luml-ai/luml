@@ -350,8 +350,18 @@ describe('OrbitSettingsDialog', () => {
     )
   })
 
-  it('loads relays when opened', async () => {
+  it('loads relays when mounted already open on an empty store', () => {
+    wrapper.unmount()
+    vi.clearAllMocks()
+    relaysStore.relays = []
+    wrapper = mountEditor()
+    expect(relaysStore.getRelays).toHaveBeenCalledOnce()
+    expect(relaysStore.getRelays).toHaveBeenCalledWith(ORGANIZATION_ID)
+  })
+
+  it('loads relays when reopened', async () => {
     await wrapper.setProps({ visible: false })
+    vi.clearAllMocks()
     await wrapper.setProps({ visible: true })
     expect(relaysStore.getRelays).toHaveBeenCalledWith(ORGANIZATION_ID)
   })

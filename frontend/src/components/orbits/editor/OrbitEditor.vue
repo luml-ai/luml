@@ -191,11 +191,15 @@ async function deleteOrbit() {
   }
 }
 
-watch(visible, (val) => {
-  if (!val) return
-  bucketsStore.getBuckets(props.orbit.organization_id)
-  relaysStore.getRelays(props.orbit.organization_id)
-})
+watch(
+  visible,
+  (val) => {
+    if (!val) return
+    bucketsStore.getBuckets(props.orbit.organization_id)
+    relaysStore.getRelays(props.orbit.organization_id)
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
