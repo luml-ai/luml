@@ -2,11 +2,16 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import OrganizationOrbits from './OrganizationOrbits.vue'
+import { OrganizationRoleEnum } from './organization.interfaces'
 
 const getOrbitDetails = vi.hoisted(() => vi.fn())
 const toastAdd = vi.hoisted(() => vi.fn())
 const organizationStore = vi.hoisted(() => ({
-  currentOrganization: { id: 'org-1', permissions: { orbit: [] as string[] } },
+  currentOrganization: {
+    id: 'org-1',
+    role: 'member' as string,
+    permissions: { orbit: ['create'] as string[] },
+  },
   organizationDetails: {
     orbits: [{ id: 'orbit-1', name: 'Research', total_members: 2, created_at: '2026-10-01' }],
   },
@@ -36,7 +41,11 @@ const stubs = {
   OrbitEditor: OrbitEditorStub,
 }
 
-function mountTab(orbitPermissions: string[]) {
+function mountTab(
+  role: OrganizationRoleEnum,
+  orbitPermissions: string[] = [PermissionEnum.create],
+) {
+  organizationStore.currentOrganization.role = role
   organizationStore.currentOrganization.permissions.orbit = orbitPermissions
   return mount(OrganizationOrbits, { global: { stubs } })
 }
@@ -47,26 +56,38 @@ describe('OrganizationOrbits', () => {
     toastAdd.mockReset()
   })
 
-  it('opens the orbit settings with the loaded orbit details', async () => {
-    getOrbitDetails.mockResolvedValue({ id: 'orbit-1', name: 'Research', relay_id: null })
-    const wrapper = mountTab([PermissionEnum.update])
+  it.each([OrganizationRoleEnum.owner, OrganizationRoleEnum.admin])(
+    'opens the orbit settings with the loaded orbit details for an %s',
+    async (role) => {
+      getOrbitDetails.mockResolvedValue({ id: 'orbit-1', name: 'Research', relay_id: null })
+      const wrapper = mountTab(role)
 
-    await wrapper.get('[aria-label="Orbit settings"]').trigger('click')
-    await flushPromises()
+      await wrapper.get('[aria-label="Orbit settings"]').trigger('click')
+      await flushPromises()
 
-    expect(getOrbitDetails).toHaveBeenCalledWith('org-1', 'orbit-1')
-    expect(wrapper.get('.orbit-editor').text()).toBe('Research')
-  })
+      expect(getOrbitDetails).toHaveBeenCalledWith('org-1', 'orbit-1')
+      expect(wrapper.get('.orbit-editor').text()).toBe('Research')
+    },
+  )
 
-  it('hides the orbit settings without the permission to update orbits', () => {
-    const wrapper = mountTab([PermissionEnum.create])
+  it('hides the orbit settings from a member', () => {
+    const wrapper = mountTab(OrganizationRoleEnum.member)
 
     expect(wrapper.find('[aria-label="Orbit settings"]').exists()).toBe(false)
   })
 
+  it.each([
+    [[PermissionEnum.create], true],
+    [[], false],
+  ])('shows the create button by the create permission %j', (orbitPermissions, shown) => {
+    const wrapper = mountTab(OrganizationRoleEnum.member, orbitPermissions)
+
+    expect(wrapper.text().includes('New Orbit')).toBe(shown)
+  })
+
   it('shows an error when the orbit details fail to load', async () => {
     getOrbitDetails.mockRejectedValue(new Error('boom'))
-    const wrapper = mountTab([PermissionEnum.update])
+    const wrapper = mountTab(OrganizationRoleEnum.admin)
 
     await wrapper.get('[aria-label="Orbit settings"]').trigger('click')
     await flushPromises()

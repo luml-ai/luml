@@ -74,6 +74,7 @@ import { computed, ref } from 'vue'
 import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import OrganizationOrbitSettings from './OrganizationOrbitSettings.vue'
+import { OrganizationRoleEnum } from './organization.interfaces'
 import OrbitCreator from '../orbits/creator/OrbitCreator.vue'
 import OrbitEditor from '../orbits/editor/OrbitEditor.vue'
 
@@ -88,9 +89,8 @@ const editedOrbit = ref<OrbitDetails | null>(null)
 const loadingOrbitId = ref<string | null>(null)
 
 const updateAvailable = computed(() => {
-  return !!organizationStore.currentOrganization?.permissions?.orbit?.includes(
-    PermissionEnum.update,
-  )
+  const role = organizationStore.currentOrganization?.role
+  return role === OrganizationRoleEnum.owner || role === OrganizationRoleEnum.admin
 })
 
 async function openEditor(orbitId: string) {

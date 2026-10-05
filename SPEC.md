@@ -119,7 +119,7 @@ Gating the orbit settings button on the role hides it from an organization membe
   - [x] Correct the assertion on the link's target in `frontend/src/pages/orbits/__tests__/OrbitFlowView.test.ts`
   - [x] Run the type check, the linter and the unit tests in `frontend/`
 
-- [ ] Show the orbit settings button to organization owners and admins
-  - [ ] Gate the settings button in `frontend/src/components/organizations/OrganizationOrbits.vue` on the current organization's role being owner or admin, leaving the create button's gate as it is
-  - [ ] Rewrite `frontend/src/components/organizations/OrganizationOrbits.test.ts` to set the role instead of an update permission, covering owner, admin and member
-  - [ ] Run the type check, the linter and the unit tests in `frontend/`
+- [x] Show the orbit settings button to organization owners and admins
+  - [x] Gate the settings button in `frontend/src/components/organizations/OrganizationOrbits.vue` on the current organization's role being owner or admin, leaving the create button's gate as it is
+  - [x] Rewrite `frontend/src/components/organizations/OrganizationOrbits.test.ts` to set the role instead of an update permission, covering owner, admin and member
+  - [x] Run the type check, the linter and the unit tests in `frontend/`
