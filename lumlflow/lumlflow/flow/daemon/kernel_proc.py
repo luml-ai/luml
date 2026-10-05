@@ -2,9 +2,9 @@
 
 The daemon listens and the kernel dials in, so there is no readiness race to
 poll for: by the time the process exists, the socket it was told about is
-already accepting. The kernel package is path-injected from the tool install —
-the venv holds no lumlflow code — and the workspace root rides along on
-`PYTHONPATH` so `import helpers` works Jupyter-style.
+already accepting. The kernel package is path-injected from a staged copy of
+the tool's — the venv holds no lumlflow code — and the workspace root rides
+along on `PYTHONPATH` so `import helpers` works Jupyter-style.
 
 None of this is a surface. There is no connect, select, or configure verb here
 because none is offered anywhere: a flow's kernel starts when a cell has to
@@ -13,11 +13,14 @@ run, and the only kernel control a user ever sees is a restart.
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import os
 import secrets
+import shutil
 import socket
+import tempfile
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -28,7 +31,7 @@ from luml import __version__ as DAEMON_SDK_VERSION
 
 import lumlflow_kernel
 from lumlflow.flow.atomic import atomic_write_bytes
-from lumlflow.flow.daemon import envs
+from lumlflow.flow.daemon import envs, workspace
 from lumlflow.flow.daemon.framing import (
     STREAM_LIMIT_BYTES,
     STREAM_LIMIT_LABEL,
@@ -43,6 +46,7 @@ from lumlflow.flow.store.models import OutputRecord
 logger = logging.getLogger(__name__)
 
 KERNEL_DIRNAME = "kernel"
+STAGED_KERNEL_DIRNAME = "kernel-package"
 SOCKET_NAME = "kernel.sock"
 TOKEN_NAME = "token"
 
@@ -689,17 +693,19 @@ class KernelProcess:
 def spawn_environment(
     workspace_dir: Path, *, tracker_store: Path | None = None
 ) -> dict[str, str]:
-    """The kernel from the tool install, the workspace for `import helpers`.
+    """The staged kernel package, the workspace for `import helpers`.
 
     Path injection is what lets the venv hold no lumlflow code: the kernel is
     never installed into the environment it runs in, it is put on that
-    interpreter's path from wherever this tool lives.
+    interpreter's path from a directory that holds nothing else — the tool's
+    own install directory would shadow the workspace's pinned dependencies.
     """
     installed = getattr(lumlflow_kernel, "__file__", None)
     if installed is None:
         raise KernelError("this install carries no kernel package")
     existing = os.environ.get("PYTHONPATH", "")
-    roots = [str(Path(installed).resolve().parent.parent), str(workspace_dir)]
+    staged = stage_kernel_package(Path(installed).resolve().parent)
+    roots = [str(staged), str(workspace_dir)]
     environment = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join([*roots, *filter(None, [existing])]),
@@ -714,6 +720,47 @@ def spawn_environment(
         environment["BACKEND_STORE_URI"] = store
         environment["LUML_BACKEND_STORE_URI"] = store
     return environment
+
+
+def stage_kernel_package(package: Path) -> Path:
+    """A directory under the state directory whose only entry is a copy of
+    `package`, named by the package's content.
+
+    A changed install hashes to a new directory, so an upgrade is picked up by
+    the next kernel start, and an unchanged one finds its copy and writes
+    nothing. The copy is built aside and renamed into place, so a kernel never
+    sees a partial package. A copy rather than a link: links are not
+    available everywhere.
+    """
+    files = sorted(
+        path.relative_to(package)
+        for path in package.rglob("*")
+        if path.is_file()
+        and "__pycache__" not in path.relative_to(package).parts
+        and path.suffix != ".pyc"
+    )
+    digest = hashlib.sha256()
+    for relative in files:
+        digest.update(relative.as_posix().encode("utf-8"))
+        digest.update(hashlib.sha256((package / relative).read_bytes()).digest())
+    parent = workspace.state_dir() / STAGED_KERNEL_DIRNAME
+    staged = parent / digest.hexdigest()[:16]
+    if (staged / package.name).is_dir():
+        return staged
+    parent.mkdir(parents=True, exist_ok=True)
+    building = Path(tempfile.mkdtemp(dir=parent, prefix=".staging-"))
+    try:
+        for relative in files:
+            target = building / package.name / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(package / relative, target)
+        os.replace(building, staged)
+    except OSError:
+        shutil.rmtree(building, ignore_errors=True)
+        # Another start staged the same content first; its copy is as good.
+        if not (staged / package.name).is_dir():
+            raise
+    return staged
 
 
 def _run_payload(request: RunRequest) -> dict[str, Any]:

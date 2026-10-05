@@ -1,42 +1,27 @@
-### codie review of `1de9a43` on `feature/LM-653-notebooks` against `origin/main`
+### codie review of `f14c154` on `OKUA1/noteboo` against `origin/main`
 
 **Verdict: changes requested**
 
-The branch adds a persistent flow engine with cell execution, caching, lanes, history, and agent integration. It also adds browser workbenches and CLI/MCP interfaces, alongside tracker and packaging changes.
+This branch adds persistent flows, lane history, a per-user daemon, and workspace kernels. It also adds CLI/MCP controls and notebook interfaces integrated with experiment tracking.
 
 ### Correctness bugs
 
-1. **`lumlflow/frontend/src/api/slices/workspace/workspace.api.ts:214` — Preserve the notebook editor’s original edit context.**  
-   `editCell` never sends `base`, and `fetchCellSource` discards the returned `definition_hash`. Consequently, the backend’s conflict check is bypassed for every notebook save. Preserve the loaded hash and flow/lane identity through the editing session.
-   
-   Trigger → consequence: A user edits a cell while a paired agent updates it, then saves → the agent’s newer source is silently overwritten instead of producing an edit conflict.
+1. **`lumlflow/lumlflow/flow/daemon/kernel_proc.py:702` — Kernel injection overrides workspace dependencies.** In a wheel installation, the kernel package’s parent is the daemon’s entire `site-packages` directory. Prepending it to `PYTHONPATH` makes workspace imports resolve the daemon’s dependencies before the workspace’s own versions. Expose only the kernel package to the child interpreter.
 
-2. **`lumlflow/lumlflow/flow/scheduler/queue.py:382` — Fence run completion against lane movement.**  
-   Selection is checked before execution, but the result is recorded unconditionally afterward. Rewinding does not detach the pending run, so its eventual `RunRecorded` replaces the restored baseline and advances the rewound lane.
-   
-   Trigger → consequence: Start a long-running cell, rewind its lane to an earlier result, then let execution finish → the old request moves the lane forward again and installs a result for the version the user left.
+   Trigger → consequence: Run a flow in a workspace with different dependency versions from the installed tool → cells use the tool’s packages despite the workspace’s pins; native dependencies can also fail when the Python minor versions differ.
 
-3. **`lumlflow/lumlflow/flow/scheduler/staleness.py:170` — Account for the current environment when planning sensitive ancestors.**  
-   The comparison uses the materialization’s old environment hash even when `env_sensitive=True`. Such ancestors remain `synced`, so the planner excludes them and never reaches the memo-key check that would require recomputation.
-   
-   Trigger → consequence: Run an environment-sensitive producer and its consumer, change the lockfile and restart the kernel, then run the consumer → the producer is skipped and the consumer can return its old cached result.
+2. **`lumlflow/lumlflow/flow/daemon/api.py:527` — Adding a producer leaves existing consumers unresolved on lanes without files.** Creation accepts only the new cell, and `_edited` projects files without reaccepting consumers. Bindings are recorded during acceptance; the subsequent reconciliation only processes the checked-out lane. Rebind affected consumers when the lane’s namespace changes.
 
-4. **`lumlflow/lumlflow_kernel/executor.py:465` — Retain unpersisted outputs long enough to feed consumers.**  
-   This branch discards the value and returns `value_ref=None`, while `_load_inputs` accepts only stored references. Scheduling the producer again cannot resolve this: its next successful run returns another unreadable reference. The scheduler’s unpersisted-output tests bypass this failure through their stub executor.
-   
-   Trigger → consequence: Declare an output with `persist=False` and consume it downstream → the producer succeeds, but the consumer always fails with “whose value is not stored.”
+   Trigger → consequence: Through MCP, create a consumer referencing `score.result` on an unbound or off-disk lane, then create `score` → running the consumer still raises `InputUnavailable`, although its producer now exists.
 
-5. **`lumlflow/frontend/src/components/notebooks/cell/NotebookOutput.vue:18` — Refresh mounted notebook panels when their data changes.**  
-   Output loading runs only in `onBeforeMount`; `NotebookCode` and `NotebookLogs` use the same pattern. Cards remain mounted under the same slug across runs and lane switches, so updated summaries do not refresh the displayed payloads. Invalidate these panels on lane and relevant version/materialization changes.
-   
-   Trigger → consequence: Keep an output panel open while rerunning its cell or switching lanes → the card shows the updated lane/status with the previous result. The code panel similarly continues displaying the previous lane’s source.
+3. **`lumlflow/lumlflow/flow/dsl/scaffold.py:73` — Accepted cell names generate invalid Python.** Both the creation dialog and backend accept names containing spaces or hyphens and names beginning with digits. `class_name` only removes underscores, so names such as `train-model`, `my cell`, and `2d_plot` produce syntactically invalid class declarations. Generate a valid Python identifier or reject these names before creating the cell.
 
-6. **`lumlflow/lumlflow/flow/daemon/hub.py:407` — Exclude transient kernel files when duplicating a flow.**  
-   `copytree` includes `.lumlflow/kernel/kernel.sock`. With the default Unix transport, that socket remains present until kernel teardown, and copying it raises an error. Quiescing the flow does not stop the kernel or remove the socket.
-   
-   Trigger → consequence: Run a flow on Linux/macOS at a path short enough for Unix sockets, then duplicate it → duplication fails and leaves a partial destination that prevents retrying the same name.
+   Trigger → consequence: Enter one of these permitted names in “New cell” → creation reports success but stores an unparseable scaffold whose generated `materialize` method cannot run.
 
-7. **`lumlflow/lumlflow/flow/daemon/api.py:864` — Resolve environment status for the requested workspace.**  
-   `env_status` ignores its parameters, and `_env` uses `self.directory` for packages, interpreter selection, and kernel filtering. The per-user daemon retains its launch directory even though CLI calls supply their current directory.
-   
-   Trigger → consequence: Start the daemon in one project, then run `lumlflow env status` from another → it reports the first project’s environment and omits the requested project’s kernels and restart requirements.
+4. **`lumlflow/frontend/src/store/flow/index.ts:514` — The notebook ignores changes announced exclusively through state events.** Dropping every `state` frame discards `order_changed` and `experiment_removed`. These changes do not generate journal transactions, so the notebook has no subsequent refresh to rely on. Schedule the relevant data refresh for these events.
+
+   Trigger → consequence: Move independent cells with `lumlflow cells move` while their notebook is open → the notebook retains the old order until unrelated activity or a reload. Experiment deletion likewise leaves its displayed availability stale.
+
+5. **`lumlflow/frontend/src/flow/workbench/live/useWorkbench.ts:77` — The Packages panel queries the wrong workspace.** The empty `env.status` request defaults to the daemon’s launch directory. The daemon supports flows from multiple directories, but this request never supplies the viewed flow’s workspace. Scope it to that workspace.
+
+   Trigger → consequence: Start the daemon in workspace A, then open a flow from workspace B → the workbench displays A’s interpreter and package pins, and B’s current kernel drift is absent from the response.

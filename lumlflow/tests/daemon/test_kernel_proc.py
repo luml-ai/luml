@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 from base64 import b64decode
 from pathlib import Path
 from typing import Any
@@ -356,18 +357,87 @@ async def test_a_cancel_reaches_a_run_that_is_already_going(tmp_path: Path):
         assert kernel.state == "running"
 
 
-def test_the_kernel_is_path_injected_and_the_workspace_rides_along(
+def test_only_the_staged_kernel_package_precedes_the_workspace_on_the_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     root = make_workspace(tmp_path / "project")
     monkeypatch.setenv("PYTHONPATH", "/already/on/the/path")
 
-    spawned = spawn_environment(root)
+    entries = spawn_environment(root)["PYTHONPATH"].split(os.pathsep)
 
-    entries = spawned["PYTHONPATH"].split(os.pathsep)
-    assert Path(entries[0]) == Path(lumlflow_kernel.__file__).resolve().parent.parent
-    assert entries[1] == str(root)
-    assert entries[2] == "/already/on/the/path"
+    install_dir = Path(lumlflow_kernel.__file__).resolve().parent.parent
+    assert [path.name for path in Path(entries[0]).iterdir()] == ["lumlflow_kernel"]
+    assert entries[1:] == [str(root), "/already/on/the/path"]
+    assert all(Path(entry).resolve() != install_dir for entry in entries)
+
+
+def staged_files(directory: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(directory).as_posix(): path.read_bytes()
+        for path in sorted(directory.rglob("*"))
+        if path.is_file() and "__pycache__" not in path.parts
+    }
+
+
+def test_the_staged_package_matches_the_install_and_a_rebuild_writes_nothing(
+    tmp_path: Path, state_dir: Path
+):
+    root = make_workspace(tmp_path / "project")
+    installed = Path(lumlflow_kernel.__file__).resolve().parent
+
+    staged = Path(spawn_environment(root)["PYTHONPATH"].split(os.pathsep)[0])
+    stamps = {path: path.stat().st_mtime_ns for path in staged.rglob("*")}
+    rebuilt = Path(spawn_environment(root)["PYTHONPATH"].split(os.pathsep)[0])
+
+    assert rebuilt == staged
+    assert staged.is_relative_to(state_dir)
+    assert staged_files(staged / "lumlflow_kernel") == staged_files(installed)
+    assert {path: path.stat().st_mtime_ns for path in staged.rglob("*")} == stamps
+    assert [path.name for path in staged.parent.iterdir()] == [staged.name]
+
+
+def test_a_changed_install_is_restaged_on_the_next_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    root = make_workspace(tmp_path / "project")
+    installed = tmp_path / "site-packages" / "lumlflow_kernel"
+    write_file(installed / "__init__.py", "VERSION = 1\n")
+    write_file(installed / "kinds" / "__init__.py", "")
+    monkeypatch.setattr(lumlflow_kernel, "__file__", str(installed / "__init__.py"))
+    before = Path(spawn_environment(root)["PYTHONPATH"].split(os.pathsep)[0])
+
+    write_file(installed / "__init__.py", "VERSION = 2\n")
+    after = Path(spawn_environment(root)["PYTHONPATH"].split(os.pathsep)[0])
+
+    assert after != before
+    assert staged_files(after / "lumlflow_kernel") == staged_files(installed)
+    assert [path.name for path in after.iterdir()] == ["lumlflow_kernel"]
+
+
+def test_a_copy_another_start_staged_first_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    installed = tmp_path / "site-packages" / "lumlflow_kernel"
+    write_file(installed / "__init__.py", "VERSION = 1\n")
+    real_mkdtemp = tempfile.mkdtemp
+    winners: list[tuple[Path, int]] = []
+
+    def raced(**options: Any) -> str:
+        # The other start finishes between this one's look and its rename.
+        monkeypatch.setattr(tempfile, "mkdtemp", real_mkdtemp)
+        winner = kernel_proc.stage_kernel_package(installed)
+        stamp = (winner / "lumlflow_kernel" / "__init__.py").stat().st_mtime_ns
+        winners.append((winner, stamp))
+        return real_mkdtemp(**options)
+
+    monkeypatch.setattr(tempfile, "mkdtemp", raced)
+
+    staged = kernel_proc.stage_kernel_package(installed)
+
+    [(winner, stamp)] = winners
+    assert staged == winner
+    assert (staged / "lumlflow_kernel" / "__init__.py").stat().st_mtime_ns == stamp
+    assert [path.name for path in staged.parent.iterdir()] == [staged.name]
 
 
 async def test_requesting_eviction_does_not_start_a_stopped_kernel(tmp_path: Path):
