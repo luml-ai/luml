@@ -303,9 +303,9 @@ Each task is one agent session with its tests; the engine fixes come first and t
   - [x] In `lumlflow/lumlflow/flow/daemon/api.py`, resolve the directory in `env_status` the way other verbs do and pass it through `_env`
   - [x] Add a test in `lumlflow/tests/daemon/test_envs.py` with two workspaces and a daemon launched in one of them
 
-- [ ] fix: copy a flow without its kernel files and with a consistent index
-  - [ ] In `lumlflow/lumlflow/flow/daemon/hub.py`, make `duplicate_flow` skip the kernel directory's contents, leave the copy with an index that matches its journal, and remove the partial destination on failure
-  - [ ] Add tests in `lumlflow/tests/daemon/test_api.py` for duplicating a flow whose kernel directory holds a socket-type file, for a failed copy leaving nothing behind, and for the copy's journal matching the source's after uncheckpointed writes; the socket test plants or binds a socket in the source's kernel directory, or runs the daemon under a short path, because the kernel binds a Unix socket only under a path shorter than 100 bytes and pytest's temporary paths are longer, and it must fail before the fix
+- [x] fix: copy a flow without its kernel files and with a consistent index
+  - [x] In `lumlflow/lumlflow/flow/daemon/hub.py`, make `duplicate_flow` skip the kernel directory's contents, leave the copy with an index that matches its journal, and remove the partial destination on failure
+  - [x] Add tests in `lumlflow/tests/daemon/test_api.py` for duplicating a flow whose kernel directory holds a socket-type file, for a failed copy leaving nothing behind, and for the copy's journal matching the source's after uncheckpointed writes; the socket test plants or binds a socket in the source's kernel directory, or runs the daemon under a short path, because the kernel binds a Unix socket only under a path shorter than 100 bytes and pytest's temporary paths are longer, and it must fail before the fix
 
 - [ ] fix: carry the edit base and lane through the notebook code editor
   - [ ] Add `definition_hash` to `CellDetail` in `lumlflow/frontend/src/api/slices/workspace/workspace.interface.ts`, keep the error kind in `call` in `lumlflow/frontend/src/api/slices/workspace/workspace.api.ts`, and let `editCell` send `base` and `force`

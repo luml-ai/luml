@@ -7,8 +7,11 @@ that hosts one flow proves nothing about the one that hosts two.
 """
 
 import asyncio
+import contextlib
 import json
+import os
 import shutil
+import socket
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -21,7 +24,7 @@ from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.stream import Streams
 from lumlflow.flow.dsl import portable
 from lumlflow.flow.errors import FlowAlreadyExists, FlowError, FlowNotFound
-from lumlflow.flow.store.flowstore import store_dir
+from lumlflow.flow.store.flowstore import INDEX_NAME, store_dir
 from lumlflow.flow.store.models import RunRecorded
 from lumlflow.tracker import TrackerProvider
 
@@ -1822,6 +1825,101 @@ async def test_duplicating_a_flow_onto_an_existing_name_is_refused(tmp_path: Pat
 
     assert (root / "churn.flow").exists()
     assert (root / "sales.flow").exists()
+
+
+async def test_duplicating_a_flow_with_a_live_kernel_socket_leaves_it_behind(
+    tmp_path: Path,
+):
+    root = make_workspace(tmp_path / "project", flows=("churn",))
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    kernel_dir = store_dir(root / "churn.flow") / "kernel"
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "score"})
+        await api.flow_open({"flow": "churn"})
+        with socket.socket(socket.AF_UNIX) as listener:
+            # A relative bind stays under the Unix socket path limit that
+            # pytest's temporary paths exceed.
+            with contextlib.chdir(kernel_dir):
+                listener.bind("planted.sock")
+            journal_before = await api.journal_since({"flow": "churn"})
+            await api.flow_duplicate({"flow": "churn", "name": "churn (copy)"})
+            original = await api.flow_open({"flow": "churn"})
+            copy = await api.flow_open({"flow": "churn (copy)"})
+            journal_after = await api.journal_since({"flow": "churn"})
+            copied = await api.journal_since({"flow": "churn (copy)"})
+
+            assert (kernel_dir / "planted.sock").is_socket()
+
+    copy_kernel_dir = store_dir(root / "churn (copy).flow") / "kernel"
+    assert copy_kernel_dir.is_dir()
+    assert not any(copy_kernel_dir.iterdir())
+    assert [cell["slug"] for cell in copy["cells"]] == ["score"]
+    assert [cell["slug"] for cell in original["cells"]] == ["score"]
+    assert journal_after["transactions"] == journal_before["transactions"]
+    assert (
+        copied["transactions"][: len(journal_before["transactions"])]
+        == journal_before["transactions"]
+    )
+
+
+async def test_a_failed_duplication_leaves_no_partial_copy(tmp_path: Path):
+    root = make_workspace(tmp_path / "project", flows=("churn",))
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    # A named pipe is a file copytree cannot copy: the copy fails part-way,
+    # after the cells and most of the store have landed.
+    pipe = store_dir(root / "churn.flow") / "stray.fifo"
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        os.mkfifo(pipe)
+        with pytest.raises(shutil.Error):
+            await api.flow_duplicate({"flow": "churn", "name": "churn (copy)"})
+
+        assert not (root / "churn (copy).flow").exists()
+
+        pipe.unlink()
+        duplicated = await api.flow_duplicate(
+            {"flow": "churn", "name": "churn (copy)"}
+        )
+
+    assert duplicated["flow"] == "churn (copy)"
+    assert (root / "churn (copy).flow" / "cells" / "score.py").exists()
+
+
+async def test_a_duplicate_holds_every_step_its_open_source_committed(
+    tmp_path: Path,
+):
+    root = make_workspace(tmp_path / "project", flows=("churn",))
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+    write_cell(root / "churn.flow", "report", REPORT_CELL)
+    source_wal = store_dir(root / "churn.flow") / f"{INDEX_NAME}-wal"
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "report"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.93"),
+            }
+        )
+        await api.run({"flow": "churn", "target": "report"})
+        assert source_wal.stat().st_size > 0
+        journal_before = await api.journal_since({"flow": "churn"})
+        cells_before = await api.cells_list({"flow": "churn"})
+
+        await api.flow_duplicate({"flow": "churn", "name": "churn (copy)"})
+        copied_cells = await api.cells_list({"flow": "churn (copy)"})
+        copied = await api.journal_since({"flow": "churn (copy)"})
+        journal_after = await api.journal_since({"flow": "churn"})
+        cells_after = await api.cells_list({"flow": "churn"})
+
+    steps = len(journal_before["transactions"])
+    assert copied["transactions"][:steps] == journal_before["transactions"]
+    assert copied_cells["cells"] == cells_before["cells"]
+    assert journal_after == journal_before
+    assert cells_after == cells_before
 
 
 async def test_an_unknown_flow_is_refused_by_name(tmp_path: Path):

@@ -17,12 +17,13 @@ absolute path and a flow elsewhere opens in the same hub.
 import asyncio
 import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from lumlflow.flow.daemon import envs, queries
 from lumlflow.flow.daemon import reconcile as reconciliation
-from lumlflow.flow.daemon.kernel_proc import KernelProcess
+from lumlflow.flow.daemon.kernel_proc import KERNEL_DIRNAME, KernelProcess
 from lumlflow.flow.daemon.projections import Worktree
 from lumlflow.flow.daemon.reactive import Reactor
 from lumlflow.flow.daemon.reconcile import AcceptedFile, Reconciliation, Tier
@@ -35,6 +36,7 @@ from lumlflow.flow.scheduler.planner import Planner, TrackerState
 from lumlflow.flow.scheduler.queue import RunQueue
 from lumlflow.flow.store.flowstore import (
     FLOW_SUFFIX,
+    INDEX_NAME,
     FlowStore,
     store_dir,
 )
@@ -396,7 +398,9 @@ class Hub:
 
         Its store and history come with it, the same way a clone of it would
         carry them. The source is untouched, so no cached session of it is
-        disturbed.
+        disturbed. The copy's kernel directory starts empty and its index is
+        rebuilt from the journal on first open. A copy that fails part-way is
+        removed, so the name stays free for a retry.
         """
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
@@ -405,7 +409,13 @@ class Hub:
             raise FlowError(f"`{name}` is the same name as `{ref.name}`")
         if duplicated.path.exists():
             raise FlowAlreadyExists(f"`{duplicated.relpath}` already exists")
-        shutil.copytree(ref.path, duplicated.path)
+        try:
+            shutil.copytree(
+                ref.path, duplicated.path, ignore=_duplicate_skips(ref.path)
+            )
+        except BaseException:
+            shutil.rmtree(duplicated.path, ignore_errors=True)
+            raise
         return duplicated
 
     async def close(self) -> None:
@@ -450,6 +460,23 @@ class Hub:
                     lane=lane,
                     cell=cell,
                 )
+
+
+def _duplicate_skips(flow_dir: Path) -> Callable[[str, list[str]], set[str]]:
+    """What a flow's copy leaves behind: the live kernel's socket and token,
+    and the index. The source session holds its index open in WAL mode, so its
+    files on disk need not be a consistent database; the journal is."""
+    kernel_dir = store_dir(flow_dir) / KERNEL_DIRNAME
+    index_files = {INDEX_NAME + suffix for suffix in ("", "-wal", "-shm")}
+
+    def skips(directory: str, names: list[str]) -> set[str]:
+        if Path(directory) == kernel_dir:
+            return set(names)
+        if Path(directory) == store_dir(flow_dir):
+            return index_files & set(names)
+        return set()
+
+    return skips
 
 
 def _new_flow_ref(root: Path, name: str) -> FlowRef:
