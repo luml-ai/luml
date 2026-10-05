@@ -9,8 +9,14 @@
     @update:visible="onVisibleChange"
   >
     <Message v-if="forkRequired" severity="info" size="small" class="mt-1 mb-4">
-      You are on step {{ flowStore.currentHeadStep }} of this lane, not its latest step. Create a
-      new lane from here to make changes.
+      <template v-if="isFromLaneOnScreen">
+        You are on step {{ flowStore.currentHeadStep }} of this lane, not its latest step. Create a
+        new lane from here to make changes.
+      </template>
+      <template v-else>
+        Lane {{ fromLane?.branch }} is on step {{ fromLane?.head_step }}, not its latest step.
+        Create a new lane from there to save your changes.
+      </template>
     </Message>
     <Form
       :id="formId"
@@ -44,7 +50,7 @@
 <script setup lang="ts">
 import type { DialogPassThroughOptions } from 'primevue'
 import { Button, Dialog, InputText, Message } from 'primevue'
-import { ref, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import z from 'zod'
@@ -57,10 +63,13 @@ const props = defineProps<{
   visible: boolean
   /** Opened because a change was attempted behind the lane's latest step. */
   forkRequired?: boolean
+  /** The lane to fork. The lane on screen when not given. */
+  from?: string
 }>()
 
 const emit = defineEmits<{
   'update:visible': [visible: boolean]
+  created: [lane: string]
 }>()
 
 const DIALOG_PT: DialogPassThroughOptions = {
@@ -108,6 +117,11 @@ const resolver: ReturnType<typeof zodResolver> = zodResolver(
 
 const loading = ref(false)
 
+const isFromLaneOnScreen = computed(
+  () => props.from === undefined || props.from === flowStore.currentBranch?.branch,
+)
+const fromLane = computed(() => flowStore.branches.find((branch) => branch.branch === props.from))
+
 function onVisibleChange(visible: boolean) {
   emit('update:visible', visible)
   if (visible) return
@@ -130,9 +144,15 @@ function submit(event: FormSubmitEvent) {
 async function createLane(name: string) {
   loading.value = true
   try {
-    await flowStore.createLane(name, { switchTo: props.forkRequired })
+    // A fork forced by the lane on screen standing behind its head moves the
+    // screen with it; a fork of a lane off screen leaves the screen alone.
+    const created = await flowStore.createLane(name, {
+      from: props.from,
+      switchTo: props.forkRequired && isFromLaneOnScreen.value,
+    })
     resetForm()
     emit('update:visible', false)
+    emit('created', created)
     toast.add(successToast('Lane created successfully'))
   } catch (error) {
     toast.add(errorToast(error))

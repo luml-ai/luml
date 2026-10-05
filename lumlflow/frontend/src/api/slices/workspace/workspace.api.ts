@@ -52,6 +52,17 @@ export class WorkspaceUnauthorizedError extends Error {
   }
 }
 
+/** A refusal the daemon named. `kind` is the error class it named it with. */
+export class WorkspaceRefusedError extends Error {
+  readonly kind: string | undefined
+
+  constructor(message: string, kind?: string) {
+    super(message)
+    this.name = 'WorkspaceRefusedError'
+    this.kind = kind
+  }
+}
+
 export class WorkspaceUnreachableError extends Error {
   constructor() {
     super('lumlflow daemon is not reachable')
@@ -83,7 +94,8 @@ async function call<P, R>(method: string, params: P): Promise<R> {
   }
 
   if (response.status === UNAUTHORIZED) throw new WorkspaceUnauthorizedError()
-  if (response.data.error) throw new Error(response.data.error.message)
+  const refused = response.data.error
+  if (refused) throw new WorkspaceRefusedError(refused.message, refused.kind)
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`lumlflow refused \`${method}\``)
   }
@@ -211,16 +223,31 @@ export const workspaceApi = {
       slug,
     }),
 
-  editCell: (slug: string, source: string, flow?: string, branch?: string) =>
-    call<{ flow?: string; branch?: string; slug: string; source: string }, EditedCell>(
-      'cells.edit',
+  editCell: (
+    slug: string,
+    source: string,
+    flow?: string,
+    branch?: string,
+    lock: { base?: string; force?: boolean } = {},
+  ) =>
+    call<
       {
-        ...(flow ? { flow } : {}),
-        ...(branch ? { branch } : {}),
-        slug,
-        source,
+        flow?: string
+        branch?: string
+        slug: string
+        source: string
+        base?: string
+        force?: boolean
       },
-    ),
+      EditedCell
+    >('cells.edit', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      slug,
+      source,
+      ...(lock.base ? { base: lock.base } : {}),
+      ...(lock.force ? { force: true } : {}),
+    }),
 
   newCell: (params: {
     slug?: string

@@ -259,6 +259,9 @@ export interface RenamedCell {
 
 export interface CellDetail {
   slug: string
+  branch: string
+  /** The version the source was read at: the base an edit of it is sent with. */
+  definition_hash: string
   source: string
 }
 

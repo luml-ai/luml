@@ -22,6 +22,16 @@ import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FlowStream, streamToken } from '@/api/streams/flow'
 import type { AgentActivity, AgentClaim, StreamFrame } from '@/api/streams/flow'
 
+/**
+ * Where a source was read: the flow and lane an edit of it is saved to, and the
+ * version it is saved over. A save goes there whatever is on screen by then.
+ */
+export interface CellEditContext {
+  flow: string | undefined
+  branch: string
+  base: string
+}
+
 /** A run the daemon has announced and not yet seen end, by the cell it is of. */
 export interface LiveRun {
   run_id: string
@@ -696,13 +706,15 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchCells()
   }
 
-  async function fetchCellSource(slug: string): Promise<string> {
-    const detail = await workspaceApi.cellSource(
-      slug,
-      currentFlow.value ?? undefined,
-      currentBranch.value?.branch,
-    )
-    return detail.source
+  async function fetchCellSource(
+    slug: string,
+  ): Promise<{ source: string; context: CellEditContext }> {
+    const flow = currentFlow.value ?? undefined
+    const detail = await workspaceApi.cellSource(slug, flow, currentBranch.value?.branch)
+    return {
+      source: detail.source,
+      context: { flow, branch: detail.branch, base: detail.definition_hash },
+    }
   }
 
   async function fetchAssetPreview(slug: string, output?: string): Promise<AssetPreview> {
@@ -732,14 +744,28 @@ export const useFlowStore = defineStore('flow', () => {
     return payload.text
   }
 
-  async function editCellSource(slug: string, source: string) {
-    await workspaceApi.editCell(
-      slug,
-      source,
-      currentFlow.value ?? undefined,
-      currentBranch.value?.branch,
-    )
+  async function editCellSource(
+    slug: string,
+    source: string,
+    context: CellEditContext,
+    options: { force?: boolean } = {},
+  ) {
+    await workspaceApi.editCell(slug, source, context.flow, context.branch, {
+      base: context.base,
+      force: options.force,
+    })
     await fetchCells()
+  }
+
+  /**
+   * Read fresh rather than off the lane list: the lane may not be on screen,
+   * and a rewind from another tab may not have reached the list yet.
+   */
+  async function isLaneBehindHead(branch: string, flow?: string): Promise<boolean> {
+    const tree = await workspaceApi.tree(flow)
+    if (flow === (currentFlow.value ?? undefined)) branches.value = tree.branches
+    const lane = tree.branches.find((record) => record.branch === branch)
+    return !!lane && lane.head_step < lane.newest_step
   }
 
   function nextDuplicateSlug(slug: string): string {
@@ -795,15 +821,19 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchCells()
   }
 
-  async function createLane(name: string, options: { switchTo?: boolean } = {}) {
-    const from = currentBranch.value?.branch
+  async function createLane(
+    name: string,
+    options: { switchTo?: boolean; from?: string } = {},
+  ): Promise<string> {
+    const from = options.from ?? currentBranch.value?.branch
     if (!from) throw new Error('No branch to fork from')
-    await workspaceApi.forkBranch(name, from, currentFlow.value ?? undefined)
+    const forked = await workspaceApi.forkBranch(name, from, currentFlow.value ?? undefined)
     if (options.switchTo) {
-      await switchBranch(name)
+      await switchBranch(forked.branch)
     } else {
       await fetchBranches()
     }
+    return forked.branch
   }
 
   async function rewindBranch(step: number) {
@@ -918,6 +948,7 @@ export const useFlowStore = defineStore('flow', () => {
     copyCellContext,
     fetchAssetPreview,
     editCellSource,
+    isLaneBehindHead,
     duplicateCell,
     addCellDownstream,
     createCell,

@@ -185,7 +185,7 @@ function onGoToCanvas() {
 
 async function onDownload() {
   try {
-    const source = await flowStore.fetchCellSource(props.cell.slug)
+    const { source } = await flowStore.fetchCellSource(props.cell.slug)
     download(source, `${props.cell.slug}.py`, 'text/x-python')
   } catch (error) {
     toast.add(errorToast(error))

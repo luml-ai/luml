@@ -26,6 +26,21 @@
       </Button>
     </div>
 
+    <Message v-if="isConflicted" severity="warn" size="small" data-testid="edit-conflict">
+      This cell changed after you started to edit it.
+      <div class="flex gap-2 mt-2">
+        <Button label="Overwrite" size="small" :disabled="isSaving" @click="onOverwrite" />
+        <Button
+          text
+          severity="secondary"
+          label="Keep theirs"
+          size="small"
+          :disabled="isSaving"
+          @click="onKeepTheirs"
+        />
+      </div>
+    </Message>
+
     <UiCodeEditor
       v-if="isEditing"
       v-model="draftSource"
@@ -40,18 +55,28 @@
       :aria-label="`source of ${props.slug}, read only`"
       :max-height="props.fullHeight ? 'none' : '18rem'"
     />
+
+    <CreateLaneDialog
+      v-if="editContext"
+      v-model:visible="isForkPromptVisible"
+      fork-required
+      :from="editContext.branch"
+      @created="onForked"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { NotebookCodeProps } from '@/components/notebooks/cell/cell.interface'
 import { onBeforeMount, ref } from 'vue'
-import { Button } from 'primevue'
+import { Button, Message } from 'primevue'
 import { useToast } from 'primevue/usetoast'
 import { Pencil } from 'lucide-vue-next'
 import { errorToast, successToast } from '@/toasts'
-import { useFlowStore } from '@/store/flow'
+import { useFlowStore, type CellEditContext } from '@/store/flow'
+import { WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
 import UiCodeEditor from '@/components/ui/code-editor/UiCodeEditor.vue'
+import CreateLaneDialog from '@/components/notebooks/lanes/CreateLaneDialog.vue'
 
 const props = defineProps<NotebookCodeProps>()
 
@@ -59,43 +84,109 @@ const flowStore = useFlowStore()
 const toast = useToast()
 
 const source = ref('')
+const loadedContext = ref<CellEditContext | null>(null)
 const draftSource = ref('')
+/** Where the draft goes: the context of the source it began from, until a fork moves it. */
+const editContext = ref<CellEditContext | null>(null)
 const isLoading = ref(false)
 const isEditing = ref(false)
 const isSaving = ref(false)
+const isConflicted = ref(false)
+const isForkPromptVisible = ref(false)
 
-onBeforeMount(async () => {
+onBeforeMount(load)
+
+async function load() {
   isLoading.value = true
   try {
-    source.value = await flowStore.fetchCellSource(props.slug)
+    const loaded = await flowStore.fetchCellSource(props.slug)
+    source.value = loaded.source
+    loadedContext.value = loaded.context
   } catch (error) {
     toast.add(errorToast(error, 'Failed to load code'))
   } finally {
     isLoading.value = false
   }
-})
+}
 
 function onEdit() {
   if (!flowStore.ensureOnLaneHead()) return
+  if (!loadedContext.value) return
   draftSource.value = source.value
+  editContext.value = loadedContext.value
   isEditing.value = true
 }
 
-function onCancel() {
+function closeEditing() {
   isEditing.value = false
+  isConflicted.value = false
+  editContext.value = null
+}
+
+function onCancel() {
+  closeEditing()
 }
 
 async function onSave() {
+  const context = editContext.value
+  if (!context) return
   isSaving.value = true
   try {
-    await flowStore.editCellSource(props.slug, draftSource.value)
-    source.value = draftSource.value
-    isEditing.value = false
-    toast.add(successToast('Code saved successfully'))
+    // A draft can outlive a rewind of its lane, so the guard that gated the
+    // edit is asked again, of the lane the edit goes to.
+    if (await flowStore.isLaneBehindHead(context.branch, context.flow)) {
+      isForkPromptVisible.value = true
+      return
+    }
+    await land(context)
   } catch (error) {
     toast.add(errorToast(error, 'Failed to save code'))
   } finally {
     isSaving.value = false
   }
+}
+
+async function onForked(lane: string) {
+  if (!editContext.value) return
+  editContext.value = { ...editContext.value, branch: lane }
+  isSaving.value = true
+  try {
+    await land(editContext.value)
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function onOverwrite() {
+  if (!editContext.value) return
+  isSaving.value = true
+  try {
+    await land(editContext.value, { force: true })
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function onKeepTheirs() {
+  closeEditing()
+  await load()
+}
+
+async function land(context: CellEditContext, options: { force?: boolean } = {}) {
+  try {
+    await flowStore.editCellSource(props.slug, draftSource.value, context, options)
+  } catch (error) {
+    if (error instanceof WorkspaceRefusedError && error.kind === 'EditConflict') {
+      isConflicted.value = true
+      return
+    }
+    isConflicted.value = false
+    toast.add(errorToast(error, 'Failed to save code'))
+    return
+  }
+  toast.add(successToast('Code saved successfully'))
+  // The reload rebuilds the edit context, so the next save starts from this one.
+  closeEditing()
+  await load()
 }
 </script>
