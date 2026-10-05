@@ -861,7 +861,7 @@ class Api:
 
     async def env_status(self, params: dict[str, Any]) -> dict[str, Any]:
         """What the workspace pins, and which kernels are running behind it."""
-        return await self._env()
+        return await self._env(self._directory(params))
 
     async def switch(self, params: dict[str, Any]) -> dict[str, Any]:
         """Check a branch out: rebind the worktree and project its slice."""
@@ -1610,12 +1610,12 @@ class Api:
             },
         }
 
-    async def _env(self) -> dict[str, Any]:
+    async def _env(self, directory: Path) -> dict[str, Any]:
         """What the lockfile pins, and where each running kernel stands to it."""
-        interpreter = envs.describe(self.directory)
-        pinned = envs.packages(self.directory)
+        interpreter = envs.describe(directory)
+        pinned = envs.packages(directory)
         return {
-            "workspace": str(self.directory),
+            "workspace": str(directory),
             "python": {"path": str(interpreter.python), "source": interpreter.source},
             "packages": [
                 {"name": name, "version": version}
@@ -1623,7 +1623,7 @@ class Api:
             ],
             "flows": [
                 await self._env_flow(session)
-                for session in self.hub.opened(here=True, directory=self.directory)
+                for session in self.hub.opened(here=True, directory=directory)
             ],
         }
 

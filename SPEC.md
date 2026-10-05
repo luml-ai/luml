@@ -299,9 +299,9 @@ Each task is one agent session with its tests; the engine fixes come first and t
   - [x] Carry the reference from the output record to the kernel payload alongside the stored reference; the hops in between are the implementer's to trace, among them the planner's input binding in `lumlflow/lumlflow/flow/scheduler/planner.py`, `lumlflow/lumlflow/flow/daemon/kernel_proc.py`, and `lumlflow/lumlflow/flow/store/models.py` if a new field is chosen
   - [x] Add kernel tests in `lumlflow/tests/kernel/test_executor.py`, including a file output and the removal of its copy, and a daemon test in `lumlflow/tests/daemon/` running a producer and consumer through the real kernel
 
-- [ ] fix: resolve env status against the requested workspace
-  - [ ] In `lumlflow/lumlflow/flow/daemon/api.py`, resolve the directory in `env_status` the way other verbs do and pass it through `_env`
-  - [ ] Add a test in `lumlflow/tests/daemon/test_envs.py` with two workspaces and a daemon launched in one of them
+- [x] fix: resolve env status against the requested workspace
+  - [x] In `lumlflow/lumlflow/flow/daemon/api.py`, resolve the directory in `env_status` the way other verbs do and pass it through `_env`
+  - [x] Add a test in `lumlflow/tests/daemon/test_envs.py` with two workspaces and a daemon launched in one of them
 
 - [ ] fix: copy a flow without its kernel files and with a consistent index
   - [ ] In `lumlflow/lumlflow/flow/daemon/hub.py`, make `duplicate_flow` skip the kernel directory's contents, leave the copy with an index that matches its journal, and remove the partial destination on failure

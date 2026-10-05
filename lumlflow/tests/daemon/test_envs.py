@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 from lumlflow.flow.daemon import envs
-from lumlflow.flow.errors import EnvError
+from lumlflow.flow.errors import EnvError, FlowError
 from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.models import EnvChanged, RunRecorded
 
@@ -472,3 +472,41 @@ class TestExternalChange:
 
         assert again["executed"] == ["pins"]
         assert again["pruned"] == ["uses"]
+
+
+class TestRequestedWorkspace:
+    async def test_env_status_describes_the_directory_it_is_asked_about(
+        self, tmp_path: Path
+    ) -> None:
+        launched = make_workspace(tmp_path / "a", flows=("churn",))
+        asked = make_workspace(tmp_path / "b", flows=("sales",))
+        write_lock(launched, {"pandas": PINNED_BEFORE})
+        write_lock(asked, {"polars": PINNED_AFTER})
+        write_cell(launched / "churn.flow", "rows", FRAME_CELL)
+        write_cell(asked / "sales.flow", "rows", FRAME_CELL)
+
+        async with daemon_api(launched) as api:
+            await api.run({"flow": "churn", "target": "rows"})
+            await api.run({"flow": "sales", "target": "rows", "directory": str(asked)})
+            elsewhere = await api.env_status({"directory": str(asked)})
+            here = await api.env_status({})
+
+        assert elsewhere["workspace"] == str(asked.resolve())
+        assert elsewhere["packages"] == [{"name": "polars", "version": PINNED_AFTER}]
+        assert [(flow["flow"], flow["kernel"]) for flow in elsewhere["flows"]] == [
+            ("sales", "running")
+        ]
+        assert here["workspace"] == str(launched.resolve())
+        assert here["packages"] == [{"name": "pandas", "version": PINNED_BEFORE}]
+        assert [(flow["flow"], flow["kernel"]) for flow in here["flows"]] == [
+            ("churn", "running")
+        ]
+
+    async def test_env_status_refuses_a_directory_that_does_not_exist(
+        self, tmp_path: Path
+    ) -> None:
+        root = make_workspace(tmp_path / "project")
+
+        async with daemon_api(root) as api:
+            with pytest.raises(FlowError, match="there is no directory"):
+                await api.env_status({"directory": str(tmp_path / "missing")})
