@@ -28,6 +28,7 @@ export interface TrackUpdateIn {
   description?: string | null
   tags?: string[] | null
   stages?: { id?: string; name: string }[]
+  expected_stage_ids?: string[]
 }
 
 export interface TrackStage {

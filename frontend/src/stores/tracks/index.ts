@@ -84,6 +84,15 @@ export const useTracksStore = defineStore('tracks', () => {
     setTracksList(newTracks)
   }
 
+  async function refreshTrackStages(trackId: string) {
+    const { stages } = await getTrackById(trackId)
+    setTracksList(
+      tracksList.value.map((track) => (track.id === trackId ? { ...track, stages } : track)),
+    )
+    if (editableTrack.value?.id === trackId) editableTrack.value.stages = stages
+    return stages
+  }
+
   function setTracksList(tracks: Track[]) {
     tracksList.value = tracks
   }
@@ -135,14 +144,6 @@ export const useTracksStore = defineStore('tracks', () => {
     )
   }
 
-  function getStages(trackId: string) {
-    return api.orbitTracks.listStages(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      trackId,
-    )
-  }
-
   async function updateStage(trackId: string, stageId: string, payload: TrackStageUpdateIn) {
     return await api.orbitTracks.updateStage(
       requestInfo.value.organizationId,
@@ -188,10 +189,10 @@ export const useTracksStore = defineStore('tracks', () => {
     createStage,
     trackStages,
     listStages,
-    getStages,
     resetTrackStages,
     updateStage,
     deleteStage,
     getTrackById,
+    refreshTrackStages,
   }
 })

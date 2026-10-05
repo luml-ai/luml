@@ -63,7 +63,7 @@ import { Bolt } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { getErrorMessage, type ApiError } from '@/helpers/helpers'
 import { deleteTrackConfirmOptions } from '@/lib/primevue/data/confirm'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import z from 'zod'
@@ -145,15 +145,19 @@ function stagesChanged(names: string[]) {
   return names.length !== original.length || names.some((name, index) => name !== original[index])
 }
 
-async function buildStagesPayload(trackId: string, names: string[]) {
-  const snapshot = tracksStore.editableTrack?.stages ?? []
-  const removedIds = new Set(
-    snapshot.filter((stage) => !names.includes(stage.name)).map((stage) => stage.id),
-  )
-  const current: TrackStage[] = await tracksStore.getStages(trackId)
-  const kept = current.filter((stage) => !removedIds.has(stage.id))
-  const added = names.filter((name) => !kept.some((stage) => stage.name === name))
-  return [...kept.map(({ id, name }) => ({ id, name })), ...added.map((name) => ({ name }))]
+function buildStagesPayload(snapshot: TrackStage[], names: string[]) {
+  return {
+    stages: names.map((name) => {
+      const existingStage = snapshot.find((stage) => stage.name === name)
+      return existingStage ? { id: existingStage.id, name } : { name }
+    }),
+    expected_stage_ids: snapshot.map((stage) => stage.id),
+  }
+}
+
+async function reloadStages(trackId: string) {
+  const stages = await tracksStore.refreshTrackStages(trackId)
+  initialValues.value.stages = stages.map((stage) => stage.name)
 }
 
 function updateVisible(visible: boolean) {
@@ -180,19 +184,23 @@ async function deleteTrack() {
 
 async function submit({ values, valid, reset }: FormSubmitEvent) {
   if (!valid) return
+  const { name, description, stages } = values
+  const track = tracksStore.editableTrack
+  const sendsStages = !!track && stagesChanged(stages)
   try {
     saveLoading.value = true
-    const { name, description, stages } = values
-    const trackId = tracksStore.editableTrack?.id
-    if (!trackId) throw new Error('Track ID is required')
+    if (!track?.id) throw new Error('Track ID is required')
     const payload: TrackUpdateIn = { name, description }
-    if (stagesChanged(stages)) payload.stages = await buildStagesPayload(trackId, stages)
-    await tracksStore.updateTrack(trackId, payload)
+    if (sendsStages) Object.assign(payload, buildStagesPayload(track.stages, stages))
+    await tracksStore.updateTrack(track.id, payload)
     reset()
     tracksStore.hideEditor()
     toast.add(simpleSuccessToast('Track has been successfully updated'))
   } catch (error) {
     toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to update track')))
+    if (sendsStages && track && (error as ApiError)?.response?.status === 409) {
+      await reloadStages(track.id).catch(() => undefined)
+    }
   } finally {
     saveLoading.value = false
   }

@@ -12,10 +12,10 @@ import TracksList from './TracksList.vue'
 enableAutoUnmount(afterEach)
 afterEach(() => vi.unstubAllGlobals())
 
-const mocks = vi.hoisted(() => ({ updateTrack: vi.fn(), listStages: vi.fn(), toastAdd: vi.fn() }))
+const mocks = vi.hoisted(() => ({ updateTrack: vi.fn(), getTrack: vi.fn(), toastAdd: vi.fn() }))
 
 vi.mock('@/lib/api', () => ({
-  api: { orbitTracks: { updateTrack: mocks.updateTrack, listStages: mocks.listStages } },
+  api: { orbitTracks: { updateTrack: mocks.updateTrack, getTrack: mocks.getTrack } },
 }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { organizationId: 'org-1', id: 'orbit-1' } }),
@@ -110,7 +110,7 @@ describe('TrackEditor stages', () => {
       removeEventListener: vi.fn(),
     }))
     mocks.updateTrack.mockReset().mockResolvedValue(track)
-    mocks.listStages.mockReset().mockResolvedValue(structuredClone(stages))
+    mocks.getTrack.mockReset()
     mocks.toastAdd.mockReset()
   })
 
@@ -147,6 +147,7 @@ describe('TrackEditor stages', () => {
       name: 'Release track',
       description: '',
       stages: [{ id: 'stage-1', name: 'Review' }, { name: 'Canary' }],
+      expected_stage_ids: ['stage-1', 'stage-2'],
     })
     expect(store.editorVisible).toBe(false)
     expect(store.tracksList[0].stages).toEqual(savedStages)
@@ -187,6 +188,7 @@ describe('TrackEditor stages', () => {
       name: 'Release track',
       description: '',
       stages: [{ id: 'stage-1', name: 'Review' }],
+      expected_stage_ids: ['stage-1', 'stage-2'],
     })
   })
 
@@ -235,30 +237,52 @@ describe('TrackEditor stages', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(mocks.listStages).not.toHaveBeenCalled()
     expect(mocks.updateTrack).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1', {
       name: 'Release track',
       description: 'New description',
     })
   })
 
-  it('keeps stages added by someone else since the panel was opened', async () => {
-    const { wrapper } = mountPanel()
+  it('reloads the current stages when they were changed by someone else', async () => {
+    const { wrapper, store } = mountPanel()
     await openPanel(wrapper)
-    const addedElsewhere = { ...stages[1], id: 'stage-9', name: 'Hotfix' }
-    mocks.listStages.mockResolvedValue([...structuredClone(stages), addedElsewhere])
     await wrapper.findAll('.remove-icon')[1].trigger('click')
+    const currentStages = [stages[0], { ...stages[1], id: 'stage-9', name: 'Hotfix' }]
+    mocks.updateTrack.mockRejectedValue({
+      response: {
+        status: 409,
+        data: { detail: 'Track stages were changed by someone else.' },
+      },
+    })
+    mocks.getTrack.mockResolvedValue({ ...track, stages: currentStages })
 
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.getTrack).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1')
+    expect(store.editorVisible).toBe(true)
+    expect(store.tracksList[0].stages).toEqual(currentStages)
+    expect(wrapper.findAll('[data-pc-name="chip"]').map((chip) => chip.text())).toEqual([
+      'Review',
+      'Hotfix',
+    ])
+    expect(mocks.toastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'error',
+        detail: 'Track stages were changed by someone else.',
+      }),
+    )
+
+    mocks.updateTrack.mockReset().mockResolvedValue(track)
+    await wrapper.findAll('.remove-icon')[1].trigger('click')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
     expect(mocks.updateTrack).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1', {
       name: 'Release track',
       description: '',
-      stages: [
-        { id: 'stage-1', name: 'Review' },
-        { id: 'stage-9', name: 'Hotfix' },
-      ],
+      stages: [{ id: 'stage-1', name: 'Review' }],
+      expected_stage_ids: ['stage-1', 'stage-9'],
     })
   })
 
