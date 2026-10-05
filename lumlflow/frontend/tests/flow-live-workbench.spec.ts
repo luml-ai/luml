@@ -11,13 +11,14 @@
  * views and URL — as the pure store read it is, with nothing checked out.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import { Toast } from 'primevue'
 import ToastService from 'primevue/toastservice'
+import { createPinia, setActivePinia } from 'pinia'
 
 import { FlowApiError, type EnvReport } from '@/flow/api/client'
 import type { AgentHarness, BranchRecord, CellSummary, TrackerExperiment } from '@/flow/api/types'
@@ -40,6 +41,10 @@ import {
 } from './fakes'
 import type { Attached, Handlers } from './fakes'
 import { editorIn } from './editor'
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
 
 // A churn flow, as the daemon reports it. `features` is not current in its own
 // right; `train_model` is current and sits under it; `holdout_eval` has never

@@ -15,4 +15,7 @@ class Split:
             random_state=self.params["seed"],
             stratify=data["target"],
         )
-        return {"train": train.reset_index(drop=True), "test": test.reset_index(drop=True)}
+        return {
+            "train": train.reset_index(drop=True),
+            "test": test.reset_index(drop=True),
+        }

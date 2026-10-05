@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import ToastService from 'primevue/toastservice'
+import { createPinia, setActivePinia } from 'pinia'
 
 import { TOKEN_STORAGE_KEY } from '@/flow/api/token'
 import type { AgentHarness } from '@/flow/api/types'
@@ -93,6 +94,7 @@ const Empty = defineComponent({ template: '<div />' })
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  setActivePinia(createPinia())
 })
 
 afterEach(() => {

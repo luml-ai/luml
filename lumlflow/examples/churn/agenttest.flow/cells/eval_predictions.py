@@ -24,7 +24,9 @@ class EvalPredictions:
         experiment_id = ctx.tracker.experiment_id
         dataset_id = self.params["dataset_id"]
         columns = [c for c in x_test.columns if c != "target"]
-        picked = x_test.sample(n=self.params["samples"], random_state=self.params["seed"])
+        picked = x_test.sample(
+            n=self.params["samples"], random_state=self.params["seed"]
+        )
 
         def span(trace_id, name, start, end, parent=None, attributes=None, status=0):
             span_id = uuid.uuid4().hex[:16]
@@ -54,7 +56,8 @@ class EvalPredictions:
             proba = float(model.predict_proba(x)[0, 1])
             t2 = time.time_ns()
             span(trace_id, "inference_fn", t1, t2, parent=root,
-                 attributes={"gen_ai.operation.name": "chat", "model": type(model).__name__,
+                 attributes={"gen_ai.operation.name": "chat",
+                             "model": type(model).__name__,
                              "prediction": pred, "proba": round(proba, 4)})
 
             t3 = time.time_ns()

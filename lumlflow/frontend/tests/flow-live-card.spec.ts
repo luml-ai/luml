@@ -17,6 +17,8 @@ import { mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
+import ToastService from 'primevue/toastservice'
 
 import { DOWNLOAD_PATH } from '@/flow/api/client'
 import type { CellDetail, CellSummary, StoredPreview, TrackerExperiment } from '@/flow/api/types'
@@ -162,7 +164,7 @@ async function card(
       summary,
       density: options.density ?? 'canvas',
     },
-    global: { plugins: [router] },
+    global: { plugins: [router, ToastService] },
   })
   await settle()
   return { wrapper, live }
@@ -1263,4 +1265,5 @@ describe('the stored preview is a versioned contract', () => {
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  setActivePinia(createPinia())
 })

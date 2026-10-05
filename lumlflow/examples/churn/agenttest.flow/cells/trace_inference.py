@@ -20,7 +20,9 @@ class TraceInference:
         sdk = ctx.tracker._client
         experiment_id = ctx.tracker.experiment_id
         columns = [c for c in x_test.columns if c != "target"]
-        picked = x_test.sample(n=self.params["samples"], random_state=self.params["seed"])
+        picked = x_test.sample(
+            n=self.params["samples"], random_state=self.params["seed"]
+        )
 
         def span(trace_id, name, start, end, parent=None, attributes=None, status=0):
             span_id = uuid.uuid4().hex[:16]
@@ -45,21 +47,26 @@ class TraceInference:
             t0 = time.time_ns()
             root = span(
                 trace_id, "infer_sample", t0, t0,
-                attributes={"gen_ai.operation.name": "invoke_agent", "sample.index": int(index)},
+                attributes={
+                    "gen_ai.operation.name": "invoke_agent",
+                    "sample.index": int(index),
+                },
             )
 
             t1 = time.time_ns()
             x = row[columns].to_numpy(dtype=float).reshape(1, -1)
             t2 = time.time_ns()
             span(trace_id, "preprocess", t1, t2, parent=root,
-                 attributes={"gen_ai.operation.name": "execute_tool", "features": len(columns)})
+                 attributes={"gen_ai.operation.name": "execute_tool",
+                             "features": len(columns)})
 
             t3 = time.time_ns()
             pred = int(model.predict(x)[0])
             proba = float(model.predict_proba(x)[0, 1])
             t4 = time.time_ns()
             span(trace_id, "predict", t3, t4, parent=root,
-                 attributes={"gen_ai.operation.name": "chat", "model": type(model).__name__,
+                 attributes={"gen_ai.operation.name": "chat",
+                             "model": type(model).__name__,
                              "prediction": pred, "proba": round(proba, 4)})
 
             t5 = time.time_ns()
@@ -74,13 +81,15 @@ class TraceInference:
             sdk.log_span(
                 trace_id=trace_id, span_id=root, name="infer_sample",
                 start_time_unix_nano=t0, end_time_unix_nano=t7,
-                attributes={"gen_ai.operation.name": "invoke_agent", "sample.index": int(index),
+                attributes={"gen_ai.operation.name": "invoke_agent",
+                            "sample.index": int(index),
                             "prediction": pred, "truth": truth},
                 status_code=1 if hit else 2, experiment_id=experiment_id,
             )
             latencies.append((t7 - t0) / 1e6)
             rows.append({"trace_id": trace_id, "sample": int(index), "prediction": pred,
-                         "truth": truth, "proba": round(proba, 4), "latency_ms": round(latencies[-1], 3)})
+                         "truth": truth, "proba": round(proba, 4),
+                         "latency_ms": round(latencies[-1], 3)})
 
         ctx.tracker.log_params({"model": type(model).__name__, "samples": len(rows)})
         ctx.tracker.log_metrics({
