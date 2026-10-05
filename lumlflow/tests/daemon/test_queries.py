@@ -653,6 +653,31 @@ async def test_logs_answer_with_the_run_the_branch_observed_even_after_a_rewind(
     assert rewound["state"] == "succeeded"
 
 
+async def test_a_cell_summary_names_the_result_the_branch_observed(
+    tmp_path: Path,
+):
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", _talkative("first"))
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        unrun = await api.cells_list({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "score"})
+        after_first = api.hub.session("churn").store.next_step - 1
+        first = await api.cells_list({"flow": "churn"})
+        write_cell(flow, "score", _talkative("second"))
+        await api.run({"flow": "churn", "target": "score"})
+        second = await api.cells_list({"flow": "churn"})
+        await api.rewind({"flow": "churn", "to_step": after_first})
+        rewound = await api.cells_list({"flow": "churn"})
+
+    assert unrun["cells"][0]["mat_id"] is None
+    first_id, second_id = first["cells"][0]["mat_id"], second["cells"][0]["mat_id"]
+    assert first_id is not None and second_id not in (None, first_id)
+    assert rewound["cells"][0]["mat_id"] == first_id
+
+
 async def test_a_cell_nobody_ran_has_no_logs_and_says_so_without_a_state(
     tmp_path: Path,
 ):

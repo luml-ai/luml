@@ -314,8 +314,8 @@ Each task is one agent session with its tests; the engine fixes come first and t
   - [x] In `lumlflow/frontend/src/components/notebooks/cell/NotebookCode.vue`, keep the edit context, send it on save, re-run the lane-head guard on save against the edit's lane and move the context to the lane the prompt forks, switching the screen to it only when the edit's lane was on screen, and render the conflict with "Overwrite" and "Keep theirs"
   - [x] Add a spec in `lumlflow/frontend/tests/` covering the base sent, a second save from the same panel, the conflict choices, a refusal that is not a conflict, the lane the save lands on, and a save after the edit's lane was rewound with the prompt answered and with it dismissed
 
-- [ ] fix: refresh open notebook panels when the lane or the cell changes
-  - [ ] Add `mat_id` to the cell summary in `lumlflow/lumlflow/flow/daemon/queries.py` with a test in `lumlflow/tests/daemon/test_queries.py`
-  - [ ] Add `mat_id` and `changed_step` to `CellSummary` in `lumlflow/frontend/src/api/slices/workspace/workspace.interface.ts`
-  - [ ] Make `lumlflow/frontend/src/components/notebooks/cell/NotebookOutput.vue` and `lumlflow/frontend/src/components/notebooks/cell/NotebookLogs.vue` reload on lane and observed-result changes, and `lumlflow/frontend/src/components/notebooks/cell/NotebookCode.vue` on lane and version changes, keeping a draft in progress and dropping the response of a superseded reload
-  - [ ] Add a spec in `lumlflow/frontend/tests/` covering rerun, lane switch, rewind, a superseded reload, an unchanged refresh and a draft surviving a refresh
+- [x] fix: refresh open notebook panels when the lane or the cell changes
+  - [x] Add `mat_id` to the cell summary in `lumlflow/lumlflow/flow/daemon/queries.py` with a test in `lumlflow/tests/daemon/test_queries.py`
+  - [x] Add `mat_id` and `changed_step` to `CellSummary` in `lumlflow/frontend/src/api/slices/workspace/workspace.interface.ts`
+  - [x] Make `lumlflow/frontend/src/components/notebooks/cell/NotebookOutput.vue` and `lumlflow/frontend/src/components/notebooks/cell/NotebookLogs.vue` reload on lane and observed-result changes, and `lumlflow/frontend/src/components/notebooks/cell/NotebookCode.vue` on lane and version changes, keeping a draft in progress and dropping the response of a superseded reload
+  - [x] Add a spec in `lumlflow/frontend/tests/` covering rerun, lane switch, rewind, a superseded reload, an unchanged refresh and a draft surviving a refresh

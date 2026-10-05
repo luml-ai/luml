@@ -300,6 +300,9 @@ def cell(here: Slice, uid: str) -> dict[str, Any]:
         "created_step": here.born.get(uid, 0),
         "order": format(here.order.get(uid, Decimal(here.born.get(uid, 0))), "f"),
         "changed_step": version.created_step,
+        # The result the branch observed, so a rerun, a memo hit and a rewind
+        # all read as a change to a surface showing it.
+        "mat_id": mat.mat_id if mat is not None else None,
         "older_env": _older_env(here, mat),
         # A memo hit put this result here: the cost below is what the run cost
         # whoever ran it, and printing that alone would read as work that just

@@ -243,6 +243,10 @@ export interface CellSummary {
   cost_seconds: number | null
   causes: string[]
   reused: boolean
+  /** The step the version the lane selects was created at. */
+  changed_step: number
+  /** The result the lane observed for the cell; null when it never observed one. */
+  mat_id: string | null
 }
 
 export interface CellsPage {

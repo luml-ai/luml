@@ -68,12 +68,13 @@
 
 <script setup lang="ts">
 import type { NotebookCodeProps } from '@/components/notebooks/cell/cell.interface'
-import { onBeforeMount, ref } from 'vue'
+import { ref } from 'vue'
 import { Button, Message } from 'primevue'
 import { useToast } from 'primevue/usetoast'
 import { Pencil } from 'lucide-vue-next'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore, type CellEditContext } from '@/store/flow'
+import { useCellPanelPayload } from '@/composables/useCellPanelPayload'
 import { WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
 import UiCodeEditor from '@/components/ui/code-editor/UiCodeEditor.vue'
 import CreateLaneDialog from '@/components/notebooks/lanes/CreateLaneDialog.vue'
@@ -88,26 +89,23 @@ const loadedContext = ref<CellEditContext | null>(null)
 const draftSource = ref('')
 /** Where the draft goes: the context of the source it began from, until a fork moves it. */
 const editContext = ref<CellEditContext | null>(null)
-const isLoading = ref(false)
 const isEditing = ref(false)
 const isSaving = ref(false)
 const isConflicted = ref(false)
 const isForkPromptVisible = ref(false)
 
-onBeforeMount(load)
-
-async function load() {
-  isLoading.value = true
-  try {
-    const loaded = await flowStore.fetchCellSource(props.slug)
+// A draft and its edit context outlive a reload: only the read-only source
+// under them follows the cell, and a newer version surfaces on save.
+const { isLoading, reload: load } = useCellPanelPayload({
+  slug: () => props.slug,
+  follows: (cell) => cell.changed_step,
+  fetch: () => flowStore.fetchCellSource(props.slug),
+  onLoaded: (loaded) => {
     source.value = loaded.source
     loadedContext.value = loaded.context
-  } catch (error) {
-    toast.add(errorToast(error, 'Failed to load code'))
-  } finally {
-    isLoading.value = false
-  }
-}
+  },
+  onFailed: (error) => toast.add(errorToast(error, 'Failed to load code')),
+})
 
 function onEdit() {
   if (!flowStore.ensureOnLaneHead()) return

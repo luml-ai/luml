@@ -6,10 +6,11 @@
 
 <script setup lang="ts">
 import type { NotebookLogsProps } from '@/components/notebooks/cell/cell.interface'
-import { computed, onBeforeMount, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { errorToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
+import { useCellPanelPayload } from '@/composables/useCellPanelPayload'
 import { terminalText } from '@/utils/terminal'
 
 const props = defineProps<NotebookLogsProps>()
@@ -18,17 +19,15 @@ const flowStore = useFlowStore()
 const toast = useToast()
 
 const logs = ref<string | null>(null)
-const isLoading = ref(false)
 
-onBeforeMount(async () => {
-  isLoading.value = true
-  try {
-    logs.value = await flowStore.fetchCellLogs(props.slug)
-  } catch (error) {
-    toast.add(errorToast(error, 'Failed to load logs'))
-  } finally {
-    isLoading.value = false
-  }
+const { isLoading } = useCellPanelPayload({
+  slug: () => props.slug,
+  follows: (cell) => cell.mat_id,
+  fetch: () => flowStore.fetchCellLogs(props.slug),
+  onLoaded: (loaded) => {
+    logs.value = loaded
+  },
+  onFailed: (error) => toast.add(errorToast(error, 'Failed to load logs')),
 })
 
 const renderedLogs = computed(() => terminalText(logs.value ?? '').trimEnd())
