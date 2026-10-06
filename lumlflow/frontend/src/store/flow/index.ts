@@ -18,6 +18,7 @@ import { computed, ref } from 'vue'
 import { useToast } from 'primevue'
 import { errorToast } from '@/toasts'
 import { formatUpdatedAgo } from '@/helpers/date'
+import { compareOrder } from '@/flow/workbench/model/registry'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FlowStream, streamToken } from '@/api/streams/flow'
 import type { AgentActivity, AgentClaim, StreamFrame } from '@/api/streams/flow'
@@ -269,7 +270,9 @@ export const useFlowStore = defineStore('flow', () => {
     return states
   })
   const isAnythingRunning = computed(() => liveRuns.value.length > 0)
-  const notebookCells = computed(() => cells.value.map(toNotebookCell))
+  const notebookCells = computed(() =>
+    [...cells.value].sort((a, b) => compareOrder(a.order, b.order)).map(toNotebookCell),
+  )
   const currentBranchActivities = computed(() => {
     const branchId = currentBranch.value?.branch_id
     if (!branchId) return []

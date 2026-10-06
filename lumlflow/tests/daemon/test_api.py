@@ -1939,6 +1939,100 @@ async def test_publishing_hands_the_kernel_the_frame_the_model_trained_on(
     assert packaged[0]["samples"] == [{"value_ref": rows.value_ref, "kind": "frame"}]
 
 
+async def test_publishing_hands_the_kernel_the_frame_recorded_at_training_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lumlflow.api import luml as luml_api
+    from lumlflow.flow.daemon.kernel_proc import KernelProcess
+
+    pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "rows", FRAME_CELL)
+    write_cell(
+        root / "churn.flow",
+        "train",
+        """
+        class Train:
+            consumes = {"rows": "rows.rows"}
+            produces = {"model": "model"}
+
+            def materialize(self, ctx, rows):
+                return {"model": "WEIGHTS"}
+        """,
+    )
+    packaged: list[dict[str, Any]] = []
+
+    async def export_model(
+        self: KernelProcess,
+        value_ref: str,
+        kind: str,
+        *,
+        destination: Path,
+        samples: Any,
+    ) -> dict[str, Any]:
+        packaged.append({"samples": samples})
+        destination.write_bytes(b"bundle")
+        return {"path": str(destination), "flavor": "sklearn", "size": 6}
+
+    monkeypatch.setattr(KernelProcess, "export_model", export_model)
+    monkeypatch.setattr(
+        luml_api.artifact_handler,
+        "upload_file",
+        lambda form, job_id: luml_api.progress_store.set_complete(job_id, []),
+    )
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        session.store.manifest.settings.reactivity = "lazy"
+        session.store.save_manifest()
+        await api.run({"flow": "churn", "target": "train"})
+        trained_on = queries.locate(queries.read(session, "main"), "rows.rows")[2]
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "rows",
+                "source": FRAME_CELL.replace('"n"', '"renamed"'),
+            }
+        )
+        await api.run({"flow": "churn", "target": "rows"})
+        current = queries.locate(queries.read(session, "main"), "rows.rows")[2]
+        await api.asset_publish(
+            {
+                "flow": "churn",
+                "target": "train.model",
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "forest"},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+
+    assert trained_on is not None and current is not None
+    assert current.value_ref != trained_on.value_ref
+    assert packaged[0]["samples"] == [
+        {"value_ref": trained_on.value_ref, "kind": "frame"}
+    ]
+
+
+async def test_run_and_preflight_accept_an_output_qualified_target(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        planned = await api.preflight({"flow": "churn", "target": "score.summary"})
+        ran = await api.run({"flow": "churn", "target": "score.summary"})
+        with pytest.raises(FlowError, match=r"`score` produces `summary`, not `nope`"):
+            await api.run({"flow": "churn", "target": "score.nope"})
+
+    assert planned["recompute"] == ["score"]
+    assert ran["executed"] == ["score"]
+
+
 async def test_publishing_without_a_destination_in_luml_is_refused(
     tmp_path: Path,
 ) -> None:

@@ -506,14 +506,12 @@ def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
 
 
 def training_frames(
-    session: "FlowSession", here: Slice, version: VersionRow
+    session: "FlowSession", model: MaterializationRow
 ) -> list[dict[str, str]]:
     found: list[dict[str, str]] = []
-    for consumed in version.manifest.consumes.values():
-        if consumed.uid is None or consumed.output is None:
-            continue
-        mat = here.mats.get(consumed.uid)
-        record = mat.outputs.get(consumed.output) if mat is not None else None
+    for consumed in model.inputs.values():
+        trained_on = session.store.index.materialization(consumed.mat_id)
+        record = trained_on.outputs.get(consumed.output) if trained_on else None
         if record is None or record.kind != "frame" or record.value_ref is None:
             continue
         if not session.store.values.exists(record.value_ref):

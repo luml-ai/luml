@@ -48,6 +48,11 @@ async function onRerunLane() {
       toast.add(successToast('Nothing to rerun in this lane'))
     } else if (result.failed) {
       toast.add(errorToast(new Error(`\`${result.failed}\` failed to run`), 'Rerun failed'))
+    } else if (result.unplanned.length > 0) {
+      const reasons = result.unplanned.map(({ target, error }) => `\`${target}\`: ${error}`)
+      toast.add(errorToast(new Error(reasons.join('\n')), 'Could not rerun'))
+    } else if (result.abandoned) {
+      toast.add(successToast('Rerun stopped before it finished', 'Stopped'))
     } else {
       toast.add(
         successToast(

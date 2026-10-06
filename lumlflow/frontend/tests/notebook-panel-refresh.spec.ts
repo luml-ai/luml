@@ -59,6 +59,7 @@ function summary(overrides: Partial<CellSummary>): CellSummary {
     causes: [],
     reused: false,
     changed_step: 1,
+    order: '1',
     mat_id: 'm-1',
     ...overrides,
   }

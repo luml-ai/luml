@@ -3,6 +3,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from typing import Literal
 
+from lumlflow.flow.errors import CellNotFound
 from lumlflow.flow.scheduler import memo, staleness
 from lumlflow.flow.scheduler.staleness import Verdict
 from lumlflow.flow.store.flowstore import FlowStore
@@ -109,7 +110,7 @@ class Planner:
         self, target: str, *, branch: str, branch_id: str, over: "_Branch"
     ) -> Plan:
         here, verdicts = over.here, over.verdicts
-        uid = self._store.branches.resolve(branch, target)
+        uid = self._resolve_target(target, branch=branch, here=here)
         if here[uid].manifest.classification == "note":
             return Plan(branch, branch_id, target, ())
         producers = _producers(here)
@@ -144,6 +145,17 @@ class Planner:
             steps,
             tuple(dict.fromkeys(forced[other] for other in ordered if other in forced)),
         )
+
+    def _resolve_target(
+        self, target: str, *, branch: str, here: dict[str, VersionRow]
+    ) -> str:
+        slug, _, output = target.partition(".")
+        uid = self._store.branches.resolve(branch, slug)
+        produces = here[uid].manifest.produces
+        if output and output not in produces:
+            declared = ", ".join(f"`{name}`" for name in produces) or "nothing"
+            raise CellNotFound(f"`{slug}` produces {declared}, not `{output}`")
+        return uid
 
     def preflight(self, *targets: str, branch: str) -> Preflight:
         if not targets:

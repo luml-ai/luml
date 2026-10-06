@@ -243,6 +243,7 @@ export interface CellSummary {
   causes: string[]
   reused: boolean
   changed_step: number
+  order: string
   mat_id: string | null
 }
 

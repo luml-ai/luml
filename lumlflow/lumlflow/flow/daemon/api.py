@@ -561,7 +561,8 @@ class Api:
     async def asset_publish(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch, slug, output, record = await self.stored_output(params)
         here = queries.read(session, branch)
-        version = here.versions[here.uid_of(slug)]
+        uid = here.uid_of(slug)
+        version = here.versions[uid]
         if version.manifest.produces[output].type != "model":
             raise FlowError(
                 f"`{slug}.{output}` is not declared as a model. only outputs "
@@ -581,7 +582,7 @@ class Api:
                 value_ref,
                 record.kind,
                 destination=destination,
-                samples=queries.training_frames(session, here, version),
+                samples=queries.training_frames(session, here.mats[uid]),
             )
         except Exception:
             destination.unlink(missing_ok=True)
