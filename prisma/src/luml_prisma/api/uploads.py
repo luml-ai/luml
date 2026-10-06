@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from luml_prisma.services.orchestrator.engine import OrchestratorEngine
 from luml_prisma.services.upload_queue import UploadQueue, UploadStatus
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,9 @@ class UploadUrlIn(BaseModel):
 
 
 def _upload_dict(upload: Any) -> dict[str, Any]:  # noqa: ANN401
+    # The manifest and file index let a client resume the upload with the same
+    # registration payload the upload_ready event carried.
+    manifest, file_index = OrchestratorEngine._read_tar_metadata(upload.model_path)
     return {
         "id": upload.id,
         "run_id": upload.run_id,
@@ -31,6 +35,8 @@ def _upload_dict(upload: Any) -> dict[str, Any]:  # noqa: ANN401
         "retry_count": upload.retry_count,
         "created_at": upload.created_at,
         "updated_at": upload.updated_at,
+        "manifest": manifest or None,
+        "file_index": file_index or None,
     }
 
 
@@ -213,6 +219,24 @@ def post_artifact_link(
         )
 
     return JSONResponse(status_code=200, content={"status": "ok"})
+
+
+@router.post(
+    "/{run_id}/uploads/{upload_id}/dismiss",
+    status_code=200,
+)
+def dismiss_upload(
+    request: Request,
+    run_id: str,
+    upload_id: str,
+) -> JSONResponse:
+    """Close a queued upload whose artifact was registered out of band."""
+    upload_queue: UploadQueue = request.app.state.upload_queue
+    upload = upload_queue.get(upload_id)
+    if upload is None or upload.run_id != run_id:
+        return JSONResponse(status_code=404, content={"detail": "Upload not found"})
+    upload_queue.complete(upload_id)
+    return JSONResponse(status_code=200, content={"status": "dismissed"})
 
 
 @router.get("/{run_id}/uploads")
