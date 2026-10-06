@@ -1585,6 +1585,52 @@ async def test_the_checked_out_lane_carries_the_rebound_consumer_into_its_file(
     assert '"score.result"' in stored
     assert on_disk == stored
 
+async def test_an_adopted_producer_binds_an_existing_consumer_on_an_off_disk_lane(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "lab"})
+        await _add(api, "lab", "score", RESULT_SCORE_CELL)
+        await api.fork({"flow": "churn", "name": "sweep"})
+        await _add(api, "sweep", "report", RESULT_REPORT_CELL)
+
+        adopted = await api.adopt(
+            {"flow": "churn", "branch": "sweep", "slug": "score", "from_branch": "lab"}
+        )
+        here = slice_of(api.hub.session("churn"), "sweep")
+        outcome = await api.run(
+            {"flow": "churn", "branch": "sweep", "target": "report"}
+        )
+
+    assert here["report"].manifest.consumes["result"].uid == here["score"].uid
+    assert _codes(here["report"]) == []
+    assert "report" in adopted["rebound"]
+    assert (outcome["failed"], outcome["executed"]) == (None, ["score", "report"])
+
+
+async def test_renaming_a_cell_onto_a_dangling_name_binds_its_consumer_off_disk(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.fork({"flow": "churn", "name": "sweep"})
+        await _add(api, "sweep", "report", RESULT_REPORT_CELL)
+        await _add(api, "sweep", "scorer", RESULT_SCORE_CELL)
+
+        await api.rename(
+            {"flow": "churn", "branch": "sweep", "slug": "scorer", "to": "score"}
+        )
+        here = slice_of(api.hub.session("churn"), "sweep")
+
+    assert here["report"].manifest.consumes["result"].uid == here["score"].uid
+    assert _codes(here["report"]) == []
+
+
 async def test_importing_a_renamed_cell_rewires_existing_consumers(
     tmp_path: Path,
 ) -> None:

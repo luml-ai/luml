@@ -906,7 +906,7 @@ def test_only_a_leased_caller_is_announced_as_working() -> None:
     """A CLI verb connects per call and holds no lease; the probes a harness
     sends say nothing about the flow. Everything else a leased connection
     calls is the agent working, on the cell the call names when it names one."""
-    leased = {("/w/churn.flow", "codex-1", "Codex")}
+    leased: set[tuple[str | None, str, str]] = {("/w/churn.flow", "codex-1", "Codex")}
 
     assert _activity(set(), "cells.edit", {"actor": "codex-1", "slug": "train"}) is None
     assert _activity(leased, "ping", {"actor": "codex-1"}) is None
@@ -1108,15 +1108,16 @@ def test_two_leased_agents_cannot_change_the_same_cell_at_once(
                     },
                 )
                 seen: list[dict[str, Any]] = []
-                _until(
-                    socket,
-                    lambda frame: (
-                        seen.append(frame) is None
-                        and frame.get("type") == "activity"
+
+                def edit_ended(frame: dict[str, Any]) -> bool:
+                    seen.append(frame)
+                    return (
+                        frame.get("type") == "activity"
                         and frame.get("tool") == "cells.edit"
                         and frame.get("phase") == "ended"
-                    ),
-                )
+                    )
+
+                _until(socket, edit_ended)
         finally:
             codex.close()
             claude.close()

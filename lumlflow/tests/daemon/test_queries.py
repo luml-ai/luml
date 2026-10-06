@@ -746,7 +746,10 @@ async def test_the_fork_tree_says_which_registered_agents_are_really_there(
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     address = str(root / "churn.flow")
-    held = {(address, "codex", "Codex"), (str(root / "other.flow"), "gemini", "G")}
+    held: set[tuple[str | None, str, str]] = {
+        (address, "codex", "Codex"),
+        (str(root / "other.flow"), "gemini", "G"),
+    }
 
     hub = Hub()
     try:

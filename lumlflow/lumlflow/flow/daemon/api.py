@@ -860,6 +860,9 @@ class Api:
             uid=head.uid,
         )
         rewired = self._rewire(session, accepted.rewire, branch=branch, actor=actor)
+        _rebind(
+            session, {accepted.uid} | set(accepted.rewire), branch=branch, actor=actor
+        )
         return {
             "slug": accepted.slug,
             "renamed_from": old,
@@ -969,11 +972,19 @@ class Api:
             uids=result.reaccept, branch=branch, actor=actor
         )
         rewired = self._rewire(session, result.rewire, branch=branch, actor=actor)
+        consumers = _rebind(
+            session,
+            {result.uid} | set(result.rewire),
+            branch=branch,
+            actor=actor,
+        )
         landed_slug = reaccepted[0].slug if reaccepted else result.slug
         return {
             "slug": landed_slug,
             "branch": branch,
-            "rebound": [accepted.slug for accepted in reaccepted] + rewired,
+            "rebound": [accepted.slug for accepted in reaccepted]
+            + rewired
+            + [accepted.slug for accepted in consumers],
         } | _projection(self._reproject(session, branch))
 
     async def agent_begin(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1761,14 +1772,14 @@ def _one_cell_per_identity(carried: Sequence[PortableCell]) -> None:
 
 def _rebind(
     session: FlowSession, accepted: set[str], *, branch: str, actor: str
-) -> None:
+) -> list[AcceptedCell]:
     """Re-accept the lane's consumers against the namespace a change just moved.
 
     Only the checked-out lane is rescanned after a commit; every other lane
     would keep the bindings its consumers had. A consumer whose binding did not
     move writes nothing, so this reads every consumer rather than guessing which.
     The accepted cells are left out: re-accepting one would lose the flags only
-    its own acceptance could give it.
+    its own acceptance could give it. Returns the consumers that moved.
     """
     branch_id = session.store.branches.get(branch).branch_id
     consumers = [
@@ -1776,7 +1787,8 @@ def _rebind(
         for uid, version in session.store.index.slice_versions(branch_id).items()
         if uid not in accepted and version.manifest.consumes
     ]
-    session.acceptance.reaccept(uids=consumers, branch=branch, actor=actor)
+    reaccepted = session.acceptance.reaccept(uids=consumers, branch=branch, actor=actor)
+    return [cell for cell in reaccepted if not cell.unchanged]
 
 
 def _accept_carried(
