@@ -224,7 +224,8 @@ class Executor:
         self._emit("materialized" if state == "succeeded" else "failed", record)
         return record
 
-    def forget_deserialized(self) -> None:
+    def reload_workspace(self, registry: Registry) -> None:
+        self._registry = registry
         self._cache.clear()
 
     def close(self) -> None:

@@ -1020,6 +1020,12 @@ def _run_lines(result: dict[str, Any]) -> list[str]:
         flows = len(attached.get("open_flows") or [])
         if flows:
             parts.append(f"{flows} other open flow{'s' if flows != 1 else ''}")
+        runs = int(attached.get("active_runs") or 0)
+        if runs:
+            parts.append(f"{runs} active run{'s' if runs != 1 else ''}")
+        requests = int(attached.get("other_requests") or 0)
+        if requests:
+            parts.append(f"{requests} other request{'s' if requests != 1 else ''}")
         if parts:
             lines.append(f"left the daemon running · {', '.join(parts)} attached")
     return lines

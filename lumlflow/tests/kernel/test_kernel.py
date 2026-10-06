@@ -219,6 +219,81 @@ def test_an_input_of_a_workspace_class_uses_the_edited_class_after_eviction(
     assert stored_value(kernel, second_note, "note") == b"2"
 
 
+def test_a_workspace_kind_uses_the_edited_plugin_after_eviction(
+    tmp_path: Path, import_state: None
+) -> None:
+    kernel, _ = make_kernel(
+        tmp_path,
+        files={
+            "token_kinds.py": """
+                from pathlib import Path
+
+
+                class Token:
+                    def __init__(self, text):
+                        self.text = text
+
+
+                class TokenKind:
+                    kind = "token"
+                    priority = 5
+
+                    def matches(self, value):
+                        return isinstance(value, Token)
+
+                    def serialize(self, value):
+                        return value.text.encode()
+
+                    def deserialize(self, source):
+                        return "v1:" + Path(source).read_text()
+
+                    def preview(self, value):
+                        return []
+
+
+                LUMLFLOW_KINDS = [TokenKind]
+            """
+        },
+    )
+    producer = """
+        def materialize(self, ctx):
+            import token_kinds
+
+            return {"token": token_kinds.Token("x")}
+    """
+    consumer = """
+        def materialize(self, ctx, token):
+            return {"note": token}
+    """
+
+    def run_pair(suffix: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        produced = run(
+            kernel, producer, run_id=f"producer{suffix}", produces={"token": {}}
+        )
+        token = produced["outputs"]["token"]
+        consumed = run(
+            kernel,
+            consumer,
+            run_id=f"consumer{suffix}",
+            produces={"note": {"kind": "note"}},
+            inputs={"token": {"value_ref": token["value_ref"], "kind": token["kind"]}},
+        )
+        return produced, consumed
+
+    first_token, first_note = run_pair("1")
+    module_path = kernel.workspace_dir / "token_kinds.py"
+    _edit_in_place(
+        module_path, module_path.read_text(encoding="utf-8").replace("v1:", "v2:")
+    )
+    kernel.evict_workspace_modules({})
+    second_token, second_note = run_pair("2")
+
+    assert first_token["outputs"]["token"]["kind"] == "token"
+    assert second_token["outputs"]["token"]["kind"] == "token"
+    assert stored_value(kernel, first_note, "note") == b"v1:x"
+    assert stored_value(kernel, second_note, "note") == b"v2:x"
+
+
 def test_paging_a_stored_frame_returns_the_window_and_the_true_total(
     tmp_path: Path,
 ) -> None:

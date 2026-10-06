@@ -100,8 +100,10 @@ class Kernel:
                 _drop_bytecode(path)
                 evicted.append(name)
         importlib.invalidate_caches()
-        # Identical bytes still decode to an instance of the old class.
-        self.executor.forget_deserialized()
+        # Kind plugins and cached values are instances of the old classes, and
+        # identical bytes would still decode to them.
+        self.registry = registry.build(self.workspace_dir)
+        self.executor.reload_workspace(self.registry)
         return {"evicted": sorted(evicted)}
 
     def loaded_packages(self, params: dict[str, Any]) -> dict[str, Any]:

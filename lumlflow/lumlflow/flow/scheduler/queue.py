@@ -128,6 +128,10 @@ class RunQueue:
     def busy(self) -> bool:
         return self._busy
 
+    @property
+    def in_flight(self) -> int:
+        return len(self._flights)
+
     def focus(self, branch: str | None) -> None:
         self._active = branch
 

@@ -598,6 +598,64 @@ def test_run_leaves_its_daemon_when_an_attachment_arrives(
     assert client.is_alive(record)
 
 
+def test_run_leaves_its_daemon_while_another_callers_run_is_active(
+    tmp_path: Path, servers: Reap
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    for slug, gate in (("first", "go-first"), ("second", "go-second")):
+        write_cell(
+            flow,
+            slug,
+            f"""
+            class Gated:
+                produces = {{"summary": "asset"}}
+
+                def materialize(self, ctx):
+                    import time
+
+                    while not (ctx.workspace_dir / "{gate}").exists():
+                        time.sleep(0.05)
+                    return {{"summary": {{"auc": 0.91}}}}
+            """,
+        )
+
+    def start(target: str) -> "subprocess.Popen[str]":
+        process = subprocess.Popen(
+            [sys.executable, "-m", "lumlflow.cli", "run", target, "--flow", "churn"],
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        servers(process)
+        return process
+
+    first = start("first")
+    record = _answering_daemon()
+    try:
+        _wait_for_running(record)
+        second = start("second")
+        _wait_for_in_flight(record, 2)
+
+        (root / "go-first").touch()
+        output, errors = first.communicate(timeout=90)
+
+        assert first.returncode == 0, errors
+        assert "left the daemon running" in output
+        assert "active run" in output
+        assert client.is_alive(record)
+
+        (root / "go-second").touch()
+        _, errors = second.communicate(timeout=90)
+        assert second.returncode == 0, errors
+    finally:
+        (root / "go-first").touch()
+        (root / "go-second").touch()
+
+    assert client.is_alive(record)
+
+
 @pytest.mark.parametrize(
     "command",
     [
@@ -1378,6 +1436,20 @@ def _wait_for_running(record: DaemonRecord, timeout: float = 30.0) -> None:
                 return
         time.sleep(0.05)
     raise AssertionError("the pipeline did not start")
+
+
+def _wait_for_in_flight(
+    record: DaemonRecord, runs: int, timeout: float = 30.0
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with client.attach(record) as live:
+            idle = live.call("shutdown.if_idle", {"path": ""})
+        assert not idle["stopping"], "the daemon stopped with runs in flight"
+        if idle["attached"]["active_runs"] >= runs:
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"{runs} runs never reached the daemon")
 
 
 def _receive_caught_up(

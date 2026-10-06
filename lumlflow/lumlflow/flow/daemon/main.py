@@ -426,10 +426,19 @@ class Daemon:
             for session in self.hub.opened()
             if excluded is None or session.ref.path != excluded
         )
+        # Runs carry on whether or not their caller is still connected, so
+        # stopping now would kill another caller's work.
+        current = asyncio.current_task()
         return {
             "leased_sessions": len(leases),
             "stream_subscribers": self.streams.watchers,
             "open_flows": open_flows,
+            "active_runs": sum(
+                session.queue.in_flight for session in self.hub.opened()
+            ),
+            "other_requests": sum(
+                1 for call in self._calls if call is not current and not call.done()
+            ),
         }
 
     async def _end_calls(self) -> None:
