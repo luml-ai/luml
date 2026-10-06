@@ -157,7 +157,7 @@ def _resolve(
     reference: str, namespace: Namespace
 ) -> tuple[ConsumedRef, str | None, VersionFlag | None]:
     if "." in reference:
-        producer, output = reference.split(".", 1)
+        producer, _, output = reference.rpartition(".")
         uid = namespace.uids.get(producer)
         if uid is not None and output in namespace.outputs.get(producer, ()):
             return ConsumedRef(ref=reference, uid=uid, output=output), None, None
@@ -206,7 +206,7 @@ def _suggest(reference: str, namespace: Namespace) -> str | None:
         )
         return close[0] if close else None
     # A bare name is compared against bare names — a full reference would dilute
-    by_output = {full.split(".", 1)[1]: full for full in references}
+    by_output = {full.rpartition(".")[2]: full for full in references}
     close = difflib.get_close_matches(
         reference, list(by_output), n=1, cutoff=_SUGGESTION_CUTOFF
     )

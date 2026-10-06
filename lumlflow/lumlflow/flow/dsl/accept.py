@@ -691,7 +691,7 @@ def _respelled(
     canonical = {}
     for name, reference in parsed.consumes.items():
         bound = version.manifest.consumes.get(name)
-        producer, _, output = reference.partition(".")
+        producer, _, output = reference.rpartition(".")
         if bound is None or bound.uid is None or bound.uid not in here or not output:
             continue
         current = here[bound.uid].slug

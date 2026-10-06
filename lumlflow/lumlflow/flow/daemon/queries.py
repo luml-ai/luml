@@ -490,7 +490,7 @@ def asset(session: "FlowSession", branch: str, target: str) -> dict[str, Any]:
 
 
 def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
-    slug, _, output = target.partition(".")
+    slug, output = planner.split_target(target, here.by_slug())
     uid = here.uid_of(slug)
     version = here.versions[uid]
     declared = list(version.manifest.produces)

@@ -2033,6 +2033,29 @@ async def test_run_and_preflight_accept_an_output_qualified_target(
     assert ran["executed"] == ["score"]
 
 
+
+async def test_a_dotted_cell_name_resolves_as_a_target_and_a_producer(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score.v2", SCORE_CELL)
+    write_cell(
+        root / "churn.flow",
+        "report",
+        REPORT_CELL.replace('"score.summary"', '"score.v2.summary"'),
+    )
+
+    async with daemon_api(root) as api:
+        planned = await api.preflight({"flow": "churn", "target": "score.v2"})
+        ran = await api.run({"flow": "churn", "target": "score.v2.summary"})
+        downstream = await api.run({"flow": "churn", "target": "report"})
+        previewed = await api.asset_preview({"flow": "churn", "target": "score.v2"})
+
+    assert planned["recompute"] == ["score.v2"]
+    assert ran["executed"] == ["score.v2"]
+    assert downstream["executed"] == ["report"]
+    assert (previewed["slug"], previewed["output"]) == ("score.v2", "summary")
+
 async def test_publishing_without_a_destination_in_luml_is_refused(
     tmp_path: Path,
 ) -> None:

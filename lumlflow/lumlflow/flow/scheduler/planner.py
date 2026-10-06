@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -21,6 +21,14 @@ AutoDecline = Literal[
 TrackerState = Literal["ok", "missing", "unreachable"]
 TrackerStateCheck = Callable[[TrackerRef], tuple[TrackerState, str]]
 RefreshEpoch = Callable[[], int]
+
+
+def split_target(target: str, slugs: Collection[str]) -> tuple[str, str]:
+    # Cell names may contain dots, so an exact name wins over `<cell>.<output>`.
+    if target in slugs:
+        return target, ""
+    slug, _, output = target.rpartition(".")
+    return (slug, output) if slug else (target, "")
 
 
 @dataclass(frozen=True)
@@ -149,7 +157,7 @@ class Planner:
     def _resolve_target(
         self, target: str, *, branch: str, here: dict[str, VersionRow]
     ) -> str:
-        slug, _, output = target.partition(".")
+        slug, output = split_target(target, {version.slug for version in here.values()})
         uid = self._store.branches.resolve(branch, slug)
         produces = here[uid].manifest.produces
         if output and output not in produces:
