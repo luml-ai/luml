@@ -70,13 +70,14 @@ class Worktree:
         branch = self._store.branches.get(name or self.branch)
         here = self._store.index.slice_versions(branch.branch_id)
         self.cells_dir.mkdir(parents=True, exist_ok=True)
-        written, keep = [], set()
+        written: list[str] = []
+        keep: dict[str, Path] = {}
         for _uid, version in sorted(here.items(), key=lambda item: item[1].slug):
             path = self.cells_dir / f"{version.slug}{CELL_SUFFIX}"
             if path.is_symlink() and not path.exists():
                 continue
             assert_cell_path(path, self.cells_dir)
-            keep.add(path.name.casefold())
+            keep[path.name.casefold()] = path
             source = self._store.objects.get(version.raw_source_ref)
             if path.exists():
                 try:
@@ -92,11 +93,7 @@ class Worktree:
             if path.is_symlink() and not path.exists():
                 continue
             assert_cell_path(path, self.cells_dir)
-            # Case-insensitively: slugs are lowercase, so a file the author
-            # called `Features.py` *is* the cell `features` on the filesystems
-            # that cannot tell them apart, and deleting it would delete the
-            # cell this projection had just decided to keep.
-            if path.name.casefold() not in keep:
+            if not _kept(path, keep):
                 try:
                     path.read_bytes()
                 except OSError:
@@ -122,3 +119,16 @@ class Worktree:
             return False
         self.project(branch)
         return True
+
+
+def _kept(path: Path, keep: dict[str, Path]) -> bool:
+    projected = keep.get(path.name.casefold())
+    if projected is None:
+        return False
+    # On a case-insensitive filesystem `Features.py` *is* the projected
+    # `features.py`, and deleting it would delete the kept cell; on a
+    # case-sensitive one it is a separate file shadowing the cell.
+    try:
+        return path.name == projected.name or path.samefile(projected)
+    except OSError:
+        return False

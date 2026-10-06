@@ -174,6 +174,36 @@ class TestMemoHits:
         assert flow.executor.slugs == ["features", "features"]
 
 
+    async def test_a_fork_reruns_an_identity_dependent_ancestor_of_its_target(
+        self, flow: Flow
+    ) -> None:
+        flow.add("features")
+        flow.add("plot", consumes={"rows": "features.data"})
+        flow.executor.identity.add("features")
+        await flow.run("plot")
+        flow.store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+        flow.executor.content[("features", "data")] = b"sweep"
+        flow.executor.requests.clear()
+
+        outcome = await flow.queue.submit("plot", branch="sweep")
+
+        assert outcome.executed == ("features", "plot")
+        assert baseline_mat(flow, "plot", "sweep") != baseline_mat(flow, "plot")
+
+    async def test_an_external_ancestor_reruns_for_its_consumer(
+        self, flow: Flow
+    ) -> None:
+        flow.add("features")
+        flow.add("plot", consumes={"rows": "features.data"})
+        flow.executor.external.add("features")
+        await flow.run("plot")
+        flow.executor.content[("features", "data")] = b"fresh"
+
+        outcome = await flow.run("plot")
+
+        assert outcome.executed == ("features", "plot")
+
+
 class TestForcedRuns:
     async def test_forcing_recomputes_what_early_cutoff_would_have_skipped(
         self, flow: Flow

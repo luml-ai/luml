@@ -664,3 +664,27 @@ async def test_rewinding_an_off_disk_branch_keeps_the_brief_on_disk(
     assert rewound["rewound_branch"] == "sweep"
     assert rewound["projected"] is None
     assert "0.91" in source_of(flow, "score")
+
+
+async def test_a_mixed_case_cell_file_is_replaced_by_its_slug_file(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "Features", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        opened_files = cell_files(flow)
+        write_cell(flow, "features", SWEEP_CELL)
+        session.reconcile(tier="live")
+        accepted = len(ops_of(session, CellAccepted))
+        session.reconcile(tier="live")
+        session.reconcile(tier="live")
+        head = slice_of(session, "main")["features"]
+        held = session.store.objects.get(head.raw_source_ref).decode()
+
+    assert opened_files == ["features"]
+    assert "0.77" in held
+    assert len(ops_of(session, CellAccepted)) == accepted

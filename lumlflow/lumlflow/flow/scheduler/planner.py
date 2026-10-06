@@ -124,7 +124,12 @@ class Planner:
         producers = _producers(here)
         ancestors = _ancestors(uid, producers)
         consumers = _consumers(ancestors, producers)
-        seed = {uid} | {other for other in ancestors if not verdicts[other].synced}
+        seed = {uid} | {
+            other
+            for other in ancestors
+            if not verdicts[other].synced
+            or not self._baseline_reusable(branch_id, other)
+        }
         kept = _close_down(seed, consumers)
         kept, forced = self._with_demanded(kept, seed, consumers, here, branch_id)
         needs = _needed_outputs(kept, here)
@@ -375,6 +380,13 @@ class Planner:
         ):
             return None
         return note.sentence
+
+    def _baseline_reusable(self, branch_id: str, uid: str) -> bool:
+        # A synced verdict says nothing about results that read the outside
+        # world or the branch they ran on; only the memo rules know those.
+        mat_id = self._store.index.baselines(branch_id).get(uid)
+        mat = self._store.index.materialization(mat_id) if mat_id else None
+        return mat is None or memo.reusable(self._store, mat, branch_id=branch_id)
 
     def _with_demanded(
         self,

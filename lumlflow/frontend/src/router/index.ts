@@ -24,6 +24,7 @@ const router = createRouter({
           name: ROUTE_NAMES.HOME,
           path: ROUTES[ROUTE_NAMES.HOME],
           component: HomePage,
+          redirect: { name: ROUTE_NAMES.EXPERIMENTS },
           children: [
             {
               name: ROUTE_NAMES.EXPERIMENTS,
