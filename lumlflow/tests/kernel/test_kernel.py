@@ -159,6 +159,66 @@ def test_an_evicted_workspace_module_is_imported_again_on_the_next_run(
     assert stored_value(kernel, second, "note") == b"new"
 
 
+def test_an_input_of_a_workspace_class_uses_the_edited_class_after_eviction(
+    tmp_path: Path, import_state: None
+) -> None:
+    kernel, _ = make_kernel(
+        tmp_path,
+        files={
+            "model_mod.py": """
+                class Model:
+                    def predict(self):
+                        return 1
+            """
+        },
+    )
+    sys.path.insert(0, str(kernel.workspace_dir))
+    importlib.invalidate_caches()
+    producer = """
+        def materialize(self, ctx):
+            import model_mod
+
+            return {"model": model_mod.Model()}
+    """
+    consumer = """
+        def materialize(self, ctx, model):
+            return {"note": str(model.predict())}
+    """
+
+    def run_pair(suffix: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        produced = run(
+            kernel,
+            producer,
+            run_id=f"producer{suffix}",
+            produces={"model": {"kind": "pickle"}},
+        )
+        model = produced["outputs"]["model"]
+        consumed = run(
+            kernel,
+            consumer,
+            run_id=f"consumer{suffix}",
+            produces={"note": {"kind": "note"}},
+            inputs={"model": {"value_ref": model["value_ref"], "kind": "pickle"}},
+        )
+        return produced, consumed
+
+    first_model, first_note = run_pair("1")
+    module_path = kernel.workspace_dir / "model_mod.py"
+    _edit_in_place(
+        module_path,
+        module_path.read_text(encoding="utf-8").replace("return 1", "return 2"),
+    )
+    kernel.evict_workspace_modules({})
+    second_model, second_note = run_pair("2")
+
+    assert (
+        first_model["outputs"]["model"]["value_ref"]
+        == second_model["outputs"]["model"]["value_ref"]
+    )
+    assert stored_value(kernel, first_note, "note") == b"1"
+    assert stored_value(kernel, second_note, "note") == b"2"
+
+
 def test_paging_a_stored_frame_returns_the_window_and_the_true_total(
     tmp_path: Path,
 ) -> None:

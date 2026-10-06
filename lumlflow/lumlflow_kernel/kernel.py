@@ -100,6 +100,8 @@ class Kernel:
                 _drop_bytecode(path)
                 evicted.append(name)
         importlib.invalidate_caches()
+        # Identical bytes still decode to an instance of the old class.
+        self.executor.forget_deserialized()
         return {"evicted": sorted(evicted)}
 
     def loaded_packages(self, params: dict[str, Any]) -> dict[str, Any]:

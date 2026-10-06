@@ -224,6 +224,9 @@ class Executor:
         self._emit("materialized" if state == "succeeded" else "failed", record)
         return record
 
+    def forget_deserialized(self) -> None:
+        self._cache.clear()
+
     def close(self) -> None:
         self._unpersisted.clear()
         shutil.rmtree(self._unpersisted_root, ignore_errors=True)
