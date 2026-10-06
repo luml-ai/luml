@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 import tarfile
 import tomllib
@@ -66,6 +67,14 @@ class NpmRecorder:
             (self._dist_dir / "index.html").write_text("<!doctype html>fresh")
             (self._dist_dir / "app.js").write_text("// fresh")
         return subprocess.CompletedProcess(list(command), 0)
+
+
+NPM_PATH = "/resolved/npm.cmd"
+
+
+@pytest.fixture(autouse=True)
+def resolved_npm(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda name: NPM_PATH)
 
 
 @pytest.fixture
@@ -161,7 +170,8 @@ def test_dev_shape_builds_workspaces_in_order_and_replaces_static(
 
     run_hook(root)
 
-    assert recorder.commands[0] == ["npm", "ci"]
+    assert recorder.commands[0] == [NPM_PATH, "ci"]
+    assert all(c[0] == NPM_PATH for c in recorder.commands)
     built = [c[-1].removeprefix("--workspace=") for c in recorder.commands[1:]]
     assert built == list(WORKSPACE_BUILD_ORDER)
     assert all(cwd == root.parent for cwd in recorder.cwds)
@@ -170,6 +180,17 @@ def test_dev_shape_builds_workspaces_in_order_and_replaces_static(
     assert (static_dir / "index.html").read_text().endswith("fresh")
     assert (static_dir / "app.js").exists()
     assert not (static_dir / "stale-asset.js").exists()
+
+
+def test_npm_missing_from_path_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, npm: NpmRecorder
+) -> None:
+    root = make_project(tmp_path, frontend=True, workspace_root=True, bundle=False)
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+
+    with pytest.raises(RuntimeError, match="npm is not on PATH"):
+        run_hook(root)
+    assert npm.commands == []
 
 
 def test_npm_success_without_dist_raises(tmp_path: Path, npm: NpmRecorder) -> None:

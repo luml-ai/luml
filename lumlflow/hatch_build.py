@@ -68,10 +68,15 @@ class FrontendBuildHook(BuildHookInterface):
         self._install_bundle(frontend_dir / "dist", static_dir)
 
     def _npm_build(self, workspace_dir: Path) -> None:
-        subprocess.run(["npm", "ci"], cwd=workspace_dir, check=True)
+        # Resolved up front: on Windows npm is npm.cmd, which CreateProcess
+        # does not find from a bare "npm".
+        npm = shutil.which("npm")
+        if npm is None:
+            self._fail("Cannot build lumlflow's web app: npm is not on PATH.")
+        subprocess.run([npm, "ci"], cwd=workspace_dir, check=True)
         for package in WORKSPACE_BUILD_ORDER:
             subprocess.run(
-                ["npm", "run", "build", f"--workspace={package}"],
+                [npm, "run", "build", f"--workspace={package}"],
                 cwd=workspace_dir,
                 check=True,
             )
