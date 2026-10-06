@@ -3,8 +3,9 @@ from pathlib import Path
 
 import pytest
 from lumlflow.flow.errors import InputUnavailable
+from lumlflow.flow.scheduler import memo
 from lumlflow.flow.store.branches import MAIN_BRANCH
-from lumlflow.flow.store.models import MemoHit, RunRecorded
+from lumlflow.flow.store.models import MemoHit, RunRecorded, WorkspaceCodeChanged
 
 from tests.flow.harness import Flow, settle
 
@@ -566,6 +567,57 @@ class TestPlanChanges:
         assert flow.executor.slugs == ["train"]
         assert edited.version_id != original.version_id
         assert flow.ops(MemoHit) == []
+
+    async def test_a_helper_edited_while_waiting_records_under_the_new_key(
+        self, flow: Flow
+    ) -> None:
+        helpers(flow, "a" * 64)
+        flow.add("blocker")
+        child = flow.add("child")
+        flow.executor.holding.add("blocker")
+        blocking = asyncio.create_task(flow.run("blocker"))
+        await flow.executor.started.wait()
+        queued = asyncio.create_task(flow.run("child"))
+        await settle()
+
+        helpers(flow, "b" * 64, previous="a" * 64)
+        flow.executor.release()
+        _, outcome = await asyncio.gather(blocking, queued)
+
+        assert outcome.executed == ("child",)
+        assert child_keys(flow, child.uid) == [key_now(flow, child.version_id)]
+        assert flow.verdicts()["child"].state == "synced"
+
+        helpers(flow, "a" * 64, previous="b" * 64)
+        restored = await flow.run("child")
+
+        assert restored.executed == ("child",)
+        assert child_keys(flow, child.uid)[-1] == key_now(flow, child.version_id)
+        assert flow.ops(MemoHit) == []
+
+
+def helpers(flow: Flow, tree_hash: str, previous: str | None = None) -> None:
+    flow.store.commit(
+        [
+            WorkspaceCodeChanged(
+                tree_hash=tree_hash,
+                previous_tree_hash=previous,
+                changed_paths=["helpers.py"],
+            )
+        ],
+        intent="shared code changed",
+        actor="system",
+    )
+
+
+def child_keys(flow: Flow, uid: str) -> list[str]:
+    return [op.memo_key for op in flow.ops(RunRecorded) if op.uid == uid]
+
+
+def key_now(flow: Flow, version_id: str) -> str:
+    version = flow.store.index.version(version_id)
+    assert version is not None
+    return memo.key_for(flow.store.index, version, {})
 
 
 def rewind(flow: Flow, to_step: int, branch: str = MAIN_BRANCH) -> None:

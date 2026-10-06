@@ -104,6 +104,7 @@ class _Flight:
     task: "asyncio.Task[None] | None" = None
     mat_id: str | None = None
     preempted: bool = False
+    stale: bool = False
 
 
 class RunQueue:
@@ -225,8 +226,7 @@ class RunQueue:
                 f"`{step.slug}` needs {_names(missing)}, which nothing on "
                 f"`{plan.branch}` produces"
             )
-        hashes = {name: bound.content_hash for name, bound in inputs.items()}
-        key = memo.key_for(self._store.index, step.version, hashes)
+        key = self._key(step, inputs)
         if not force and not step.must_execute:
             if current(self._store, plan.branch_id, step, key):
                 return "pruned"
@@ -261,13 +261,17 @@ class RunQueue:
             None,
         )
         if flight is not None:
-            joined = await self._join(flight, plan, step, key, actor=actor)
+            joined = await self._join(flight, plan, step, actor=actor, force=force)
             if joined is not None:
                 return joined
-        return await self._start(plan, step, key, inputs, actor=actor)
+        return await self._start(plan, step, key, inputs, actor=actor, force=force)
+
+    def _key(self, step: Step, inputs: Mapping[str, Bound]) -> str:
+        hashes = {name: bound.content_hash for name, bound in inputs.items()}
+        return memo.key_for(self._store.index, step.version, hashes)
 
     async def _join(
-        self, flight: _Flight, plan: Plan, step: Step, key: str, *, actor: str
+        self, flight: _Flight, plan: Plan, step: Step, *, actor: str, force: bool
     ) -> StepOutcome | None:
         waiter = self._wait_on(flight, plan.branch)
         result = await waiter.future
@@ -275,13 +279,15 @@ class RunQueue:
             return "abandoned"
         if not self._still_selected(plan, step):
             return "abandoned"
+        if flight.stale:
+            return await self._advance(plan, step, actor=actor, force=force)
         if result is None or result.state != "succeeded" or flight.mat_id is None:
             return None
         if _external(step, result):
             return None
         if result.identity_dependent and plan.branch != flight.origin:
             return None
-        self._record_hit(plan, step, key, flight.mat_id, actor=actor)
+        self._record_hit(plan, step, flight.key, flight.mat_id, actor=actor)
         return "cached"
 
     async def _start(
@@ -292,6 +298,7 @@ class RunQueue:
         inputs: dict[str, Bound],
         *,
         actor: str,
+        force: bool,
     ) -> StepOutcome:
         flight = _Flight(
             key=key,
@@ -309,6 +316,8 @@ class RunQueue:
         result = await waiter.future
         if waiter.abandoned:
             return "abandoned"
+        if flight.stale:
+            return await self._advance(plan, step, actor=actor, force=force)
         if result is None or result.state == "cancelled":
             return "abandoned"
         return "executed" if result.state == "succeeded" else "failed"
@@ -333,8 +342,14 @@ class RunQueue:
                     and flight.waiters
                     and self._still_selected(plan, step)
                 ):
-                    ran = True
-                    result = await self._run(flight, plan, step, inputs, actor=actor)
+                    # The kernel loads workspace code as it is now, not as the
+                    # key saw it before the wait: a stale step plans again
+                    flight.stale = self._key(step, inputs) != flight.key
+                    if not flight.stale:
+                        ran = True
+                        result = await self._run(
+                            flight, plan, step, inputs, actor=actor
+                        )
             finally:
                 self._release()
         except BaseException as failure:  # noqa: B036 - relayed to every waiter
