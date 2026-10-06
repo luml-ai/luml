@@ -13,5 +13,12 @@ Execution itself happens through a task queue. The platform places work items in
 
 In practice, a Satellite turns stored models and configuration into running services, without requiring the platform to host or directly access your compute environment.
 
-For step-by-step instructions on connecting a Satellite, see the [Satellite Connection Guide](../../guides/satellite.md).
+A Satellite comes in two kinds, and both are paired, deployed to and monitored the same way:
+
+- **Docker** — runs every deployment as a container on one Docker host. Suited to a single server or a workstation.
+- **Kubernetes** — runs every deployment as pods in a namespace of a Kubernetes or OpenShift cluster and is installed with a Helm chart. Suited to replicas, GPU nodes and cluster-level networking and security policies.
+
+Each Satellite also records inference requests and serves a monitoring dashboard that Luml embeds next to the deployment.
+
+For step-by-step instructions, see [How To Connect A Satellite](../../guides/satellite.md) for Docker and [How To Run A Satellite On Kubernetes](../../guides/satellite_kubernetes.md) for Kubernetes.
 
