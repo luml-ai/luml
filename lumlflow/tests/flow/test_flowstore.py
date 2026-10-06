@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 
@@ -517,7 +518,7 @@ class TestCrashPoints:
         store.commit([cell_accepted(slug="features")], intent="accept", actor="user")
         store.close()
         index_path = flow_dir / ".lumlflow" / "store.sqlite"
-        with sqlite3.connect(index_path) as conn:
+        with closing(sqlite3.connect(index_path)) as conn, conn:
             conn.execute("UPDATE meta SET value = '0' WHERE key = 'schema_version'")
 
         reopened = FlowStore.open(flow_dir)

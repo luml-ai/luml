@@ -283,6 +283,8 @@ class TestSlugs:
         first = accept(acceptance, "features", FEATURES)
         path = acceptance.cell_path("Features")
         path.write_text(dedent(FEATURES).replace("Features", "Features2"), "utf-8")
+        if path.samefile(acceptance.cell_path("features")):
+            pytest.skip("case-insensitive filesystem: Features.py is features.py")
 
         second = acceptance.accept_path(path)
 
