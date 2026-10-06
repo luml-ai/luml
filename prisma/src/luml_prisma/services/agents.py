@@ -4,6 +4,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from luml_prisma.config import get_data_dir
 from luml_prisma.mock_agent import is_mock_agent_enabled
 
 
@@ -69,7 +70,7 @@ _DEBUG_ONLY_AGENT_IDS: frozenset[str] = frozenset({"mock"})
 
 
 def _custom_agents_path() -> Path:
-    return Path.home() / ".luml" / "prisma" / "coding-clis.json"
+    return get_data_dir() / "coding-clis.json"
 
 
 def _coerce_str(v: object) -> str | None:
