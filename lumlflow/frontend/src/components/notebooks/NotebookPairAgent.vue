@@ -111,8 +111,8 @@ import { errorToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
 import type { PairedAgent } from '@/store/flow'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
-import AgentsPanel from '@/flow/workbench/components/panel/AgentsPanel.vue'
-import { useAgentHarnesses } from '@/flow/workbench/live/useAgentHarnesses'
+import AgentsPanel from './AgentsPanel.vue'
+import { useAgentHarnesses } from '@/composables/useAgentHarnesses'
 import { agentToolVerb } from '@/components/notebooks/cell/cell.const'
 
 const DIALOG_PT: DialogPassThroughOptions = {

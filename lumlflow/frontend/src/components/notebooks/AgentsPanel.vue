@@ -107,7 +107,7 @@
 import { computed, ref, watch } from 'vue'
 import { Button, Checkbox, Dialog } from 'primevue'
 import type { AgentHarness, AgentHarnessState } from '@/flow/api/types'
-import CopyBlock from '../../ui/CopyBlock.vue'
+import CopyBlock from '@/components/ui/CopyBlock.vue'
 
 const props = withDefaults(
   defineProps<{

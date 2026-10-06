@@ -1,15 +1,19 @@
 <template>
   <div
-    class="flex items-center gap-2 rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800 px-3 py-2"
+    class="relative rounded-lg border border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-800"
   >
-    <code class="font-mono text-base flex-1 truncate select-all">{{ value }}</code>
+    <pre
+      class="max-h-96 select-all overflow-auto whitespace-pre-wrap p-3 pr-10 font-mono text-sm leading-relaxed"
+      >{{ value }}</pre
+    >
     <Button
       v-tooltip.top="copied ? 'Copied' : 'Copy'"
+      class="absolute! right-1 top-1"
       text
       rounded
       severity="secondary"
       size="small"
-      :aria-label="`Copy ${value}`"
+      :aria-label="label"
       @click="copy"
     >
       <template #icon>
@@ -23,9 +27,9 @@
 <script setup lang="ts">
 import { Button } from 'primevue'
 import { Check, Copy } from 'lucide-vue-next'
-import { useCopy } from './useCopy'
+import { useCopy } from '@/composables/useCopy'
 
-const props = defineProps<{ value: string }>()
+const props = withDefaults(defineProps<{ value: string; label?: string }>(), { label: 'Copy' })
 
 const { copied, copy } = useCopy(() => props.value)
 </script>

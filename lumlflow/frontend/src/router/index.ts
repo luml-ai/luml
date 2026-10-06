@@ -91,47 +91,6 @@ const router = createRouter({
         },
       ],
     },
-    {
-      path: '/flow',
-      component: MainTemplate,
-      children: [
-        {
-          path: '',
-          component: () => import('@/flow/FlowShell.vue'),
-          children: [
-            {
-              name: 'flow-workspace',
-              path: '',
-              component: () => import('@/flow/workbench/pages/WorkspacePage.vue'),
-            },
-            ...(import.meta.env.DEV
-              ? [
-                  {
-                    name: 'flow-design',
-                    path: 'design/:section?',
-                    component: () => import('@/flow/workbench/gallery/DesignSystemPage.vue'),
-                  },
-                ]
-              : []),
-            {
-              name: 'flow-work',
-              path: ':flowId',
-              component: () => import('@/flow/workbench/pages/WorkbenchPage.vue'),
-            },
-            {
-              name: 'flow-notebook',
-              path: ':flowId/notebook',
-              component: () => import('@/flow/workbench/pages/WorkbenchPage.vue'),
-            },
-            {
-              name: 'flow-compare',
-              path: ':flowId/compare',
-              component: () => import('@/flow/workbench/pages/ComparePage.vue'),
-            },
-          ],
-        },
-      ],
-    },
   ],
 })
 

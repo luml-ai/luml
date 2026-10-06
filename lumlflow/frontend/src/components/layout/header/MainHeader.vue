@@ -6,21 +6,6 @@
       <router-link :to="{ path: '/', query: directoryQuery }">
         <img :src="currentLogo" alt="Logo" class="w-[175px] h-7" />
       </router-link>
-      <nav class="flex items-center gap-1 text-sm">
-        <router-link
-          v-for="surface in surfaces"
-          :key="surface.label"
-          :to="surface.to"
-          class="rounded px-2.5 py-1 no-underline! transition-colors"
-          :class="
-            surface.current
-              ? 'bg-(--p-content-background) font-medium text-color!'
-              : 'text-muted-color! hover:text-color!'
-          "
-        >
-          {{ surface.label }}
-        </router-link>
-      </nav>
     </div>
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-2">
@@ -71,18 +56,6 @@ const route = useRoute()
 const directoryQuery = computed(() => {
   const directory = route.query.directory
   return typeof directory === 'string' && directory ? { directory } : {}
-})
-
-const surfaces = computed(() => {
-  const onFlow = route.path.startsWith('/flow')
-  return [
-    { to: { path: '/', query: directoryQuery.value }, label: 'Experiments', current: !onFlow },
-    {
-      to: { path: '/flow', query: directoryQuery.value },
-      label: 'Workspace',
-      current: onFlow,
-    },
-  ]
 })
 
 const currentLogo = computed(() => {
