@@ -25,7 +25,7 @@ from lumlflow.flow.errors import (
     ValueNotStored,
 )
 from lumlflow.flow.ids import new_ulid
-from lumlflow.flow.scheduler.planner import Preflight, reading_order
+from lumlflow.flow.scheduler.planner import Plan, Preflight, reading_order
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
 from lumlflow.flow.store.flowstore import FlowStore, store_dir
@@ -935,51 +935,38 @@ class Api:
         self, session: FlowSession, branch: str, params: dict[str, Any]
     ) -> dict[str, Any]:
         targets = _leaves(session, branch)
-        executed: list[str] = []
-        cached: list[str] = []
-        pruned: list[str] = []
-        failures: list[str] = []
+        plans: list[Plan] = []
         unplanned: list[dict[str, str]] = []
-        abandoned = False
-
         for target in targets:
             try:
                 plan = session.planner.plan(target, branch=branch)
+                session.queue.check(plan)
             except FlowError as failure:
                 unplanned.append({"target": target, "error": str(failure)})
                 continue
-            if failures and any(step.slug in failures for step in plan.steps):
-                continue
-            try:
-                outcome = await session.queue.submit(
-                    target,
-                    branch=branch,
-                    actor=_actor(params),
-                    force=bool(params.get("force")),
-                )
-            except FlowError as failure:
-                unplanned.append({"target": target, "error": str(failure)})
-                continue
-            executed.extend(outcome.executed)
-            cached.extend(outcome.cached)
-            pruned.extend(outcome.pruned)
-            if outcome.failed is not None:
-                failures.append(outcome.failed)
-            abandoned = abandoned or outcome.abandoned
-            if outcome.abandoned:
-                break
+            plans.append(plan)
 
+        outcome = (
+            await session.queue.submit_plan(
+                session.planner.merge(plans),
+                actor=_actor(params),
+                force=bool(params.get("force")),
+                keep_going=True,
+            )
+            if plans
+            else RunOutcome(branch=branch, target="")
+        )
         return {
             "branch": branch,
             "target": ", ".join(targets),
             "targets": targets,
-            "executed": list(dict.fromkeys(executed)),
-            "cached": list(dict.fromkeys(cached)),
-            "pruned": list(dict.fromkeys(pruned)),
-            "failed": failures[0] if failures else None,
-            "failures": list(dict.fromkeys(failures)),
+            "executed": list(outcome.executed),
+            "cached": list(outcome.cached),
+            "pruned": list(outcome.pruned),
+            "failed": outcome.failed,
+            "failures": list(outcome.failures),
             "unplanned": unplanned,
-            "abandoned": abandoned,
+            "abandoned": outcome.abandoned,
         }
 
     async def preflight(self, params: dict[str, Any]) -> dict[str, Any]:

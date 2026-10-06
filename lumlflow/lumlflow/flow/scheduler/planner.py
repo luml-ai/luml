@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -178,18 +178,30 @@ class Planner:
         if len(targets) == 1:
             plan = self._plan(targets[0], branch=branch, branch_id=branch_id, over=over)
         else:
-            plan = self._merged(targets, branch=branch, branch_id=branch_id, over=over)
+            plan = self._merged(
+                [
+                    self._plan(target, branch=branch, branch_id=branch_id, over=over)
+                    for target in targets
+                ],
+                over.here,
+            )
         return self._preflight(plan, over.here)
 
-    def _merged(
-        self, targets: tuple[str, ...], *, branch: str, branch_id: str, over: "_Branch"
-    ) -> Plan:
-        here = over.here
+    def merge(self, plans: Sequence[Plan]) -> Plan:
+        """One plan over several targets of one branch: a cell they share runs
+        once, and every consumer reads the same result."""
+        return self._merged(
+            plans, self._store.index.slice_versions(plans[0].branch_id)
+        )
+
+    def unresolvable(self, plan: Plan) -> str | None:
+        return _unresolvable(plan, self._store.index.slice_versions(plan.branch_id))
+
+    def _merged(self, plans: Sequence[Plan], here: dict[str, VersionRow]) -> Plan:
         needs: dict[str, frozenset[str]] = {}
         steps: dict[str, Step] = {}
         reasons: list[str] = []
-        for target in targets:
-            planned = self._plan(target, branch=branch, branch_id=branch_id, over=over)
+        for planned in plans:
             reasons.extend(planned.reasons)
             for step in planned.steps:
                 previous = steps.get(step.uid)
@@ -205,9 +217,9 @@ class Planner:
         producers = _producers(here)
         kept = set(steps)
         return Plan(
-            branch,
-            branch_id,
-            ", ".join(targets),
+            plans[0].branch,
+            plans[0].branch_id,
+            ", ".join(planned.target for planned in plans),
             tuple(
                 replace(
                     steps[uid],

@@ -75,6 +75,7 @@ class RunOutcome:
     pruned: tuple[str, ...] = ()
     failed: str | None = None
     abandoned: bool = False
+    failures: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -134,25 +135,52 @@ class RunQueue:
         self, target: str, *, branch: str, actor: str = "user", force: bool = False
     ) -> RunOutcome:
         plan = self._planner.plan(target, branch=branch)
+        return await self.submit_plan(plan, actor=actor, force=force)
+
+    def check(self, plan: Plan) -> None:
+        _validate_experiment_outputs(plan)
+        unresolvable = self._planner.unresolvable(plan)
+        if unresolvable is not None:
+            raise InputUnavailable(unresolvable)
+
+    async def submit_plan(
+        self,
+        plan: Plan,
+        *,
+        actor: str = "user",
+        force: bool = False,
+        keep_going: bool = False,
+    ) -> RunOutcome:
+        """With `keep_going`, a failure skips only the steps downstream of it."""
         _validate_experiment_outputs(plan)
         done: dict[str, list[str]] = {"executed": [], "cached": [], "pruned": []}
-        failed: str | None = None
+        failures: list[str] = []
+        blocked: set[str] = set()
         abandoned = False
         for step in plan.steps:
+            if blocked.intersection(step.producers):
+                blocked.add(step.uid)
+                continue
             outcome = await self._advance(plan, step, actor=actor, force=force)
-            if outcome in ("failed", "abandoned"):
-                failed = step.slug if outcome == "failed" else None
-                abandoned = outcome == "abandoned"
+            if outcome == "abandoned":
+                abandoned = True
+                break
+            if outcome == "failed":
+                failures.append(step.slug)
+                blocked.add(step.uid)
+                if keep_going:
+                    continue
                 break
             done[outcome].append(step.slug)
         return RunOutcome(
-            branch=branch,
-            target=target,
+            branch=plan.branch,
+            target=plan.target,
             executed=tuple(done["executed"]),
             cached=tuple(done["cached"]),
             pruned=tuple(done["pruned"]),
-            failed=failed,
+            failed=failures[0] if failures else None,
             abandoned=abandoned,
+            failures=tuple(failures),
         )
 
     def abandon(self, branch: str) -> Abandoned:

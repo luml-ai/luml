@@ -1031,6 +1031,59 @@ async def test_run_without_a_target_reports_one_unplannable_leaf_and_runs_the_re
     assert "missing.value" in outcome["unplanned"][0]["error"]
 
 
+async def test_a_lane_run_feeds_every_consumer_from_one_external_read(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    reads = tmp_path / "reads"
+    seen = tmp_path / "seen"
+    seen.mkdir()
+    write_cell(
+        flow,
+        "source",
+        f"""
+        class Source:
+            produces = {{"rows": "asset"}}
+            volatility = "external"
+
+            def materialize(self, ctx):
+                from pathlib import Path
+
+                reads = Path({str(reads)!r})
+                count = int(reads.read_text()) + 1 if reads.exists() else 1
+                reads.write_text(str(count))
+                return {{"rows": count}}
+        """,
+    )
+    for slug in ("left", "right"):
+        write_cell(
+            flow,
+            slug,
+            f"""
+            class Consumer:
+                consumes = {{"rows": "source.rows"}}
+                produces = {{"copy": "asset"}}
+
+                def materialize(self, ctx, rows):
+                    from pathlib import Path
+
+                    Path({str(seen / slug)!r}).write_text(str(rows))
+                    return {{"copy": rows}}
+            """,
+        )
+
+    async with daemon_api(root) as api:
+        outcome = await api.run({"flow": "churn"})
+        listed = await api.cells_list({"flow": "churn"})
+
+    states = {cell["slug"]: cell["state"] for cell in listed["cells"]}
+    assert outcome["executed"] == ["source", "left", "right"]
+    assert reads.read_text() == "1"
+    assert states == {"source": "synced", "left": "synced", "right": "synced"}
+    assert (seen / "left").read_text() == (seen / "right").read_text() == "1"
+
+
 async def test_cancelling_a_lane_run_does_not_start_its_next_leaf(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
