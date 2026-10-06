@@ -40,6 +40,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useFlowStore } from '@/store/flow'
+import { baseName, parentDirectory } from '@/helpers/path'
 import {
   NOTEBOOK_HEALTH_LABELS,
   NOTEBOOK_HEALTH_SEVERITY,
@@ -51,9 +52,8 @@ import NotebookSettings from '@/components/notebooks/NotebookSettings.vue'
 const flowStore = useFlowStore()
 
 const backTarget = computed(() => {
-  const flow = flowStore.currentFlow?.replace(/\/+$/, '')
-  const lastSlash = flow?.lastIndexOf('/') ?? -1
-  const directory = lastSlash > 0 ? flow?.slice(0, lastSlash) : undefined
+  const flow = flowStore.currentFlow
+  const directory = flow ? parentDirectory(flow) : null
 
   return {
     name: ROUTE_NAMES.WORKSPACES,
@@ -62,10 +62,8 @@ const backTarget = computed(() => {
 })
 
 const flowName = computed(() => {
-  const flow = flowStore.currentFlow?.replace(/\/+$/, '')
-  if (!flow) return ''
-  const lastSlash = flow.lastIndexOf('/')
-  return lastSlash >= 0 ? flow.slice(lastSlash + 1) : flow
+  const flow = flowStore.currentFlow
+  return flow ? baseName(flow) : ''
 })
 
 const branchName = computed(() => flowStore.currentBranch?.branch ?? '')

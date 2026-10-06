@@ -2,6 +2,7 @@ import type { IWorkspaceFolderItem } from '@/components/workspace/folder/interfa
 import { FLOW_FILE_EXTENSION } from '@/components/workspace/workspace.const'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import type { WorkspaceFlow } from '@/api/slices/workspace/workspace.interface'
+import { parentDirectory } from '@/helpers/path'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -15,14 +16,7 @@ const MIN_LOADING_MS = 500
 
 function joinPath(directory: string, segment: string): string {
   if (!directory) return segment
-  return directory.endsWith('/') ? `${directory}${segment}` : `${directory}/${segment}`
-}
-
-function parentDirectory(directory: string): string | null {
-  const trimmed = directory.replace(/\/+$/, '')
-  const lastSlash = trimmed.lastIndexOf('/')
-  if (lastSlash < 0) return null
-  return lastSlash === 0 ? '/' : trimmed.slice(0, lastSlash)
+  return /[\\/]$/.test(directory) ? `${directory}${segment}` : `${directory}/${segment}`
 }
 
 export const useWorkspaceStore = defineStore('workspace', () => {
