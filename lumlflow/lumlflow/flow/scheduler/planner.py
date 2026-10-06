@@ -190,9 +190,7 @@ class Planner:
     def merge(self, plans: Sequence[Plan]) -> Plan:
         """One plan over several targets of one branch: a cell they share runs
         once, and every consumer reads the same result."""
-        return self._merged(
-            plans, self._store.index.slice_versions(plans[0].branch_id)
-        )
+        return self._merged(plans, self._store.index.slice_versions(plans[0].branch_id))
 
     def unresolvable(self, plan: Plan) -> str | None:
         return _unresolvable(plan, self._store.index.slice_versions(plan.branch_id))

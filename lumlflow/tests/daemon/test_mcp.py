@@ -155,9 +155,7 @@ def test_a_consumer_added_before_its_producer_runs_on_a_lane_without_files(
     )
 
     outcome = answered(answers, 4)
-    assert [flag["code"] for flag in answered(answers, 2)["flags"]] == [
-        "dangling_ref"
-    ]
+    assert [flag["code"] for flag in answered(answers, 2)["flags"]] == ["dangling_ref"]
     assert (outcome["failed"], outcome["executed"]) == (None, ["score", "report"])
     assert cell_files(workspace / "churn.flow") == []
 

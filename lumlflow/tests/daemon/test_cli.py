@@ -1438,9 +1438,7 @@ def _wait_for_running(record: DaemonRecord, timeout: float = 30.0) -> None:
     raise AssertionError("the pipeline did not start")
 
 
-def _wait_for_in_flight(
-    record: DaemonRecord, runs: int, timeout: float = 30.0
-) -> None:
+def _wait_for_in_flight(record: DaemonRecord, runs: int, timeout: float = 30.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         with client.attach(record) as live:

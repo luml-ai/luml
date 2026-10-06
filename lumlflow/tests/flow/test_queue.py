@@ -174,7 +174,6 @@ class TestMemoHits:
         assert outcome.executed == ("features",)
         assert flow.executor.slugs == ["features", "features"]
 
-
     async def test_a_fork_reruns_an_identity_dependent_ancestor_of_its_target(
         self, flow: Flow
     ) -> None:

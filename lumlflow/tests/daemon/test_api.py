@@ -144,6 +144,7 @@ class Audit:
         return {"audit": True}
 """
 
+
 async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
     tmp_path: Path,
 ) -> None:
@@ -1482,6 +1483,7 @@ async def test_an_imported_producer_binds_an_existing_consumer_on_an_off_disk_la
     assert here["report"].manifest.consumes["result"].uid == here["score"].uid
     assert _codes(here["report"]) == []
 
+
 async def test_an_edit_that_removes_an_output_leaves_its_consumer_dangling(
     tmp_path: Path,
 ) -> None:
@@ -1601,6 +1603,7 @@ async def test_the_checked_out_lane_carries_the_rebound_consumer_into_its_file(
     assert report.manifest.consumes["result"].uid == here["score"].uid
     assert '"score.result"' in stored
     assert on_disk == stored
+
 
 async def test_an_adopted_producer_binds_an_existing_consumer_on_an_off_disk_lane(
     tmp_path: Path,
@@ -2133,7 +2136,6 @@ async def test_run_and_preflight_accept_an_output_qualified_target(
     assert ran["executed"] == ["score"]
 
 
-
 async def test_a_dotted_cell_name_resolves_as_a_target_and_a_producer(
     tmp_path: Path,
 ) -> None:
@@ -2176,6 +2178,7 @@ async def test_renaming_a_dotted_cell_rewires_its_consumers(tmp_path: Path) -> N
     assert '"headline.summary"' in consumer
     assert here["report"].manifest.consumes["summary"].uid == here["headline"].uid
     assert ran["executed"] == []
+
 
 async def test_publishing_without_a_destination_in_luml_is_refused(
     tmp_path: Path,
@@ -2343,9 +2346,7 @@ async def test_a_failed_duplication_leaves_no_partial_copy(tmp_path: Path):
         assert not (root / "churn (copy).flow").exists()
 
         pipe.unlink()
-        duplicated = await api.flow_duplicate(
-            {"flow": "churn", "name": "churn (copy)"}
-        )
+        duplicated = await api.flow_duplicate({"flow": "churn", "name": "churn (copy)"})
 
     assert duplicated["flow"] == "churn (copy)"
     assert (root / "churn (copy).flow" / "cells" / "score.py").exists()
@@ -2433,6 +2434,7 @@ async def _add(api: Api, branch: str, slug: str, source: str) -> dict[str, Any]:
 
 def _codes(version: VersionRow) -> list[str]:
     return [flag.code for flag in version.flags]
+
 
 def _definition_hashes(session: FlowSession) -> dict[str, str]:
     return {

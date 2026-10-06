@@ -365,9 +365,7 @@ class TestIdentity:
 
         rebuilt = FlowStore.init(flow_dir)
         acceptance = Acceptance(rebuilt)
-        accepted = acceptance.accept_path(
-            write(acceptance, "features", FEATURES)
-        )
+        accepted = acceptance.accept_path(write(acceptance, "features", FEATURES))
 
         assert accepted.uid == first.uid
 
