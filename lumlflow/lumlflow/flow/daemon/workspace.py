@@ -1,5 +1,3 @@
-"""Flow discovery and the one per-user daemon record."""
-
 import ipaddress
 import json
 import os
@@ -46,8 +44,6 @@ _MOUNT_ESCAPE = re.compile(r"\\([0-7]{3})")
 
 @dataclass(frozen=True)
 class FlowRef:
-    """A discovered flow and its path relative to the directory searched."""
-
     name: str
     path: Path
     relpath: str
@@ -77,15 +73,12 @@ class DaemonRecord:
 
 
 def find_flows(root: Path) -> list[FlowRef]:
-    """Every flow under the workspace, nested ones included, in path order."""
     root = root.resolve()
     found: list[FlowRef] = []
     for dirpath, dirnames, _ in os.walk(root):
         here = Path(dirpath)
         dirnames[:] = sorted(name for name in dirnames if name not in EXCLUDED_DIRS)
         flows = [name for name in dirnames if name.endswith(FLOW_SUFFIX)]
-        # A flow is monolithic: the walk stops at its door rather than
-        # descending into cells and the store.
         dirnames[:] = [name for name in dirnames if name not in flows]
         for name in flows:
             path = here / name
@@ -102,13 +95,6 @@ def find_flows(root: Path) -> list[FlowRef]:
 def select_flow(
     root: Path, *, name: str | None = None, cwd: Path | None = None
 ) -> FlowRef:
-    """Which flow a flow-scoped verb means.
-
-    Named wins — by name, by path under the workspace, or by its own absolute
-    path for a flow the workspace does not contain; else the flow the caller is
-    standing in; else the workspace's only flow. Anything else is a question,
-    and the answer names the candidates rather than guessing at one.
-    """
     if name is not None:
         return _addressed(root, name)
     standing = _standing_flow(cwd or root)
@@ -126,13 +112,10 @@ def select_flow(
 
 
 def flow_here(root: Path, cwd: Path) -> FlowRef | None:
-    """The flow a caller is standing in — how a verb addresses one unasked."""
     return _standing_flow(cwd) or _containing_flow(find_flows(root), cwd)
 
 
 class WorkspaceLock:
-    """The OS-released lock held by the daemon for its entire lifetime."""
-
     def __init__(self) -> None:
         self.path = lock_path()
         self._handle: int | None = None
@@ -156,7 +139,6 @@ class WorkspaceLock:
 
 
 def state_dir() -> Path:
-    """Where the daemon's records live, per platform, overridable for tests."""
     override = os.environ.get(STATE_DIR_ENV)
     if override:
         return Path(override).expanduser()
@@ -182,7 +164,6 @@ def log_path() -> Path:
 
 
 def read_record() -> DaemonRecord | None:
-    """The daemon registered for this user, if the record is readable."""
     path = record_path()
     try:
         body = json.loads(path.read_bytes())
@@ -197,7 +178,6 @@ def write_record(record: DaemonRecord) -> None:
 
 
 def clear_record(*, instance_id: str | None = None) -> None:
-    """Deregister only the daemon instance that asked, or a known stale row."""
     record = read_record()
     if record is None or instance_id is None or record.instance_id == instance_id:
         record_path().unlink(missing_ok=True)
@@ -225,7 +205,6 @@ def new_record(
 
 
 def lock_held() -> bool:
-    """Whether the OS says a daemon owns the singleton lock."""
     probe = WorkspaceLock()
     if not probe.acquire():
         return True
@@ -261,7 +240,6 @@ def is_loopback_host(host: str) -> bool:
 
 
 def _filesystem_type(path: Path) -> str | None:
-    """The Linux mount type for a path; unknown platforms are treated as local."""
     mountinfo = Path("/proc/self/mountinfo")
     try:
         lines = mountinfo.read_text("utf-8").splitlines()
@@ -337,12 +315,6 @@ def _containing_flow(flows: list[FlowRef], cwd: Path) -> FlowRef | None:
 
 
 def _addressed(root: Path, name: str) -> FlowRef:
-    """A flow by name, by path under the workspace, or by its own absolute path.
-
-    The absolute spelling is how the browser opens a flow from above the launch
-    directory: it addresses the flow itself, so nothing has to invent a
-    root-relative name for a directory the workspace does not contain.
-    """
     asked = Path(name)
     if not asked.is_absolute():
         standing = _standing_flow(root)
@@ -364,7 +336,6 @@ def _addressed(root: Path, name: str) -> FlowRef:
 
 
 def _outside_flow(path: Path) -> FlowRef:
-    """A flow that lives outside the workspace, addressed by where it is."""
     if not (path.is_dir() and path.name.endswith(FLOW_SUFFIX)):
         raise FlowNotFound(f"there is no flow at `{path}`")
     return FlowRef(

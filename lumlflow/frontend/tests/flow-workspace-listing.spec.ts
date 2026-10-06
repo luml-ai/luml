@@ -1,4 +1,3 @@
-/** The launch-directory listing, path addressing, pairing, and empty state. */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -59,7 +58,6 @@ function listings(handlers: Handlers = {}): Daemon {
   })
 }
 
-/** Creating a flow is a once-per-project gesture and folds away behind a button. */
 async function openNewFlow(wrapper: Awaited<ReturnType<typeof landing>>): Promise<void> {
   await wrapper
     .findAll('button')
@@ -78,7 +76,6 @@ async function landing(daemon: Daemon, directory = ROOT) {
   return wrapper
 }
 
-/** What `workspace.list` was asked to show, in order. */
 function listed(daemon: Daemon): unknown[] {
   return daemon.calls.filter((call) => call.method === 'workspace.list').map((call) => call.params)
 }
@@ -182,7 +179,6 @@ describe('the workspace listing', () => {
     expect(ops[1].params.flow).toBe(`${ROOT}/sweep.flow`)
     expect(ops[1].params.branch).toBe('main')
     expect(ops[1].params.intent).toBeTruthy()
-    // And the listing is re-read, so the new document shows up where it landed.
     expect(listed(daemon)).toEqual([{ directory: ROOT }, { directory: ROOT }])
     wrapper.unmount()
   })
@@ -229,15 +225,9 @@ describe('the workspace listing', () => {
     await wrapper.find('form').trigger('submit')
     await settle()
 
-    // The flow is on disk the moment `flow.init` returns. A listing that does
-    // not show it leaves the user unable to open it and unable to create it
-    // again, so the re-read is owed whether or not the checkout landed.
     expect(listed(daemon)).toEqual([{ directory: ROOT }, { directory: ROOT }])
-    // And the refusal is still the sentence on screen, not swallowed by the
-    // fresh listing that followed it.
     expect(wrapper.text()).toContain('held by claude-1')
     expect(wrapper.text()).toContain('cloud-synced folder')
-    // Something answered, so this is not the not-running state.
     expect(wrapper.text()).not.toContain('lumlflow is not running')
     wrapper.unmount()
   })
@@ -264,16 +254,10 @@ describe('the workspace listing', () => {
     expect(wrapper.text()).toContain('lumlflow is not running')
     expect(wrapper.text()).toContain('lumlflow ui')
     expect(wrapper.text()).not.toContain('nothing here yet')
-    // Never the word for the thing behind it: what the user runs is `lumlflow ui`.
     expect(wrapper.text().toLowerCase()).not.toContain('daemon')
     wrapper.unmount()
   })
 
-  /**
-   * A tab that never presented a token has learned nothing about who would have
-   * answered it — reporting that as a stopped server names a failure that has
-   * not happened, and sends the user to restart something already running.
-   */
   it('separates a tab with no token from a server that is not answering', async () => {
     window.localStorage.clear()
     const daemon = listings()
@@ -283,18 +267,11 @@ describe('the workspace listing', () => {
     expect(daemon.calls).toEqual([])
     expect(wrapper.text()).toContain('this tab is not connected')
     expect(wrapper.text()).not.toContain('lumlflow is not running')
-    // The remedy is the address, and nothing here claims the server is down.
     expect(wrapper.text()).toContain('lumlflow ui')
     expect(wrapper.text().toLowerCase()).not.toContain('daemon')
     wrapper.unmount()
   })
 
-  /**
-   * A restarted `lumlflow ui` mints another key, and the one this tab banked
-   * stops being one. That is not a refusal about the request — it is the tab
-   * holding nothing that opens the door — so it gets the same surface as never
-   * having had a key, and the dead one is dropped rather than presented again.
-   */
   it('reports a key the server refuses as a tab that is not connected', async () => {
     const daemon = listings({
       'workspace.list': () => {
@@ -310,23 +287,16 @@ describe('the workspace listing', () => {
     expect(wrapper.text()).toContain('this tab is not connected')
     expect(wrapper.text()).toContain('lumlflow ui')
     expect(wrapper.text()).not.toContain('lumlflow is not running')
-    // Said once: the refusal's own sentence under the notice would send the
-    // reader to the same address twice.
     expect(wrapper.text()).not.toContain('key is required')
     expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull()
     expect(wrapper.text().toLowerCase()).not.toContain('daemon')
     wrapper.unmount()
   })
 
-  /**
-   * The key is banked before routing, so the directory query remains available
-   * to the landing page after the key is removed from the address bar.
-   */
   it('connects on a key the tab entered on another route holding', async () => {
     window.localStorage.clear()
     window.history.replaceState(null, '', '/?token=the-token&view=table')
 
-    // What boot runs before the first navigation resolves.
     browserToken()
     expect(window.location.search).toBe('?view=table')
 
@@ -338,7 +308,6 @@ describe('the workspace listing', () => {
     wrapper.unmount()
   })
 
-  /** The tab that was open when this moved storages stays connected. */
   it('connects on a key only the tab-scoped storage still holds', async () => {
     window.localStorage.clear()
     window.sessionStorage.setItem(TOKEN_STORAGE_KEY, 'the-token')
@@ -359,20 +328,11 @@ describe('the workspace listing', () => {
     expect(text).not.toMatch(/\buid\b/i)
     expect(text).not.toMatch(/memo key/i)
     expect(text).not.toMatch(/\b[0-9a-f]{16,}\b/i)
-    // Opening a flow attaches the session; there is no picker, no connect
-    // dialog, and nothing anywhere that names a kernel.
     expect(text).not.toMatch(/kernel|connect/i)
     wrapper.unmount()
   })
 })
 
-// --- addressing a flow outside the workspace ---------------------------------
-
-/**
- * The one mechanism this feature rests on, asserted end to end rather than
- * described: a flow above the launch directory is addressed by where it is,
- * and where it is has separators in it.
- */
 describe('a flow outside the workspace has a shareable address', () => {
   function history(): Router {
     return createRouter({
@@ -396,13 +356,9 @@ describe('a flow outside the workspace has a shareable address', () => {
     await router.push(flowPath(flow))
     await router.isReady()
 
-    // One segment. A literal `../` is resolved away by the browser before the
-    // router sees it, and so is `%2E%2E` — an address, not a route to walk.
     expect(flowPath(flow)).toBe('/flow/%2Fhome%2Fdana%2Fsales.flow')
     expect(window.location.pathname).toBe('/flow/%2Fhome%2Fdana%2Fsales.flow')
     expect(router.currentRoute.value.params.flowId).toBe(flow)
-    // The workbench mirrors `route.path` into the URL on every selection, so
-    // the encoding has to be what the route itself carries.
     expect(`${router.currentRoute.value.path}/notebook`).toBe(
       '/flow/%2Fhome%2Fdana%2Fsales.flow/notebook',
     )
@@ -412,8 +368,6 @@ describe('a flow outside the workspace has a shareable address', () => {
     const flow = '/home/dana/sales.flow'
     await history().push(flowPath(flow))
 
-    // What a reload, a bookmark or a pasted link starts from: the address bar
-    // alone, resolved by a router that saw none of the navigation.
     const opened = history().resolve(window.location.pathname)
 
     expect(opened.params.flowId).toBe(flow)
@@ -424,11 +378,6 @@ describe('a flow outside the workspace has a shareable address', () => {
     expect(flowPath('churn.flow', '/compare')).toBe('/flow/churn.flow/compare')
   })
 
-  /**
-   * Two flows can be called `sales` and only one of them is in this workspace,
-   * so the session addresses the daemon by the path it answered with rather
-   * than by the flow's name — which is also the key every frame carries.
-   */
   it('watches the flow under the address the daemon keys its frames by', async () => {
     const outside = '/home/dana/sales.flow'
     const { session, socket } = await attach({
@@ -442,8 +391,6 @@ describe('a flow outside the workspace has a shareable address', () => {
   })
 })
 
-// --- pairing -----------------------------------------------------------------
-
 const BEGAN_AT = '2026-08-13T09:03:00Z'
 
 function beganPairing(step = 3) {
@@ -455,11 +402,6 @@ function beganPairing(step = 3) {
   })
 }
 
-/**
- * The daemon's word that the registration has a live connection behind it. The
- * transaction alone pairs nobody: a hand registration looks the same in the
- * journal, and only the lease tells them apart.
- */
 function leasedPairing(step = 3, leased = true) {
   return {
     channel: 'journal' as const,
@@ -470,7 +412,6 @@ function leasedPairing(step = 3, leased = true) {
   }
 }
 
-/** The line bound to the session, so only a journal frame can move it. */
 function pairHarness(session: Parameters<typeof pairedAgent>[0], now: number) {
   return defineComponent({
     components: { AgentTaskLine },
@@ -484,7 +425,6 @@ describe('pairing is detected, not declared', () => {
     const { session, socket } = await attach()
     const wrapper = mount(pairHarness(session, Date.parse(BEGAN_AT) + 5_000))
 
-    // Unpaired is one line and one link into the Agents section.
     expect(wrapper.text()).toContain('not paired')
     const pair = wrapper.findAll('button').find((node) => node.text() === 'pair an agent')
     expect(pair, 'no pair link while unpaired').toBeTruthy()
@@ -501,7 +441,6 @@ describe('pairing is detected, not declared', () => {
 
     expect(wrapper.text()).toContain('claude-1')
     expect(wrapper.text()).toContain('claude-1 started working')
-    // Nothing to confirm: no control of any kind survives the flip.
     expect(wrapper.findAll('button')).toHaveLength(0)
     wrapper.unmount()
   })
@@ -538,10 +477,6 @@ describe('pairing is detected, not declared', () => {
     socket.deliver(leasedPairing())
     await nextTick()
 
-    // The registration survives; the transaction that carried it is pushed out
-    // of the kept window by a long burst from somebody else. "Working" here
-    // would be a fabricated status — and worse, a transition *backwards* out of
-    // idle, since a moment ago the panel was reading the real elapsed time.
     expect(pairedAgent(session, Date.parse(BEGAN_AT) + 300_000)).toMatchObject({
       state: 'idle',
       idleFor: '5m 0s',
@@ -562,7 +497,6 @@ describe('pairing is detected, not declared', () => {
     expect(session.transactions.value.some((entry) => entry.actor === 'claude-1')).toBe(false)
     const paired = pairedAgent(session, Date.parse(BEGAN_AT) + 300_000)
     expect(paired?.state).toBe('idle')
-    // Idle without a duration: how long is exactly what is no longer known.
     expect(paired?.idleFor).toBeUndefined()
     expect(paired?.task).toBeUndefined()
   })
@@ -595,16 +529,12 @@ describe('pairing is detected, not declared', () => {
     socket.deliver(leasedPairing(4, false))
     await nextTick()
 
-    // Unpaired is a working state, not an error: the line goes back to the link
-    // that pairs one rather than to anything that reads as a failure.
     expect(wrapper.text()).toContain('not paired')
     const pair = wrapper.findAll('button').find((node) => node.text() === 'pair an agent')
     expect(pair, 'no pair link after the session ended').toBeTruthy()
     wrapper.unmount()
   })
 })
-
-// --- the empty flow ----------------------------------------------------------
 
 describe('the empty state is a heading and one line, not a void', () => {
   const ways = ['add one here', 'pair an agent', 'agent guide', 'notebook view']
@@ -615,11 +545,8 @@ describe('the empty state is a heading and one line, not a void', () => {
     const labels = wrapper.findAll('button').map((button) => button.text())
     for (const way of ways) expect(labels).toContain(way)
     expect(labels).not.toContain('AGENTS.md')
-    // The one command an empty flow is about is on screen; harness setup lives
-    // in the panel rather than taking over the empty surface.
     expect(wrapper.text()).toContain('lumlflow cells new load_data')
     expect(wrapper.text()).not.toContain('mcpServers')
-    // No grid of cards and no outline around the emptiness.
     expect(wrapper.find('.border-dashed').exists()).toBe(false)
     wrapper.unmount()
   })

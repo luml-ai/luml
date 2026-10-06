@@ -25,7 +25,6 @@ const hiddenRows = computed(() => props.entries.length - visible.value.length)
 .kv {
   @apply relative;
 }
-/* The last rows fade out: the list goes on, in the expanded cell. */
 .kv--clamped {
   mask-image: linear-gradient(to bottom, black 70%, transparent);
 }

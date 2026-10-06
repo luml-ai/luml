@@ -1,10 +1,3 @@
-"""The file `cells new` writes: wired to what it comes after, and checkable.
-
-The conformance footer is only worth emitting if it passes, so the type check is
-the test — a scaffold that reddens an author's editor the moment it is created
-would teach everyone to delete the footer.
-"""
-
 import subprocess
 import sys
 from pathlib import Path

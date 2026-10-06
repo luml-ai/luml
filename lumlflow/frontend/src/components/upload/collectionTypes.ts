@@ -1,6 +1,5 @@
 import { UploadTypeEnum } from './upload.interface'
 
-/** What an upload will actually put in the collection. */
 export type ArtifactKind = 'model' | 'experiment'
 
 /**

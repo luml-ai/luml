@@ -4,9 +4,7 @@ import type { AssetKind } from '../../model/types'
 export interface CellTab {
   id: string
   label: string
-  /** Output tabs carry their asset kind for the icon. */
   kind?: AssetKind
-  /** Implicit tabs: code, logs, and the live console while running. */
   icon?: 'code' | 'logs' | 'console'
   live?: boolean
 }
@@ -22,7 +20,6 @@ import { Tab, TabList, Tabs } from 'primevue'
 import { Code2, ScrollText, SquareTerminal, type LucideIcon } from 'lucide-vue-next'
 import { KIND_ICONS } from '../../ui/kinds'
 
-/** One tab idiom for the app: the same `Tabs` the flow's own views use. */
 defineProps<{ tabs: CellTab[]; selected: string }>()
 
 const emit = defineEmits<{ select: [id: string] }>()
@@ -67,8 +64,6 @@ function iconFor(tab: CellTab): LucideIcon {
   gap: 6px;
   border: none;
   padding: 0.375rem 0.625rem;
-  /* The compact-control size the reference uses for its own toolbars — never
-     below it. A tab strip is chrome, but it is chrome the reader aims at. */
   font-size: 0.875rem;
   background: transparent !important;
   white-space: nowrap;

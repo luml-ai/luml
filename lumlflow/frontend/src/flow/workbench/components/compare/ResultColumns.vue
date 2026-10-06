@@ -15,12 +15,8 @@
         <div v-for="column in columns" :key="column.branch" class="flex flex-col gap-1.5 pb-3">
           <div class="flex flex-wrap items-center gap-2">
             <BranchTag :name="column.branch" />
-            <!-- Inverted: settled is the ordinary case, so only the deviation
-                 is chipped — a badge on almost every column carries no signal. -->
             <span v-if="!column.settled" class="text-sm text-muted-color">working</span>
           </div>
-          <!-- The scores below already carry the headline; it is repeated here
-               only where there is no table under it to read it from. -->
           <div
             v-if="column.headlineMetric && !scoreNames.length"
             class="flex items-baseline gap-1.5"
@@ -30,8 +26,6 @@
             </span>
             <span class="text-sm text-muted-color">{{ column.headlineMetric.name }}</span>
           </div>
-          <!-- Having no numbers and having nothing are different facts: a frame
-               reported as never materialized is a wrong answer, not a terse one. -->
           <span
             v-else-if="!column.headlineMetric && !scoreNames.length"
             class="text-base text-muted-color"
@@ -65,8 +59,6 @@
       </div>
     </div>
 
-    <!-- Only where the outputs carried curves: an empty chart with axes drawn
-         off nothing reads as a run whose metric flatlined. -->
     <div v-if="drawn.length" class="flex flex-col gap-2">
       <p class="font-mono text-sm text-muted-color">{{ compare.sharedMetric }}</p>
       <svg
@@ -166,12 +158,6 @@ const scoreNames = computed(() => {
   return names
 })
 
-/**
- * Marked only where the comparison declared which way its metric reads. Direction
- * per score is never recorded, so a live comparison declares none and no column
- * is marked best. A green dot on the larger of two losses would be a verdict
- * nobody measured.
- */
 const ranked = computed(() => columns.value.some((column) => column.headlineMetric?.higherIsBetter))
 
 const bestByScore = computed<Record<string, number>>(() => {
@@ -194,7 +180,6 @@ const W = 520
 const H = 180
 const PAD = { left: 38, right: 12, top: 10, bottom: 22 }
 
-/** The columns whose output carried a curve — the rest have nothing to draw. */
 const drawn = computed(() => columns.value.filter((column) => column.curve?.points.length))
 
 const allPoints = computed(() => drawn.value.flatMap((column) => column.curve!.points))
@@ -230,8 +215,6 @@ const yTicks = computed(() => {
   }))
 })
 
-// Branches with identical curves would hide each other exactly; dashing the
-// later duplicate keeps both visible as "two coincident lines".
 function dashFor(index: number): string | undefined {
   const key = JSON.stringify(drawn.value[index].curve?.points)
   for (let j = 0; j < index; j += 1)

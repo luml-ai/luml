@@ -15,7 +15,6 @@ const props = defineProps<CellChartProps>()
 
 const containerRef = ref<HTMLElement | null>(null)
 
-/** Every metric this chart can draw, with the colour it keeps when others hide. */
 const metrics = computed(() =>
   props.section.kind === 'lines'
     ? props.section.series.map((series, index) => ({ name: series.name, color: chartColor(index) }))

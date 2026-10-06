@@ -24,7 +24,6 @@
       no uv-managed environment here
     </p>
 
-    <!-- The version is the running kernel's; there is none to name until one runs. -->
     <p v-if="env.pythonVersion" class="px-1.5 text-sm text-muted-color">
       python {{ env.pythonVersion }} · uv.lock
     </p>

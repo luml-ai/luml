@@ -16,11 +16,6 @@
 <script setup lang="ts">
 import InfoNote from '../ui/InfoNote.vue'
 
-/**
- * Uniform exhibit frame. The specimen is the exhibit; the reasoning behind it
- * is a paragraph a reader asks for, so it sits behind the note toggle rather
- * than between every specimen and the next one.
- */
 defineProps<{
   title: string
   caption?: string

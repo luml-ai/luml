@@ -1,10 +1,3 @@
-"""A LUML that is not answering is reported as such, with its address.
-
-The upload dialog's first call is the organizations list. Before this, a
-refused connection escaped `_get_luml_client` as a bare 500, and the toast read
-"Internal Server Error" with nothing to act on.
-"""
-
 import socket
 from unittest.mock import patch
 
@@ -36,9 +29,7 @@ def test_unreachable_luml_reads_as_503_naming_the_address(monkeypatch) -> None:
 
 
 def test_an_html_answer_reads_as_502_naming_the_address(monkeypatch) -> None:
-    """A base URL that lands on the web app, not the API, is the common
-    misconfiguration: the SDK cannot parse the page and must not surface as a
-    bare 500."""
+    pass
     import httpx
     from luml_api._exceptions import InternalServerError
 

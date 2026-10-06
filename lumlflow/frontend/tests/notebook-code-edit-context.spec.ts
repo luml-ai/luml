@@ -1,9 +1,3 @@
-/**
- * The notebook code panel saves an edit where its source was read: over the
- * version it began from, on the lane it began on. A newer version is a
- * conflict the person resolves, and a lane rewound under the draft is forked
- * before anything is written.
- */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -52,7 +46,6 @@ function lane(branch: string, checkedOut: boolean): BranchRecord {
   } as unknown as BranchRecord
 }
 
-/** The daemon's lanes, and the version each lane's cell is at. */
 let lanes: BranchRecord[]
 let heads: Record<string, string>
 let store: ReturnType<typeof useFlowStore>

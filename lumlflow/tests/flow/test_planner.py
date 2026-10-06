@@ -89,8 +89,6 @@ class TestPreflight:
 
 
 class TestBatchPreflight:
-    """Rerunning a branch is one closure over its leaves, not a preflight each."""
-
     async def test_a_shared_ancestor_is_counted_once_across_targets(
         self, flow: Flow
     ) -> None:
@@ -105,7 +103,6 @@ class TestBatchPreflight:
         batch = flow.planner.preflight("plot", "train", branch=MAIN_BRANCH)
 
         assert batch.recompute == ("features", "plot", "train")
-        # Preflighting each leaf on its own would bill `features` twice.
         assert batch.estimate_seconds == 13.0
 
     async def test_one_target_reads_the_same_either_way(self, flow: Flow) -> None:
@@ -140,7 +137,7 @@ class TestReactivity:
     async def test_running_the_auto_targets_recomputes_the_parent_on_the_way(
         self, flow: Flow
     ) -> None:
-        """The list is only half the claim — the cheap closure has to be runnable."""
+        pass
         flow.add("features")
         flow.add("plot", consumes={"rows": "features.data"})
         flow.add("train", consumes={"rows": "features.data"})
@@ -181,7 +178,6 @@ class TestReactivity:
         flow.add("features")
         # Run it once before breaking it: reactivity weighs a closure it has
         # timed, and one it has never timed is declined for that reason
-        # instead — which would pass this test for the wrong reason.
         await flow.run("features")
         flow.executor.failing.add("features")
         flow.edit("features", "a break")
@@ -197,7 +193,7 @@ class TestReactivity:
     async def test_a_consumer_does_not_retry_the_failure_under_it_either(
         self, flow: Flow
     ) -> None:
-        """Otherwise the guard is hollow: the consumer's closure reruns it."""
+        pass
         flow.add("features")
         flow.add("plot", consumes={"rows": "features.data"})
         await flow.run("plot")
@@ -216,12 +212,6 @@ class TestReactivity:
     async def test_a_closure_it_has_never_timed_is_left_for_the_user(
         self, flow: Flow
     ) -> None:
-        """The rule that keeps opening a flow from starting its training run.
-
-        A preflight counts an unmeasured cell as nothing, so without this a
-        six-hour cell nobody has ever run reads as free and clears any
-        threshold.
-        """
         flow.add("features")
         flow.add("train", consumes={"rows": "features.data"})
         flow.executor.costs.update({"features": 0.1, "train": 600.0})
@@ -239,7 +229,6 @@ class TestReactivity:
     async def test_a_cell_it_has_timed_refreshes_itself_after_that(
         self, flow: Flow
     ) -> None:
-        """The other half: running it once is what teaches the flow its cost."""
         flow.add("features")
         await flow.run("features")
         flow.edit("features", "v2")
@@ -270,7 +259,6 @@ class TestReactivity:
         assert by_slug["train"].estimate_seconds == 601.0
 
     async def test_lazy_has_no_opinion_about_any_cell(self, flow: Flow) -> None:
-        """Not "declined everything" — off. A card renders nothing about it."""
         flow.store.manifest.settings.reactivity = "lazy"
         flow.add("features")
         await flow.run("features")

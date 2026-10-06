@@ -1,16 +1,3 @@
-/**
- * The card, on a live session.
- *
- * Four rules are load-bearing here. A cell with several outputs **opens on the
- * one the daemon named**, because which output a reader came for is a verdict
- * the runtime computes and not an order the browser invents. Browsing is
- * **kernel-free**: everything on the card face comes out of stored previews,
- * and the one gesture that needs a process announces itself first. Logs belong
- * to **the run this branch observed**, so a branch that moved back shows that
- * run's output rather than the newest. And the payload is a **versioned
- * envelope**: one this build is behind renders as the kv fallback saying so,
- * never as a guess.
- */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -41,8 +28,6 @@ import {
 } from './fakes'
 import type { Attached, Handlers } from './fakes'
 
-// A training cell: four outputs, and the one worth opening on is not the first
-// key nor the biggest artifact.
 const TRAINED = ['model', 'run', 'checkpoint', 'curves']
 
 const PREVIEWS: Record<string, StoredPreview> = {
@@ -203,13 +188,9 @@ describe('a cell with four outputs is one card', () => {
 
     expect(tabs(wrapper)).toEqual([...TRAINED, 'code', 'logs'])
     expect(openTab(wrapper)).toBe('run')
-    // The experiment's own blocks are drawn — the metric it recorded, not a
-    // config dump from the first output declared.
     expect(wrapper.text()).toContain('metrics')
     expect(wrapper.text()).toContain('0.91')
 
-    // And exactly one preview was pulled: the card's face. Twenty cards each
-    // fetching four payloads is what a canvas cannot afford.
     expect(asked(live, 'asset.preview').map((params) => params.target)).toEqual(['train_model.run'])
     wrapper.unmount()
   })
@@ -279,8 +260,6 @@ describe('a cell with four outputs is one card', () => {
       }),
     })
 
-    // A note declares no outputs and runs never: its docstring is the content,
-    // and it is markdown on the card rather than a line of source.
     expect(wrapper.text()).toContain('The sweep so far.')
     expect(wrapper.text()).toContain('won by a nose')
     expect(tabs(wrapper)).toEqual(['note', 'code'])
@@ -339,8 +318,6 @@ describe('the run in flight', () => {
     await settle()
 
     expect(wrapper.text()).toContain('epoch 1 · auc 0.88')
-    // One monotonic sequence across both streams: the interleaving is the
-    // daemon's order, not a guess made per stream here.
     expect(wrapper.text()).toContain('epoch 2 · auc 0.91')
     wrapper.unmount()
   })
@@ -383,8 +360,6 @@ describe('logs belong to the materialization, not to the newest run', () => {
     await clickTab(wrapper, 'logs')
     expect(wrapper.text()).toContain('epoch 2')
 
-    // A rewind lands as a transaction like any other; what the branch observes
-    // afterwards is the earlier run, and its artifact is a different one.
     captured = 'first run only\n'
     live.socket.deliver({
       channel: 'journal',
@@ -434,9 +409,6 @@ describe('the header states what was recorded', () => {
 
     expect(wrapper.text()).toContain('stale')
     expect(wrapper.text()).toContain('helpers.py')
-    // A hit is not a 0-second run, and a result from an older lock is not a
-    // stale one — both are facts the store recorded, badged rather than folded
-    // into the status.
     expect(wrapper.text()).toContain('cached')
     expect(wrapper.text()).toContain('older env')
     wrapper.unmount()
@@ -444,13 +416,9 @@ describe('the header states what was recorded', () => {
 
   it('carries downstream staleness as stale, naming what above it is not current', async () => {
     const { wrapper } = await card({
-      // A transitive verdict is `synced` with cells named above it: current on
-      // its own facts, and carrying no cause of its own because none is its own.
       summary: trainer({ state: 'synced', transitive: true, upstream: ['features'] }),
     })
 
-    // Which of the two views shows it is the page's filter; dropping it here
-    // would make it unfindable in either.
     expect(wrapper.text()).toContain('stale · downstream')
     expect(wrapper.text()).toContain('upstream features is not current')
     expect(wrapper.find('code').text()).toBe('features')
@@ -465,7 +433,6 @@ describe('the header states what was recorded', () => {
     expect(wrapper.text()).toContain('unmaterialized')
     expect(wrapper.text()).not.toContain('stale')
     expect(wrapper.text()).toContain('not materialized on this lane')
-    // Nothing to ask for: no run of this cell was ever observed here.
     expect(asked(live, 'asset.preview')).toEqual([])
     wrapper.unmount()
   })
@@ -508,8 +475,6 @@ describe('the header states what was recorded', () => {
       }),
     })
 
-    // The agent's broken version is what failed, so the card demotes with no
-    // red wash, even though a person edited afterwards.
     expect(wrapper.text()).toContain('failed')
     expect(wrapper.text()).not.toContain('Fix this')
 
@@ -607,8 +572,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     })
 
     await expand(made)
-    // The drawer is not open yet: the reader is told what expanding costs
-    // before it costs it.
     expect(document.body.textContent).toContain('this starts the kernel')
     expect(asked(made.live, 'asset.page')).toEqual([])
 
@@ -618,8 +581,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     accept?.click()
     await settle()
 
-    // Now the value itself is being read: the preview held twenty rows of five
-    // hundred, and the drawer is where the rest of them come from.
     expect(asked(made.live, 'asset.page')[0].query).toEqual({ offset: 0, limit: 50 })
 
     const next = [...document.body.querySelectorAll('button')].find(
@@ -630,8 +591,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
 
     expect(asked(made.live, 'asset.page')).toHaveLength(2)
     expect(asked(made.live, 'asset.page')[1].query).toEqual({ offset: 50, limit: 50 })
-    // The window the kernel served is what the drawer now shows — the browser
-    // receives pages, never the frame.
     expect(document.body.textContent).toContain('zz')
     expect(document.body.textContent).toContain('of 500')
     made.wrapper.unmount()
@@ -652,8 +611,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
 
     await expand(made)
 
-    // The drawer shows the artifact beside the value; saying "no logs recorded"
-    // because nobody clicked the card's logs tab would be a false report.
     expect(document.body.textContent).toContain('epoch 3 · auc 0.91')
     made.wrapper.unmount()
   })
@@ -729,8 +686,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     secondTab?.click()
     await settle()
 
-    // A window belongs to the value it was read out of. Keeping it would show
-    // one output's rows — and one output's row count — under another's name.
     const pages = asked(made.live, 'asset.page').map((params) => params.target)
     expect(pages).toEqual(['train_model.first', 'train_model.second'])
     expect(document.body.textContent).toContain('second-paged')
@@ -840,8 +795,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     })
 
     await expand(made)
-    // The model is what LUML takes; the link stands beside download, where
-    // the experiment card's own upload link stands beside its tracker link.
     expect(document.body.textContent).toContain('upload to LUML')
 
     const checkpointTab = [...document.body.querySelectorAll('[role="tab"]')].find(
@@ -1033,8 +986,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
     download?.click()
     await settle()
 
-    // The run is real and journaled, and it carries the intent every mutating
-    // verb owes the timeline.
     expect(asked(made.live, 'run')[0]).toMatchObject({
       target: 'train_model',
       intent: 'run train_model',
@@ -1070,8 +1021,6 @@ describe('browsing needs no kernel; expand says when one starts', () => {
 
     const text = document.body.textContent ?? ''
     expect(text).toContain('declared not to persist')
-    // A button that must refuse is worse than the sentence explaining why:
-    // rerunning this cell stores nothing either.
     expect(
       [...document.body.querySelectorAll('button')].some((button) =>
         button.textContent?.includes('download'),
@@ -1168,8 +1117,6 @@ describe('what the card holds keeps up with the journal', () => {
       },
     })
 
-    // A transaction lands while the first read is still out. Everything pulled
-    // describes the cell as it was a step ago.
     made.live.socket.deliver({
       channel: 'journal',
       type: 'transaction',
@@ -1181,9 +1128,6 @@ describe('what the card holds keeps up with the journal', () => {
     release(trainerDetail({ source: 'source = "before the run"' }))
     await settle()
 
-    // The late answer is discarded rather than written into the cleared cache,
-    // where it would both show the old picture and convince the reload there
-    // was nothing left to fetch.
     expect(shows).toBe(2)
     expect(made.wrapper.text()).toContain('after the run')
     expect(made.wrapper.text()).not.toContain('before the run')
@@ -1196,8 +1140,6 @@ describe('what the card holds keeps up with the journal', () => {
     })
     expect(asked(made.live, 'asset.preview')).toEqual([])
 
-    // The slice is re-read after the run's transaction, and this card's verdict
-    // changes with it — which is when there is finally something to preview.
     await made.wrapper.setProps({ summary: trainer() })
     await settle()
 
@@ -1208,8 +1150,6 @@ describe('what the card holds keeps up with the journal', () => {
     made.wrapper.unmount()
   })
 })
-
-// --- the preview envelope ----------------------------------------------------
 
 describe('the stored preview is a versioned contract', () => {
   it('reads the blocks a kind composed, as the primitives they are', () => {
@@ -1251,8 +1191,6 @@ describe('the stored preview is a versioned contract', () => {
 
     expect(preview.type).toBe('kv')
     expect(preview.newerFormatNote).toBe(NEWER_FORMAT_NOTE)
-    // What a kv block means cannot have been re-cut under it, so those entries
-    // are still worth showing; nothing else in the payload is trusted.
     expect(preview.entries).toEqual({ rows: 500 })
   })
 

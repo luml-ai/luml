@@ -14,10 +14,6 @@
         <RouterLink class="link text-sm" :to="back">back to the workbench</RouterLink>
       </div>
 
-      <!--
-        Fewer than two is not an empty comparison, it is one nobody has chosen
-        yet: the selection is the lane map's, and this route only renders it.
-      -->
       <p v-if="compared.length < 2" class="text-base text-muted-color">
         Selection happens in the lane map. Pick 2–5 lanes there and land here.
       </p>
@@ -46,7 +42,6 @@
           <span class="text-lg">Results · {{ area.focused.value }}</span>
         </AccordionHeader>
         <AccordionContent>
-          <!-- Integrity warnings render inline at the top of the columns. -->
           <ResultColumns :compare="compare" />
         </AccordionContent>
       </AccordionPanel>
@@ -97,11 +92,6 @@
     </Accordion>
 
     <div v-if="area.focused.value" class="flex flex-col gap-3">
-      <!--
-        No winner is computed here. Nothing the runtime records says which way a
-        metric reads, so the reader names the branch that won and the bar carries
-        the adopt out under their choice.
-      -->
       <label class="flex items-center gap-2 text-sm">
         <span class="text-muted-color">adopt from</span>
         <Select v-model="from" size="small" :options="sources" aria-label="lane to adopt from" />
@@ -162,18 +152,6 @@ import type { FlowSessionHandle } from '../live/useFlowSession'
 import { useSelection } from '../live/useSelection'
 import BranchTag from '../ui/BranchTag.vue'
 
-/**
- * 2–5 branches side by side, off the daemon's comparison.
- *
- * The two divergence kinds are the daemon's verdict and render as what they
- * are: an edit is the branching point everything below it inherits, and
- * everything below it is one row per asset rather than a fan of identical-code
- * nodes. Above both, comparability is checked rather than assumed — where
- * pin-at-fork stopped holding, the warning says so before the numbers do.
- *
- * The two closing verbs are the point of the screen: adopt the version that
- * won onto another branch, and export the slice that produced it.
- */
 const props = defineProps<{ session: FlowSessionHandle }>()
 
 const route = useRoute()
@@ -193,7 +171,6 @@ const open = ref<string[]>(['results', 'divergence'])
 const allDifferences = ref<string[]>([])
 const conflict = ref<string | null>(null)
 
-/** The branch the adopt lands on: the one this comparison was entered from. */
 const target = computed(() => selection.viewedBranch.value)
 
 const sources = computed(() => compared.value.filter((name) => name !== target.value))
@@ -207,7 +184,6 @@ watch(
   { immediate: true },
 )
 
-/** Picking the asset moves the URL, so the comparison stays a link. */
 const focus = computed<string | null>({
   get: () => area.focused.value,
   set: (slug) => {
@@ -229,11 +205,6 @@ function refused(failure: unknown): void {
   })
 }
 
-/**
- * Per-asset cherry-pick. A conflict is not a failure to report and move past:
- * both sides edited the cell since they forked, nothing is written, and the
- * choice is the reader's to make.
- */
 async function onAdopt(force: boolean): Promise<void> {
   const slug = area.focused.value
   if (!slug || !from.value) return
@@ -259,7 +230,6 @@ async function onAdopt(force: boolean): Promise<void> {
   }
 }
 
-/** A file export of the chosen branch's slice — not a platform upload. */
 async function onExport(): Promise<void> {
   if (!from.value) return
   try {

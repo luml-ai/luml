@@ -45,7 +45,6 @@ const deltaLabel = computed(() => {
 
 const DELTA_PT = { root: { class: 'px-1.5 py-0 text-sm font-normal' } }
 
-// Coloured by whether the delta is an improvement, not by its sign.
 const deltaSeverity = computed<'secondary' | 'success' | 'danger'>(() => {
   const delta = props.preview.delta ?? 0
   if (delta === 0) return 'secondary'

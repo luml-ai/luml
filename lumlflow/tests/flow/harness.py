@@ -1,11 +1,3 @@
-"""A flow to schedule against: real cell files, real acceptance, a stub kernel.
-
-Cells go through the acceptance pipeline rather than being faked into the
-index, so bindings, `definition_hash`es and bound sources are the real ones the
-scheduler keys on. Only the kernel is stubbed — the scheduler's contract is
-about what it asks to run, not about what running means.
-"""
-
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,7 +26,6 @@ def write_cell(
     edit: str = "",
     docstring: str | None = None,
 ) -> Path:
-    """Write `cells/<slug>.py`. `edit` is a body line that moves the hash."""
     path = store.flow_dir / CELLS_DIRNAME / f"{slug}.py"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -93,13 +84,6 @@ def _source(
 
 @dataclass
 class StubExecutor:
-    """A kernel that writes whatever it is told to and never imports anything.
-
-    Output content defaults to a function of the cell's version and its inputs,
-    the way a real cell's would. `content` pins an output against that — which
-    is how early cutoff gets something to cut off.
-    """
-
     store: FlowStore
     requests: list[RunRequest] = field(default_factory=list)
     content: dict[tuple[str, str], bytes] = field(default_factory=dict)
@@ -148,7 +132,6 @@ class StubExecutor:
         )
 
     async def _wait(self, run_id: str, *, interruptible: bool) -> bool:
-        """Block until released or cancelled. False means cancelled."""
         stop = asyncio.Event()
         if interruptible:
             self._live[run_id] = stop
@@ -189,8 +172,6 @@ class StubExecutor:
 
 
 def _derived(request: RunRequest, output: str) -> bytes:
-    """What a cell that actually computed something would produce: a function of
-    its own code and of everything it read."""
     consumed = sorted(
         f"{name}={bound.content_hash}" for name, bound in request.inputs.items()
     )
@@ -198,14 +179,11 @@ def _derived(request: RunRequest, output: str) -> bytes:
 
 
 async def settle(turns: int = 20) -> None:
-    """Let every runnable coroutine reach its next await."""
     for _ in range(turns):
         await asyncio.sleep(0)
 
 
 class Flow:
-    """A store, a planner and a queue over one stub kernel."""
-
     def __init__(self, flow_dir: Path) -> None:
         self.store = FlowStore.init(flow_dir)
         self.executor = StubExecutor(self.store)
@@ -238,7 +216,6 @@ class Flow:
     def edit(
         self, slug: str, marker: str, *, branch: str = MAIN_BRANCH
     ) -> AcceptedCell:
-        """Change the cell's behavior without changing what it declares."""
         write_cell(self.store, slug, edit=marker, **self._declared[slug])
         return accept_cell(self.store, slug, branch=branch)
 

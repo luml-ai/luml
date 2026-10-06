@@ -229,8 +229,6 @@ class TestRewind:
         branch_id = store.branches.get(MAIN_BRANCH).branch_id
         assert self.head(store) == earlier
         assert self.newest(store) == newest
-        # The line is in the journal and folded onto the branch: no row of its
-        # own, the history still tops out at the edit.
         assert [op.op for op in last(store).ops] == ["rewound"]
         assert store.index.transaction(last(store).step) is None
         assert store.index.history(limit=1, branch_id=branch_id)[0].step == newest
@@ -292,12 +290,9 @@ class TestRewind:
         store.branches.checkpoint(MAIN_BRANCH, intent="the one to keep")
 
         assert self.head(store) == earlier
-        # Binding the files is not a place either: the newest position is
-        # still the edit, so the branch reads as behind by exactly that.
         assert self.newest(store) == earlier + 1
         bound = store.index.transaction(last(store).step - 1)
         assert bound is not None and bound.position is False
-        # The mark went where the branch stands, not on its newest line.
         found = store.index.transaction(earlier)
         assert found is not None and found.mark == "the one to keep"
 
@@ -723,7 +718,7 @@ class TestAdopt:
             "holdout_eval",
             branch="sweep",
             consumes={"train": "features.data"},
-            bound_to={"train": None},  # dangling where it was written
+            bound_to={"train": None},
         )
 
         result = store.branches.adopt(
@@ -1000,14 +995,7 @@ class TestSettled:
 
 
 class TestCheckpoint:
-    """The deliberate marker beside the computed `settled` badge.
-
-    A mark is a line that folds onto the step it names, the way a commit
-    message rides on its commit: no value is copied, no selection moves, and
-    the branch stands where it stood. What these assert is that the words land
-    on the step, that they reach the brief the same way the badge does, and
-    that the two never shadow each other by class rather than by recency.
-    """
+    pass
 
     def marked(self, store: FlowStore, branch: str = MAIN_BRANCH) -> int | None:
         found = store.index.checkpoint(store.branches.get(branch).branch_id)
@@ -1024,8 +1012,6 @@ class TestCheckpoint:
         assert marked.step == newest.step
         assert marked.mark == "before the rewrite"
         assert marked.intent == newest.intent
-        # The line that carried the words is in the journal, folded onto the
-        # step it names rather than listed as one.
         assert [op.op for op in last(store).ops] == ["checkpointed"]
         assert last(store).intent == "before the rewrite"
         branch_id = store.branches.get(MAIN_BRANCH).branch_id
@@ -1069,8 +1055,6 @@ class TestCheckpoint:
 
         record_run(store, features)
 
-        # Settling afterwards moves the branch on: the marker is where it was,
-        # not where it is.
         assert self.marked(store) == last(store).step
 
         moved = store.branches.checkpoint(MAIN_BRANCH, intent="the good one")
@@ -1125,8 +1109,6 @@ class TestCheckpoint:
     def test_a_mark_from_before_marks_folded_rides_the_position_it_was_made_at(
         self, store: FlowStore
     ) -> None:
-        """A journal from before this change carries marks as lines of their
-        own, each naming no step. They fold onto where the branch stood."""
         accept(store, "features")
         stood = last(store).step
         branch_id = store.branches.get(MAIN_BRANCH).branch_id

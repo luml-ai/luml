@@ -10,8 +10,6 @@
         @pointerdown.capture="selectFromCard(cell.slug)"
         @click="selectFromCard(cell.slug)"
       >
-        <!-- Same slot contract as the canvas: the two views cannot show
-             different cards for the same cell. -->
         <slot
           name="card"
           :cell="cell"
@@ -45,11 +43,6 @@ import { topologicalOrder } from '../model/registry'
 import type { FlowCell, Preflight } from '../model/types'
 import CellCard from '../components/card/CellCard.vue'
 
-/**
- * The notebook view: the same branch slice and the same cards as the canvas,
- * one centered column, code accented. Order is topological with effective-key
- * tiebreaks, so cards never reorder when an unrelated cell lands.
- */
 const props = defineProps<{
   cells: FlowCell[]
   branch: string

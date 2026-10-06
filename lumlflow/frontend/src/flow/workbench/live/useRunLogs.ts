@@ -1,17 +1,3 @@
-/**
- * The live console of one run — channel 2, and durable nowhere.
- *
- * A console tab that opens halfway through a ten-minute run must not be empty,
- * so this starts from a tail rather than from the next chunk: the daemon's ring
- * for a subscription it has not seen before, this client's ring for a run it
- * was already buffering. Both are bounded, both are the tail and never the
- * whole run — the capped log artifact on the materialization is what the *logs*
- * tab replays once the run has ended, and that is a different surface.
- *
- * Chunks carry one monotonic `seq` across stdout and stderr, so interleaving is
- * the daemon's order and not a guess made here.
- */
-
 import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, triggerRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
@@ -23,7 +9,6 @@ import type { FlowSessionHandle } from './useFlowSession'
 
 export interface RunLogsHandle {
   chunks: Ref<LogFrame[]>
-  /** The console's terminal-rendered text. */
   text: ComputedRef<string>
 }
 

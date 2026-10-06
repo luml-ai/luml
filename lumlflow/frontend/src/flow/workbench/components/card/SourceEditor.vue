@@ -1,8 +1,6 @@
 <template>
   <div class="flow-code-editor min-w-0" :style="{ '--flow-code-max-height': maxHeight }">
     <div ref="host" />
-    <!-- The same slab the read-only view renders, so the surface does not jump
-         while the editor's chunk is still on the wire. -->
     <pre v-if="!ready" :class="CODE_SURFACE_CLASS" :style="{ maxHeight }">{{ model }}</pre>
   </div>
 </template>
@@ -12,19 +10,9 @@ import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { CodeEditorHandle } from './codeMirror'
 import { CODE_SURFACE_CLASS } from './codeSurface'
 
-/**
- * The code editing surface: CodeMirror 6 over Python, fetched on mount so the
- * workbench's first chunk never carries it.
- *
- * It owns the typing and nothing else — no save, no cancel, no notion of a
- * version. The card above it keeps those, which is why swapping the editor out
- * again would change no contract.
- */
 const props = withDefaults(
   defineProps<{
-    /** Locked: the same rendering, no caret and no way to type into it. */
     readonly?: boolean
-    /** Where the surface starts scrolling instead of growing. */
     maxHeight?: string
     ariaLabel?: string
   }>(),
@@ -71,11 +59,6 @@ defineExpose({ editor })
 </script>
 
 <style scoped>
-/**
- * The palette CodeMirror's theme reads. Both halves are named off the app's
- * theme tokens where one exists; the syntax colours are the house slate/blue
- * family rather than a stock editor theme's.
- */
 .flow-code-editor {
   --flow-code-font: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   --flow-code-bg: var(--p-surface-50, #f8fafc);

@@ -1,23 +1,3 @@
-/**
- * One cell's card, assembled from what the daemon recorded about it.
- *
- * The slice already carries every verdict — state, causes, cost, whether the
- * result was reused, whether the env has moved since — so nothing here decides
- * anything a card shows about staleness. What this adds is the rest of the card:
- * the declarations and source behind the `code` tab, a stored preview per output
- * tab, the log artifact of the run this branch observed, and the live console
- * while one is in flight.
- *
- * Everything but the summary is pulled **on demand**. A canvas of twenty cards
- * that fetched four previews, a source and a log apiece on every journal
- * transaction would spend its life refetching; a card fetches the tab it is
- * showing, and re-fetches when the journal moves under it, because a preview
- * from before the last run is a stale picture of a fresh value.
- *
- * The tab the card shows is reported back here rather than guessed at: which
- * payload is worth pulling is exactly the question the tab strip answers.
- */
-
 import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
@@ -48,10 +28,8 @@ import { assetKindOf, previewFrom } from './preview'
 import type { FlowSessionHandle } from './useFlowSession'
 import { useRunLogs } from './useRunLogs'
 
-/** Tab ids the card reports: `out:<name>`, or one of the implicit three. */
 export type CellTabId = string
 
-/** Where a pager wants to go, in windows rather than in row numbers. */
 export type PageMove = 'first' | 'next' | 'previous'
 
 export interface LiveCellOptions {
@@ -63,36 +41,19 @@ export interface LiveCellOptions {
 
 export interface LiveCellHandle {
   cell: ComputedRef<FlowCell>
-  /**
-   * The version an edit of this card would be based on. It is a hash, so it
-   * belongs nowhere on screen — it rides with the edit and comes back as the
-   * conflict when the head has moved on since.
-   */
   base: ComputedRef<string | null>
-  /** Whether source and its edit base have ever loaded for this cell. */
   detailLoaded: ComputedRef<boolean>
-  /** What the card is showing. Setting it is what pulls the payload behind it. */
   showing: Ref<CellTabId>
-  /** The run in flight for this cell, when the session has one. */
   runId: ComputedRef<string | null>
-  /** Rows read out of the value itself — the drawer's paging, kernel-served. */
   rows: Ref<ValuePage | null>
   paging: Ref<boolean>
   readPage: (output: string, move: PageMove) => Promise<void>
-  /** Pull the run's log artifact even when the reader is not on the logs tab. */
   readLogs: () => void
   downloadUrl: (output: string) => string
-  /**
-   * Send a stored model output to LUML. The daemon packages it in the kernel
-   * and answers with the upload job; a refusal is thrown to the caller, whose
-   * dialog is the one place it can be read.
-   */
   publish: (output: string, target: PublishTarget) => Promise<PublishedAsset>
-  /** The last refusal a gesture on this card met, in the daemon's words. */
   refusal: Ref<string | null>
 }
 
-/** Rows a page request asks for at a time. */
 export const PAGE_ROWS = 50
 
 export function useCell(options: LiveCellOptions): LiveCellHandle {
@@ -143,34 +104,16 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
   // Loads run one after another: a tab change during a refetch would otherwise
   // ask for the same source twice and race over which answer lands.
   let queue: Promise<void> = Promise.resolve()
-  // Bumped whenever what was pulled stops describing the cell. An answer that
-  // was in flight across that moment describes the cell as it was and is
-  // discarded rather than replacing the newer answer.
   let generation = 0
   let detailGeneration = -1
   let detailSlug: string | null = null
   let detailBranch: string | null = null
-  // Which output the rows in hand were read out of: a window belongs to one
-  // value, and carrying it under another output's tab would show rows nobody
-  // asked that output for.
   let paged: string | null = null
 
   function pull(): void {
     queue = queue.then(load).catch(() => {})
   }
 
-  /**
-   * A journal step is as fine-grained as invalidation gets here: a transaction
-   * names the branch it touched by id, and this card knows its branch by name.
-   * Payloads are cleared and re-pulled, except detail: its source and edit base
-   * stay visible while the replacement is in flight. Changing cells or lanes
-   * still clears it so one cell's source is never shown under another's name.
-   *
-   * The signal is the session's settled revision rather than its live head:
-   * a burst of transactions leaves the card in one state, and clearing the
-   * caches once per frame in the burst meant every card on screen refetching
-   * its source and its preview as many times as the burst was long.
-   */
   watch(
     [slug, branch, session.revision],
     ([nextSlug, nextBranch]) => {
@@ -188,10 +131,6 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
     { immediate: true },
   )
 
-  // What is worth fetching depends on the verdict as much as on the tab: a cell
-  // the slice reports as materialized has a preview to pull that the same cell
-  // reported unmaterialized a moment ago did not. The slice arrives after the
-  // transaction that moved it, so the head watcher above does not cover this.
   watch(() => [summary.value.state, summary.value.primary, summary.value.note] as const, pull)
 
   watch(
@@ -205,7 +144,6 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
   )
 
   watch(showing, () => {
-    // A window read out of one output says nothing about the next one.
     const shown = shownOutput()
     if (paged !== null && shown !== null && paged !== shown) {
       rows.value = null
@@ -249,15 +187,7 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
     }
   }
 
-  /**
-   * Which previews are worth pulling: the one the card opens on — the notebook
-   * draws it under the source as well, so it is wanted whatever tab is up — and
-   * the one on screen when the reader has moved off it. A branch holding no
-   * successful run of this cell has no preview to want.
-   */
   function wantedOutputs(): string[] {
-    // A note produces nothing the store could have a preview of; its docstring
-    // is the whole of it, and asking would be a request the daemon must refuse.
     if (summary.value.note || !observed(summary.value)) return []
     const shown = shownOutput()
     return [...new Set([summary.value.primary, shown].filter((name) => !!name))] as string[]
@@ -269,17 +199,10 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
     )
   }
 
-  /** The output on screen, when one is — `code` and `logs` are not outputs. */
   function shownOutput(): string | null {
     return showing.value.startsWith('out:') ? showing.value.slice(4) : null
   }
 
-  /**
-   * Run a read, keeping its refusal rather than throwing it: a card whose
-   * preview the daemon declined still renders everything else it has. Only a
-   * failure writes here — a background load landing between a gesture and the
-   * caller reading its refusal must not clear the sentence out from under it.
-   */
   async function ask<T>(call: () => Promise<T>): Promise<T | null> {
     try {
       return await call()
@@ -289,11 +212,6 @@ export function useCell(options: LiveCellOptions): LiveCellHandle {
     }
   }
 
-  /**
-   * Reading into the value, which is the gesture that starts a kernel. The
-   * window size lives here rather than with the pager: the reader asks for the
-   * next rows, and what "next" means is whatever was asked for last time.
-   */
   async function readPage(output: string, move: PageMove): Promise<void> {
     refusal.value = null
     const at = paged === output ? rows.value?.offset : undefined
@@ -389,20 +307,9 @@ export interface CellFacts {
   console: string
   running: boolean
   refreshing?: boolean
-  /** Runs of this cell this session watched fail before the one standing now. */
   attempts?: number
 }
 
-/**
- * The card contract, filled from records. Everything absent stays absent —
- * a cell whose detail has not arrived renders its verdict and its name rather
- * than a placeholder shaped like content.
- *
- * The summary alone is enough for the whole of a card's face except its source
- * and its values, which is why the canvas and the notebook lay out from this
- * too: one definition of what the daemon's records mean, whether a card has
- * pulled its detail yet or not.
- */
 export function build(facts: CellFacts): FlowCell {
   const { summary, detail } = facts
   const doc = detail?.doc ?? ''
@@ -435,7 +342,6 @@ export function build(facts: CellFacts): FlowCell {
   }
 }
 
-/** A card built from the slice alone — no source, no previews, no logs yet. */
 export function summarized(summary: CellSummary, running = false): FlowCell {
   return build({ summary, detail: null, previews: new Map(), logs: null, console: '', running })
 }
@@ -451,20 +357,10 @@ function status(summary: CellSummary, running: boolean, refreshing: boolean): Ce
     case 'unsynced':
       return 'stale'
     default:
-      // Current on its own facts but sitting under something that is not. The
-      // card carries it as stale and flagged transitive; whether that shows is
-      // the view's filter, and dropping it here would make it unfindable.
       return summary.transitive ? 'stale' : 'materialized'
   }
 }
 
-/**
- * Causes arrive as sentences, and the chip shows the first one it was given.
- *
- * A transitive verdict is the one case with no sentence of its own: the cell is
- * current on its own facts, and what is not is above it — so the cells the
- * daemon named upstream are the whole of what there is to say.
- */
 function stale(summary: CellSummary): StaleInfo | undefined {
   if (summary.state === 'unsynced') {
     return summary.causes.length ? { cause: summary.causes[0] } : undefined
@@ -473,13 +369,6 @@ function stale(summary: CellSummary): StaleInfo | undefined {
   return { cause: `upstream ${listed(summary.upstream)} not current`, transitive: true }
 }
 
-/**
- * Reactivity's refusal, carried through rather than re-derived.
- *
- * The threshold and the closure's cost both live daemon-side; a card that
- * compared them itself would be the second place the rule is written and the
- * first one to disagree with the scheduler that acts on it.
- */
 function declined(summary: CellSummary): AutoDeclinedInfo | undefined {
   if (!summary.auto_declined) return undefined
   return {
@@ -497,7 +386,6 @@ function listed(slugs: string[]): string {
   return `\`${first}\`, \`${second}\` and ${rest.length} more are`
 }
 
-/** Cost is what a run recorded; a run that recorded none is left without one. */
 function timing(summary: CellSummary): TimingInfo | undefined {
   if (summary.cost_seconds === null && !summary.older_env && !summary.reused) return undefined
   return {
@@ -509,8 +397,6 @@ function timing(summary: CellSummary): TimingInfo | undefined {
 
 function outputs(facts: CellFacts, doc: string): CellOutput[] {
   const { summary, detail } = facts
-  // A note declares nothing and runs never: its docstring is the content, and
-  // the card shows it as the one thing the cell has.
   if (summary.note) {
     return [
       { name: 'note', declared: 'asset', kind: 'note', preview: { type: 'note', markdown: doc } },
@@ -520,15 +406,11 @@ function outputs(facts: CellFacts, doc: string): CellOutput[] {
   return summary.outputs.map((name) => {
     const spec = detail?.produces?.[name]
     const out = recorded.get(name)
-    // The slice already says what each output reads as, so the tab strip is
-    // badged correctly before this card's detail lands — and identically after.
     const kind = assetKindOf(out?.kind ?? spec?.kind ?? declaredKind(spec) ?? summary.kinds[name])
     return {
       name,
       declared: (spec?.type ?? 'asset') as DeclaredType,
       kind,
-      // Waiting for a payload is its own state: an empty grid where one has
-      // not landed yet would read as a value with nothing in it.
       preview: facts.previews.get(name) ?? {
         type: 'blocks',
         kind,
@@ -540,12 +422,10 @@ function outputs(facts: CellFacts, doc: string): CellOutput[] {
   })
 }
 
-/** Did this branch see a run of this cell that left something behind? */
 function observed(summary: CellSummary): boolean {
   return summary.state === 'synced' || summary.state === 'unsynced'
 }
 
-/** A declared `model` is a model on the tab strip before anything has run it. */
 function declaredKind(spec: OutputSpec | undefined): string | null {
   return spec && spec.type !== 'asset' ? spec.type : null
 }
@@ -561,13 +441,6 @@ function params(detail: CellDetail | null): Record<string, ParamValue> {
   )
 }
 
-/**
- * Authorship, and the flag that says how sure it is. An uncertain window
- * carries the name the store recorded *and* the doubt — dropping either would
- * be the card deciding something the runtime declined to. Before the cell's
- * detail has arrived there is no authorship to show, and a line reading
- * "created user · step 0" would be a claim rather than a wait.
- */
 function provenance(detail: CellDetail | null): ProvenanceInfo | undefined {
   const recorded = detail?.provenance
   if (!recorded) return undefined
@@ -580,15 +453,10 @@ function provenance(detail: CellDetail | null): ProvenanceInfo | undefined {
   }
 }
 
-/** `user` is the one reserved actor; every other label is an agent's own. */
 function actor(label: string): ActorRef {
   return { kind: label === 'user' ? 'user' : 'agent', label }
 }
 
-/**
- * Authorship decides the volume: an agent iterating through a broken state is
- * demoted, while a person's failure is loud.
- */
 function error(detail: CellDetail | null, attempts = 0) {
   if (!detail?.error) return undefined
   const author = detail.failed_by ?? detail.author
@@ -600,20 +468,10 @@ function error(detail: CellDetail | null, attempts = 0) {
   }
 }
 
-/**
- * Flags are accepted-but-broken states; the first one is what the chip says.
- *
- * A dangling reference carries its suggestion inside the sentence the daemon
- * wrote — the canonical spelling it would have resolved to. Lifting it back out
- * is what turns the chip into a one-click repair; the sentence stays whole
- * either way, so a flag whose wording this does not recognise still reads.
- */
 function flag(summary: CellSummary) {
   const raised = summary.flags[0]
   if (!raised?.detail) return undefined
   const [sentence, suggestion] = split(raised.detail)
-  // The code travels with the sentence: the card renders a placeholder name
-  // differently from a broken declaration, and only the code tells them apart.
   return { code: raised.code, message: sentence, didYouMean: suggestion }
 }
 

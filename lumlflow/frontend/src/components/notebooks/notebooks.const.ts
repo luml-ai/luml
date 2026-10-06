@@ -24,7 +24,6 @@ export const NOTEBOOK_ASSET_ICONS: Record<NotebookAssetType, LucideIcon> = {
 }
 
 export const NOTEBOOK_CANVAS_NODE_WIDTH = 450
-// A card is at most 608px tall; the rest is the gap the edges run through.
 export const NOTEBOOK_CANVAS_LEVEL_HEIGHT = 680
 
 

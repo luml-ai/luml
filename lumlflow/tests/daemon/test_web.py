@@ -1,12 +1,3 @@
-"""The daemon's web endpoint: one port, three surfaces, two channels.
-
-The app here is the one the daemon builds, over a real hub with real flows, so
-what these exercise is the browser's whole path — the tracker it shares the
-port with, the flow API it drives, and the socket it watches the workspace
-through. Only the daemon process itself is absent; the token it would have
-minted is handed in.
-"""
-
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
@@ -127,8 +118,6 @@ class Downloads:
 
 @dataclass
 class Served:
-    """The endpoint, plus the two ways a browser talks to it."""
-
     http: TestClient
     root: Path
     hub: Hub
@@ -150,7 +139,6 @@ class Served:
 
 @pytest.fixture
 def static(tmp_path: Path) -> Path:
-    """A build, as the wheel ships one. The API must not be shadowed by it."""
     directory = tmp_path / "static"
     (directory / "assets").mkdir(parents=True)
     (directory / "index.html").write_text("<html><body>SPA</body></html>")
@@ -170,14 +158,12 @@ def served(tmp_path: Path, static: Path) -> Iterator[Served]:
         try:
             yield Served(http=http, root=root, hub=hub, api=api, streams=streams)
         finally:
-            # On the app's own loop: the kernels a run started belong to it.
             portal = getattr(http, "portal", None)
             if portal is not None:
                 portal.call(hub.close)
 
 
 def subscribe(socket: WebSocketTestSession, flow: str, cursor: int = 0) -> list[Any]:
-    """Watch a flow's journal, and take the catch-up it answers with."""
     socket.send_json({"subscribe": "journal", "flow": flow, "cursor": cursor})
     replayed: list[Any] = []
     for _ in range(FRAME_LIMIT):
@@ -189,7 +175,6 @@ def subscribe(socket: WebSocketTestSession, flow: str, cursor: int = 0) -> list[
 
 
 def catch_up(socket: WebSocketTestSession, flow: str, cursor: int = 0) -> Any:
-    """Watch a flow's journal, and take the marker that ends the catch-up."""
     socket.send_json({"subscribe": "journal", "flow": flow, "cursor": cursor})
     return until(socket, lambda frame: frame.get("type") == "caught_up")
 
@@ -226,8 +211,6 @@ def download(
 
 
 def test_the_spa_and_the_tracker_share_the_port_with_the_flow_api(served: Served):
-    """Experiments and Workspace are one product on one port — and the static
-    fallback answers everything, so it must not answer for the API."""
     assert "SPA" in served.http.get("/flow/churn").text
     assert "console.log" in served.http.get("/assets/app.js").text
     tracker = served.http.get("/api/auth/status")
@@ -238,9 +221,6 @@ def test_the_spa_and_the_tracker_share_the_port_with_the_flow_api(served: Served
 def test_the_tracker_answers_the_calls_experiments_actually_makes(
     served: Served, tracker: TrackerProvider
 ):
-    """Not just "some tracker route exists" — the listing the Experiments half
-    opens on. A page that got the SPA's index.html here reads its `items` off
-    an HTML string, which is the shape of the failure this guards."""
     tracker.create_group("churn")
     tracker.start_experiment(name="first", group="churn")
 
@@ -249,16 +229,12 @@ def test_the_tracker_answers_the_calls_experiments_actually_makes(
     assert listed.status_code == 200, listed.text
     assert listed.headers["content-type"].startswith("application/json")
     assert [group["name"] for group in listed.json()["items"]] == ["churn"]
-    # The SPA is still behind it, for every path the tracker does not claim.
     assert "SPA" in served.http.get("/experiments").text
 
 
 def test_the_flow_key_gates_the_flow_api_and_not_the_tracker(
     served: Served, tracker: TrackerProvider
 ):
-    """Experiments was unauthenticated on loopback before it shared this port,
-    and sharing a port is not a reason to start asking its callers for a key —
-    only the flow API runs the user's code."""
     unkeyed = served.http.get("/api/groups")
     refused = served.http.post(web.RPC_PATH, json={"method": "ping"})
 
@@ -386,12 +362,6 @@ def test_deleting_a_flow_experiment_pushes_state_without_moving_the_cursor(
 
 
 def test_the_store_the_ui_was_pointed_at_is_the_one_the_tracker_opens(tmp_path: Path):
-    """`lumlflow ui --path` sets `BACKEND_STORE_URI` after it has imported the
-    daemon, so nothing the daemon imports may open the store on the way in.
-
-    A subprocess because the answer is which modules got imported, and a test
-    process has already imported them all.
-    """
     store = (tmp_path / "elsewhere").resolve()
     program = (
         "import os, sys\n"
@@ -414,20 +384,14 @@ def test_the_store_the_ui_was_pointed_at_is_the_one_the_tracker_opens(tmp_path: 
 
 
 def test_the_flow_api_asks_for_the_daemons_token(served: Served):
-    """A loopback port is reachable by anything else on the machine, and this
-    API runs the user's code."""
     refused = served.http.post(web.RPC_PATH, json={"method": "ping"})
     forged = served.http.post(
         web.RPC_PATH, json={"method": "ping"}, headers={web.TOKEN_HEADER: "guess"}
     )
 
     assert (refused.status_code, forged.status_code) == (401, 401)
-    # The refusal is read by whoever opened the wrong address, so it says what
-    # the product says — a key that comes with the address, not a daemon.
     assert "daemon" not in refused.json()["error"]["message"].lower()
     assert "key" in refused.json()["error"]["message"]
-    # Closed with a code of its own, not dropped: "you may not" and "the socket
-    # went away" are different states with different surfaces.
     with pytest.raises(WebSocketDisconnect) as closed:
         with served.http.websocket_connect(f"{web.STREAM_PATH}?token=guess") as socket:
             socket.receive_json()
@@ -711,7 +675,6 @@ def test_a_subscriber_is_caught_up_and_then_kept_up(served: Served):
 
 
 def test_a_reconnect_replays_to_what_a_fresh_load_sees(served: Served):
-    """An overnight return and a first open differ in latency, not in state."""
     served.rpc("flow.open", {"flow": "churn"})
 
     with served.watch() as first:
@@ -746,8 +709,6 @@ def test_two_flows_on_one_daemon_stream_separately(served: Served):
 
 
 def test_a_late_joiner_gets_the_tail_of_a_run_it_missed(served: Served):
-    """The card that opens mid-run — or right after one — shows the console it
-    was not there for. The chunks were never journaled; the ring held them."""
     write_cell(served.root / "churn.flow", "chatty", CHATTY_CELL)
     served.rpc("flow.open", {"flow": "churn"})
 
@@ -756,7 +717,6 @@ def test_a_late_joiner_gets_the_tail_of_a_run_it_missed(served: Served):
         outcome = served.rpc("run", {"flow": "churn", "target": "chatty"})
         started = until(socket, lambda frame: frame.get("event") == "started")
 
-        # Only now — the run is over and its chunks are long off the wire.
         socket.send_json(
             {
                 "subscribe": "logs",
@@ -775,9 +735,6 @@ def test_a_late_joiner_gets_the_tail_of_a_run_it_missed(served: Served):
 def test_a_catch_up_says_what_is_running_as_well_as_where_it_got_to(
     served: Served,
 ):
-    """A run in flight is the other half of where a client stands. Whether a
-    late joiner can then reach that console is `test_supervisor.py`'s to say —
-    two connections and a blocking run need a daemon of their own."""
     served.rpc("flow.open", {"flow": "churn"})
 
     with served.watch() as socket:
@@ -802,14 +759,10 @@ def test_a_cursor_the_client_garbled_costs_it_a_replay_not_the_connection(
         replayed = until(socket, lambda frame: frame.get("type") == "caught_up")
         whole = subscribe(socket, flow_address(served))
 
-    # Read as no cursor at all: over-delivering is what every frame's `step`
-    # makes harmless, and it is the catch-up such a client needs anyway.
     assert replayed["step"] == whole[-1]["step"]
 
 
 def test_a_tab_that_goes_away_stops_being_fanned_out_to(served: Served):
-    """A browser closes without a word, and a quiet flow sends nothing to
-    notice it by — so the connection's halves have to end each other."""
     with served.watch() as socket:
         subscribe(socket, flow_address(served))
         assert served.streams.watchers == 1
@@ -828,7 +781,6 @@ def test_naming_a_flow_that_is_not_here_does_not_end_the_connection(served: Serv
 
 
 def test_journal_since_answers_the_same_history_over_plain_rpc(served: Served):
-    """A client that fell behind the socket replays through the API instead."""
     served.rpc("flow.open", {"flow": "churn"})
 
     whole = served.rpc("journal.since", {"flow": "churn", "cursor": 0})
@@ -845,11 +797,6 @@ def test_journal_since_answers_the_same_history_over_plain_rpc(served: Served):
 def test_the_address_ui_prints_is_one_this_endpoint_takes(
     served: Served, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A second `lumlflow ui` here points the browser at what is already
-    serving — and the SPA is the one caller with no other way to have the
-    token, so the address carries it. Which makes it an address only if the
-    endpoint accepts what it carries.
-    """
     from lumlflow.cli import app
 
     record = workspace.new_record(
@@ -889,11 +836,6 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
 def test_an_http_registration_is_never_leased_and_announces_itself(
     served: Served,
 ) -> None:
-    """A browser cannot hold a lease — the request is over before the answer
-    lands — so the flag it asks for is dropped rather than echoed. What it can
-    do is register and end, and each is announced to the flow's watchers with
-    the full list, lease state included.
-    """
     served.rpc("flow.open", {"flow": "churn"})
     session = served.hub.session("churn")
     cursor = session.store.next_step - 1

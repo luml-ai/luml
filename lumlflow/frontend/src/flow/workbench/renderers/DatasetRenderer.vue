@@ -2,7 +2,6 @@
   <div class="preview-table flex min-w-0 flex-col gap-2.5 text-base">
     <div class="overflow-auto" :class="bodyMaxClass(density)">
       <DataTable :value="rows" size="small" striped-rows>
-        <!-- dtype rides under the header, as in the frame renderer. -->
         <Column v-for="(column, index) in preview.schema" :key="column.name" :field="String(index)">
           <template #header>
             <span class="leading-tight">

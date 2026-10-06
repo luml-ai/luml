@@ -1,23 +1,3 @@
-"""The Tier-0 release gate: can an agent drive this from the served guide alone?
-
-The contract the whole CLI is measured against says a Haiku-class agent, given
-nothing but `lumlflow guide`, completes edit → run → inspect → fix-a-failure.
-This harness is the scripted stand-in for that agent: it reads the guide, and
-may then use only the commands the guide names. Any verb it needs that the
-guide never mentioned is a
-gate failure — that is what "three gestures" has to mean to be worth claiming.
-
-Two things are checked as it goes. Whether the loop completes at all, and
-whether every word the CLI said back was one the agent could act on: uids,
-content hashes and memo keys never appear outside `--json`, so a run that leaks
-one fails the gate however well the loop went.
-
-    python dev/tier0_gate/harness.py            # against a temp workspace
-    python dev/tier0_gate/harness.py --keep     # …and leave it behind to read
-
-`lumlflow/tests/test_tier0_gate.py` runs the same function in CI.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -34,8 +14,6 @@ ULID = re.compile(r"\b[0-9A-HJKMNP-TV-Z]{26}\b")
 SHA256 = re.compile(r"\b[0-9a-f]{64}\b")
 COMMAND = re.compile(r"`lumlflow ([a-z]+(?: [a-z]+)?)")
 
-# The one place the printed form shows an identifier: the cell file itself,
-# echoed for the agent to edit, uid line and all.
 SOURCE_RULE = "─" * 60
 
 BROKEN = '''\
@@ -88,8 +66,6 @@ class Report:
 
 
 class Agent:
-    """A scripted agent: it runs verbs, reads answers, and checks the words."""
-
     def __init__(self, workspace: Path, report: Report) -> None:
         self.workspace = workspace
         self.report = report
@@ -139,17 +115,14 @@ class Agent:
         )
 
     def learn(self, guide: str) -> None:
-        """Take the verbs from the guide. Nothing else may be used after."""
         self.allowed = set(COMMAND.findall(guide))
         self.report.vocabulary = self.allowed
 
 
 def gate(workspace: Path) -> Report:
-    """Drive edit → run → inspect → fix → rerun from the served guide."""
     report = Report()
     agent = Agent(workspace, report)
 
-    # Everything before the agent reads the guide is the human's setup.
     agent.run("init", "churn")
     guide = agent.run("guide").output
     report.guide_lines = len(guide.strip().splitlines())
@@ -209,7 +182,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report.passed else 1
     finally:
         # The daemon outlives the verbs that started it, so it has to be asked
-        # to go before the directory it owns is taken away underneath it.
         stop_daemon(workspace)
         if args.keep or args.workspace is not None:
             print(f"workspace: {workspace}")

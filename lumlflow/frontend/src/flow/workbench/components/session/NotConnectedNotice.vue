@@ -15,9 +15,4 @@
 import { Message } from 'primevue'
 import { Unplug } from 'lucide-vue-next'
 
-/**
- * The tab holds no token the server accepts: it never had one, or a restart
- * minted another and this one was refused. One surface for both, because both
- * end in the same gesture — and neither is a claim that the server is down.
- */
 </script>

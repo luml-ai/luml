@@ -9,7 +9,6 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 SKIP_ENV_VAR = "LUMLFLOW_BUILD_NO_FRONTEND"
 
 # lumlflow-ui compiles against the type declarations the other two workspace
-# packages emit, so their builds have to land first.
 WORKSPACE_BUILD_ORDER = ("@luml/experiments", "@luml/attachments", "lumlflow-ui")
 
 # Kept ASCII: this text reaches consoles of unknown encoding during pip installs.
@@ -24,14 +23,6 @@ REMEDIES = (
 
 
 class FrontendBuildHook(BuildHookInterface):
-    """Puts the compiled web app in `lumlflow/static/` before a target is built.
-
-    Inclusion is *not* this hook's job: `tool.hatch.build.artifacts` in
-    pyproject.toml is what carries `lumlflow/static/` past the gitignore into
-    every target. The hook only guarantees the directory is there — or fails
-    loudly saying why it cannot be.
-    """
-
     PLUGIN_NAME = "frontend"
 
     def initialize(self, version: str, build_data: dict) -> None:
@@ -51,8 +42,6 @@ class FrontendBuildHook(BuildHookInterface):
         has_bundle = (static_dir / "index.html").is_file()
 
         if not frontend_dir.is_dir():
-            # The shape a source install has: the sdist ships the bundle and no
-            # frontend sources, so there is nothing to build and nothing to say.
             if has_bundle:
                 return
             self._fail(

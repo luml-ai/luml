@@ -173,8 +173,6 @@ const evalPreview = fixturePreview('holdout_eval', 'eval')
 const checkpointPreview = fixturePreview('train_model', 'checkpoint')
 const kvPreview = fixturePreview('sweep_config', 'config')
 
-// A regression on a higher-is-better metric: the tag goes red on a negative
-// delta because it is a worsening, not because it is negative.
 const worseMetric: MetricPreview = {
   ...(metricPreview as MetricPreview),
   value: 0.829,

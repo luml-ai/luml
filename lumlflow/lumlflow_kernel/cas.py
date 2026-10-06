@@ -24,7 +24,6 @@ _RETRY_DELAYS_S = (0.005, 0.02, 0.05, 0.15, 0.3)
 
 
 def canonical_json(value: Any) -> bytes:
-    """Sorted keys, no insignificant whitespace, NaN/Infinity rejected."""
     return json.dumps(
         value,
         sort_keys=True,
@@ -81,12 +80,6 @@ class Cas:
         move: bool,
         before_stage: Callable[[str], None] | None = None,
     ) -> str:
-        """Ingest a file without reading it into memory.
-
-        `move` consumes the source — the route for a declared `Path` output
-        leaving the run's scratch directory. A path the cell did not create
-        under scratch is copied instead: the store never eats a user's file.
-        """
         digest = hash_file(source)
         if before_stage is not None:
             before_stage(digest)

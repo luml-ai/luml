@@ -1,16 +1,3 @@
-"""One run: a fresh namespace, a workspace cwd, and the facts the store records.
-
-Nothing about a run is inherited from the last one. The namespace is built from
-the version's bound source every time, the cwd is the flow's containing
-directory, and a per-run scratch directory exists only for `ctx.tempdir()` and
-output staging. The environment, working directory, logging configuration and
-open figures are put back where they were.
-
-Failures are recorded, not raised: a cell that throws produces a `failed`
-materialization with its traceback, because a broken cell is a state the store
-knows how to hold, not a protocol error.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -64,7 +51,7 @@ class Cancelled(BaseException):
 
 
 class CellError(Exception):
-    """A failure the run surfaces in words — no traceback into kernel frames."""
+    pass
 
 
 @dataclass(frozen=True)
@@ -200,7 +187,6 @@ class Executor:
                             )
                     finally:
                         cell_returned()
-                        # A cell may have moved into its scratch directory.
                         with contextlib.suppress(OSError):
                             os.chdir(self._workspace_dir)
                         shutil.rmtree(scratch, ignore_errors=True)
@@ -243,12 +229,6 @@ class Executor:
         shutil.rmtree(self._unpersisted_root, ignore_errors=True)
 
     def cancel(self, run_id: str) -> bool:
-        """Raise `Cancelled` inside the running thread at its next bytecode.
-
-        A cell blocked in a C call keeps running until it returns to the
-        interpreter; ending that is the daemon's business, not ours. A cell
-        that has already returned is past interrupting, and says so.
-        """
         with self._lock:
             active = self._active
             if active is None or active.run_id != _safe_id(run_id):
@@ -266,11 +246,9 @@ class Executor:
         return pager(self._deserialize(asset_type, kind, value_ref), query)
 
     def value(self, value_ref: str, kind: str) -> Any:
-        """A stored value, deserialized once and kept for the next reader."""
         return self._deserialize(self._registry.get(kind), kind, value_ref)
 
     def fresh(self, value_ref: str, kind: str) -> Any:
-        """The same value read again — never the object the cache holds."""
         return self._registry.get(kind).deserialize(self._values.path(value_ref))
 
     @contextlib.contextmanager
@@ -485,8 +463,6 @@ class Executor:
         return record
 
     def _keep_file(self, content_hash: str, source: Path) -> Path:
-        """Copy a file out of the run's scratch directory, which the run's end
-        removes, so a consumer still finds the producer's bytes."""
         kept = self._unpersisted_root / content_hash / source.name
         kept.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, kept)
@@ -540,7 +516,6 @@ class _Observed:
 
 @contextlib.contextmanager
 def _restored() -> Iterator[None]:
-    """Put back what a run is allowed to change but not to keep."""
     environ = dict(os.environ)
     cwd = Path.cwd()
     root = logging.getLogger()
@@ -666,7 +641,6 @@ def _log_event(run_id: str, stream: str, seq: int, data: bytes) -> dict[str, Any
 
 
 def _under(path: Path, root: Path) -> bool:
-    """Only a file the run made under scratch may be moved rather than copied."""
     try:
         return path.resolve().is_relative_to(root.resolve())
     except OSError:

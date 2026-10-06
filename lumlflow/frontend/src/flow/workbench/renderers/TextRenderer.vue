@@ -25,8 +25,6 @@ const props = defineProps<{
 const MAX_PX: Record<string, number> = { notebook: 176, drawer: 480, canvas: 224 }
 const LINE_PX = 20
 
-// Deterministic overflow estimate: the fade only appears when the text will
-// clip, so short values never get a washed-out last line.
 const clamped = computed(() => {
   const lines = props.preview.text.split('\n').length
   return lines * LINE_PX > MAX_PX[props.density ?? 'canvas']

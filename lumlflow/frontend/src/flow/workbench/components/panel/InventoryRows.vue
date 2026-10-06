@@ -2,18 +2,15 @@
 import type { TrackerExperimentState } from '@/flow/api/types'
 import type { AssetKind, CellStatus, StaleInfo } from '../../model/types'
 
-/** One lens row: always addressed by the producing cell's slug. */
 export interface InventoryRow {
   key: string
   slug: string
   kind: AssetKind
   title: string
   mono?: boolean
-  /** Right-aligned fact, e.g. 'val_auc 0.856'. */
   detail?: string
   status?: CellStatus
   stale?: StaleInfo
-  /** volatility: external — the store cannot know when its bytes change. */
   external?: boolean
   trackerState?: TrackerExperimentState
   tags?: string[]
@@ -61,7 +58,6 @@ const ROW_PT = { root: { class: 'w-full justify-start gap-2.5 px-1.5 py-1.5 font
         <span v-if="row.detail" class="shrink-0 font-mono text-sm text-muted-color">
           {{ row.detail }}
         </span>
-        <!-- Only deviations are chipped: a chip on every materialized row is noise. -->
         <StatusChip
           v-if="row.status && row.status !== 'materialized'"
           :status="row.status"

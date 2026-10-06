@@ -36,8 +36,6 @@ from textual.widgets import DataTable, Input, Static
 
 
 def _header_selected(event: SimpleNamespace) -> DataTable.HeaderSelected:
-    """The handler reads `data_table` and `label` and nothing else, so a
-    stand-in carrying those is the event as far as it is concerned."""
     return cast(DataTable.HeaderSelected, event)
 
 

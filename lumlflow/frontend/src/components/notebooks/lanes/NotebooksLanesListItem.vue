@@ -14,18 +14,6 @@
         </div>
         <div class="lane-meta">{{ lane.steps }} steps · {{ lane.updatedAgo }}</div>
       </div>
-      <!--TODO: Add menu button
-      <Button
-        v-if="lane.current"
-        severity="secondary"
-        variant="text"
-        class="lane-menu"
-        aria-haspopup="menu"
-      >
-        <template #icon>
-          <EllipsisVertical :size="16" />
-        </template>
-      </Button>-->
     </div>
     <div
       v-if="lane.children.length"

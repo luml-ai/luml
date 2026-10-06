@@ -6,8 +6,6 @@
       <router-link :to="{ path: '/', query: directoryQuery }">
         <img :src="currentLogo" alt="Logo" class="w-[175px] h-7" />
       </router-link>
-      <!-- The two top-level surfaces, side by side: the tracker, and the flows
-           in the directory lumlflow was launched from. -->
       <nav class="flex items-center gap-1 text-sm">
         <router-link
           v-for="surface in surfaces"

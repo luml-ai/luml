@@ -22,8 +22,6 @@ import { Dialog } from 'primevue'
 import type { BranchInfo } from '../../model/types'
 import BranchGraph from './BranchGraph.vue'
 
-// Overlay, not a permanent panel: the lane map is consulted at decision
-// points, disclosed from the lane identifier.
 defineProps<{
   branches: BranchInfo[]
   selectable?: boolean

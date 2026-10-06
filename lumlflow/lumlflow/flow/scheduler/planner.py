@@ -1,18 +1,3 @@
-"""What a request could have to run, and what that will cost before it runs.
-
-A plan is the minimal stale closure of a target: every ancestor that is not
-current, everything between those and the target, any producer whose bytes were
-never persisted — and the target itself. It is a set of *candidates*, not a set
-of verdicts: whether a cell actually recomputes depends on what its parents
-produce, and that is only known once they have. The queue decides that as it
-goes, which is where early cutoff lives.
-
-A preflight is the honest guess at the same question made in advance, so the
-cost of a click is on screen before the click. It reads the keys it can compute
-now and calls everything below a recompute a recompute, because that is what it
-knows.
-"""
-
 from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
@@ -24,13 +9,6 @@ from lumlflow.flow.store.flowstore import FlowStore
 from lumlflow.flow.store.index import Index, VersionRow
 from lumlflow.flow.store.models import ConsumedRef, TrackerRef
 
-#: Why reactivity left a cell for the user to run.
-#:
-#: `blocked` is a failure in the closure that nothing has changed since —
-#: retrying it on every pass would be a loop. `never-timed` is a closure this
-#: store has no measurement of, which is not the same as a cheap one: a
-#: threshold cannot admit a cost nobody has ever observed. `too-expensive` is
-#: the honest one — timed, and over the line.
 AutoDecline = Literal[
     "blocked",
     "never-timed",
@@ -46,8 +24,6 @@ RefreshEpoch = Callable[[], int]
 
 @dataclass(frozen=True)
 class Bound:
-    """One resolved input: where its value sits and what it hashed to."""
-
     uid: str
     slug: str
     output: str
@@ -59,13 +35,6 @@ class Bound:
 
 @dataclass(frozen=True)
 class Step:
-    """A cell the request may have to execute.
-
-    `needs_values` names this cell's outputs that a scheduled consumer will
-    need the bytes of — which is what keeps a memo hit from satisfying a
-    request the hit cannot feed.
-    """
-
     uid: str
     slug: str
     version: VersionRow
@@ -87,13 +56,6 @@ class Plan:
 
 @dataclass(frozen=True)
 class AutoVerdict:
-    """What reactivity decided about one cell, and what it decided it on.
-
-    Served rather than re-derived: the sweep runs the `taken` ones and the card
-    renders the rest, so "this is too expensive to refresh by itself" is one
-    fact with one definition instead of a rule the UI restates and drifts from.
-    """
-
     slug: str
     taken: bool
     reason: AutoDecline | None = None
@@ -104,12 +66,6 @@ class AutoVerdict:
 
 @dataclass(frozen=True)
 class Preflight:
-    """`cached` is everything that will not execute — a hit or already current.
-
-    `unknown` names cells this store has never timed, whose seconds are
-    therefore missing from the total rather than guessed at.
-    """
-
     branch: str
     target: str
     cached: tuple[str, ...]
@@ -121,12 +77,6 @@ class Preflight:
 
 @dataclass(frozen=True)
 class _Branch:
-    """One branch's slice and its verdicts, read once and shared.
-
-    Both are derived from the whole slice, so a caller planning several targets
-    against the same branch pays for them once rather than once per target.
-    """
-
     here: dict[str, VersionRow]
     verdicts: dict[str, Verdict]
 
@@ -158,17 +108,9 @@ class Planner:
     def _plan(
         self, target: str, *, branch: str, branch_id: str, over: "_Branch"
     ) -> Plan:
-        """One plan against a slice and its verdicts already in hand.
-
-        Split from `plan` because planning every stale cell — which is what
-        reactivity asks for — would otherwise re-derive staleness once per
-        cell, and that derivation is the expensive half of a plan.
-        """
         here, verdicts = over.here, over.verdicts
         uid = self._store.branches.resolve(branch, target)
         if here[uid].manifest.classification == "note":
-            # A note has no `materialize` to call; it is prose the branch
-            # carries, and scheduling it would be a guaranteed failure.
             return Plan(branch, branch_id, target, ())
         producers = _producers(here)
         ancestors = _ancestors(uid, producers)
@@ -204,13 +146,6 @@ class Planner:
         )
 
     def preflight(self, *targets: str, branch: str) -> Preflight:
-        """The cost of running these targets together, not one after another.
-
-        Several targets share ancestors, so preflighting each alone and adding
-        the totals would bill a common parent once per leaf. Their plans merge
-        into one — deduplicated, still producers-before-consumers — and that is
-        what the estimate is read off.
-        """
         if not targets:
             raise ValueError("preflight needs at least one target")
         branch_id = self._store.branches.get(branch).branch_id
@@ -241,8 +176,6 @@ class Planner:
                     or (previous.demand if previous is not None else None),
                 )
                 # A cell reached from two leaves is needed for the union of
-                # what both wanted of it: dropping one leaf's outputs would let
-                # a memo hit satisfy a request whose bytes it cannot feed.
                 needs[step.uid] = needs.get(step.uid, frozenset()) | step.needs_values
         producers = _producers(here)
         kept = set(steps)
@@ -288,7 +221,6 @@ class Planner:
         )
 
     def auto_targets(self, branch: str) -> list[str]:
-        """What the reactivity setting says should run without being asked."""
         return [
             verdict.slug
             for verdict in self.auto_verdicts(branch).values()
@@ -296,31 +228,6 @@ class Planner:
         ]
 
     def auto_verdicts(self, branch: str) -> dict[str, AutoVerdict]:
-        """Reactivity's answer for every cell that is not already current.
-
-        A change marks; only a closure that preflights under the threshold runs
-        itself, so a cheap plot under an expensive stale parent still waits. A
-        failure with nothing changed since is left alone — retrying it on every
-        pass would be a loop, and the next edit is what makes it worth retrying.
-        Its consumers are left alone for the same reason: running one would
-        retry the failure underneath it on every pass just the same.
-
-        A closure carrying a cell this store has never timed is left alone too,
-        and this is the rule that makes the threshold mean anything: a preflight
-        counts an unmeasured cell as nothing, so admitting one would let a
-        six-hour train the flow has never run read as free and start itself the
-        first time a workbench was opened on it. Under a threshold, an unknown
-        cost is a cost that has not been shown to be under it. Running the cell
-        once is what teaches the flow, and after that reactivity keeps it fresh.
-
-        `eager` is the labelled way out of both cost gates — never out of the
-        failure gate, which is about a run that cannot succeed rather than about
-        what it would cost.
-
-        Cells already current with nothing unsynced above them are absent
-        entirely: reactivity has no opinion about a cell there is nothing to do
-        to. Under `lazy` that is every cell, so the map is empty.
-        """
         settings = self._store.manifest.settings
         if settings.reactivity == "lazy":
             return {}
@@ -457,11 +364,6 @@ class Planner:
         here: dict[str, VersionRow],
         branch_id: str,
     ) -> tuple[set[str], dict[str, str]]:
-        """Pull in producers whose bytes a scheduled consumer cannot read.
-
-        Declared unpersisted outputs live nowhere, so demand for one schedules
-        its producer whatever staleness says about it.
-        """
         baselines = self._store.index.baselines(branch_id)
         forced: dict[str, str] = {}
         while True:
@@ -534,7 +436,6 @@ class Planner:
         )
 
     def _served(self, branch_id: str, step: Step, here: dict[str, VersionRow]) -> bool:
-        """Could this step be answered from the store as things stand?"""
         if step.must_execute:
             return False
         inputs, missing = resolve_inputs(
@@ -554,12 +455,6 @@ class Planner:
 
 
 def current(store: FlowStore, branch_id: str, step: Step, key: str) -> bool:
-    """Has this branch already run exactly this — the early-cutoff question.
-
-    Asked of every step as the queue reaches it, so a parent that
-    rematerialized to the same bytes leaves its consumers' keys unchanged and
-    they are never executed again.
-    """
     mat_id = store.index.baselines(branch_id).get(step.uid)
     mat = store.index.materialization(mat_id) if mat_id else None
     if mat is None or mat.state != "succeeded" or mat.memo_key != key:
@@ -575,11 +470,6 @@ def resolve_inputs(
     version: VersionRow,
     here: dict[str, VersionRow],
 ) -> tuple[dict[str, Bound], tuple[str, ...]]:
-    """Every input's value as the branch resolves it now, and what it cannot.
-
-    Resolution is two-step and version-free: the reference names a cell, the
-    branch's baseline names which of its materializations this branch has.
-    """
     baselines = index.baselines(branch_id)
     resolved: dict[str, Bound] = {}
     missing: list[str] = []
@@ -645,7 +535,6 @@ def _ancestors(uid: str, producers: Mapping[str, list[str]]) -> set[str]:
 def _consumers(
     ancestors: set[str], producers: Mapping[str, list[str]]
 ) -> dict[str, set[str]]:
-    """The edges pointing down, restricted to what leads to the target."""
     consumers: dict[str, set[str]] = {uid: set() for uid in ancestors}
     for uid in ancestors:
         for parent in producers[uid]:
@@ -655,7 +544,6 @@ def _consumers(
 
 
 def _close_down(seed: set[str], consumers: Mapping[str, set[str]]) -> set[str]:
-    """Everything downstream of the seed — a rerun above puts them all in play."""
     kept, stack = set(seed), list(seed)
     while stack:
         for child in consumers[stack.pop()]:
@@ -692,23 +580,12 @@ def _unresolvable(plan: Plan, here: Mapping[str, VersionRow]) -> str | None:
 
 
 def reading_order(here: dict[str, VersionRow]) -> list[str]:
-    """The whole slice, producers before consumers — how the flow reads through.
-
-    The order a plan runs in, over everything rather than over one target's
-    closure: what a notebook column and a single-file export both want, and one
-    order both can be read against.
-    """
     return _ordered(set(here), _producers(here), here)
 
 
 def _ordered(
     kept: set[str], producers: Mapping[str, list[str]], here: dict[str, VersionRow]
 ) -> list[str]:
-    """Topological over the kept set, ties broken by slug so plans are stable.
-
-    A `consumes` cycle leaves cells no order can place; they go last, in name
-    order, and the run they are part of fails on its own terms rather than here.
-    """
     pending = {uid: {p for p in producers[uid] if p in kept} for uid in kept}
     ordered: list[str] = []
     while pending:
@@ -735,7 +612,6 @@ def _worth_running(verdict: Verdict, version: VersionRow) -> bool:
 
 
 def _stalled(verdict: Verdict) -> bool:
-    """Failed, with nothing changed since — waiting on an edit, not on a run."""
     return verdict.state == "failed" and not verdict.causes
 
 

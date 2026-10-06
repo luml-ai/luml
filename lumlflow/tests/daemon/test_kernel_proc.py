@@ -1,9 +1,3 @@
-"""The kernel link: spawn, handshake, run, evict, restart, and death.
-
-Every kernel here is a real process on a real socket — the point of these is
-what happens across the boundary, which a stub could only assert about itself.
-"""
-
 import asyncio
 import json
 import os
@@ -101,19 +95,10 @@ async def test_the_handshake_reports_the_kernel_and_its_kinds(tmp_path: Path):
             kind["kind"] for kind in handshake["kinds"]
         }
         assert kernel.state == "running"
-        # Asking again attaches to the kernel there is, never a second one.
         assert (await kernel.ensure_started())["pid"] == handshake["pid"]
 
 
 async def test_the_kernel_announces_itself_starting_and_stopping(tmp_path: Path):
-    """The one fact a workbench cannot get any other way.
-
-    A kernel starts lazily, on the first gesture that needs one, and nothing
-    journals it — so a tab that read the state once when it opened would report
-    "kernel not started" for the rest of its life, however many runs it watched
-    go by. Restarting says both halves, in order, because a surface offering to
-    restart has to see the one it asked for arrive.
-    """
     root = make_workspace(tmp_path / "project")
     states: list[str] = []
 
@@ -125,7 +110,6 @@ async def test_the_kernel_announces_itself_starting_and_stopping(tmp_path: Path)
         await kernel.ensure_started()
         assert states == ["running"]
 
-        # Attaching to the kernel there is announces nothing: nothing changed.
         await kernel.ensure_started()
         assert states == ["running"]
 
@@ -138,9 +122,6 @@ async def test_the_kernel_announces_itself_starting_and_stopping(tmp_path: Path)
 
 
 async def test_a_kernel_that_never_connected_reports_no_death(tmp_path: Path):
-    """Stopping one that was never up would tell a surface a process died that
-    never lived — and a workbench would draw a kernel going down it never saw
-    come up."""
     root = make_workspace(tmp_path / "project")
     states: list[str] = []
 
@@ -170,9 +151,6 @@ async def test_a_cell_runs_and_its_value_lands_in_the_flows_store(tmp_path: Path
     values = Cas(store_dir(root / "churn.flow") / "values")
     assert json.loads(values.get(str(summary.value_ref))) == {"auc": 0.91}
     assert result.cost_seconds is not None
-    # The process coming up is announced before the run it came up for: a
-    # surface learns there is a kernel from the kernel, not from the brief it
-    # was handed before one existed.
     assert [name for name, _ in events][:2] == ["kernel_state", "started"]
     assert "log" in {name for name, _ in events}
 
@@ -423,7 +401,6 @@ def test_a_copy_another_start_staged_first_is_kept(
     winners: list[tuple[Path, int]] = []
 
     def raced(**options: Any) -> str:
-        # The other start finishes between this one's look and its rename.
         monkeypatch.setattr(tempfile, "mkdtemp", real_mkdtemp)
         winner = kernel_proc.stage_kernel_package(installed)
         stamp = (winner / "lumlflow_kernel" / "__init__.py").stat().st_mtime_ns
@@ -449,14 +426,6 @@ async def test_requesting_eviction_does_not_start_a_stopped_kernel(tmp_path: Pat
 
 
 class TestLoopbackTransport:
-    """The other transport, exercised where unix sockets exist.
-
-    Windows has no unix domain sockets and a deep temp directory beats macOS's
-    path limit, so the link falls back to loopback plus a daemon-minted token.
-    Shortening the limit to nothing is how a POSIX box takes that route — the
-    same branch, reached by the same question, on a platform CI can run.
-    """
-
     @pytest.fixture(autouse=True)
     def unbindable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(kernel_proc, "_UNIX_PATH_LIMIT", 0)
@@ -479,8 +448,6 @@ class TestLoopbackTransport:
     async def test_a_caller_that_cannot_prove_the_token_never_becomes_the_link(
         self, tmp_path: Path
     ):
-        """A port on loopback is reachable by everything on the machine, so the
-        first line has to prove this is the kernel the daemon spawned."""
         root = make_workspace(tmp_path / "project")
 
         async with flow_kernel(root) as kernel:
@@ -489,9 +456,6 @@ class TestLoopbackTransport:
 
             refused, refused_writer = await _greet(address, "not-the-token")
 
-            # Waited on rather than read to the end: a link that wrongly took
-            # this caller would hold the connection open, and a test that hung
-            # on that would report a regression as a suite that never finishes.
             assert await asyncio.wait_for(refused.read(), timeout=10) == b""
             assert not kernel._connected.is_set()
             refused_writer.close()
@@ -505,7 +469,6 @@ class TestLoopbackTransport:
 async def _greet(
     address: str, token: str
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
-    """Dial the daemon's port the way the kernel does, token first."""
     host, _, port = address.rpartition(":")
     reader, writer = await asyncio.open_connection(host, int(port))
     writer.write(

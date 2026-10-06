@@ -44,14 +44,11 @@ import { POPOVER_WITHOUT_ARROW_PT } from '@/prime-vue/pass-through/popover.pt'
 
 defineProps<CellChartFilterProps>()
 
-/** The metrics left out of the chart, by their place in it. */
 const hidden = defineModel<Set<number>>('hidden', { required: true })
 
 const uid = useId()
 const popover = useTemplateRef<InstanceType<typeof Popover>>('popover')
 
-// Toggles change a draft; the chart only redraws on Apply, so flicking
-// through five switches is one redraw, not five.
 const draft = ref(new Set<number>())
 
 function open(event: Event) {

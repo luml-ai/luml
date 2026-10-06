@@ -1,10 +1,3 @@
-"""The flow directory as a projection of one branch's slice.
-
-Checking a branch out is a binding plus a file write, and viewing another
-branch is neither. All projection work runs on the daemon's one loop thread,
-so a store change can write the checked-out slice immediately.
-"""
-
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,8 +15,6 @@ from lumlflow.flow.store.index import BranchRow
 
 @dataclass(frozen=True)
 class Projection:
-    """What a checkout did to the files."""
-
     branch: str
     written: list[str] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
@@ -69,11 +60,6 @@ class Worktree:
         actor: str = "user",
         intent: str | None = None,
     ) -> Projection:
-        """Bind the worktree to a branch and project its slice into `cells/`.
-
-        Never a bare bind: a flow whose root points at `main` while the files
-        hold something else is a worktree that lies.
-        """
         branch = self._store.branches.get(name or self.branch)
         bound = self.bound()
         if bound is None or bound.branch_id != branch.branch_id:
@@ -81,11 +67,6 @@ class Worktree:
         return self.project(branch.name)
 
     def project(self, name: str | None = None) -> Projection:
-        """Write the branch's slice into `cells/`: differing files, no others.
-
-        Workspace files are never touched — they are branch-invariant, and the
-        flow directory is only a projection of the cells.
-        """
         branch = self._store.branches.get(name or self.branch)
         here = self._store.index.slice_versions(branch.branch_id)
         self.cells_dir.mkdir(parents=True, exist_ok=True)

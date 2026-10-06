@@ -181,8 +181,6 @@ class TestFold:
         assert (baseline["branch_id"], baseline["mat_id"]) == ("main", run.mat_id)
 
     def test_a_failed_run_becomes_the_baseline_it_observed(self, index: Index) -> None:
-        """The baseline is the last materialization observed, not the last that
-        worked — staleness derives `failed` from it."""
         accepted = cell_accepted()
         succeeded = run_recorded(
             uid=accepted.uid, version_id=accepted.version_id, branch_id="main"

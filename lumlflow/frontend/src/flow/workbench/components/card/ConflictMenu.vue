@@ -15,10 +15,7 @@
 
 <script setup lang="ts">
 import { Button, Message } from 'primevue'
-// Never a git glyph: a fork icon says the word the copy stopped saying.
 import { Split, TriangleAlert } from 'lucide-vue-next'
 
-// Saving to a new lane is the promoted resolution: overwriting loses
-// someone else's version, saving to a new lane loses nothing.
 const emit = defineEmits<{ resolve: [choice: 'overwrite' | 'fork'] }>()
 </script>

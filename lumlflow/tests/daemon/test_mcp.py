@@ -1,14 +1,3 @@
-"""The MCP server, driven the way a client drives it.
-
-Messages go in on stdin and come back on stdout, and behind the socket is the
-same API every verb goes through — so what these exercise is the whole path an
-agent takes: the protocol, the tool, the daemon, the store, and a real kernel.
-
-The point of most of them is what the session does *not* do. An MCP client has
-no files: nothing here may check a branch out, project a cell, take the
-file plane, or attribute an op to anyone but the session that invoked it.
-"""
-
 import asyncio
 import io
 import json
@@ -50,12 +39,6 @@ Answers = dict[int, dict[str, Any]]
 
 
 class Talk:
-    """A scripted MCP client, and the store it drove.
-
-    Calling it runs a whole session — the messages, then the hang-up — so
-    `agent_end` is part of every script whether or not a test asks about it.
-    """
-
     def __init__(
         self, hub: Hub, api: Api, loop: asyncio.AbstractEventLoop, directory: Path
     ) -> None:
@@ -77,18 +60,10 @@ class Talk:
         return self.hub.session(name)
 
     def held(self, *, label: str | None = None) -> "Held":
-        """A session kept open, for the questions only a live one answers."""
         return Held(self.directory, label=label)
 
 
 class Held:
-    """One MCP session driven message by message, without hanging up.
-
-    What a session *holds* — the registration, the files — is only observable
-    while it is running, and `Talk` scripts a whole session including its
-    hang-up. This is the same server, kept open until a test says otherwise.
-    """
-
     def __init__(self, root: Path, *, label: str | None = None) -> None:
         self.server = mcp.Server(root, label=label)
         self.answers: Answers = {}
@@ -125,11 +100,6 @@ def talk(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Talk]:
 
 
 def test_the_mcp_only_loop_never_materializes_a_worktree(talk: Talk, workspace: Path):
-    """The scenario: a flow created and driven entirely through MCP.
-
-    No checkout is projected, nothing watches a file that does not exist, and
-    every version and every run carries the registered session's name.
-    """
     answers = talk(
         hello(),
         tool(1, "init-flow", {"name": "churn"}),
@@ -193,8 +163,6 @@ def test_a_consumer_added_before_its_producer_runs_on_a_lane_without_files(
 
 
 def test_the_session_is_named_after_the_client_and_ends_when_it_hangs_up(talk: Talk):
-    """Detected, never declared: the pair panel reads both of these off the
-    journal, and a session that only calls the API holds no files."""
     talk(
         hello(name="claude"),
         tool(1, "init-flow", {"name": "churn"}),
@@ -213,7 +181,6 @@ def test_the_session_is_named_after_the_client_and_ends_when_it_hangs_up(talk: T
 def test_a_session_registers_once_and_never_takes_the_files(
     talk: Talk, workspace: Path
 ):
-    """Reading and writing share one registration; neither owns the files."""
     live = checked_out(talk, "churn", branch="sweep")
     session = talk.held()
 
@@ -258,8 +225,6 @@ def test_a_flow_with_no_files_still_has_one_plain_registration(
 def test_the_label_a_configuration_gave_wins_over_environment_and_client_name(
     talk: Talk, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A harness that spawns every MCP server under one generic name is told
-    apart by what its configuration says, which is the deliberate answer."""
     monkeypatch.setenv("LUMLFLOW_ACTOR", "from-environment")
     session = talk.held(label="pair-1")
 
@@ -306,8 +271,6 @@ def test_environment_then_registry_id_precede_the_raw_mcp_client_name(
 def test_use_lane_moves_this_session_and_leaves_the_files_alone(
     talk: Talk, workspace: Path
 ):
-    """The daemon's lane switch rebinds a worktree. This one cannot: it sets the
-    branch this session works on, and every later tool follows it."""
     answers = talk(
         hello(),
         tool(1, "init-flow", {"name": "churn"}),
@@ -365,7 +328,6 @@ def test_checkpoint_marks_the_sessions_lane_and_refuses_bad_requests(
     assert marked["intent"] == "baseline"
     assert sweep_context["checkpoint"]["step"] == marked["step"]
     assert sweep_context["checkpoint"]["mark"] == "baseline"
-    # The words ride on the lane's newest step rather than adding one.
     assert sweep_context["recent"][0]["step"] == marked["step"]
     assert main_context["checkpoint"] is None
     assert "`intent`" in failed(answers, 7)
@@ -376,13 +338,6 @@ def test_checkpoint_marks_the_sessions_lane_and_refuses_bad_requests(
 def test_a_session_starts_where_the_files_are_and_use_lane_leaves_them_there(
     talk: Talk, workspace: Path
 ):
-    """The other half of `use-lane`: a flow somebody has checked out.
-
-    The session's branch begins as the bound one — the agent lands where the
-    files are rather than on whatever `main` holds — and moving it moves
-    nothing else. Rebinding the worktree is the daemon's `switch`, and an edit
-    to a branch that is not the bound one is owed to no file at all.
-    """
     live = checked_out(talk, "churn", branch="sweep")
 
     answers = talk(
@@ -416,7 +371,6 @@ def test_a_session_starts_where_the_files_are_and_use_lane_leaves_them_there(
 def test_a_registration_that_never_landed_ends_nobody(
     talk: Talk, monkeypatch: pytest.MonkeyPatch
 ):
-    """A refused registration leaves no session for this client to end."""
     live = checked_out(talk, "churn", branch="sweep")
     live.store.commit(
         [AgentBegin(actor="claude-code", label="claude")],
@@ -440,7 +394,6 @@ def test_a_registration_that_never_landed_ends_nobody(
 def test_a_named_branch_that_is_not_there_fails_the_tool_not_the_session(
     talk: Talk,
 ):
-    """A typo is the caller's to fix. The session keeps answering."""
     answers = talk(
         hello(),
         tool(1, "init-flow", {"name": "churn"}),
@@ -579,7 +532,6 @@ class Train:
 def test_resources_serve_the_guide_and_flow_data_and_refuse_removed_focus(
     talk: Talk, workspace: Path
 ):
-    """The read-only half: what the flow holds, without invoking anything."""
     address = quote(str(workspace / "churn.flow"), safe="")
     root = f"flow://{address}"
     answers = talk(
@@ -618,15 +570,11 @@ def test_resources_serve_the_guide_and_flow_data_and_refuse_removed_focus(
         "text": docs.CHEATSHEET,
     }
     assert answers[8]["error"]["code"] == mcp.RESOURCE_NOT_FOUND
-    # A name the flow does not know reads as a missing resource, not as a
-    # runtime that failed — the client can tell a stale URI from a broken one.
     assert answers[9]["error"]["code"] == mcp.RESOURCE_NOT_FOUND
     assert "nowhere" in answers[9]["error"]["message"]
 
 
 def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
-    """A client speaking an older revision is answered in it; one speaking
-    something this server does not know is told what it does speak."""
     answers = talk(
         hello(request_id=1, version="2024-11-05"),
         hello(request_id=2, version="1999-01-01"),
@@ -679,7 +627,6 @@ def test_only_conflict_resolution_tools_declare_force() -> None:
 
 
 def test_a_notification_is_not_answered(talk: Talk):
-    """Ids identify answers; a message without one gets none."""
     answers = talk(
         hello(),
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -691,12 +638,6 @@ def test_a_notification_is_not_answered(talk: Talk):
 
 
 def checked_out(talk: Talk, name: str, *, branch: str) -> FlowSession:
-    """A flow with a file plane, the way `lumlflow init` leaves one.
-
-    Bound to a branch that is not `main`, so a session that lands on the right
-    one is telling the bound branch from the default rather than agreeing with
-    both at once.
-    """
     live = talk.hub.init_flow(talk.directory, name)
     live.worktree.checkout(actor="user")
     live.acceptance.accept_source(
@@ -744,7 +685,6 @@ def request(
 
 
 def answered(answers: Answers, request_id: int) -> Any:
-    """What a tool answered, refusing to pretend a failure was one."""
     body = answers[request_id]["result"]
     assert not body.get("isError"), body["content"][0]["text"]
     return json.loads(body["content"][0]["text"])
@@ -761,7 +701,6 @@ def read(answers: Answers, request_id: int) -> Any:
 
 
 def test_no_listed_tool_teaches_the_vocabulary_git_owns():
-    """The tool list is the vocabulary an agent learns this product in."""
     for tool in mcp.TOOLS:
         no_git_words(tool.name, f"the `{tool.name}` tool name")
         no_git_words(tool.describe, f"the `{tool.name}` description")

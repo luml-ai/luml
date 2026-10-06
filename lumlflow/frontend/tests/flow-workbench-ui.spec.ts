@@ -42,7 +42,6 @@ import WorkbenchPage from '@/flow/workbench/pages/WorkbenchPage.vue'
 import FlowShell from '@/flow/FlowShell.vue'
 import { FakeSocket, fakeDaemon, flowStatus, settle } from './fakes'
 
-/** The flow document every workbench route in this suite is addressed by. */
 const FLOW = 'churn.flow'
 
 const CLAUDE_HARNESS: AgentHarness = {
@@ -65,23 +64,11 @@ function agentHarness(overrides: Partial<AgentHarness>): AgentHarness {
   return { ...CLAUDE_HARNESS, ...overrides }
 }
 
-/**
- * A flow lives inside somebody's git repository, so no word this product puts
- * on screen may be one of git's — a reader should never have to work out which
- * system a sentence is about. `variant` is banned on the same tier from the
- * other side: PrimeVue and the Experiments half of this product already spell
- * it, so on a flow screen it names the wrong system. The word is `lane`.
- * `frontend/DESIGN.md` holds the glossary; this is the sweep that keeps a
- * screen honest to it. Sibling of the `daemon` guard below, and enforced the
- * same way: over rendered text, not over source — which is what leaves
- * `MetaBadge :variant` and the rest of the identifiers alone.
- */
 const GIT_WORDS =
   /\b(branch|branches|branching|fork|forks|forked|forking|checkout|checked out|check out|commit|merge|clone|rebase|cherry-pick|worktree|trunk|unsynced|variant|variants)\b/i
 
 const IGNORED_WARNINGS = [
   /Vue Flow parent container needs a width and a height/,
-  // jsdom cannot compute SVG layout; vue-flow warns about unmeasurable handles.
   /\[Vue Flow\]/,
 ]
 
@@ -163,22 +150,14 @@ describe('design system gallery', () => {
   for (const [name, component] of sections) {
     it(`section ${name} mounts without errors and leaks no internals`, async () => {
       const text = await mountClean(component)
-      // §10's error-vocabulary rule: no uid, content hash, or memo key on screen.
       expect(text).not.toMatch(/\buid\b/i)
       expect(text).not.toMatch(/memo key/i)
       expect(text).not.toMatch(/\b[0-9a-f]{16,}\b/i)
-      // The user runs `lumlflow ui` and stops it with Ctrl+C; what serves it is
-      // never a thing they are asked to learn the name of.
       expect(text).not.toMatch(/daemon/i)
       expect(text).not.toMatch(GIT_WORDS)
     })
   }
 
-  /**
-   * The gallery is design documentation, and its rationale has a reader — but
-   * one paragraph between every specimen and the next reads as chrome. It stays
-   * written, one deliberate click away.
-   */
   it('holds a specimen’s rationale behind its note toggle until it is asked for', async () => {
     const caption = 'Stale always names its cause in words.'
     const wrapper = mount(GallerySpecimen, {
@@ -188,8 +167,6 @@ describe('design system gallery', () => {
 
     const note = wrapper.get('button')
     expect(note.attributes('aria-expanded')).toBe('false')
-    // The button names what it would explain, so it is not a bare glyph to a
-    // reader who cannot see it.
     expect(note.attributes('aria-label')).toContain('Status vocabulary')
     const body = wrapper.get(`#${note.attributes('aria-controls')}`)
     expect(body.attributes('style')).toContain('display: none')
@@ -250,11 +227,6 @@ describe('workbench pages', () => {
     wrapper.unmount()
   })
 
-  /**
-   * A tab opened without `?token=` has asked nobody anything. Folding it into
-   * the not-running state names a failure that has not happened, and sends the
-   * reader to restart a server that is already up.
-   */
   it('gives a tab with no token its own surface, claiming nothing about the server', async () => {
     for (const [component, path] of [
       [WorkbenchPage, `/flow/${FLOW}?state=running`],
@@ -263,17 +235,10 @@ describe('workbench pages', () => {
       const text = await mountClean(component, path)
       expect(text).toContain('this tab is not connected')
       expect(text).not.toContain('lumlflow is not running')
-      // And never another flow's cells standing in under this one's name.
       expect(text).not.toContain('train_model')
     }
   })
 
-  /**
-   * A restarted `lumlflow ui` mints another key, and every call the tab makes
-   * with the old one is refused. That is the same nothing as never having had
-   * a key — one surface for both, and the dead key dropped so a reload does not
-   * present it again.
-   */
   it('gives a key the server refuses the same surface, and drops it', async () => {
     vi.stubGlobal('fetch', async () => ({
       ok: false,
@@ -298,8 +263,6 @@ describe('workbench pages', () => {
       await settle()
 
       expect(wrapper.text()).toContain('this tab is not connected')
-      // The refusal's own sentence stays off the page: the notice is the one
-      // place the reader is sent from.
       expect(wrapper.text()).not.toContain('key is required')
       expect(window.localStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull()
       wrapper.unmount()
@@ -309,10 +272,6 @@ describe('workbench pages', () => {
   })
 })
 
-/**
- * The shell ships as the product: no draft label and no development surface
- * in a released nav.
- */
 describe('the flow shell', () => {
   async function shell(path: string) {
     const router = testRouter()
@@ -336,19 +295,13 @@ describe('the flow shell', () => {
     closed.unmount()
 
     const open = await shell('/flow/other.flow/compare')
-    // Real links, so a view of a flow can be opened in a new tab or pasted.
     const links = open.findAll('[role="tab"]').map((tab) => [tab.text(), tab.attributes('href')])
     expect(links).toContainEqual(['Workbench', '/flow/other.flow'])
     expect(links).toContainEqual(['Compare', '/flow/other.flow/compare'])
-    // Never the fixture document the draft's tabs stood on.
     expect(open.html()).not.toContain(FLOW)
     open.unmount()
   })
 
-  /**
-   * One strip per screen: on the workbench the tabs ride in `WorkbenchTopBar`,
-   * which already names the open flow, so the shell draws no second bar there.
-   */
   it('draws no strip of its own where the workbench bar carries one', async () => {
     const wrapper = await shell('/flow/other.flow')
     expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
@@ -361,7 +314,6 @@ describe('the flow shell', () => {
 
     expect(wrapper.text()).not.toContain('Design system')
     expect(wrapper.text()).not.toMatch(/railroad/i)
-    // The flow's own views are unaffected — only the development tabs go.
     expect(wrapper.text()).toContain('Workbench')
 
     wrapper.unmount()
@@ -386,7 +338,6 @@ describe('the flow shell', () => {
     wrapper.unmount()
   })
 
-  /** Workspace is `MainHeader`'s, and a fact belongs to one place on a screen. */
   it('leaves the workspace switch to the header above it', async () => {
     const wrapper = await shell('/flow/other.flow/compare')
     expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).not.toContain('Workspace')
@@ -394,10 +345,6 @@ describe('the flow shell', () => {
   })
 })
 
-/**
- * Everything folded away is reachable without a mouse. A disclosure a keyboard
- * cannot open is content that is gone, not content that is one click away.
- */
 describe('every disclosure answers the keyboard', () => {
   function panel() {
     return mount(LeftPanel, {
@@ -420,7 +367,6 @@ describe('every disclosure answers the keyboard', () => {
       .findAll('[data-pc-name="accordionheader"]')
       .find((node) => node.text().startsWith('packages'))!
 
-    // A real button: focusable in source order, and Enter/Space are its own.
     expect(header.element.tagName).toBe('BUTTON')
     expect(header.attributes('aria-expanded')).toBe('false')
     expect(header.attributes('aria-controls')).toBeTruthy()
@@ -441,8 +387,6 @@ describe('every disclosure answers the keyboard', () => {
     expect(more.attributes('aria-haspopup')).toBe('menu')
     await more.trigger('click')
     await nextTick()
-    // PrimeVue's Menu owns the roving focus; what this asserts is that the
-    // items are real menu items rather than divs with click handlers.
     expect(document.body.querySelectorAll('[role="menuitem"]').length).toBeGreaterThan(0)
     wrapper.unmount()
   })
@@ -559,15 +503,12 @@ describe('the card overflow is a menu, not a list of sentences', () => {
     await nextTick()
 
     const items = labels()
-    // Eight is the ceiling: past it a menu is a page nobody reads.
     expect(items.length).toBeLessThanOrEqual(8)
     expect(items.slice(0, 2)).toEqual(['expand', 'rename'])
     expect(items).not.toContain('Upload to LUML')
-    // Destructive last, alone behind its own rule, and coloured as what it is.
     expect(items.at(-1)).toBe('delete from this lane…')
     const destroy = document.body.querySelector('[role="menuitem"]:last-of-type')
     expect(destroy?.className).toContain('flow-menu-danger')
-    // Separators, so the groups are visible rather than merely intended.
     expect(document.body.querySelectorAll('[role="separator"]').length).toBe(3)
     wrapper.unmount()
   })
@@ -603,7 +544,6 @@ describe('a name that is owed is not a warning', () => {
       global: { plugins: [ToastService] },
     })
 
-    // No warn field: the state every cell is created in is not a defect.
     expect(wrapper.find('[data-pc-name="message"]').exists()).toBe(false)
     const name = wrapper
       .findAll('button')
@@ -629,11 +569,6 @@ describe('a name that is owed is not a warning', () => {
 })
 
 describe('a cell reactivity left alone says so on the card', () => {
-  /**
-   * The whole point of the field. Without it, a stale cell the threshold
-   * declined and a stale cell the runtime forgot about are the same card, and
-   * "auto" reads as a setting that does nothing.
-   */
   const declined = (autoDeclined: FlowCell['autoDeclined']): FlowCell => ({
     ...trainModel,
     status: 'stale',
@@ -789,8 +724,6 @@ describe('params are declared data', () => {
       expect(wrapper.text()).toContain(name)
       expect(wrapper.text()).toContain(String(value))
     }
-    // A dormant slot in v1: editing a param is editing the cell, so the grid
-    // carries no field and no apply — the source box below is the one door.
     expect(wrapper.findAll('input')).toEqual([])
     expect(wrapper.text().toLowerCase()).not.toContain('apply')
     wrapper.unmount()

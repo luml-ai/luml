@@ -7,8 +7,6 @@ export interface INotebookLane {
   updatedAgo: string
   parentId: string | null
   state: NotebookLaneState
-  /** The lane checked out right now — its row gets the tinted background and its
-   * name renders as the active link. */
   current?: boolean
 }
 

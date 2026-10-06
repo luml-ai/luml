@@ -2,7 +2,6 @@ import { config } from '@vue/test-utils'
 import PrimeVue from 'primevue/config'
 import Tooltip from 'primevue/tooltip'
 
-/** jsdom has no ResizeObserver; Vue Flow observes its viewport. */
 if (!('ResizeObserver' in globalThis)) {
   globalThis.ResizeObserver = class {
     observe(): void {}
@@ -11,7 +10,6 @@ if (!('ResizeObserver' in globalThis)) {
   } as unknown as typeof ResizeObserver
 }
 
-/** jsdom implements no media queries; PrimeVue's Select binds an orientation listener. */
 if (typeof window !== 'undefined' && !window.matchMedia) {
   window.matchMedia = ((query: string) => ({
     matches: false,
@@ -25,7 +23,6 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   })) as unknown as typeof window.matchMedia
 }
 
-/** jsdom has no IntersectionObserver; CodeMirror watches its own visibility. */
 if (!('IntersectionObserver' in globalThis)) {
   globalThis.IntersectionObserver = class {
     observe(): void {}

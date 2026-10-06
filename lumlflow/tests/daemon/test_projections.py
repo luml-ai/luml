@@ -1,5 +1,3 @@
-"""Checkout, file projection, and edits the daemon was handed rather than read."""
-
 from pathlib import Path
 
 import pytest
@@ -42,7 +40,6 @@ async def test_opening_a_flow_checks_it_out_rather_than_binding_it_bare(
     assert "unwritten" not in opened
     assert bound is not None and bound.name == "main"
     assert [op.flow_id for op in binds] == [flow_id]
-    # The cells were already the branch's slice, so the projection wrote nothing.
     assert slugs(opened) == ["score"]
 
 
@@ -65,7 +62,6 @@ async def test_switching_projects_the_target_branch_into_the_files(tmp_path: Pat
                 "source": REPORT_CELL,
             }
         )
-        # Editing a branch nobody checked out never touches the files.
         untouched = source_of(flow, "score")
 
         onto_sweep = await api.switch({"flow": "churn", "branch": "sweep"})
@@ -75,18 +71,11 @@ async def test_switching_projects_the_target_branch_into_the_files(tmp_path: Pat
     assert "0.91" in untouched
     assert onto_sweep["branch"] == "sweep"
     assert "0.77" in on_sweep[0] and on_sweep[1] == ["report", "score"]
-    # Switching back removes what only the fork had, and restores what it edited.
     assert back["projected"]["removed"] == ["report"]
     assert cell_files(flow) == ["score"] and "0.91" in source_of(flow, "score")
 
 
 async def test_reopening_lands_on_the_branch_the_worktree_is_bound_to(tmp_path: Path):
-    """Where a workbench reopens is store state, not a client's memory of it.
-
-    A daemon restart after an overnight session must land on the branch the
-    files are, or the first thing anyone sees is somebody else's slice — and
-    the checkout on open would rewrite the worktree back to `main`.
-    """
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -148,9 +137,6 @@ async def test_moving_the_workspace_keeps_the_checked_out_lane(
 
 
 async def test_rewinding_shows_that_runs_logs_not_the_latest(tmp_path: Path):
-    """Every materialization keeps its own log artifact, and the baseline the
-    rewind restores is what a surface reads — so the traceback on the card is
-    the one that run produced, not the newest one on the branch."""
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", BROKEN_CELL)
@@ -175,9 +161,6 @@ async def test_rewinding_shows_that_runs_logs_not_the_latest(tmp_path: Path):
 
 
 async def test_workspace_files_are_branch_invariant(tmp_path: Path):
-    """The store never versions them, so no branch verb may move them. A switch
-    that rewrote `data/raw.csv` would make the shared substrate a function of
-    which branch you happened to be on."""
     root = make_workspace(
         tmp_path / "project",
         files={"data/raw.csv": "n\n1\n", "helpers.py": "VALUE = 1"},
@@ -201,8 +184,6 @@ async def test_workspace_files_are_branch_invariant(tmp_path: Path):
         after = {path: (root / path).read_text("utf-8") for path in shared}
 
     assert after == shared
-    # The cells did move — otherwise this would pass on a daemon that projects
-    # nothing at all.
     assert "0.91" in source_of(flow, "score")
 
 
@@ -380,8 +361,6 @@ async def test_an_agent_mv_after_a_ui_edit_keeps_the_users_head(tmp_path: Path) 
 
 
 async def test_a_stale_editor_is_refused_into_the_conflict_menu(tmp_path: Path):
-    """Optimistic locking per cell: the edit carries the hash it started from,
-    and a head that moved past it is never overwritten by accident."""
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -422,16 +401,12 @@ async def test_a_stale_editor_is_refused_into_the_conflict_menu(tmp_path: Path):
     assert conflict.value.head_author == "claude-1"
     assert "`score`" in str(conflict.value)
     assert "save this edit to a new lane" in str(conflict.value)
-    # Nothing was written until a side was picked.
     assert transactions_after_refusal == transactions_before_refusal
     assert unchanged_head == moved_on.version_id
     assert overwritten["definition_hash"] != moved_on.definition_hash
 
 
 async def test_adding_a_cell_never_blocks_on_a_name(tmp_path: Path):
-    """The uid is minted now and the name is owed: an unnamed cell scaffolds
-    under a placeholder, flagged softly, and the flag carries the name to
-    rename it to as soon as the class has one."""
     root = make_workspace(tmp_path / "project", flows=())
 
     async with daemon_api(root) as api:
@@ -459,7 +434,6 @@ async def test_adding_a_cell_never_blocks_on_a_name(tmp_path: Path):
     assert named["flags"][0]["detail"] == (
         "`untitled_1` is a placeholder name. rename it to `train_xgb`"
     )
-    # Checked out, so the scaffold reached the files too.
     assert created["written_to_files"] is True
     assert cell_files(root / "churn.flow") == ["untitled_1", "untitled_2"]
 
@@ -467,10 +441,6 @@ async def test_adding_a_cell_never_blocks_on_a_name(tmp_path: Path):
 async def test_adding_a_cell_never_lands_on_the_one_already_named_that(
     tmp_path: Path,
 ):
-    """No directory is there to refuse the name on this path, so the store does
-    what a directory would: the cell being added is its own cell under a name
-    of its own, flagged, and the one that was already there keeps its body, its
-    author and its identity. Adding is never an edit to somebody else's cell."""
     root = make_workspace(tmp_path / "project", flows=())
 
     async with daemon_api(root) as api:
@@ -602,9 +572,6 @@ async def test_ending_one_session_leaves_the_other_registered(
 
 
 async def test_an_api_only_session_never_materializes_a_worktree(tmp_path: Path):
-    """The MCP path: cells live in the store, attribution rides on the ops, and
-    no checkout, lock or file plane is invented for a session that never asked
-    for one."""
     root = make_workspace(tmp_path / "project", flows=())
 
     async with daemon_api(root) as api:

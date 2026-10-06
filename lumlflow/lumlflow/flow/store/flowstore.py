@@ -1,11 +1,3 @@
-"""The store's front door: layout, `flow.yaml`, and the commit pipeline.
-
-A commit is CAS blobs (written by the caller before it gets here) → fsync'd
-journal append → index update. The journal append is the commit point; a
-crash after it leaves an index that catches up on the next open, and a crash
-before it leaves CAS blobs no transaction references — orphans for GC.
-"""
-
 import logging
 import threading
 from collections.abc import Callable, Sequence
@@ -72,9 +64,6 @@ class FlowStore:
         self.logs = Cas(self.store_dir / "logs")
         self.branches = Branches(self)
         self.warnings: list[str] = []
-        # Whoever wants to hear about a commit as it lands — the daemon's
-        # stream, and nobody else so far. The journal remains the record; this
-        # is only how a subscriber learns of a line without polling for it.
         self.listeners: list[Callable[[Transaction], None]] = []
         self._lock = threading.Lock()
         self._next_step = index.last_step + 1
@@ -88,8 +77,6 @@ class FlowStore:
         if store_dir(flow_dir).exists():
             raise FlowAlreadyExists(f"{flow_dir} already holds a flow store")
         _scaffold(flow_dir)
-        # A clone carries flow.yaml but not the store: keep the committed
-        # identity and root a fresh history under it.
         manifest = (
             _read_manifest(flow_dir)
             if manifest_path(flow_dir).exists()
@@ -170,21 +157,12 @@ class FlowStore:
                 self.index.apply(transaction)
             except Exception:
                 # The journal already holds the line, so nothing is lost. But an
-                # index that folded around a step keeps advancing its own
-                # `last_step` and reads as caught-up forever after, so the gap
-                # has to be remembered and rebuilt away rather than folded onto.
                 self._index_stale = True
                 raise
         self._announce(transaction)
         return transaction
 
     def _announce(self, transaction: Transaction) -> None:
-        """Tell the subscribers, outside the lock and past the commit point.
-
-        A listener that throws loses its notification and nothing else: the
-        line is already journaled, and a commit that failed because a browser
-        was watching would be a store that works worse when observed.
-        """
         for listener in self.listeners:
             try:
                 listener(transaction)
@@ -192,13 +170,6 @@ class FlowStore:
                 logger.exception("flow-store listener failed")
 
     def _settle(self, draft: Transaction) -> Transaction:
-        """Stamp the checkpoint badge: is the branch whole once this lands?
-
-        The answer describes the state *after* the ops, but the journal append
-        is the commit point and the line is immutable once written — so the
-        verdict is read off a rolled-back probe of the index with the draft
-        applied.
-        """
         if draft.branch is None or is_annotation(draft):
             return draft
         with self.index.probe(draft) as ahead:
@@ -332,7 +303,6 @@ def flow_name(flow_dir: Path) -> str:
 
 
 def detect_cloud_sync(path: Path) -> str | None:
-    """Name the cloud-sync provider whose folder `path` sits in, if any."""
     for parent in (path, *path.parents):
         for marker, provider in _CLOUD_MARKER_FILES.items():
             if (parent / marker).exists():
@@ -425,7 +395,6 @@ def _exact_midpoint(lower: Decimal, upper: Decimal) -> Decimal:
         return coefficient * 10 ** (int(parts.exponent) - exponent)
 
     # Coefficient arithmetic keeps the midpoint exact regardless of the active
-    # Decimal context; repeated insertion may need more than its 28 digits.
     coefficient = (scaled(lower) + scaled(upper)) * 5
     sign = int(coefficient < 0)
     digits = tuple(int(digit) for digit in str(abs(coefficient))) or (0,)

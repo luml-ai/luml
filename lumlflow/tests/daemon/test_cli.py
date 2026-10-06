@@ -1,16 +1,3 @@
-"""The verbs, over a daemon running in this process.
-
-Nothing is faked but the socket: `client.connect` hands back the API a real
-daemon would answer with, so what runs here is the whole path a verb takes —
-parsing, flow selection, the call, the store, a kernel process, and the words
-that come back.
-
-The sweep for internals is the point of several of these. `uid`s, content hashes
-and memo keys are how the runtime keys its facts and are useless to a reader; a
-surface that prints one has broken the Tier-0 contract, so every printed line
-below is checked for them.
-"""
-
 import asyncio
 import contextlib
 import json
@@ -71,10 +58,6 @@ class Fanout:
 
 @pytest.fixture(autouse=True)
 def plain_shell(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The shell the tests run in is not the shell under test. An agent harness
-    running pytest marks its environment, and the CLI would attribute every
-    verb to it instead of `user`; a narrow terminal folds `--help` so the
-    words asserted on wrap out of sight."""
     for marker in ("CLAUDECODE", "CURSOR_AGENT", "GEMINI_CLI"):
         monkeypatch.delenv(marker, raising=False)
     monkeypatch.setenv("COLUMNS", "200")
@@ -109,11 +92,6 @@ def cli(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Invoke]:
 def test_the_tier0_loop_runs_on_names_and_leaks_no_internals(
     cli: Invoke, workspace: Path
 ):
-    """Edit a cell, run it, read the failure, fix it, rerun — the whole product.
-
-    Every command here names a cell and nothing else, and the failure is read
-    off `status` and `cells show` rather than out of a traceback the verb raised.
-    """
     cli("init", "churn")
     flow = workspace / "churn.flow"
     write_cell(flow, "score", BROKEN_CELL)
@@ -138,7 +116,6 @@ def test_the_tier0_loop_runs_on_names_and_leaks_no_internals(
 
 
 def test_json_carries_the_identifiers_the_printed_form_leaves_out(cli: Invoke):
-    """`--json` is the escape hatch: a program can have what a reader cannot."""
     cli("init", "churn")
     created = cli("cells", "new", "score", "--json")
     printed = cli("cells", "new", "report")
@@ -359,7 +336,6 @@ def test_cells_move_places_a_cell_beside_its_neighbour(
 
 
 def test_sliced_queries_answer_the_narrow_question(cli: Invoke, workspace: Path):
-    """`--stale` and `--around` are what keep a big flow answerable."""
     cli("init", "churn")
     flow = workspace / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -372,7 +348,6 @@ def test_sliced_queries_answer_the_narrow_question(cli: Invoke, workspace: Path)
 
     assert "score" not in stale.output.replace("score.summary", "")
     assert "report" in stale.output and "fanout" in stale.output
-    # One hop from `report` is `score`; `fanout` hangs off `score` two hops away.
     assert "fanout" not in near.output
     assert "report" in near.output and "score" in near.output
     _no_internals(stale)
@@ -382,8 +357,6 @@ def test_sliced_queries_answer_the_narrow_question(cli: Invoke, workspace: Path)
 def test_diff_separates_an_edit_from_a_result_that_merely_moved(
     cli: Invoke, workspace: Path
 ):
-    """The two divergences a comparison must never conflate: someone edited the
-    cell, or the same code was fed something different."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
@@ -413,9 +386,6 @@ def test_asset_diff_is_not_a_command(cli: Invoke) -> None:
 
 
 def test_force_spends_the_cost_the_store_would_have_saved(cli: Invoke, workspace: Path):
-    """`--force` is the one way past memoization, and it says which run it was:
-    a rerun that answered from the memo and one that recomputed read the same
-    without this."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
@@ -648,8 +618,6 @@ def test_lock_only_force_options_are_unknown(
 
 
 def test_leaving_a_run_nobody_is_waiting_on_says_that(cli: Invoke, workspace: Path):
-    """Cancel never claims a stop it did not perform — including the case where
-    there was nothing to stop."""
     cli("init", "churn")
 
     left = cli("cancel")
@@ -673,7 +641,6 @@ def test_rename_rewrites_the_consumers_and_costs_nothing(cli: Invoke, workspace:
     assert "rewritten to match: report" in renamed.output
     assert 'consumes = {"summary": "headline.summary"}' in consumer
     assert not (flow / "cells" / "score.py").exists()
-    # A rename is a spelling, not a change: nothing went stale behind it.
     assert "unsynced" not in after.output
     _no_internals(renamed)
 
@@ -681,8 +648,6 @@ def test_rename_rewrites_the_consumers_and_costs_nothing(cli: Invoke, workspace:
 def test_renaming_a_cell_that_does_not_parse_moves_it_rather_than_copying_it(
     cli: Invoke, workspace: Path
 ):
-    """A broken file carries no uid line to read an identity off, and a rename
-    that minted a fresh one would leave the branch holding the cell twice."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "half", 'class Half:\n    """Mid-edit."""\n    produces = {')
@@ -750,7 +715,6 @@ def test_checkpoint_marks_the_lane_on_disk(cli: Invoke, workspace: Path) -> None
 
     assert marked.exit_code == 0, marked.output
     assert match is not None
-    # The words land on the newest step; marking adds none.
     assert int(match.group(1)) == newest
     assert context["recent"][0]["step"] == newest
     assert context["checkpoint"]["step"] == newest
@@ -843,9 +807,6 @@ def test_checkpoint_returns_json(cli: Invoke) -> None:
 
 
 def test_rewind_asks_nothing_and_recomputes_nothing(cli: Invoke, workspace: Path):
-    """Persist-everything is what makes the verb prompt-free: every value the
-    older step referenced is still in the store, so there is no preflight to
-    gate on and nothing to confirm."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
@@ -862,12 +823,8 @@ def test_rewind_asks_nothing_and_recomputes_nothing(cli: Invoke, workspace: Path
     assert rewound.exit_code == 0
     assert f"is back at step {at}" in rewound.output
     assert "0.91" in source_of(flow, "score")
-    # Synced, not queued: the run that step referenced is still the baseline, so
-    # the rewind cost a selection write and no execution.
     states = [entry["state"] for entry in json.loads(listed.output)["cells"]]
     assert states == ["synced"]
-    # The rewind is not a step of the lane: the history still tops out at the
-    # edit, the lane stands at the step it was moved to, and the brief says so.
     newest = context_json["recent"][0]["step"]
     assert newest > at
     assert context_json["position"] == {"step": at, "newest": newest}
@@ -907,8 +864,6 @@ def test_a_change_after_a_rewind_moves_the_lane_on_from_there(
 def test_adopt_takes_the_winner_and_never_overwrites_a_side_silently(
     cli: Invoke, workspace: Path
 ):
-    """The whole v1 merge story: one asset, picked per branch. A cell both
-    sides moved since the fork is a conflict, not a last-write-wins."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
@@ -921,7 +876,6 @@ def test_adopt_takes_the_winner_and_never_overwrites_a_side_silently(
 
     adopted = cli("adopt", "score", "--from", "sweep", "-m", "the sweep won")
     took = source_of(flow, "score")
-    # Now main moves too, so the next adopt has two sides that both edited.
     write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.42"))
     cli("status")
     cli("lane", "use", "sweep")
@@ -945,7 +899,6 @@ def test_adopt_takes_the_winner_and_never_overwrites_a_side_silently(
 def test_a_brief_on_another_branch_does_not_claim_the_agents_files(
     cli: Invoke, workspace: Path
 ):
-    """A registration is shown only on the lane whose files are checked out."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
     cli("lane", "new", "alpha")
@@ -960,8 +913,6 @@ def test_a_brief_on_another_branch_does_not_claim_the_agents_files(
     assert json.loads(there.output)["checked_out"] is False
     assert json.loads(there.output)["agent"] is None
     assert "(not on disk)" in printed.output
-    # The session still shows up in the history, which is true; what it must
-    # not do is claim to be working in a branch nobody checked out.
     assert "is working here" not in printed.output
 
 
@@ -1000,7 +951,6 @@ def test_preview_reads_the_stored_preview_without_starting_a_kernel(
 
 
 def test_a_multi_output_cell_previews_its_primary_output(cli: Invoke, workspace: Path):
-    """The card opens on the experiment, not on the config dump beside it."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
@@ -1017,7 +967,6 @@ def test_a_multi_output_cell_previews_its_primary_output(cli: Invoke, workspace:
 def test_an_edit_that_started_from_a_moved_head_is_a_question(
     cli: Invoke, workspace: Path
 ):
-    """The optimistic lock the UI's editor takes, reachable from a terminal."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
@@ -1186,7 +1135,6 @@ def test_an_agent_session_brackets_the_command_it_runs(cli: Invoke, workspace: P
     tree = cli("lane", "list")
 
     assert session.exit_code == 0
-    # The session ended, so no agent remains registered.
     assert "is working here" not in tree.output
 
 
@@ -1214,8 +1162,6 @@ def test_root_is_gone_and_daemon_status_answers_without_a_flow(
 
 
 def test_status_says_what_the_flow_costs_on_disk(cli: Invoke, workspace: Path):
-    """Nothing here is prunable on request, so the number has to be honest —
-    it is what the flow costs, not what a sweep could give back."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
     cli("run", "score")
@@ -1254,8 +1200,6 @@ def test_gc_reports_reclaimed_bytes(cli: Invoke, workspace: Path) -> None:
 def test_status_notes_shared_code_that_wandered_into_the_flow(
     cli: Invoke, workspace: Path
 ):
-    """A flow is one directory of cells. A stray module still works — it is
-    shared code, hashed with the rest — but nothing says so unless status does."""
     cli("init", "churn")
     write_file(workspace / "churn.flow" / "util.py", "SCALE = 2")
 
@@ -1265,8 +1209,6 @@ def test_status_notes_shared_code_that_wandered_into_the_flow(
     (note,) = payload["flows"][0]["hygiene"]
     assert "`churn.flow/util.py`" in note and "not a cell" in note
     assert note in noted.output
-    # Shared code, not a rejected cell: it is hashed with the rest and the
-    # branch holds nothing by that name.
     assert payload["flows"][0]["cells"] == []
     _no_internals(noted)
 
@@ -1274,8 +1216,6 @@ def test_status_notes_shared_code_that_wandered_into_the_flow(
 def test_status_carries_the_did_you_mean_a_broken_reference_earns(
     cli: Invoke, workspace: Path
 ):
-    """A flag is never a rejection: the cell is accepted, `status` says what is
-    wrong with it in words, and the loop carries on around it."""
     flow = workspace / "churn.flow"
     cli("init", "churn")
     write_cell(flow, "score", SCORE_CELL)
@@ -1332,7 +1272,6 @@ def test_an_off_disk_edit_says_the_checked_out_files_are_unchanged(
 def test_an_intent_typed_at_a_verb_is_what_the_history_reads_back(
     cli: Invoke, workspace: Path
 ):
-    """`-m` is the whole reason a journal is worth reading twice."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
 
@@ -1362,7 +1301,6 @@ def test_paging_reads_a_window_into_a_value_a_preview_only_summarises(
 def test_export_writes_a_file_import_reads_back_into_another_flow(
     cli: Invoke, workspace: Path, tmp_path: Path
 ):
-    """The round trip, as a user drives it: two verbs and a file between them."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
     write_cell(workspace / "churn.flow", "report", REPORT_CELL)
@@ -1387,8 +1325,6 @@ def test_export_writes_a_file_import_reads_back_into_another_flow(
 def test_export_says_when_the_file_it_wrote_is_workspace_code(
     cli: Invoke, workspace: Path
 ):
-    """A `.py` in the workspace is shared code, whatever a person meant by it —
-    and shared code moving is what marks every cell unsynced."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
 
@@ -1456,12 +1392,6 @@ def _receive_caught_up(
 
 
 def _no_internals(result: Result) -> None:
-    """No uid, content hash, or memo key reaches a printed line.
-
-    An echoed cell file is exempt, and only that: the uid line is in the file
-    the author is about to edit, so showing the source without it would show a
-    file that does not exist.
-    """
     spoken = result.output.split(render.SOURCE_RULE)[0]
     leaked = ULID.findall(spoken) + SHA256.findall(spoken)
     assert not leaked, f"internals leaked: {leaked}\n{spoken}"
@@ -1516,7 +1446,6 @@ def test_retired_option_spellings_are_unknown(cli: Invoke):
 
 
 def test_no_visible_help_speaks_the_vocabulary_git_owns():
-    """A flow lives inside a git repository, so its verbs must not sound alike."""
     runner = CliRunner()
     for path in _visible_paths():
         result = runner.invoke(app, [*path, "--help"])
@@ -1533,7 +1462,6 @@ def test_ui_help_warns_about_an_unauthenticated_tracker_on_non_loopback() -> Non
 
 
 def test_no_verb_prints_the_vocabulary_git_owns(cli: Invoke, workspace: Path):
-    """The same sweep over what the verbs actually say, not what they promise."""
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
     cli("run", "score")
@@ -1560,7 +1488,6 @@ def test_no_verb_prints_the_vocabulary_git_owns(cli: Invoke, workspace: Path):
 def _visible_paths(
     command: Any = None, path: tuple[str, ...] = ()
 ) -> Iterator[tuple[str, ...]]:
-    """Every command a reader can reach from `--help`, and none they cannot."""
     if command is None:
         command = typer.main.get_command(app)
     yield path

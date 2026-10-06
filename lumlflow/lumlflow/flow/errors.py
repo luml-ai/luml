@@ -1,13 +1,5 @@
-"""Flow-runtime error surface.
-
-User-facing wording is the CLI's concern; these carry the failure kind so the
-surfaces can phrase it. Messages here speak paths and slugs, never uids,
-content hashes, or memo keys.
-"""
-
-
 class FlowError(Exception):
-    """Base for every flow-runtime failure."""
+    pass
 
 
 class FlowNotFound(FlowError):
@@ -19,27 +11,23 @@ class FlowAlreadyExists(FlowError):
 
 
 class FlowAmbiguous(FlowError):
-    """More than one flow answers to that name. The message names them."""
+    pass
 
 
 class ServerError(FlowError):
-    """The workspace server could not be reached, started, or would not answer.
-
-    Named for what the user is told, not for what runs: the process is
-    plumbing, and the word for it never reaches a surface.
-    """
+    pass
 
 
 class KernelError(FlowError):
-    """The kernel could not be started, or died while a cell was running."""
+    pass
 
 
 class EnvError(FlowError):
-    """The workspace environment could not be prepared."""
+    pass
 
 
 class JournalCorruption(FlowError):
-    """A journal line failed to parse and is not a recoverable torn tail."""
+    pass
 
 
 class BranchNotFound(FlowError):
@@ -51,36 +39,22 @@ class BranchAlreadyExists(FlowError):
 
 
 class CellNotFound(FlowError):
-    """No cell of that name in the branch's namespace."""
+    pass
 
 
 class InputUnavailable(FlowError):
-    """A cell was asked to run against an input nothing on the branch produces."""
+    pass
 
 
 class ValueNotStored(FlowError):
-    """The output exists as a fact, but its bytes are not in the store to read.
-
-    Either nothing has run it yet, or it is declared `persist: False` and the
-    value was never kept. A distinct kind because the answer differs: the first
-    is "run it", the second is "materialize and download" — and neither is a
-    broken button.
-    """
+    pass
 
 
 class RewindTargetNotFound(FlowError):
-    """No transaction to rewind to, or none this branch existed at."""
+    pass
 
 
 class LaneMoved(FlowError):
-    """Somebody else moved the lane while an agent was working on it.
-
-    Raised before an agent's change lands, never after: the change was not
-    applied. The lane's position is not the agent's to assume once a rewind
-    put it somewhere else — the next change would move it on from there and
-    leave every step after it behind, which is a decision, not a side effect.
-    """
-
     def __init__(self, message: str, *, branch: str, to_step: int, by: str) -> None:
         super().__init__(message)
         self.branch = branch
@@ -89,12 +63,6 @@ class LaneMoved(FlowError):
 
 
 class CellClaimed(FlowError):
-    """Another agent is working on this cell, and it is theirs until they stop.
-
-    Raised before the change lands: nothing was written. Reading the cell is
-    never refused — only what would change or run it under somebody else.
-    """
-
     def __init__(self, message: str, *, slug: str, holder: str, label: str) -> None:
         super().__init__(message)
         self.slug = slug
@@ -103,12 +71,6 @@ class CellClaimed(FlowError):
 
 
 class EditConflict(FlowError):
-    """A daemon-originated edit started from a version the head has moved past.
-
-    Carries what the overwrite / fork-my-edit menu renders. Nothing is written
-    until the caller picks a side.
-    """
-
     def __init__(
         self,
         message: str,
@@ -128,13 +90,6 @@ class EditConflict(FlowError):
 
 
 class AdoptConflict(FlowError):
-    """Adopt has a side to pick. Carries what the menu renders, resolved by force.
-
-    `definition` is the three-way case — both branches edited the cell since
-    they forked. `namespace` names inputs whose reference points at a different
-    cell on the target branch, which would silently rewire the adopted version.
-    """
-
     def __init__(
         self,
         message: str,

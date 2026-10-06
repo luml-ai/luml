@@ -61,9 +61,7 @@ import { isValidGitBranchName, LANE_NAME_INVALID_MESSAGE } from './lanes.const'
 
 const props = defineProps<{
   visible: boolean
-  /** Opened because a change was attempted behind the lane's latest step. */
   forkRequired?: boolean
-  /** The lane to fork. The lane on screen when not given. */
   from?: string
 }>()
 
@@ -144,8 +142,6 @@ function submit(event: FormSubmitEvent) {
 async function createLane(name: string) {
   loading.value = true
   try {
-    // A fork forced by the lane on screen standing behind its head moves the
-    // screen with it; a fork of a lane off screen leaves the screen alone.
     const created = await flowStore.createLane(name, {
       from: props.from,
       switchTo: props.forkRequired && isFromLaneOnScreen.value,

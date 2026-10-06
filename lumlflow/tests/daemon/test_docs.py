@@ -1,5 +1,3 @@
-"""The agent guide served without writing into the workspace."""
-
 from pathlib import Path
 
 from lumlflow.flow.daemon import docs

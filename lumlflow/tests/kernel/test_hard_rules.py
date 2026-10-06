@@ -1,12 +1,3 @@
-"""The two rules that make a path-injected kernel possible.
-
-It runs on the workspace venv's interpreter, which may be older than the
-daemon's and holds no lumlflow code — so the kernel targets Python 3.10 and
-imports nothing but the standard library and itself at module import time.
-Serde libraries load inside the kind that needs them, never at the top of a
-file.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -64,8 +55,6 @@ def test_importing_the_kernel_pulls_in_no_lumlflow_and_no_serde_libraries():
 
 
 def _module_level_imports(path: Path) -> list[str]:
-    """Imports that run when the module is imported — never a lazy one inside
-    a function, which is exactly how the serde libraries are allowed in."""
     names: list[str] = []
     _collect(ast.parse(path.read_bytes()).body, names)
     return names

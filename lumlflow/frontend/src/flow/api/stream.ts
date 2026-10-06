@@ -1,21 +1,3 @@
-/**
- * The socket the workbench watches a workspace through — both channels, one
- * connection, one frame order.
- *
- * The whole point of it is that a reconnect is a latency event and never a
- * data one. Every journal frame carries the flow-global `step`; this holds the
- * highest it has seen per flow and re-subscribes from it, so what comes back
- * after a drop is exactly what was missed — the same replay a tab opened the
- * next morning gets, and the same one the daemon answers a `lagged` client
- * with. Nothing is refetched to "make sure", because the cursor is what makes
- * sure.
- *
- * Three ways a connection can end, and they are not the same state. **Refused**
- * (close 4401) is a token this workspace does not accept: retrying is pointless
- * and the surface must say so. **Closed** is this client letting go. Anything
- * else is a **drop**, which reconnects on a backoff — and a drop is also not
- * the daemon being down, a question only an RPC round-trip can answer.
- */
 
 import { LogRing } from './logs'
 import type { LogFrame, StreamFrame } from './types'
@@ -41,11 +23,8 @@ export interface SocketLike {
 
 export interface FlowStreamOptions {
   token: string
-  /** Origin of the daemon's web endpoint. Same origin by default. */
   baseUrl?: string
-  /** Injected in tests; `WebSocket` against the daemon otherwise. */
   open?: (url: string) => SocketLike
-  /** Injected in tests so a backoff never costs a suite its wall clock. */
   schedule?: (run: () => void, afterMs: number) => void
 }
 
@@ -68,12 +47,6 @@ export class FlowStream {
     this.options = options
   }
 
-  /**
-   * Watch the frames. More than one reader is the normal case — the session
-   * reads the journal while a card's console reads that run's chunks — so
-   * these are a set and not a slot: a console that unmounted must not be able
-   * to take the session's handler down with it.
-   */
   onFrame(handler: (frame: StreamFrame) => void): () => void {
     this.frameListeners.add(handler)
     return () => this.frameListeners.delete(handler)
@@ -84,7 +57,6 @@ export class FlowStream {
     return () => this.statusListeners.delete(handler)
   }
 
-  /** Where this client has got to on a flow — the cursor a replay starts from. */
   cursor(flow: string): number {
     return this.cursors.get(flow) ?? 0
   }
@@ -120,7 +92,6 @@ export class FlowStream {
     this.send({ subscribe: 'logs', flow, run_id: runId })
   }
 
-  /** Stop watching a run whose console is gone. The ring keeps its tail. */
   unwatchRun(flow: string, runId: string): void {
     this.runs.delete(runKey(flow, runId))
   }
@@ -135,8 +106,6 @@ export class FlowStream {
   }
 
   private resubscribe(): void {
-    // From the held cursors, not from zero: this is the replay, and it is the
-    // same message a first subscription sends.
     for (const flow of this.journals) {
       this.send({ subscribe: 'journal', flow, cursor: this.cursor(flow) })
     }
@@ -164,8 +133,6 @@ export class FlowStream {
     }
     if ('channel' in frame && frame.channel === 'journal') {
       if (frame.type === 'lagged') {
-        // The daemon dropped what it had queued for this client and said so.
-        // The remedy it names is the replay, so ask for it.
         this.resubscribe()
         this.deliver(frame)
         return
@@ -176,8 +143,6 @@ export class FlowStream {
       }
       this.cursors.set(frame.flow, Math.max(this.cursor(frame.flow), frame.step))
     } else if ('channel' in frame && frame.channel === 'logs') {
-      // A re-delivered tail is dropped here rather than at the console, so
-      // every reader of the ring sees one run, not one run twice.
       if (!this.logs.append(frame)) return
     }
     this.deliver(frame)

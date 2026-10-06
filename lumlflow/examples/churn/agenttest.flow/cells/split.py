@@ -1,5 +1,4 @@
 class Split:
-    """Stratified train/test split of the dataset."""
     uid = "01M36TK791T6KY1F3RX65QC78J"
 
     consumes = {"data": "load_data.data"}

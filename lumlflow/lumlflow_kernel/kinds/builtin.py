@@ -44,7 +44,6 @@ _FRAME_FLAVOR_METADATA = b"lumlflow.frame_flavor"
 
 
 def asset_types() -> list[Any]:
-    """Registry order is priority order: narrow claims first, pickle last."""
     return [
         FileKind(),
         PlotKind(),
@@ -79,8 +78,6 @@ class FileKind:
 
 
 class FrameKind:
-    """Arrow IPC — the format a non-Python kernel could read tomorrow."""
-
     kind = FRAME
     priority = 40
     python_types = ("pandas.DataFrame", "polars.DataFrame")
@@ -182,8 +179,6 @@ class CheckpointKind:
 
 
 class ExperimentKind:
-    """A reference to a tracked run and its kernel-free snapshot."""
-
     kind = EXPERIMENT
     priority = 55
     python_types = ("lumlflow_kernel.tracker.ExperimentRef",)
@@ -233,8 +228,6 @@ class ExperimentKind:
             if section != "metrics":
                 blocks.append(preview.kv(entries))
                 continue
-            # A metric logged over steps is drawn as its curve, side by side
-            # with the others; one logged once is a single number.
             blocks.extend(
                 preview.series(str(name), values)
                 for name, values in history.items()
@@ -252,8 +245,6 @@ class ExperimentKind:
 
 
 class MetricKind:
-    """A flat dict of numbers — the shape `AGENTS.md` teaches."""
-
     kind = METRIC
     priority = 60
     python_types = ("dict[str, float]",)
@@ -276,8 +267,6 @@ class MetricKind:
 
 
 class EvalKind:
-    """Case rows with at least one score column — the LLM-evals shape."""
-
     kind = EVAL
     priority = 70
     python_types = ("list[dict]",)
@@ -365,8 +354,6 @@ class NoteKind:
 
 
 class PickleKind:
-    """The fallback. It claims everything, so it is registered last."""
-
     kind = PICKLE
     priority = 1000
     python_types = ("object",)
@@ -396,8 +383,6 @@ class PickleKind:
 
 
 def _pickler() -> Any:
-    """cloudpickle when the venv has it — it handles the closures and locally
-    defined classes a notebook-shaped cell produces; stdlib pickle otherwise."""
     try:
         import cloudpickle
 
@@ -417,7 +402,6 @@ def _png(figure: Any) -> bytes:
 
 
 def _dumps(value: Any, *, sort_keys: bool = True) -> bytes:
-    """Compact JSON, key-sorted by default, with non-finite metrics preserved."""
     return json.dumps(
         value, sort_keys=sort_keys, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
@@ -465,7 +449,6 @@ def _frame_rows(value: Any, offset: int, limit: int) -> list[list[Any]]:
 
 
 def _aggregates(rows: list[dict[str, Any]], columns: list[str]) -> dict[str, Any]:
-    """Per-column means over the numeric score columns."""
     means = {}
     for column in columns:
         values = [row[column] for row in rows if _is_number(row[column])]

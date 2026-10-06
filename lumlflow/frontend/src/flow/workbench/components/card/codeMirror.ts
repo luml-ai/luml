@@ -1,15 +1,3 @@
-/**
- * CodeMirror 6, configured for cell source and kept behind a dynamic import.
- *
- * Nothing here rides in the workbench's first chunk: a card showing read-only
- * source never fetches it, and the editor's cost is paid by the edit gesture
- * that asked for it.
- *
- * Every colour is a CSS variable rather than a literal. `SourceEditor.vue`
- * defines both palettes off the app's theme tokens, so light and dark stay one
- * stylesheet instead of two editor themes that have to be kept in step.
- */
-
 import {
   defaultKeymap,
   history,
@@ -100,7 +88,6 @@ const housePython = HighlightStyle.define([
   { tag: tags.invalid, color: 'var(--flow-code-invalid)' },
 ])
 
-/** What a locked surface drops: the caret, and the accents that imply one. */
 function modeExtension(readonly: boolean): Extension {
   return readonly
     ? [EditorState.readOnly.of(true), EditorView.editable.of(false)]
@@ -133,8 +120,6 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
         lineNumbers(),
         history(),
         bracketMatching(),
-        // Python's own unit, so Tab and the newline auto-indent agree with the
-        // file the edit is projected back into.
         indentUnit.of('    '),
         python(),
         syntaxHighlighting(housePython),

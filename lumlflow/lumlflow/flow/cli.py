@@ -1,20 +1,3 @@
-"""The flow verbs, mounted on `lumlflow`.
-
-Three of these are the whole product: edit a cell file, `lumlflow run <cell>`,
-`lumlflow status`. Everything else is progressive disclosure, and everything
-goes through the workspace daemon — which the first verb to need one starts, so
-no session has to be connected, selected, or configured anywhere.
-
-Two rules hold across every verb. `--json` gives a program the answer verbatim,
-including the identifiers the printed form leaves out. `-m/--intent` says why a
-mutation happened, and rides into the journal beside it: a history of *what*
-changed, with no *why*, is not a history anybody reads twice.
-
-A flow lives inside somebody's git repository, so no verb here may be spelled
-the way git spells one. Lane operations live under `lumlflow lane`, and the
-wire keeps its internal branch vocabulary at the daemon boundary.
-"""
-
 import contextlib
 import json
 import os
@@ -57,7 +40,6 @@ _INTENT = typer.Option(None, "-m", "--intent", help="Why. Recorded in the journa
 
 
 def register(app: typer.Typer) -> None:
-    """Mount the flow verbs on the top-level app."""
     for command in (
         init,
         status,
@@ -79,7 +61,6 @@ def register(app: typer.Typer) -> None:
     ):
         app.command()(command)
     # `import` is a keyword, so the verb and the function that serves it cannot
-    # share a name.
     app.command("import")(import_cells)
     app.add_typer(cells_app, name="cells")
     app.add_typer(asset_app, name="asset")
@@ -105,7 +86,6 @@ def init(
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
-    """Scaffold a flow here and put `main` on disk."""
     with _daemon(as_json, directory=directory) as daemon:
         workspace_root = daemon.root
         created = daemon.call(
@@ -139,7 +119,6 @@ def status(
     flow: str | None = _FLOW,
     as_json: bool = _JSON,
 ) -> None:
-    """The workspace, its flows, and what is stale in each."""
     requested = (directory or Path.cwd()).resolve()
     result = _call(
         "status",
@@ -157,7 +136,6 @@ def context(
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """Where you are, what is stale and why, what broke, and what it costs."""
     params = {"branch": lane}
     result = _call("context", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.context)
@@ -173,7 +151,6 @@ def doctor(
     ),
     as_json: bool = _JSON,
 ) -> None:
-    """The daemon, logs, environment, stores and agent entries."""
     from lumlflow.flow.daemon import doctor as diagnostics
 
     try:
@@ -196,7 +173,6 @@ def gc(
     ),
     as_json: bool = _JSON,
 ) -> None:
-    """Reclaim values left behind by interrupted runs."""
     requested = (directory or Path.cwd()).resolve()
     result = _call(
         "gc.sweep",
@@ -209,7 +185,6 @@ def gc(
 
 
 def guide() -> None:
-    """The cell DSL, lane rules, tools and CLI verbs for an agent."""
     from lumlflow.flow.daemon import docs
 
     typer.echo(docs.CHEATSHEET, nl=False)
@@ -229,7 +204,6 @@ def graph(
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """The declared wiring. This is the graph the scheduler runs."""
     params = {"branch": lane, "around": around, "depth": depth}
     result = _call("graph", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.graph)
@@ -251,15 +225,6 @@ def run(
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """Run a cell, or every leaf on the lane, and whatever they need first.
-
-    This verb takes no `-m`. A run records the runtime's own fact instead:
-    `ran features`, `features failed`, or `reused a cached features`. That is
-    more honest than a sentence typed before anybody knew which it would be.
-
-    `--force` spends the closure's cost again on purpose. It drops memoization
-    for this run, so the store serves nothing and every cell computes.
-    """
     from lumlflow.flow.daemon import workspace
 
     root = Path.cwd().resolve()
@@ -293,7 +258,6 @@ def preflight(
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """What running it recomputes, reuses, and costs. Read this before you run."""
     params = {"target": target, "branch": lane}
     result = _call("preflight", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.preflight)
@@ -304,7 +268,6 @@ def cancel(
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """Stop waiting on the run this lane asked for."""
     params = {"branch": lane}
     result = _call("cancel", params, flow=flow, as_json=as_json)
     _emit(result, as_json, render.abandoned(result))
@@ -354,8 +317,6 @@ def rewind(
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
-    """Move a lane to a step. Instant, nothing recomputes, and no step is
-    added: the lane stands there until the next change on it."""
     params = {
         "to_step": to_step,
         "branch": lane,
@@ -384,8 +345,6 @@ def checkpoint(
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """Mark a step on a lane under a one-line intent. Nothing is copied, and
-    no step is added: the words attach to the step itself."""
     params = {"branch": lane, "intent": intent, "step": step}
     result = _call("checkpoint", params, flow=flow, as_json=as_json)
     _emit(
@@ -404,7 +363,6 @@ def adopt(
     force: bool = typer.Option(False, "--force", help="Take the incoming side."),
     as_json: bool = _JSON,
 ) -> None:
-    """Take one cell's version from another lane onto this one."""
     params = {
         "slug": slug,
         "from_branch": from_lane,
@@ -448,7 +406,6 @@ def diff(
     flow: str | None = _FLOW,
     as_json: bool = _JSON,
 ) -> None:
-    """How lanes differ. Edited cells first, then results, then the rest."""
     result = _call("diff", {"branches": lanes}, flow=flow, as_json=as_json)
     _emit(result, as_json, render.diff)
 
@@ -461,7 +418,6 @@ def rename(
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
-    """Rename a cell. References bind to identity, so this costs nothing."""
     params = {
         "slug": slug,
         "to": to,
@@ -486,13 +442,6 @@ def export(
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """Write a lane's cells out as one Python file.
-
-    This exports a file, not the flow. It carries the cells as they stand and
-    nothing else: no history, no results, and no other lanes. It is how a
-    flow travels. The flow itself stays a directory. `lumlflow import` reads
-    the file back, and each cell keeps the identity it left with.
-    """
     with _daemon(as_json, flow=flow) as daemon:
         result = daemon.call("export", {"branch": lane})
         written = _write_export(Path(to), result["source"])
@@ -517,11 +466,6 @@ def import_cells(
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
-    """Read an exported file back into a lane, cell for cell.
-
-    This edits a cell the flow already knows. It never duplicates one. The
-    file carries each cell's identity, which is what makes the round trip one.
-    """
     with _daemon(as_json, flow=flow) as daemon:
         result = daemon.call(
             "import",
@@ -558,15 +502,6 @@ def mcp(
         None, "--label", help="What to call the session. Defaults to the client's name."
     ),
 ) -> None:
-    """Serve lumlflow to an agent over MCP, on stdio.
-
-    Do not run this verb by hand. An MCP client spawns it and speaks the
-    protocol down its stdin. Every tool it offers goes where the verbs go. An
-    agent working this way and one running verbs reach the same store.
-
-    The server keeps its spawn directory for name resolution. Every call reaches
-    the same per-user daemon, wherever another client was launched.
-    """
     from lumlflow.flow.daemon import mcp as server
 
     # Nothing is echoed here, ever — stdout is the protocol.
@@ -983,8 +918,6 @@ def daemon_stop(as_json: bool = _JSON) -> None:
 
 
 class _Daemon:
-    """A connection, plus the flow this cwd addresses when nobody said."""
-
     def __init__(self, live: Any, root: Path, flow: str | None) -> None:
         self.live = live
         self.root = root
@@ -1039,12 +972,6 @@ def _daemon(
     flow: str | None = None,
     directory: Path | None = None,
 ) -> Iterator[_Daemon]:
-    """The per-user daemon, started in this directory if none answers.
-
-    Every failure the flow runtime raises lands here, where it becomes a
-    sentence and an exit code rather than a traceback: an agent reading a
-    Python stack to find out that a branch name was wrong is a Tier-0 failure.
-    """
     from lumlflow.flow.daemon import client
 
     try:
@@ -1119,11 +1046,6 @@ def _fail(failure: FlowError, as_json: bool) -> Never:
 
 
 def _flow_here(root: Path, explicit: str | None) -> str | None:
-    """Which flow a verb means: the one named, else the one you are standing in.
-
-    Left unanswered otherwise — a single-flow workspace needs no answer, and a
-    workspace with several is a question the daemon asks by name.
-    """
     from lumlflow.flow.daemon import workspace
 
     if explicit:
@@ -1206,7 +1128,6 @@ def _names(cells: Sequence[dict[str, Any]]) -> str:
 
 
 def _read_export(path: Path) -> str:
-    """A file the user named, read as a message rather than as a traceback."""
     try:
         return path.expanduser().read_text("utf-8")
     except (OSError, UnicodeDecodeError) as unreadable:
@@ -1214,11 +1135,6 @@ def _read_export(path: Path) -> str:
 
 
 def _shared_code_note(path: Path, root: Path) -> list[str]:
-    """An export written into the workspace is watched code like any other `.py`.
-
-    Which marks every cell unsynced, naming this file as the cause — true, and
-    baffling to arrive at from a verb that only meant to write a copy out.
-    """
     if path.suffix != ".py" or not path.resolve().is_relative_to(root):
         return []
     return [
@@ -1229,7 +1145,6 @@ def _shared_code_note(path: Path, root: Path) -> list[str]:
 
 
 def _write_export(path: Path, source: str) -> Path:
-    """Newline-fixed: an export is the same bytes wherever it was written."""
     destination = path.expanduser()
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)

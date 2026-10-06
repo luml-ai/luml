@@ -1,10 +1,8 @@
 <template>
-  <!-- No token, or one the daemon refused: this tab has no key either way. -->
   <NotConnectedNotice v-if="source === 'unconnected'" class="max-w-2xl" />
 
   <LiveCompare v-else-if="live" :session="live" />
 
-  <!-- An unopened source is a wait, a server that is gone, or a refusal it named. -->
   <div v-else class="flex flex-col gap-3">
     <DaemonDownBanner v-if="unreachable" />
     <p v-else-if="refusal" class="text-base text-(--p-message-error-color)">{{ refusal }}</p>
@@ -26,10 +24,8 @@ import { useFlowSession } from '../live/useFlowSession'
 import type { FlowSessionHandle } from '../live/useFlowSession'
 import LiveCompare from './LiveCompare.vue'
 
-/** Which comparison this is: a live one or an unconnected tab. */
 const route = useRoute()
 const token = browserToken()
-// A token the daemon refused counts as none, the same way the workbench reads it.
 const source = computed(() => selectSource(tokenRejected.value ? null : token))
 const flowId = typeof route.params.flowId === 'string' ? route.params.flowId : undefined
 

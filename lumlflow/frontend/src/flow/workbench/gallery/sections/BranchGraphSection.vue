@@ -106,12 +106,6 @@ const toast = useToast()
 const overlayVisible = ref(false)
 const forking = ref(false)
 
-/**
- * `main`'s own steps, one of them marked — the timeline lists positions on one
- * branch, so the workspace-scoped lines the activity feed folds in are not
- * rows here: an env change is not somewhere this branch can be moved back to.
- * The mark rides on a step rather than being one.
- */
 const steps = computed(() => {
   const own = journal.filter((entry) => entry.branch === 'main')
   return own.map((entry, index) =>

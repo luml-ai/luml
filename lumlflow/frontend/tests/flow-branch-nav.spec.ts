@@ -1,19 +1,3 @@
-/**
- * Moving between branches, and within one.
- *
- * Three rules carry this suite. **Viewing and checking out are different
- * verbs**: the switcher re-scopes the screen with a store read and the URL
- * follows, while rebinding the files is a separate ask behind a sentence that
- * names what it moves — a dropdown that moved files as a side effect of
- * browsing would make looking dangerous. **A branch is created from the branch
- * you are on**, at its head, and the screen lands on the new one, because
- * minting a branch and then leaving the user looking at its parent is a state
- * with nothing to say which is which. And **a checkpoint is a marker, not a
- * snapshot and not a step**: the store already keeps every version the step
- * resolved to, so the only thing the gesture carries is the user's own
- * sentence — and the sentence goes on the current step, the way a commit
- * message rides on its commit, rather than adding a row to the timeline.
- */
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -148,7 +132,6 @@ function asked(live: Attached, method: string): Record<string, unknown>[] {
   return live.daemon.calls.filter((call) => call.method === method).map((call) => call.params)
 }
 
-/** The overlays — the switcher's panel, the timeline, the dialog — are teleported. */
 function overlay(): string {
   return document.body.textContent ?? ''
 }
@@ -162,7 +145,6 @@ async function clickOverlayButton(label: string): Promise<void> {
   await settle()
 }
 
-/** The switcher is a `Select`: one combobox, opened the way a reader opens it. */
 async function openSwitcher(wrapper: VueWrapper): Promise<void> {
   const trigger = wrapper.find('[data-pc-name="select"]')
   expect(trigger.exists(), 'no branch switcher in the bar').toBe(true)
@@ -170,7 +152,6 @@ async function openSwitcher(wrapper: VueWrapper): Promise<void> {
   await settle()
 }
 
-/** `Select` commits an option on mousedown, which is what a pointer sends first. */
 async function pickBranch(name: string): Promise<void> {
   const option = [...document.body.querySelectorAll('[role="option"]')].find(
     (node) => node.getAttribute('aria-label') === name,
@@ -180,7 +161,6 @@ async function pickBranch(name: string): Promise<void> {
   await settle()
 }
 
-/** The timeline hangs off the step count in the branch identity block. */
 async function openTimeline(wrapper: VueWrapper, branch = 'main'): Promise<void> {
   const steps = wrapper.find(`button[aria-label="Steps on ${branch}"]`)
   expect(steps.exists(), 'no step count to open the timeline from').toBe(true)
@@ -208,7 +188,6 @@ describe('the branch switcher is a shortcut, not a checkout', () => {
 
     expect(overlay()).toContain('main')
     expect(overlay()).toContain('exp/lr-sweep')
-    // Steps, so a branch is picked by where it stands rather than by name alone.
     expect(overlay()).toContain('14 steps')
     expect(overlay()).toContain('on disk')
     wrapper.unmount()
@@ -239,7 +218,6 @@ describe('the branch switcher is a shortcut, not a checkout', () => {
 
     expect(window.location.search).toContain('branch=exp%2Flr-sweep')
     expect(asked(live, 'cells.list').map((params) => params.branch)).toContain('exp/lr-sweep')
-    // Browsing never moves files. This is the whole reason the switcher exists.
     expect(asked(live, 'switch')).toEqual([])
     wrapper.unmount()
   })
@@ -252,7 +230,6 @@ describe('the branch switcher is a shortcut, not a checkout', () => {
     await openSwitcher(wrapper)
     await clickOverlayButton('use exp/lr-sweep here')
 
-    // The confirm states what moves; nothing has been asked of the daemon yet.
     expect(overlay()).toContain('rewrites the files')
     expect(asked(live, 'switch')).toEqual([])
 
@@ -311,7 +288,6 @@ describe('a branch is created from the one being viewed', () => {
     expect(asked(live, 'fork')).toEqual([
       expect.objectContaining({ name: 'exp/deeper', from_branch: 'main', branch: 'main' }),
     ])
-    // The screen follows the branch it just made.
     expect(window.location.search).toContain('branch=exp%2Fdeeper')
     wrapper.unmount()
   })
@@ -358,7 +334,6 @@ describe('a branch is created from the one being viewed', () => {
     await clickOverlayButton('create lane')
 
     expect(overlay()).toContain('already exists')
-    // The dialog stays open over the name that has to change.
     expect(document.body.querySelector('input[aria-label="lane name"]')).toBeTruthy()
     wrapper.unmount()
   })
@@ -400,7 +375,6 @@ describe('the step timeline is where a branch moves through its own history', ()
     )
     expect(overlay()).toContain('step 12')
     expect(overlay()).toContain('added features')
-    // Its head is where it stands; the rest are places it can go.
     expect(overlay()).toContain('current')
     wrapper.unmount()
   })
@@ -633,7 +607,6 @@ describe('a lane fork is visible from both sides', () => {
 })
 
 describe('a checkpoint is words on the current step, not a step of its own', () => {
-  /** `main`'s own steps as the stream served them, before anything was marked. */
   const OWN = [
     transaction(12, { branch: 'branch-main', actor: 'user', intent: 'added features' }),
     transaction(14, { branch: 'branch-main', actor: 'user', intent: 'edited features' }),
@@ -664,7 +637,6 @@ describe('a checkpoint is words on the current step, not a step of its own', () 
     )
   }
 
-  /** The stream's line for a mark: it names the step, and its intent is the words. */
   function markLine(step: number, onStep: number, intent: string) {
     return {
       channel: 'journal' as const,
@@ -703,7 +675,6 @@ describe('a checkpoint is words on the current step, not a step of its own', () 
     await typeInto('what this point is', intent)
     await clickOverlayButton('mark this point')
 
-    // The current step is what gets the words.
     expect(asked(live, 'checkpoint')).toEqual([
       expect.objectContaining({ branch: 'main', intent, step: 14 }),
     ])
@@ -712,8 +683,6 @@ describe('a checkpoint is words on the current step, not a step of its own', () 
     await settle()
     await openTimeline(wrapper)
 
-    // No row for step 15: the words sit on step 14, which reads under them and
-    // keeps what it did underneath.
     expect(stepRow(15)).toBeNull()
     const row = stepRow(14)
     expect(row?.getAttribute('aria-label')).toBe(`step 14 · ${intent}`)
@@ -827,7 +796,6 @@ describe('a checkpoint is words on the current step, not a step of its own', () 
       'before I rewrite the scorer',
     )
     expect(overlay()).not.toContain('first words')
-    // Still the current step: the marking added nothing after it.
     expect(stepRow(14)?.textContent).toContain('current')
     wrapper.unmount()
   })
@@ -857,7 +825,6 @@ describe('a rewound lane stands behind its newest step', () => {
     transaction(14, { branch: 'branch-main', actor: 'user', intent: 'edited features' }),
   ]
 
-  /** `main` moved back to step 12; steps 13 and 14 are still its history. */
   const REWOUND: BranchRecord[] = [
     branchRecord({
       branch: 'main',
@@ -915,7 +882,6 @@ describe('a rewound lane stands behind its newest step', () => {
 
   it('says so in the lane identifier and reads the later steps as ahead', async () => {
     const { wrapper, live } = await behind()
-    // The line that moved it is in the journal, and is not a position.
     live.socket.deliver({
       channel: 'journal',
       type: 'transaction',
@@ -1045,7 +1011,6 @@ describe('a rewound lane stands behind its newest step', () => {
     await add?.trigger('click')
     await settle()
 
-    // Nothing lands until the reader answers.
     expect(dialog()).toContain('main stands at step 12')
     expect(dialog()).toContain('behind its newest step 14')
     expect(asked(live, 'cells.new')).toEqual([])

@@ -1,9 +1,3 @@
-"""An output declared not to persist, read by its consumer through a real kernel.
-
-The bytes never reach the store, so the consumer is fed from the kernel's own
-memory, and the producer runs again whenever a consumer needs it.
-"""
-
 from pathlib import Path
 
 import pytest

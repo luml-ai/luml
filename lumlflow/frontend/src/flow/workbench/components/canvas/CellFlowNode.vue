@@ -13,14 +13,7 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
 
-/**
- * A node's frame: the wiring handles the edges attach to, and the subdued ring
- * the transitive-staleness filter draws. What sits inside is a card, and which
- * card — the fixture's or one bound to the session — is the canvas's caller's
- * to say.
- */
 defineProps<{
-  /** Transitive-staleness filter is on and this cell is stale under it. */
   tinted?: boolean
 }>()
 

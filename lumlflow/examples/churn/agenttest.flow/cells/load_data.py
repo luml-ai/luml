@@ -1,5 +1,4 @@
 class LoadData:
-    """Load the sklearn breast cancer dataset as a dataframe with a `target` column."""
     uid = "01M36TK77ZV7D7J2J952KZ55VN"
 
     produces = {"data": "asset"}

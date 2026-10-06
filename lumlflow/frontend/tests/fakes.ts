@@ -1,9 +1,3 @@
-/**
- * A daemon and a socket that answer, so the specs can assert the client's own
- * contract rather than a server's. Shared by every live-surface spec: one
- * definition of what the daemon looks like keeps two suites from disagreeing
- * about the wire the product speaks.
- */
 
 import { nextTick } from 'vue'
 import { expect } from 'vitest'
@@ -60,7 +54,6 @@ export class FakeSocket implements SocketLike {
 
 export interface Daemon {
   api: FlowApi
-  /** For surfaces that build their own client: stub `fetch` with this. */
   transport: typeof globalThis.fetch
   calls: { method: string; params: Record<string, unknown> }[]
   down: { value: boolean }
@@ -68,12 +61,6 @@ export interface Daemon {
 
 export type Handlers = Record<string, (params: Record<string, unknown>) => unknown>
 
-/**
- * `down` is nobody answering. A handler that throws a `FlowApiError` is the
- * other failure entirely — the daemon naming something about the request — and
- * it crosses the wire as an error body, the way the real one does. A fake that
- * collapsed the two would let a surface pass while reporting the wrong failure.
- */
 export function fakeDaemon(handlers: Handlers = {}): Daemon {
   const calls: { method: string; params: Record<string, unknown> }[] = []
   const down = { value: false }
@@ -186,7 +173,6 @@ export function cellDetail(slug: string, overrides: Partial<CellDetail> = {}): C
   }
 }
 
-/** A preview as the kernel stores one: a versioned envelope over blocks. */
 export function storedPreview(kind: string, blocks: unknown[], schema = 1): StoredPreview {
   return { schema, kind, blocks, truncated: false }
 }
@@ -244,13 +230,6 @@ export async function attach(
   return { session, socket: sockets[0], stream, daemon, sockets, reconnects }
 }
 
-/**
- * Let the fake transport's promise chain and the watchers it wakes finish.
- *
- * Deep enough for a surface that reads several things in sequence — a card
- * pulls its source, then a preview, then a log artifact, each a round trip —
- * because a half-settled turn asserts against a screen still filling in.
- */
 export async function settle(): Promise<void> {
   for (let round = 0; round < 4; round += 1) {
     for (let turn = 0; turn < 16; turn += 1) await Promise.resolve()
@@ -258,24 +237,12 @@ export async function settle(): Promise<void> {
   }
 }
 
-/**
- * The same, plus the session's quiet point.
- *
- * A run of transactions is one movement of the store, so the reads that depend
- * on the journal wait for the frames to stop before going out again. A test
- * that delivers transactions without the catch-up frame that ends a real
- * subscription cycle has no other end-of-burst to wait for.
- */
 export async function settleJournal(): Promise<void> {
   await settle()
   await new Promise((resume) => setTimeout(resume, SETTLE_MS + 20))
   await settle()
 }
 
-/**
- * The cell card's overflow menu. Two controls ride the op row — the run and
- * this — and every other verb is one deliberate click behind it.
- */
 export async function openCardMenu(wrapper: VueWrapper): Promise<void> {
   const more = wrapper
     .findAll('button')
@@ -285,7 +252,6 @@ export async function openCardMenu(wrapper: VueWrapper): Promise<void> {
   await settle()
 }
 
-/** Clicks a menu item by its label, wherever the overlay was teleported to. */
 export async function clickMenuItem(label: string): Promise<void> {
   const item = [...document.body.querySelectorAll('[role="menuitem"] > div')].find((node) =>
     node.textContent?.trim().startsWith(label),
@@ -295,11 +261,6 @@ export async function clickMenuItem(label: string): Promise<void> {
   await settle()
 }
 
-/**
- * Opens a disclosure by its header label. Secondary sections start collapsed
- * and render nothing until asked for, so a spec that reads one opens it the
- * way a reader would — including from the keyboard, which the header is.
- */
 export async function openPanel(wrapper: VueWrapper, label: string): Promise<void> {
   const header = wrapper
     .findAll('[data-pc-name="accordionheader"]')

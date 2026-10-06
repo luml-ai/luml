@@ -18,21 +18,15 @@ import { computed } from 'vue'
 import { Tag } from 'primevue'
 import type { CellStatus, StaleInfo } from '../model/types'
 
-/**
- * The status vocabulary chip. `unmaterialized` is deliberately its own quiet
- * state (never a flavor of stale), and stale always names its cause in words.
- */
 const props = defineProps<{
   status: CellStatus
   stale?: StaleInfo
-  /** Hide the cause text (dense contexts: inventory rows, graph nodes). */
   compact?: boolean
 }>()
 
 const tagPt = { root: { class: 'text-sm font-normal px-2 py-0.5' } }
 
 const label = computed(() => {
-  // Dense rows get one word; the subdued treatment already reads as downstream.
   if (props.status === 'stale' && props.stale?.transitive && !props.compact) {
     return 'stale · downstream'
   }
@@ -61,7 +55,6 @@ const subdued = computed(
 
 const cause = computed(() => (!props.compact && props.status === 'stale' ? props.stale?.cause : ''))
 
-/** Render `slug` spans in causes as code without pulling in a markdown pass. */
 const causeHtml = computed(() =>
   (cause.value ?? '')
     .replace(/&/g, '&amp;')

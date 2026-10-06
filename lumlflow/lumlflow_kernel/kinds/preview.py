@@ -1,14 +1,3 @@
-"""Preview payloads: the kernel-free tier every surface renders from.
-
-A preview is a versioned envelope over primitive renderable blocks. Kinds
-compose these six; none of them ships frontend code, which is what keeps a new
-kind — including one a workspace defines — renderable the day it appears.
-
-The payload is bounded, and a bounded payload that quietly dropped half a table
-would be a worse lie than a small one: when the cap bites, the envelope says
-`truncated` and each block keeps a smaller renderable form.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -38,7 +27,6 @@ def table(
     rows: Iterable[Sequence[Any]],
     total_rows: int,
 ) -> Block:
-    """Head rows plus the schema and the true row count — never a row estimate."""
     kept = list(columns)[:MAX_COLUMNS]
     width = len(kept)
     body = _normalize_rows(rows, width, clip=True)
@@ -72,7 +60,6 @@ def page(
 
 
 def series(name: str, points: Sequence[Any]) -> Block:
-    """A curve, downsampled by stride so its shape and its ends survive."""
     return {
         "block": "series",
         "name": name,
@@ -116,7 +103,6 @@ def file(name: str, size: int, content_type: str = "application/octet-stream") -
 
 
 def envelope(kind: str, blocks: Sequence[Block]) -> dict[str, Any]:
-    """The stored payload, shrunk from the tail until it fits the cap."""
     current = list(blocks)
     truncated = False
     for _ in range(_SHRINK_ROUNDS):
@@ -141,7 +127,6 @@ def _payload(kind: str, blocks: Sequence[Block], truncated: bool) -> dict[str, A
 
 
 def _shrink(blocks: Sequence[Block]) -> list[Block]:
-    """Shrink each renderable shape before dropping an unshrinkable block."""
     shrunk: list[Block] = []
     gave = False
     for block in blocks:
@@ -218,7 +203,6 @@ def _normalize_rows(
 
 
 def _cell(value: Any, *, clip: bool = True) -> str | int | float | bool | None:
-    """One renderable scalar. Anything richer is shown as its own repr."""
     value = _unwrap(value)
     if value is None or isinstance(value, (bool, int)):
         return value
@@ -257,7 +241,6 @@ def _number(value: Any) -> float | int | None:
 
 
 def _unwrap(value: Any) -> Any:
-    """numpy scalars answer `item()`; nothing else in the preview path does."""
     item = getattr(value, "item", None)
     if item is None or getattr(value, "shape", ()) != ():
         return value

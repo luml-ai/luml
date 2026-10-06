@@ -13,11 +13,6 @@
   >
     <template #node-cell="{ data }">
       <CellFlowNode :tinted="data.tinted" @press="selectFromCard(data.cell.slug)">
-        <!--
-          The card is the caller's: the fixture path takes the fallback below,
-          a live session hands in one bound to the daemon. Either way it is the
-          same CellCard at the same density — the canvas owns the placement.
-        -->
         <slot name="card" :cell="data.cell" :selected="data.selected" :preflight="data.preflight">
           <CellCard
             :cell="data.cell"
@@ -51,11 +46,9 @@ import type { ViewportTransform } from '@vue-flow/core'
 import type { FlowCell, Preflight } from '../../model/types'
 import type { CanvasLayout } from './canvasLayout'
 
-/** What a node carries: the cell it draws and how this view stands to it. */
 export interface CellNodeData {
   cell: FlowCell
   selected: boolean
-  /** Transitive-staleness filter is ON and this cell is transitively stale. */
   tinted: boolean
   preflight?: Preflight
 }
@@ -87,11 +80,6 @@ import {
   updateCanvasLayout,
 } from './canvasLayout'
 
-/**
- * The canvas view: the branch slice as a left-to-right DAG whose edges are the
- * declared consumes wiring — the graph on screen is the graph the scheduler
- * runs. Nodes host the same CellCard the notebook uses, at canvas density.
- */
 const props = defineProps<{
   cells: FlowCell[]
   branch: string

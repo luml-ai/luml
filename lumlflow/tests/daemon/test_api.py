@@ -1,11 +1,3 @@
-"""The daemon API over a real workspace: list, init, open, run, delete.
-
-The end-to-end run here is the whole stack — a cell file goes through
-acceptance, the scheduler plans it, a kernel process materializes it, and the
-store records it — on a workspace holding two flows, because a workspace daemon
-that hosts one flow proves nothing about the one that hosts two.
-"""
-
 import asyncio
 import contextlib
 import json
@@ -182,8 +174,6 @@ async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
     }
 
 
-# Whose `helpers.py` a cell imports is the whole question, so the answer comes
-# back as the marker each workspace's copy declares.
 WHERE_CELL = """
 class Where:
     \"\"\"Reports the workspace whose code it can import.\"\"\"
@@ -241,12 +231,6 @@ async def test_a_flow_outside_the_listing_opens_in_the_same_daemon(
 async def test_a_flow_opened_from_outside_runs_under_its_own_workspace(
     tmp_path: Path,
 ):
-    """One venv and one set of helpers per workspace, whoever hosts the flow.
-
-    A flow this daemon opened from above the launch directory imports the code
-    sitting beside *it*: handing it the launch workspace's environment would be
-    an environment nobody installed for it.
-    """
     root = make_workspace(tmp_path / "project", files={"helpers.py": "MARKER = 1"})
     other = make_workspace(
         tmp_path / "other", flows=("sales",), files={"helpers.py": "MARKER = 2"}
@@ -264,7 +248,6 @@ async def test_a_flow_opened_from_outside_runs_under_its_own_workspace(
     assert ran["executed"] == ["where"]
     assert session.workspace_dir == other
     assert values_in(other / "sales.flow") == [{"marker": 2}]
-    # And nothing moved under the flows the launch directory does contain.
     assert hosted == {"churn": root}
 
 
@@ -318,8 +301,6 @@ async def test_flow_init_scaffolds_a_store_and_leaves_the_flow_unbound(tmp_path:
     async with daemon_api(root) as api:
         created = await api.flow_init({"name": "churn"})
         listed = await api.workspace_list({"directory": str(root)})
-        # The API path creates a flow, never a checkout: binding the worktree
-        # and projecting `main` into `cells/` is what `lumlflow init` adds.
         bound = api.hub.session("churn").store.branches.bound_branch()
 
     assert created["flow"] == "churn"
@@ -356,8 +337,6 @@ async def test_a_flow_with_cells_opens_on_them_unmaterialized(tmp_path: Path):
     report = next(cell for cell in opened["cells"] if cell["slug"] == "report")
     assert report["outputs"] == ["report"]
     assert report["consumes"] == {"summary": "score.summary"}
-    # `report` was read before `score` existed in the namespace; the rescan
-    # binds it anyway rather than leaving a dangling reference behind.
     assert report["flags"] == []
 
 
@@ -928,7 +907,6 @@ async def test_a_run_crosses_daemon_kernel_and_store_in_two_flows(tmp_path: Path
     assert sales["executed"] == ["score"]
     assert slugs(flow_named(status, "churn"), "synced") == ["report", "score"]
     assert slugs(flow_named(status, "sales"), "synced") == ["score"]
-    # One kernel per flow, and each flow's bytes land in its own store.
     assert kernels["churn"] not in (None, kernels["sales"])
     assert values_in(root / "sales.flow") == [{"auc": 0.91}]
     assert values_in(root / "churn.flow") == [{"auc": 0.91}, {"auc_pct": 91.0}]
@@ -983,8 +961,6 @@ async def test_preflight_names_the_closure_the_run_then_executes(tmp_path: Path)
     assert before["recompute"] == ["score", "report"]
     assert before["unknown"] == ["score", "report"]
     assert outcome["executed"] == list(before["recompute"])
-    # Nothing changed in between: the synced parent is not even a candidate,
-    # and the target itself is pruned on the key it already ran under.
     assert (again["executed"], again["pruned"]) == ([], ["report"])
     assert after["recompute"] == []
 
@@ -1106,8 +1082,6 @@ async def test_cancelling_a_lane_run_does_not_start_its_next_leaf(
 async def test_forcing_a_run_spends_the_cost_the_store_would_have_saved(
     tmp_path: Path,
 ):
-    """The card's force modifier has to mean something at the far end: without
-    this it would read as a rerun and quietly be answered from the memo."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -1125,8 +1099,6 @@ async def test_forcing_a_run_spends_the_cost_the_store_would_have_saved(
 async def test_preflighting_several_targets_counts_a_shared_parent_once(
     tmp_path: Path,
 ):
-    """Rerunning a branch preflights its leaves together — one closure, so the
-    parent both of them need is billed the once it will run."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     write_cell(root / "churn.flow", "report", REPORT_CELL)
@@ -1139,9 +1111,6 @@ async def test_preflighting_several_targets_counts_a_shared_parent_once(
 
 
 async def test_the_eager_opt_in_survives_the_daemon_that_took_it(tmp_path: Path):
-    """A per-asset toggle that lived in one process would be a setting the next
-    session silently dropped. It belongs in `flow.yaml`, beside the cost
-    threshold it overrides."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -1321,14 +1290,10 @@ async def test_an_edit_between_runs_is_picked_up_without_a_watcher(tmp_path: Pat
         outcome = await api.run({"flow": "churn", "target": "score"})
 
     assert outcome["executed"] == ["score"]
-    # Both runs' bytes are in the store; the edit's is what the second produced.
     assert values_in(root / "churn.flow") == [{"auc": 0.91}, {"auc": 0.93}]
 
 
 async def test_running_a_fork_never_hands_it_the_worktrees_edit(tmp_path: Path):
-    """The files are one branch's slice. Rescanning them onto the branch a run
-    happens to name would make every fork adopt the worktree by standing still,
-    and pin-at-fork says a fork takes an update by adopt or not at all."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -1345,7 +1310,6 @@ async def test_running_a_fork_never_hands_it_the_worktrees_edit(tmp_path: Path):
 
     assert on_sweep == pinned
     assert on_main != pinned
-    # The fork ran what it pinned, not what the worktree now holds.
     assert values_in(root / "churn.flow") == [{"auc": 0.91}]
 
 
@@ -1723,9 +1687,6 @@ async def test_a_forced_adopt_name_clash_keeps_the_preexisting_cell(
 async def test_a_clone_without_a_store_rebuilds_the_identity_git_carried(
     tmp_path: Path,
 ):
-    """`.lumlflow/` is gitignored, so a second machine gets the cells and
-    `flow.yaml` and nothing else. The time plane does not travel through git;
-    identity does, and the caches are merely cold."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -1752,21 +1713,14 @@ async def test_a_clone_without_a_store_rebuilds_the_identity_git_carried(
     )
     assert rebuilt == hashes
     assert slugs(opened) == ["score"]
-    # The keys line up, so the clone recomputed for want of a materialization
-    # carrying one — a cold cache, not a permanently unreachable one.
     assert relaid == keys
-    # Nothing was memoized across the clone, and the run produced the same bytes.
     assert (first["executed"], again["executed"]) == (["score"], ["score"])
     assert values_in(root / "churn.flow") == [{"auc": 0.91}]
-    # History roots fresh: the rebuilt journal begins at the first step and
-    # carries none of the run git never shipped.
     assert [entry.step for entry in transactions(session)][0] == 1
     assert ran_before.mat_id not in {op.mat_id for op in ops_of(session, RunRecorded)}
 
 
 async def test_listing_a_materialized_flow_starts_no_kernel(tmp_path: Path):
-    """Everything a session renders is stored, so a listing that never runs a
-    cell never spawns a process — the expand gesture is what starts one."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -1787,9 +1741,6 @@ async def test_listing_a_materialized_flow_starts_no_kernel(tmp_path: Path):
 async def test_paging_a_value_starts_the_kernel_the_preview_never_needed(
     tmp_path: Path,
 ):
-    """The other half of the same contract: previews are the kernel-free tier,
-    and reading into a value is the gesture that crosses into one — which it
-    does by starting a kernel, never by refusing."""
     pytest.importorskip("pandas")
     pytest.importorskip("pyarrow")
     root = make_workspace(tmp_path / "project")
@@ -1867,9 +1818,6 @@ async def test_publishing_a_non_model_output_is_refused_before_any_kernel(
 async def test_publishing_a_model_packages_it_in_the_kernel_and_uploads_the_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The kernel writes the bundle where the daemon says; the tracker's
-    uploader takes that file as a job the browser follows by id; and the
-    bundle is gone once the job has ended, whichever way it ended."""
     from lumlflow.api import luml as luml_api
     from lumlflow.flow.daemon.kernel_proc import KernelProcess
 
@@ -1922,8 +1870,6 @@ async def test_publishing_a_model_packages_it_in_the_kernel_and_uploads_the_bund
         "coll",
     )
     assert (form.artifact.name, form.artifact.tags) == ("churn forest", ["v1"])
-    # The uploader saw the bundle; nothing of it outlives the job. Its name
-    # carries one dot: the LUML client reads the format after the first.
     assert existed is True
     assert Path(form.file_path).name.count(".") == 1
     assert Path(form.file_path).suffix == ".luml"
@@ -2008,8 +1954,6 @@ async def test_publishing_without_a_destination_in_luml_is_refused(
 
 
 async def test_a_half_written_cell_never_stops_the_flow(tmp_path: Path):
-    """Agents iterate through broken states; a rescan that refused one would
-    stall the loop it exists to serve."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     write_cell(root / "churn.flow", "half", "class Half:\n    consumes = {")
@@ -2124,8 +2068,6 @@ async def test_duplicating_a_flow_with_a_live_kernel_socket_leaves_it_behind(
         await api.run({"flow": "churn", "target": "score"})
         await api.flow_open({"flow": "churn"})
         with socket.socket(socket.AF_UNIX) as listener:
-            # A relative bind stays under the Unix socket path limit that
-            # pytest's temporary paths exceed.
             with contextlib.chdir(kernel_dir):
                 listener.bind("planted.sock")
             journal_before = await api.journal_since({"flow": "churn"})
@@ -2152,8 +2094,6 @@ async def test_duplicating_a_flow_with_a_live_kernel_socket_leaves_it_behind(
 async def test_a_failed_duplication_leaves_no_partial_copy(tmp_path: Path):
     root = make_workspace(tmp_path / "project", flows=("churn",))
     write_cell(root / "churn.flow", "score", SCORE_CELL)
-    # A named pipe is a file copytree cannot copy: the copy fails part-way,
-    # after the cells and most of the store have landed.
     pipe = store_dir(root / "churn.flow") / "stray.fifo"
 
     async with daemon_api(root) as api:
@@ -2269,6 +2209,5 @@ def _memo_keys(session: FlowSession) -> dict[str, str]:
 
 
 def _kernel_state(payload: dict[str, Any]) -> tuple[str, bool, list[str]]:
-    """Whether a kernel is running and whether it is behind the lockfile."""
     kernel = payload["kernel"]
     return kernel["state"], kernel["restart_required"], kernel["behind"]

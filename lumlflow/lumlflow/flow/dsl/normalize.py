@@ -1,15 +1,3 @@
-"""Names, identity write-back, and binding references to uids.
-
-Two rewrites of a cell file are the daemon's to make, and both are token-sized:
-the minted `uid` line, and the canonical spelling of a partial reference. Every
-other byte the author wrote is left alone.
-
-Binding is what makes a reference survive a rename: `features.train_split`
-resolves through the branch namespace to a `(uid, output)` pair and is
-substituted into the source the version hashes. The bound source is the
-unparsed class — comments and formatting drop out of identity, docstrings stay.
-"""
-
 import ast
 import copy
 import difflib
@@ -26,8 +14,6 @@ _SUGGESTION_CUTOFF = 0.6
 
 @dataclass(frozen=True)
 class Namespace:
-    """What a branch's slice calls things: slug → uid, and what each produces."""
-
     uids: dict[str, str] = field(default_factory=dict)
     outputs: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
@@ -41,16 +27,12 @@ class Namespace:
 
 @dataclass(frozen=True)
 class Binding:
-    """`canonical` maps a partial reference to the spelling written back."""
-
     consumes: dict[str, ConsumedRef]
     canonical: dict[str, str] = field(default_factory=dict)
     flags: list[VersionFlag] = field(default_factory=list)
 
 
 def lowercase_slug(stem: str) -> tuple[str, list[VersionFlag]]:
-    """Slugs are lowercase — case-insensitive filesystems make anything else a
-    collision waiting to happen."""
     slug = stem.casefold()
     if slug == stem:
         return slug, []
@@ -63,7 +45,6 @@ def lowercase_slug(stem: str) -> tuple[str, list[VersionFlag]]:
 
 
 def unique_slug(slug: str, taken: set[str]) -> tuple[str, list[VersionFlag]]:
-    """Move a name aside when another cell already answers to it."""
     if slug not in taken:
         return slug, []
     suffixed = _suffix(slug, taken)
@@ -90,7 +71,6 @@ def bind(cell: ParsedCell, namespace: Namespace) -> Binding:
 
 
 def bound_source(cell: ParsedCell, consumes: dict[str, ConsumedRef], uid: str) -> str:
-    """The class as the version records it: uid spelled out, references bound."""
     node = copy.deepcopy(cell.node)
     _set_uid(node, uid)
     for name, target in _consumes_nodes(node).items():
@@ -141,7 +121,6 @@ def rewrite(
 def _uid_edit(
     data: bytes, starts: list[int], cell: ParsedCell, uid: str
 ) -> tuple[int, int, bytes]:
-    """Replace the declared uid, or insert one line below the docstring."""
     declared = _uid_node(cell.node)
     if declared is not None:
         end_line = declared.end_lineno or declared.lineno
@@ -169,7 +148,6 @@ def _uid_edit(
 
 
 def _quote(data: bytes, starts: list[int], node: ast.Constant, value: str) -> bytes:
-    """Rewrite one string literal, keeping the quote character the author used."""
     start = _offset(starts, node.lineno, node.col_offset)
     quote = chr(data[start]) if chr(data[start]) in "'\"" else '"'
     return f"{quote}{value}{quote}".encode()
@@ -228,7 +206,6 @@ def _suggest(reference: str, namespace: Namespace) -> str | None:
         )
         return close[0] if close else None
     # A bare name is compared against bare names — a full reference would dilute
-    # the difference across the producer's slug and match nothing.
     by_output = {full.split(".", 1)[1]: full for full in references}
     close = difflib.get_close_matches(
         reference, list(by_output), n=1, cutoff=_SUGGESTION_CUTOFF
@@ -237,7 +214,6 @@ def _suggest(reference: str, namespace: Namespace) -> str | None:
 
 
 def _consumes_nodes(node: ast.ClassDef) -> dict[str, ast.Constant]:
-    """Input name → the string literal holding its reference, for rewriting."""
     for statement in node.body:
         match statement:
             case ast.Assign(
@@ -265,8 +241,6 @@ def _dict_entries(node: ast.Dict) -> dict[str, ast.Constant]:
 
 
 def _uid_node(node: ast.ClassDef) -> ast.Constant | None:
-    """The declared uid, however it is spelled — the loader reads both spellings,
-    so a write-back that only knew one would insert a second line beside it."""
     for statement in node.body:
         match statement:
             case (
@@ -314,12 +288,10 @@ def _offset(starts: list[int], lineno: int, column: int) -> int:
 
 
 def _line_start(data: bytes, starts: list[int], lineno: int) -> int:
-    """Where a line begins, or the end of the file when it has fewer lines."""
     return starts[lineno - 1] if lineno - 1 < len(starts) else len(data)
 
 
 def _jsonable(value: Any) -> Any:
-    """Every literal a declaration can hold, in a shape canonical JSON accepts."""
     match value:
         case dict():
             return {str(key): _jsonable(item) for key, item in value.items()}

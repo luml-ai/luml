@@ -1,6 +1,4 @@
 class TrainModel:
-    """Train a ridge regression model on the diabetes training split."""
-
     uid = "01M00KZ0JWPTG4AYBSRZD3A6EB"
     consumes = {"train": "split.train"}
     produces = {"model": "model"}

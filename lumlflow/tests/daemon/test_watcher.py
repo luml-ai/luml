@@ -1,11 +1,3 @@
-"""The watcher: what one flow looks at, how it groups, and that it is never the
-thing correctness rests on.
-
-The observer runs for real here — an event delivered by the platform is the
-only honest way to test wiring that exists to receive them — but every
-assertion is about what the store ends up holding, never about the event.
-"""
-
 import asyncio
 from collections.abc import Callable
 from pathlib import Path
@@ -32,14 +24,6 @@ _DELIVERY_TIMEOUT_S = 10.0
 
 
 def test_a_flow_watches_its_own_cells_and_its_workspaces_shared_code(tmp_path: Path):
-    """Classification is by directory, never by shape: this flow's `cells/`
-    holds its cells, every other watched `.py` under its workspace is shared
-    code, and data files are not watched at all — the store never versions them,
-    and a run that reads one is `external` and never memoized.
-
-    A neighbour flow's cell file is neither: it is that flow's news, and
-    `scan_workspace` cuts every `cells/` out of the shared-code tree.
-    """
     root = tmp_path / "project"
     flow = root / "churn.flow"
     (root / "ignored").mkdir(parents=True)
@@ -71,12 +55,8 @@ def test_a_flow_watches_its_own_cells_and_its_workspaces_shared_code(tmp_path: P
 
     assert seen == {
         "cell": "cell",
-        # Acceptance globs `cells/*.py`, so nothing deeper is a cell — and the
-        # shared-code scan prunes the whole `cells/` subtree, so it is not that
-        # either.
         "nested": None,
         "neighbour": None,
-        # A stray module inside a flow is shared code, not a cell.
         "stray": "code",
         "helper": "code",
         "nested_helper": "code",
@@ -118,9 +98,6 @@ async def test_nested_flows_hold_their_containing_directories_as_watch_roots(
 
 
 def test_an_outside_flow_watches_its_own_workspace_not_the_launch_one(tmp_path: Path):
-    """A flow opened by absolute path runs under its own environment and its own
-    helpers, so it watches those — the launch directory's shared code is not
-    code it can import."""
     launch = tmp_path / "project"
     elsewhere = tmp_path / "elsewhere"
     flow = elsewhere / "other.flow"
@@ -143,8 +120,6 @@ def test_an_outside_flow_watches_its_own_workspace_not_the_launch_one(tmp_path: 
 
 
 def test_flows_in_one_workspace_share_its_watch(tmp_path: Path):
-    """Refcounted, so two sessions over one tree schedule one observer — and the
-    last one to close is what takes it back down."""
     root = tmp_path / "project"
     elsewhere = tmp_path / "elsewhere"
     watches = Watches()
@@ -170,8 +145,6 @@ def test_flows_in_one_workspace_share_its_watch(tmp_path: Path):
 
 
 async def test_a_second_flow_in_the_workspace_adds_no_second_watch(tmp_path: Path):
-    """One tree, one watch, however many flows are open on it — and the flow
-    from outside brings its own, which is the tree nothing reached before."""
     root = make_workspace(tmp_path / "project", flows=FLOWS)
     outside = _outside_flow(tmp_path / "elsewhere")
 
@@ -192,8 +165,6 @@ async def test_a_second_flow_in_the_workspace_adds_no_second_watch(tmp_path: Pat
 
 
 async def test_an_edit_to_one_flow_leaves_its_neighbour_alone(tmp_path: Path):
-    """Not every workspace change is a given flow's news. A cell file is one
-    flow's plane, and the flow beside it must not so much as reconcile."""
     root = make_workspace(tmp_path / "project", flows=FLOWS)
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     write_cell(root / "sales.flow", "score", SCORE_CELL)
@@ -215,9 +186,6 @@ async def test_an_edit_to_one_flow_leaves_its_neighbour_alone(tmp_path: Path):
 
 
 async def test_a_data_file_nobody_declared_wakes_nobody(tmp_path: Path):
-    """Data is reached through `ctx.workspace_dir` and marks the run `external`,
-    which is never memoized — so there is nothing an event over one invalidates,
-    and waking a flow for it would be a reconciliation with no cause."""
     root = make_workspace(tmp_path / "project", flows=FLOWS)
     for name in FLOWS:
         write_cell(root / f"{name}.flow", "score", SCORE_CELL)
@@ -231,8 +199,6 @@ async def test_a_data_file_nobody_declared_wakes_nobody(tmp_path: Path):
         try:
             write_file(root / "raw.csv", "id,label\n1,0\n")
             write_file(root / "notes.txt", "nothing to do with any flow")
-            # The debounce cannot have elapsed before the events would have,
-            # and a flush that never armed leaves the journals where they were.
             await asyncio.sleep(_DEBOUNCE_S * 10)
             await watcher.flush()
         finally:
@@ -243,9 +209,6 @@ async def test_a_data_file_nobody_declared_wakes_nobody(tmp_path: Path):
 
 
 async def test_a_flow_nobody_opened_is_not_opened_by_an_event(tmp_path: Path):
-    """Waking is for a session somebody is watching. A flow nobody attached to
-    has none, and whatever moved under it is the cold-start tier's to take up
-    when someone opens it."""
     root = make_workspace(tmp_path / "project", flows=FLOWS)
     write_cell(root / "sales.flow", "score", SCORE_CELL)
 
@@ -265,8 +228,6 @@ async def test_a_flow_nobody_opened_is_not_opened_by_an_event(tmp_path: Path):
 
 
 async def test_an_outside_flows_own_cell_edit_reaches_its_session(tmp_path: Path):
-    """The flow the launch directory does not contain is watched over its own
-    workspace, which is where its cells and its helpers both are."""
     root = make_workspace(tmp_path / "project")
     outside = _outside_flow(tmp_path / "elsewhere")
     write_cell(outside, "score", SCORE_CELL)
@@ -290,9 +251,6 @@ async def test_an_outside_flows_own_cell_edit_reaches_its_session(tmp_path: Path
 async def test_an_outside_flow_takes_its_own_helpers_and_not_the_launch_ones(
     tmp_path: Path,
 ):
-    """It runs under its own environment, so it is its own workspace's shared
-    code that changes its cells' behaviour — and the launch workspace's helper
-    is a file it cannot import."""
     root = make_workspace(tmp_path / "project", files={"helpers.py": "AUC = 1"})
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     outside = _outside_flow(tmp_path / "elsewhere", files={"helpers.py": "AUC = 1"})
@@ -320,8 +278,6 @@ async def test_an_outside_flow_takes_its_own_helpers_and_not_the_launch_ones(
 async def test_an_edit_burst_lands_as_one_transaction_once_it_quiets(
     tmp_path: Path,
 ):
-    """A debounce is what keeps an agent writing four files from becoming four
-    journal lines nobody can read as one act."""
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -374,8 +330,6 @@ async def test_a_real_event_reaches_the_store_without_anyone_asking(
 async def test_a_watched_helper_edit_reaches_every_flow_in_the_workspace(
     tmp_path: Path,
 ):
-    """Shared code is workspace-scoped, so its transition is appended to each
-    flow's own journal — a flow has to rebuild standalone from its own."""
     root = make_workspace(
         tmp_path / "project", flows=("churn", "sales"), files={"helpers.py": "AUC = 1"}
     )
@@ -399,8 +353,6 @@ async def test_a_watched_helper_edit_reaches_every_flow_in_the_workspace(
 async def test_a_watched_edit_during_an_agent_session_is_flagged_uncertain(
     tmp_path: Path,
 ):
-    """One shared worktree cannot tell an agent's write from the human's, so
-    the window is flagged rather than the name being claimed."""
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -457,7 +409,6 @@ FLOWS = ("churn", "sales")
 def _outside_flow(
     directory: Path, *, name: str = "other", files: dict[str, str] | None = None
 ) -> Path:
-    """A flow in a workspace of its own, above the launch directory."""
     make_workspace(directory, flows=(name,), files=files)
     return directory / f"{name}.flow"
 
@@ -479,7 +430,6 @@ def _stored(session: FlowSession) -> str:
 async def _until(
     ready: Callable[[], bool], timeout: float = _DELIVERY_TIMEOUT_S
 ) -> None:
-    """Wait for the watcher to have done its work, or give up loudly."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while loop.time() < deadline:

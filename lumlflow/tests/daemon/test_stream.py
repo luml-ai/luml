@@ -1,11 +1,3 @@
-"""The fan-out behind the workbench's two channels.
-
-Channel 1 is durable and replayable — the journal is behind it, so what matters
-here is what a client is told and in what order. Channel 2 is not: a run's
-chunks exist only while somebody is watching, and the ring buffer is the whole
-promise made to a tab opened halfway through one.
-"""
-
 import asyncio
 from base64 import b64encode
 from pathlib import Path
@@ -39,13 +31,10 @@ def log(run_id: str, seq: int, text: str, stream: str = "stdout") -> dict[str, A
 
 
 async def frames(subscription: Subscription, count: int) -> list[Frame]:
-    """The next `count` frames. A frame that never comes fails rather than
-    hangs — dropping one is the failure these tests are looking for."""
     return [await asyncio.wait_for(subscription.next(), 5) for _ in range(count)]
 
 
 async def quiet(subscription: Subscription) -> None:
-    """Nothing else is coming — the difference between filtering and delaying."""
     with pytest.raises(TimeoutError):
         await asyncio.wait_for(subscription.next(), 0.05)
 
@@ -64,7 +53,6 @@ async def test_a_journal_subscriber_gets_the_flow_it_asked_for():
 
 
 async def test_two_flows_on_one_daemon_do_not_cross():
-    """One daemon hosts N flows; a tab open on one is not a tab on the other."""
     streams = Streams()
     watching = streams.subscribe()
     watching.journals.add("churn.flow")
@@ -141,8 +129,6 @@ async def test_a_state_frame_is_not_replayed_after_reconnect() -> None:
 
 
 async def test_a_late_joiner_is_served_the_tail_of_a_run():
-    """The chunks are off the wire by the time the tab opens. The ring is what
-    stands between that and an empty console."""
     streams = Streams()
     for seq, text in enumerate(("epoch 1\n", "epoch 2\n", "epoch 3\n")):
         streams.kernel("churn.flow", "log", log("run-1", seq, text), step=7)
@@ -155,7 +141,6 @@ async def test_a_late_joiner_is_served_the_tail_of_a_run():
 
 
 async def test_the_tail_is_bounded_and_keeps_the_end_of_the_run():
-    """A run that prints for an hour must not grow the daemon for an hour."""
     streams = Streams(ring=3)
     for seq in range(10):
         streams.kernel("churn.flow", "log", log("run-1", seq, f"line {seq}\n"), step=1)
@@ -180,15 +165,11 @@ async def test_a_live_watcher_gets_the_chunks_as_they_land():
     streams.kernel("churn.flow", "log", log("run-1", 0, "\x1b[32mok\x1b[0m"), step=3)
 
     frame = await watching.next()
-    # ANSI is preserved: the console renders it, and the stored artifact keeps
-    # the same bytes.
     assert (frame["channel"], frame["text"]) == ("logs", "\x1b[32mok\x1b[0m")
     assert (frame["stream"], frame["seq"]) == ("stdout", 0)
 
 
 async def test_run_lifecycle_rides_channel_one_and_observations_do_not():
-    """A client learns a run's `run_id` from channel 1 — which is what it needs
-    to subscribe to that run's logs. What the store recorded, it reads back."""
     streams = Streams()
     watching = streams.subscribe()
     watching.journals.add("churn.flow")
@@ -217,12 +198,6 @@ async def test_run_lifecycle_rides_channel_one_and_observations_do_not():
 
 
 async def test_the_kernel_process_state_reaches_the_flows_watchers():
-    """The kernel coming up is on channel 1 because nothing journals it.
-
-    A tab is handed the kernel's state once, when it opens, and a kernel starts
-    lazily — so without this the workbench keeps saying "kernel not started"
-    over a flow whose cells it has watched run.
-    """
     streams = Streams()
     watching = streams.subscribe()
     watching.journals.add("churn.flow")
@@ -237,14 +212,11 @@ async def test_the_kernel_process_state_reaches_the_flows_watchers():
     assert [frame["kernel"] for frame in said] == ["running", "stopped"]
     assert said[0]["type"] == "kernel"
     assert (said[0]["flow"], said[0]["step"]) == ("churn.flow", 9)
-    # One flow's kernel is not another's, and it retires no run.
     await quiet(elsewhere)
     assert streams.running("churn.flow") == []
 
 
 async def test_a_kernel_state_event_leaves_the_runs_in_flight_alone():
-    """It is beside the run lifecycle, not part of it: a kernel announcing
-    itself must not look like a run starting or ending."""
     streams = Streams()
 
     streams.kernel("churn.flow", "started", start("run-1"), step=3)
@@ -256,13 +228,6 @@ async def test_a_kernel_state_event_leaves_the_runs_in_flight_alone():
 
 
 async def test_a_catch_up_longer_than_the_queue_still_arrives_whole():
-    """Replay is the remedy for lag, so it cannot itself be dropped for lag.
-
-    An overnight return is a client whose cursor is thousands of steps back —
-    the case the cursor exists for. Telling it `lagged` would leave it asking
-    for the same catch-up forever, and the spec's latency event would become a
-    data one.
-    """
     streams = Streams()
     watching = streams.subscribe()
     watching.journals.add("churn.flow")
@@ -279,7 +244,6 @@ async def test_a_catch_up_longer_than_the_queue_still_arrives_whole():
 
 
 async def test_what_lands_during_a_long_catch_up_follows_it():
-    """The client is holding a cursor; frames may not arrive out of order."""
     streams = Streams()
     watching = streams.subscribe()
     watching.journals.add("churn.flow")
@@ -295,8 +259,6 @@ async def test_what_lands_during_a_long_catch_up_follows_it():
 
 
 async def test_the_runs_in_flight_are_nameable_after_they_started():
-    """A run's lifecycle is never journaled, so replay cannot reach it. Without
-    this a tab opened mid-run has no `run_id` to ask the ring buffer with."""
     streams = Streams()
 
     streams.kernel("churn.flow", "started", start("run-1"), step=3)
@@ -326,7 +288,6 @@ async def test_a_run_that_failed_is_no_longer_in_flight():
 
 
 async def test_runs_whose_end_was_never_reported_do_not_pile_up():
-    """A kernel that dies mid-run reports no ending — bounded like the tails."""
     streams = Streams(runs=2)
     for number in range(3):
         streams.kernel(
@@ -340,8 +301,6 @@ async def test_runs_whose_end_was_never_reported_do_not_pile_up():
 
 
 async def test_a_client_that_falls_behind_is_told_to_replay_rather_than_torn():
-    """Its cursor is still good. Delivering the tail of a sequence it is about
-    to ask for again would only arrive twice."""
     streams = Streams()
     watching = streams.subscribe()
     watching.journals.add("churn.flow")
@@ -351,7 +310,6 @@ async def test_a_client_that_falls_behind_is_told_to_replay_rather_than_torn():
 
     assert await watching.next() == {"channel": "journal", "type": "lagged"}
 
-    # Drained: what it was holding is stale by the time it is told to replay.
     streams.transaction("churn.flow", transaction(QUEUE_DEPTH + 3))
     assert (await watching.next())["step"] == QUEUE_DEPTH + 3
 
@@ -368,9 +326,6 @@ async def test_a_closed_subscription_stops_being_delivered_to():
 
 
 async def test_an_agent_call_is_announced_and_remembered_until_it_ends() -> None:
-    """A tab opened while the agent is inside `edit-cell` learns of it from
-    its catch-up, which reads `activities`; the frame itself is for the tab
-    that was already there."""
     streams = Streams()
     subscription = streams.subscribe()
     subscription.journals.add("churn")

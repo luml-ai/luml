@@ -1,10 +1,3 @@
-"""What a run's console is: both streams, one order, bytes as written.
-
-Capture is at the file-descriptor level so a C extension, a progress bar on
-stderr, and a subprocess all land in the same record — and so stdin is at EOF
-for every one of them.
-"""
-
 from __future__ import annotations
 
 import os
@@ -149,7 +142,6 @@ def _ignore(stream: str, seq: int, data: bytes) -> None:
 
 
 def _await(chunks: list, count: int) -> None:
-    """The drain runs on its own thread; the test waits for it, never sleeps."""
     deadline = time.monotonic() + DEADLINE_S
     while time.monotonic() < deadline:
         if len(chunks) >= count:

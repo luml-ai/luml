@@ -1,10 +1,3 @@
-"""ULIDs: 48-bit millisecond timestamp + 80 random bits, Crockford base32.
-
-Ids minted in the same millisecond increment the random component instead of
-redrawing it, so lexicographic order is always mint order — cell creation
-order and version order are read straight off the id.
-"""
-
 import os
 import threading
 import time

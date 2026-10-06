@@ -1,17 +1,3 @@
-"""The workspace daemon's web endpoint: the SPA, the tracker, the flow API.
-
-One loopback port serves all three, because they are one product — Experiments
-is the tracker this workspace already had, Workspace is the flows beside it,
-and a browser that had to reach two ports to see them would be reading an
-implementation detail as a choice.
-
-The flow API here is the same `Api` the socket answers with, so the browser and
-the CLI cannot disagree about what a verb does. It asks for the same token,
-too: a loopback port is reachable by anything else on the machine, and this API
-runs the user's code. The static files are served without one — they are the
-client that is about to present it.
-"""
-
 import asyncio
 import contextlib
 import json
@@ -36,8 +22,6 @@ STREAM_PATH = "/api/flow/stream"
 DOWNLOAD_PATH = "/api/flow/download"
 
 UNAUTHORIZED = 401
-# The close code that separates "you may not" from "the socket dropped" — the
-# client's degraded states are not the same state.
 WS_UNAUTHORIZED = 4401
 _REFUSED = 400
 _NO_METHOD = 404
@@ -59,22 +43,6 @@ logger = logging.getLogger(__name__)
 def build_app(
     hub: Hub, api: Api, streams: Streams, *, token: str, static: Path | None = None
 ) -> FastAPI:
-    """The daemon's HTTP surface: tracker routers, flow API, SPA.
-
-    `AppService` is the tracker's own app — the one the standalone server was —
-    so Experiments arrives here whole: its routers under their own `/api/…`
-    prefixes, its CORS, its error handler. The flow API is added beside it, and
-    only the flow API asks for the token; Experiments answers on loopback as it
-    always did.
-
-    Mount order is what keeps the SPA from swallowing the API — the static
-    fallback answers everything, so it goes on last. A build that was never
-    made is simply absent: the API is what a browser-less workspace needs.
-
-    The tracker app stays a late import because `lumlflow ui --path` sets its
-    process settings on the way past this module. Its handler singletons retain
-    one lazy provider, so importing them neither opens nor freezes the store.
-    """
     from lumlflow.server import SPAStaticFiles, get_static_dir
     from lumlflow.service import AppService
 
@@ -91,7 +59,6 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
 
     @router.post(RPC_PATH)
     async def rpc(request: Request) -> JSONResponse:
-        """One door, the same one the socket knocks on."""
         if not _authorized(request, token):
             return _unauthorized()
         message = await _message(request)
@@ -106,15 +73,10 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
             return _failed(f"no method `{message.get('method')}`", status=_NO_METHOD)
         params = dict(message.get("params") or {})
         if method_name == "agent.begin":
-            # A lease is a connection's promise to be there; an HTTP request is
-            # gone before the answer lands. The session is still registered —
-            # for attribution — but nothing may call it paired.
             params.pop("lease", None)
         try:
             result = await method(params)
         except FlowError as failure:
-            # A refusal the runtime named crosses as itself, so the browser's
-            # client can rebuild it the way the CLI does.
             return _failed(str(failure), status=_REFUSED, kind=type(failure).__name__)
         except asyncio.CancelledError:
             raise
@@ -160,13 +122,6 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
 
     @router.websocket(STREAM_PATH)
     async def stream(socket: WebSocket) -> None:
-        """Both channels, one connection, one frame order.
-
-        Two halves, and either one ending ends the other: a tab that goes away
-        without a word leaves the writer waiting on a queue rather than on the
-        socket, and nothing would wake it until the next frame — which for a
-        quiet flow is never.
-        """
         # Accepted before it is refused: a close sent ahead of the accept is a
         # handshake rejection, and a browser reads that as 1006 — the same
         # thing a dropped socket looks like, which is the one distinction this
@@ -198,8 +153,6 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
 
 
 def _reported(half: "asyncio.Task[None]") -> None:
-    """A connection that died of something unforeseen still says so in the
-    daemon's log: to the tab it looks like any other drop."""
     if half.cancelled():
         return
     failure = half.exception()
@@ -229,7 +182,6 @@ async def _read(
     streams: Streams,
     subscription: Subscription,
 ) -> None:
-    """What the client asks to watch, and the catch-up each ask deserves."""
     while True:
         try:
             message = json.loads(await socket.receive_text())
@@ -240,8 +192,6 @@ async def _read(
         try:
             subscription.replay(_subscribed(hub, api, streams, subscription, message))
         except FlowError as failure:
-            # Naming a flow that is not here is the client's mistake to fix,
-            # not this connection's death: everything else it watches stands.
             subscription.offer({"type": "error", "message": str(failure)})
 
 
@@ -279,13 +229,7 @@ def _subscribed(
         "type": "caught_up",
         "flow": flow,
         "step": session.store.next_step - 1,
-        # A run's lifecycle is not journaled, so no cursor reaches it. A tab
-        # opened halfway through one learns here which console it can still
-        # ask for — without this the ring buffer holds a tail nobody can name.
         "running": streams.running(flow),
-        # The same for an agent mid-call: nothing journals "edit-cell is
-        # running on train", and a tab that opens during it would otherwise
-        # see the cell change with nobody named as changing it.
         "activity": streams.activities(flow),
         "claims": streams.claimed(flow),
         "claim_idle_s": streams.claim_idle_s,
@@ -300,13 +244,6 @@ def _subscribed(
 
 
 def _cursor(value: Any) -> int:
-    """Where a client says it got to. A cursor it garbled reads as none.
-
-    Answering from the start over-delivers, which every frame's `step` makes
-    harmless — and is the catch-up such a client needs anyway. Raising here
-    would take down the whole connection, including the flows it watches
-    correctly.
-    """
     try:
         return max(0, int(value or 0))
     except (TypeError, ValueError):

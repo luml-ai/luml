@@ -1,5 +1,3 @@
-"""The kernel-side experiment recorder, backed by the workspace's SDK."""
-
 from __future__ import annotations
 
 import os

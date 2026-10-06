@@ -1,10 +1,3 @@
-"""The supervisor: one daemon per workspace, started by whoever needs it.
-
-These run the real thing — `python -m lumlflow.flow.daemon` in its own process,
-reached over its loopback socket — because the singleton, the discovery record
-and the restart are only true if they are true across processes.
-"""
-
 import contextlib
 import json
 import os
@@ -34,7 +27,6 @@ from tests.daemon.conftest import Reap
 from tests.daemon.helpers import SCORE_CELL, make_workspace, write_cell
 
 Starter = Callable[[Path], client.DaemonClient]
-# Windows has no SIGKILL; there, terminating is already the hard kind.
 HARD_KILL = getattr(signal, "SIGKILL", signal.SIGTERM)
 _FRAME_LIMIT = 200
 
@@ -55,12 +47,6 @@ class Gated:
 
 @pytest.fixture
 def start() -> Iterator[Starter]:
-    """Start daemons, and make sure none outlives the test that started it.
-
-    The client's own record is what gets killed, not whatever the discovery
-    file says at teardown: a test that removes the record — which is the point
-    of a couple of them — would otherwise leave its daemon running forever.
-    """
     started: list[client.DaemonClient] = []
 
     def starter(root: Path) -> client.DaemonClient:
@@ -86,7 +72,6 @@ def _kill(record: DaemonRecord | None) -> None:
 def _caught_up(
     socket: "websockets.sync.client.ClientConnection",
 ) -> list[dict[str, Any]]:
-    """The journal frames a subscribe answers with, up to the catch-up marker."""
     replayed: list[dict[str, Any]] = []
     while True:
         frame = json.loads(socket.recv(timeout=30))
@@ -98,7 +83,6 @@ def _caught_up(
 def _watch(
     record: DaemonRecord, flow: str
 ) -> "websockets.sync.client.ClientConnection":
-    """A browser on this workspace, subscribed to one flow's journal."""
     stream = f"ws://127.0.0.1:{record.web_port}{web.STREAM_PATH}?token={record.token}"
     socket = websockets.sync.client.connect(stream, open_timeout=30)
     socket.send(json.dumps({"subscribe": "journal", "flow": flow}))
@@ -126,12 +110,6 @@ def _wait_until_gone(record: DaemonRecord, timeout: float = 10.0) -> None:
 
 
 def _wait_until_deregistered(root: Path, timeout: float = 30.0) -> None:
-    """Answering stops first; the record is surrendered last, with the lock.
-
-    Shutting down means closing kernels and stores, which takes as long as it
-    takes — so the record outlives the socket on purpose: while it is there,
-    the daemon it names still owns the workspace.
-    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if workspace.read_record() is None:
@@ -161,10 +139,6 @@ def test_a_verb_that_finds_no_daemon_starts_one(tmp_path: Path, start: Starter):
 def test_the_daemon_serves_the_workbench_on_the_port_it_recorded(
     tmp_path: Path, start: Starter
 ):
-    """The browser reaches a workspace the way every other verb does: through
-    the record. Nothing here is in-process — this is uvicorn inside the daemon,
-    a real socket upgrade, and the token standing between the two.
-    """
     root = make_workspace(tmp_path / "project")
 
     with start(root) as live:
@@ -187,9 +161,6 @@ def test_the_daemon_serves_the_workbench_on_the_port_it_recorded(
             socket.send(json.dumps({"subscribe": "journal", "flow": "churn"}))
             frames = _caught_up(socket)
 
-        # Over a real upgrade, not the test transport: "you may not" has to
-        # reach the client as its own close code rather than as the abnormal
-        # closure a dropped socket produces.
         forged = f"ws://{base}{web.STREAM_PATH}?token=guess"
         with websockets.sync.client.connect(forged, open_timeout=30) as refused_socket:
             with pytest.raises(websockets.exceptions.ConnectionClosed) as closed:
@@ -206,12 +177,6 @@ def test_the_daemon_serves_the_workbench_on_the_port_it_recorded(
 def test_a_tab_opened_mid_run_is_told_which_console_it_can_still_ask_for(
     tmp_path: Path, start: Starter
 ):
-    """The ring holds a live run's tail; the catch-up is what makes it
-    addressable. A run's lifecycle is never journaled, so a client that was not
-    connected when the run started has no cursor that would reach it — and the
-    console on the card it opens would stay empty for the ten minutes it has
-    left to wait.
-    """
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "gated", GATED_CELL)
 
@@ -225,8 +190,6 @@ def test_a_tab_opened_mid_run_is_told_which_console_it_can_still_ask_for(
                     runner.call, "run", {"flow": "churn", "target": "gated"}
                 )
                 try:
-                    # In flight from here — which is what makes the next
-                    # connection a late one.
                     started = _until(
                         early, lambda frame: frame.get("event") == "started"
                     )
@@ -251,12 +214,9 @@ def test_a_tab_opened_mid_run_is_told_which_console_it_can_still_ask_for(
                     (root / "go").write_text("", encoding="utf-8")
                 outcome = running.result(timeout=120)
 
-        # And once it is over, it is no longer offered as something to watch.
         with _watch(record, "churn") as after:
             ended = _until(after, lambda frame: frame.get("type") == "caught_up")
 
-    # One branch asked for it, so one branch is waiting on it — the count a stop
-    # gesture words itself from.
     assert in_flight == {"run_id": started["run_id"], "slug": "gated", "awaiting": 1}
     assert "epoch 1 done" in chunk["text"]
     assert outcome["executed"] == ["gated"]
@@ -266,8 +226,6 @@ def test_a_tab_opened_mid_run_is_told_which_console_it_can_still_ask_for(
 def test_shutdown_lets_go_of_the_workspace_with_a_browser_still_watching(
     tmp_path: Path, start: Starter
 ):
-    """A watching tab never closes on its own. A daemon that waited for one to
-    would be a daemon nobody can stop while anybody is looking at it."""
     root = make_workspace(tmp_path / "project")
 
     with start(root) as live:
@@ -284,8 +242,6 @@ def test_shutdown_lets_go_of_the_workspace_with_a_browser_still_watching(
 
 
 def test_two_verbs_starting_at_once_end_up_at_the_same_daemon(tmp_path: Path):
-    """Both spawn; one loses the workspace and steps aside within milliseconds.
-    The verb that started the loser still needs a daemon to talk to."""
     root = make_workspace(tmp_path / "project")
 
     try:
@@ -300,8 +256,6 @@ def test_two_verbs_starting_at_once_end_up_at_the_same_daemon(tmp_path: Path):
 
 
 def test_a_verb_waits_out_a_workspace_that_is_briefly_held(tmp_path: Path):
-    """A daemon that finds the workspace taken exits at once. The verb that
-    started it still needs a daemon, so it tries again rather than failing."""
     root = make_workspace(tmp_path / "project")
     lock = workspace.WorkspaceLock()
     assert lock.acquire()
@@ -404,12 +358,6 @@ def test_a_second_daemon_process_steps_aside(tmp_path: Path, start: Starter):
 def test_a_rival_steps_aside_even_with_no_record_to_read(
     tmp_path: Path, start: Starter
 ):
-    """The record is what a verb calls; the lock is what a writer needs.
-
-    Without one, a rival that finds no record — the file lost, or two verbs
-    taking over one crashed daemon's workspace at the same instant — would
-    open the same stores and append to the same journals.
-    """
     root = make_workspace(tmp_path / "project")
 
     with start(root) as live:
@@ -424,7 +372,6 @@ def test_a_rival_steps_aside_even_with_no_record_to_read(
             timeout=60,
         )
 
-        # The lock is what turned it away: there was no record left to read.
         assert rival.returncode == ALREADY_RUNNING
         assert rival.stderr == ""
         assert "another lumlflow daemon is already running" in (
@@ -613,7 +560,6 @@ def test_shutdown_deregisters_and_a_restart_carries_the_store_forward(
         finally:
             _kill(restarted.record)
 
-    # The kernel and the daemon were stateless; the store was not.
     assert [cell["state"] for cell in status["flows"][0]["cells"]] == ["synced"]
     assert (again["executed"], again["pruned"]) == ([], ["score"])
 
@@ -621,12 +567,6 @@ def test_shutdown_deregisters_and_a_restart_carries_the_store_forward(
 def test_shutdown_lets_go_of_the_workspace_with_a_client_still_attached(
     tmp_path: Path, start: Starter
 ):
-    """A workbench tab, an MCP session, another verb — something is usually
-    still connected when a daemon is told to stop. Waiting that connection out
-    would strand the workspace: the record is cleared on the way down, so a
-    daemon that hangs afterwards owns a workspace it is telling everyone is
-    free, and every verb after it spawns a daemon that cannot take the lock.
-    """
     root = make_workspace(tmp_path / "project")
 
     with start(root) as live:
@@ -637,7 +577,6 @@ def test_shutdown_lets_go_of_the_workspace_with_a_client_still_attached(
         _wait_until_deregistered(root)
         idle.close()
 
-    # Deregistered means let go: the next verb's daemon can take the workspace.
     successor = workspace.WorkspaceLock()
     assert successor.acquire()
     successor.release()
@@ -740,15 +679,6 @@ def test_no_daemon_is_started_when_the_caller_says_not_to(tmp_path: Path):
 def test_an_mcp_client_that_is_killed_leaves_no_session_and_no_lock(
     tmp_path: Path, start: Starter, servers: Reap
 ):
-    """The connection is the session, and this is what that buys.
-
-    An agent that connects and is then killed — a terminal closed, a harness
-    that crashed — never gets to say it finished. Nothing else can say it for
-    it: the wrapper that used to bracket the process is gone, which is the
-    point. So the daemon ends what the connection was carrying when the
-    connection goes, and the flow it had taken the files of is free again
-    without anybody forcing anything.
-    """
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     command = harnesses.resolve_executable(
@@ -767,7 +697,6 @@ def test_an_mcp_client_that_is_killed_leaves_no_session_and_no_lock(
         )
         servers(paired)
         _say(paired, _hello())
-        # A mutating tool: reading owns nothing, so nothing would be held.
         _say(
             paired,
             {
@@ -788,8 +717,6 @@ def test_an_mcp_client_that_is_killed_leaves_no_session_and_no_lock(
 
         os.kill(paired.pid, HARD_KILL)
         released = _until_unpaired(live)
-        # No lock left behind: the checkout a human asks for next is not
-        # refused on behalf of a process that is not there.
         checked_out = live.call("flow.checkout", {"flow": "churn", "branch": "main"})
 
     assert working == "pair-1"
@@ -811,7 +738,6 @@ def _hello() -> dict[str, Any]:
 
 
 def _say(process: "subprocess.Popen[bytes]", message: dict[str, Any]) -> Any:
-    """One MCP message down stdin, and the answer back off stdout."""
     assert process.stdin is not None and process.stdout is not None
     process.stdin.write(json.dumps(message).encode("utf-8") + b"\n")
     process.stdin.flush()
@@ -819,7 +745,6 @@ def _say(process: "subprocess.Popen[bytes]", message: dict[str, Any]) -> Any:
 
 
 def _agent_of(live: client.DaemonClient) -> str | None:
-    """Who the flow says is working in its files, as the workbench reads it."""
     return live.call("status", {"flow": "churn"})["flows"][0]["agent"]
 
 
@@ -850,10 +775,6 @@ def _wait_for_kernel(root: Path, timeout: float = 30.0) -> int:
 def test_a_browser_learns_who_is_paired_when_the_lease_opens_and_when_it_drops(
     tmp_path: Path, start: Starter
 ) -> None:
-    """The connection is the session. A browser watching the flow is told the
-    moment an agent registers over a leased socket, and told again — without
-    anybody saying so — when that socket is gone.
-    """
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     address = str(root / "churn.flow")
@@ -894,8 +815,6 @@ def test_a_browser_learns_who_is_paired_when_the_lease_opens_and_when_it_drops(
         ("codex", True),
         ("manual", False),
     }
-    # The end was committed for the dropped connection; the manual registration
-    # is nobody's connection and stays, unleased.
     assert [(row["actor"], row["leased"]) for row in dropped["sessions"]] == [
         ("manual", False)
     ]
@@ -903,9 +822,6 @@ def test_a_browser_learns_who_is_paired_when_the_lease_opens_and_when_it_drops(
 
 
 def test_only_a_leased_caller_is_announced_as_working() -> None:
-    """A CLI verb connects per call and holds no lease; the probes a harness
-    sends say nothing about the flow. Everything else a leased connection
-    calls is the agent working, on the cell the call names when it names one."""
     leased: set[tuple[str | None, str, str]] = {("/w/churn.flow", "codex-1", "Codex")}
 
     assert _activity(set(), "cells.edit", {"actor": "codex-1", "slug": "train"}) is None
@@ -937,9 +853,6 @@ def test_only_a_leased_caller_is_announced_as_working() -> None:
 def test_a_browser_is_told_what_a_leased_agent_is_doing_and_when_it_stops(
     tmp_path: Path, start: Starter
 ) -> None:
-    """Every call a leased connection makes is bracketed for the flow's
-    watchers: `started` with the cell it names before the daemon runs it,
-    `ended` once it has answered. A connection that dies mid-call ends it too."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     address = str(root / "churn.flow")
@@ -1001,9 +914,6 @@ def _fenced_agent(**params: Any) -> dict[str, Any]:
 def test_a_leased_agent_is_refused_over_the_socket_and_nothing_lands(
     tmp_path: Path, start: Starter
 ) -> None:
-    """The bracket the daemon puts around a leased call is where the fence is:
-    the refusal crosses the wire as a `LaneMoved`, the lane keeps no trace of
-    the change, and the agent's retry lands on the step it was moved to."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -1050,9 +960,6 @@ def test_a_leased_agent_is_refused_over_the_socket_and_nothing_lands(
 def test_two_leased_agents_cannot_change_the_same_cell_at_once(
     tmp_path: Path, start: Starter
 ) -> None:
-    """The first agent to name a cell holds it. The second is refused before
-    anything lands and is never announced as on that cell; it can still read
-    it. Once the first moves on, the cell is the second's to change."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     address = str(root / "churn.flow")
@@ -1127,8 +1034,6 @@ def test_two_leased_agents_cannot_change_the_same_cell_at_once(
     ]
     assert "`score` is being worked on by codex" in str(refused.value)
     assert looked["slug"] == "score"
-    # The refused edit was never announced: the only edit the watcher saw
-    # is the one that landed after codex moved on.
     edits = [
         frame
         for frame in seen

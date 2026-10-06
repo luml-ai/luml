@@ -1,12 +1,3 @@
-/**
- * The live session layer: the cursor, the degraded states, and the ops.
- *
- * The socket and the daemon are both fakes here, which is the point — what is
- * asserted is the client's own contract. A reconnect must replay to the same
- * state a fresh load reaches; a dropped socket must not be reported as a daemon
- * that is gone; and every mutating verb must carry the intent the journal
- * requires of it.
- */
 
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -51,13 +42,10 @@ import {
   transaction,
 } from './fakes'
 
-// --- fakes -------------------------------------------------------------------
-
 function logFrame(seq: number, text: string, runId = 'run-1'): LogFrame {
   return { channel: 'logs', flow: FLOW, run_id: runId, seq, stream: 'stdout', text }
 }
 
-/** Everything a client is supposed to end up holding, whatever route it took. */
 function stateOf(session: FlowSessionHandle) {
   return {
     steps: session.transactions.value.map((entry) => entry.step),
@@ -68,8 +56,6 @@ function stateOf(session: FlowSessionHandle) {
     state: session.state.value,
   }
 }
-
-// --- the cursor --------------------------------------------------------------
 
 describe('cursor handling', () => {
   it('subscribes from where it got to, and starts at zero on a first load', async () => {
@@ -140,8 +126,6 @@ describe('cursor handling', () => {
 
     socket.deliver({ channel: 'journal', type: 'lagged' })
 
-    // The remedy the daemon names for a lagged client is the replay it holds a
-    // cursor for — asking again from zero would re-deliver the whole journal.
     expect(socket.messages).toEqual([{ subscribe: 'journal', flow: FLOW, cursor: 6 }])
   })
 })
@@ -243,8 +227,6 @@ describe('reconnect replay', () => {
     const reopened = live.sockets[1]
     reopened.open()
 
-    // The daemon replays from the held cursor, and a tail it re-delivers has
-    // to land once — this is the whole reason frames carry their step.
     expect(reopened.messages).toEqual([{ subscribe: 'journal', flow: FLOW, cursor: 3 }])
     for (const step of [3, 4]) {
       reopened.deliver({
@@ -289,13 +271,6 @@ describe('reconnect replay', () => {
     expect(session.degraded.value).toContain('socket-refused')
   })
 
-  /**
-   * Restarting `lumlflow ui` under an open tab is the ordinary way to get here:
-   * the socket drops while the old process is going down — which leaves the tab
-   * believing the daemon is gone — and the new one refuses the key the old one
-   * minted. A refusal is proof somebody answered, so the tab must stop saying
-   * lumlflow is not running and start saying the thing that actually fixes it.
-   */
   it('treats a refusal as proof the daemon is up, not as it being gone', async () => {
     const { socket, sockets, session, daemon, reconnects } = await attach()
 
@@ -305,8 +280,6 @@ describe('reconnect replay', () => {
     expect(session.reachable.value).toBe(false)
     expect(session.degraded.value).toEqual(['daemon-down'])
 
-    // The restarted daemon is listening again, and refuses the key its
-    // predecessor minted for this tab.
     reconnects[0]()
     sockets[1].drop(WS_UNAUTHORIZED)
     await settle()
@@ -314,8 +287,6 @@ describe('reconnect replay', () => {
     expect(session.reachable.value).toBe(true)
     expect(session.degraded.value).toEqual(['socket-refused'])
     expect(session.degraded.value).not.toContain('daemon-down')
-    // And the key it refused is dropped, so the page-level surface can offer
-    // the address that mints a working one.
     expect(tokenRejected.value).toBe(true)
   })
 
@@ -354,8 +325,6 @@ describe('reconnect replay', () => {
   })
 })
 
-// --- degraded states ---------------------------------------------------------
-
 describe('degraded states', () => {
   it('separates a dropped socket from a daemon that is gone', async () => {
     const { socket, session, daemon } = await attach()
@@ -363,7 +332,6 @@ describe('degraded states', () => {
     socket.drop()
     await settle()
 
-    // The probe answered, so the workbench is live and merely reconnecting.
     expect(daemon.calls.at(-1)?.method).toBe('ping')
     expect(session.reachable.value).toBe(true)
     expect(session.degraded.value).toEqual(['socket-dropped'])
@@ -378,8 +346,6 @@ describe('degraded states', () => {
     await settle()
 
     expect(session.reachable.value).toBe(false)
-    // One cause, one banner: the socket dropping is how a dead daemon announces
-    // itself, and saying both would be saying it twice.
     expect(session.degraded.value).toEqual(['daemon-down'])
     expect(session.state.value).toBe('daemon-down')
   })
@@ -395,12 +361,6 @@ describe('degraded states', () => {
     expect(session.state.value).toBe('kernel-not-started')
   })
 
-  /**
-   * The kernel starts lazily, on the first gesture that needs one — so the
-   * state the brief carried when the tab opened is `stopped` almost every time,
-   * and a tab that never re-read it went on saying "kernel not started" after
-   * watching a dozen runs go by. It is the daemon that says otherwise.
-   */
   it('takes the kernel starting from the daemon rather than the brief it opened with', async () => {
     const { socket, session } = await attach({
       status: flowStatus({
@@ -423,8 +383,6 @@ describe('degraded states', () => {
     expect(session.degraded.value).not.toContain('kernel-not-started')
     expect(session.state.value).toBe('unpaired')
 
-    // And a kernel that dies is reported dead, rather than left running because
-    // the last thing anybody heard was that it had started.
     socket.deliver({
       channel: 'journal',
       type: 'kernel',
@@ -492,12 +450,6 @@ describe('degraded states', () => {
     expect(session.degraded.value).toEqual([])
   })
 
-  /**
-   * "Since you were here" is about being away. A reader sitting in front of the
-   * feed watching transactions land is here for every one of them — counting
-   * those was how a tab someone was working in accumulated a marker offering to
-   * catch them up on their own last ten minutes.
-   */
   it('does not count what lands while the reader is watching it land', async () => {
     const { socket, session } = await attach()
 
@@ -517,10 +469,6 @@ describe('degraded states', () => {
     expect(session.degraded.value).not.toContain('behind-cursor')
   })
 
-  /**
-   * The other half of the same fact: a socket that was away for a while comes
-   * back to a catch-up, and the gap it measures then is a real one.
-   */
   it('measures the gap a dropped socket left, and freezes it there', async () => {
     const { socket, sockets, session, reconnects } = await attach()
 
@@ -535,7 +483,6 @@ describe('degraded states', () => {
 
     expect(session.changesBehind.value).toBe(5)
 
-    // Live again: what arrives now is watched, and does not deepen the gap.
     sockets[1].deliver({
       channel: 'journal',
       type: 'transaction',
@@ -618,8 +565,6 @@ describe('the surfaces a degraded state drives', () => {
   })
 
   it('raises no banner for a kernel that has not started', () => {
-    // Browsing is the kernel-free tier by design; announcing it up front would
-    // read as something being wrong. The hint belongs to the gesture instead.
     expect(banners(['kernel-not-started']).html()).toBe('<!--v-if-->')
   })
 
@@ -628,15 +573,11 @@ describe('the surfaces a degraded state drives', () => {
   })
 })
 
-// --- pairing, runs, and the slice --------------------------------------------
-
 describe('the session state a journal drives', () => {
   it('flips to paired on the daemon’s agents frame, and only for a leased session', async () => {
     const { socket, session } = await attach()
     expect(session.agent.value).toBeNull()
 
-    // The registration itself proves nothing: a hand-registered session has
-    // nobody behind it, and the transaction that records it must not pair.
     socket.deliver({
       channel: 'journal',
       type: 'transaction',
@@ -658,7 +599,6 @@ describe('the session state a journal drives', () => {
     expect(session.agent.value).toBeNull()
     expect(session.state.value).toBe('unpaired')
 
-    // A leased session is a connection, and the daemon says so itself.
     socket.deliver({
       channel: 'journal',
       type: 'agents',
@@ -673,7 +613,6 @@ describe('the session state a journal drives', () => {
     expect(session.agent.value).toEqual({ actor: 'claude-1', label: 'claude-1' })
     expect(session.state.value).toBe('idle')
 
-    // The connection dropped; the daemon announces without anybody asking it to.
     socket.deliver({
       channel: 'journal',
       type: 'agents',
@@ -740,12 +679,6 @@ describe('the session state a journal drives', () => {
 })
 
 describe('a burst of transactions is one movement to re-read after', () => {
-  /**
-   * Subscribing replays every transaction the client missed, one frame each.
-   * Treating each as its own invalidation made opening a flow cost a slice read
-   * per step in its history — a journal is append-only, so that price only ever
-   * goes up. What the reader is owed is the state at the end of the replay.
-   */
   it('replays a long journal and reads the slice once, at the catch-up', async () => {
     const { session, socket, daemon } = await attach()
     const branch = ref<string | null>('main')
@@ -764,7 +697,6 @@ describe('a burst of transactions is one movement to re-read after', () => {
       })
     }
     await settle()
-    // Nothing has gone out yet: the replay is still arriving.
     expect(daemon.calls.filter((call) => call.method === 'cells.list')).toHaveLength(first)
 
     socket.deliver({ channel: 'journal', type: 'caught_up', flow: FLOW, step: 40, running: [] })
@@ -901,7 +833,6 @@ describe('the viewed slice', () => {
 
     branch.value = 'sweep'
     await settle()
-    // The transitive view arrives computed — this client never re-derives it.
     expect(slice.transitive.value.map((entry) => entry.slug)).toEqual(['plot'])
 
     const before = daemon.calls.filter((call) => call.method === 'cells.list').length
@@ -924,13 +855,9 @@ describe('the viewed slice', () => {
   })
 })
 
-// --- run logs ----------------------------------------------------------------
-
 describe('run logs', () => {
   it('hands a late joiner the tail, then the live chunks after it', async () => {
     const { session, stream, socket } = await attach()
-    // Buffered before anything asked for this console — the case the daemon's
-    // own ring cannot cover, because this client was already connected.
     socket.deliver(logFrame(1, 'epoch 1\n'))
     socket.deliver(logFrame(2, 'epoch 2\n'))
 
@@ -1022,8 +949,6 @@ describe('run logs', () => {
   })
 })
 
-// --- ops ---------------------------------------------------------------------
-
 describe('mutating ops', () => {
   it('carries an intent on every verb the workbench drives', async () => {
     const { session, daemon } = await attach()
@@ -1076,8 +1001,6 @@ describe('mutating ops', () => {
     await expect(session.request('cells.show', { slug: 'nope' })).rejects.toThrow(
       'no cell named `nope` on `main`',
     )
-    // A refusal it named is proof the daemon is there — only a transport
-    // failure says otherwise.
     expect(session.reachable.value).toBe(true)
   })
 
@@ -1096,8 +1019,6 @@ describe('mutating ops', () => {
     expect(session.state.value).toBe('daemon-down')
   })
 })
-
-// --- selection --------------------------------------------------------------
 
 describe('selection', () => {
   const route = (query: Record<string, string> = {}, path = `/flow/${FLOW}`) =>
@@ -1133,13 +1054,9 @@ describe('selection', () => {
     selection.compared.value = ['main', 'sweep']
     await nextTick()
 
-    // Branch by name and cell by slug — the addressing story, in the URL.
-    // Query keys this selection does not own survive without influencing
-    // which data source the workbench uses.
     expect(selection.query()).toBe(
       'asset=features&branch=sweep&compare=main%2Csweep&state=running',
     )
-    // Which view is up is the route, so a notebook link opens the notebook.
     expect(selection.path()).toBe(`/flow/${FLOW}/notebook`)
 
     scope.stop()
@@ -1169,8 +1086,6 @@ describe('selection', () => {
     window.history.replaceState(null, '', '/')
   })
 })
-
-// --- toasts ------------------------------------------------------------------
 
 describe('coalesced toasts', () => {
   it('folds a burst sharing one intent into a single line', () => {
@@ -1220,9 +1135,6 @@ describe('coalesced toasts', () => {
   })
 
   it('demotes an agent’s failure to the card rather than interrupting for it', () => {
-    // The chip goes `failed` and the traceback fills the card's logs either
-    // way. An agent iterating through a broken state is working, and a toast
-    // per pass teaches the reader to dismiss the one that mattered.
     const failing = (actor: string) =>
       transaction(2, {
         actor,
@@ -1256,8 +1168,6 @@ describe('coalesced toasts', () => {
   })
 
   it('folds reactivity’s own runs into one line however many cells it refreshed', () => {
-    // Its intents are per-cell, so grouping by intent would greet every edit
-    // with a stack of toasts for one thing that happened.
     const plans = coalesceTransactions([
       transaction(1, { actor: 'auto', intent: 'ran features' }),
       transaction(2, { actor: 'auto', intent: 'ran plot' }),
@@ -1302,8 +1212,6 @@ describe('coalesced toasts', () => {
   })
 })
 
-// --- token and the source switch ----------------------------------------------
-
 describe('the daemon token', () => {
   function storage(): Pick<Storage, 'getItem' | 'setItem'> & { held: Record<string, string> } {
     const held: Record<string, string> = {}
@@ -1327,19 +1235,16 @@ describe('the daemon token', () => {
     })
 
     expect(token).toBe('abc123')
-    // Out of the address bar, so it never reaches a bookmark or a screenshot.
     expect(stripped).toEqual(['?branch=sweep'])
     expect(resolveToken({ search: '?branch=sweep', storage: kept })).toBe('abc123')
   })
 
-  /** An open tab is not logged out by the build that moved where this lives. */
   it('adopts the token an earlier build left in the tab-scoped storage', () => {
     const kept = storage()
     const before = storage()
     before.held[TOKEN_STORAGE_KEY] = 'abc123'
 
     expect(resolveToken({ search: '', storage: kept, previous: before })).toBe('abc123')
-    // Adopted, so the reads after it no longer depend on that storage at all.
     expect(kept.held[TOKEN_STORAGE_KEY]).toBe('abc123')
     expect(resolveToken({ search: '', storage: kept })).toBe('abc123')
   })
@@ -1348,12 +1253,6 @@ describe('the daemon token', () => {
     expect(resolveToken({ search: '', storage: storage(), previous: storage() })).toBeNull()
   })
 
-  /**
-   * The address `lumlflow ui` prints is whichever page it opens, and a click
-   * from there to the workspace is a router navigation that carries no query.
-   * So the key is banked wherever the tab entered, and everything else about
-   * that address survives the strip.
-   */
   it('banks the token from any entry route, keeping the rest of the address', () => {
     window.history.replaceState(
       null,
@@ -1368,7 +1267,6 @@ describe('the daemon token', () => {
     expect(window.location.pathname).toBe('/experiments')
     expect(window.location.search).toBe('?log=%2Ftmp%2Fstate%2Fdaemon.log&sort=name')
     expect(window.location.hash).toBe('#latest')
-    // And the flow surfaces, reading it later from a route with no query.
     window.history.replaceState(null, '', '/flow')
     expect(browserToken()).toBe('abc123')
     expect(browserDaemonLog()).toBe('/tmp/state/daemon.log')
@@ -1378,12 +1276,6 @@ describe('the daemon token', () => {
   })
 })
 
-/**
- * The cursor is the other half of the catch-up marker: without one kept across
- * reopens, a tab catches up from zero every time and is by construction never
- * behind — which is how "N changes since you were here" came to never appear
- * in the one case it exists for.
- */
 describe('the reopen cursor', () => {
   function storage(): CursorStorage & { held: Record<string, string> } {
     const held: Record<string, string> = {}
@@ -1407,7 +1299,6 @@ describe('the reopen cursor', () => {
     expect(readCursor('never-opened.flow', kept)).toBeNull()
   })
 
-  /** A browser that holds nothing costs a marker, never the workbench. */
   it('reads as a first load wherever storage is unavailable or nonsense', () => {
     expect(readCursor('churn.flow', null)).toBeNull()
 
@@ -1427,7 +1318,6 @@ describe('the reopen cursor', () => {
     expect(() => writeCursor('churn.flow', 'flow-churn', 3, refuses)).not.toThrow()
   })
 
-  /** End to end: what one session banked is the gap the next one measures. */
   it('turns a step banked by one session into the next session’s marker', async () => {
     const kept = storage()
     writeCursor(FLOW, 'flow-1', 8, kept)

@@ -1,14 +1,3 @@
-"""The daemon API: the one door every CLI, MCP and browser action goes through.
-
-Methods take a params dict and return JSON — no store handles, no uids, no
-content hashes. Cells are addressed by slug and branches by name here, because
-everything downstream renders what this returns.
-
-Verdicts arrive computed. Staleness, preflight costs and run outcomes are the
-runtime's facts, derived here from what the store recorded, so no surface has
-to re-derive them and none can disagree.
-"""
-
 import asyncio
 import os
 import shutil
@@ -43,10 +32,6 @@ from lumlflow.flow.store.flowstore import FlowStore, store_dir
 from lumlflow.flow.store.index import VersionRow
 from lumlflow.flow.store.models import AgentBegin, AgentEnd, OutputRecord, Reactivity
 
-# The calls that change a lane. An agent making one onto a lane somebody else
-# moved since the agent last saw where it stood is refused before it lands —
-# see `Api.fence`. `fork` and `rewind` are absent on purpose: starting a lane
-# from wherever this one stands, or moving it yourself, is the remedy.
 _FENCED = frozenset(
     {
         "cells.new",
@@ -60,19 +45,10 @@ _FENCED = frozenset(
         "checkpoint",
     }
 )
-# What tells an agent where the lane stands: the brief it reads first, and
-# its own changes and moves, which it knows the outcome of.
 _OBSERVES = _FENCED | {"context", "rewind"}
 
-# How long a cell stays an agent's once it stops naming it. Agents think
-# between calls — reading an answer, writing the next cell — and a claim that
-# lapsed in the middle of that would hand the cell to the next agent while the
-# first is still writing it. Long enough for that; short enough that an agent
-# that wandered off without moving on does not hold a cell all afternoon.
 CLAIM_IDLE_S = 180.0
 
-# What another agent may not do to a cell somebody holds: change it, move it,
-# take it, or run it. Reading it is never refused.
 _TOUCHES = frozenset(
     {
         "cells.new",
@@ -89,8 +65,6 @@ _TOUCHES = frozenset(
 
 @dataclass
 class _Claim:
-    """One agent working on one cell of one lane."""
-
     flow: str
     branch: str
     branch_id: str
@@ -114,13 +88,9 @@ class _Claim:
 
 Method = Callable[[dict[str, Any]], Awaitable[Any]]
 AttachmentCheck = Callable[[str], dict[str, Any]]
-# The agent sessions live connections are carrying, as (flow, actor, label).
-# The daemon owns the set; the API only reads it to say who is really paired.
 Leases = set[tuple[str | None, str, str]]
 LeaseCheck = Callable[[], Leases]
 
-# One pass names every cell an imported file holds, a second binds the
-# references the first could not see yet. Nothing a third would find.
 _IMPORT_PASSES = 2
 
 
@@ -139,9 +109,6 @@ class Api:
         self.hub = hub
         self.directory = (directory or Path.cwd()).resolve()
         self.instance_id = instance_id
-        # Where the browser reaches this workspace, once the daemon has bound
-        # it. A process serving only the socket leaves it None rather than
-        # naming a port nothing answers on.
         self.web: str | None = None
         self._stop = stop
         self._attachments = attachments
@@ -150,15 +117,9 @@ class Api:
         # Upload jobs in flight. A task nothing references may be collected
         # mid-upload; the set holds each until its done callback drops it.
         self._uploads: set[asyncio.Task[None]] = set()
-        # Where each agent last saw each lane stand: (flow, actor, branch_id)
-        # to the lane's position step. The daemon's memory, like a lease — an
-        # agent that reconnects starts over, which is what a new session is.
         self._lane_seen: dict[tuple[str, str, str], int] = {}
-        # Who last moved each lane, for the sentence a refused agent reads.
         self._moved_by: dict[tuple[str, str], str] = {}
-        # Which agent holds which cell: (flow, branch_id, slug casefolded).
         self._claims: dict[tuple[str, str, str], _Claim] = {}
-        # The clock claims age by. A test moves it instead of waiting.
         self.clock: Callable[[], float] = time.time
         self.methods: dict[str, Method] = {
             "ping": self.ping,
@@ -214,11 +175,6 @@ class Api:
         }
 
     async def ping(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Liveness, cheap enough to ask on every verb — and where the UI is.
-
-        `running` is how `lumlflow ui` decides whether the process holding this
-        workspace may be restarted under it: nothing in flight, nothing lost.
-        """
         return {
             "workspace": str(self.directory),
             "pid": os.getpid(),
@@ -228,7 +184,6 @@ class Api:
         }
 
     async def status(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The workspace, its flows, and what is unsynced in each."""
         directory = self._directory(params)
         interpreter = envs.describe(directory)
         refs = (
@@ -279,7 +234,6 @@ class Api:
         }
 
     async def context(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The orientation brief: where you are, what is unsynced, what broke."""
         session, branch = await self._read(params)
         interpreter = envs.describe(session.workspace_dir)
         return queries.context(session, branch) | {
@@ -350,14 +304,6 @@ class Api:
         }
 
     async def flow_open(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Open a flow, checking it out unless the caller keeps no worktree.
-
-        The first non-MCP open is a full checkout: bind the root to a branch
-        and project its slice, never a bare bind. `worktree: false` is the
-        MCP path — cells live in the store there, and materializing a checkout
-        under a session that only calls the API would invent a file plane
-        nobody asked for.
-        """
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
         session = self.hub.open(ref, actor=_actor(params))
         session.experiment_states.clear()
@@ -368,7 +314,6 @@ class Api:
         return await self._flow_status(ref, actor=_actor(params))
 
     async def flow_checkout(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Bind the flow root to a branch and project it — what `init` adds."""
         actor = _actor(params)
         session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
@@ -385,17 +330,11 @@ class Api:
         return {"deleted": ref.name, "path": ref.address}
 
     async def flow_rename(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Rename the flow's directory. Its store, history and cells move with it."""
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
         renamed = await self.hub.rename_flow(ref, str(params.get("name") or ""))
         return {"renamed": renamed.name, "path": renamed.address, "from": ref.address}
 
     async def flow_duplicate(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Copy a flow under a new name. Its store, cells and history come with it.
-
-        Quiesced first, so the copy carries whatever the source's files hold
-        right now rather than what its store last reconciled.
-        """
         actor = _actor(params)
         session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
@@ -418,17 +357,10 @@ class Api:
         return queries.show(session, branch, str(params.get("slug") or ""))
 
     async def cells_logs(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The console of the run this branch observed — that one, not the newest.
-
-        Kept off `cells show`, which agents read whole: a run's capped artifact
-        is large next to a cell's declarations, and only a reader who opened
-        the logs asked for it.
-        """
         session, branch = await self._read(params)
         return queries.logs(session, branch, str(params.get("slug") or ""))
 
     async def cells_delete(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Drop the cell from this branch. Every other branch keeps its own."""
         session, branch = await self._read(params)
         actor = _actor(params)
         result = session.store.branches.delete(
@@ -447,13 +379,6 @@ class Api:
         } | _projection(self._reproject(session, branch))
 
     async def cells_eager(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Opt one cell in or out of eager materialization.
-
-        Eager is per-asset by design: reactivity's default already runs a cheap
-        closure without being asked, and the opt-in is for the one cell whose
-        cost is worth paying on every change. It lives in `flow.yaml` beside the
-        threshold it overrides, keyed by uid so renaming the cell keeps it.
-        """
         session, branch = await self._read(params)
         here = queries.read(session, branch)
         slug = str(params.get("slug") or "")
@@ -463,23 +388,10 @@ class Api:
         kept = [other for other in settings.eager if other != uid]
         settings.eager = [*kept, uid] if on else kept
         session.store.save_manifest()
-        # Ticking it is not a run, but it is the answer to "would this refresh
-        # itself" changing — so if the cell is already unsynced, it refreshes now.
         session.reactor.arm()
         return {"flow": session.ref.name, "branch": branch, "slug": slug, "eager": on}
 
     async def cells_new(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Add a cell. Never blocks on a name.
-
-        An unnamed cell is scaffolded under a placeholder slug and flagged
-        softly; once its class is written the flag carries the derived name to
-        rename it to. The version is written to the store, so this is valid
-        whether or not the branch is checked out.
-
-        A name another cell already answers to is moved aside and flagged — no
-        filesystem refuses a collision on this path, and adding a cell is never
-        an edit to the one that was there.
-        """
         session, branch = await self._read(params)
         raw_slug = params.get("slug")
         if raw_slug is None:
@@ -527,7 +439,6 @@ class Api:
         return self._edited(session, accepted, branch=branch)
 
     async def cells_reorder(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Move one flow-wide presentation key, constrained by this lane's wiring."""
         session, branch = await self._read(params)
         before = str(params.get("before") or "").strip()
         after = str(params.get("after") or "").strip()
@@ -576,13 +487,6 @@ class Api:
         }
 
     async def cells_edit(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Write an edit the daemon was handed, under per-cell optimistic locking.
-
-        `base` is the `definition_hash` the editor started from. A head that
-        moved past it is not overwritten silently — the caller is handed both
-        versions and picks: overwrite, or fork the edit onto a branch of its
-        own.
-        """
         slug = str(params.get("slug") or "")
         source = str(params.get("source") or "")
         if not source.strip():
@@ -618,12 +522,10 @@ class Api:
         )
 
     async def asset_preview(self, params: dict[str, Any]) -> dict[str, Any]:
-        """An output as the store holds it — verdict, kind, and stored preview."""
         session, branch = await self._read(params)
         return queries.asset(session, branch, _target(params))
 
     async def asset_page(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Read into a value. This is the gesture that starts a kernel."""
         session, _, slug, output, record = await self.stored_output(params)
         value_ref = record.value_ref
         assert value_ref is not None
@@ -633,7 +535,6 @@ class Api:
         return {"slug": slug, "output": output, "kind": record.kind, "page": page}
 
     async def asset_download(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Copy a stored value out of the flow, under a name of the caller's."""
         session, _, slug, output, record = await self.stored_output(params)
         destination = Path(str(params.get("to") or "")).expanduser()
         if not destination.is_absolute():
@@ -658,15 +559,6 @@ class Api:
         }
 
     async def asset_publish(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Send a cell's model to LUML, the way an experiment's models go.
-
-        Two halves. The kernel packages the stored value as the bundle LUML
-        takes — that is awaited, so a model luml cannot package is refused
-        here, in the daemon's words. The upload then runs as a job in the
-        tracker's own progress store, and the browser follows it on the same
-        stream an experiment upload reports on. The bundle is the job's to
-        remove; until the job exists, a refusal removes it here.
-        """
         session, branch, slug, output, record = await self.stored_output(params)
         here = queries.read(session, branch)
         version = here.versions[here.uid_of(slug)]
@@ -710,12 +602,6 @@ class Api:
         }
 
     def _start_upload(self, bundle: Path, form: dict[str, Any]) -> str:
-        """Hand a packaged bundle to the tracker's uploader as a job.
-
-        The uploader is the one Experiments uses, imported late: the tracker
-        app sets its process settings on the way past `lumlflow ui`, and
-        its handlers are the singletons the progress route reads from.
-        """
         from lumlflow.api.luml import artifact_handler, progress_store
         from lumlflow.schemas.luml import ArtifactIn, UploadFileForm
 
@@ -751,19 +637,10 @@ class Api:
         return session, branch, slug, output, record
 
     async def export(self, params: dict[str, Any]) -> dict[str, Any]:
-        """A branch's cells as one file. A read: nothing is written anywhere."""
         session, branch = await self._read(params)
         return queries.export(session, branch)
 
     async def import_cells(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Read an exported file back into a branch, as one transaction.
-
-        The cells land as versions, so this is valid whether or not the branch
-        is checked out; where it is, the files follow. Identity comes out of the
-        file — a cell this flow already knows is edited rather than duplicated,
-        and one it does not is taken up under the identity it arrived with, so
-        an export and its import name the same cells afterwards.
-        """
         session, branch = await self._read(params)
         actor = _actor(params)
         carried = portable.read(str(params.get("source") or ""))
@@ -801,7 +678,6 @@ class Api:
         } | _projection(self._reproject(session, branch))
 
     async def fork(self, params: dict[str, Any]) -> dict[str, Any]:
-        """A new branch off this one: one row, and no value is copied."""
         session, branch = await self._read(params)
         parent = str(params.get("from_branch") or branch)
         created = session.store.branches.fork(
@@ -828,13 +704,6 @@ class Api:
         return {"branch": archived.name, "archived": archived.archived}
 
     async def rename(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Give a cell another name. References bind to identity, so this costs
-        nothing: no consumer's definition moves, and no cache is lost.
-
-        The version is re-accepted from the source the store holds, under the new
-        name — the same path an agent's `mv` arrives on — and the consumers whose
-        files still spell the old one are rewritten to match.
-        """
         session, branch = await self._read(params)
         actor = _actor(params)
         old = portable.cell_name(str(params.get("slug") or "")).casefold()
@@ -853,9 +722,6 @@ class Api:
             branch=branch,
             actor=actor,
             intent=params.get("intent") or f"renamed {old} to {new}",
-            # Named, not read off the source: a cell whose file never parsed
-            # carries no uid line, and renaming it must move that cell rather
-            # than mint a second one beside it.
             uid=head.uid,
         )
         rewired = self._rewire(session, accepted.rewire, branch=branch, actor=actor)
@@ -870,11 +736,9 @@ class Api:
         } | _projection(self._reproject(session, branch))
 
     async def env_status(self, params: dict[str, Any]) -> dict[str, Any]:
-        """What the workspace pins, and which kernels are running behind it."""
         return await self._env(self._directory(params))
 
     async def switch(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Check a branch out: rebind the worktree and project its slice."""
         actor = _actor(params)
         session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
@@ -886,8 +750,6 @@ class Api:
         return await self._flow_brief(session) | _projection(projection)
 
     async def rewind(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Move a branch to a step. Instant, the files follow, and no step is
-        added: the branch stands there until the next change on it."""
         actor = _actor(params)
         session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
@@ -904,8 +766,6 @@ class Api:
         session.store.save_manifest()
         moved = session.store.branches.get(branch)
         self._moved_by[(session.ref.address, moved.branch_id)] = actor
-        # Every cell on the lane now shows the version at the step it went to,
-        # and nobody was working on that one.
         self._release_where(
             session,
             lambda claim: claim.branch_id == moved.branch_id,
@@ -921,14 +781,6 @@ class Api:
         )
 
     async def checkpoint(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Mark a step in a branch's history. Nothing is copied or frozen.
-
-        The journal already records every change; what it cannot record on its
-        own is that one of those points is the one to come back to. This
-        attaches the words to that step — the branch's newest one unless
-        `step` names another — without adding a step, and it becomes the
-        branch's `checkpoint` in the brief.
-        """
         session, branch = await self._read(params)
         intent = str(params.get("intent") or "").strip()
         if not intent:
@@ -953,7 +805,6 @@ class Api:
         }
 
     async def adopt(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Take one asset's version from another branch onto this one."""
         actor = _actor(params)
         session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
@@ -987,22 +838,11 @@ class Api:
         } | _projection(self._reproject(session, branch))
 
     async def agent_begin(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Register an agent session for attribution until it ends.
-
-        Detected, never wrapped: the journal entry is what the pair panel reads
-        and what file-plane edits attribute to until it ends.
-
-        `lease` says the caller's connection carries this session: it ends when
-        that connection does, whether or not anybody got to say so. A caller
-        that connects per call — every CLI verb — must not ask for one.
-        """
         session = self._session(params)
         label = str(params.get("label") or params.get("actor") or "agent")
         actor = str(params.get("actor") or label)
         if params.get("lease"):
             label = self._distinct_label(session, label, actor=actor)
-        # Open the bracket over a settled file plane: edits made before the
-        # session began belong to whoever was there before it.
         await self.hub.quiesce(session)
         session.store.commit(
             [AgentBegin(actor=actor, label=label)],
@@ -1018,7 +858,6 @@ class Api:
         }
 
     async def agent_end(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Close the bracket — and with it the transaction its edits group into."""
         actor = str(params.get("actor") or "")
         session = self._session(
             params,
@@ -1045,7 +884,6 @@ class Api:
         }
 
     async def agent_payload(self, params: dict[str, Any]) -> dict[str, Any]:
-        """The stored context copied from one cell card."""
         session, branch = await self._read(params)
         return handoff.payload(
             session,
@@ -1054,12 +892,6 @@ class Api:
         )
 
     async def settings_set(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Write the settings a surface renders into `flow.yaml`.
-
-        Config, not history: these decide what the runtime does next, so they
-        are journaled nowhere — the same reason `cells eager` is not a
-        transaction. Anything absent from the call is left alone.
-        """
         session = self._session(params, actor=_actor(params))
         settings = session.store.manifest.settings
         if params.get("reactivity") is not None:
@@ -1073,8 +905,6 @@ class Api:
                 name="eager_cost_threshold_s",
             )
         session.store.save_manifest()
-        # Turning reactivity on, or lifting the threshold, is a decision about
-        # the cells that are unsynced right now — not only about the next edit.
         session.reactor.arm()
         return {
             "flow": session.ref.name,
@@ -1085,12 +915,6 @@ class Api:
         }
 
     async def run(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Run a target's closure, or every leaf's closure when none is named.
-
-        Forcing is what a surface offers when the recorded result is suspect —
-        a cell that reads something the store does not hash — and it is never
-        the default: it spends the whole closure's cost again on purpose.
-        """
         session, branch = await self._read(params)
         target = _named(params.get("target"))
         if target is None:
@@ -1103,9 +927,6 @@ class Api:
                 force=bool(params.get("force")),
             )
             result = _outcome(outcome)
-        # A result the user paid for is what makes the cheap cells under it
-        # affordable: running the expensive parent is the gesture that lets
-        # reactivity take the plot below it.
         session.reactor.arm()
         return {"path": session.ref.address} | result
 
@@ -1161,24 +982,11 @@ class Api:
         }
 
     async def preflight(self, params: dict[str, Any]) -> dict[str, Any]:
-        """What a run would cost, for one target or for several at once.
-
-        `targets` is what "rerun this branch" asks: one closure over every leaf
-        rather than one preflight per leaf, so a shared ancestor is counted the
-        once it will actually run.
-        """
         session, branch = await self._read(params)
         targets = _targets(params)
         return _preflight(session.planner.preflight(*targets, branch=branch))
 
     async def cancel(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Leave the run this branch is waiting on.
-
-        Only the last branch to leave stops the execution: a sweep of twenty
-        forks awaiting one training run is not cancelled by one of them
-        walking away. The report says which happened rather than letting a
-        surface claim the run stopped.
-        """
         session = self._session(params, actor=_actor(params))
         branch = _branch(session, params)
         left = session.queue.abandon(branch)
@@ -1200,13 +1008,6 @@ class Api:
         }
 
     async def journal_since(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Everything a client missed. The cursor is a step, not a timestamp.
-
-        No quiesce: this reads what was recorded, and reconciling first would
-        put an edit into the answer to a question about the past. A client that
-        holds no cursor asks from 0 and gets the flow's whole history — which
-        is what makes a reconnect indistinguishable from a first load.
-        """
         session = self._session(params, actor=_actor(params))
         entries = [
             entry.model_dump(mode="json")
@@ -1227,7 +1028,6 @@ class Api:
         return {"stopping": True}
 
     async def shutdown_if_idle(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Stop a daemon a pipeline started only while nobody else needs it."""
         path = str(params.get("path") or "")
         attached = self._attachments(path) if self._attachments is not None else {}
         if any(attached.values()):
@@ -1256,8 +1056,6 @@ class Api:
         return directory
 
     async def _read(self, params: dict[str, Any]) -> tuple[FlowSession, str]:
-        """The pre-op contract in one line: no version resolves against a stale
-        file plane. Every verb that names a cell or a branch starts here."""
         session = self._session(params, actor=_actor(params))
         await self.hub.quiesce(session, actor=_actor(params))
         return session, _branch(session, params)
@@ -1272,13 +1070,6 @@ class Api:
         }
 
     def _distinct_label(self, session: FlowSession, label: str, *, actor: str) -> str:
-        """A label no other connected agent on this flow is using.
-
-        Two windows of the same harness introduce themselves the same way, and
-        a pairing line that reads `codex · editing train` twice says nothing
-        about which one. The second is numbered while the first is connected;
-        a registration nobody is behind does not hold its name.
-        """
         leased = self._leased_actors(session)
         taken = {
             row.label
@@ -1293,7 +1084,6 @@ class Api:
         return f"{label} {number}"
 
     def _leased_actors(self, session: FlowSession) -> frozenset[str]:
-        """The actors whose session a live connection is carrying on this flow."""
         if self._leases is None:
             return frozenset()
         return frozenset(
@@ -1303,23 +1093,10 @@ class Api:
         )
 
     def _agent_sessions(self, session: FlowSession) -> list[dict[str, Any]]:
-        """Every registered session, newest first, marked by whether it is live.
-
-        `leased` is what "paired" means to a surface. A row without it was
-        registered by hand — `lumlflow agent begin` — and exists for
-        attribution only: nobody is on the other end of it.
-        """
         leased = self._leased_actors(session)
         return queries.agent_sessions(session, leased=leased)
 
     def _announce_agents(self, session: FlowSession) -> None:
-        """Push the session list to the flow's watchers, lease state included.
-
-        Called after every registration or end commits, and by the daemon when
-        a lease changes hands without a commit of its own — a connection that
-        dropped. The list is the whole truth at that moment; a watcher replaces
-        rather than merges.
-        """
         if session.streams is None:
             return
         session.streams.agents(
@@ -1329,11 +1106,6 @@ class Api:
         )
 
     def announce_agents(self, flow: str | None) -> None:
-        """The daemon's entry to `_announce_agents`, by flow address.
-
-        Only a flow this daemon holds open can have a lease on it — the
-        registration opened it — so a miss here means there is nobody to tell.
-        """
         if not flow:
             return
         for session in self.hub.opened():
@@ -1342,20 +1114,6 @@ class Api:
                 return
 
     def fence(self, method: str, params: dict[str, Any]) -> None:
-        """Refuse an agent's change onto a lane that was moved under it.
-
-        A rewind puts the lane on an earlier step, and the next change on it
-        moves it on from there, leaving every step after behind. A person is
-        asked before that happens; an agent mid-task has no way to know it is
-        about to — it read where the lane stood when it began, and the lane is
-        not there any more. So the change is refused, nothing lands, and the
-        agent is told what moved and what its choices are. Telling it is what
-        catches it up: the same call made again goes through.
-
-        Only a lane that stands on a moved-to step counts. Somebody editing at
-        the lane's newest step moves it on as well, and that is two people
-        working on one lane, which is what pairing is.
-        """
         if method not in _FENCED:
             return
         actor = _actor(params)
@@ -1364,13 +1122,11 @@ class Api:
             branch = _branch(session, params)
             row = session.store.branches.get(branch)
         except FlowError:
-            # Whatever does not resolve here, the call itself will say.
             return
         key = (session.ref.address, actor, row.branch_id)
         standing = session.store.index.head_step(row.branch_id)
         seen = self._lane_seen.get(key)
         if seen is None:
-            # Nothing this agent was shown to hold the lane to.
             self._lane_seen[key] = standing
             return
         if row.head_step is None or standing == seen:
@@ -1391,7 +1147,6 @@ class Api:
         )
 
     def observed(self, method: str, params: dict[str, Any]) -> None:
-        """Note where the lane stands now that an agent has been shown it."""
         if method not in _OBSERVES:
             return
         actor = _actor(params)
@@ -1405,25 +1160,12 @@ class Api:
         )
 
     def forget_agent(self, actor: str) -> None:
-        """Drop what an agent was shown and held, once its connection is gone."""
         for key in [held for held in self._lane_seen if held[1] == actor]:
             del self._lane_seen[key]
         for session in self.hub.opened():
             self._release_where(session, lambda claim: claim.actor == actor)
 
     def claim(self, method: str, params: dict[str, Any], *, label: str) -> None:
-        """Hold the cell a leased agent's call names, or refuse the call.
-
-        An agent holds one cell at a time on a flow: the last one a call of
-        its named. Naming another moves the hold there; disconnecting, the
-        lane being rewound, or leaving the cell alone for `CLAIM_IDLE_S` lets
-        it go. While one agent holds a cell, another agent's call that would
-        change or run it is refused before anything lands. Reading it is not:
-        a look takes nothing and is never in the way.
-
-        People are never held to this. It is between agents, and the workbench
-        is where a person overrides whatever an agent is doing.
-        """
         slug = _cell_named(params)
         if slug is None:
             return
@@ -1475,7 +1217,6 @@ class Api:
         self._announce_claims(session)
 
     def settled(self, method: str, params: dict[str, Any]) -> None:
-        """Follow a held cell through what its holder just did to it."""
         if method not in {"rename", "cells.delete"}:
             return
         slug = _cell_named(params)
@@ -1500,12 +1241,6 @@ class Api:
         self._announce_claims(session)
 
     def expire_claims(self) -> None:
-        """Let go of every claim left alone for `CLAIM_IDLE_S`, and say so.
-
-        A claim also lapses lazily, on the next call that looks at it; this is
-        for the flow nobody calls into any more, so its watchers and its next
-        catch-up stop naming a holder that is long gone.
-        """
         now = self.clock()
         for session in self.hub.opened():
             if self._expire(session.ref.address, now):
@@ -1556,13 +1291,6 @@ class Api:
         slug: str | None,
         phase: Literal["started", "ended"],
     ) -> None:
-        """Tell a flow's watchers a leased agent is inside a call, or out of it.
-
-        The daemon calls this around every method a leased connection invokes.
-        A flow nobody holds open has nobody to tell, and a connection that is
-        on its way out announces its end through `end_activity` instead, so a
-        call it never finished is not left hanging over a card.
-        """
         for session in self.hub.opened():
             if session.ref.address == flow and session.streams is not None:
                 session.streams.activity(
@@ -1577,7 +1305,6 @@ class Api:
                 return
 
     def end_activity(self, flow: str, *, actor: str) -> None:
-        """Clear whatever this actor was announced as doing, if anything."""
         for session in self.hub.opened():
             if session.ref.address != flow or session.streams is None:
                 continue
@@ -1615,7 +1342,6 @@ class Api:
         }
 
     async def _env(self, directory: Path) -> dict[str, Any]:
-        """What the lockfile pins, and where each running kernel stands to it."""
         interpreter = envs.describe(directory)
         pinned = envs.packages(directory)
         return {
@@ -1647,7 +1373,6 @@ class Api:
         *,
         branch: str,
     ) -> dict[str, Any]:
-        """What a daemon-originated edit did, including its file projection."""
         written = session.worktree.project_cell(branch=branch)
         session.reactor.arm()
         return {
@@ -1661,14 +1386,12 @@ class Api:
     def _rewire(
         self, session: FlowSession, uids: list[str], *, branch: str, actor: str
     ) -> list[str]:
-        """Carry a new name into the consumers that still spell the old one."""
         renamed = session.acceptance.rewire(uids, branch=branch, actor=actor)
         return [accepted.slug for accepted in renamed]
 
     def _reproject(
         self, session: FlowSession, branch: str, *, react: bool = True
     ) -> Projection | None:
-        """Carry a slice change into the files, when it is this branch's files."""
         # Switching, forking, adopting and deleting all move which versions the
         # branch selects, which is the other half of what a verdict is derived
         # from. Reactivity has a new answer after every one of them. A rewind
@@ -1683,7 +1406,6 @@ class Api:
 
 
 def _flags(accepted: AcceptedCell) -> list[dict[str, str | None]]:
-    """What was wrong with a cell and still accepted — the chip's words."""
     return [{"code": flag.code, "detail": flag.detail} for flag in accepted.flags]
 
 
@@ -1727,15 +1449,6 @@ def _validate_reorder_topology(
 
 
 def _one_cell_per_identity(carried: Sequence[PortableCell]) -> None:
-    """Refuse a file whose blocks are one cell written twice.
-
-    Identity travels in the source, so a block duplicated to make a lane
-    still names the cell it was copied from. Accepting both would read the
-    second as a rename of the first and leave the file holding a cell that
-    never arrived — a count the result would then report wrongly. The remedy
-    is the one the format can state: a block with its own name and no `uid`
-    line arrives as a cell of its own.
-    """
     seen: dict[str, str] = {}
     for cell in carried:
         parsed = loader.parse(cell.source)
@@ -1757,14 +1470,6 @@ def _one_cell_per_identity(carried: Sequence[PortableCell]) -> None:
 def _rebind(
     session: FlowSession, accepted: set[str], *, branch: str, actor: str
 ) -> list[AcceptedCell]:
-    """Re-accept the lane's consumers against the namespace a change just moved.
-
-    Only the checked-out lane is rescanned after a commit; every other lane
-    would keep the bindings its consumers had. A consumer whose binding did not
-    move writes nothing, so this reads every consumer rather than guessing which.
-    The accepted cells are left out: re-accepting one would lose the flags only
-    its own acceptance could give it. Returns the consumers that moved.
-    """
     branch_id = session.store.branches.get(branch).branch_id
     consumers = [
         uid
@@ -1783,14 +1488,6 @@ def _accept_carried(
     branch: str,
     actor: str,
 ) -> list[AcceptedCell]:
-    """Accept every cell in an imported file, until a pass moves nothing.
-
-    Two passes, not one: an export writes producers first, so its own round
-    trip binds on the first, but a file somebody reordered by hand would leave
-    a consumer pointing at a name that only arrives below it. A second pass
-    costs a parse per cell and nothing else — an unchanged cell writes no
-    version.
-    """
     landed: list[AcceptedCell] = []
     branch_id = session.store.branches.get(branch).branch_id
     selected = session.store.index.slice_versions(branch_id)
@@ -1833,11 +1530,6 @@ def _accept_carried(
 async def _kernel(
     session: FlowSession, handshake: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """Plumbing is invisible: the only fact a surface needs is running or not.
-
-    The one kernel control that does surface is an env that moved under a
-    running process, which is what the restart banner is for.
-    """
     behind = await session.kernel.env_drift()
     state = {
         "state": session.kernel.state,
@@ -1865,7 +1557,6 @@ def _outcome(outcome: RunOutcome) -> dict[str, Any]:
 
 
 def _one_of(value: Any, allowed: Sequence[str], called: str) -> Any:
-    """A setting only takes the words it has. Naming them beats a silent write."""
     if str(value) not in allowed:
         raise FlowError(
             f"`{value}` is not a {called}. it is "
@@ -1908,7 +1599,6 @@ def _projection(projection: Projection | None) -> dict[str, Any]:
 
 
 def _placeholder_slug(session: FlowSession) -> str:
-    """The next free `untitled_N`. Adding a cell never waits for a name."""
     prefix = f"{PLACEHOLDER_SLUG}_"
     assigned = [
         int(suffix)
@@ -1921,7 +1611,6 @@ def _placeholder_slug(session: FlowSession) -> str:
 def _scaffold(
     session: FlowSession, params: dict[str, Any], *, slug: str, branch: str
 ) -> str:
-    """The file a new cell starts as, wired to what it comes after when told."""
     after = params.get("after")
     producer = queries.head(session, branch, str(after)) if after else None
     materialization = None
@@ -1963,7 +1652,6 @@ def _flow_name(params: dict[str, Any]) -> str | None:
 
 
 def _cell_named(params: dict[str, Any]) -> str | None:
-    """The cell a call is about: its `slug`, or the cell half of `target`."""
     named = params.get("slug") or params.get("target")
     if not named:
         return None
@@ -2000,7 +1688,6 @@ def _leaves(session: FlowSession, branch: str) -> list[str]:
 
 
 def _publish_form(params: dict[str, Any]) -> dict[str, Any]:
-    """Where in LUML the model goes, and what it is called there."""
     missing = [
         key
         for key in ("organization_id", "orbit_id", "collection_id")

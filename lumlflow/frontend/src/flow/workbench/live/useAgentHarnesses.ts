@@ -1,16 +1,3 @@
-/**
- * The Agents section's state: which harnesses this user has, and the one write
- * lumlflow offers each — Set up, Update, Remove.
- *
- * Shared by the workbench and the notebooks page, so both read the same list
- * off the same verbs and neither invents a second one. The transport is handed
- * in rather than assumed: the workbench speaks through its session, the
- * notebooks page through the workspace slice, and this cares about neither.
- *
- * Nothing here pairs anybody. An agent is paired by connecting over MCP and by
- * nothing else; setting a harness up is what lets it.
- */
-
 import { computed, ref } from 'vue'
 import type { AgentHarness } from '@/flow/api/types'
 

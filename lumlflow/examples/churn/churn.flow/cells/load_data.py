@@ -1,6 +1,4 @@
 class LoadData:
-    """Load the sklearn diabetes regression dataset as a dataframe."""
-
     uid = "01M00KYAT4KFHEJHYE82WM9T3G"
     produces = {"data": "asset"}
 

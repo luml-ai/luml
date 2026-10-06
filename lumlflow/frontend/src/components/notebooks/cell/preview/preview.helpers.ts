@@ -9,12 +9,6 @@ import type {
 
 export type KvValue = string | number | boolean | null
 
-/**
- * What a card renders, one section at a time. Previews arrive as a flat list
- * of blocks; a section is one thing to look at — a chart, a list of values, a
- * table — under the heading that introduced it, which is where its actions
- * (filter a chart, expand a long list) sit.
- */
 export type PreviewSection =
   | { kind: 'lines'; title: string | null; series: SeriesBlock[] }
   | { kind: 'bars'; title: string | null; entries: [string, number][] }
@@ -24,19 +18,16 @@ export type PreviewSection =
   | { kind: 'markdown'; title: string | null; block: MarkdownBlock }
   | { kind: 'file'; title: string | null; block: FileBlock }
 
-/** A list of values longer than this is cut short when a chart shares the card. */
 export const COMPACT_KV_ROWS = 7
 
 const HEADING = /^\s*\*\*([^*\n]+)\*\*\s*$/
 
-/** A markdown block that is nothing but one bold line is a heading. */
 function headingOf(block: PreviewBlock): string | null {
   if (block.block !== 'markdown') return null
   const match = HEADING.exec(block.text)
   return match ? (match[1] ?? '').trim() : null
 }
 
-/** Every value numeric, and more than one of them: a bar chart says it better. */
 function numericEntries(entries: [string, KvValue][]): [string, number][] | null {
   if (entries.length < 2) return null
   const numeric = entries.filter((entry): entry is [string, number] => typeof entry[1] === 'number')
@@ -55,7 +46,6 @@ export function previewSections(blocks: PreviewBlock[]): PreviewSection[] {
   for (const block of blocks) {
     const heading = headingOf(block)
     if (heading !== null) {
-      // Two headings in a row: the first introduced nothing, and says so.
       if (title !== null) {
         sections.push({
           kind: 'markdown',
@@ -69,8 +59,6 @@ export function previewSections(blocks: PreviewBlock[]): PreviewSection[] {
     const last = sections[sections.length - 1]
     switch (block.block) {
       case 'series':
-        // Series logged side by side are one chart with several lines; that
-        // is what makes choosing which of them to look at mean anything.
         if (last?.kind === 'lines' && title === null) last.series.push(block)
         else sections.push({ kind: 'lines', title: take(), series: [block] })
         break

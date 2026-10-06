@@ -19,13 +19,7 @@ import { Button, Message } from 'primevue'
 import { RefreshCw, ZapOff } from 'lucide-vue-next'
 import { inlineCodeHtml } from './inlineCode'
 
-/**
- * Kernel death is observable (exit status / OOM kill) and recoverable: the
- * kernel is stateless relative to the store, so the banner can honestly say
- * nothing recorded is lost.
- */
 const props = defineProps<{
-  /** The cell that was materializing when the kernel died. */
   slug: string
   cause?: string
 }>()

@@ -1,6 +1,4 @@
 class Eda:
-    """Explore dataset shape, descriptive statistics, and target correlations."""
-
     uid = "01M00KYGX6Q0FK2N50KVP3G58J"
     consumes = {"data": "load_data.data"}
     produces = {"summary": "asset", "correlations": "asset"}

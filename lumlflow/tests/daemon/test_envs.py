@@ -1,12 +1,3 @@
-"""The workspace env: which interpreter runs a kernel, what the lockfile pins,
-and what an install does to a kernel already holding the old imports.
-
-The rule under all of it, for a cell that did not opt in with
-`env_sensitive`, is that an env change is provenance, never invalidation: what
-already ran keeps the pins it ran under, and the only thing an install moves is
-what the next kernel imports. An env-sensitive cell goes stale instead.
-"""
-
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -31,8 +22,6 @@ from tests.daemon.helpers import (
     write_lock,
 )
 
-# The stub stands in for uv itself, so these run where a shell does. What the
-# lockfile means is plain file reading, and is asserted everywhere.
 stubbed_uv = pytest.mark.skipif(
     sys.platform == "win32", reason="the uv stub is a POSIX shell script"
 )
@@ -179,8 +168,6 @@ async def test_nothing_to_sync_is_not_a_failure(
 
 
 class TestLockfile:
-    """What "the env" means: the pins, not the bytes that spell them."""
-
     def test_the_lockfile_is_what_the_workspace_pins(self, tmp_path: Path):
         root = make_workspace(tmp_path / "project")
         write_lock(root, {"pandas": "2.2.0", "Scikit_Learn": "1.4.0"})
@@ -204,7 +191,6 @@ class TestLockfile:
     def test_a_lockfile_rewritten_to_the_same_pins_is_the_same_env(
         self, tmp_path: Path
     ):
-        """Hashed over the pins, so a reformat is not a history entry."""
         root = make_workspace(tmp_path / "project")
         write_lock(root, {"pandas": "2.2.0"})
         before = envs.lock_hash(envs.packages(root))
@@ -218,11 +204,6 @@ class TestLockfile:
         assert envs.lock_hash(envs.packages(root)) == before
 
     def test_an_untouched_lockfile_is_parsed_once(self, tmp_path: Path):
-        """Every verb records the env before it resolves anything, and a real
-        workspace's lockfile is a quarter of a megabyte of TOML. Re-parsing it
-        twenty times while a notebook opens is twenty parses of bytes that
-        cannot have changed; the pins that come back are the same object's
-        worth either way, so the reads above are what say it stays correct."""
         root = make_workspace(tmp_path / "project")
         write_lock(root, {"pandas": "2.2.0"})
         envs.packages(root)
@@ -263,8 +244,6 @@ class TestLockfile:
 
 
 class TestObservation:
-    """Every flow records the env it runs under, in its own journal."""
-
     async def test_every_hosted_flow_records_the_env_it_runs_under(
         self, tmp_path: Path
     ):
@@ -283,8 +262,6 @@ class TestObservation:
             assert [op.lock_hash for op in ops] == [envs.lock_hash(envs.packages(root))]
 
     async def test_the_first_observation_claims_no_install(self, tmp_path: Path):
-        """There is no env it moved from, and listing the whole lockfile as
-        "added" would read as an install the user never ran."""
         root = make_workspace(tmp_path / "project")
         write_lock(root, {"pandas": "2.2.0", "scipy": "1.11.0"})
 
@@ -308,8 +285,6 @@ class TestObservation:
         assert len(recorded) == 1
 
     async def test_a_run_records_the_pins_it_ran_under(self, tmp_path: Path):
-        """Provenance on the materialization, so a later upgrade can say which
-        results predate it."""
         root = make_workspace(tmp_path / "project")
         write_lock(root, {"pandas": "2.2.0"})
         write_cell(root / "churn.flow", "score", SCORE_CELL)
@@ -331,14 +306,9 @@ class Pinned:
         return {"reading": {"auc": 0.5}}
 """
 
-# Whatever the workspace actually has installed, this is not it: the drift a
-# kernel is measured against is the lockfile it started under against the one
-# there now, and both are read from the file.
 PINNED_BEFORE = "1.0.0"
 PINNED_AFTER = "9.9.9"
 
-# Reads the lockfile itself, so its answer moves with the pins the way a real
-# library's behaviour would.
 READS_PINS_CELL = """
 class Pins:
     env_sensitive = True

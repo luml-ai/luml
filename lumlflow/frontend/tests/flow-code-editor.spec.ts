@@ -1,12 +1,3 @@
-/**
- * The code editing surface.
- *
- * The editor is CodeMirror over Python, fetched on mount so the read-only card
- * never pays for it. What the specs hold it to is the seam either side of that
- * import: the source it opened on is the source it shows, what is typed into it
- * comes back out as a model update, and a locked surface renders the same and
- * takes nothing.
- */
 
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -42,11 +33,8 @@ describe('the cell source editor', () => {
 
     expect(handle.view.state.doc.toString()).toBe(SOURCE)
     expect(wrapper.find('.cm-editor').exists()).toBe(true)
-    // Line numbers, and Python actually parsed: highlighting emits token spans
-    // inside the lines, which a plain textarea never had.
     expect(wrapper.find('.cm-lineNumbers').exists()).toBe(true)
     expect(wrapper.findAll('.cm-line span').length).toBeGreaterThan(0)
-    // The placeholder slab is gone once the editor is up — one surface, not two.
     expect(wrapper.find('pre').exists()).toBe(false)
     wrapper.unmount()
   })
@@ -71,7 +59,6 @@ describe('the cell source editor', () => {
     await wrapper.setProps({ modelValue: 'class Features:\n    pass\n' })
 
     expect(handle.view.state.doc.toString()).toBe('class Features:\n    pass\n')
-    // The editor did not author this one, so nothing goes back up.
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     wrapper.unmount()
   })
@@ -83,7 +70,6 @@ describe('the cell source editor', () => {
     expect(wrapper.find('.cm-lineNumbers').exists()).toBe(true)
     expect(handle.view.contentDOM.getAttribute('contenteditable')).toBe('false')
 
-    // A locked surface is not a styled one: the state itself refuses writes.
     expect(handle.view.state.readOnly).toBe(true)
     wrapper.unmount()
   })
@@ -104,7 +90,6 @@ describe('the cell source editor', () => {
 
     press(handle, 'Enter', ENTER)
 
-    // The language decides, not a fixed newline: a block header opens a body.
     expect(handle.view.state.doc.toString()).toBe('def materialize(self, ctx):\n    ')
     wrapper.unmount()
   })
@@ -115,8 +100,6 @@ describe('the cell source editor', () => {
     press(handle, 'Tab', TAB)
     expect(handle.view.state.doc.toString()).toBe('    x = 1\n')
 
-    // Tab indenting is a focus trap, so there has to be a way out of it: after
-    // Escape the editor stops claiming Tab and the browser moves focus on.
     press(handle, 'Escape', ESCAPE)
     press(handle, 'Tab', TAB)
     expect(handle.view.state.doc.toString()).toBe('    x = 1\n')

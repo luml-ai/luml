@@ -90,7 +90,6 @@
             <ExternalLink :size="14" />
             open in Experiments
           </RouterLink>
-          <!-- The tracker record is what LUML takes; the cell is only where it was made. -->
           <TrackerUploadLink
             v-if="tracker.url && tracker.state === 'ok'"
             :experiment-id="tracker.id"
@@ -119,7 +118,6 @@
           >
             <template #icon><Download :size="14" /></template>
           </Button>
-          <!-- A stored model goes to LUML from here, the way an experiment's does from its card. -->
           <ModelUploadLink
             v-if="publishModel && selectedOutput?.declared === 'model' && downloadUrl && !needsRun"
             :publish="(target) => publishModel!(outputName, target)"
@@ -165,41 +163,25 @@ import TrackerUploadLink from '../../ui/TrackerUploadLink.vue'
 import ModelUploadLink from '../../ui/ModelUploadLink.vue'
 import type { PublishTarget } from '@/components/upload/upload.interface'
 
-/**
- * The card expanded into a full-height right drawer: the selected output at
- * drawer density, config, the kernel-paged value for frames, links out to the
- * tracker, and the download row. Expand is the first gesture that may start a
- * kernel, and the drawer says so before it does.
- */
 const props = defineProps<{
   cell: FlowCell
   kernelStarted?: boolean
-  /** Cost carried by materialize-and-download when the bytes were never persisted. */
   materializeSeconds?: number
-  /** A window read out of the value itself, once the kernel served one. */
   page?: ValuePage | null
   paging?: boolean
   downloading?: boolean
-  /** Where a download landed, or why one could not — the daemon's words. */
   notice?: string | null
-  /**
-   * Sends one stored model output to LUML. Absent on a gallery drawer, which
-   * has no session to package the value in.
-   */
   publishModel?: (output: string, target: PublishTarget) => Promise<{ job_id: string }>
 }>()
 
 const emit = defineEmits<{
-  /** The reader moved through the value; the kernel serves the window. */
   page: [request: { output: string; move: 'first' | 'next' | 'previous' }]
   download: [request: { output: string; materialize: boolean }]
-  /** Which output is open, so a live drawer can pull its preview. */
   tab: [output: string]
 }>()
 
 const visible = defineModel<boolean>('visible', { default: false })
 
-// Modeled on RightFullHeightDialog, widened to carry a full renderer.
 const dialogPt: DialogPassThroughOptions = {
   mask: { class: 'pt-22 pb-8 px-4' },
   root: { class: 'w-full max-w-[44rem] h-full max-h-full! m-0!' },
@@ -252,11 +234,6 @@ watch([visible, outputName], ([open, name]) => open && name && emit('tab', name)
   immediate: true,
 })
 
-/**
- * What the drawer shows once pages are being read: the window itself, drawn
- * from the rows the kernel handed over. The stored preview is the head of the
- * value and stands until then — the browser receives pages, never the frame.
- */
 const paged = computed<FramePreview | null>(() => {
   const page = props.page
   if (!page) return null
@@ -273,7 +250,6 @@ const paged = computed<FramePreview | null>(() => {
 const offset = computed(() => props.page?.offset ?? 0)
 const shownThrough = computed(() => offset.value + (props.page?.rows.length ?? headRows.value))
 
-/** How much of the value the stored preview already shows, before any paging. */
 const headRows = computed(() => {
   const preview = selectedOutput.value?.preview
   if (preview?.type === 'frame' || preview?.type === 'dataset') {
@@ -297,8 +273,6 @@ const pagedTotalRows = computed<number | null>(() => {
   return null
 })
 
-// Opening the drawer on a value with more rows than the preview holds is the
-// request for the rest of them — and the gesture the kernel notice preceded.
 watch(
   [visible, outputName, pagedTotalRows],
   ([open, name, total]) => {
@@ -315,7 +289,6 @@ const configEntries = computed<[string, string][]>(() => {
   if (preview?.type === 'model' || preview?.type === 'experiment') {
     for (const [key, value] of Object.entries(preview.config)) merged.set(key, value)
   }
-  // Declared params win over recorded config on a key collision.
   for (const [key, value] of Object.entries(props.cell.params)) merged.set(key, value)
   return [...merged.entries()].map(([key, value]) => [
     key,
@@ -351,19 +324,12 @@ const trackerStateLine = computed(() => {
 
 const renderedLogs = computed(() => terminalText(props.cell.logs ?? '').trimEnd())
 
-/**
- * No bytes on this branch, but a run would make some. A declared unpersisted
- * output is the other case entirely: running it stores nothing either, and the
- * line beside the button says so rather than a button promising a file.
- */
 const needsRun = computed(
   () => !selectedOutput.value?.neverPersisted && props.cell.status === 'unmaterialized',
 )
 
 const downloadLabel = computed(() => {
   if (!needsRun.value) return 'download'
-  // A cell nobody has run recorded no cost, and a number invented for the
-  // button would be the one part of the preflight nobody measured.
   const seconds = props.materializeSeconds ?? props.cell.timing?.costSeconds
   return seconds === undefined
     ? 'materialize and download'

@@ -4,18 +4,12 @@ import { useFlowStore } from '@/store/flow'
 
 interface CellPanelPayloadOptions<T> {
   slug: () => string
-  /** The part of the cell summary whose change makes the payload out of date. */
   follows: (cell: CellSummary) => unknown
   fetch: () => Promise<T>
   onLoaded: (payload: T) => void
   onFailed: (error: unknown) => void
 }
 
-/**
- * Loads a notebook panel's payload when it mounts, and again whenever the lane
- * on screen or the followed part of the cell changes. Only the latest load
- * lands: a response a later reload superseded is dropped, error or not.
- */
 export function useCellPanelPayload<T>(options: CellPanelPayloadOptions<T>): {
   isLoading: Ref<boolean>
   reload: () => Promise<void>

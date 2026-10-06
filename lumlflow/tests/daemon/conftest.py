@@ -1,6 +1,3 @@
-"""No test ever writes to the user's real state directory, and no server a
-test started outlives it."""
-
 import subprocess
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -14,7 +11,6 @@ from lumlflow.tracker import ThreadSafeTracker, TrackerProvider
 
 from tests.servers import reap, stop_recorded
 
-# What a test hands a server process it started by hand, to be ended with it.
 Reap = Callable[["subprocess.Popen[Any]"], None]
 
 
@@ -39,13 +35,6 @@ def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture(autouse=True)
 def servers(state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Reap]:
-    """Every server a test starts dies with it, however the test ended.
-
-    Two nets, because either alone has a hole. The discovery record names
-    servers no test ever held a handle to — including ones a verb started three
-    layers down — and the handles catch the ones whose record a test removed on
-    purpose, which is the point of several of them.
-    """
     spawned: list[subprocess.Popen[Any]] = []
     spawn = client._spawn
 

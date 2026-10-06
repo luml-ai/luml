@@ -1,8 +1,3 @@
-/**
- * The steps of the lane on screen. A row is the way to that step: clicking it
- * moves the lane there, and the step the lane stands on is highlighted and
- * goes nowhere. A step is marked as a point from its own row.
- */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -84,7 +79,6 @@ beforeEach(async () => {
     attachTo: document.body,
     global: { plugins: [PrimeVue, ToastService], directives: { tooltip: Tooltip } },
   })
-  // The accordion opens on its header.
   await wrapper.find('.p-accordionheader').trigger('click')
   await settle()
 })

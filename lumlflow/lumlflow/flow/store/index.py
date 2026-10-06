@@ -1,11 +1,3 @@
-"""The SQLite index — a materialized view of the journal, never truth.
-
-Applying a transaction is a pure fold: every op carries the facts its rows
-need. That is what makes a full rebuild from the journal equivalent to the
-incremental path, and why a missing, stale, or corrupt index is only ever a
-latency problem.
-"""
-
 import json
 import sqlite3
 import threading
@@ -198,12 +190,8 @@ class BranchRow:
     parent_branch_id: str | None
     fork_step: int
     archived: bool
-    #: The parent's own step this branch copied, when the fork line recorded it.
     parent_step: int | None = None
-    #: Where the branch stands when that is not its newest own step: a rewind
-    #: sets it, the next change on the branch clears it.
     head_step: int | None = None
-    #: The step of the branch's last rewind line, kept through later changes.
     rewound_step: int | None = None
 
 
@@ -245,8 +233,6 @@ class AgentSessionRow:
 
 @dataclass(frozen=True)
 class TransactionRow:
-    """A journal line as the surfaces read it: who did what, and when."""
-
     step: int
     ts: str
     actor: str
@@ -254,13 +240,8 @@ class TransactionRow:
     offline: bool
     settled: bool
     branch: str | None
-    # Somebody marked this step on purpose, as opposed to `settled`, which the
-    # commit computes. The two answer the same question from opposite ends.
     marker: bool = False
-    #: The words the step was marked under; the intent stays what it was.
     mark: str | None = None
-    #: Whether the branch can stand on this line — it changed what the branch
-    #: selects. A checkout or a note is history, not a place.
     position: bool = True
 
 
@@ -316,7 +297,6 @@ class Index:
 
     @classmethod
     def in_memory(cls) -> "Index":
-        """A throwaway index — how as-of-step state is read back from a replay."""
         return cls(Path(":memory:"))
 
     @staticmethod
@@ -352,15 +332,6 @@ class Index:
 
     @contextmanager
     def probe(self, transaction: Transaction) -> Iterator["Index"]:
-        """Read the index as if `transaction` had landed; every write rolls back.
-
-        Facts about the state a transaction arrives at — `settled` is the one
-        that matters — have to be known before the journal append that commits
-        it, and folding the ops is the only honest way to know them.
-
-        The savepoint owns the connection's transaction for its duration, so a
-        probe expects no write already open on it and does not nest.
-        """
         with self._lock:
             self._conn.execute("SAVEPOINT probe")
             try:
@@ -408,7 +379,6 @@ class Index:
         }
 
     def reused_baselines(self, branch_id: str) -> set[str]:
-        """Cells this branch observed without running them: a memo hit served it."""
         return {
             row["uid"]
             for row in self._conn.execute(
@@ -418,7 +388,6 @@ class Index:
         }
 
     def slice_versions(self, branch_id: str) -> dict[str, VersionRow]:
-        """The branch's resolved slice: uid → the version it selects."""
         return {
             row["uid"]: _version(row)
             for row in self._conn.execute(
@@ -443,18 +412,10 @@ class Index:
         return _materialization(row) if row is not None else None
 
     def knows_cell(self, uid: str) -> bool:
-        """Has this store ever minted or observed the cell? Deleting it from a
-        branch drops the selection, not the cell."""
         row = self._conn.execute("SELECT 1 FROM cells WHERE uid = ?", (uid,)).fetchone()
         return row is not None
 
     def creation_steps(self) -> dict[str, int]:
-        """The step each cell was minted at — the order the notebook ties on.
-
-        Read for the whole store rather than per cell: a slice asks for all of
-        them at once, and the mint order is what pins card order against a
-        rename, which sorting by slug would move.
-        """
         rows = self._conn.execute("SELECT uid, created_step FROM cells").fetchall()
         return {str(row["uid"]): int(row["created_step"]) for row in rows}
 
@@ -476,12 +437,6 @@ class Index:
         return str(row["version_id"]) if row is not None else None
 
     def pinned(self, branch_id: str) -> set[str]:
-        """Cells this branch is holding at the version it forked with.
-
-        Pin-at-fork is the only v1 mode, so this is exactly the set the branch
-        inherited and has not re-authored since — what tells a difference the
-        branch chose from one it merely never picked up.
-        """
         return {
             str(row["uid"])
             for row in self._conn.execute(
@@ -491,7 +446,6 @@ class Index:
         }
 
     def workspace_code_step(self) -> int:
-        """The step the watched workspace code last changed under, 0 if never."""
         row = self._conn.execute("SELECT changed_step FROM workspace_tree").fetchone()
         return int(row["changed_step"]) if row is not None else 0
 
@@ -541,7 +495,6 @@ class Index:
         return False
 
     def workspace_tree(self) -> WorkspaceTreeRow | None:
-        """The shared code every behavior hash is taken against, if any is known."""
         row = self._conn.execute("SELECT * FROM workspace_tree").fetchone()
         if row is None:
             return None
@@ -553,7 +506,6 @@ class Index:
         )
 
     def agent_sessions(self) -> list[AgentSessionRow]:
-        """Registered agent sessions that have not ended, newest first."""
         return [
             AgentSessionRow(
                 actor=row["actor"],
@@ -568,13 +520,6 @@ class Index:
     def history(
         self, *, limit: int = 20, branch_id: str | None = None, shared: bool = False
     ) -> list[TransactionRow]:
-        """The most recent transactions, newest first — what happened, in words.
-
-        `shared` folds in the lines that carry no branch — a shared-code edit, an
-        env change, an agent session opening. They are context for a branch, not
-        something that happened to it, so what asks for "this branch's last
-        intent" leaves them out and what asks "what has been going on" does not.
-        """
         where = ""
         arguments: tuple[object, ...] = (limit,)
         if branch_id is not None:
@@ -601,12 +546,6 @@ class Index:
         return CellsRewriteRow(verb=verb, step=int(row["rewrite_step"]))
 
     def head(self, branch_id: str) -> TransactionRow | None:
-        """The step the branch stands on: its own line at its position.
-
-        The newest own line unless a rewind moved the branch back — then the
-        line it was moved to, or the branch's newest own line before it when
-        the target was not one of its own.
-        """
         branch = self.branch_by_id(branch_id)
         if branch is None:
             return None
@@ -627,7 +566,6 @@ class Index:
         return _transaction(row) if row is not None else None
 
     def head_step(self, branch_id: str) -> int:
-        """Where the branch stands, as a step: its fork step with no own line."""
         found = self.head(branch_id)
         if found is not None:
             return found.step
@@ -635,7 +573,6 @@ class Index:
         return branch.fork_step if branch is not None else 0
 
     def newest_step(self, branch_id: str) -> int:
-        """The branch's newest own position — where it would stand if not rewound."""
         newest = self._newest_position(branch_id)
         if newest is not None:
             return newest.step
@@ -643,10 +580,6 @@ class Index:
         return branch.fork_step if branch is not None else 0
 
     def last_step_on(self, branch_id: str, *, at_or_before: int) -> int | None:
-        """The branch's newest own position at or before a global step.
-
-        This is the state a fork copied from the branch.
-        """
         row = self._conn.execute(
             "SELECT step FROM transactions WHERE branch = ? AND step <= ? "
             "AND position = 1 ORDER BY step DESC LIMIT 1",
@@ -655,15 +588,6 @@ class Index:
         return int(row["step"]) if row is not None else None
 
     def checkpoint(self, branch_id: str) -> TransactionRow | None:
-        """The branch's last marked or settled step.
-
-        Two ways of arriving at the same question. `settled` is the commit's
-        own verdict — a whole slice, nothing unsynced — and a marker is
-        somebody saying this point mattered whether or not it was whole. The
-        newest of the two wins, rather than one class of answer permanently
-        outranking the other: a branch settled ten steps after it was marked
-        has moved on, and a branch marked after it settled has been spoken for.
-        """
         row = self._conn.execute(
             "SELECT * FROM transactions "
             "WHERE branch = ? AND (settled = 1 OR marker = 1) "
@@ -673,19 +597,12 @@ class Index:
         return _transaction(row) if row is not None else None
 
     def transaction(self, step: int) -> TransactionRow | None:
-        """One journal line by step — what a version was accepted under."""
         row = self._conn.execute(
             "SELECT * FROM transactions WHERE step = ?", (step,)
         ).fetchone()
         return _transaction(row) if row is not None else None
 
     def transaction_flags(self, step: int) -> list[str]:
-        """Flags a transaction raised over itself rather than over a version.
-
-        Attribution uncertainty is one of these: a mixed editing window is a
-        property of the window, not of any cell that landed in it, so it rides
-        the line and nothing copies it onto the versions.
-        """
         row = self._conn.execute(
             "SELECT ops FROM transactions WHERE step = ?", (step,)
         ).fetchone()
@@ -698,7 +615,6 @@ class Index:
         ]
 
     def cell_notes(self, branch_id: str, uid: str) -> list[CellNoteRow]:
-        """The newest note of every kind for a cell on one lane."""
         rows = self._conn.execute(
             "SELECT * FROM cell_notes WHERE branch_id = ? AND uid = ? "
             "ORDER BY step DESC, kind",
@@ -711,7 +627,6 @@ class Index:
         return list(latest.values())
 
     def first_version(self, uid: str) -> VersionRow | None:
-        """The version a cell was born as — who created it, and when."""
         row = self._conn.execute(
             "SELECT * FROM asset_versions WHERE uid = ? "
             "ORDER BY created_step, version_id LIMIT 1",
@@ -726,7 +641,6 @@ class Index:
         *,
         version_ids: Collection[str],
     ) -> VersionRow | None:
-        """The newest matching version among the supplied version ids."""
         rows = self._conn.execute(
             "SELECT * FROM asset_versions WHERE uid = ? AND raw_source_ref = ? "
             "ORDER BY created_step DESC, version_id DESC",
@@ -744,7 +658,6 @@ class Index:
         return str(row["value"]) if row is not None else None
 
     def env(self) -> EnvRow | None:
-        """The env this flow last observed — the hash, and what it pinned."""
         found = self.env_lock_hash()
         if found is None:
             return None
@@ -757,11 +670,6 @@ class Index:
         )
 
     def memo_candidates(self, memo_key: str) -> list[MaterializationRow]:
-        """Succeeded materializations of that key, newest first — every branch's.
-
-        Cross-branch hits are the same lookup, not a special case: a key that
-        matches means the same code ran on the same inputs, whoever asked.
-        """
         return [
             _materialization(row)
             for row in self._conn.execute(
@@ -772,7 +680,6 @@ class Index:
         ]
 
     def last_cost(self, uid: str) -> float | None:
-        """What the cell took last time it ran — the only cost estimate there is."""
         row = self._conn.execute(
             "SELECT cost_seconds FROM materializations WHERE uid = ? "
             "AND state = 'succeeded' AND cost_seconds IS NOT NULL "
@@ -801,7 +708,6 @@ class Index:
 
     @contextmanager
     def protect_value_sweep(self) -> Iterator[set[str]]:
-        """Keep a new run from adopting a candidate while it is unlinked."""
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
@@ -851,9 +757,6 @@ class Index:
         )
 
     def _apply(self, transaction: Transaction) -> None:
-        # A line that only marks another step, or moves the branch to one, is
-        # not a step: it gets no row of its own, and what it says folds onto the
-        # branch or the row it names.
         if not is_annotation(transaction):
             self._conn.execute(
                 "INSERT OR REPLACE INTO transactions "
@@ -873,8 +776,6 @@ class Index:
             )
         for op in transaction.ops:
             self._apply_op(op, transaction)
-        # A change lands on the branch's newest position, so that is where it
-        # stands now — whatever a rewind had set before.
         if (
             transaction.branch is not None
             and is_position(transaction)
@@ -1014,10 +915,6 @@ class Index:
                     "UPDATE selections SET slug = ? WHERE branch_id = ? AND uid = ?",
                     (op.new_slug, op.branch_id, op.uid),
                 )
-            # The mark rides the row it names, under the marking line's own
-            # words. Marking the same step again replaces the words. A line
-            # from before marks folded names no step: it rides the position
-            # the branch stood on when it was written.
             case Checkpointed():
                 target = (
                     op.step
@@ -1058,13 +955,6 @@ class Index:
         )
 
     def _dense_copy(self, branch_id: str, parent_branch_id: str) -> None:
-        """Fork the parent's slice into the new branch: selections and baselines.
-
-        The copy lives in the fold rather than in journaled ops so a fork costs
-        one op no matter how wide the slice is, and so a rebuild reproduces it
-        from the parent's state at exactly the fork step. Copies are pinned —
-        pin-at-fork is the only v1 mode, so a sweep stays comparable.
-        """
         self._conn.execute(
             "INSERT OR REPLACE INTO selections "
             "(branch_id, uid, version_id, slug, pinned) "
@@ -1122,8 +1012,6 @@ class Index:
                 slug=op.slugs.get(uid),
             )
         for uid, mat_id in op.baselines.items():
-            # The journal carries which materialization the branch held, not how
-            # it came by it; saying "rewind" is the honest end of that.
             self._set_baseline(op.branch_id, uid, mat_id, "rewind")
 
     def _record_run(self, op: RunRecorded) -> None:
@@ -1167,9 +1055,6 @@ class Index:
         )
         if op.state in ("succeeded", "failed"):
             # The baseline is the last materialization *observed*, not the last
-            # that worked: a failure is what the branch now knows about the
-            # cell, and staleness derives `failed` from it. A cancelled or
-            # still-running record observed nothing and leaves it standing.
             self._set_baseline(op.branch_id, op.uid, op.mat_id)
 
     def _flag_version(self, op: FlagSet) -> None:
@@ -1236,9 +1121,6 @@ def _transaction(row: sqlite3.Row) -> TransactionRow:
     )
 
 
-#: The ops that move a branch: after one lands, the branch stands on its newest
-#: line. Binding the files, noting a cell or flagging a version leave it where
-#: it was, which after a rewind is somewhere behind.
 _MOVING = (
     CellAccepted,
     CellRemoved,
@@ -1250,8 +1132,6 @@ _MOVING = (
 )
 
 
-#: Lines that are a branch's history without being places in it: nothing the
-#: branch selects changed, so there is nothing there to stand on or go back to.
 _NOT_A_PLACE = (
     WorktreeBound,
     CellNoted,
@@ -1267,9 +1147,6 @@ _NOT_A_PLACE = (
 
 
 def is_position(transaction: Transaction) -> bool:
-    """Whether a branch can stand on this line: somebody changed what it
-    selects or holds. What reactivity did on its own keeps the branch synced
-    where it stands and is not a place it moved to."""
     if transaction.actor == AUTO_ACTOR:
         return False
     if not transaction.ops:
@@ -1278,8 +1155,6 @@ def is_position(transaction: Transaction) -> bool:
 
 
 def is_annotation(transaction: Transaction) -> bool:
-    """A line that is not a step: it marks a step or moves the branch to one,
-    and is folded onto what it names rather than listed."""
     return bool(transaction.ops) and all(
         isinstance(op, (Checkpointed, Rewound)) for op in transaction.ops
     )

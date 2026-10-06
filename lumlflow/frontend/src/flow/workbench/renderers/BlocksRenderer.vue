@@ -55,17 +55,6 @@ import NoteRenderer from './NoteRenderer.vue'
 import PreviewShell from './PreviewShell.vue'
 import { chartHeight, type RenderDensity } from './shared'
 
-/**
- * A stored preview, drawn as the primitives it is made of.
- *
- * Kinds compose blocks rather than shipping renderers, so this is the whole
- * live rendering path: an `experiment` is markdown headings over kv grids, a
- * `frame` is one table, a workspace plugin nobody here has heard of is
- * whichever of the six it chose. Each block maps onto a built renderer
- * unchanged — nothing is inferred back out of a payload, because the fields a
- * per-kind view wants (which metric leads, whether higher is better) are not
- * in it, and inventing them would be the card claiming what no run recorded.
- */
 defineProps<{
   preview: BlocksPreview
   density?: RenderDensity

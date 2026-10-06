@@ -1,17 +1,3 @@
-"""Reconciliation: one primitive, three tiers.
-
-Diff the worktree against the branch head and accept whatever diverged. The
-watcher calls it with events in hand, every version-resolving op calls it
-first, and a daemon that just started calls it over a directory nobody was
-watching. Same code each time — which is what lets the watcher be a latency
-optimization rather than a correctness dependency: a missed event costs
-milliseconds, never a wrong version.
-
-The three tiers differ only in the envelope they commit under. Live and
-quiesce land as ordinary transactions; a cold start lands as one coarse
-`offline` transaction because the fine-grained sequence was not recorded.
-"""
-
 from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from functools import partial
@@ -49,21 +35,12 @@ SEVERAL_AGENTS_DETAIL = (
     "or you could have written this"
 )
 
-# One pass names every cell, a second binds the references that pass one could
-# not resolve, and a third takes up the files a rename rewired. Nothing a
-# fourth could find: slugs, uids and bindings are all settled by then.
 _MAX_PASSES = 3
 _NAMED_CHANGES = 3
 
 
 @dataclass(frozen=True)
 class AcceptedFile:
-    """A cell file as it stood when acceptance last found nothing to do.
-
-    `digest` is over the file's bytes; `step` is the store's next step at that
-    moment, which is what a later commit invalidates.
-    """
-
     digest: str
     step: int
     uid: str
@@ -72,8 +49,6 @@ class AcceptedFile:
 
 @dataclass(frozen=True)
 class Reconciliation:
-    """`projected` names cells whose files the store completed, not the author."""
-
     accepted: list[AcceptedCell] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
     projected: list[str] = field(default_factory=list)
@@ -91,7 +66,6 @@ def reconcile(
     actor: str | None = None,
     intent: str | None = None,
 ) -> Reconciliation:
-    """Bring the store level with the files, and journal what that took."""
     worktree = session.worktree
     if not worktree.projects_files():
         return Reconciliation()
@@ -120,8 +94,6 @@ def reconcile(
     seen = accept()
     removed = _accept_removals(session, batch, branch_id=branch_id, seen=seen)
     if removed:
-        # A name that left the branch is a namespace change like any other:
-        # its consumers re-bind, and the ones left pointing at nothing say so.
         accept()
     if not batch.ops:
         return Reconciliation(projected=completed)
@@ -130,9 +102,6 @@ def reconcile(
     if not explicit and sole_agent is not None:
         ops.append(FlagSet(flag=MIXED_EDITING, detail=MIXED_EDITING_DETAIL))
     elif not explicit and len(registered) > 1:
-        # A file edit names nobody, and with several agents registered there
-        # is no one to credit: it goes under the person, and says it might
-        # not be theirs, rather than crediting them with confidence.
         ops.append(
             FlagSet(
                 flag=MIXED_EDITING,
@@ -158,22 +127,12 @@ def reconcile(
 def sync_workspace_code(
     root: Path, sessions: Iterable["FlowSession"], *, actor: str = "system"
 ) -> dict[Path, list[str]]:
-    """Fold the workspace's shared code into every flow that could import it.
-
-    The transition is appended to each hosted flow's own journal — a flow has
-    to rebuild its index standalone, and a hash it never recorded is a hash it
-    cannot derive staleness against. Returns the changed paths per flow, which
-    is what says whose kernel has modules to forget.
-    """
     tree = scan_workspace(root)
     changed: dict[Path, list[str]] = {}
     for session in sessions:
         known = session.store.index.workspace_tree()
         if known is not None and known.tree_hash == tree.tree_hash:
             continue
-        # The first observation marks nothing: there is no previous tree to have
-        # changed from, and calling every cell stale over that would be a
-        # verdict about a baseline that never existed.
         paths = (
             tree.changed_paths(WorkspaceTree(known.tree_hash, dict(known.files)))
             if known is not None
@@ -203,14 +162,6 @@ def _accept_files(
     branch: str,
     actor: str,
 ) -> set[str]:
-    """Accept every cell file, until a pass finds nothing left to move.
-
-    Idempotent by construction, so re-reading a directory nobody touched writes
-    nothing — and, past the first look, does not re-parse it either: see
-    `_Level`, which is what keeps a burst of verbs from paying for the same
-    nine ASTs nine times over. Returns the cells the files were found to hold —
-    which is what says, by elimination, whose file is gone.
-    """
     seen: set[str] = set()
     cells = session.worktree.cells_dir
     if not cells.is_dir():
@@ -270,37 +221,6 @@ def _accept_files(
 
 
 class _Level:
-    """Which cell files are known to hold exactly what the branch head does.
-
-    Reconciliation is idempotent, and the workbench leans on that hard: a
-    notebook opening asks twenty verbs in a second and every one of them
-    reconciles first, re-reading and re-parsing a directory that cannot have
-    moved between two calls a millisecond apart. Parsing is the expensive half
-    of acceptance — an AST per cell, deep-copied and unparsed to build the bound
-    source — so this skips it for a file that is byte-for-byte the one already
-    accepted.
-
-    The file is still read every time. Only the parse is skipped, and only for
-    bytes that hash to what was accepted — a timestamp would have been cheaper
-    and would have made this a bet on the filesystem's clock, which is a
-    resolution that varies by platform and a bet the guarantee here cannot
-    afford. Reading a cell costs microseconds; parsing one costs milliseconds.
-
-    Three more conditions, because a file standing still is not the only way
-    what it means can move:
-
-    - The store's `next_step`. Every rename, adopt, delete, checkout and run
-      commits a transaction, and those are what change the *namespace* a file's
-      references bind against — an unchanged file can still need re-binding
-      after one, so a commit drops every stamp rather than only the toucher's.
-    - The branch. A stamp is a claim about one branch's head, never about a file.
-    - An empty batch. Inside a reconciliation the namespace moves before it is
-      committed — a removal is what sends every consumer back through binding —
-      so once anything is drafted the fast path is off for the rest of the pass,
-      and nothing is stamped until a whole pass has found nothing to do.
-
-    """
-
     def __init__(self, session: "FlowSession", batch: Batch, *, branch: str) -> None:
         self._session = session
         self._batch = batch
@@ -311,7 +231,6 @@ class _Level:
         return not self._batch.ops
 
     def uid_of(self, path: Path) -> str | None:
-        """The uid this file was last accepted as, if nothing can have moved."""
         if not self._settled():
             return None
         known = self._known.get(path.name)
@@ -350,19 +269,6 @@ def _rewire(
     *,
     branch: str,
 ) -> list[str]:
-    """Rewrite the consumers that still spell a renamed cell's old name.
-
-    A rename costs nothing because references bind to uids: the files change
-    spelling, the bound sources do not, and every consumer keeps its
-    `definition_hash` — so nothing goes stale and no cache is lost. The next
-    acceptance pass picks the rewritten files up.
-
-    Consumers are addressed by identity and looked up at the name the store
-    currently gives them; the ones whose file is not there are returned rather
-    than dropped, because a consumer renamed in the same burst is between names
-    until its own file has been accepted.
-
-    """
     here = batch.slice_over(
         session.store.index.slice_versions(session.store.branches.get(branch).branch_id)
     )
@@ -403,20 +309,6 @@ def _rewire(
 def _accept_removals(
     session: "FlowSession", batch: Batch, *, branch_id: str, seen: Collection[str]
 ) -> list[str]:
-    """Cells the branch selects that the files no longer hold.
-
-    Absence is decided by identity, not by filename: acceptance has just read
-    every file, so a selected cell no file turned out to hold is the deleted
-    one. Looking for a file named after the slug instead would be wrong exactly
-    where the two come apart — a slug the store had to move aside is carried by
-    a file under the name that collided, and asking for it by slug would report
-    the cell deleted, re-accept it, and do it again on the next quiesce.
-
-    Only for a bound worktree: a complete projection of the slice is the one
-    thing that makes an absent file mean "deleted" rather than "never written".
-    An unbound flow's cells live in the store, and reading absence as intent
-    there would delete the MCP path's work the moment a stray file appeared.
-    """
     if session.worktree.bound() is None:
         return []
     here = batch.slice_over(session.store.index.slice_versions(branch_id))

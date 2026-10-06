@@ -7,7 +7,6 @@
 </template>
 
 <script lang="ts">
-/** Mirrors the @luml/attachments preview-state vocabulary. */
 export type PreviewShellState = 'loading' | 'empty' | 'too-big' | 'error' | 'unsupported'
 </script>
 

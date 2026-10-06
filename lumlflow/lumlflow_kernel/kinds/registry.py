@@ -32,7 +32,7 @@ FALLBACK = "fallback"
 
 
 class KindError(Exception):
-    """A kind was named that no registry entry answers to."""
+    pass
 
 
 class AssetType(Protocol):
@@ -84,7 +84,6 @@ class Registry:
         self._entries.sort(key=lambda entry: _priority(entry.asset_type))
 
     def report(self) -> list[dict[str, Any]]:
-        """What the handshake tells the daemon about this flow's kinds."""
         return [
             {
                 "kind": entry.asset_type.kind,
@@ -114,7 +113,6 @@ class Registry:
 
 
 def build(workspace_dir: Path | None = None) -> Registry:
-    """Builtins, then installed plugins, then the workspace's own kinds."""
     from lumlflow_kernel.kinds import builtin
 
     registry = Registry()
@@ -188,7 +186,6 @@ def _declares_kinds(path: Path) -> bool:
 
 
 def _instances(declared: Any) -> list[AssetType]:
-    """Accept a kind, a class, or a sequence of either."""
     if isinstance(declared, (list, tuple, set)):
         return [item for entry in declared for item in _instances(entry)]
     if isinstance(declared, type):

@@ -21,12 +21,6 @@ import UploadModal from '@/components/upload/UploadModal.vue'
 import { useAuthStore } from '@/store/auth'
 import { errorToast } from '@/toasts'
 
-/**
- * Upload a cell's tracker record to LUML from where it was made. The dialog
- * is the Experiments half's own, reached here without the detour through
- * that tab. It mounts on the first authenticated click, not before, and is
- * opened only after it mounts so its `visible` watcher fetches the organizations.
- */
 defineProps<{ experimentId: string }>()
 
 const LINK_PT = { root: { class: 'px-1.5 py-1 text-sm font-normal text-primary' } }

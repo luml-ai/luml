@@ -55,7 +55,6 @@ def record(
 
 class TestKeys:
     def test_a_swap_of_two_same_shaped_inputs_changes_the_key(self) -> None:
-        """Named map, never a bag: `{train: a, test: b}` is not `{train: b, ...}`."""
         behavior = hash_bytes(b"behavior")
 
         assert memo.memo_key(behavior, {"train": TRAIN, "test": TEST}) != memo.memo_key(

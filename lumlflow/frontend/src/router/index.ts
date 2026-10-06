@@ -91,10 +91,6 @@ const router = createRouter({
         },
       ],
     },
-    // The flow surface, beside the tracker routes above rather than over them:
-    // Experiments stays where it was, Workspace is the flows next to it. Opening
-    // a document lands on `:flowId` — its encoded absolute path, which is how
-    // the daemon addresses a flow and how a workbench link stays shareable.
     {
       path: '/flow',
       component: MainTemplate,

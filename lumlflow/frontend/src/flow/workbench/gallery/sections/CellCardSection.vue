@@ -196,7 +196,6 @@ function note(summary: string): void {
   toast.add({ severity: 'secondary', summary, life: 2600 })
 }
 
-// Gallery cards only acknowledge their emits — nothing runs.
 function cardEvents(cell: FlowCell, preflight?: Preflight) {
   return {
     expand: () => note(`would expand \`${cell.slug}\` into the drawer`),
@@ -224,7 +223,6 @@ function cardEvents(cell: FlowCell, preflight?: Preflight) {
   }
 }
 
-// The multi-output scenario needs the finished card; the fixture keeps it running.
 const trainedModel = cellWith(multiOutputCell, {
   status: 'materialized',
   stale: undefined,
@@ -244,7 +242,6 @@ const stateVariants: { title: string; cell: FlowCell }[] = [
   { title: 'unmaterialized', cell: unmaterializedCell },
 ]
 
-// Drawer demos: never-persisted checkpoint on the training cell, paged frame on features.
 const drawerTrainCell = cellWith(trainedModel, {
   outputs: trainedModel.outputs.map((output) =>
     output.name === 'checkpoint' ? { ...output, neverPersisted: true } : output,
@@ -253,7 +250,6 @@ const drawerTrainCell = cellWith(trainedModel, {
 
 const drawerFeaturesCell = mainCells.find((cell) => cell.slug === 'features') as FlowCell
 
-// The editor specimen is live — the gallery is where the surface is typed into.
 const editedSource = ref(trainedModel.source)
 
 const drawerOpen = ref(false)

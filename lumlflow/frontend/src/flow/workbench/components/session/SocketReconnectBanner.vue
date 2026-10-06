@@ -12,6 +12,4 @@
 import { Message } from 'primevue'
 import { RefreshCw } from 'lucide-vue-next'
 
-// A dropped socket is a latency event, never a data event: the cursor replay
-// restores everything, so the banner promises exactly that and nothing more.
 </script>

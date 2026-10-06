@@ -12,11 +12,6 @@
       <span class="truncate">{{ counts.join(' · ') }}</span>
     </Button>
 
-    <!--
-      The count is the fact; the cause and the downstream lens are what a reader
-      asks for next, and asking is a click. A branch mid-edit is the ordinary
-      state of this product — it does not get a page-wide colour field.
-    -->
     <Popover ref="details">
       <div class="flex w-80 flex-col gap-2.5">
         <p v-if="cause" class="text-sm text-muted-color">
@@ -45,31 +40,14 @@ import { Button, Popover, ToggleSwitch } from 'primevue'
 import { TriangleAlert } from 'lucide-vue-next'
 import { formatCount } from '../../model/format'
 
-/**
- * What the branch owes, in one line of the bar that already names the branch.
- *
- * This was a full-width amber `Message` above the canvas — 1400 px of warn
- * background for a two-word count, on a screen where every stale cell already
- * carries its own chip and the left panel lists them. Scale follows scope: a
- * page-wide colour field belongs to connection-level states (lumlflow stopped,
- * the files held by someone else), never to work in progress.
- */
 const props = defineProps<{
-  /** Cells stale from a cause of their own. */
   unsynced: number
-  /** Stale only because something upstream is — the toggle's subject. */
   downstream: number
-  /** No recorded result anywhere; counted apart, never a flavour of stale. */
   unmaterialized: number
-  /** Timed, but over the automatic refresh threshold. */
   waitingOnThreshold?: number
-  /** The closure contains work the flow has not measured yet. */
   neverTimed?: number
-  /** A failed producer has not changed since it failed. */
   blockedByFailure?: number
-  /** The reactor could not bring the cell to its own execution. */
   refreshFailed?: number
-  /** The first stale cell's own words, e.g. 'you edited it'. */
   cause?: string
 }>()
 
@@ -92,7 +70,6 @@ const counts = computed(() => {
 
 const TRIGGER_PT = { root: { class: 'gap-1.5 px-2 font-normal' } }
 
-/** Slugs inside a cause are addresses, and addresses are mono. */
 const causeHtml = computed(() =>
   (props.cause ?? '')
     .replace(/&/g, '&amp;')

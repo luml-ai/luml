@@ -1,16 +1,3 @@
-"""One kernel process per flow, spawned into the workspace venv.
-
-The daemon listens and the kernel dials in, so there is no readiness race to
-poll for: by the time the process exists, the socket it was told about is
-already accepting. The kernel package is path-injected from a staged copy of
-the tool's — the venv holds no lumlflow code — and the workspace root rides
-along on `PYTHONPATH` so `import helpers` works Jupyter-style.
-
-None of this is a surface. There is no connect, select, or configure verb here
-because none is offered anywhere: a flow's kernel starts when a cell has to
-run, and the only kernel control a user ever sees is a restart.
-"""
-
 import asyncio
 import contextlib
 import hashlib
@@ -60,10 +47,6 @@ _UNIX_PATH_LIMIT = 100
 _STDIO_TAIL_LINES = 40
 
 KernelState = Literal["stopped", "running"]
-# The process itself starting or stopping, as against a run's lifecycle. A
-# surface reads the kernel's state from here after the one it was handed when
-# it opened; the kernel starts lazily, so that first answer is usually
-# "stopped" and stays wrong for the rest of the tab's life without this.
 KERNEL_STATE_EVENT = "kernel_state"
 OnEvent = Callable[[str, dict[str, Any]], None]
 FailExperiment = Callable[[str], None]
@@ -81,8 +64,6 @@ class _KernelProtocolError(KernelError):
 
 
 class KernelProcess:
-    """The scheduler's executor, on the other side of a socket."""
-
     def __init__(
         self,
         *,
@@ -98,10 +79,6 @@ class KernelProcess:
         self._fail_experiment = fail_experiment
         self.handshake: dict[str, Any] | None = None
         self.interpreter: envs.Interpreter | None = None
-        # The env as it stood when this process started. Within a kernel's
-        # lifetime the env is whatever its imports say; the lockfile only
-        # becomes law again at the next start, so this is what a later install
-        # is measured against.
         self.env: dict[str, str] = {}
         self._on_event = on_event
         self._logs = Cas(store_dir(flow_dir) / "logs")
@@ -134,7 +111,6 @@ class KernelProcess:
         async with self._start_lock:
             if self.handshake is not None:
                 return self.handshake
-            # A kernel that died leaves a listening server and a corpse behind.
             await self._teardown()
             try:
                 return await self._start()
@@ -197,12 +173,6 @@ class KernelProcess:
     async def page(
         self, value_ref: str, kind: str, query: dict[str, Any]
     ) -> dict[str, Any]:
-        """Read into a stored value — the one browse that needs a kernel.
-
-        Previews come from the store, so cards render without a process; paging
-        deserializes the value itself, which only the kind that wrote it can do.
-        The kernel starts on demand here, and the surfaces say so before asking.
-        """
         await self.ensure_started()
         result = await self._call(
             "page", {"value_ref": value_ref, "kind": kind, "query": query}
@@ -217,12 +187,6 @@ class KernelProcess:
         destination: Path,
         samples: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
-        """Package a stored model as the bundle LUML takes.
-
-        Only the kernel can: the flavor that trained the model lives in the
-        flow's venv, not the daemon's. No deadline — capturing a model's
-        dependencies takes as long as the environment is large.
-        """
         await self.ensure_started()
         result = await self._call(
             "export_model",
@@ -237,27 +201,15 @@ class KernelProcess:
         return dict(result or {})
 
     def cancel(self, run_id: str) -> None:
-        """Fire-and-forget: the kernel answers a cancel on its reader thread."""
         if run_id in self._active_runs:
             self._cancelled_runs.add(run_id)
         self._send({"jsonrpc": "2.0", "method": "cancel", "params": {"run_id": run_id}})
 
     def evict_workspace_modules(self) -> None:
-        """Forget workspace modules immediately before the next run."""
         self._evict_before_next_run = True
 
     async def env_drift(self) -> list[str]:
-        """Packages this kernel imported that the workspace has moved since.
-
-        Never invalidation: what already ran keeps the lock hash it ran under,
-        and this only says the running process is behind. A distribution the
-        kernel never imported is not in it — the next run picks that one up on
-        its own, and a banner over it would be noise.
-        """
         now = envs.packages(self.workspace_dir)
-        # Either side missing is a workspace that pins nothing, not a workspace
-        # that moved: calling a kernel behind an env nobody declared would be a
-        # verdict against a baseline that never existed.
         if self._writer is None or not self.env or not now:
             return []
         moved = envs.drift(self.env, now)
@@ -270,8 +222,6 @@ class KernelProcess:
     async def _start(self) -> dict[str, Any]:
         address, token_file = await self._listen()
         self.interpreter = await envs.ensure_interpreter(self.workspace_dir)
-        # After the sync, not before: the sync is what writes the lockfile this
-        # process will import against.
         self.env = envs.packages(self.workspace_dir)
         self._process = await asyncio.create_subprocess_exec(
             str(self.interpreter.python),
@@ -298,24 +248,16 @@ class KernelProcess:
                 "protocol than this lumlflow. reinstall the tool"
             )
         self.handshake = handshake
-        # Whoever is watching this flow learns the process exists from here.
-        # Nothing journals a kernel start — it is not a fact about the store —
-        # so a surface that only replayed the journal would keep reporting the
-        # kernel it saw when its tab opened, however long ago that was.
         self._emit(KERNEL_STATE_EVENT, {"state": "running"})
         return handshake
 
     def _unix_socket_path(self) -> str | None:
-        """Where the kernel would dial, when the platform has unix sockets and
-        the path is short enough to bind. None means the link is loopback."""
         path = self._kernel_dir / SOCKET_NAME
         if hasattr(socket, "AF_UNIX") and len(str(path)) < _UNIX_PATH_LIMIT:
             return str(path)
         return None
 
     async def _listen(self) -> tuple[str, Path | None]:
-        """A unix socket where the platform has them; loopback plus a token
-        where it does not, or where the path is too long to bind."""
         self._kernel_dir.mkdir(parents=True, exist_ok=True)
         self._accepting = True
         unix_path = self._unix_socket_path()
@@ -351,8 +293,6 @@ class KernelProcess:
         if self._connected.is_set():
             return
         if process.returncode is not None:
-            # Whatever it printed on the way out is the whole diagnosis — an
-            # ImportError in the workspace venv, most often.
             if self._drain_task is not None:
                 await _settled(self._drain_task, _DRAIN_TIMEOUT_S)
             raise KernelError(
@@ -406,12 +346,9 @@ class KernelProcess:
             writer.close()
 
     async def _authenticated(self, reader: asyncio.StreamReader) -> bool:
-        """On loopback the first line proves this is the kernel we spawned and
-        not another process that reached the port."""
         if self._token is None:
             return True
         try:
-            # A connection that proves nothing must not hold this open forever.
             message = json.loads(
                 await asyncio.wait_for(reader.readline(), _AUTH_TIMEOUT_S)
             )
@@ -456,11 +393,6 @@ class KernelProcess:
         )
 
     def _emit(self, event: str, params: dict[str, Any]) -> None:
-        """A subscriber that throws loses its event, not the run.
-
-        The read loop is the link: letting a listener's failure out of here
-        would close the socket a ten-minute materialization is reporting on.
-        """
         if self._on_event is None:
             return
         try:
@@ -499,8 +431,6 @@ class KernelProcess:
         )
         try:
             await writer.drain()
-            # A ten-minute run is a normal run: only the calls that are supposed
-            # to answer at once carry a deadline.
             if timeout is None:
                 return await future
             return await asyncio.wait_for(future, timeout)
@@ -525,8 +455,6 @@ class KernelProcess:
         self._pending.clear()
 
     async def _drain_stdio(self, process: asyncio.subprocess.Process) -> None:
-        """The kernel's own output — a run's streams are captured at fd level
-        inside it, so what reaches here is how the kernel itself died."""
         stream = process.stdout
         if stream is None:
             return
@@ -555,9 +483,6 @@ class KernelProcess:
         if self._writer is not None:
             self._writer.close()
             self._writer = None
-        # Only a link that was up has a stop worth announcing: a teardown of a
-        # kernel that never connected would tell a surface a process died that
-        # never lived.
         if was_running:
             self._emit(KERNEL_STATE_EVENT, {"state": "stopped"})
         await self._end_process()
@@ -657,12 +582,6 @@ class KernelProcess:
         )
 
     def _log_ref(self, record: dict[str, Any]) -> str | None:
-        """A failure's traceback belongs with the console output it interrupted.
-
-        The kernel catches the exception rather than letting it print, so it
-        never reaches the captured streams — without this the logs tab would
-        show a cell's prints above a failure it could not explain.
-        """
         ref = str(record.get("log_ref") or "")
         error = record.get("error")
         if not error:
@@ -674,13 +593,6 @@ class KernelProcess:
 def spawn_environment(
     workspace_dir: Path, *, tracker_store: Path | None = None
 ) -> dict[str, str]:
-    """The staged kernel package, the workspace for `import helpers`.
-
-    Path injection is what lets the venv hold no lumlflow code: the kernel is
-    never installed into the environment it runs in, it is put on that
-    interpreter's path from a directory that holds nothing else — the tool's
-    own install directory would shadow the workspace's pinned dependencies.
-    """
     installed = getattr(lumlflow_kernel, "__file__", None)
     if installed is None:
         raise KernelError("this install carries no kernel package")
@@ -704,15 +616,6 @@ def spawn_environment(
 
 
 def stage_kernel_package(package: Path) -> Path:
-    """A directory under the state directory whose only entry is a copy of
-    `package`, named by the package's content.
-
-    A changed install hashes to a new directory, so an upgrade is picked up by
-    the next kernel start, and an unchanged one finds its copy and writes
-    nothing. The copy is built aside and renamed into place, so a kernel never
-    sees a partial package. A copy rather than a link: links are not
-    available everywhere.
-    """
     files = sorted(
         path.relative_to(package)
         for path in package.rglob("*")
@@ -738,7 +641,6 @@ def stage_kernel_package(package: Path) -> Path:
         os.replace(building, staged)
     except OSError:
         shutil.rmtree(building, ignore_errors=True)
-        # Another start staged the same content first; its copy is as good.
         if not (staged / package.name).is_dir():
             raise
     return staged
@@ -758,8 +660,6 @@ def _run_payload(request: RunRequest) -> dict[str, Any]:
         "inputs": {
             name: {
                 "value_ref": bound.value_ref,
-                # An unpersisted output's run-unique hash names the value the
-                # kernel kept in memory for it.
                 "unpersisted_ref": (
                     bound.content_hash if bound.value_ref is None else None
                 ),
@@ -783,7 +683,6 @@ def _run_payload(request: RunRequest) -> dict[str, Any]:
 
 
 async def _settled(task: "asyncio.Task[None]", timeout: float) -> None:
-    """Give a task a moment to finish, leaving it running if it will not."""
     with contextlib.suppress(TimeoutError):
         await asyncio.wait_for(asyncio.shield(task), timeout)
 
@@ -799,7 +698,6 @@ async def _exited(process: asyncio.subprocess.Process, timeout: float) -> bool:
 
 
 def _end(stop: Callable[[], None]) -> None:
-    """A process that died between the check and the signal is already stopped."""
     with contextlib.suppress(ProcessLookupError, OSError):
         stop()
 

@@ -10,7 +10,6 @@ import type { KvValue, PreviewSection } from './preview.helpers'
 
 export interface CellChartProps {
   section: Extract<PreviewSection, { kind: 'lines' | 'bars' }>
-  /** Metrics left out of the chart, by their place in it. */
   hidden: Set<number>
 }
 
@@ -24,7 +23,6 @@ export interface CellFileBlockProps {
 
 export interface CellKeyValueBlockProps {
   entries: [string, KvValue][]
-  /** Show only this many rows; null shows them all. */
   limit?: number | null
 }
 
@@ -34,9 +32,7 @@ export interface CellMarkdownBlockProps {
 
 export interface CellOutputTabContentProps {
   content: CellTabContent
-  /** On a canvas card: long lists give way to charts. */
   compact?: boolean
-  /** The cell, for the expand action a compact preview offers. */
   slug?: string
 }
 

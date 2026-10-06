@@ -1,10 +1,3 @@
-"""The kernel's half of the store's blob areas.
-
-The daemon owns the same layout in `lumlflow.flow.store.cas` and the kernel
-cannot import it, so the two are pinned to each other here: same bytes, same
-digest, same path — a blob either side writes is a blob either side reads.
-"""
-
 from __future__ import annotations
 
 import math
@@ -49,9 +42,6 @@ def test_a_moved_file_leaves_the_scratch_directory_behind(tmp_path):
 def test_an_install_that_fails_leaves_the_moved_file_where_it_was(
     tmp_path, monkeypatch
 ):
-    """`move=True` is handed the run's own declared output, not a staging copy.
-    A `values/` on another filesystem cannot take a rename — and a rename that
-    could not happen is no reason to delete the file."""
     cas = Cas(tmp_path / "values")
     source = tmp_path / "epoch3.pt"
     source.write_bytes(b"weights")

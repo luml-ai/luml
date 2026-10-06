@@ -84,8 +84,6 @@
             </div>
           </div>
 
-          <!-- The verbs stay beside the checkboxes: picking lanes to
-               compare and reading one are the same visit to this map. -->
           <div class="flex items-center gap-0.5 shrink-0">
             <Button
               v-tooltip.top="'a pure store read. no lock, no kernel.'"
@@ -164,12 +162,6 @@ import BranchTag from '../../ui/BranchTag.vue'
 import { branchColor } from '../../ui/kinds'
 import MetaBadge from '../../ui/MetaBadge.vue'
 
-/**
- * The fork tree: one lane per branch, x is the journal step, a curve from the
- * parent lane at the fork step. View and use-here are separate verbs on
- * purpose: reading a branch is a pure store read, while binding the files to it
- * rebinds the single v1 worktree.
- */
 const props = defineProps<{
   branches: BranchInfo[]
   selectable?: boolean
@@ -192,7 +184,6 @@ const LINK_PT = { root: { class: 'p-0 text-sm font-normal' } }
 const showArchived = ref(false)
 const selected = ref<string[]>([])
 
-/** Parent-first depth-first order so a child lane always sits below its parent. */
 const ordered = computed<BranchInfo[]>(() => {
   const children = new Map<string | null, BranchInfo[]>()
   for (const branch of props.branches) {
@@ -225,7 +216,6 @@ const archivedCount = computed(() => props.branches.filter((branch) => branch.ar
 
 const railHeight = computed(() => visible.value.length * ROW_H)
 
-// Scale over every branch (not just visible) so toggling archived never rescales.
 const maxStep = computed(() => Math.max(1, ...props.branches.map((branch) => branch.headStep)))
 
 function stepX(step: number): number {

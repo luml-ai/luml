@@ -1,6 +1,3 @@
-"""Which directory is the workspace, which flow a verb means, what a browser
-sees, and who holds the daemon record."""
-
 import json
 import os
 import sys
@@ -86,8 +83,6 @@ def test_a_flow_outside_the_workspace_is_addressed_by_its_own_path(tmp_path: Pat
 
     assert (ref.name, ref.path) == ("sales", outside)
     assert ref.relpath == outside.as_posix()
-    # A flow the workspace does contain is the flow it already was, however it
-    # is spelled — no second identity for one directory.
     assert workspace.select_flow(root, name=str(root / "churn.flow")).relpath == (
         "churn.flow"
     )

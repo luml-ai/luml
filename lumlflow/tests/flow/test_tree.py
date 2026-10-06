@@ -54,7 +54,7 @@ class TestScope:
         assert "churn.flow/util.py" in tree.files
         assert tree.strays == ["churn.flow/util.py"]
         assert "not a cell" in stray_note(tree.strays[0])
-        assert stray.read_bytes() == before  # no uid was ever written back
+        assert stray.read_bytes() == before
         assert (
             store.index.conn.execute(
                 "SELECT count(*) AS n FROM asset_versions WHERE slug = 'util'"

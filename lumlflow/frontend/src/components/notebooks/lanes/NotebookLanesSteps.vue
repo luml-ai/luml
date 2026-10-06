@@ -70,9 +70,6 @@ const flowStore = useFlowStore()
 
 const rewindingStep = ref<number | null>(null)
 
-// A step is gone to by clicking it; the one the lane stands on is where it
-// already is. Marking a step as a point is the flag on the row, which shows
-// on the current step and on whichever row the pointer is over.
 async function rewind(step: number) {
   if (step === flowStore.currentHeadStep || rewindingStep.value !== null) return
   rewindingStep.value = step

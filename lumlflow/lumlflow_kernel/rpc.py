@@ -38,13 +38,6 @@ class RpcError(Exception):
 
 
 class Handler(Protocol):
-    """What `serve` dispatches to: a name → callable allowlist.
-
-    `inline` names the methods answered on the reader thread. Everything else
-    queues behind the worker, which is what keeps a ten-minute `run` from
-    swallowing the `cancel` that would end it.
-    """
-
     methods: dict[str, Callable[[dict[str, Any]], Any]]
     inline: frozenset[str]
 
@@ -95,11 +88,9 @@ class Connection:
             self.close()
 
     def notify(self, method: str, params: dict[str, Any]) -> None:
-        """An event. Notifications carry no id and are never answered."""
         self._send({"jsonrpc": "2.0", "method": method, "params": params})
 
     def stop(self) -> None:
-        """End `serve` after the in-flight message is answered."""
         self._stopped.set()
 
     def close(self) -> None:
@@ -167,8 +158,6 @@ class Connection:
             )
 
     def _send_error(self, request_id: Any, error: RpcError) -> None:
-        # Nothing to answer: a notification carries no id, and a line that did
-        # not parse carries nothing at all.
         if request_id is None:
             return
         self._send({"jsonrpc": "2.0", "id": request_id, "error": error.payload()})

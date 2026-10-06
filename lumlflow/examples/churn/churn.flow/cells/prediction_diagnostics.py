@@ -1,6 +1,4 @@
 class PredictionDiagnostics:
-    """Plot predicted-vs-actual values and residuals on the test split."""
-
     uid = "01M00M6530J9C7T1522Q61ZC9F"
     consumes = {"model": "train_model.model", "test": "split.test"}
     produces = {"plot": "asset"}

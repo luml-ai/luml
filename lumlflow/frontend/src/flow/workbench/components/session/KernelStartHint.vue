@@ -11,6 +11,4 @@
 <script setup lang="ts">
 import { Zap } from 'lucide-vue-next'
 
-// Rides next to expand/page/diff affordances: every surface has a kernel-free
-// tier, and the UI says so before it starts one.
 </script>

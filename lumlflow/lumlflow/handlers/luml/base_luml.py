@@ -25,7 +25,6 @@ class BaseLumlHandler:
             raise ApplicationError(status_code=401, message="API key not configured")
         try:
             # The client validates its defaults against the API as it is
-            # built, so a LUML that is not answering fails right here.
             return LumlClient(
                 base_url=config.LUML_BASE_URL,
                 api_key=creds.api_key,
@@ -42,9 +41,6 @@ class BaseLumlHandler:
 
 
 def luml_refused(failure: LumlAPIError) -> ApplicationError:
-    """LUML answered, but not as an API: a wrong host (an HTML page where
-    JSON was due), a rejected key, a server fault. The message keeps the
-    address, which is the first thing to check."""
     return ApplicationError(
         f"LUML at {config.LUML_BASE_URL} did not answer as expected: "
         f"{failure.message if hasattr(failure, 'message') else failure}",
@@ -53,8 +49,6 @@ def luml_refused(failure: LumlAPIError) -> ApplicationError:
 
 
 def unreachable_luml(failure: httpx.TransportError) -> ApplicationError:
-    """A LUML that cannot be reached is a configuration or network fact, not
-    a server fault: name the address so the reader can check the setting."""
     reason = str(failure) or type(failure).__name__
     return ApplicationError(
         f"LUML at {config.LUML_BASE_URL} is not reachable ({reason}). "

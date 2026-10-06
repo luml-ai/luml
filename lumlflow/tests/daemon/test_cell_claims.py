@@ -1,12 +1,3 @@
-"""Two agents on one flow never work on the same cell at once.
-
-An agent holds the cell its last call named. While it does, another agent's
-call that would change or run that cell is refused before anything lands;
-reading it is always allowed and takes nothing. The hold moves when the agent
-names another cell, and ends when it disconnects, when the lane is rewound,
-or when it leaves the cell alone long enough. People are never held to it.
-"""
-
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +52,6 @@ async def test_another_agent_cannot_change_or_run_a_held_cell(tmp_path: Path) ->
                 api.claim(method, _by("claude-1", **params), label="claude-code")
             assert refused.value.label == "codex"
 
-        # Its holder carries on; a look by the other agent takes nothing.
         api.claim("cells.edit", _by("codex-1", slug="first"), label="codex")
         api.claim("cells.show", _by("claude-1", slug="first"), label="claude-code")
         with pytest.raises(CellClaimed):
@@ -80,7 +70,6 @@ async def test_the_hold_moves_with_the_agent_and_frees_the_cell_it_left(
     async with daemon_api(root) as api:
         await _lane(api)
         api.claim("cells.edit", _by("codex-1", slug="first"), label="codex")
-        # A call that names no cell keeps the hold where it was.
         api.claim("context", _by("codex-1"), label="codex")
         with pytest.raises(CellClaimed):
             api.claim("cells.edit", _by("claude-1", slug="first"), label="claude-code")
@@ -171,7 +160,6 @@ async def test_a_second_window_of_the_same_harness_gets_a_number(
         third = await api.agent_begin(
             {"flow": "churn", "actor": "codex-3", "label": "codex", "lease": True}
         )
-        # A hand registration does not take a connected agent's name.
         by_hand = await api.agent_begin(
             {"flow": "churn", "actor": "manual", "label": "codex"}
         )

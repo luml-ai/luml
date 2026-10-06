@@ -25,13 +25,8 @@ import { ServerOff } from 'lucide-vue-next'
 import { browserDaemonLog } from '@/flow/api/token'
 import CopyField from '../../ui/CopyField.vue'
 
-/**
- * Nobody answered the last round-trip. The remedy is the command, so it is on
- * screen and copyable rather than described.
- */
 withDefaults(
   defineProps<{
-    /** What this surface has left to show meanwhile — a listing has none. */
     detail?: string
   }>(),
   { detail: 'showing last-known state' },

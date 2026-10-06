@@ -1,15 +1,3 @@
-"""Acceptance: parse → classify → normalize → bind → hash → flag → commit.
-
-Every observation path converges here — a watcher event, a pre-op quiesce
-rescan, a cold start, and the daemon's own edits — so identity, binding, and
-flagging can have exactly one implementation.
-
-Nothing is ever rejected. A file that does not parse, declares two cells, or
-points at a cell that does not exist still lands as a version, carrying flags
-that say what is wrong. Agents iterate through broken intermediate states, and
-a pipeline that refused them would stall the loop it exists to serve.
-"""
-
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
@@ -77,10 +65,6 @@ class CellReadError(OSError):
 
 @dataclass(frozen=True)
 class AcceptedCell:
-    """`rewire` identifies consumers whose files still spell a renamed cell's
-    old name — by uid, because a consumer renamed in the same burst answers to
-    a name neither the store nor the files agree on yet."""
-
     uid: str
     slug: str
     version_id: str
@@ -96,14 +80,6 @@ class AcceptedCell:
 
 @dataclass
 class Batch:
-    """Acceptance without a commit: ops pile up and land as one transaction.
-
-    A batch is what makes a burst of edits one journal line — the cold-start
-    offline window, or a debounced burst — and the overlay is what lets it
-    bind. A consumer read before its producer has to see the cell the same
-    batch just named, and the index will not hold it until the commit.
-    """
-
     ops: list[Op] = field(default_factory=list)
     overlay: dict[str, VersionRow] = field(default_factory=dict)
     removed: set[str] = field(default_factory=set)
@@ -139,8 +115,6 @@ class _Identity:
 
 @dataclass(frozen=True)
 class _Draft:
-    """A version resolved but not yet written: `source` is what the file holds."""
-
     identity: _Identity
     slug: str
     source: str
@@ -170,11 +144,6 @@ class Acceptance:
         base_version_id: str | None = None,
         batch: Batch | None = None,
     ) -> AcceptedCell:
-        """Accept the file at `path`, writing its uid and canonical references back.
-
-        Valid UTF-8 is decoded without newline translation. Undecodable bytes
-        are represented with replacement characters and never written back.
-        """
         assert_cell_path(path, self._store.flow_dir / CELLS_DIRNAME)
         try:
             data = path.read_bytes()
@@ -207,21 +176,6 @@ class Acceptance:
         base_version_id: str | None = None,
         batch: Batch | None = None,
     ) -> AcceptedCell:
-        """Accept source the daemon was handed rather than read off disk.
-
-        The UI's editor, `cells edit` and MCP all arrive here: the version is
-        written to the store with the author who sent it, whether or not the
-        branch is checked out. The checked-out branch is projected immediately.
-
-        `fresh` is the add-a-cell path. Nothing here goes through a directory
-        that could refuse the name, so a slug another cell already answers to
-        moves aside and says so, rather than reattaching — an agent adding a
-        cell must never land on top of the one that was already there.
-
-        `batch` is how a burst of these lands as one transaction: an import
-        reads a file of cells, and a journal line per cell would record twelve
-        events where the author made one.
-        """
         return self._accept(
             slug,
             source,
@@ -244,14 +198,6 @@ class Acceptance:
         actor: str = "system",
         intent: str | None = None,
     ) -> list[AcceptedCell]:
-        """Re-bind cells whose branch namespace moved under them.
-
-        A delete-and-recreate or an adopt can leave a slug naming a different
-        cell; the consumers of that name have to re-resolve, which is a new
-        version with a new binding and `definition-changed` staleness — not a
-        silent rewire of an immutable one. Sources come from the store, so this
-        is valid whether or not the branch is checked out.
-        """
         record = self._store.branches.get(branch)
         here = self._store.index.slice_versions(record.branch_id)
         by_slug: dict[str, tuple[str, VersionRow]] = {}
@@ -274,7 +220,6 @@ class Acceptance:
         for uid, version in selected:
             source = self._store.objects.get(version.raw_source_ref).decode("utf-8")
             # The stored source of an undecodable file is already lossy: only
-            # reading the file again could clear its flag, never this rebind.
             encoding_flags = [
                 flag
                 for flag in version.flags
@@ -304,14 +249,6 @@ class Acceptance:
         actor: str = "system",
         intent: str | None = None,
     ) -> list[AcceptedCell]:
-        """Rewrite consumers that still spell a cell by a name it has left.
-
-        References bind to uids, so a rename costs nothing: what moves here is
-        the spelling in the file, never a `definition_hash`, and no cache or
-        staleness verdict changes. Sources come from the store, so this is the
-        rename path for a branch nobody has checked out as much as for one
-        somebody has — the projection carries the result into the files after.
-        """
         record = self._store.branches.get(branch)
         here = self._store.index.slice_versions(record.branch_id)
         accepted = []
@@ -461,7 +398,6 @@ class Acceptance:
         source_flags: Sequence[VersionFlag],
         write_back: bool,
     ) -> _Draft:
-        """Everything the version will say, before anything is written down."""
         parsed = loader.parse(source)
         slug, naming = normalize.lowercase_slug(stem)
         self.cell_path(slug)
@@ -473,8 +409,6 @@ class Acceptance:
         )
         if identity.renamed_from == slug:
             # The suffix rule handed the name back: the cell whose file is called
-            # `Features.py` answers to `features_2` and keeps answering to it.
-            # Journalling that as a rename would write a version per rescan.
             identity = replace(identity, renamed_from=None)
         binding = (
             normalize.bind(parsed.cell, _namespace(here, identity.uid))
@@ -486,9 +420,6 @@ class Acceptance:
             if write_back
             else source
         )
-        # A file that does not parse has no class to bind or unparse; it is
-        # recorded as it stands, flagged, so the next edit has something to
-        # supersede.
         bound = (
             normalize.bound_source(parsed.cell, binding.consumes, identity.uid)
             if parsed.cell is not None
@@ -524,7 +455,6 @@ class Acceptance:
         base_version_id: str | None,
         batch: Batch | None = None,
     ) -> AcceptedCell:
-        """Blobs, then the journal, then `flow.yaml` — the store's write order."""
         identity = draft.identity
         version_id = new_ulid()
         ops: list[Op] = []
@@ -587,21 +517,10 @@ class Acceptance:
         given: str | None,
         fresh: bool = False,
     ) -> _Identity:
-        """Whose cell this file is: the same one, a copy of one, or a new one.
-
-        The uid in the file is the first answer, the branch namespace and
-        `flow.yaml` are the fallbacks, and a fresh mint is the last resort. A
-        remint is reserved for a genuine copy — anything else would read as
-        delete-and-recreate and cascade through every consumer.
-        """
         if given is not None:
             current = here.get(given)
             if current is not None and current.slug != slug:
                 # The caller named the cell and a different name for it: a
-                # rename, whatever the source happens to say. A file that never
-                # parsed carries no uid line to read the identity off, and
-                # minting a fresh one would leave the branch holding the cell
-                # twice.
                 return _Identity(uid=given, previous=current, renamed_from=current.slug)
             return _Identity(uid=given, previous=current)
         if fresh:
@@ -611,8 +530,6 @@ class Acceptance:
             if current.slug == slug:
                 return _Identity(uid=declared, previous=current)
             if path is not None and self.cell_path(current.slug).exists():
-                # Both files exist under one uid: the second is a copy, and a
-                # copy is its own cell — with provenance back to the original.
                 return _Identity(
                     uid=new_ulid(),
                     previous=None,
@@ -621,19 +538,14 @@ class Acceptance:
                 )
             return _Identity(uid=declared, previous=current, renamed_from=current.slug)
         if declared is not None:
-            # A uid nobody here has seen: a clone rebuilding its namespace from
-            # the files and `flow.yaml`. Taking it is what reproduces identity.
             return _Identity(uid=declared, previous=None)
         return self._reattach(slug, here, path)
 
     def _reattach(
         self, slug: str, here: dict[str, VersionRow], path: Path | None
     ) -> _Identity:
-        """A file with no uid line: the same cell if this branch knows the name."""
         owner = self.cell_path(slug)
         if path is not None and owner.exists() and not _same_file(path, owner):
-            # Another file already answers to this name — this one is its own
-            # cell, and the slug rules will move it aside.
             return _Identity(uid=new_ulid(), previous=None)
         for uid, version in here.items():
             if version.slug == slug:
@@ -641,10 +553,6 @@ class Acceptance:
         committed = self._store.manifest.cells.get(slug)
         if committed is not None and not self._store.index.knows_cell(committed):
             # `flow.yaml` names a cell this store has never seen: a clone,
-            # rebuilding identity from what git carried. A uid it *has* seen and
-            # this branch does not select was deleted here, and a file arriving
-            # at that name afterwards is a new cell — delete-and-recreate is
-            # exactly the namespace change consumers re-accept against.
             return _Identity(uid=committed, previous=None)
         return _Identity(uid=new_ulid(), previous=None)
 
@@ -656,11 +564,6 @@ class Acceptance:
         binding: normalize.Binding,
         path: Path | None,
     ) -> str:
-        """The uid line and canonical references, in one atomic replace.
-
-        One write, not two: every rewrite is a watcher event the daemon has to
-        reconcile away, and the file the store records is the file on disk.
-        """
         if cell is None:
             return source
         rewritten = normalize.rewrite(
@@ -673,8 +576,6 @@ class Acceptance:
     def _index_in_manifest(
         self, slug: str, identity: _Identity, *, save: bool = True
     ) -> None:
-        """`flow.yaml`'s slug ↔ uid index — the committed cross-check a clone
-        rebuilds identity from. A batch writes the file once, at its commit."""
         cells = self._store.manifest.cells
         if identity.renamed_from is not None:
             cells.pop(identity.renamed_from, None)
@@ -684,7 +585,6 @@ class Acceptance:
 
 
 def _namespace(here: dict[str, VersionRow], own: str) -> Namespace:
-    """What the branch calls its other cells. A cell never consumes itself."""
     uids: dict[str, str] = {}
     outputs: dict[str, tuple[str, ...]] = {}
     for uid, version in here.items():
@@ -711,12 +611,6 @@ def _manifest(cell: ParsedCell | None, binding: normalize.Binding) -> CellManife
 def _divergence(
     slug: str, base_version_id: str | None, previous: VersionRow | None
 ) -> list[VersionFlag]:
-    """Did the head move past the version this edit started from?
-
-    The head is never advanced silently in that case — the version records the
-    parent it actually derived from and says so, so the choice stays the
-    author's: fork the edit, or overwrite deliberately.
-    """
     if base_version_id is None or previous is None:
         return []
     if base_version_id == previous.version_id:
@@ -731,12 +625,6 @@ def _divergence(
 
 
 def _placeholder(slug: str, cell: ParsedCell | None) -> list[VersionFlag]:
-    """Adding a cell never blocks on a name; the name is owed once it has a class.
-
-    The suggestion is derived on every acceptance rather than at creation, so a
-    cell scaffolded before its class was written picks one up as soon as the
-    author names the class.
-    """
     if not _PLACEHOLDER.match(slug):
         return []
     derived = derived_slug(cell.name) if cell is not None else None
@@ -753,13 +641,11 @@ def _placeholder(slug: str, cell: ParsedCell | None) -> list[VersionFlag]:
 
 
 def derived_slug(class_name: str) -> str | None:
-    """The slug a class name suggests, or None when it suggests nothing."""
     slug = _WORD_BREAK.sub("_", class_name).lower()
     return None if not slug or _PLACEHOLDER.match(slug) else slug
 
 
 def _row(ops: Sequence[Op], step: int) -> VersionRow:
-    """The version a batch's later passes bind against, before it is committed."""
     accepted = next(op for op in ops if isinstance(op, CellAccepted))
     return VersionRow(
         version_id=accepted.version_id,
@@ -777,13 +663,6 @@ def _row(ops: Sequence[Op], step: int) -> VersionRow:
 
 
 def _is_unchanged(previous: VersionRow, draft: _Draft) -> bool:
-    """Nothing observable moved, so no version is written.
-
-    Acceptance runs on every quiesce and every cold start, not only on real
-    edits; without this the journal would fill with versions of files nobody
-    touched. Bindings are part of the comparison — the same bytes bind
-    differently once the branch's namespace moves.
-    """
     return (
         draft.identity.renamed_from is None
         and draft.identity.copied_from is None
@@ -809,12 +688,6 @@ def _is_rename_only(previous: VersionRow, draft: _Draft) -> bool:
 def _respelled(
     parsed: ParsedCell, version: VersionRow, here: dict[str, VersionRow]
 ) -> dict[str, str]:
-    """References whose producer answers to another name now, spelled anew.
-
-    The binding says which cell a reference means; the branch says what that
-    cell is called today. Where the two disagree, the file is out of date and
-    nothing else is.
-    """
     canonical = {}
     for name, reference in parsed.consumes.items():
         bound = version.manifest.consumes.get(name)
@@ -843,7 +716,6 @@ def _consumers_of(here: dict[str, VersionRow], slug: str | None, own: str) -> li
 
 
 def _same_file(path: Path, other: Path) -> bool:
-    """One file under two names — what a case-insensitive filesystem hands back."""
     try:
         return path.samefile(other)
     except OSError:

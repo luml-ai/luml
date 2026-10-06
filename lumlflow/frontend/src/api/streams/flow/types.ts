@@ -47,10 +47,6 @@ export interface StateFrame {
   cell?: string
 }
 
-/**
- * Who is registered on the flow, and who is really connected. Pushed whenever
- * a registration commits or a leased connection drops; never replayed.
- */
 export interface AgentsFrame {
   channel: 'journal'
   type: 'agents'
@@ -59,11 +55,6 @@ export interface AgentsFrame {
   sessions: AgentSessionRecord[]
 }
 
-/**
- * A leased agent is inside a daemon call, or just left it. `tool` is the
- * daemon method and `slug` the cell it named, if it named one. One entry per
- * actor; never replayed, a late joiner reads the same off the catch-up.
- */
 export interface AgentActivity {
   actor: string
   label: string
@@ -79,12 +70,6 @@ export interface ActivityFrame extends AgentActivity {
   phase: 'started' | 'ended'
 }
 
-/**
- * One agent holding one cell of one lane: the cell its last call named. Other
- * agents cannot change or run it until the holder names another cell,
- * disconnects, the lane is rewound, or `last` is `idle_after_s` behind.
- * `since` and `last` are epoch milliseconds.
- */
 export interface AgentClaim {
   actor: string
   label: string
@@ -95,7 +80,6 @@ export interface AgentClaim {
   last: number
 }
 
-/** Every claim on the flow, whole. Replaces, never merges; never replayed. */
 export interface ClaimsFrame {
   channel: 'journal'
   type: 'claims'

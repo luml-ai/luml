@@ -1,24 +1,3 @@
-/**
- * 2–5 branches side by side, out of the daemon's own comparison.
- *
- * Every verdict here arrives computed. **Which** divergence an asset shows —
- * someone edited the cell, or the same code was fed something different — is
- * the daemon's call, and so is whether the comparison is comparable at all:
- * pin-at-fork is what keeps a sweep honest, and where it stopped holding the
- * runtime says so rather than leaving a reader to notice. Nothing below
- * re-derives either.
- *
- * What this file *does* add is the reading: the columns are one focused asset
- * across the branches, so the numbers under a comparison are the numbers of one
- * cell rather than a heap of every metric in the flow. The focus is a selection
- * like any other — the URL's asset when the compared branches carry it, else
- * the first thing the daemon reported as diverging.
- *
- * One thing it refuses to do is name a winner. No output records whether its
- * metric reads up or down, so a column marked "best" would be a claim nobody
- * measured; the reader picks the winner and the adopt bar carries it out.
- */
-
 import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
@@ -42,13 +21,9 @@ import { assetKindOf, previewFrom } from './preview'
 import type { FlowSessionHandle } from './useFlowSession'
 
 export interface CompareHandle {
-  /** The comparison as the compare cluster consumes it. */
   compare: ComputedRef<CompareView>
-  /** Assets the comparison can lead with, in the order the daemon reported. */
   assets: ComputedRef<string[]>
-  /** The asset the columns and the adopt bar are about — the URL's, resolved. */
   focused: ComputedRef<string | null>
-  /** The columns describe the focused asset — before this they describe nothing. */
   ready: ComputedRef<boolean>
   loading: Ref<boolean>
   error: Ref<string | null>
@@ -73,7 +48,6 @@ export function useCompare(
   const diff = shallowRef<BranchDiff | null>(null)
   const records = ref<BranchRecord[]>([])
   const views = shallowRef<Record<string, AssetView | null>>({})
-  /** Which asset the previews in hand are of — none, until a read lands. */
   const shown = ref<string | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -83,12 +57,6 @@ export function useCompare(
     ...(diff.value?.materialization ?? []).map((entry) => entry.slug),
   ])
 
-  /**
-   * The URL's asset when the comparison has something to say about it, else the
-   * daemon's first divergence: an asset that diverges nowhere would lead with
-   * four identical columns. The focus lives in the URL and nowhere else, so the
-   * link is the comparison.
-   */
   const focused = computed<string | null>(() => {
     const wanted = asset.value
     if (wanted && assets.value.includes(wanted)) return wanted
@@ -128,11 +96,6 @@ export function useCompare(
 
   let read = 0
 
-  /**
-   * The focused asset's stored preview on each branch — the kernel-free tier,
-   * so laying four branches side by side starts no process. A branch that has
-   * never run it answers with nothing, which is what the column then says.
-   */
   async function loadPreviews(): Promise<void> {
     const generation = (read += 1)
     const target = focused.value
@@ -148,8 +111,6 @@ export function useCompare(
           const view = await session.request('asset.preview', { flow, branch, target })
           return [branch, view] as const
         } catch {
-          // A branch that does not carry the cell is not a failed comparison —
-          // the shapeless table is where that difference is already reported.
           return [branch, null] as const
         }
       }),
@@ -199,8 +160,6 @@ export function useCompare(
     compare,
     assets,
     focused,
-    // A column reading "nothing materialized here" because its preview is still
-    // on its way is a wrong answer, not a slow one.
     ready: computed(() => focused.value !== null && shown.value === focused.value),
     loading,
     error,
@@ -208,29 +167,8 @@ export function useCompare(
   }
 }
 
-// --- the columns ------------------------------------------------------------
-
-/** A preview section header, as the kernel writes one above its entries. */
 const SECTION = /^\*\*(.+)\*\*$/
 
-/**
- * One branch's reading of the focused asset: the numbers its stored preview
- * holds, and the curve if it kept one.
- *
- * An experiment carries its params and its metrics as two labelled sections,
- * and only one of them is a result — a comparison listing `lr` beside `auc`
- * under "final results" would be reading a setting as an outcome. Where the
- * payload labels a `metrics` section, that is the one taken; a payload with no
- * sections at all — a plain metric dict — is all numbers and all results.
- *
- * The headline is a headline only when the output has exactly one number to
- * lead with. Picking one out of six would be ranking them, and no output
- * records which of its numbers leads or which way it reads.
- *
- * Most kinds record no numbers at all — a frame previews as its head rows, a
- * plot as an image — so having none is the ordinary case and not the same fact
- * as having nothing. The kind is carried for exactly that distinction.
- */
 function column(
   branch: string,
   stored: AssetView['preview'],
@@ -276,11 +214,6 @@ function column(
       }
     }
   }
-  // A payload with no headers at all — a plain metric dict — is all numbers and
-  // all results. One that labels its sections holds its results in exactly one
-  // of them, and a run that recorded params and never got to its metrics has no
-  // results at all: reading its `lr` as one would report a setting somebody
-  // chose as a number somebody measured.
   const labelled = [...sections.keys()].some((name) => name !== '')
   const scores: Record<string, number> = labelled
     ? (sections.get('metrics') ?? {})
@@ -296,20 +229,11 @@ function column(
   }
 }
 
-/** The name the overlaid curves share, when every drawn one carries the same. */
 function sharedMetric(columns: CompareBranchColumn[]): string {
   const names = new Set(columns.map((entry) => entry.curve?.name).filter(Boolean))
   return names.size === 1 ? [...names][0]! : ''
 }
 
-// --- the two divergence kinds -----------------------------------------------
-
-/**
- * One side per distinct version, not per branch: two branches holding the same
- * version are one side of the fork, and drawing them apart would read as an
- * edit neither of them made. Versions are told apart by the step they were
- * accepted at — the number the timeline and a rewind already address them by.
- */
 function divergence(entry: BranchDiff['definition'][number]): DefinitionDivergence {
   const sides = new Map<number, DiffVersionSide[]>()
   for (const side of entry.versions) {
@@ -327,12 +251,6 @@ function divergence(entry: BranchDiff['definition'][number]): DefinitionDivergen
   }
 }
 
-/**
- * One row per asset, whatever it produced: everything below an edit differs by
- * inputs alone, and a row per output would fan the same fact across a sweep.
- * The chip says what the branch holds — better and worse are not on offer,
- * because no output records which way its numbers read.
- */
 function row(entry: BranchDiff['materialization'][number]): MaterializationRow {
   return {
     slug: entry.slug,
@@ -353,7 +271,6 @@ const STATES: Record<StaleState, string> = {
   failed: 'failed',
 }
 
-/** A cell one branch does not carry, or one whose name moved. */
 function shapeless(entry: BranchDiff['shapeless'][number]): ShapelessDifference {
   const carried = Object.entries(entry.branches).filter(([, name]) => name !== null)
   const named = new Set(carried.map(([, name]) => name))

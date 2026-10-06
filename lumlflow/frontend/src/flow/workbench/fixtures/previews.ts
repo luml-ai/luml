@@ -1,6 +1,5 @@
 import type { DatasetPreview, ExperimentPreview, FramePreview, PlotPreview } from '../model/types'
 
-/** Deterministic pseudo-noise so fixtures stay stable across reloads. */
 function wobble(index: number, scale: number): number {
   return Math.sin(index * 12.9898) * scale
 }
@@ -9,7 +8,6 @@ export function curve(count: number, from: number, to: number, noise = 0.01): [n
   const points: [number, number][] = []
   for (let i = 0; i < count; i += 1) {
     const t = i / Math.max(count - 1, 1)
-    // Saturating exponential — the shape of a healthy training curve.
     const base = from + (to - from) * (1 - Math.exp(-3 * t))
     points.push([i + 1, Number((base + wobble(i, noise)).toFixed(4))])
   }

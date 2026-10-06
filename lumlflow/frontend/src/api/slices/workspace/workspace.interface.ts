@@ -56,7 +56,6 @@ export interface BranchRecord {
 export interface BranchTree {
   flow: string
   branch: string
-  /** Every registration on the flow, newest first; `leased` is what "paired" means. */
   agent_sessions: AgentSessionRecord[]
   branches: BranchRecord[]
 }
@@ -243,9 +242,7 @@ export interface CellSummary {
   cost_seconds: number | null
   causes: string[]
   reused: boolean
-  /** The step the version the lane selects was created at. */
   changed_step: number
-  /** The result the lane observed for the cell; null when it never observed one. */
   mat_id: string | null
 }
 
@@ -264,7 +261,6 @@ export interface RenamedCell {
 export interface CellDetail {
   slug: string
   branch: string
-  /** The version the source was read at: the base an edit of it is sent with. */
   definition_hash: string
   source: string
 }

@@ -49,17 +49,6 @@ import type { FlowCell, ParamValue } from '../../model/types'
 import SourceEditor from './SourceEditor.vue'
 import { CODE_SURFACE_CLASS } from './codeSurface'
 
-/**
- * The code tab: read-only source with an edit toggle onto a real code editor,
- * and the declared params above it. The gesture is what it always was — save
- * emits, a version lands — the surface underneath it is the part that changed.
- *
- * Params render, and do not edit. They are a dormant slot in v1 — parsed,
- * recorded as provenance, and reserved for the inspector and the sweep UI that
- * will read them — so the only way to change one is to change the cell, which
- * is the edit the source box below already is. An "apply" button here would
- * have written a params-only version through a second door.
- */
 const props = defineProps<{
   cell: FlowCell
   density: 'canvas' | 'notebook'
@@ -68,12 +57,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   edit: [payload: { source: string }]
-  /**
-   * The editor is open. What the edit is *based on* is fixed here rather than at
-   * save: a head that moves while the reader is typing is exactly the conflict
-   * the optimistic lock exists to catch, and reading the base at save time would
-   * hand the daemon the version the edit was never written against.
-   */
   'edit-start': []
 }>()
 
@@ -85,18 +68,13 @@ const sourceClass = computed(() => [
   props.density === 'canvas' ? 'max-h-72' : 'max-h-96',
 ])
 
-/** The editor scrolls where the read-only slab does — same box, same density. */
 const editorHeight = computed(() => (props.density === 'canvas' ? '18rem' : '24rem'))
-
-// --- params ---------------------------------------------------------------
 
 const paramNames = computed(() => Object.keys(props.cell.params))
 
 function displayOf(value: ParamValue): string {
   return typeof value === 'string' ? value : JSON.stringify(value)
 }
-
-// --- source ---------------------------------------------------------------
 
 function startEdit(): void {
   if (props.disabled) return

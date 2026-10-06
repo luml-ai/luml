@@ -61,8 +61,6 @@ def atomic_write_bytes(path: Path, data: bytes, *, fsync: bool = True) -> None:
 
 
 def fsync_file(path: Path) -> None:
-    """Durably record bytes written by someone else, before the store adopts
-    them. A no-op where the platform forbids it."""
     try:
         fd = os.open(path, os.O_RDONLY)
     except OSError:
@@ -76,7 +74,6 @@ def fsync_file(path: Path) -> None:
 
 
 def fsync_dir(path: Path) -> None:
-    """Durably record a rename. A no-op where the platform forbids it."""
     try:
         fd = os.open(path, os.O_RDONLY)
     except OSError:

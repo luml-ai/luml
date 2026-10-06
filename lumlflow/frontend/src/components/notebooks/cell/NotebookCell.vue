@@ -102,10 +102,6 @@ const flowStore = useFlowStore()
 
 const activePanels = ref<string[]>(['code'])
 
-// What is happening to this cell right now, as the daemon's live frames say:
-// a run the kernel is inside of, one the queue holds, or a paired agent that
-// holds this cell — the daemon refuses it to every other agent meanwhile.
-// The stored state in the footer is what it was.
 const live = computed(() => flowStore.cellLiveStates[props.cell.slug] ?? null)
 
 const liveLabel = computed(() => {
@@ -119,7 +115,6 @@ const liveLabel = computed(() => {
   return `${state.label} is working on this cell`
 })
 
-// A held cell is closed to every other agent, and the strip says until when.
 const lockHint = computed(() => {
   const state = live.value
   if (state?.kind !== 'agent') return undefined
@@ -137,8 +132,6 @@ const outputs = computed(() =>
 .card {
   @apply bg-(--p-card-background) border border-surface rounded-lg overflow-hidden p-5 shadow-(--p-card-shadow) relative transition-colors flex flex-col;
 }
-/* A card given a height cap keeps its header and footer, and its body shows
-   as much as fits between them. */
 .live-body {
   @apply min-h-0 flex-1 overflow-hidden;
 }
@@ -146,7 +139,6 @@ const outputs = computed(() =>
   @apply border-primary;
 }
 .card--running::before {
-  /* A sweep along the top edge: the card is being computed on. */
   content: '';
   @apply absolute top-0 left-0 h-0.5 w-1/3 bg-primary rounded-full;
   animation: live-sweep 1.4s ease-in-out infinite;
@@ -157,12 +149,9 @@ const outputs = computed(() =>
 .card--agent {
   border-color: var(--agent-color);
 }
-/* The agent is at work on the cell: its body steps back, but stays yours to
-   click — an agent's hold never closes a cell to a person. */
 .card--agent .live-body {
   @apply opacity-60;
 }
-/* Held, not worked on: a thin line in the agent's colour, nothing dimmed. */
 .card--held {
   border-color: color-mix(in srgb, var(--agent-color) 45%, var(--p-content-border-color));
 }

@@ -27,14 +27,6 @@ import { useAuthStore } from '@/store/auth'
 import { errorToast } from '@/toasts'
 import type { PublishModel } from '@/components/upload/upload.interface'
 
-/**
- * Send a cell's model to LUML from where it was made — the counterpart of
- * `TrackerUploadLink` for a model that is on no tracker. The dialog is the
- * Experiments half's own; the host supplies `publish`, which packages the
- * stored value in the kernel and starts the upload job. The dialog mounts on
- * the first authenticated click, not before, and is opened only after it
- * mounts so its `visible` watcher fetches the organizations.
- */
 defineProps<{ publish: PublishModel; defaultName?: string }>()
 
 const LINK_PT = { root: { class: 'px-1.5 py-1 text-sm font-normal text-primary' } }

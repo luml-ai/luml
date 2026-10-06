@@ -35,17 +35,16 @@ export const KIND_ICONS: Record<AssetKind, LucideIcon> = {
 }
 
 const BRANCH_PALETTE = [
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-  '#84cc16', // lime
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ec4899',
+  '#06b6d4',
+  '#f97316',
+  '#84cc16',
 ]
 
-/** Deterministic branch color: stable across views without a registry. */
 export function branchColor(name: string): string {
   let hash = 0
   for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) | 0

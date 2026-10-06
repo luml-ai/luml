@@ -69,7 +69,6 @@ const EMPTY = new Set<number>()
 const sections = computed(() => previewSections(props.blocks))
 const withChart = computed(() => hasChart(sections.value))
 
-/** Which metrics each chart leaves out, by section. */
 const hiddenBySection = ref<Record<number, Set<number>>>({})
 watch(
   () => props.blocks,
@@ -91,16 +90,10 @@ function metricsOf(section: PreviewSection) {
   return []
 }
 
-/** A chart is worth filtering once it draws more than one metric. */
 function filterable(section: PreviewSection): boolean {
   return metricsOf(section).length > 1
 }
 
-/**
- * On a card a long list of values gives way to the chart beside it: it shows
- * its first rows, and the rest is one click away in the expanded cell. With
- * no chart on the card the list keeps the room and shows what fits.
- */
 function clamped(section: PreviewSection): boolean {
   return (
     !!props.compact &&

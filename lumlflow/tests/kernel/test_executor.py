@@ -1,10 +1,3 @@
-"""What one run is allowed to touch, and what it leaves behind as facts.
-
-The executor's contract is mostly about isolation: a run gets a namespace
-nobody else shares, no stdin, a temporary staging area, and an environment that
-is put back. Its cwd is the flow's containing directory.
-"""
-
 from __future__ import annotations
 
 import os
@@ -169,7 +162,6 @@ def test_a_raising_cell_is_recorded_with_its_own_traceback(tmp_path):
     traceback = record["error"]["traceback"]
     assert "<cell train_model>" in traceback
     assert 'raise ValueError("no training data")' in traceback
-    # The author reads this. Kernel frames are not part of their bug.
     assert "executor.py" not in traceback
     assert link.names()[-1] == "failed"
 
@@ -217,15 +209,11 @@ def test_an_unpersisted_output_keeps_a_preview_and_a_hash_nobody_can_reuse(tmp_p
     assert output["persisted"] is False
     assert output["value_ref"] is None
     assert stored_preview(kernel, first, "probe")["blocks"]
-    # A per-materialization token, so a consumer never hits a cache it could
-    # not read the bytes of.
     assert output["content_hash"] != second["outputs"]["probe"]["content_hash"]
 
 
 def test_a_native_output_is_staged_exactly_like_an_inline_one(tmp_path):
-    """`model`, `dataset` and `experiment` say what leaves the flow, not how it
-    is kept: the bytes land in the local CAS either way, so a fork, a cold
-    rerun and an offline consumer all read them without a network."""
+    pass
     pytest.importorskip("luml.experiments.tracker")
     kernel, _ = make_kernel(tmp_path)
 
@@ -255,8 +243,6 @@ def test_a_native_output_is_staged_exactly_like_an_inline_one(tmp_path):
     assert all(outputs[name]["persisted"] for name in outputs)
     assert all(outputs[name]["value_ref"] for name in outputs)
     assert all(stored_value(kernel, record, name) for name in outputs)
-    # The declared type never reaches the kind: what the value *is* is inferred
-    # from the value, and the tracker's record is an experiment.
     assert outputs["run"]["kind"] == "experiment"
     assert stored_preview(kernel, record, "run")["blocks"] == [
         {"block": "markdown", "text": "**params**"},
@@ -578,8 +564,6 @@ def test_a_run_that_prints_nothing_stores_no_log_artifact(tmp_path):
 
 
 def test_each_materialization_keeps_the_logs_of_its_own_run(tmp_path):
-    """Rewinding reads a materialization's own `log_ref`, so a later run of the
-    same cell must not have replaced what the earlier one left."""
     kernel, _ = make_kernel(tmp_path)
     body = """
         def materialize(self, ctx):
@@ -594,8 +578,6 @@ def test_each_materialization_keeps_the_logs_of_its_own_run(tmp_path):
     )
 
     assert first["log_ref"] != second["log_ref"]
-    # Sorted because the two streams reach the artifact through a reader each:
-    # what is pinned here is that both land in it, not their interleaving.
     assert sorted(stored_log(kernel, first).splitlines()) == [
         b"3/3 epochs on main",
         b"training on main",
@@ -666,7 +648,6 @@ def _input(record: dict, output: str) -> dict:
 
 
 def _produce_rows(kernel, *, run_id: str = "producer", value=(1, 2, 3)) -> dict:
-    """A materialized list — a value a consumer can change under the store."""
     record = run(
         kernel,
         f"""
@@ -680,7 +661,6 @@ def _produce_rows(kernel, *, run_id: str = "producer", value=(1, 2, 3)) -> dict:
 
 
 def _cached(kernel, spec: dict) -> object:
-    """What the kernel would hand the next consumer of that value."""
     return kernel.executor.value(spec["value_ref"], spec["kind"])
 
 
@@ -694,7 +674,6 @@ def _await(condition, timeout: float = DEADLINE_S) -> None:
 
 
 def _unpersisted_input(record: dict[str, Any], output: str) -> dict[str, Any]:
-    """What the daemon binds for an output kept only in the kernel's memory."""
     produced = record["outputs"][output]
     return {
         "value_ref": None,

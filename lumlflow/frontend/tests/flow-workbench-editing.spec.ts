@@ -1,14 +1,3 @@
-/**
- * Editing and running from the workbench.
- *
- * Three rules carry this suite. An edit carries the version it started from,
- * and a head that moved under it comes back as a choice — overwrite or fork —
- * with nothing written until the reader picks. A run states its closure
- * **before** the click and its stop states its scope after: leaving a run twenty
- * forks await is not cancelling it. And a failure's volume is **its author's**:
- * an agent iterating through a broken state is demoted to the card, a person's
- * failure is loud; both retain the card's one copy-context control.
- */
 
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -94,8 +83,6 @@ function reads(overrides: Handlers = {}): Handlers {
   }
 }
 
-// --- one card ----------------------------------------------------------------
-
 interface Card {
   wrapper: VueWrapper
   live: Attached
@@ -136,7 +123,6 @@ function labels(wrapper: VueWrapper): string[] {
   return wrapper.findAll('button').map((node) => node.text())
 }
 
-/** Popovers, menus and dialogs are teleported: they land in the body, not in the wrapper. */
 async function clickInBody(match: string): Promise<void> {
   const node = Array.from(document.body.querySelectorAll('button, .p-menu-item-link')).find(
     (found) => found.textContent?.trim().includes(match),
@@ -150,10 +136,6 @@ function overlays(): string {
   return document.body.textContent ?? ''
 }
 
-/**
- * Open the code tab and type new source into the editor it holds — one document
- * transaction, which is what any run of keystrokes amounts to.
- */
 async function typeInto(wrapper: VueWrapper, source: string): Promise<void> {
   await wrapper
     .findAll('[role="tab"]')
@@ -181,8 +163,6 @@ describe('an edit carries the version it started from', () => {
     expect(edit.source).toContain('lr = 0.1')
     expect(labels(wrapper)).toContain('edit')
     expect(labels(wrapper)).not.toContain('save')
-    // The base is a hash: it rides with the request and appears nowhere a
-    // reader can see it.
     expect(wrapper.text()).not.toContain('def-hash')
     wrapper.unmount()
   })
@@ -203,9 +183,6 @@ describe('an edit carries the version it started from', () => {
 
     await typeInto(wrapper, `${SOURCE}    lr = 0.1\n`)
 
-    // The agent commits its own edit to this cell while the reader is typing.
-    // The card re-reads the cell, so the head it now holds is the very version
-    // the reader's edit was *not* written against.
     served = 'def-hash-2'
     live.socket.deliver({
       channel: 'journal',
@@ -218,8 +195,6 @@ describe('an edit carries the version it started from', () => {
 
     await clickText(wrapper, 'save')
 
-    // Sending the moved head would sail past the daemon's check and overwrite
-    // the agent silently — the conflict exists precisely to be raised here.
     expect(asked(live, 'cells.edit')[0].base).toBe('def-hash')
     wrapper.unmount()
   })
@@ -242,7 +217,6 @@ describe('an edit carries the version it started from', () => {
 
     expect(wrapper.text()).toContain('your edit is based on an older version')
     expect(labels(wrapper)).toContain('save to a new lane')
-    // One attempt, refused. Nothing was written while the menu is up.
     expect(asked(live, 'cells.edit')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -277,7 +251,6 @@ describe('an edit carries the version it started from', () => {
     const attempts = asked(live, 'cells.edit')
     expect(attempts).toHaveLength(2)
     expect(attempts[1].force).toBe(true)
-    // The draft survived the refusal — the second attempt is the same edit.
     expect(attempts[1].source).toContain('lr = 0.1')
     expect(attempts[1].intent).toBe('overwrote features')
     expect(wrapper.text()).not.toContain('your edit is based on an older version')
@@ -323,9 +296,6 @@ describe('an edit carries the version it started from', () => {
     await clickText(wrapper, 'save')
     expect(labels(wrapper)).toContain('overwrite')
 
-    // Viewing another branch is free and reuses this card. Carrying the menu
-    // across would offer to force-write main's draft onto a branch nobody
-    // edited, with the conflict check turned off.
     await wrapper.setProps({ branch: 'exp/lr-sweep' })
     await settle()
 
@@ -351,9 +321,6 @@ describe('an edit carries the version it started from', () => {
     await clickText(wrapper, 'save')
     await clickText(wrapper, 'save to a new lane')
 
-    // The page owns forking and may be refused — the branch name may already be
-    // taken. Until it reports back, the menu the draft was typed under stays up,
-    // so overwrite is still on offer and nothing typed is lost.
     expect(wrapper.text()).toContain('your edit is based on an older version')
     expect(labels(wrapper)).toContain('overwrite')
     wrapper.unmount()
@@ -421,8 +388,6 @@ describe('a run states its closure before the click', () => {
   it('asks the daemon for the closure when the popover opens, not on render', async () => {
     const { wrapper, live } = await card()
 
-    // Twenty cards preflighting themselves on render is twenty plans nobody
-    // asked for.
     expect(asked(live, 'preflight')).toHaveLength(0)
 
     const run = wrapper.findAll('button').find((node) => node.attributes('aria-label') === 'run')
@@ -430,7 +395,6 @@ describe('a run states its closure before the click', () => {
     await settle()
 
     expect(asked(live, 'preflight')).toEqual([{ flow: FLOW, branch: 'main', target: 'features' }])
-    // What is cached, what recomputes, and the total — before the click.
     expect(overlays()).toContain('load_customers')
     expect(overlays()).toContain('19')
     wrapper.unmount()
@@ -474,8 +438,6 @@ describe('a run states its closure before the click', () => {
     await settle()
     await clickInBody('run 1 cell')
 
-    // Force is a modifier the reader reaches for, never where the button starts:
-    // a run that silently ignored the cache would recompute an afternoon.
     expect(asked(live, 'run')[0]).toMatchObject({ target: 'features', intent: 'run features' })
     expect(asked(live, 'run')[0].force).toBeFalsy()
     wrapper.unmount()
@@ -494,8 +456,6 @@ describe('a run states its closure before the click', () => {
     force.click()
     await settle()
 
-    // What was cached is now counted in, and the total is open-ended: a memo
-    // hit's cost was never recorded, so it cannot be added up.
     await clickInBody('run 2 cells')
 
     expect(asked(live, 'run')[0]).toMatchObject({
@@ -511,8 +471,6 @@ describe('a run states its closure before the click', () => {
     const { wrapper, live } = await card({
       handlers: {
         preflight: (params) => {
-          // The agent lands its own transaction while the daemon is still
-          // costing this plan, so the answer describes a head that is gone.
           commit?.()
           return {
             branch: String(params.branch),
@@ -538,8 +496,6 @@ describe('a run states its closure before the click', () => {
     await run!.trigger('click')
     await settle()
 
-    // Back to asking. A stale total under the run button is worse than none:
-    // it is a number the reader would act on and the daemon never stood behind.
     expect(overlays()).toContain('estimating…')
     wrapper.unmount()
   })
@@ -564,8 +520,6 @@ describe('a run states its closure before the click', () => {
     wrapper.unmount()
   })
 })
-
-// --- the whole screen ---------------------------------------------------------
 
 const Empty = defineComponent({ template: '<div />' })
 
@@ -601,8 +555,6 @@ async function workbench(options: { handlers?: Handlers; notebook?: boolean } = 
   const router = testRouter()
   await router.push(`/flow/${FLOW}${options.notebook ? '?view=notebook' : ''}`)
   await router.isReady()
-  // The app shell owns the toast outlet; a workbench mounted without one would
-  // let every acknowledgement assertion pass by finding nothing.
   const host = defineComponent({
     components: { LiveWorkbench, Toast },
     props: { session: { type: Object, required: true }, stream: { type: Object, required: true } },
@@ -612,8 +564,6 @@ async function workbench(options: { handlers?: Handlers; notebook?: boolean } = 
     props: { session: live.session, stream: live.stream },
     global: { plugins: [router, ToastService] },
   })
-  // Subscribing replays the journal and then says so, exactly as the daemon
-  // does. Everything delivered after this is news; the replay before it is not.
   live.socket.deliver({
     channel: 'journal',
     type: 'caught_up',
@@ -633,7 +583,6 @@ function cardFor(wrapper: VueWrapper, slug: string): VueWrapper {
   return card
 }
 
-/** Toasts render into the outlet the host mounts, which sits in the body. */
 function toasts(): string {
   return Array.from(document.body.querySelectorAll('.p-toast-message'))
     .map((node) => node.textContent ?? '')
@@ -741,11 +690,8 @@ describe('stop is honest about what it stopped', () => {
 
     await clickText(wrapper, 'Stop session')
 
-    // The daemon's half is the queue; the agent runs in the user's own terminal.
     expect(overlays()).toContain('cancels the run and drains the queue')
     expect(overlays()).toContain('cancelled the run on `main`. Stop working on it and move on')
-    // Nothing offered here is typed at a shell: `lumlflow agent` has begin, end
-    // and exec, so a copyable verb beside them would be one that errors out.
     expect(overlays()).not.toContain('lumlflow agent prompt')
     wrapper.unmount()
   })
@@ -824,8 +770,6 @@ describe('a failure’s volume is its author’s', () => {
       global: { plugins: [router, ToastService] },
     })
 
-    // Subscribing replays the journal from the client's cursor — the whole of
-    // it on a first load — and only then reports the catch-up.
     live.socket.deliver({
       channel: 'journal',
       type: 'transaction',
@@ -842,7 +786,6 @@ describe('a failure’s volume is its author’s', () => {
     })
     await settle()
 
-    // The replayed window is what the catch-up marker counts, not an inbox.
     expect(toasts()).not.toContain('Run failed')
 
     live.socket.deliver({
@@ -926,8 +869,6 @@ describe('a failure’s volume is its author’s', () => {
     }
     await settle()
 
-    // The count is the glance; what it is a count of rides in the hover title,
-    // beside the authorship the signature no longer spells out.
     expect(wrapper.text()).toContain('2 failed')
     const signature = wrapper
       .findAll('[title]')
@@ -968,8 +909,6 @@ describe('an agent session that ended leaving something outstanding', () => {
 
     const banner = wrapper.text()
     expect(banner).toContain('agent session ended')
-    // A state, not a toast — and honest: a clean end and a killed process look
-    // the same from here, so it says what is outstanding rather than why.
     expect(banner).toContain('a failed run on')
     expect(banner).not.toContain('crashed')
     expect(toasts()).not.toContain('the agent session ended')
@@ -1059,7 +998,6 @@ describe('the kernel dying is a banner, not a traceback', () => {
 
     expect(wrapper.text()).toContain('the kernel died')
     expect(wrapper.text()).toContain('features')
-    // Nothing recorded is lost — and the restart is one click, not a refresh.
     await clickText(wrapper, 'restart kernel')
     expect(asked(live, 'kernel.restart')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('the kernel died')
@@ -1229,7 +1167,6 @@ describe('adding, renaming and deleting a cell', () => {
       },
     })
 
-    // The menu is where rename lives; the dialog is what collects the name.
     const more = cardFor(wrapper, 'features')
       .findAll('button')
       .find((node) => node.attributes('aria-label') === 'more')
@@ -1268,8 +1205,6 @@ describe('adding, renaming and deleting a cell', () => {
     await settle()
     await clickInBody('duplicate')
 
-    // The slice a card lays out from carries no source, so a duplicate that
-    // read one off it would scaffold an empty cell under a name promising a copy.
     const [added] = asked(live, 'cells.new')
     expect(added.slug).toBe('features_copy')
     expect(added.source).toBe(SOURCE)
@@ -1295,8 +1230,6 @@ describe('adding, renaming and deleting a cell', () => {
     await settle()
     await clickInBody('eager materialization')
 
-    // Reactivity, not a run: nothing is materialized by ticking it, and the
-    // journal records no transaction for a setting.
     const [set] = asked(live, 'cells.eager')
     expect(set).toMatchObject({ slug: 'features', branch: 'main', eager: true })
     expect(set.intent).toBeUndefined()
@@ -1325,7 +1258,6 @@ describe('adding, renaming and deleting a cell', () => {
     ;(item as HTMLElement).click()
     await settle()
 
-    // The confirm names the branch and says the others keep it.
     const confirm = Array.from(document.body.querySelectorAll('button')).find(
       (node) => node.textContent?.trim() === 'delete from this lane',
     )

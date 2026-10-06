@@ -60,7 +60,6 @@ def ui(
     previous_store_environment: dict[str, str | None] = {}
     if path is not None:
         # The legacy alias has higher settings precedence, so an explicit CLI
-        # value must override both aliases while this server is alive.
         for name in ("BACKEND_STORE_URI", "LUML_BACKEND_STORE_URI"):
             previous_store_environment[name] = os.environ.get(name)
             os.environ[name] = path
@@ -116,7 +115,6 @@ def ui(
 
 
 def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> None:
-    """Said once this process is answering, from inside its own event loop."""
     _warn_if_non_loopback(record.web_host)
     typer.echo(f"directory: {directory}")
     typer.echo(f"lumlflow at {_url(record, directory)}")
@@ -135,12 +133,6 @@ def _attach(
     tracker_store: str,
     no_browser: bool,
 ) -> None:
-    """Point the browser at the daemon that is already serving.
-
-    A port belongs to the process that bound it, so one that answers on
-    another is said plainly rather than papered over — and never taken from
-    a session somebody is using or a run somebody is waiting on.
-    """
     from lumlflow.flow.errors import FlowError
 
     if record.tracker_store != tracker_store or record.web_host != host:

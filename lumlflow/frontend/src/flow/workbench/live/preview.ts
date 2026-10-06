@@ -1,19 +1,3 @@
-/**
- * The stored preview, turned into something the renderers accept.
- *
- * The envelope is the UI contract, and it is versioned because it will outlive
- * this build: a daemon a version ahead may send blocks nobody here has heard
- * of. So the rule is the schema's own — **a payload this build cannot vouch for
- * renders as the kv fallback with a note saying why**, never as a guess and
- * never as an error. Within a version it understands, blocks it does not
- * recognise are dropped rather than allowed to break the ones beside them.
- *
- * Nothing is inferred back out of a payload. A per-kind view wants fields the
- * kernel never recorded — which metric leads, whether higher is better, what a
- * run was called — and a card that filled those in would be claiming results
- * nobody measured.
- */
-
 import type { StoredPreview, TrackerExperiment } from '@/flow/api/types'
 import type {
   AssetKind,
@@ -26,12 +10,10 @@ import type {
 } from '../model/types'
 import type { MetricValue } from '../model/format'
 
-/** The envelope version this build renders block for block. */
 export const PREVIEW_SCHEMA = 1
 
 export const NEWER_FORMAT_NOTE = 'newer preview format. showing the parts this build understands.'
 
-/** Daemon kinds are an open registry; unknown ones render as the kv grid. */
 const KINDS: Record<string, AssetKind> = {
   frame: 'frame',
   plot: 'plot',
@@ -105,12 +87,6 @@ function empty(kind: AssetKind): BlocksPreview {
   return { type: 'blocks', kind, blocks: [] }
 }
 
-/**
- * Newer than this build: the kv grid, plus whatever entries the payload's kv
- * blocks hold. A kv block is the one primitive whose meaning cannot have been
- * re-cut under it — a name and a scalar — so reading those and saying the rest
- * is not understood beats both a blank card and a confident misdraw.
- */
 function newerFormat(stored: StoredPreview): KvPreview {
   const entries: Record<string, string | number | boolean> = {}
   for (const raw of stored.blocks) {
@@ -176,11 +152,6 @@ function rows(value: unknown): (string | number | boolean | null)[][] {
   return value.map((row) => (Array.isArray(row) ? row.map(scalar) : []))
 }
 
-/**
- * The kernel emits `null` for a sample it could not read as a number — a NaN
- * epoch, say. Dropping it leaves a gap in the curve; passing it through `count`
- * would draw a dip to zero the run never had.
- */
 function points(value: unknown): [number, number][] {
   if (!Array.isArray(value)) return []
   return value

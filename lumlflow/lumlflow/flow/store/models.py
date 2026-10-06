@@ -1,10 +1,3 @@
-"""The journal wire format: transactions, the op vocabulary, and `flow.yaml`.
-
-A journal line is one transaction. Ops are a closed, discriminated vocabulary
-so the SQLite index is a pure fold over the journal — every op carries the
-facts its rows need, nothing is inferred from surrounding lines.
-"""
-
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -28,11 +21,6 @@ MaterializationState = Literal["running", "succeeded", "failed", "cancelled"]
 KindSource = Literal["declared", "matcher", "fallback"]
 Reactivity = Literal["lazy", "auto"]
 
-#: Who a run nobody asked for is attributed to. A first-class actor beside
-#: `user` and an agent's name, because the journal is read back as *who did
-#: this* and answering `user` for a run the user never asked for is a lie the
-#: timeline would then render. What it writes keeps a branch synced; it is
-#: never a place the branch moved to.
 AUTO_ACTOR = "auto"
 CellNoteKind = Literal[
     "projection_completed",
@@ -46,15 +34,11 @@ class _Frozen(BaseModel):
 
 
 class VersionFlag(_Frozen):
-    """An accepted-but-broken state. Flags never reject a version."""
-
     code: FlagCode
     detail: str | None = None
 
 
 class ConsumedRef(_Frozen):
-    """A `consumes` entry after binding. `uid` is None when it did not resolve."""
-
     ref: str
     uid: str | None = None
     output: str | None = None
@@ -67,8 +51,6 @@ class OutputSpec(_Frozen):
 
 
 class CellManifest(_Frozen):
-    """A note carries no compute: the class is a docstring, and it renders as one."""
-
     classification: CellClassification = "cell"
     consumes: dict[str, ConsumedRef] = Field(default_factory=dict)
     produces: dict[str, OutputSpec] = Field(default_factory=dict)
@@ -127,8 +109,6 @@ class CellAccepted(_Frozen):
 
 
 class CellRemoved(_Frozen):
-    """Delete is per-branch: the cell leaves this branch's namespace only."""
-
     op: Literal["cell_removed"] = "cell_removed"
     uid: str
     branch_id: str
@@ -156,9 +136,6 @@ class BranchCreated(_Frozen):
     name: str
     parent_branch_id: str | None = None
     fork_step: int = 0
-    #: The parent's own step this branch copied — where the parent stood, which
-    #: after a rewind is not its newest line. Absent on lines written before
-    #: branches had a position; those derive it from the fork step.
     parent_step: int | None = None
 
 
@@ -175,13 +152,6 @@ class WorktreeBound(_Frozen):
 
 
 class Rewound(_Frozen):
-    """Carries the restored state so the index never replays to fold this.
-
-    Not a step of the branch: the line moves the branch's position to
-    `to_step` and adds nothing to its history. The steps after it stay where
-    they are, which is what makes moving forward again the same gesture.
-    """
-
     op: Literal["rewound"] = "rewound"
     branch_id: str
     to_step: int
@@ -238,10 +208,6 @@ class MemoHit(_Frozen):
 
 
 class WorkspaceCodeChanged(_Frozen):
-    """`files` carries the whole watched map, not just what moved: naming the
-    changed file is what the staleness cause says in words, and a daemon that
-    restarted has nothing to diff the next scan against otherwise."""
-
     op: Literal["workspace_code_changed"] = "workspace_code_changed"
     tree_hash: str
     previous_tree_hash: str | None = None
@@ -250,10 +216,6 @@ class WorkspaceCodeChanged(_Frozen):
 
 
 class EnvChanged(_Frozen):
-    """`packages` carries the whole pinned map for the same reason the workspace
-    tree carries its file list: a daemon that restarted has nothing to name the
-    next transition against otherwise."""
-
     op: Literal["env_changed"] = "env_changed"
     lock_hash: str
     packages: dict[str, str] = Field(default_factory=dict)
@@ -261,8 +223,6 @@ class EnvChanged(_Frozen):
 
 
 class FlagSet(_Frozen):
-    """A version flag, or — with no `version_id` — a flag on the transaction."""
-
     op: Literal["flag_set"] = "flag_set"
     flag: str
     version_id: str | None = None
@@ -282,20 +242,8 @@ class AgentEnd(_Frozen):
 
 
 class Checkpointed(_Frozen):
-    """A step somebody marked on purpose, under the transaction's own intent.
-
-    A marker, never a snapshot, and never a step of its own: every version the
-    branch selected at `step` is already in the store, and the line carrying
-    this op is not a position on the branch — the index folds it onto the step
-    it names, the way a commit message rides on its commit. The words are the
-    carrying transaction's intent, the one thing the journal cannot record
-    without being told.
-    """
-
     op: Literal["checkpointed"] = "checkpointed"
     branch_id: str
-    #: The branch's own step the words attach to. Absent on lines written
-    #: before marks folded; those ride the position the branch stood on then.
     step: int | None = None
 
 
@@ -324,8 +272,6 @@ Op = Annotated[
 
 
 class Transaction(BaseModel):
-    """One journal line. `branch` is the branch id the batch was scoped to."""
-
     model_config = ConfigDict(extra="ignore", frozen=True)
 
     step: int
@@ -356,9 +302,6 @@ class Transaction(BaseModel):
 
 
 class FlowSettings(BaseModel):
-    """`eager` names cells by uid: `flow.yaml` already indexes them, and a slug
-    is a name that renames."""
-
     model_config = ConfigDict(extra="allow")
 
     eager_cost_threshold_s: float = 5.0
@@ -367,8 +310,6 @@ class FlowSettings(BaseModel):
 
 
 class FlowManifest(BaseModel):
-    """`flow.yaml` — daemon-written, committed, the slug↔uid cross-check."""
-
     model_config = ConfigDict(extra="allow")
 
     flow_id: str

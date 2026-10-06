@@ -12,7 +12,6 @@
         <NotebookLanesList />
         <div class="buttons">
           <CreateNewLane />
-          <!-- TODO: Add compare -->
         </div>
       </AccordionContent>
     </AccordionPanel>

@@ -136,7 +136,6 @@ const toast = useToast()
 const { progress, loading: uploadLoading, error, complete, upload, follow } = useUpload()
 
 const initialValues = reactive({
-  // A cell's model has no experiment to bundle; the file the host packages is the model.
   type: props.publish ? UploadTypeEnum.MODEL : UploadTypeEnum.AUTO,
   organization: null,
   orbit: null,
@@ -159,12 +158,6 @@ const orbitsLoading = ref<boolean>(false)
 
 const existingTags = ref<string[]>([])
 
-/**
- * The tracker models decide what `auto` sends, so the dialog needs them
- * before it can say which collections fit. The Experiments overview passes
- * them in; a host that has only the experiment id (a flow cell) lets the
- * dialog fetch them when it opens.
- */
 const models = ref<Model[]>(props.models ?? [])
 watch(
   () => props.models,

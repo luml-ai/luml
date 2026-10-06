@@ -1,9 +1,3 @@
-/**
- * The notebook follows the daemon's state frames: hints for changes with no
- * journal transaction behind them. A move from elsewhere and an experiment
- * deleted under a cell on screen refetch the lane after the settle delay; a
- * removal on another lane and a `refreshing` hint change nothing.
- */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'

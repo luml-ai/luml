@@ -1,8 +1,3 @@
-/**
- * Single-purpose specimen cells for the design-system gallery: each exhibit
- * shows exactly one state on top of the same base cell, so a gallery visitor
- * can diff states by eye.
- */
 import type { FlowCell, Preflight } from '../model/types'
 import { cellWith, claude, mainCells, trainModel, user } from './cells'
 
@@ -106,10 +101,6 @@ ValueError: threshold must be within (0, 1), got 5`,
   },
 })
 
-/**
- * The state every cell is created in: scaffolded, not yet named. The daemon
- * flags it, and the card renders the flag as the name rather than as a warning.
- */
 export const placeholderCell = cellWith(base, {
   slug: 'untitled_1',
   status: 'unmaterialized',
@@ -160,7 +151,6 @@ export const externalInputCell = mainCells.find(
   (cell) => cell.slug === 'load_customers',
 ) as FlowCell
 
-/** Run `holdout_eval` while `features` is stale: the closure names three cells. */
 export const evalPreflight: Preflight = {
   cached: ['load_customers', 'clean_data', 'sweep_config'],
   recompute: ['features', 'train_model', 'holdout_eval'],

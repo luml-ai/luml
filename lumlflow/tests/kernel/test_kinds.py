@@ -1,18 +1,3 @@
-"""Which kind claims a value, what it writes, and what a preview may contain.
-
-Pins the resolution order a materialization records as provenance — declared
-override, then matcher by registry priority, then the pickle fallback — the
-normative `metric` and `eval` shapes, and the workspace plugin scan that
-imports only the modules saying they define kinds.
-
-Serialization is asserted byte-for-byte because content hashes decide whether
-downstream cells rerun; the preview envelope is asserted against its cap
-because it is the UI contract and the only kernel-free tier.
-
-pandas, polars, pyarrow and numpy are skipped into, not imported: these tests
-also run under the venv floor, which holds nothing but the stdlib and pytest.
-"""
-
 import base64
 import io
 import math
@@ -150,7 +135,6 @@ def workspace_with(root: Path, files: dict[str, str]) -> Path:
 
 
 def round_trip(asset_type: Any, value: Any, tmp_path: Path) -> Any:
-    """Through a blob file, the way a value reaches a consuming cell."""
     serialized = asset_type.serialize(value)
     blob = tmp_path / "blob"
     blob.write_bytes(
@@ -392,15 +376,10 @@ def test_a_flat_dict_of_numbers_is_a_metric(kinds: registry.Registry) -> None:
 def test_scores_from_a_scoring_library_are_a_metric_not_a_checkpoint(
     kinds: registry.Registry,
 ) -> None:
-    """`{"auc": roc_auc_score(...), "f1": f1_score(...)}` is the spec's own
-    example, and sklearn hands back numpy scalars — which carry `shape` and
-    `dtype` exactly like the tensors a checkpoint is made of."""
     numpy = pytest.importorskip("numpy")
 
     scores = {"auc": numpy.float64(0.91), "f1": numpy.float64(0.83)}
     assert kinds.resolve(scores).kind == builtin.METRIC
-    # A state dict keeps its kind even when a 0-d entry rides along, the way
-    # torch's `num_batches_tracked` does.
     state = {"w": numpy.zeros((2, 3)), "steps": numpy.int64(4)}
     assert kinds.resolve(state).kind == builtin.CHECKPOINT
 
@@ -427,8 +406,6 @@ def test_a_dict_that_is_not_flat_numbers_is_not_a_metric(
         ({"$schema": "https://vega.github.io/schema/v5.json", "a": 1}, builtin.PLOT),
         ({"data": {"values": [{"x": 1}]}, "mark": "bar"}, builtin.PLOT),
         ({"data": [{"x": 1}], "layer": [{"mark": "line"}]}, builtin.PLOT),
-        # Plot outranks metric, so the vega matcher has to read shapes rather
-        # than words: this one is a flat dict of numbers and nothing else.
         ({"data": 42, "mark": 7}, builtin.METRIC),
     ],
 )
@@ -808,9 +785,7 @@ def test_the_report_lists_the_builtins_in_priority_order(
 def test_an_experiment_draws_a_metric_logged_over_steps_as_its_curve(
     kinds: registry.Registry, tmp_path: Path
 ) -> None:
-    """Curves side by side, under the one heading; what was logged once stays
-    a number. The history survives the store, and a run without one keeps the
-    snapshot it always had."""
+    pass
     asset_type = kinds.get(builtin.EXPERIMENT)
     assert isinstance(asset_type, builtin.ExperimentKind)
     ref = ExperimentRef(

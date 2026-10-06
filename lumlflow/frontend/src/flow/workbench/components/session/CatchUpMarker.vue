@@ -11,8 +11,6 @@ import { Button, Message } from 'primevue'
 import { History } from 'lucide-vue-next'
 import { formatCount } from '../../model/format'
 
-// A marker, not an inbox: it names the gap and offers the one gesture that
-// closes it.
 defineProps<{ count: number }>()
 
 const emit = defineEmits<{ open: [] }>()

@@ -1,12 +1,3 @@
-"""The method surface the daemon calls, and one run over a real socket.
-
-Pinned here is what the daemon reads off a fresh kernel — the handshake it
-records inference facts from, module eviction after a workspace edit, paging a
-stored value, and shutdown — plus one
-end-to-end pass where a spawned `python -m lumlflow_kernel` runs a cell and
-reports it in events.
-"""
-
 from __future__ import annotations
 
 import builtins
@@ -60,12 +51,6 @@ _WORKSPACE_KIND = '''
 
 @pytest.fixture
 def import_state(tmp_path: Path) -> Iterator[None]:
-    """Undo what importing a workspace does to this interpreter.
-
-    Both the registry scan and the eviction test put a temporary directory on
-    `sys.path` and import out of it; leaving either behind would make the suite
-    order-dependent.
-    """
     saved = list(sys.path)
     try:
         yield
@@ -242,9 +227,7 @@ def test_a_frame_without_pyarrow_names_the_package_to_install(
 
 @pytest.fixture
 def fake_flavor(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """A flavor luml packages the way sklearn's does: a save function that
-    takes the model, a sample of its inputs and a path, and hands back a
-    reference to what it wrote. What it saw is kept for the assertions."""
+    pass
     import types
 
     from luml.experiments import tracker
@@ -296,8 +279,7 @@ def test_exporting_a_model_packages_it_with_luml_at_the_named_path(
 def test_exporting_a_model_hands_the_flavor_the_columns_it_trained_on(
     tmp_path: Path, fake_flavor: list[dict[str, Any]]
 ) -> None:
-    """The training frame still carries the target; a model that names its
-    features gets only those, so the target never enters the signature."""
+    pass
     pytest.importorskip("pandas")
     pytest.importorskip("pyarrow")
     kernel, _ = make_kernel(tmp_path)
@@ -349,9 +331,6 @@ def test_exporting_a_model_hands_the_flavor_the_columns_it_trained_on(
 def test_exporting_a_model_picks_the_frame_that_carries_its_features(
     tmp_path: Path, fake_flavor: list[dict[str, Any]]
 ) -> None:
-    """A cell consumes more than one frame; the one the model trained on is
-    the one whose columns cover the features it names, wherever it sits in
-    the manifest."""
     pytest.importorskip("pandas")
     pytest.importorskip("pyarrow")
     kernel, _ = make_kernel(tmp_path)
@@ -416,8 +395,7 @@ def test_exporting_a_model_picks_the_frame_that_carries_its_features(
 def test_exporting_without_a_sample_to_a_flavor_that_needs_one_says_why(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """sklearn's save insists on a sample. With no stored frame to take one
-    from, the refusal names what to do rather than a missing argument."""
+    pass
     import types
 
     from luml.experiments import tracker
@@ -557,8 +535,6 @@ def test_a_spawned_kernel_handshakes_runs_a_cell_and_shuts_down(
 
 
 class _Daemon:
-    """The daemon side of a real socket, speaking the protocol by hand."""
-
     def __init__(self, sock: socket.socket) -> None:
         sock.settimeout(_TIMEOUT_S)
         self._sock = sock
@@ -567,8 +543,6 @@ class _Daemon:
         self.events: list[tuple[str, dict[str, Any]]] = []
 
     def call(self, request_id: int, method: str, params: dict[str, Any]) -> Any:
-        """Send one request and return its result, keeping the events that
-        arrive on the way — a run reports itself before it answers."""
         self._writer.write(
             json.dumps(
                 {

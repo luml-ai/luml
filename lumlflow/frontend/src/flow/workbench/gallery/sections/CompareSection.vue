@@ -78,7 +78,6 @@ import GallerySpecimen from '../GallerySpecimen.vue'
 
 const LEGEND_PT = { root: { class: 'px-2 py-0 text-sm font-normal' } }
 
-// Two-lane slice of the sweep, warnings dropped: they have their own specimen.
 const twoBranchCompare: CompareView = {
   ...sweepCompare,
   branches: sweepCompare.branches.slice(0, 2),

@@ -155,7 +155,6 @@ function opEvents(awaiters: number) {
   }
 }
 
-// One preflight for the whole-branch rerun: everything below the stale edit.
 const branchPreflight: Preflight = {
   cached: ['load_customers', 'clean_data', 'sweep_config'],
   recompute: ['features', 'train_model', 'holdout_eval', 'roc_curve', 'error_analysis'],

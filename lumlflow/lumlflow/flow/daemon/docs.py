@@ -1,5 +1,3 @@
-"""The in-memory guide served to agents over MCP and the CLI."""
-
 CHEATSHEET = """\
 # lumlflow agent guide
 

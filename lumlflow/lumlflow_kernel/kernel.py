@@ -1,11 +1,3 @@
-"""The method surface the daemon calls, and the process-wide state it owns.
-
-Kernel plumbing is invisible by design: there is no connect, select, or
-configure verb here because none is offered anywhere. The daemon spawns this,
-handshakes, and runs cells; the only kernel control a user ever sees is a
-restart.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -29,8 +21,6 @@ _VENV_MARKERS = ("site-packages", "dist-packages")
 
 
 class Link(Protocol):
-    """The daemon side of the socket, as the kernel uses it."""
-
     def notify(self, method: str, params: dict[str, Any]) -> None: ...
 
     def stop(self) -> None: ...
@@ -92,8 +82,6 @@ class Kernel:
         )
 
     def export_model(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Package a stored model as the bundle LUML takes, at a path the
-        daemon named. Queued behind a run like paging: it reads values."""
         return publish.export_model(
             self.executor,
             value_ref=str(params.get("value_ref", "")),
@@ -104,12 +92,6 @@ class Kernel:
         )
 
     def evict_workspace_modules(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Forget the workspace's modules so the next run imports them again.
-
-        Skipping this would poison the cache the other way round: the store
-        would key a materialization on the new tree hash while the kernel still
-        held the old module.
-        """
         evicted = []
         for name, module in list(sys.modules.items()):
             path = _module_path(module)
@@ -193,8 +175,6 @@ def _enable_copy_on_write() -> None:
 
 
 def _samples(params: dict[str, Any]) -> list[dict[str, Any]]:
-    """The frames named for the input sample: `samples` as a list, or the
-    single `sample` an older daemon sends."""
     named = params.get("samples")
     if named:
         return [dict(sample) for sample in named]

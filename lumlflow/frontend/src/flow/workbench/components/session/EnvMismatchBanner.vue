@@ -19,14 +19,7 @@ import { Button, Message } from 'primevue'
 import { PackageX, RotateCcw } from 'lucide-vue-next'
 import { formatCount } from '../../model/format'
 
-/**
- * The one kernel control that surfaces (there is no per-branch env: one venv
- * per workspace, and no branch carries a lockfile of its own). It says what is
- * true: a live process holding older imports. It never claims a cache was
- * invalidated, because none was.
- */
 const props = defineProps<{
-  /** Packages the running kernel is behind, as the daemon reported them. */
   behind?: string[]
 }>()
 

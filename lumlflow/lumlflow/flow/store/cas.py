@@ -1,10 +1,3 @@
-"""Content-addressed blob areas: objects, values, previews, logs.
-
-Blobs are named by their sha256 and filed under a two-character shard so no
-directory grows unbounded. Writes are atomic and idempotent — the same bytes
-written twice cost one file.
-"""
-
 import os
 import shutil
 import tempfile
@@ -45,11 +38,6 @@ class Cas:
         return digest
 
     def put_file(self, source: Path, *, move: bool = False) -> str:
-        """Ingest a file without reading it into memory.
-
-        `move` consumes the source — the executor's route for declared `Path`
-        outputs leaving a run's scratch directory.
-        """
         digest = hash_file(source)
         target = self.path(digest)
         if target.exists():
@@ -58,7 +46,6 @@ class Cas:
             return digest
         if move:
             # The staged paths fsync as they write; an adopted file has to be
-            # flushed here, or the commit point can outrun its own blob.
             fsync_file(source)
             self._install(source, target, discard_on_error=False)
             return digest

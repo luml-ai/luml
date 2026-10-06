@@ -17,7 +17,6 @@
       <div v-else class="flex min-w-0 items-start gap-2.5">
         <component :is="glyphOf(entry.kind)" :size="14" class="shrink-0 mt-1 text-muted-color" />
         <div class="flex flex-col gap-0.5 min-w-0 flex-1">
-          <!-- The words somebody wrote on this step, above what the step did. -->
           <div
             v-if="entry.mark"
             data-testid="journal-mark"
@@ -29,8 +28,6 @@
           <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
             <span class="font-mono text-sm text-muted-color shrink-0">{{ entry.time }}</span>
             <ActorChip :actor="entry.actor" muted />
-            <!-- The feed's home is a 320 px panel: an intent wraps rather than
-                 being cut, and a slug with no space in it breaks. -->
             <span class="min-w-0 break-words text-base font-medium">{{ entry.intent }}</span>
             <MetaBadge v-if="entry.settled" variant="settled" />
           </div>
@@ -72,11 +69,6 @@ import type { JournalEntry, JournalKind } from '../../model/types'
 import ActorChip from '../../ui/ActorChip.vue'
 import MetaBadge from '../../ui/MetaBadge.vue'
 
-/**
- * Read-only activity feed over the journal. The `offline` kind is deliberately
- * coarse and visibly distinct: presenting it as a normal burst would claim a
- * fine-grained sequence nothing was there to record.
- */
 defineProps<{ entries: JournalEntry[] }>()
 
 const GLYPHS: Record<JournalKind, LucideIcon> = {
@@ -99,7 +91,6 @@ function glyphOf(kind: JournalKind): LucideIcon {
   return GLYPHS[kind]
 }
 
-/** Render backticked `slugs` as mono without a markdown pass (StatusChip's causeHtml pattern). */
 function monoHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

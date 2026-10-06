@@ -52,7 +52,6 @@ export class WorkspaceUnauthorizedError extends Error {
   }
 }
 
-/** A refusal the daemon named. `kind` is the error class it named it with. */
 export class WorkspaceRefusedError extends Error {
   readonly kind: string | undefined
 
@@ -280,11 +279,6 @@ export const workspaceApi = {
       slug,
     }),
 
-  /**
-   * End one registered session by its actor. Nothing here begins one: an agent
-   * is paired by connecting over MCP, and the browser has no connection to
-   * lend. What it can do is clear a registration nobody is behind.
-   */
   endAgentSession: (actor: string, flow?: string) =>
     call<{ flow?: string; actor: string }, EndedAgentSession>('agent.end', {
       ...(flow ? { flow } : {}),

@@ -128,7 +128,6 @@ const tinted = ref(false)
 
 const cellClass = 'border border-surface-200 dark:border-surface-700 px-3 py-2 text-left align-top'
 
-// ui-draft.md §10's condition→surface table, rendered so the enumeration itself is visible.
 const degradedStates: [string, string][] = [
   [
     'lumlflow not running',
@@ -148,9 +147,6 @@ const degradedStates: [string, string][] = [
     'Header flag "env mismatch". Restart under this lane\'s lock. Background work for that lane waits, and the UI says so rather than looking idle.',
   ],
   ['Value never persisted', 'Materialize and download with preflight, not a broken download.'],
-  // No irrecoverable-rewind row: persist-everything means every referenced
-  // value is still in the store, so rewind is instant and prompt-free and
-  // there is no state for a preflight to declare.
   [
     'Unknown preview/kind version',
     'Key-value fallback with an explicit "newer preview format" note.',

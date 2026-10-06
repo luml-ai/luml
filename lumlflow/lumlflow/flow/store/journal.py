@@ -1,11 +1,3 @@
-"""The append-only transaction log — the store's source of truth.
-
-The fsync'd append is the commit point: CAS blobs are written before it, the
-SQLite index after it. A crash mid-append leaves a torn trailing line, which
-`repair()` truncates; anything else that fails to parse is corruption, not a
-recoverable tail, and is refused loudly.
-"""
-
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -79,7 +71,6 @@ class Journal:
         return _parse(line, 0).step
 
     def repair(self) -> int:
-        """Truncate a torn trailing line; returns the number of bytes dropped."""
         size = self.path.stat().st_size if self.path.exists() else 0
         if size == 0:
             return 0
@@ -120,7 +111,6 @@ def _unknown_op(error: ValidationError) -> str | None:
 
 
 def _rfind_newline(handle: BinaryIO, limit: int) -> int:
-    """Offset of the last newline strictly before `limit`, or -1 if there is none."""
     position = limit
     while position > 0:
         start = max(0, position - _SCAN_CHUNK_BYTES)

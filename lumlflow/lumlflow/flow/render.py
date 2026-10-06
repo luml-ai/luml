@@ -1,28 +1,11 @@
-"""What the verbs print. One rule: slugs, lane names, outputs, and seconds.
-
-The Tier-0 contract is a vocabulary contract as much as a verb-count one — a
-loop an agent can drive from names alone. So nothing here prints a uid, a
-content hash, or a memo key: those exist in `--json`, where a program that wants
-them can ask, and nowhere a person reads.
-
-Every function takes what the daemon answered and returns lines. Keeping them
-pure is what lets one test sweep every surface for internals at once.
-"""
-
 from collections.abc import Iterable
 from typing import Any
 
 _SLUG_COLUMN = 22
 _STATE_COLUMN = 15
 _TABLE_ROWS = 5
-# What follows this rule is the cell file itself, echoed byte for byte —
-# uid line and all. It is the one place a printed surface shows an
-# identifier, because the file the author is about to edit holds it.
 SOURCE_RULE = "─" * 60
 
-# The words every surface uses for a verdict. One vocabulary, or a reader
-# meets two names for one state and has to work out that they agree.
-# The keys are the store's, and they do not move; the words are the reader's.
 STATES = {
     "synced": "current",
     "unsynced": "stale",
@@ -32,7 +15,6 @@ STATES = {
 
 
 def status(payload: dict[str, Any]) -> list[str]:
-    """The workspace, its flows, and where each one stands."""
     lines = [f"workspace {payload['workspace']}"]
     interpreter = _python_line(payload.get("python") or {})
     if interpreter is not None:
@@ -112,7 +94,6 @@ def cells(payload: dict[str, Any]) -> list[str]:
 
 
 def cell(payload: dict[str, Any]) -> list[str]:
-    """One cell in full — what it is, what it produced, and its source."""
     cost = (
         f" · ran in {_seconds(payload['cost_seconds'])}"
         if payload.get("cost_seconds") is not None
@@ -143,7 +124,6 @@ def cell(payload: dict[str, Any]) -> list[str]:
 
 
 def env(payload: dict[str, Any]) -> list[str]:
-    """The workspace's packages, and any kernel still holding older ones."""
     interpreter = _python_line(payload.get("python") or {})
     packages = payload.get("packages") or []
     counted = f"{len(packages)} package" + ("" if len(packages) == 1 else "s")
@@ -166,7 +146,6 @@ def env(payload: dict[str, Any]) -> list[str]:
 
 
 def context(payload: dict[str, Any]) -> list[str]:
-    """The orientation brief, in the order a reader needs it."""
     interpreter = _python_line(payload.get("python") or {})
     lines = [
         f"{payload['flow']} · {payload['branch']}"
@@ -279,12 +258,10 @@ def graph(payload: dict[str, Any]) -> list[str]:
 
 
 def diff(payload: dict[str, Any]) -> list[str]:
-    """Definition divergence, then results, then what neither shape covers."""
     lines = [" vs ".join(f"`{name}`" for name in payload["branches"])]
     definition = payload.get("definition") or []
     materialization = payload.get("materialization") or []
     shapeless = payload.get("shapeless") or []
-    # First, because it is about whether the rest is worth reading.
     integrity = payload.get("integrity") or []
     if integrity:
         lines += ["", "not comparable"]
@@ -320,7 +297,6 @@ def diff(payload: dict[str, Any]) -> list[str]:
 
 
 def asset(payload: dict[str, Any]) -> list[str]:
-    """An output: what it is, and whatever preview the run stored for it."""
     target = f"{payload['slug']}.{payload['output']}"
     lines = [f"{target} · {payload['branch']} · {STATES[payload['state']]}"]
     if payload.get("kind"):
@@ -341,7 +317,6 @@ def asset(payload: dict[str, Any]) -> list[str]:
 
 
 def preflight(payload: dict[str, Any]) -> list[str]:
-    """What a run would do, before it does it."""
     lines = [f"`{payload['target']}` on `{payload['branch']}`"]
     if payload["recompute"]:
         lines.append(f"  recomputes {_names(payload['recompute'])}")
@@ -358,14 +333,11 @@ def preflight(payload: dict[str, Any]) -> list[str]:
             + (" for what has been timed" if payload["unknown"] else "")
         )
     else:
-        # A total of zero seconds over cells nobody has ever timed is not an
-        # estimate of anything; saying so beats printing `0.00s`.
         lines.append("  no timing recorded yet. the cost is unknown")
     return lines
 
 
 def outcome(payload: dict[str, Any]) -> list[str]:
-    """What the run did. A failure is a recorded state, not an exception."""
     failures = list(payload.get("failures") or [])
     if not failures and payload.get("failed"):
         failures.append(str(payload["failed"]))
@@ -388,8 +360,6 @@ def outcome(payload: dict[str, Any]) -> list[str]:
     if payload["pruned"]:
         lines.append(f"skipped {_names(payload['pruned'])} · already current")
     for failed in failures:
-        # The pointer stays inside the quickstart's vocabulary: an agent that
-        # only read those twenty lines has to be able to follow it.
         lines.append(f"failed  `{failed}` · run `lumlflow context` for the traceback")
     lines.extend(
         f"could not plan `{failure['target']}` · {failure['error']}"
@@ -401,7 +371,6 @@ def outcome(payload: dict[str, Any]) -> list[str]:
 
 
 def abandoned(payload: dict[str, Any]) -> list[str]:
-    """Leaving a run, said as what it did — stopping it, or only leaving."""
     branch = payload["branch"]
     if not payload.get("left"):
         return [f"`{branch}` was not waiting on a run"]
@@ -444,7 +413,6 @@ def _flow_heading(flow: dict[str, Any]) -> list[str]:
 
 
 def _restart(kernel: dict[str, Any]) -> list[str]:
-    """The one kernel control that surfaces: it is holding older packages."""
     if not kernel.get("restart_required"):
         return []
     return [f"restart the kernel to apply {_names(kernel.get('behind') or [])}"]

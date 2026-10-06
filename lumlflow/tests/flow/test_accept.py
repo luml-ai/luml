@@ -122,7 +122,7 @@ class TestMinting:
         path = acceptance.cell_path("train_model")
         body = class_body(path)
         assert is_ulid(accepted.uid)
-        assert isinstance(body[0], ast.Expr)  # the docstring stays first
+        assert isinstance(body[0], ast.Expr)
         assert ast.unparse(body[1]) == f"uid = {accepted.uid!r}"
         assert f'    uid = "{accepted.uid}"' in path.read_text(encoding="utf-8")
 
@@ -204,8 +204,6 @@ class TestMinting:
 
 
 class TestFlaggedShapes:
-    """Flagged, never rejected — an agent's edit loop runs through broken states."""
-
     def test_ambiguous_invalid_note_and_incomplete_all_land_as_versions(
         self, store: FlowStore, acceptance: Acceptance
     ) -> None:
@@ -357,8 +355,6 @@ class TestIdentity:
     def test_a_clone_reattaches_through_the_committed_index(
         self, store: FlowStore, flow_dir: Path
     ) -> None:
-        """A store rebuilt beside an existing `flow.yaml` — history roots fresh,
-        identity does not."""
         first = Acceptance(store).accept_path(
             write(Acceptance(store), "features", FEATURES)
         )
@@ -370,7 +366,7 @@ class TestIdentity:
         rebuilt = FlowStore.init(flow_dir)
         acceptance = Acceptance(rebuilt)
         accepted = acceptance.accept_path(
-            write(acceptance, "features", FEATURES)  # the uid line is gone again
+            write(acceptance, "features", FEATURES)
         )
 
         assert accepted.uid == first.uid
@@ -390,7 +386,6 @@ class TestRename:
 
         assert (renamed.uid, renamed.renamed_from) == (trained.uid, "train_model")
         assert renamed.copied_from is None
-        # Named by identity: a consumer may be between names itself.
         assert renamed.rewire == [report.uid]
         ops = [op for entry in transactions(store) for op in entry.ops]
         assert [op.new_slug for op in ops if isinstance(op, Renamed)] == ["train_xgb"]
@@ -497,8 +492,6 @@ class TestReacceptance:
     def test_a_deleted_cell_leaves_its_consumers_flagged_on_that_branch(
         self, store: FlowStore, acceptance: Acceptance
     ) -> None:
-        """Delete drops one branch's selection and reports who named the cell;
-        re-accepting them is what turns the report into a flag on the card."""
         accept(acceptance, "features", FEATURES)
         accept(acceptance, "train_model", TRAIN_MODEL)
 
@@ -513,7 +506,7 @@ class TestReacceptance:
     def test_an_adopt_that_moves_a_name_rewires_the_consumers_it_reports(
         self, store: FlowStore, acceptance: Acceptance
     ) -> None:
-        """The branch reports consumers by uid so acceptance can respell them."""
+        pass
         accept(acceptance, "features", FEATURES)
         consumer = accept(acceptance, "train_model", TRAIN_MODEL)
         store.branches.fork("sweep", from_branch=MAIN_BRANCH)
@@ -539,13 +532,7 @@ class TestReacceptance:
     def test_a_reaccepted_consumer_goes_unsynced_naming_the_rewire(
         self, store: FlowStore, acceptance: Acceptance
     ) -> None:
-        """Re-acceptance is a real edit to the branch's wiring, so the consumer
-        stops reading current and says why in the words the card shows.
-
-        The cause is the wiring one rather than `definition-changed`: what moved
-        is where the input comes from, and reporting a daemon-driven rebind
-        differently from a hand-edited one would name the same change twice.
-        """
+        pass
         accept(acceptance, "features", FEATURES)
         consumer = accept(acceptance, "train_model", TRAIN_MODEL)
         record_run(store, consumer)

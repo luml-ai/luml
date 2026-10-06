@@ -13,11 +13,6 @@ import { formatCount } from '../../model/format'
 import type { FlowCell } from '../../model/types'
 import { inlineCodeHtml } from './inlineCode'
 
-/**
- * A state, not a toast: anchored under the last cell the agent touched when its
- * session ended with work outstanding. Says what is outstanding, never why the
- * session ended, because that is not recorded.
- */
 const props = defineProps<{
   cell: FlowCell
   failedRun?: boolean

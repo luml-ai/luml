@@ -1,10 +1,3 @@
-"""Ending the servers a test started, however the test ended.
-
-Every one of them owns a workspace lock, a kernel or two and a port until
-something tells it not to, so a suite that leaves one behind leaves it behind
-for as long as the machine is up.
-"""
-
 import contextlib
 import os
 import signal
@@ -21,18 +14,12 @@ _GRACE_S = 10.0
 
 
 def stop_recorded(state_dir: Path) -> None:
-    """Stop whoever is registered for a workspace under this state directory.
-
-    Reads the discovery record rather than tracking handles, so it reaches the
-    servers a verb started three layers down inside a CLI subprocess.
-    """
     record = workspace.read_record()
     if record is not None:
         _end(record)
 
 
 def reap(child: "subprocess.Popen[Any]") -> None:
-    """Make sure a server a test started by hand is not still running."""
     if child.poll() is None:
         child.terminate()
         try:

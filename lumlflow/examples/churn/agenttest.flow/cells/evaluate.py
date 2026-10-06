@@ -1,5 +1,4 @@
 class Evaluate:
-    """Score the model on the held-out split and log it as an experiment."""
     uid = "01M36TK7BS5TC26E92RQWD26V1"
 
     consumes = {"model": "train_model.model", "x_test": "features.x_test"}

@@ -1,5 +1,3 @@
-"""Verified user-level MCP locations and narrowly scoped config writers."""
-
 from __future__ import annotations
 
 import json
@@ -89,8 +87,6 @@ class Harness:
     verification: tuple[str, ...]
     stdio_type: str | None = None
     tools: tuple[str, ...] | None = None
-    #: What the harness calls itself in an MCP handshake, when that is
-    #: neither its id nor its display name.
     client_names: tuple[str, ...] = ()
 
     @property

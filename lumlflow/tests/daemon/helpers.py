@@ -1,9 +1,3 @@
-"""A temp workspace with real flows, and a daemon over it.
-
-Nothing is stubbed here: the cells are files, the stores are stores, and the
-kernel is a process spawned the way the daemon spawns it.
-"""
-
 import asyncio
 import contextlib
 import json
@@ -82,8 +76,6 @@ class Load:
         return {"rows": pandas.read_csv(ctx.workspace_dir / "raw.csv")}
 """
 
-# Bigger than any preview holds, so reading past the head is the only way to
-# see the tail of it — which is what `asset page` is for.
 FRAME_CELL = """
 class Rows:
     \"\"\"A frame worth paging.\"\"\"
@@ -102,7 +94,6 @@ def make_workspace(
     flows: Sequence[str] = ("churn",),
     files: dict[str, str] | None = None,
 ) -> Path:
-    """A workspace directory holding empty flows and whatever shared code."""
     root.mkdir(parents=True, exist_ok=True)
     for name in flows:
         (root / f"{name}{FLOW_SUFFIX}" / CELLS_DIRNAME).mkdir(
@@ -124,7 +115,6 @@ def write_file(path: Path, body: str) -> Path:
 
 
 def stub_uv(directory: Path, script: str, monkeypatch: Any) -> Path:
-    """uv, faked — a script on PATH where the real tool would be."""
     tool = write_file(directory / "uv", script)
     tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
     monkeypatch.setenv("PATH", f"{directory}{os.pathsep}{os.environ['PATH']}")
@@ -143,7 +133,6 @@ def _lock_body(pins: dict[str, str]) -> str:
 
 
 def fake_venv(root: Path) -> Path:
-    """A venv whose interpreter is this one under another name."""
     python = root / ".venv" / ("Scripts" if sys.platform == "win32" else "bin")
     python.mkdir(parents=True, exist_ok=True)
     link = python / ("python.exe" if sys.platform == "win32" else "python")
@@ -155,7 +144,6 @@ def fake_venv(root: Path) -> Path:
 async def flow_kernel(
     root: Path, *, flow: str = "churn", on_event: OnEvent | None = None
 ) -> AsyncIterator[KernelProcess]:
-    """A kernel over a real store, stopped when the test ends."""
     flow_dir = root / f"{flow}{FLOW_SUFFIX}"
     if not store_dir(flow_dir).is_dir():
         FlowStore.init(flow_dir).close()
@@ -175,7 +163,6 @@ def run_request(
     inputs: dict[str, Bound] | None = None,
     params: dict[str, object] | None = None,
 ) -> RunRequest:
-    """What the queue hands a kernel, built by hand."""
     return RunRequest(
         run_id=run_id,
         flow="churn",
@@ -197,12 +184,6 @@ def run_request(
 
 
 class LocalDaemon:
-    """The daemon, in this process — what `client.connect` hands a caller back.
-
-    Nothing is faked but the socket: every call lands on the API a real daemon
-    answers with, so what a test drives is the whole path bar the wire.
-    """
-
     def __init__(self, api: Api, loop: asyncio.AbstractEventLoop) -> None:
         self._api = api
         self._loop = loop
@@ -224,7 +205,6 @@ class LocalDaemon:
 async def daemon_api(
     root: Path, *, tracker: TrackerProvider | None = None
 ) -> AsyncIterator[Api]:
-    """An API over a hub, closed — kernels and all — when the test ends."""
     hub = Hub(tracker=tracker)
     try:
         yield Api(hub, directory=root)
@@ -233,7 +213,6 @@ async def daemon_api(
 
 
 def transactions(session: FlowSession) -> list[Transaction]:
-    """The flow's journal, which is what the store actually promises."""
     return list(session.store.journal.replay())
 
 
@@ -272,7 +251,6 @@ def flow_named(status: dict[str, Any], name: str) -> dict[str, Any]:
 
 
 def slice_of(session: FlowSession, branch: str) -> dict[str, VersionRow]:
-    """What a branch selects, by slug — the map a fork pins and a clone rebuilds."""
     branch_id = session.store.branches.get(branch).branch_id
     return {
         version.slug: version
@@ -281,8 +259,6 @@ def slice_of(session: FlowSession, branch: str) -> dict[str, VersionRow]:
 
 
 def values_in(flow_dir: Path) -> list[Any]:
-    """Whatever a flow's value store holds, as JSON. Content-addressed storage
-    has no order to read off, so this one is by content."""
     values = store_dir(flow_dir) / "values"
     blobs = [
         path
@@ -292,12 +268,6 @@ def values_in(flow_dir: Path) -> list[Any]:
     return sorted((json.loads(path.read_bytes()) for path in blobs), key=json.dumps)
 
 
-#: Flows live inside git repositories, so no word a user reads may be one of
-#: git's. `variant` is banned on the same tier from the other side: it is the
-#: platform's own word for a component style and for an experiment's sibling,
-#: so a flow sentence that says it names the wrong system. The word is `lane`.
-#: `frontend/DESIGN.md` holds the glossary this enforces. Identifiers, wire keys
-#: and file names are exempt by construction: none of them is read.
 GIT_WORDS = re.compile(
     r"\b(branch|branches|branching|fork|forks|forked|forking|checkout|"
     r"checkouts|commit|commits|merge|merges|merged|clone|clones|rebase|"
@@ -306,13 +276,9 @@ GIT_WORDS = re.compile(
 )
 
 
-#: Paths are data, not copy. This checkout itself lives under a `worktrees/`
-#: directory, so a surface that prints an absolute path prints a git word
-#: nobody wrote — scrub anything path-shaped before reading the words.
 _PATHISH = re.compile(r"\S*/\S*")
 
 
 def no_git_words(text: str, where: str) -> None:
-    """Sweep one user-readable surface for the vocabulary git already owns."""
     found = sorted(set(GIT_WORDS.findall(_PATHISH.sub(" ", text))))
     assert not found, f"{where} says {found}:\n{text}"

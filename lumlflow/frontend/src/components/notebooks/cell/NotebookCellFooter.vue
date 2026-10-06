@@ -53,8 +53,6 @@ const subtitle = computed(() => {
 })
 
 const isRunning = ref(false)
-// A run somebody else asked for — the agent, reactivity, another tab — is
-// just as much a reason not to offer a second one.
 const isLive = computed(() => flowStore.cellLiveStates[props.cell.slug] !== undefined)
 
 async function onRunCell() {

@@ -22,11 +22,6 @@ import { TriangleAlert } from 'lucide-vue-next'
 import type { CompareWarning } from '../../model/types'
 import BranchTag from '../../ui/BranchTag.vue'
 
-/**
- * Comparability is checked before the numbers are read: where pin-at-fork
- * stopped holding, the warning says so above the columns. Why that matters is
- * the reader's own judgement and does not need narrating underneath.
- */
 const props = defineProps<{ warning: CompareWarning }>()
 
 const KIND_LABELS: Record<CompareWarning['kind'], string> = {
@@ -38,7 +33,6 @@ const KIND_LABELS: Record<CompareWarning['kind'], string> = {
 
 const kindLabel = computed(() => KIND_LABELS[props.warning.kind])
 
-/** Render `slug` spans in the message as code without a markdown pass. */
 const messageHtml = computed(() =>
   props.warning.message
     .replace(/&/g, '&amp;')

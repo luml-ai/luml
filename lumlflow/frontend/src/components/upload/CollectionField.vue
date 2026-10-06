@@ -58,7 +58,6 @@ const {
   reset: resetList,
 } = usePagination<CollectionInfo, GetLumlCollectionsParams>(apiService.getLumlCollections)
 
-/** Only the collections LUML would accept this upload into; the rest would answer 400. */
 const accepting = computed(() =>
   collections.value.filter((collection) => collectionAccepts(collection.type, props.requiredKinds)),
 )
@@ -85,8 +84,6 @@ watch(
   },
 )
 
-// Switching Auto / Model / Experiment can make the chosen collection wrong for
-// what will now be sent; drop it rather than let the request find out.
 watch(
   () => props.requiredKinds,
   (kinds) => {

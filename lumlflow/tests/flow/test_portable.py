@@ -1,10 +1,3 @@
-"""The single-file format, read and written.
-
-What the round trip has to promise is byte fidelity of the part a hash is taken
-over: whatever whitespace lands between two blocks belongs to the format, and a
-cell that goes out has to come back the same cell.
-"""
-
 import pytest
 from lumlflow.flow.dsl import portable
 from lumlflow.flow.dsl.portable import PortableCell
@@ -69,8 +62,6 @@ def test_a_file_that_is_not_an_export_says_what_writes_one():
     ],
 )
 def test_a_name_that_could_be_a_path_is_refused(name: str):
-    """The file came from outside the workspace, and the name in it becomes a
-    filename under `cells/`."""
     with pytest.raises(FlowError, match="not a name a cell can have"):
         portable.read(f"{portable.MARKER}{name}\n{SCORE}")
 

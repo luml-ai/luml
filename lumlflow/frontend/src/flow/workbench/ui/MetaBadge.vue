@@ -10,19 +10,6 @@ import { computed } from 'vue'
 import { Tag } from 'primevue'
 import { BadgeCheck, DatabaseZap, Globe, History, Pin, type LucideIcon } from 'lucide-vue-next'
 
-/**
- * The small factual badges that ride next to a status chip. Each one states a
- * recorded fact the user would otherwise have to guess:
- * - cached      — memo hit; a hit is not a 0-second run
- * - older-env   — computed under a lock hash that differs from the live env
- * - settled     — branch fully materialized and consistent (a highlight, not a gate)
- * - external    — reads outside the store; unmemoizable
- * - pinned      — input frozen at fork time
- *
- * `StatusChip` beside it does the same job for the status vocabulary, and both
- * are `Tag :severity` — a second, hand-coloured chip system is how the two
- * start to drift.
- */
 export type MetaBadgeVariant = 'cached' | 'older-env' | 'settled' | 'external' | 'pinned'
 
 type Severity = 'info' | 'warn' | 'success' | 'secondary'

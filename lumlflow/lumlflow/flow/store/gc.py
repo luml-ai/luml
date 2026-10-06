@@ -1,22 +1,3 @@
-"""Mark-and-sweep over the values CAS.
-
-The journal is the mark set: a value any transaction references is truth and
-survives forever — archived branches and rewound-past history included, which
-is what makes rewind promptless. Objects, previews, and logs are never pruned,
-so the sweep only ever touches `values/`, where everything it finds
-unreferenced is a crash leftover.
-
-In-flight runs cover the window between staging bytes and journaling the
-transaction that references them, and the two halves have to interlock. A run
-**pins before it stages** and releases only after its transaction lands; the
-sweep **lists blobs, then reads pins, then the journal**. A listed blob was
-already installed when the pins were read, so its run had pinned by then; and a
-run that releases its pin in the meantime has already appended the transaction
-the journal read then sees. So a value in flight is never collected, whichever
-order the two race in — a run that starts after the listing is invisible to
-this sweep entirely.
-"""
-
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,21 +33,12 @@ def sweep(store: "FlowStore") -> SweepReport:
 
 
 def disk_bytes(store: "FlowStore") -> int:
-    """What this flow costs on disk — the whole store, not just the values.
-
-    Nothing here is prunable on request: the journal, objects, previews and logs
-    are kept forever by contract, so the number `status` shows has to be the
-    number the disk shows, or it is an invitation to go looking for a sweep that
-    would free something.
-    """
     total = 0
     for entry in store.store_dir.rglob("*"):
         try:
             if entry.is_file():
                 total += entry.stat().st_size
         except OSError:
-            # A kernel scratch file that went away mid-walk is not an error;
-            # it is a file that no longer costs anything.
             continue
     return total
 

@@ -1,14 +1,3 @@
-/**
- * Handing work to the agent, reading what it did, and the ops that are not runs.
- *
- * Three rules carry this suite. A copied context is the **daemon's**: the cell
- * address goes over the wire and what comes back is what the reader copies,
- * because the traceback of a run nobody opened is a fact only the store has.
- * The activity feed is **read-only and cursor-anchored** — a marker, not an
- * inbox. Env ops and the flow's settings
- * go through the daemon and render its answer, never a control that looks like
- * it took a change and dropped it.
- */
 
 import { describe, expect, it, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -112,7 +101,6 @@ Object.defineProperty(navigator, 'clipboard', {
   },
 })
 
-/** The payload the daemon would have built, named so a test can spot it. */
 function builtPayload(params: Record<string, unknown>): Record<string, unknown> {
   return {
     flow: 'churn',
@@ -195,7 +183,6 @@ async function workbench(
     handlers?: Handlers
     at?: string
     journal?: Transaction[]
-    /** Where this client got to last time — what makes a reopen behind. */
     seenStep?: number
     caughtUpAt?: number
   } = {},
@@ -259,8 +246,6 @@ beforeEach(() => {
   document.body.innerHTML = ''
   copied.length = 0
 })
-
-// --- copied cell context -----------------------------------------------------
 
 describe('one card gesture copies the daemon’s context', () => {
   it('leaves no retired branch-summary handoff in the gallery', () => {
@@ -365,15 +350,7 @@ describe('one card gesture copies the daemon’s context', () => {
   })
 })
 
-// --- the activity feed -------------------------------------------------------
-
 describe('the activity feed is read-only and opens at the cursor', () => {
-  /**
-   * A reopen, which is the only thing the marker is about: this client last
-   * saw step 10, three transactions landed while it was gone, and the catch-up
-   * is where it finds that out. Transactions it watches arrive afterwards are
-   * not "since you were here" — it is here.
-   */
   it('opens on the marker, divides at where the reader left off, and clears it', async () => {
     const { wrapper } = await workbench({
       seenStep: 10,
@@ -385,16 +362,12 @@ describe('the activity feed is read-only and opens at the cursor', () => {
 
     await clickText(wrapper, 'open at cursor')
 
-    // The marker's destination is the panel's activity section — the journal
-    // has one home, and the marker sends the reader to it rather than to a
-    // second copy of the same feed in a drawer.
     const activity = wrapper
       .findAll('[data-pc-name="accordionheader"]')
       .find((node) => node.text().startsWith('activity'))
     expect(activity?.attributes('aria-expanded')).toBe('true')
     expect(wrapper.text()).toContain('since you were here')
     expect(wrapper.text()).toContain('agent edit 13')
-    // The marker is spent by looking at it, and nothing about the feed writes.
     expect(wrapper.text()).not.toContain('changes since you were here')
     wrapper.unmount()
   })
@@ -457,8 +430,6 @@ describe('the activity feed is read-only and opens at the cursor', () => {
     wrapper.unmount()
   })
 })
-
-// --- packages and the flow's settings -----------------------------------------
 
 describe('the packages panel and settings', () => {
   it('names the interpreter and source in the folded packages header', async () => {

@@ -1,16 +1,3 @@
-"""Branch operations: fork, switch, archive, rewind, adopt, per-branch delete.
-
-A branch is a selection map (uid → version_id) plus baseline pointers, so every
-operation here is a row edit — no file is copied and no value is ever
-duplicated. Two consequences worth stating: forking is O(one journaled op)
-because the dense copy of the parent's rows happens in the index fold, and
-rewind is instant because it restores pointers into a CAS that keeps
-everything.
-
-Operations address cells by slug, the name the branch's namespace knows them
-by; uids stay inside.
-"""
-
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -61,8 +48,6 @@ class RewindResult:
 
 @dataclass(frozen=True)
 class AdoptResult:
-    """Follow-up acceptance work caused by the target lane's namespace."""
-
     slug: str
     uid: str
     version_id: str
@@ -73,8 +58,6 @@ class AdoptResult:
 
 @dataclass(frozen=True)
 class DeleteResult:
-    """`dangling` names the consumers left pointing at nothing on this branch."""
-
     slug: str
     uid: str
     branch: str
@@ -97,16 +80,13 @@ class Branches:
         return branch
 
     def resolve(self, branch: str, slug: str) -> str:
-        """The uid behind a name in the branch's namespace."""
         record = self.get(branch)
         return _resolve(self._index.slice_versions(record.branch_id), slug, branch)
 
     def selected_versions(self, branch_id: str, uid: str) -> set[str]:
-        """Every version of a cell this lane has selected, including at fork."""
         return self._selection_history(uid).get(branch_id, set())
 
     def bound_branch(self) -> BranchRow | None:
-        """The branch the worktree projects, or None while nothing is bound."""
         branch_id = self._index.worktree_branch(self._store.manifest.flow_id)
         return self._index.branch_by_id(branch_id) if branch_id else None
 
@@ -128,8 +108,6 @@ class Branches:
             name=name,
             parent_branch_id=parent.branch_id,
             fork_step=self._store.next_step,
-            # Where the parent stands, not its newest line: a lane started
-            # from a rewound parent starts from the step it was rewound to.
             parent_step=self._index.head_step(parent.branch_id),
         )
         self._store.commit(
@@ -143,11 +121,6 @@ class Branches:
     def switch(
         self, name: str, *, actor: str = "user", intent: str | None = None
     ) -> BranchRow:
-        """Rebind the worktree — the flow root, the single v1 worktree.
-
-        Projecting the slice into `cells/` is the daemon's half of the
-        checkout; the store only records the binding.
-        """
         branch = self.get(name)
         self._store.commit(
             [
@@ -185,16 +158,6 @@ class Branches:
         actor: str = "user",
         intent: str,
     ) -> TransactionRow:
-        """Mark a step on a branch under a one-line intent.
-
-        The deliberate counterpart of the `settled` badge, and deliberately not
-        a snapshot: every version the branch selected at that step is already
-        kept, so the only thing a mark adds is the words. And deliberately not
-        a step either: the line that carries the words is folded onto the step
-        it names, the way a commit message rides on its commit, so marking
-        moves nothing and the branch stands where it stood. Without `step`,
-        the branch's newest own step is the one marked.
-        """
         if not intent.strip():
             raise ValueError("a checkpoint needs a one-line intent")
         branch = self.get(name)
@@ -226,17 +189,6 @@ class Branches:
         actor: str = "user",
         intent: str | None = None,
     ) -> RewindResult:
-        """Move the branch to a step: restore selections *and* baselines to
-        their as-of-step values, and stand there.
-
-        No gate and no preflight: every value the restored state points at is
-        still in the CAS, so there is nothing to warn about and nothing to
-        recompute. Baselines travel with the selections, so a rewound branch
-        keeps its staleness verdicts instead of lighting up wholesale. And no
-        step is added: the line that carries the move folds into the branch's
-        position, the steps after it stay in the history, and the next change
-        on the branch is what moves it on again.
-        """
         branch = self.get(name)
         if not 1 <= to_step < self._store.next_step:
             raise RewindTargetNotFound(f"no transaction at step {to_step}")
@@ -281,12 +233,6 @@ class Branches:
         actor: str = "user",
         intent: str | None = None,
     ) -> AdoptResult:
-        """Cherry-pick one asset onto another branch — the whole v1 merge story.
-
-        Raises `AdoptConflict` when there is a side to pick: both branches
-        edited the cell since they forked, or the incoming bindings name a
-        different cell here. `force` is the resolution — pick the incoming one.
-        """
         if from_branch == to_branch:
             raise ValueError("adopt moves an asset between two different lanes")
         source, target = self.get(from_branch), self.get(to_branch)
@@ -326,11 +272,6 @@ class Branches:
         rewire = _renamed_by_adopt(here, uid, incoming.slug, current)
         reaccept: list[str] = []
         if rebinding or taken:
-            # The adopted version is itself a consumer whose references bind
-            # differently here — to another cell, to none, or to one they were
-            # missing — and a name forced in over an existing one still has to
-            # be suffixed apart. Either way it is acceptance that re-binds and
-            # renames it.
             reaccept = [uid]
         return AdoptResult(
             slug=incoming.slug,
@@ -349,7 +290,6 @@ class Branches:
         actor: str = "user",
         intent: str | None = None,
     ) -> DeleteResult:
-        """Drop the selection entry. Every other branch keeps its own."""
         record = self.get(branch)
         here = self._index.slice_versions(record.branch_id)
         uid = _resolve(here, slug, branch)
@@ -371,12 +311,6 @@ class Branches:
 
     @contextmanager
     def _state_at(self, step: int) -> Iterator[Index]:
-        """The whole store as of `step`, folded into a throwaway index.
-
-        Replaying through the same fold the live index uses is what keeps
-        as-of-step answers honest — there is no second implementation of what
-        an op means to a branch's state.
-        """
         state = Index.in_memory()
         try:
             state.rebuild(
@@ -396,30 +330,17 @@ class Branches:
         incoming: VersionRow,
         current: VersionRow | None,
     ) -> bool:
-        """Three-way on `definition_hash` against the last version both shared."""
         if current is None or current.definition_hash == incoming.definition_hash:
             return False
         base = self._shared_definition_hash(source, target, uid)
         if base is None:
             # Two different answers and no common ancestor to attribute either
-            # to: that is both sides having edited, and taking one silently
-            # would lose the other.
             return True
         return current.definition_hash != base and incoming.definition_hash != base
 
     def _shared_definition_hash(
         self, source: BranchRow, target: BranchRow, uid: str
     ) -> str | None:
-        """The `definition_hash` of the newest version both branches have held.
-
-        The merge base, read off selection history rather than off branch
-        ancestry: a fork inherits everything its parent had held, and an adopt
-        adds the donor's version, so the newest version the two histories share
-        is the state they last had in common. Asking instead for a step where
-        both *currently* selected it would find nothing whenever the split
-        predates a change on one side — a fork of a fork, or siblings that
-        split at different steps — and read a one-sided edit as two.
-        """
         history = self._selection_history(uid)
         shared = history.get(source.branch_id, set()) & history.get(
             target.branch_id, set()
@@ -433,14 +354,6 @@ class Branches:
         return newest.definition_hash if newest else None
 
     def _selection_history(self, uid: str) -> dict[str, set[str]]:
-        """Every version each branch has ever selected for `uid`.
-
-        Replayed through the same fold the live index uses, so a version counts
-        as held however it arrived — accepted, forked in, adopted, or restored
-        by a rewind. Only the inheritance a fork's dense copy leaves implicit
-        has to be spelled out here: the child starts from everything its parent
-        had held, not just from the one version it copied.
-        """
         history: dict[str, set[str]] = {}
         state = Index.in_memory()
         try:
@@ -460,18 +373,6 @@ class Branches:
 
 
 def is_settled(index: Index, branch_id: str) -> bool:
-    """Is the branch's whole slice materialized from its selected versions?
-
-    The badge that marks a natural checkpoint, computed at commit and never a
-    gate. An empty branch has no checkpoint to highlight, so it reads unsettled.
-
-    Identity is `definition_hash`, not the version id: a comment-only edit and
-    a cross-branch memo hit both leave the branch whole, and both point the
-    baseline at a materialization of some other version of the same cell.
-    Behaviour is `definition_hash` *plus* the workspace tree, so anything that
-    *started* before the last workspace-code change is stale too — modules are
-    evicted before the next materialization, never under a running one.
-    """
     here = index.slice_versions(branch_id)
     if not here:
         return False
@@ -495,7 +396,6 @@ def is_settled(index: Index, branch_id: str) -> bool:
 def _inputs_current(
     mat: MaterializationRow, slice_mats: dict[str, MaterializationRow]
 ) -> bool:
-    """Did every input still hold this content when its producer last ran?"""
     for ref in mat.inputs.values():
         producer = slice_mats.get(ref.uid)
         if producer is None:
@@ -507,7 +407,6 @@ def _inputs_current(
 
 
 def _selecting_branches(entry: Transaction) -> set[str]:
-    """The branches whose selection map this transaction could have moved."""
     return {
         op.branch_id
         for op in entry.ops
@@ -523,8 +422,6 @@ def _resolve(here: dict[str, VersionRow], slug: str, branch: str) -> str:
 
 
 def _names(here: dict[str, VersionRow]) -> dict[str, str]:
-    """slug → uid. First in uid order wins — the cell `_resolve` also picks, so
-    a forced duplicate can never make the two disagree about a name."""
     names: dict[str, str] = {}
     for uid, version in here.items():
         names.setdefault(version.slug, uid)
@@ -537,7 +434,6 @@ def _renamed_by_adopt(
     incoming_slug: str,
     current: VersionRow | None,
 ) -> list[str]:
-    """Consumers bound to the renamed uid, regardless of their source spelling."""
     if current is None or current.slug == incoming_slug:
         return []
     return sorted(
@@ -551,16 +447,6 @@ def _renamed_by_adopt(
 def _binding_changes(
     incoming: VersionRow, names: dict[str, str]
 ) -> tuple[list[str], list[str]]:
-    """Incoming references that name a different cell here, and ones that would
-    bind differently here at all.
-
-    A reference resolving to a *different* cell is a conflict — adopting it
-    would silently rewire the version. Anything else that moves is only work
-    for acceptance: a reference to an upstream that is not here yet is an
-    ordinary dangling one, and blocking on it would make adopting a pair of
-    cells impossible one at a time, while one that was dangling on the donor
-    and resolves here is a version arriving better off than it left.
-    """
     clashing, rebinding = [], []
     for consumed in incoming.manifest.consumes.values():
         if "." not in consumed.ref:
@@ -575,9 +461,6 @@ def _binding_changes(
 
 
 def _slug_clash(incoming: VersionRow, uid: str, names: dict[str, str]) -> list[str]:
-    """Is the incoming name already another cell's here? Same-slug across
-    branches is expected and harmless; it only bites when an adopt brings the
-    two into one namespace, and it surfaces here as a rename to resolve."""
     taken = names.get(incoming.slug)
     return [incoming.slug] if taken is not None and taken != uid else []
 

@@ -1,26 +1,3 @@
-/**
- * The wire the workspace daemon speaks, as TypeScript.
- *
- * Two halves. The **op vocabulary** is the journal's closed, discriminated set
- * — one line per transaction, one entry per op — mirrored here field for field
- * so a client reading history never guesses at a shape. The **frames** are what
- * the two WebSocket channels carry: channel 1 is journal transactions plus the
- * kernel's run lifecycle, each stamped with the flow-global `step` a client
- * holds as its cursor; channel 2 is a live run's log chunks, keyed by `run_id`
- * and durable nowhere.
- *
- * Field names are the wire's, snake_case and all. Translating them here would
- * put a second vocabulary between the daemon and the surfaces that render it,
- * and the view model in `workbench/model/types.ts` is already that layer.
- *
- * Verdicts arrive computed — staleness, preflight costs, divergence kinds and
- * `settled` are the daemon's facts, and nothing in this file is derived from
- * another field in it.
- */
-
-// ---------------------------------------------------------------------------
-// The op vocabulary — `lumlflow/flow/store/models.py`
-// ---------------------------------------------------------------------------
 
 export type FlagCode =
   | 'dangling_ref'
@@ -229,19 +206,9 @@ export interface AgentEndOp {
   label: string | null
 }
 
-/**
- * A step somebody marked on purpose, under the carrying transaction's intent.
- * The line that carries it is not a step of the branch: it folds onto `step`,
- * the way a commit message rides on its commit, so marking adds nothing to the
- * timeline and copies nothing.
- */
 export interface CheckpointedOp {
   op: 'checkpointed'
   branch_id: string
-  /**
-   * The branch's own step the words attach to. Absent on lines written before
-   * marks folded, which were steps of their own and stay so.
-   */
   step?: number | null
 }
 
@@ -266,10 +233,6 @@ export type FlowOp =
   | AgentEndOp
   | CheckpointedOp
 
-/**
- * One journal line. `branch` is a branch **id**, not a name: the store keys on
- * ids so a rename costs nothing, and a client that wants the name asks `tree`.
- */
 export interface Transaction {
   step: number
   ts: string
@@ -281,10 +244,6 @@ export interface Transaction {
   ops: FlowOp[]
 }
 
-// ---------------------------------------------------------------------------
-// Stream frames — `lumlflow/flow/daemon/stream.py`
-// ---------------------------------------------------------------------------
-
 export interface TransactionFrame {
   channel: 'journal'
   type: 'transaction'
@@ -293,14 +252,6 @@ export interface TransactionFrame {
   transaction: Transaction
 }
 
-/**
- * A run's lifecycle, and the kernel process's own.
- *
- * Neither is journaled, so no cursor replays either. `kernel_state` is what
- * keeps a tab from reporting the kernel it was handed when it opened: the
- * kernel starts lazily, so that first answer is almost always `stopped` and
- * would stay so for the life of the tab.
- */
 export interface KernelFrame {
   channel: 'journal'
   type: 'kernel'
@@ -311,15 +262,12 @@ export interface KernelFrame {
   slug?: string
   state?: MaterializationState
   cost_seconds?: number
-  /** Branches waiting on this run — it moves while the run is in flight. */
   awaiting?: number
-  /** `kernel_state` only: whether a kernel process is up on this flow. */
   kernel?: 'running' | 'stopped'
 }
 
 export type StateName = 'experiment_removed' | 'refreshing' | 'order_changed'
 
-/** A live hint that changes no flow history and is never replayed. */
 export interface StateFrame {
   channel: 'journal'
   type: 'state'
@@ -330,14 +278,6 @@ export interface StateFrame {
   cell?: string
 }
 
-/**
- * One registered agent session, and whether anybody is on the other end.
- *
- * The journal knows who registered. Only the daemon knows whose connection is
- * still there, and `leased` is that knowledge: a surface reads "paired" off it,
- * never off the row's existence. A row without it was registered by hand —
- * `lumlflow agent begin` — and exists for attribution only.
- */
 export interface AgentSessionRecord {
   actor: string
   label: string
@@ -345,12 +285,6 @@ export interface AgentSessionRecord {
   leased: boolean
 }
 
-/**
- * Who is registered on a flow right now, lease state included. Pushed when a
- * registration commits, and when a leased connection drops — the one change
- * no journal frame carries. The list is whole; a client replaces, not merges.
- * Never replayed: a late joiner reads the same list off `flow.open`.
- */
 export interface AgentsFrame {
   channel: 'journal'
   type: 'agents'
@@ -359,15 +293,6 @@ export interface AgentsFrame {
   sessions: AgentSessionRecord[]
 }
 
-/**
- * The end of a catch-up. `running` is how a tab that opened mid-run learns
- * which console it can still ask for — an event it was not there for.
- */
-/**
- * A leased agent is inside a daemon call, or just left it. `tool` is the
- * daemon method and `slug` the cell it named, if it named one. One entry per
- * actor; never replayed, a late joiner reads the same off the catch-up.
- */
 export interface AgentActivity {
   actor: string
   label: string
@@ -383,12 +308,6 @@ export interface ActivityFrame extends AgentActivity {
   phase: 'started' | 'ended'
 }
 
-/**
- * One agent holding one cell of one lane: the cell its last call named. Other
- * agents cannot change or run it until the holder names another cell,
- * disconnects, the lane is rewound, or `last` is `idle_after_s` behind.
- * `since` and `last` are epoch milliseconds.
- */
 export interface AgentClaim {
   actor: string
   label: string
@@ -399,7 +318,6 @@ export interface AgentClaim {
   last: number
 }
 
-/** Every claim on the flow, whole. Replaces, never merges; never replayed. */
 export interface ClaimsFrame {
   channel: 'journal'
   type: 'claims'
@@ -420,7 +338,6 @@ export interface CaughtUpFrame {
   claim_idle_s?: number
 }
 
-/** This client stopped reading long enough to be dropped. Replay from cursor. */
 export interface LaggedFrame {
   channel: 'journal'
   type: 'lagged'
@@ -435,7 +352,6 @@ export interface LogFrame {
   text: string
 }
 
-/** A subscription the daemon refused — this connection's other flows stand. */
 export interface StreamErrorFrame {
   type: 'error'
   message: string
@@ -453,11 +369,6 @@ export type StreamFrame =
   | LogFrame
   | StreamErrorFrame
 
-// ---------------------------------------------------------------------------
-// Read-side payloads — `lumlflow/flow/daemon/queries.py`
-// ---------------------------------------------------------------------------
-
-/** `unmaterialized` is its own state: no baseline exists to claim a change against. */
 export type StaleState = 'synced' | 'unsynced' | 'unmaterialized' | 'failed'
 
 export type TrackerExperimentState = 'ok' | 'missing' | 'unreachable'
@@ -468,65 +379,36 @@ export interface TrackerExperiment {
   state: TrackerExperimentState
   url: string | null
   store: string
-  /** Tracker tags stay with a memo hit, including the lane that recorded it. */
   tags: string[]
-  /** The daemon's actionable explanation when the tracker cannot serve the record. */
   sentence: string
-  /** Flow step at which the referenced materialization was recorded. */
   recorded_step: number | null
 }
 
-/** One card's worth of facts. Causes are sentences, never bare enum values. */
 export interface CellSummary {
-  /** Stable identity on cell queries; workspace status keeps internals out. */
   uid?: string
   slug: string
   state: StaleState
   causes: string[]
-  /** The cells above this one that are not current, by slug. */
   upstream: string[]
-  /** Current on its own facts, sitting below something that is not. */
   transitive: boolean
   outputs: string[]
-  /**
-   * What each output reads as — the declared word where there is one, else
-   * what the value turned out to be. A lens over the slice groups on this.
-   */
   kinds: Record<string, string>
   primary: string | null
   consumes: Record<string, string>
   note: boolean
-  /** Reads something the store does not version, so it never memoizes. */
   external: boolean
   flags: { code: FlagCode; detail: string | null }[]
   cost_seconds: number | null
   older_env: boolean
-  /** Computed on another branch and read here — nothing ran for this one. */
   reused: boolean
-  /** The step the cell was minted at — the fallback when no order key is mapped. */
   created_step: number
-  /** Effective decimal order key, kept as text so repeated midpoints stay exact. */
   order: string
-  /** The step the current selected version was accepted at. */
   changed_step: number
-  /** Opted out of the cost threshold: rematerializes on change regardless. */
   eager: boolean
-  /**
-   * Why reactivity is *not* refreshing this cell, when it is on and the cell is
-   * out of date. Null covers three silences that need no sentence: reactivity
-   * is off, the cell is current, or it is about to refresh itself.
-   */
   auto_declined: AutoDeclined | null
-  /** The experiment selected by this lane's materialization, if it produced one. */
   tracker: TrackerExperiment | null
 }
 
-/**
- * `never-timed` is a closure this flow has no measurement of — not a cheap one.
- * A threshold cannot admit a cost nobody has ever observed, so running it once
- * by hand is what lets reactivity keep it fresh afterwards. `blocked` is a
- * failure below it that nothing has changed since.
- */
 export interface AutoDeclined {
   reason:
     | 'blocked'
@@ -535,20 +417,11 @@ export interface AutoDeclined {
     | 'dangling-experiment'
     | 'unresolvable-reference'
     | 'refresh-failed'
-  /** The closure's estimate, over the timed cells only. */
   estimate_seconds: number
-  /** Cells in the closure the flow has never run, by slug. */
   untimed: string[]
-  /** The daemon's explanation when the refusal concerns a named dependency. */
   detail?: string
 }
 
-/**
- * Authorship as the store recorded it. `attribution_uncertain` is the honest
- * end of it: a registered agent session cannot tell its direct file edit from
- * the human's during the same session, and a flagged window beats a confident
- * wrong name.
- */
 export interface CellProvenance {
   created_by: string
   created_step: number
@@ -562,11 +435,6 @@ export interface MaterializedOutput {
   name: string
   kind: string
   kind_source: KindSource
-  /**
-   * The word the cell declared it under. What leaves the flow is a declaration,
-   * never an inference: a `model` whose value is a string still infers as a
-   * note, and only this says it was meant to be published.
-   */
   declared: DeclaredAssetType
   size: number
   persisted: boolean
@@ -574,10 +442,8 @@ export interface MaterializedOutput {
 
 export interface CellDetail extends CellSummary {
   branch: string
-  /** The optimistic lock an editor carries back with `cells.edit`. Never printed. */
   definition_hash: string
   source: string
-  /** The class docstring, dedented — and the whole content of a note cell. */
   doc: string
   params: Record<string, unknown>
   author: string
@@ -585,7 +451,6 @@ export interface CellDetail extends CellSummary {
   materialized: MaterializedOutput[]
   sdk_version_warning: string | null
   error: string | null
-  /** Who wrote the version that failed — not necessarily whoever wrote the head. */
   failed_by: string | null
   provenance: CellProvenance
 }
@@ -603,11 +468,9 @@ export interface StoredPreview {
   schema: number
   kind: string
   blocks: unknown[]
-  /** The payload hit its cap and shrank from the tail — never a silent trim. */
   truncated?: boolean
 }
 
-/** `asset.preview`: one output as the store holds it. The kernel-free tier. */
 export interface AssetView {
   flow: string
   branch: string
@@ -621,7 +484,6 @@ export interface AssetView {
   tracker: TrackerExperiment | null
 }
 
-/** `asset.page`: a window into the value itself. This one starts a kernel. */
 export interface AssetPage {
   slug: string
   output: string
@@ -636,7 +498,6 @@ export interface AssetPage {
   }
 }
 
-/** Where in LUML a published model goes, and what it is called there. */
 export interface PublishTarget {
   organization_id: string
   orbit_id: string
@@ -644,10 +505,6 @@ export interface PublishTarget {
   artifact: { name: string; description?: string; tags?: string[] }
 }
 
-/**
- * `asset.publish`: the model is packaged in the kernel and handed to the
- * tracker's uploader as a job; `job_id` is what the progress stream is read by.
- */
 export interface PublishedAsset {
   flow: string
   branch: string
@@ -658,7 +515,6 @@ export interface PublishedAsset {
   size: number | null
 }
 
-/** `cells.logs`: the console of the run this branch observed, not the newest. */
 export interface CellLogs {
   flow: string
   branch: string
@@ -667,11 +523,6 @@ export interface CellLogs {
   logs: string | null
 }
 
-/**
- * One branch's side of a compared asset: the verdict it holds and what it
- * produced. A definition side carries the version's own facts on top, so the
- * cell a comparison is *about* is not the one asset with no results on screen.
- */
 export interface DiffSide {
   branch: string
   state: StaleState
@@ -684,33 +535,24 @@ export interface DiffVersionSide extends DiffSide {
   author: string
   step: number
   flags: FlagCode[]
-  /** Declared data, read-only wherever it is shown. */
   params: Record<string, unknown>
 }
 
-/** Someone edited the cell — structural, and the branching point below it. */
 export interface DefinitionDiff {
   slug: string
   versions: DiffVersionSide[]
 }
 
-/** Same code, different inputs — one entry per asset, never a fan of nodes. */
 export interface MaterializationDiff {
   slug: string
   results: DiffSide[]
 }
 
-/** What neither shape covers: a cell a branch does not carry, a name that moved. */
 export interface ShapelessDiff {
   slug: string
   branches: Record<string, string | null>
 }
 
-/**
- * Where pin-at-fork stopped keeping the comparison comparable. The daemon's
- * verdict: a side-by-side of two numbers computed under different upstream
- * code is worse than no comparison, so it says so rather than drawing it.
- */
 export interface IntegrityWarning {
   kind: 'divergent-pin'
   slug: string
@@ -727,7 +569,6 @@ export interface BranchDiff {
   integrity: IntegrityWarning[]
 }
 
-/** `export`: a branch's slice as one file. A file export, not an upload. */
 export interface FlowExport {
   flow: string
   branch: string
@@ -737,11 +578,6 @@ export interface FlowExport {
 
 export interface BranchRecord {
   branch: string
-  /**
-   * The key the journal scopes transactions by. Branches are addressed by name
-   * everywhere a reader can see; this is how a client tells which branch a
-   * transaction landed on, and it is never printed.
-   */
   branch_id: string
   parent: string | null
   forked_at_step: number
@@ -751,13 +587,8 @@ export interface BranchRecord {
   cells: number
   states: Partial<Record<StaleState, number>>
   checkpoint: number | null
-  /**
-   * Where the branch stands, and its newest own step. They differ after a
-   * rewind — the branch stands behind — and until the next change on it.
-   */
   head_step: number
   newest_step: number
-  /** The line the branch stands on. */
   last_intent: TransactionSummary | null
   agent: string | null
 }
@@ -779,7 +610,6 @@ export interface KernelReport {
   kinds?: string[]
 }
 
-/** The flow settings a surface renders; the runtime's own are not among them. */
 export interface FlowSettingsReport {
   reactivity: 'lazy' | 'auto'
   eager_cost_threshold_s: number
@@ -788,15 +618,11 @@ export interface FlowSettingsReport {
 export interface FlowBrief {
   flow: string
   flow_id: string
-  /** Absolute path of the `<name>.flow` directory; the daemon's flow address. */
   path: string
-  /** Absolute path of the workspace whose code and environment the flow uses. */
   workspace: string
   branch: string
   checked_out: boolean
-  /** The newest registration's label, leased or not — attribution, not pairing. */
   agent: string | null
-  /** Every registration, newest first; `leased` is the one that means paired. */
   agent_sessions: AgentSessionRecord[]
   kernel: KernelReport
   settings: FlowSettingsReport
@@ -820,10 +646,8 @@ export interface Preflight {
   target: string
   cached: string[]
   recompute: string[]
-  /** Never run, so no recorded cost — estimated seconds exclude these. */
   unknown: string[]
   estimate_seconds: number
-  /** Why a producer that otherwise looked current must be recomputed. */
   reasons?: string[]
 }
 
@@ -831,7 +655,6 @@ export interface RunOutcome {
   path?: string
   branch: string
   target: string
-  /** Present when the whole lane was requested rather than one target. */
   targets?: string[]
   executed: string[]
   cached: string[]
@@ -865,12 +688,10 @@ export interface AgentHarness {
   error: string | null
 }
 
-/** `agent.payload`: the stored context copied from one cell card. */
 export interface CellContextPayload {
   flow: string
   branch: string
   slug: string
-  /** Lane, slug, step, docstring, and a trimmed failure when present. */
   text: string
 }
 

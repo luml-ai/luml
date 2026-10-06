@@ -1,19 +1,3 @@
-"""The daemon's path-keyed flow sessions, one kernel each.
-
-A flow session is opened once and kept. The daemon is the single writer of
-every `.lumlflow/` store beneath the workspace, and two sessions over one store
-would race on the journal — so sessions are cached by path, and a second
-request for a flow gets the session that is already open.
-
-Nothing here survives a restart, and nothing needs to: the store is the state.
-A session is a store handle, a planner, a queue, and a kernel that has not been
-spawned yet.
-
-The current API still carries a launch directory for name resolution and
-listings. It is not a daemon boundary: sessions are keyed by each flow's
-absolute path and a flow elsewhere opens in the same hub.
-"""
-
 import asyncio
 import logging
 import shutil
@@ -63,9 +47,6 @@ class FlowSession:
         self.experiment_states: queries.ExperimentStates = queries.ExperimentStates(
             tracker
         )
-        # What a file event has to be on for this flow to care: its own cells,
-        # and the shared code of the workspace it runs under. Monitoring belongs
-        # to the flow — an event outside this set is not this session's news.
         self.watch = WatchSet(flow_dir=ref.path, workspace_dir=workspace_dir)
         self.streams = streams
         if streams is not None:
@@ -92,12 +73,7 @@ class FlowSession:
             on_event=self._observed if streams is not None else None,
         )
         self.acceptance = Acceptance(store)
-        # Reactivity's sweep. Armed by whatever moved a verdict, never by its
-        # own runs — see `reactive`.
         self.reactor = Reactor(self)
-        # Cell files as acceptance last found them level with the branch head,
-        # so a burst of verbs re-parses only what actually moved. Session-lived:
-        # a daemon that just started knows nothing and reads everything.
         self.accepted_files: dict[str, AcceptedFile] = {}
         self.worktree = Worktree(store)
 
@@ -107,23 +83,9 @@ class FlowSession:
 
     @property
     def branch(self) -> str:
-        """The branch this session answers for: what the worktree is bound to.
-
-        Reconciliation always runs against this one, whichever branch the op
-        that asked for it names: the files are one branch's slice, and
-        accepting them onto another would hand that branch an edit it never
-        asked for — pin-at-fork says a fork takes updates by adopt or not at
-        all.
-        """
         return self.worktree.branch
 
     def _observed(self, event: str, params: dict[str, Any]) -> None:
-        """A kernel event on its way to whoever is watching this flow.
-
-        Stamped with the last committed step: a run's lifecycle is not itself
-        journaled, and without a position a client could not order it against
-        the transactions it lands between.
-        """
         if self.streams is not None:
             self.streams.kernel(
                 self.ref.address, event, params, step=self.store.next_step - 1
@@ -139,13 +101,10 @@ class FlowSession:
             await self.reactor.stop()
             await self.kernel.stop()
         finally:
-            # A kernel that will not die is no reason to leak the store handle.
             self.store.close()
 
 
 class Hub:
-    """Every flow the daemon hosts, opened on demand and closed together."""
-
     def __init__(
         self,
         *,
@@ -165,9 +124,6 @@ class Hub:
         self._unsubscribe_tracker = tracker.on_experiment_deleted(
             self._experiment_deleted
         )
-        # The trees the open sessions need watched, refcounted so several flows
-        # in one workspace share its watch. Moved here whether or not a watcher
-        # is listening: the hub is what knows when a session begins and ends.
         self.watches = Watches()
 
     def flows(self) -> list[FlowRef]:
@@ -218,13 +174,6 @@ class Hub:
         return matches[0]
 
     def open(self, ref: FlowRef, *, actor: str | None = None) -> FlowSession:
-        """Attach to a flow. A clone carries `flow.yaml` but no store; opening
-        it roots a fresh history under the identity git carried.
-
-        The first attach is the cold-start tier of reconciliation: whatever
-        happened to the files while no daemon was watching lands now, as the
-        one coarse offline transaction it honestly is.
-        """
         self._remember_loop()
         session = self._sessions.get(ref.path)
         if session is not None:
@@ -238,32 +187,15 @@ class Hub:
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
         envs.sync(session.workspace_dir, [session])
         session.reconcile(tier="cold", actor=actor)
-        # Opening is where reactivity catches up on a workspace nobody was
-        # watching: the offline edits have just landed, and cells left unsynced
-        # by the last session are unsynced still. Armed whatever the cold start
-        # found, because "nothing changed on disk" is not "nothing to refresh".
         session.reactor.arm()
         return session
 
     def attached(self, path: Path) -> FlowSession | None:
-        """The session already open over this flow directory, or None.
-
-        Never opens one. What the watcher is for is waking a flow somebody is
-        watching; a flow nobody opened has no session to wake, and whatever
-        moved under it while nobody was looking is the cold-start tier's to take
-        up when someone does.
-        """
         return self._sessions.get(path)
 
     def opened(
         self, *, here: bool = False, directory: Path | None = None
     ) -> list[FlowSession]:
-        """The flows this daemon currently holds open — the ones with a kernel.
-
-        `here` narrows to the ones this workspace's env governs: a flow opened
-        from above the launch directory runs under its own, so an install here
-        neither reaches it nor is anything it should be reported against.
-        """
         return [
             session
             for session in self._sessions.values()
@@ -271,11 +203,6 @@ class Hub:
         ]
 
     def running(self) -> int:
-        """Runs in flight across every flow this process holds open.
-
-        What makes the difference between plumbing that may be replaced and a
-        process carrying work somebody is waiting on.
-        """
         if self._streams is None:
             return 0
         return sum(
@@ -291,7 +218,6 @@ class Hub:
         lane: str | None = None,
         cell: str | None = None,
     ) -> None:
-        """Push an ephemeral state hint at this flow's current journal step."""
         if self._streams is None:
             return
         self._streams.state(
@@ -328,17 +254,9 @@ class Hub:
         env_changed = envs.sync(session.workspace_dir, [session])
         moved = session.reconcile(tier=tier, actor=actor).moved
         if workspace_changed or env_changed or moved:
-            # A cell, shared-code, or environment fact moved, so a previously
-            # declined refresh may now be safe to try.
             session.reactor.arm()
 
     def init_flow(self, directory: Path, name: str) -> FlowSession:
-        """Scaffold a new flow in the workspace, unbound.
-
-        Binding the worktree and projecting `main` into `cells/` is the
-        checkout, which `lumlflow init` and the browser's init-here gesture
-        perform on top of this; the API path leaves the flow unbound.
-        """
         ref = _new_flow_ref(directory.resolve(), name)
         if ref.path.exists():
             raise FlowAlreadyExists(f"`{ref.relpath}` already exists")
@@ -362,11 +280,9 @@ class Hub:
         return session
 
     def _workspace_of(self, ref: FlowRef) -> Path:
-        """The containing directory whose code and environment the flow uses."""
         return ref.path.parent
 
     async def delete_flow(self, ref: FlowRef) -> None:
-        """Remove the flow and everything it owns — its store included."""
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         session = self._sessions.pop(ref.path, None)
@@ -377,7 +293,6 @@ class Hub:
         shutil.rmtree(ref.path)
 
     async def rename_flow(self, ref: FlowRef, name: str) -> FlowRef:
-        """Rename the flow's directory in place. Its store and history move with it."""
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         renamed = _new_flow_ref(ref.path.parent, name)
@@ -394,14 +309,6 @@ class Hub:
         return renamed
 
     async def duplicate_flow(self, ref: FlowRef, name: str) -> FlowRef:
-        """Copy the flow's directory under a new name.
-
-        Its store and history come with it, the same way a clone of it would
-        carry them. The source is untouched, so no cached session of it is
-        disturbed. The copy's kernel directory starts empty and its index is
-        rebuilt from the journal on first open. A copy that fails part-way is
-        removed, so the name stays free for a retry.
-        """
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         duplicated = _new_flow_ref(ref.path.parent, name)
@@ -426,8 +333,6 @@ class Hub:
             try:
                 await session.close()
             except Exception:
-                # One flow that will not close is not a reason to leave the
-                # rest of the workspace open.
                 logger.exception("flow session failed to close")
         self._sessions.clear()
 
@@ -480,7 +385,6 @@ def _duplicate_skips(flow_dir: Path) -> Callable[[str, list[str]], set[str]]:
 
 
 def _new_flow_ref(root: Path, name: str) -> FlowRef:
-    """Where `flow init churn` puts the directory, and what it is called."""
     relative = Path(name.strip().strip("/"))
     if relative.is_absolute() or ".." in relative.parts or not relative.parts:
         raise FlowError(f"`{name}` is not a name a flow can have")

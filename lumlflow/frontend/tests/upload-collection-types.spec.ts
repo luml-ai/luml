@@ -1,9 +1,3 @@
-/**
- * The upload dialog offers only the collections LUML would take the upload
- * into. Before this, every collection of the orbit was listed, and picking one
- * of the wrong type came back as "Artifact type is not allowed for this
- * collection type" after the form was filled in.
- */
 
 import { describe, expect, it } from 'vitest'
 import { collectionAccepts, requiredArtifactKinds } from '@/components/upload/collectionTypes'

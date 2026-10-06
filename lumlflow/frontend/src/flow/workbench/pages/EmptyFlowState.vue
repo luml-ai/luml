@@ -25,9 +25,6 @@ import { Button } from 'primevue'
 import type { PairedAgent } from '../model/types'
 import CopyField from '../ui/CopyField.vue'
 
-// An empty surface gets a heading and one line of options — not a grid of
-// cards, not a dashed frame. The command is copyable; everything else is a
-// link, and agent setup stays in the left panel.
 defineProps<{
   paired?: PairedAgent
 }>()
@@ -35,7 +32,6 @@ defineProps<{
 const emit = defineEmits<{
   cheatsheet: []
   notebook: []
-  /** Scaffold the first cell through the daemon rather than the terminal. */
   create: []
   pair: []
 }>()

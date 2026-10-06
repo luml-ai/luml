@@ -47,7 +47,6 @@
       :aria-label="`source of ${props.slug}`"
       :max-height="props.fullHeight ? 'none' : '18rem'"
     />
-    <!-- The same editor, locked: highlighted and numbered before anybody edits. -->
     <UiCodeEditor
       v-else
       :model-value="source"
@@ -87,15 +86,12 @@ const toast = useToast()
 const source = ref('')
 const loadedContext = ref<CellEditContext | null>(null)
 const draftSource = ref('')
-/** Where the draft goes: the context of the source it began from, until a fork moves it. */
 const editContext = ref<CellEditContext | null>(null)
 const isEditing = ref(false)
 const isSaving = ref(false)
 const isConflicted = ref(false)
 const isForkPromptVisible = ref(false)
 
-// A draft and its edit context outlive a reload: only the read-only source
-// under them follows the cell, and a newer version surfaces on save.
 const { isLoading, reload: load } = useCellPanelPayload({
   slug: () => props.slug,
   follows: (cell) => cell.changed_step,
@@ -130,8 +126,6 @@ async function onSave() {
   if (!context) return
   isSaving.value = true
   try {
-    // A draft can outlive a rewind of its lane, so the guard that gated the
-    // edit is asked again, of the lane the edit goes to.
     if (await flowStore.isLaneBehindHead(context.branch, context.flow)) {
       isForkPromptVisible.value = true
       return
@@ -183,7 +177,6 @@ async function land(context: CellEditContext, options: { force?: boolean } = {})
     return
   }
   toast.add(successToast('Code saved successfully'))
-  // The reload rebuilds the edit context, so the next save starts from this one.
   closeEditing()
   await load()
 }

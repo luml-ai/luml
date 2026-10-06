@@ -16,11 +16,6 @@
       <AgentTaskLine :paired="session.paired" :viewed-branch="viewedBranch" @pair="emit('pair')" />
     </div>
 
-    <!--
-      One disclosure idiom for every section, and only the primary lens open: a
-      panel whose content is 2.4× its own scroll area is a panel nobody reads.
-      A lens with nothing on the branch is not rendered at all.
-    -->
     <div class="min-h-0 flex-1 overflow-y-auto">
       <Accordion v-model:value="open" multiple lazy :pt="ACCORDION_PT">
         <AccordionPanel v-for="lens in lenses" :key="lens.value" :value="lens.value">
@@ -55,11 +50,6 @@
           </AccordionContent>
         </AccordionPanel>
 
-        <!--
-          The one home for the journal. It was also a right-hand drawer over the
-          canvas, opened by a button beside it — two mounts of one feed over one
-          set of transactions, and the reader had to learn which was which.
-        -->
         <AccordionPanel value="activity">
           <AccordionHeader :pt="HEADER_PT">
             <span class="flex min-w-0 items-center gap-2 text-base">
@@ -71,8 +61,6 @@
           </AccordionHeader>
           <AccordionContent :pt="CONTENT_PT">
             <div class="flex flex-col gap-2">
-              <!-- A marker, not an inbox: what landed while the reader was away
-                   reads as one window rather than a queue to clear. -->
               <template v-if="sinceCursor.length">
                 <p class="px-1.5 text-sm text-(--p-primary-color)">since you were here</p>
                 <JournalFeed :entries="sinceCursor" />
@@ -151,11 +139,6 @@ import InventoryRows, { type InventoryRow } from './InventoryRows.vue'
 import PackagesPanel from './PackagesPanel.vue'
 import PanelSettings from './PanelSettings.vue'
 
-/**
- * The left panel, scoped to ONE viewed branch: identifier, current agent task,
- * the inventory lenses (all over the same cells — never a second store), and
- * the flow settings. Switching the viewed branch re-scopes all of it.
- */
 const props = withDefaults(
   defineProps<{
     branches: BranchInfo[]
@@ -169,9 +152,7 @@ const props = withDefaults(
     agentsLoading?: boolean
     agentsError?: string | null
     agentsBusy?: string[]
-    /** Head entries that landed while this browser was away — frozen by the page. */
     behind?: number
-    /** A branch op is in flight — the timeline's verbs wait rather than race it. */
     branchBusy?: boolean
   }>(),
   {
@@ -185,9 +166,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'open-graph': []
   'new-branch': []
-  /** Move this branch back to a step it recorded — nothing recomputes. */
   rewind: [step: number]
-  /** Mark the current step under the user's own words. */
   checkpoint: [intent: string, step: number]
   pair: []
   'open-agents': []
@@ -199,10 +178,6 @@ const emit = defineEmits<{
   'restart-kernel': []
 }>()
 
-/**
- * Cells is the lens the reader came for; the rest are opened on demand — by the
- * reader, or by the page when the catch-up marker sends them to the journal.
- */
 const open = defineModel<string[]>('open', { default: () => ['cells'] })
 
 watch(
@@ -234,11 +209,6 @@ const interpreterSentence = computed(() => {
   return `python ${interpreter.path}${source ? ` · source ${source}` : ''}`
 })
 
-/**
- * The viewed branch's history — plus what happened to the workspace under all
- * of them. An env change or a helper edit carries no branch, and hiding it here
- * would drop the cause the staleness chips above are naming.
- */
 function onBranch(entry: JournalEntry): boolean {
   return !entry.branch || entry.branch === props.viewedBranch
 }
@@ -250,18 +220,10 @@ function onBranch(entry: JournalEntry): boolean {
  */
 const split = computed(() => props.behind ?? 0)
 
-/** The window that landed while the reader was away, on this branch. */
 const sinceCursor = computed(() => props.journal.slice(0, split.value).filter(onBranch))
 
 const beforeCursor = computed(() => props.journal.slice(split.value).filter(onBranch))
 
-/**
- * What the timeline navigates: the places on this branch — the steps that
- * changed what it selects. The feed below reads the whole history, this
- * branch's and the workspace's: an env change, a checkout, a note or a rewind
- * are context for the branch, not somewhere it can stand, so they are not rows
- * in a list of positions.
- */
 const onThisBranch = computed(() =>
   props.journal.filter((entry) => entry.branch === props.viewedBranch && entry.position),
 )
@@ -278,12 +240,6 @@ const cellRows = computed<InventoryRow[]>(() =>
   })),
 )
 
-/**
- * The lenses group on the output's **kind**, which is what the cell declared
- * where it declared one of the four words. A preview says the same thing when
- * one has been read, but a lens that waited for previews would list nothing
- * until every card on the branch had fetched its payload.
- */
 function lensRows(kind: 'model' | 'dataset'): InventoryRow[] {
   return props.cells.flatMap((cell) =>
     cell.outputs
@@ -295,14 +251,11 @@ function lensRows(kind: 'model' | 'dataset'): InventoryRow[] {
         title: `${cell.slug}.${output.name}`,
         mono: true,
         detail: detailOf(output),
-        // Reading outside the store is a fact about an input, and the badge
-        // belongs to the lens that is about inputs.
         external: kind === 'dataset' && cell.externalInput,
       })),
   )
 }
 
-/** The headline number, when a preview has been read and carries one. */
 function detailOf(output: CellOutput): string | undefined {
   const metric = output.preview.type === 'model' ? output.preview.headlineMetric : undefined
   return metric ? `${metric.name} ${formatMetric(metric.value)}` : undefined
@@ -329,7 +282,6 @@ const experimentRows = computed<InventoryRow[]>(() =>
 
 const modelRows = computed<InventoryRow[]>(() => lensRows('model'))
 
-/** Dataset outputs plus external-volatility cells — what "input" honestly means at runtime. */
 const dataRows = computed<InventoryRow[]>(() => {
   const rows = lensRows('dataset')
   const listed = new Set(rows.map((row) => row.slug))
@@ -358,7 +310,6 @@ const docRows = computed<InventoryRow[]>(() =>
     })),
 )
 
-/** A lens with nothing on this branch is not a section, it is a header saying zero. */
 const lenses = computed(() =>
   [
     { value: 'cells', rows: cellRows.value },
@@ -369,7 +320,6 @@ const lenses = computed(() =>
   ].filter((lens) => lens.rows.length > 0),
 )
 
-/** First markdown heading of the note, falling back to the slug. */
 function noteTitle(cell: FlowCell): string {
   for (const output of cell.outputs) {
     if (output.preview.type !== 'note') continue

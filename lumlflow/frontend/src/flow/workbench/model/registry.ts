@@ -1,17 +1,5 @@
 import type { AssetKind, CellOutput, FlowCell } from './types'
 
-/**
- * Which output opens first matters more than it looks: a training cell that
- * returns {model, run, checkpoint, curves} must open on the experiment, not on
- * whichever key came first.
- *
- * The daemon names the primary output and this is the fallback for when it has
- * not, so the two orders have to be the same one — this is `_KIND_ORDER` in
- * `flow/daemon/queries.py`, kind for kind. `unknown` stands in for `pickle`
- * (the daemon's last listed kind, and what an unrecognised kind reads as here);
- * kinds absent from the list — the attachment kinds, a workspace plugin's own —
- * rank after it.
- */
 const PRIMARY_RANKING: AssetKind[] = [
   'experiment',
   'eval',
@@ -57,7 +45,6 @@ export const KIND_LABELS: Record<AssetKind, string> = {
   unknown: 'asset',
 }
 
-/** Producer slug of a reference string: 'features.train_split' → 'features'. */
 export function producerOf(reference: string): string {
   const dot = reference.indexOf('.')
   return dot === -1 ? reference : reference.slice(0, dot)
@@ -69,7 +56,6 @@ export interface SliceEdge {
   input: string
 }
 
-/** Edges of a branch slice, including the consumer input that distinguishes them. */
 export function sliceEdges(cells: FlowCell[]): SliceEdge[] {
   const slugs = new Set(cells.map((cell) => cell.slug))
   const edges: SliceEdge[] = []
@@ -85,12 +71,10 @@ export function sliceEdges(cells: FlowCell[]): SliceEdge[] {
   return edges
 }
 
-/** The immutable mint step used when a flow has no explicit order key. */
 export function authored(cell: FlowCell): number {
   return cell.authoredStep ?? cell.provenance?.step ?? Number.MAX_SAFE_INTEGER
 }
 
-/** Decimal text is the wire format because repeated midpoints can exceed JS precision. */
 export function effectiveOrder(cell: FlowCell): string {
   return cell.order ?? String(authored(cell))
 }
@@ -130,16 +114,6 @@ export function compareOrder(left: string, right: string): number {
   return a.negative ? -magnitude : magnitude
 }
 
-/**
- * Stable topological order for the notebook view: dependencies first, and among
- * the cells no dependency separates, the lower effective key reads first.
- *
- * The pick is one cell at a time rather than a whole ready layer, and that is
- * the part that keeps the promise. A layer would emit every parentless cell
- * before anything downstream, so a root written last would land above cells
- * minted long before it — a new card appearing mid-column, which is the reorder
- * the effective-key priority exists to prevent.
- */
 export function topologicalOrder(cells: FlowCell[]): FlowCell[] {
   const bySlug = new Map(cells.map((cell) => [cell.slug, cell]))
   const edges = sliceEdges(cells)
@@ -158,7 +132,6 @@ export function topologicalOrder(cells: FlowCell[]): FlowCell[] {
       [...incoming.entries()].filter(([, deps]) => deps.size === 0).map(([slug]) => slug),
     )
     if (next === undefined) {
-      // Cycle or dangling reference: append the rest in authoring order.
       ordered.push(...held(incoming.keys()))
       break
     }
@@ -174,7 +147,6 @@ export interface ReorderNeighbours {
   down: string | null
 }
 
-/** Adjacent notebook moves that preserve this lane's producer ordering. */
 export function reorderNeighbours(cells: FlowCell[]): Map<string, ReorderNeighbours> {
   const ordered = topologicalOrder(cells)
   return new Map(

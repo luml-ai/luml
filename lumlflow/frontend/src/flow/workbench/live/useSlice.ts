@@ -1,22 +1,3 @@
-/**
- * One branch's resolved slice, with the daemon's staleness verdicts on it.
- *
- * Viewing a branch is a pure store read — no lock, no kernel, no checkout — so
- * this is free to hold every branch the user has looked at and swap between
- * them instantly, which is what makes the branch graph browsable during a run.
- *
- * Invalidation is deliberately coarse. A journal transaction names the branch
- * it was scoped to by **id**, and the browser knows branches by name, so there
- * is no honest way to tell from a frame alone which cached slice moved. The
- * remedy is not to guess: every commit marks every cached slice stale, the
- * viewed one refetches, and the rest refetch when they are next viewed. A slice
- * read is cheap; a slice quietly showing yesterday's verdicts is not.
- *
- * Coarse in *what* it invalidates, never in *how often*: the session's settled
- * revision is the signal, so a replayed journal and an agent's edit burst each
- * cost one read rather than one per transaction in them.
- */
-
 import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
 
@@ -25,9 +6,7 @@ import type { FlowSessionHandle } from './useFlowSession'
 
 export interface SliceHandle {
   cells: Ref<CellSummary[]>
-  /** Current on their own facts but sitting below something that is not. */
   transitive: ComputedRef<CellSummary[]>
-  /** Not current in their own right — the view the workbench leads with. */
   direct: ComputedRef<CellSummary[]>
   loading: Ref<boolean>
   error: Ref<string | null>

@@ -19,11 +19,6 @@ import type { TrackerExperiment } from '@/flow/api/types'
 import type { CellErrorInfo } from '../../model/types'
 import { terminalText } from '@/utils/terminal'
 
-/**
- * Logs of the current materialization; while a cell runs this still holds the
- * previous run's output (the live stream is the console tab). Tracebacks land
- * here for every failure — demotion hides them from the card face, not from logs.
- */
 const props = defineProps<{
   logs?: string
   error?: CellErrorInfo

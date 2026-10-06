@@ -1,10 +1,3 @@
-"""The kernel's end of the link: framing, dispatch, and the inline lane.
-
-Pinned here is the transport contract the daemon is written against — one JSON
-line per message, an answer for every `id`, events with no `id`, and a reader
-thread that keeps answering while the worker holds a run.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -34,11 +27,7 @@ class _Handler:
 
 
 class _Daemon:
-    """The other end of the socket, driven by hand."""
-
     def __init__(self, sock: socket.socket) -> None:
-        # Every read is bounded: a kernel that never answers fails the test
-        # instead of hanging the suite.
         sock.settimeout(_TIMEOUT_S)
         self._sock = sock
         self._reader = sock.makefile("rb")

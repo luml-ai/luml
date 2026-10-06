@@ -24,7 +24,6 @@ import type { ActorRef } from '../model/types'
 
 defineProps<{
   actor: ActorRef
-  /** Render the mixed-editing-window flag instead of a confident wrong name. */
   uncertain?: boolean
   muted?: boolean
 }>()

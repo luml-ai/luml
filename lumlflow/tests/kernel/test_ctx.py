@@ -1,10 +1,3 @@
-"""`ctx`: what a cell may reach for, and what reaching for it costs.
-
-Two of these handles are recorded rather than trusted — reading the branch
-makes a run identity-dependent, reaching outside the flow makes it external —
-because the scheduler's claims about reuse depend on knowing.
-"""
-
 from __future__ import annotations
 
 import random
@@ -93,8 +86,6 @@ def test_the_tracker_records_locally_and_reaches_nothing(tmp_path):
         "params": {"lr": 3e-4, "optimizer": "adamw", "seed": 1337},
         "metrics": {"auc": 0.91, "f1": 0.83},
     }
-    # Recording is not identity, and it is not a reach outside the flow: a run
-    # that only logged its own numbers stays memoizable.
     assert seen == []
 
 
@@ -109,8 +100,6 @@ def test_a_metric_that_is_not_a_number_says_where_it_belongs(tmp_path):
 
     with pytest.raises(ValueError, match="param"):
         ctx.tracker.log_metric("notes", "ran overnight")
-    # A bool is not a measurement either — it would render as 1 and compare as
-    # one, which is not what was recorded.
     with pytest.raises(ValueError, match="number"):
         ctx.tracker.log_metric("converged", True)
     assert ctx.tracker.record.snapshot["metrics"] == {}

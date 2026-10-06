@@ -1,5 +1,3 @@
-"""Canonical JSON serialization and the sha256 hashes derived from it."""
-
 import hashlib
 import json
 from pathlib import Path
@@ -9,7 +7,6 @@ _FILE_CHUNK_BYTES = 1 << 20
 
 
 def canonical_json(value: Any) -> bytes:
-    """Sorted keys, no insignificant whitespace, NaN/Infinity rejected."""
     return json.dumps(
         value,
         sort_keys=True,

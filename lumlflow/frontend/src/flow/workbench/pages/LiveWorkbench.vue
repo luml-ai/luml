@@ -78,7 +78,6 @@
         </div>
 
         <div class="min-h-0 flex-1">
-          <!-- A branch still being read is not a branch with nothing on it. -->
           <p v-if="slice.loading.value && !cells.length" class="px-1 text-base text-muted-color">
             reading the lane…
           </p>
@@ -220,17 +219,6 @@ import EmptyFlowState from './EmptyFlowState.vue'
 import NotebookColumn from './NotebookColumn.vue'
 import WorkbenchTopBar from './WorkbenchTopBar.vue'
 
-/**
- * The workbench on a live session: one screen, two views over the same branch
- * slice and the same cards.
- *
- * Which branch is **viewed** is this screen's own state and costs nothing —
- * reading another branch is a store read, no lock and no kernel — while
- * checking one out rebinds the single worktree and is the one gesture here
- * that touches files. The left panel, both views and the URL all re-scope
- * together, because a panel describing one branch beside a canvas drawing
- * another is worse than either alone.
- */
 const props = defineProps<{
   session: FlowSessionHandle
   stream: FlowStream
@@ -252,25 +240,14 @@ const viewedBranch = computed(() => selection.viewedBranch.value)
 const slice = useSlice(session, viewedBranch)
 const canvasState = shallowRef<CanvasSessionState | null>(null)
 
-// --- the transitive filter --------------------------------------------------
-
 const showTint = ref(false)
 
-// The direct view is what a cell's own facts say; these three states are its
-// members and are counted apart, because "stale" is a claim against a baseline
-// and one of them has no baseline to make it against.
 const unsynced = computed(() => slice.direct.value.filter((cell) => cell.state === 'unsynced'))
 const unmaterialized = computed(() =>
   slice.direct.value.filter((cell) => cell.state === 'unmaterialized'),
 )
 const transitive = computed(() => slice.transitive.value)
 
-/**
- * With the filter off, a transitively stale cell renders as what it is on its
- * own facts — current — and the header count above is what keeps it findable.
- * The filter is applied to the summary the card renders rather than to the
- * chip, so the two views and the panel cannot disagree about it.
- */
 const shown = computed<CellSummary[]>(() =>
   slice.cells.value.map((cell) =>
     cell.transitive && !showTint.value ? { ...cell, transitive: false, upstream: [] } : cell,
@@ -281,7 +258,6 @@ const shownBySlug = computed(() => new Map(shown.value.map((cell) => [cell.slug,
 
 const running = computed(() => new Set(session.running.value.map((entry) => entry.slug)))
 
-/** The slice as cards: what the two views lay out and the panel lists. */
 const cells = computed(() =>
   shown.value.map((summary) => summarized(summary, running.value.has(summary.slug))),
 )
@@ -292,11 +268,6 @@ const tintedSlugs = computed(
   () => new Set(showTint.value ? transitive.value.map((cell) => cell.slug) : []),
 )
 
-/**
- * The counts the bar states, and the first cause behind them. The cause is the
- * daemon's own sentence off the first unsynced cell — naming *which* cells is
- * the panel's job and the cards', and repeating it here was the fourth channel.
- */
 const staleCounts = computed<StaleCounts | undefined>(() => {
   const counts = {
     unsynced: unsynced.value.length,
@@ -335,25 +306,16 @@ const staleCounts = computed<StaleCounts | undefined>(() => {
   return total > 0 ? counts : undefined
 })
 
-// --- selection and cross-navigation -----------------------------------------
-
 function onSelect(slug: string): void {
   if (selection.selectedSlug.value === slug) return
   selection.selectedSlug.value = slug
 }
 
-// A branch that does not carry the selected cell cannot keep pointing at it.
 watch(shownBySlug, (bySlug) => {
   const slug = selection.selectedSlug.value
   if (slug && bySlug.size > 0 && !bySlug.has(slug)) selection.selectedSlug.value = null
 })
 
-// --- the cards --------------------------------------------------------------
-
-/**
- * The card is the same one in both views, bound the same way — spelling the
- * bindings out twice is how the two densities start to differ by accident.
- */
 function cardProps(slug: string, selected: boolean, density: 'canvas' | 'notebook') {
   const moves = moveNeighbours.value.get(slug)
   return {
@@ -363,8 +325,6 @@ function cardProps(slug: string, selected: boolean, density: 'canvas' | 'noteboo
     summary: shownBySlug.value.get(slug)!,
     density,
     selected,
-    // Other branches waiting on this cell's run: what makes stop read as
-    // leaving rather than as cancelling.
     awaiters: Math.max(0, (inFlight.value.get(slug)?.awaiting ?? 1) - 1),
     renamedFrom: justRenamed.value.get(slug),
     canMoveUp: moves !== undefined && moves.up !== null,
@@ -372,11 +332,6 @@ function cardProps(slug: string, selected: boolean, density: 'canvas' | 'noteboo
   }
 }
 
-/**
- * A rename that just landed, so the card can say it is the same cell under a
- * new name. Only the newest transaction is read: an agent's `mv` arrives as a
- * `renamed` op, and the next thing that happens is what retires the note.
- */
 const justRenamed = computed(() => {
   const latest = session.transactions.value.at(-1)
   return new Map(
@@ -399,33 +354,23 @@ function cardEvents(slug: string) {
 
 const inFlight = computed(() => new Map(session.running.value.map((run) => [run.slug, run])))
 
-/**
- * How far behind the reader was when they attached. The panel's feed draws its
- * divider here; read live it would be zero by the time the section painted,
- * because opening the section is what marks the window seen.
- */
 const openedBehind = ref(session.changesBehind.value)
 
 watch(session.changesBehind, (count) => {
   if (count > openedBehind.value) openedBehind.value = count
 })
 
-// --- ops --------------------------------------------------------------------
-
 const graphVisible = ref(false)
 
-/** Which panel sections are open — the catch-up marker's destination. */
 const panelOpen = ref<string[]>(['cells'])
 const renaming = ref(false)
 const renameFrom = ref('')
 const renameTo = ref('')
 const branchClosure = ref<Preflight | null>(null)
-/** Bumped whenever the branch closure in hand stops describing this branch. */
 let plans = 0
 const kernelDeath = ref<{ slug: string; cause?: string } | null>(null)
 
 function refused(failure: unknown): void {
-  // Stepping back from a gesture is not something lumlflow refused.
   if (failure instanceof MoveCancelled) return
   toast.add({
     severity: 'warn',
@@ -439,11 +384,6 @@ function acknowledge(summary: string, detail: string): void {
   toast.add({ severity: 'secondary', summary, detail, life: 4000 })
 }
 
-/**
- * A run, and the one failure that is not the cell's: a kernel that died takes
- * the queue with it and is a banner rather than a traceback, because nothing
- * about the cell explains it.
- */
 async function onRun(slug: string, payload: { force: boolean }): Promise<void> {
   try {
     await ops.run(slug, { branch: viewedBranch.value, force: payload.force })
@@ -456,11 +396,6 @@ async function onRun(slug: string, payload: { force: boolean }): Promise<void> {
   }
 }
 
-/**
- * Stop is honest about its scope twice over: it stops the run only when this
- * branch was the last one waiting on it, and it never claims to have stopped
- * the agent — that process is not ours.
- */
 async function onStop(): Promise<void> {
   try {
     const left = await ops.cancel(viewedBranch.value)
@@ -475,8 +410,6 @@ async function onStop(): Promise<void> {
     refused(failure)
   }
 }
-
-// --- editing ----------------------------------------------------------------
 
 async function onAddCell(after?: string): Promise<void> {
   try {
@@ -506,12 +439,8 @@ async function onMove(slug: string, direction: 'up' | 'down'): Promise<void> {
   }
 }
 
-/** Duplicating carries the source and its inputs across under a new identity. */
 async function onDuplicate(slug: string): Promise<void> {
   try {
-    // The slice carries no source — only a card's detail does — so the body is
-    // read here. Without it the copy would be a blank scaffold, which is the
-    // one thing a duplicate must not be.
     const original = await session.request('cells.show', {
       flow: session.brief.value?.path,
       branch: viewedBranch.value,
@@ -553,9 +482,6 @@ async function onRenameConfirm(): Promise<void> {
   }
 }
 
-// --- run controls over the whole branch --------------------------------------
-
-/** Cells nothing else on this branch consumes — where rerunning a branch ends. */
 const leaves = computed(() => {
   const consumed = new Set(
     cells.value.flatMap((cell) => cell.consumes.map((ref) => ref.split('.')[0])),
@@ -628,11 +554,6 @@ function onRemoveAgent(id: string): Promise<void> {
   return harnesses.remove(id)
 }
 
-/**
- * The catch-up marker's destination: the panel's activity section, which is the
- * journal's one home. Opening it is what marks the window seen — the count is
- * about what the reader has not looked at, and the feed is looking at it.
- */
 function onOpenActivity(): void {
   if (!panelOpen.value.includes('activity')) panelOpen.value = [...panelOpen.value, 'activity']
   session.markSeen()
@@ -643,27 +564,11 @@ async function onRestartAfterDeath(): Promise<void> {
   await onRestartKernel()
 }
 
-// A closure computed against a branch that has since moved is a plan for a
-// different flow; it is re-asked for when the popover next opens.
 watch([viewedBranch, () => session.head.value], () => {
   branchClosure.value = null
   plans += 1
 })
 
-// --- what the journal announces ----------------------------------------------
-
-/**
- * Transactions become toasts, coalesced by intent and demoted by authorship.
- *
- * Only what arrived since the last pass is announced: re-toasting the window
- * the session keeps would replay an agent's whole morning on every reconnect.
- *
- * Announcing starts at the catch-up. Subscribing replays the journal from the
- * client's cursor — the whole of it on a first load — and that window is
- * history, counted by the catch-up marker. Toasting it would greet a reopened
- * workbench with an inbox, including red failure toasts for runs that failed
- * yesterday.
- */
 let announced: number | null = null
 
 const stopWatchingReplay = props.stream.onFrame((frame) => {
@@ -699,14 +604,6 @@ watch(
   },
 )
 
-// --- the agent that stopped --------------------------------------------------
-
-/**
- * A session that ended leaving something outstanding is a state, not an event:
- * the banner stays until the outstanding thing is dealt with. What it never
- * does is say why the agent stopped — a clean `agent_end` and a killed process
- * look the same from here, and only one of them is journaled.
- */
 const latestAgentEnd = computed(() => {
   let latest: number | null = null
   for (const entry of session.transactions.value) {
@@ -734,29 +631,20 @@ const agentEnded = computed(
     (failedCell.value !== undefined || endedUnsynced.value.length > 0),
 )
 
-/** The banner hangs under the cell the trouble is about, not over the screen. */
 const endedUnder = computed(() => {
   if (!agentEnded.value) return null
   if (failedCell.value) return failedCell.value.slug
   return endedUnsynced.value.at(-1)?.slug ?? null
 })
 
-/** Viewing is free; this is the read that scopes the whole screen. */
 function onViewBranch(name: string): void {
   selection.viewedBranch.value = name
   graphVisible.value = false
 }
 
-// --- moving between branches, and within one ---------------------------------
-
 const forking = ref(false)
 const forkRefusal = ref<string | null>(null)
 
-/**
- * One op at a time across all three verbs. Forking, rewinding and marking all
- * land as transactions on the same branch, and a second one launched over the
- * first would be a gesture aimed at a branch that has already moved.
- */
 const branchBusy = ref(false)
 
 function onNewBranch(): void {
@@ -764,11 +652,6 @@ function onNewBranch(): void {
   forking.value = true
 }
 
-/**
- * A fork off the viewed branch at its head, and then the new branch is what
- * this screen reads. Landing anywhere else would mint a branch and leave the
- * user looking at the one they forked from, with nothing to say which is which.
- */
 async function onFork(name: string): Promise<void> {
   if (branchBusy.value) return
   branchBusy.value = true
@@ -783,20 +666,12 @@ async function onFork(name: string): Promise<void> {
       `from ${from} · ${formatCount(created.cells, 'cell')}. no file and no value is copied.`,
     )
   } catch (failure) {
-    // Named in the dialog rather than in a toast: a name already taken is
-    // about the field the user is still standing in.
     forkRefusal.value = failure instanceof Error ? failure.message : String(failure)
   } finally {
     branchBusy.value = false
   }
 }
 
-/**
- * Rewind moves the branch to a step and restores the selection it had there.
- * Nothing recomputes, nothing is lost and no step is added — the steps after
- * it stay in the journal, which is what makes moving forward again the same
- * gesture. The branch stands there until the next change on it.
- */
 async function onRewind(step: number): Promise<void> {
   if (branchBusy.value) return
   branchBusy.value = true
@@ -814,15 +689,6 @@ async function onRewind(step: number): Promise<void> {
   }
 }
 
-// --- changes from behind the newest step ------------------------------------
-
-/**
- * The question every moving op asks first, answered here because this page
- * owns the dialog and the lane the screen lands on. A branch standing on its
- * newest step needs no question. One standing behind — rewound, and left there
- * on purpose — gets asked once per gesture whether the change goes on this
- * lane, moving it on from where it stands, or on a new lane started there.
- */
 interface FromHere {
   branch: string
   head: number
@@ -833,7 +699,6 @@ interface FromHere {
 const fromHere = ref<FromHere | null>(null)
 const fromHereRefusal = ref<string | null>(null)
 
-/** Open while a gesture waits on the answer; closing it is stepping back. */
 const fromHereOpen = computed({
   get: () => fromHere.value !== null,
   set: (open: boolean) => {
@@ -846,7 +711,6 @@ function askWhereFrom(branch: string): Promise<string | null> {
   if (!standing || standing.newestStep === undefined || standing.newestStep <= standing.headStep) {
     return Promise.resolve(branch)
   }
-  // A second gesture while the first is being asked about gets no answer.
   if (fromHere.value) return Promise.resolve(null)
   fromHereRefusal.value = null
   return new Promise((settle) => {
@@ -867,7 +731,6 @@ function settleFromHere(target: string | null): void {
   asked?.settle(target)
 }
 
-/** A lane from where the branch stands, and the gesture lands on it — so the screen does too. */
 async function onLaneFromHere(name: string): Promise<void> {
   const asked = fromHere.value
   if (!asked || branchBusy.value) return
@@ -888,7 +751,6 @@ async function onLaneFromHere(name: string): Promise<void> {
   }
 }
 
-/** The one op whose content is the user's sentence rather than an auto-intent. */
 async function onCheckpoint(intent: string, step: number): Promise<void> {
   if (branchBusy.value) return
   branchBusy.value = true
@@ -908,7 +770,6 @@ async function onCheckpoint(intent: string, step: number): Promise<void> {
 async function onCheckout(name: string): Promise<void> {
   try {
     await ops.checkout(name)
-    // The files now hold this branch, so the screen follows them.
     selection.viewedBranch.value = name
     graphVisible.value = false
   } catch (failure) {
@@ -924,10 +785,6 @@ async function onArchive(name: string): Promise<void> {
   }
 }
 
-/**
- * The branches to compare are a selection like any other: they ride the URL, so
- * the comparison is a link and the graph never has to be visited twice.
- */
 function onCompare(names: string[]): void {
   selection.compared.value = names
   graphVisible.value = false
@@ -955,11 +812,6 @@ async function onRestartKernel(): Promise<void> {
   }
 }
 
-/**
- * Settings live in the flow's `flow.yaml`, not in the journal — config for what
- * the runtime does next rather than history. The daemon's answer is what the
- * panel then renders, so a refused write leaves the controls where they were.
- */
 async function onUpdateSettings(next: FlowSettings): Promise<void> {
   try {
     const written = await ops.saveSettings(settingsReport(next))

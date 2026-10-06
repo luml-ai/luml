@@ -1,4 +1,3 @@
-/** Render backtick spans as <code> without a markdown pass; escapes first. */
 export function inlineCodeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

@@ -1,9 +1,4 @@
 class TraceInference:
-    """Run the model sample by sample and log one trace per sample.
-
-    Every trace has a root `infer_sample` span with three nested spans:
-    `preprocess`, `predict` and `score`. Latency and hit-rate go to metrics.
-    """
     uid = "01M36VS713F4JW29MD0SJ741RB"
 
     consumes = {"model": "train_model.model", "x_test": "features.x_test"}

@@ -13,11 +13,6 @@
       <template #icon><Info :size="14" class="shrink-0" /></template>
       <span v-if="label">{{ label }}</span>
     </Button>
-    <!--
-      Full-basis so the note takes a line of its own rather than trailing its
-      subject; the reading width is set inside, because a max-width on the flex
-      item itself would let it fit beside the subject and never wrap.
-    -->
     <p
       v-show="open"
       :id="noteId"
@@ -35,20 +30,9 @@ import { ref, useId } from 'vue'
 import { Button } from 'primevue'
 import { Info } from 'lucide-vue-next'
 
-/**
- * A note that is not on screen until it is asked for. The default view of a
- * surface carries the control and its state; the reason behind it lives here,
- * one deliberate click away and reachable from the keyboard.
- *
- * The root box is `display: contents`, so the toggle and the note are laid out
- * by the host: drop it in a `flex flex-wrap` row and the toggle sits beside its
- * subject while the note wraps to its own full-width line under it.
- */
 withDefaults(
   defineProps<{
-    /** Visible text beside the ⓘ; empty renders the glyph alone. */
     label?: string
-    /** What the note is about, for the button's accessible name. */
     subject?: string
   }>(),
   { label: 'why', subject: '' },

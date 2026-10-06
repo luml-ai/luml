@@ -1,10 +1,3 @@
-"""The read side: the brief, the fork tree, the comparison, the preview.
-
-These are the shapes every surface renders, so what is asserted here is the
-vocabulary as much as the values — causes in words, branches by name, and no
-identifier a reader has no use for.
-"""
-
 from pathlib import Path
 from typing import Any
 
@@ -64,12 +57,6 @@ async def test_the_brief_carries_the_failure_an_agent_has_to_read(tmp_path: Path
 async def test_marking_a_point_gives_the_brief_a_checkpoint_it_could_not_compute(
     tmp_path: Path,
 ):
-    """The badge answers "is it whole"; the marker answers "is this the one".
-
-    A branch with a failed cell can never settle, so it has no computed
-    checkpoint at all — which is exactly the state somebody wants to mark a
-    known-good point in.
-    """
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", BROKEN_CELL)
 
@@ -86,8 +73,6 @@ async def test_marking_a_point_gives_the_brief_a_checkpoint_it_could_not_compute
     assert marked["intent"] == "before I rewrite the scorer"
     assert brief["checkpoint"]["step"] == marked["step"]
     assert brief["checkpoint"]["mark"] == "before I rewrite the scorer"
-    # The words ride on the step they name: the history's newest line is still
-    # the run, now carrying the mark, and no line was added for the marking.
     assert brief["recent"][0]["step"] == marked["step"]
     assert brief["recent"][0]["mark"] == "before I rewrite the scorer"
     assert brief["recent"][0]["intent"] != "before I rewrite the scorer"
@@ -126,17 +111,12 @@ async def test_a_checkpoint_with_nothing_to_say_is_refused(tmp_path: Path):
 async def test_a_rewind_moves_the_branch_and_the_tree_says_where_it_stands(
     tmp_path: Path,
 ):
-    """A rewound branch stands on the step, behind its newest one: no step is
-    added, the last intent is the one it stands on, and a lane started from it
-    starts there."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         recent = (await api.context({"flow": "churn"}))["recent"]
-        # Binding the files is the newest line, and not a place: the branch
-        # stands on the accept before it.
         assert recent[0]["position"] is False
         earlier = next(entry["step"] for entry in recent if entry["position"])
         await api.cells_edit(
@@ -165,9 +145,6 @@ async def test_a_rewind_moves_the_branch_and_the_tree_says_where_it_stands(
 
 
 async def test_a_rewind_wakes_no_sweep_and_stays_where_it_was_put(tmp_path: Path):
-    """Rewinding promises that nothing recomputes. A sweep that then reused a
-    cached result would be a line the branch did not ask for, moving it off
-    the step it was just put on."""
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -203,9 +180,6 @@ async def test_a_rewind_wakes_no_sweep_and_stays_where_it_was_put(tmp_path: Path
 
 
 async def test_a_checkpoint_marks_the_step_it_names_and_adds_none(tmp_path: Path):
-    """The words go on the step, like a commit message on its commit, and the
-    branch stands where it stood: the newest step before and after is the same
-    one, and an older step can be named outright."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -258,7 +232,6 @@ async def test_the_fork_tree_says_where_each_branch_split_and_how_it_stands(
     assert main["parent"] is None and main["checked_out"]
     assert main["agent"] == "claude-1"
     assert sweep["parent"] == "main" and sweep["forked_at_step"] > 0
-    # A fork inherits the verdicts, so it does not read as never-run.
     assert sweep["states"] == {"synced": 1}
     assert sweep["agent"] is None
     assert sweep["last_intent"]["intent"] == "try it higher"
@@ -349,8 +322,6 @@ async def test_the_fork_tree_carries_the_key_the_journal_scopes_by(tmp_path: Pat
 
     forked = _branch(tree, "sweep")["branch_id"]
     assert forked and forked != _branch(tree, "main")["branch_id"]
-    # Which is the point of serving it: a client reading the stream has the
-    # branch as an id and its surfaces speak names.
     scoped = [line for line in history["transactions"] if line["branch"] == forked]
     assert [line["intent"] for line in scoped] == ["try it higher"]
 
@@ -372,23 +343,17 @@ async def test_a_cell_summary_names_its_kinds_its_steps_and_what_it_reads(
                 "source": SCORE_CELL.replace("0.91", "0.92"),
             }
         )
-        # Written after the others, so its mint step is genuinely later — and
-        # its name would sort it first.
         write_cell(flow, "load", EXTERNAL_CELL)
         await api.run({"flow": "churn", "target": "load"})
         listed = await api.cells_list({"flow": "churn"})
 
     cells = {entry["slug"]: entry for entry in listed["cells"]}
-    # The declared word wins for what leaves the flow; an `asset` is whatever
-    # its value turned out to be, and nothing has run to say yet for `score`.
     assert cells["train"]["kinds"] == {"model": "model", "run": "experiment"}
     assert cells["load"]["kinds"] == {"rows": "frame"}
     assert cells["score"]["kinds"] == {"summary": "asset"}
     assert len({cell["uid"] for cell in cells.values()}) == len(cells)
-    # Mint order, not the alphabet: `score` was written first and stays first.
     assert cells["score"]["created_step"] < cells["load"]["created_step"]
     assert cells["score"]["changed_step"] > cells["score"]["created_step"]
-    # It read a workspace file, which the store does not version.
     assert (cells["load"]["external"], cells["score"]["external"]) == (True, False)
 
 
@@ -411,11 +376,6 @@ async def test_comparison_lists_a_cell_only_one_branch_carries(tmp_path: Path):
 async def test_comparison_warns_when_a_pin_drifted_and_not_when_it_was_chosen(
     tmp_path: Path,
 ):
-    """Pin-at-fork keeps a sweep comparable; the trunk moving on is what breaks
-    it. A branch holding what it forked with beside a parent that has edited the
-    cell since is comparing two results computed under different code — while a
-    branch that edited the cell itself is showing exactly the difference it
-    chose, which is the whole point of the fork."""
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -452,12 +412,8 @@ async def test_comparison_warns_when_a_pin_drifted_and_not_when_it_was_chosen(
     assert warning["kind"] == "divergent-pin"
     assert (warning["slug"], warning["branches"]) == ("score", ["sweep"])
     assert "`score` is pinned where these lanes split" in warning["message"]
-    # A version the branch wrote itself is the difference it forked to make.
     assert deliberate["integrity"] == []
-    # Neither sibling is the other's parent, so neither drifted against it.
     assert siblings["integrity"] == []
-    # The edited cell is the subject of the comparison, so its sides carry what
-    # each branch produced as well as what each branch says.
     edited = next(entry for entry in drifted["definition"] if entry["slug"] == "score")
     assert [side["state"] for side in edited["versions"]] == ["unsynced", "synced"]
     assert all("params" in side for side in edited["versions"])
@@ -501,8 +457,6 @@ class Summary:
         note = await api.cells_show({"flow": "churn", "slug": "summary"})
         cell = await api.cells_show({"flow": "churn", "slug": "score"})
 
-    # A note's docstring is not a description of the content; it is the content,
-    # so the indentation the file needed must not reach the markdown.
     assert note["note"] is True
     assert note["doc"] == "The sweep so far.\n\n`lr=3e-4` won by a nose."
     assert cell["doc"] == "The headline metric."
@@ -569,8 +523,6 @@ async def test_a_cell_says_who_made_it_who_last_touched_it_and_under_what_intent
     assert provenance["last_edited_by"] == "claude-1"
     assert provenance["intent"] == "raised the threshold"
     assert provenance["step"] > provenance["created_step"]
-    # Nobody else was editing, so the attribution above is a claim the store
-    # can stand behind.
     assert provenance["attribution_uncertain"] is False
 
 
@@ -584,8 +536,6 @@ async def test_an_edit_in_an_agents_window_is_flagged_rather_than_named(
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         await api.agent_begin({"flow": "churn", "label": "claude-1"})
-        # A file edit during a worktree session: it could be the agent, it could
-        # be the human in another window. One worktree cannot tell them apart.
         write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.93"))
         shown = await api.cells_show({"flow": "churn", "slug": "score"})
 
@@ -621,9 +571,6 @@ async def test_a_failure_keeps_the_author_of_the_version_that_broke(tmp_path: Pa
         )
         shown = await api.cells_show({"flow": "churn", "slug": "score"})
 
-    # The head has moved on, but the failure the branch still holds happened to
-    # the agent's version — and a card decides how loudly to say so by who wrote
-    # the code that broke, not by who typed last.
     assert shown["provenance"]["last_edited_by"] == "user"
     assert shown["failed_by"] == "claude-1"
     assert "the model did not converge" in shown["error"]
@@ -647,8 +594,6 @@ async def test_logs_answer_with_the_run_the_branch_observed_even_after_a_rewind(
         rewound = await api.cells_logs({"flow": "churn", "slug": "score"})
 
     assert "second" in latest["logs"] and "first" not in latest["logs"]
-    # Every materialization keeps its own artifact, so a branch that moved back
-    # reads what it observed then — not the newest run in the store.
     assert "first" in rewound["logs"] and "second" not in rewound["logs"]
     assert rewound["state"] == "succeeded"
 
@@ -699,8 +644,6 @@ async def test_only_a_memo_hit_reads_as_reused_never_an_inherited_baseline(
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
-        # Forked before anything ran, so this branch has nothing to inherit and
-        # will have to ask for the result itself.
         await api.fork({"flow": "churn", "name": "early"})
         await api.run({"flow": "churn", "target": "score"})
         await api.fork({"flow": "churn", "name": "late"})
@@ -709,10 +652,7 @@ async def test_only_a_memo_hit_reads_as_reused_never_an_inherited_baseline(
         inherited = await api.cells_list({"flow": "churn", "branch": "late"})
         ran = await api.cells_list({"flow": "churn"})
 
-    # It asked, and a hit answered — which is why a cost sits on a card that
-    # nothing ran for, and the one case the badge is about.
     assert asked["cells"][0]["reused"] is True
-    # A fork inherits verdicts without any work having been skipped for it.
     assert inherited["cells"][0]["reused"] is False
     assert ran["cells"][0]["reused"] is False
 
@@ -736,10 +676,6 @@ def _branch(tree: dict[str, Any], name: str) -> dict[str, Any]:
 async def test_the_fork_tree_says_which_registered_agents_are_really_there(
     tmp_path: Path,
 ):
-    """A row in `agent_sessions` is a registration; a lease is a connection.
-    The tree carries both and marks the difference, because "paired" is the
-    second and a surface must not read it off the first.
-    """
     from lumlflow.flow.daemon.api import Api
     from lumlflow.flow.daemon.hub import Hub
 
@@ -766,6 +702,5 @@ async def test_the_fork_tree_says_which_registered_agents_are_really_there(
     assert by_actor["codex"]["leased"] is True
     assert by_actor["claude-1"]["leased"] is False
     assert "gemini" not in by_actor
-    # The branch's `agent` keeps its old meaning — the newest registration.
     assert _branch(tree, "main")["agent"] == "claude-1"
     assert status["flows"][0]["agent_sessions"] == tree["agent_sessions"]

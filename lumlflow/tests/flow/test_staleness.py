@@ -18,7 +18,6 @@ def store(tmp_path: Path) -> FlowStore:
 
 
 def verdicts(store: FlowStore, branch: str = MAIN_BRANCH) -> dict[str, Verdict]:
-    """Verdicts keyed by slug — the address every surface uses."""
     branch_id = store.branches.get(branch).branch_id
     return {
         verdict.slug: verdict
@@ -63,7 +62,6 @@ class TestStates:
     def test_a_version_that_hashes_the_same_dirties_nothing(
         self, store: FlowStore
     ) -> None:
-        """What a comment-only edit leaves behind: a new version, the same hash."""
         source = "class Features: pass"
         features = accept(store, "features", source=source)
         record_run(store, features)
@@ -188,7 +186,6 @@ class TestCauses:
     def test_a_parent_with_no_baseline_raises_no_cause_of_its_own(
         self, store: FlowStore
     ) -> None:
-        """A parent nothing was observed of proves nothing — `upstream` says it."""
         features = accept(store, "features")
         plot = accept(
             store,
@@ -215,8 +212,6 @@ class TestCauses:
 
 
 class TestEnvironment:
-    """An opted-in cell's key holds the lock hash the workspace has now."""
-
     def test_an_env_change_is_its_own_cause_not_a_code_change(
         self, store: FlowStore
     ) -> None:
@@ -303,7 +298,6 @@ class TestEnvironment:
     def test_an_env_change_alone_does_not_read_as_shared_code(
         self, store: FlowStore
     ) -> None:
-        """With a tree recorded, the code comparison keys on the run's own env."""
         store.commit(
             [WorkspaceCodeChanged(tree_hash="a" * 64, changed_paths=["helpers.py"])],
             intent="shared code discovered",
@@ -320,8 +314,6 @@ class TestEnvironment:
 
 
 class TestCarriedPointers:
-    """Fork and rewind move baselines; the verdicts follow with no flag to set."""
-
     def test_a_fork_inherits_its_parents_verdicts(self, store: FlowStore) -> None:
         features = accept(store, "features")
         record_run(store, features)
@@ -354,8 +346,6 @@ class TestCarriedPointers:
 
 
 class TestPerBranch:
-    """A verdict belongs to one branch: deriving is a read of its own pointers."""
-
     def test_an_edit_on_a_fork_marks_the_fork_and_not_the_parent(
         self, store: FlowStore
     ) -> None:

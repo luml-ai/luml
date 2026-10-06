@@ -1,15 +1,3 @@
-"""A stored model, packaged the way LUML takes one.
-
-LUML stores models as fnnx bundles, and only the flavor that trained a model
-knows how to build one — so this runs where the model's own libraries are: in
-the kernel, on the value the cell returned. The daemon names the value and a
-destination; what comes back is a bundle on disk it can hand to the uploader.
-
-The packaging is `luml`'s own — the same save functions `tracker.log_model`
-calls on a raw estimator — so a model published from a cell is byte-for-byte
-the kind an experiment would have logged.
-"""
-
 from __future__ import annotations
 
 import importlib
@@ -20,7 +8,6 @@ from typing import Any
 
 from lumlflow_kernel.executor import CellError, Executor
 
-#: Rows a flavor sees when inferring a model's input schema from a sample.
 _SAMPLE_ROWS = 5
 
 
@@ -120,9 +107,6 @@ def _inputs_parameter(save: Any) -> tuple[bool, bool]:
 def _sample_value(
     executor: Executor, model: Any, samples: list[dict[str, Any]] | None
 ) -> Any:
-    """The stored frame to take the sample from: the first one whose columns
-    cover the features the model names, or the first frame when it names
-    none or none of them fits."""
     loaded: list[Any] = []
     for sample in samples or []:
         value_ref = str(sample.get("value_ref") or "")
@@ -143,8 +127,6 @@ def _sample_value(
 
 
 def _sample_inputs(model: Any, sample: Any) -> Any:
-    """The head of the training frame, narrowed to the columns the model
-    trained on where it says which those were."""
     if sample is None:
         return None
     frame = _as_pandas(sample)
@@ -160,7 +142,6 @@ def _sample_inputs(model: Any, sample: Any) -> Any:
 
 
 def _as_pandas(value: Any) -> Any:
-    """A pandas frame, from pandas or polars; None for anything else."""
     if hasattr(value, "columns") and hasattr(value, "head"):
         if hasattr(value, "to_pandas") and not hasattr(value, "iloc"):
             try:

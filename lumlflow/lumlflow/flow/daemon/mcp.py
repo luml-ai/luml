@@ -1,25 +1,3 @@
-"""The MCP server: this workspace's daemon, spoken over stdio.
-
-Strictly a wrapper. Every tool here is a daemon call and nothing else, so an
-agent driving a flow through MCP and one driving it through `lumlflow` verbs
-reach the same store through the same door and cannot end up disagreeing about
-what a run did.
-
-The connection is the session. A client's handshake names it, the first tool
-that addresses a flow registers it there, and the hang-up ends it — so an agent
-is paired by connecting and by nothing else, and no harness has to be launched
-through a wrapper to be attributed.
-
-The session never materializes a worktree: no projection, no file plane. Cells
-live in the store, and the session registration attributes file edits while
-exactly one agent is registered. `use-lane` follows from that — it moves this
-session's active lane and nothing else, because putting a lane's cells on disk
-is a gesture only somebody with files performs.
-
-The transport is MCP's: JSON-RPC 2.0, one message per line, stdin to stdout.
-Nothing else may be written to stdout — it is the protocol.
-"""
-
 import contextlib
 import json
 import os
@@ -42,8 +20,6 @@ from lumlflow.flow.errors import (
 )
 
 PROTOCOL_VERSION = "2025-06-18"
-# Older clients are answered in the version they asked for. The wire shape this
-# server uses — initialize, tools, resources — has not moved across these.
 _SPOKEN = frozenset({"2024-11-05", "2025-03-26", PROTOCOL_VERSION})
 
 _FLOW_SCHEME = "flow"
@@ -77,17 +53,6 @@ class _Arg:
 
 @dataclass(frozen=True)
 class _Tool:
-    """A tool and the daemon method it is. `scope` says what it addresses.
-
-    `workspace` tools take the flow as an ordinary argument or not at all;
-    `flow` and `branch` ones resolve which flow they mean — and register the
-    session with it — with `branch` additionally defaulting to the branch this
-    session is on.
-
-    `writes` says the tool changes the flow, which is what takes the files: a
-    session that has only read is not working here yet.
-    """
-
     name: str
     method: str
     describe: str
@@ -132,16 +97,12 @@ _INTENT = _Arg(
     required=True,
 )
 
-#: What the wire calls the arguments a reader now sees under lane names. The
-#: daemon's params did not move, so the schema a reader learns and the payload
-#: the daemon answers are two spellings of one argument.
 _WIRE_NAMES = {
     "lane": "branch",
     "from_lane": "from_branch",
     "lanes": "branches",
 }
 
-#: The daemon's wire vocabulary mapped onto the lane names tools declare.
 _ALIASES = {
     "branch": "lane",
     "from_branch": "from_lane",
@@ -345,9 +306,6 @@ _BY_NAME = {tool.name: tool for tool in TOOLS}
 
 
 class _Refused(Exception):
-    """A message this server will not answer at all, as opposed to a tool that
-    failed — the JSON-RPC error the client gets back."""
-
     def __init__(self, code: int, message: str) -> None:
         super().__init__(message)
         self.code = code
@@ -355,8 +313,6 @@ class _Refused(Exception):
 
 @dataclass
 class _Flow:
-    """A flow this session addresses, and the branch it is working on."""
-
     name: str
     path: str
     branch: str
@@ -365,13 +321,8 @@ class _Flow:
 class Server:
     def __init__(self, directory: Path, *, label: str | None = None) -> None:
         self.directory = directory.resolve()
-        # Named by whoever started this process, when they said — a harness
-        # that spawns MCP servers under a generic name is told apart from the
-        # next one by the `--label` its configuration carries, not by luck.
         self.given = (label or "").strip()
         self.label = self.given or "mcp"
-        # One MCP server process is one session, so its pid is what separates
-        # this session's ops from a second client's under the same name.
         self.actor = f"{self.label}-{os.getpid()}"
         self._daemon: DaemonClient | None = None
         self._named: dict[str, str] = {}
@@ -379,7 +330,6 @@ class Server:
         self._registered: set[str] = set()
 
     def dispatch(self, line: str) -> dict[str, Any] | None:
-        """One message in, one message out — or none, for a notification."""
         try:
             message = json.loads(line)
         except ValueError:
@@ -394,13 +344,8 @@ class Server:
         except _Refused as refused:
             return _failed(request_id, refused.code, str(refused))
         except FlowError as failure:
-            # Reading a resource is not a tool call, so a runtime failure has
-            # nowhere to go but the protocol.
             return _failed(request_id, INVALID_REQUEST, str(failure))
         except Exception as failure:
-            # One message this server could not answer is not the end of the
-            # session — the client is mid-conversation, and the trace belongs on
-            # stderr where it does not corrupt the one on stdout.
             traceback.print_exc()
             return _failed(request_id, INTERNAL_ERROR, str(failure))
         if request_id is None:
@@ -408,13 +353,6 @@ class Server:
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
     def close(self) -> None:
-        """End every session this one opened, and let the daemon go.
-
-        A stdio server's disconnect is stdin closing, so this is where the
-        `agent_end` the pair panel waits for comes from. It is best-effort by
-        necessity: a daemon that has already gone cannot be told anything, and
-        the session has ended either way.
-        """
         for path in sorted(self._registered):
             with contextlib.suppress(FlowError, OSError):
                 self._call("agent.end", {"flow": path, "actor": self.actor})
@@ -429,7 +367,6 @@ class Server:
         if method == "initialize":
             return self._initialize(params)
         if request_id is None:
-            # Every notification MCP defines is about the client's own state.
             return {}
         if method == "ping":
             return {}
@@ -446,13 +383,6 @@ class Server:
         raise _Refused(METHOD_NOT_FOUND, f"no method `{method}`")
 
     def _initialize(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Who is calling, and in which version of the protocol.
-
-        The client's name is what the session is registered under, so the pair
-        panel and the journal say `claude` rather than `agent` — unless the
-        configuration that spawned this process already said what to call it,
-        which is the more deliberate of the two answers and wins.
-        """
         info = params.get("clientInfo") or {}
         named = str(info.get("name") or "").strip()
         explicit = os.environ.get(harnesses.ACTOR_ENV, "").strip()
@@ -468,12 +398,6 @@ class Server:
         }
 
     def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        """A tool's answer, or the sentence saying why there isn't one.
-
-        A failure the runtime named comes back as tool output rather than as a
-        protocol error: it is the caller's to act on — a branch name that does
-        not exist is a typo to fix, not a session to tear down.
-        """
         tool = _BY_NAME.get(name)
         if tool is None:
             raise _Refused(METHOD_NOT_FOUND, f"no tool `{name}`")
@@ -526,11 +450,6 @@ class Server:
         return {"flow": flow.name, "branch": wanted, "projected": None}
 
     def _resources(self) -> list[dict[str, Any]]:
-        """Each flow's cells and results.
-
-        Enumerated against the branch this session is on rather than whichever
-        one has files, so a session that switched reads its own branch back.
-        """
         listed: list[dict[str, Any]] = [
             {
                 "uri": GUIDE_URI,
@@ -572,12 +491,6 @@ class Server:
         return listed
 
     def _resource(self, uri: str) -> dict[str, Any]:
-        """What a URI reads as, on the branch this session is on.
-
-        A name the flow does not know is answered as a missing resource rather
-        than as a failure, which is what lets a client tell a stale URI from a
-        runtime that is not answering.
-        """
         if uri == GUIDE_URI:
             return {
                 "uri": uri,
@@ -614,16 +527,6 @@ class Server:
         ]
 
     def _touch(self, named: Any) -> _Flow:
-        """The flow a tool means, registered with the first time one addresses it.
-
-        Registration is what the pair panel detects, so it is driving that opens
-        it — a client listing resources to fill a picker has not started work
-        here and is not announced as though it had. Driving also resolves and
-        remembers the flow spelling, so an unnamed later call stays on it.
-
-        The registration attributes direct file edits while this is the only
-        agent session on the flow. It never takes or blocks the files.
-        """
         flow = self._flow(named)
         if flow.path not in self._registered:
             # Recorded only once the journal holds it. A begin that did not
@@ -635,12 +538,6 @@ class Server:
         return flow
 
     def _register(self, flow: _Flow) -> None:
-        """Open this session's registration on a flow.
-
-        Leased: the daemon ends what this connection opened when the connection
-        goes, so a client that is killed rather than closed leaves no session
-        standing.
-        """
         self._call(
             "agent.begin",
             {
@@ -652,17 +549,6 @@ class Server:
         )
 
     def _flow(self, named: Any) -> _Flow:
-        """Resolve a flow once, and remember which branch this session is on.
-
-        Which flow an unnamed call addresses is the daemon's answer to give —
-        the error naming the candidates is worth more than a guess here. Opening
-        it `worktree: false` is the whole MCP path in one argument: learn the
-        branch to answer for, and leave the files alone.
-
-        The answer is remembered per spelling, so a session that started
-        addressing the workspace's only flow keeps addressing it after a second
-        one is created rather than being asked which it meant halfway through.
-        """
         key = str(named) if named else ""
         path = self._named.get(key)
         if path is None:
@@ -715,7 +601,6 @@ def serve(
     directory: Path | None = None,
     label: str | None = None,
 ) -> int:
-    """Answer MCP over stdio until the client hangs up."""
     reader = stdin if stdin is not None else sys.stdin
     writer = stdout if stdout is not None else sys.stdout
     _as_utf8(reader)
@@ -736,7 +621,6 @@ def serve(
 
 
 def _as_utf8(stream: TextIO, newline: str | None = None) -> None:
-    """MCP is UTF-8 and newline-framed on every platform this runs on."""
     reconfigure = getattr(stream, "reconfigure", None)
     if reconfigure is None:
         return
@@ -787,7 +671,6 @@ def _failed(request_id: Any, code: int, message: str) -> dict[str, Any]:
 
 
 def _as_read(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Arguments under the names a reader sees, whichever spelling arrived."""
     read = dict(arguments)
     for alias, name in _ALIASES.items():
         if alias in read:
@@ -796,7 +679,6 @@ def _as_read(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 def _as_wire(params: dict[str, Any]) -> dict[str, Any]:
-    """Arguments under the names the daemon has always answered to."""
     wire = {_WIRE_NAMES.get(name, name): value for name, value in params.items()}
     if wire.pop("all_outputs", False):
         wire["outputs"] = "all"

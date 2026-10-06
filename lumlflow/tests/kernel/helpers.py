@@ -1,5 +1,3 @@
-"""A daemon that only records, and a flow to run cells in."""
-
 from __future__ import annotations
 
 import textwrap
@@ -10,8 +8,6 @@ from lumlflow_kernel.kernel import Kernel
 
 
 class FakeLink:
-    """Stands in for the daemon and keeps every event."""
-
     def __init__(self) -> None:
         self.events: list[tuple[str, dict[str, Any]]] = []
         self.stopped = False
@@ -32,7 +28,6 @@ class FakeLink:
 def make_kernel(
     tmp_path: Path, *, link: FakeLink | None = None, files: dict[str, str] | None = None
 ) -> tuple[Kernel, FakeLink]:
-    """A workspace holding one flow, plus whatever workspace files a test needs."""
     workspace_dir = tmp_path / "project"
     flow_dir = workspace_dir / "churn.flow"
     (flow_dir / "cells").mkdir(parents=True, exist_ok=True)
@@ -48,7 +43,6 @@ def make_kernel(
 
 
 def cell_source(body: str, *, name: str = "Cell", declarations: str = "") -> str:
-    """A cell class as the store's bound source holds it."""
     parts = [f"class {name}:", '    """A cell."""']
     parts.extend(_indent(block) for block in (declarations, body) if block.strip())
     return "\n".join(parts) + "\n"

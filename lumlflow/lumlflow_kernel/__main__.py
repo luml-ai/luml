@@ -1,10 +1,3 @@
-"""`<venv-python> -m lumlflow_kernel --socket <addr> --flow-dir <path>`.
-
-The daemon listens and the kernel dials in, so there is no readiness race to
-poll for: by the time this process exists, the socket it was told about is
-already accepting.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -19,7 +12,6 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse(argv)
     flow_dir = args.flow_dir.resolve()
     workspace_dir = (args.workspace_dir or flow_dir.parent).resolve()
-    # `import helpers` works Jupyter-style from anywhere in the workspace.
     root = str(workspace_dir)
     if root not in sys.path:
         sys.path.insert(0, root)

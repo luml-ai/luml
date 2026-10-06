@@ -32,7 +32,6 @@
 
     <p v-if="notice" class="px-1 pt-1 text-sm text-muted-color">{{ notice }}</p>
 
-    <!-- The kernel-free tier ends at expand, and it is announced before it ends. -->
     <Dialog v-model:visible="asking" modal header="Start the kernel?" :style="{ width: '26rem' }">
       <div class="flex flex-col gap-3">
         <p class="text-base">
@@ -90,18 +89,6 @@ import KernelStartHint from '../session/KernelStartHint.vue'
 import CellCard from './CellCard.vue'
 import ExpandDrawer from './ExpandDrawer.vue'
 
-/**
- * One card, bound to the session.
- *
- * The card cluster stays what it was — it renders a `FlowCell` and emits
- * gestures — and this is the seam where that model comes from the daemon
- * instead of a fixture. It owns what is per-card rather than per-page: which
- * tab is on screen, which decides what gets fetched; the expand drawer, because
- * expand is the gesture that may start a kernel; and the ops whose whole
- * context is this cell — its edit, its closure, deletion, and copied context.
- * Renaming still passes up for page state; a forked edit owns its naming dialog
- * here and reports only the lane the page should view.
- */
 const props = defineProps<{
   session: FlowSessionHandle
   stream: FlowStream
@@ -113,7 +100,6 @@ const props = defineProps<{
   awaiters?: number
   canMoveUp?: boolean
   canMoveDown?: boolean
-  /** The name this cell answered to before the rename that just landed. */
   renamedFrom?: string
 }>()
 
@@ -146,7 +132,6 @@ const asking = ref(false)
 const downloading = ref(false)
 const notice = ref<string | null>(null)
 const closure = ref<Preflight | null>(null)
-/** Bumped whenever the closure in hand stops describing the branch it was for. */
 let plans = 0
 const conflict = ref(false)
 const draft = ref<string | null>(null)
@@ -172,8 +157,6 @@ const shown = computed<FlowCell>(() => ({
 
 function onExpand(): void {
   notice.value = null
-  // The drawer replays the run's logs beside the value, so they are wanted
-  // whether or not the reader ever opened the card's logs tab.
   live.readLogs()
   if (!kernelStarted.value) {
     asking.value = true
@@ -187,17 +170,11 @@ function accept(): void {
   expanded.value = true
 }
 
-/** Paging is the request that actually starts the kernel, not opening the drawer. */
 async function onPage(request: { output: string; move: PageMove }): Promise<void> {
   await live.readPage(request.output, request.move)
   if (live.refusal.value) notice.value = live.refusal.value
 }
 
-/**
- * Download, and the run that has to happen first when this branch holds no
- * value yet. Stored bytes cross the browser route; nothing is copied into the
- * daemon's working directory.
- */
 async function onDownload(request: { output: string; materialize: boolean }): Promise<void> {
   downloading.value = true
   notice.value = request.materialize ? `materializing ${slug.value}…` : null
@@ -212,7 +189,6 @@ async function onDownload(request: { output: string; materialize: boolean }): Pr
     startDownload(live.downloadUrl(request.output))
     notice.value = null
   } catch (refused) {
-    // Stepped back from materializing on a rewound lane: nothing to say.
     notice.value = refused instanceof MoveCancelled ? null : said(refused)
   } finally {
     downloading.value = false
@@ -228,18 +204,10 @@ function startDownload(url: string): void {
   link.remove()
 }
 
-/**
- * The closure, asked for when the popover opens rather than for every card on
- * screen. Twenty cards preflighting themselves on render is twenty plans the
- * daemon computed for a question nobody asked.
- */
 async function onPreflight(): Promise<void> {
   const asked = plans
   try {
     const answer = await ops.preflight(slug.value, props.branch)
-    // A plan the branch moved out from under is worse than no plan: the popover
-    // says it is still asking, and a confident number for a head that has since
-    // changed is what "run never happens blind" exists to prevent.
     if (asked !== plans) return
     closure.value = {
       cached: answer.cached,
@@ -253,12 +221,6 @@ async function onPreflight(): Promise<void> {
   }
 }
 
-/**
- * An edit carries the version it started from. The daemon compares it against
- * the head and refuses when they differ, which is the only way a UI edit and an
- * agent's edit of the same cell can both be kept: nothing is written until the
- * reader picks a side.
- */
 function onEditStart(): void {
   editingBase.value = live.base.value
 }
@@ -327,8 +289,6 @@ async function land(source: string, options: { force?: boolean }): Promise<void>
     notice.value = 'cell detail is still loading'
     return
   }
-  // Optimistic only where the store is: the edit reads as pending until the
-  // daemon has taken it, because until then it may still come back a conflict.
   notice.value = 'saving…'
   try {
     await ops.edit(slug.value, source, {
@@ -348,7 +308,6 @@ async function land(source: string, options: { force?: boolean }): Promise<void>
       notice.value = refused.message
       return
     }
-    // Stepped back from the change: the draft stays open, nothing to say.
     if (refused instanceof MoveCancelled) {
       editing.value = true
       notice.value = null
@@ -407,11 +366,6 @@ watch([() => props.branch, () => props.session.head.value], () => {
   plans += 1
 })
 
-/**
- * A draft belongs to the branch it was typed against. Viewing another branch is
- * free and reuses this card, so carrying the conflict menu across would offer to
- * overwrite a version the edit was never based on — on a branch nobody edited.
- */
 watch(
   () => props.branch,
   () => {

@@ -1,16 +1,9 @@
-/**
- * Selecting a cell on the canvas lights the lines that lead to it: its own
- * inputs and, above them, the inputs those were computed from. Nothing
- * downstream lights, and a cell nobody feeds lights nothing.
- */
 
 import { describe, expect, it } from 'vitest'
 
 import { edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
 import type { CellEdge } from '@/components/notebooks/notebooks.interface'
 
-// load → split → train → report, with split also feeding evaluate, and
-// evaluate feeding report through a second input.
 const EDGES: CellEdge[] = [
   { from: 'load', to: 'split', input: 'frame' },
   { from: 'split', to: 'train', input: 'train_set' },

@@ -22,29 +22,18 @@ import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FlowStream, streamToken } from '@/api/streams/flow'
 import type { AgentActivity, AgentClaim, StreamFrame } from '@/api/streams/flow'
 
-/**
- * Where a source was read: the flow and lane an edit of it is saved to, and the
- * version it is saved over. A save goes there whatever is on screen by then.
- */
 export interface CellEditContext {
   flow: string | undefined
   branch: string
   base: string
 }
 
-/** A run the daemon has announced and not yet seen end, by the cell it is of. */
 export interface LiveRun {
   run_id: string
   slug: string
-  /** Announced by the queue but not yet started by the kernel. */
   phase: 'queued' | 'running'
 }
 
-/**
- * What is happening to a cell right now, as opposed to what its stored state
- * says. A run beats an agent's call: when the agent asked for the run, the
- * kernel is what the card is waiting on.
- */
 export type CellLiveState =
   | { kind: 'running'; run_id: string }
   | { kind: 'queued'; run_id: string }
@@ -52,22 +41,12 @@ export type CellLiveState =
       kind: 'agent'
       actor: string
       label: string
-      /** The daemon method the holder is inside of on this cell, if any. */
       tool: string | null
       inCall: boolean
-      /**
-       * Inside a call on this cell, or named it moments ago: the agent is at
-       * work on it. Otherwise it only holds it — closed to other agents, but
-       * nobody is doing anything to it right now.
-       */
       active: boolean
       color: string
     }
 
-/**
- * The colours agents are told apart by: the first connected agent takes the
- * first, and keeps it for as long as it stays connected.
- */
 export const AGENT_COLORS = [
   'var(--p-blue-500)',
   'var(--p-orange-500)',
@@ -77,25 +56,15 @@ export const AGENT_COLORS = [
   'var(--p-green-500)',
 ]
 
-/** How long a claim lasts untouched, until a frame says otherwise. */
 export const DEFAULT_CLAIM_IDLE_MS = 180_000
 
-/**
- * How long after its last call on a cell an agent still reads as working on
- * it. Past this it only holds the cell: the hold lasts minutes so an agent
- * thinking between calls keeps it, but a card that looks busy for minutes
- * after the agent finished says something that is not true.
- */
 export const AGENT_ACTIVE_MS = 30_000
 
-/** One connected agent, as the toolbar shows it. */
 export interface PairedAgent {
   actor: string
   label: string
   color: string
-  /** The cell it holds on the lane on screen, if any. */
   slug: string | null
-  /** The daemon method it is inside of right now, if any. */
   tool: string | null
 }
 
@@ -210,26 +179,11 @@ export const useFlowStore = defineStore('flow', () => {
   const expandedCellId = ref<string | null>(null)
   const uploadExperimentId = ref<string | null>(null)
   const uploadModelTarget = ref<{ slug: string; output: string } | null>(null)
-  /**
-   * How many times the daemon said an experiment a cell's result refers to was
-   * deleted, by cell on the lane on screen. Neither the cell's version nor its
-   * result moves on a deletion, so this is what an output panel follows.
-   */
   const experimentRemovals = ref<Record<string, number>>({})
 
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
-  /**
-   * Every registration on the flow, newest first. Read off `tree`, then kept
-   * current by the daemon's `agents` frames — the lease is the daemon's memory,
-   * and only it can say when a connection is gone.
-   */
   const agentSessions = ref<AgentSessionRecord[]>([])
-  /**
-   * Paired means somebody is on the other end: a leased session. A row without
-   * a lease was registered by hand for attribution, and nobody is behind it.
-   * Oldest connection first, which is what keeps each agent's colour stable.
-   */
   const leasedSessions = computed(() =>
     currentBranch.value?.checked_out
       ? agentSessions.value
@@ -243,20 +197,10 @@ export const useFlowStore = defineStore('flow', () => {
     const at = leasedSessions.value.findIndex((session) => session.actor === actor)
     return AGENT_COLORS[Math.max(at, 0) % AGENT_COLORS.length] as string
   }
-  /**
-   * The runs in flight, as the daemon announces them. Not journaled, so this is
-   * fed by the live frames alone and replaced whole by every catch-up.
-   */
   const liveRuns = ref<LiveRun[]>([])
-  /**
-   * Which agent holds which cell, as the daemon decides it. The daemon is the
-   * one that refuses a second agent, so the card shows its word rather than a
-   * guess made from the calls going by.
-   */
   const agentClaims = ref<AgentClaim[]>([])
   const claimIdleMs = ref(DEFAULT_CLAIM_IDLE_MS)
   const claimIdleMinutes = computed(() => claimIdleMs.value / 60_000)
-  /** The call each agent is inside of right now, by actor. */
   const agentCalls = ref<Record<string, AgentActivity>>({})
   // A claim lapses on its own, unannounced, and this is the clock the card
   // lets go by. It ticks only while there is a claim to lapse.
@@ -278,7 +222,6 @@ export const useFlowStore = defineStore('flow', () => {
     now.value = Date.now()
     keepClock()
   }
-  /** The claims standing on the lane on screen. */
   const liveClaims = computed(() => {
     const branchId = currentBranch.value?.branch_id
     return agentClaims.value.filter(
@@ -290,7 +233,6 @@ export const useFlowStore = defineStore('flow', () => {
     if (!call) return null
     return slug === null || call.slug === null || call.slug === slug ? call : null
   }
-  /** Every connected agent, with the cell it holds and the call it is in. */
   const pairedAgents = computed<PairedAgent[]>(() =>
     leasedSessions.value.map((session) => {
       const claim = liveClaims.value.find((held) => held.actor === session.actor)
@@ -413,7 +355,6 @@ export const useFlowStore = defineStore('flow', () => {
     )
   }
 
-  /** Clear a registration nobody is behind. The daemon announces the new list. */
   async function endAgentSession(actor: string) {
     await workspaceApi.endAgentSession(actor, currentFlow.value ?? undefined)
     await fetchBranches()
@@ -509,12 +450,6 @@ export const useFlowStore = defineStore('flow', () => {
     }
   }
 
-  /**
-   * One journal frame for this flow. What moves the store is refetched after
-   * a quiet moment; what is only live — a run's lifecycle, an agent mid-call —
-   * is kept here, because nothing on the daemon answers "what is happening
-   * right now" except these frames and the catch-up that opens them.
-   */
   function receiveLiveFrame(frame: StreamFrame) {
     if (!('channel' in frame) || frame.channel !== 'journal') return
     if (frame.type === 'lagged') return
@@ -563,8 +498,6 @@ export const useFlowStore = defineStore('flow', () => {
         slug: entry.slug,
         phase: 'running',
       }))
-      // A tab that was away keeps nothing it inferred; what the daemon says
-      // is held and in flight is the whole truth at that moment.
       if (frame.claim_idle_s) claimIdleMs.value = frame.claim_idle_s * 1000
       setClaims(frame.claims ?? [])
       agentCalls.value = Object.fromEntries(
@@ -584,10 +517,6 @@ export const useFlowStore = defineStore('flow', () => {
     scheduleLiveRefetch()
   }
 
-  /**
-   * A change with no transaction behind it. `refreshing` is left to the run
-   * frames that follow it; a removal on another lane changes nothing on screen.
-   */
   function receiveStateFrame(frame: Extract<StreamFrame, { type: 'state' }>) {
     if (frame.state === 'order_changed') {
       scheduleLiveRefetch()
@@ -604,7 +533,6 @@ export const useFlowStore = defineStore('flow', () => {
     scheduleLiveRefetch()
   }
 
-  /** A rewind of the lane on screen, from this tab or any other. */
   function rewindsCurrentLane(ops: unknown[]): boolean {
     const branchId = currentBranch.value?.branch_id
     if (!branchId) return false
@@ -614,12 +542,6 @@ export const useFlowStore = defineStore('flow', () => {
     })
   }
 
-  /**
-   * The lane was moved to another step. Whatever cell an agent held, it held
-   * it at the step the lane left: the card now shows that cell as it stood at
-   * the step the lane went to, and nobody is working on that version. The
-   * daemon lets those claims go and says so; this only gets there first.
-   */
   function leaveMovedLane() {
     const branchId = currentBranch.value?.branch_id
     setClaims(agentClaims.value.filter((claim) => claim.branch_id !== branchId))
@@ -636,9 +558,6 @@ export const useFlowStore = defineStore('flow', () => {
     const runId = frame.run_id
     const others = liveRuns.value.filter((entry) => entry.run_id !== runId)
     if (frame.event === 'awaiting') {
-      // The queue announces a run before the kernel starts it — that is the
-      // moment a cell is "queued". A count that reached zero is the run being
-      // left by everyone who waited on it.
       const held = liveRuns.value.find((entry) => entry.run_id === runId)
       if (frame.awaiting === 0) {
         liveRuns.value = others
@@ -787,10 +706,6 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchCells()
   }
 
-  /**
-   * Read fresh rather than off the lane list: the lane may not be on screen,
-   * and a rewind from another tab may not have reached the list yet.
-   */
   async function isLaneBehindHead(branch: string, flow?: string): Promise<boolean> {
     const tree = await workspaceApi.tree(flow)
     if (flow === (currentFlow.value ?? undefined)) branches.value = tree.branches
@@ -874,7 +789,6 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchBranches()
   }
 
-  /** Mark a step of the lane on screen as a point; its newest step when none is named. */
   async function createPoint(name: string, step?: number) {
     const branch = currentBranch.value?.branch
     if (!branch) throw new Error('No branch to mark')

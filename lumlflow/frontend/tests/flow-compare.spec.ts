@@ -1,14 +1,3 @@
-/**
- * Comparing 2–5 branches, on the daemon's own diff.
- *
- * Three things carry this suite. The **collapse** is the point of the screen: a
- * definition edit renders once as the branching point, and everything below it
- * — same code, different inputs — is one row per asset with a chip per branch,
- * never a fan of identical-code nodes. **Comparability is checked**, so where
- * pin-at-fork stopped holding the warning renders before the numbers do. And
- * **adopt is pick-a-side**: a conflict writes nothing and hands the choice
- * back, rather than quietly taking one branch's version over another's.
- */
 
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -25,11 +14,6 @@ import type { Attached, Handlers } from './fakes'
 
 const SWEEP = ['main', 'exp/lr-3e4', 'exp/lr-1e3', 'exp/lr-3e3', 'exp/lr-1e2']
 
-/**
- * The sweep as the daemon reports it: one cell edited (in two versions across
- * five branches), three assets below it whose results merely moved, one note
- * only trunk carries — and a pin the trunk has moved past.
- */
 function sweepDiff(overrides: Partial<BranchDiff> = {}): BranchDiff {
   return {
     flow: 'churn',
@@ -39,8 +23,6 @@ function sweepDiff(overrides: Partial<BranchDiff> = {}): BranchDiff {
         slug: 'train_model',
         versions: SWEEP.map((branch, index) => ({
           branch,
-          // Five branches, two versions: main and the first fork are still on
-          // what they forked at, the other three took the same edit.
           slug: 'train_model',
           author: index === 0 ? 'user' : 'claude-1',
           step: index < 2 ? 12 : 14,
@@ -236,23 +218,17 @@ describe('the comparison collapses a wide sweep', () => {
   it('renders the edit once and everything below it one row per asset', async () => {
     const { wrapper, live } = await compare()
 
-    // The selection is the graph's; this route asks for exactly those branches.
     expect(asked(live, 'diff')[0].branches).toEqual(SWEEP)
 
     const text = wrapper.text()
-    // One branching point, whatever the branch count — and one side per
-    // distinct version rather than per branch: five branches holding two
-    // versions are two sides, and the params that differ are what they differ by.
     expect(text.match(/definition divergence/g)).toHaveLength(1)
     expect(text.match(/step 1\d/g)).toEqual(['step 12', 'step 14'])
     expect(text).toContain('0.0003')
     expect(text).toContain('0.001')
-    // Same code, different inputs: one row per asset with a chip per branch.
     expect(text).toContain('same code, different inputs')
     for (const slug of ['holdout_eval', 'roc_curve', 'error_analysis']) {
       expect(text.match(new RegExp(slug, 'g'))).toHaveLength(1)
     }
-    // The chips are the branches' own verdicts, in the runtime's words.
     expect(text).toContain('materialized')
     expect(text).toContain('stale')
 
@@ -263,7 +239,6 @@ describe('the comparison collapses a wide sweep', () => {
     const { wrapper, live } = await compare()
 
     expect(wrapper.text()).toContain('Results · train_model')
-    // Columns are one per compared branch, read off each one's stored preview.
     for (const branch of SWEEP) expect(wrapper.text()).toContain(branch)
     expect(asked(live, 'asset.preview').map((params) => params.branch)).toEqual(SWEEP)
     expect(wrapper.text()).toContain('0.84')
@@ -293,7 +268,6 @@ describe('the comparison collapses a wide sweep', () => {
       },
     })
 
-    // A setting listed under "final results" reads as an outcome nobody measured.
     const results = wrapper.text().slice(0, wrapper.text().indexOf('divergence'))
     expect(results).toContain('auc')
     expect(results).not.toContain('epochs')
@@ -321,8 +295,6 @@ describe('the comparison collapses a wide sweep', () => {
       },
     })
 
-    // The run recorded what it was told to do and no number it got. Reading its
-    // `lr` as the result would report a setting as an outcome nobody measured.
     const results = wrapper.text().slice(0, wrapper.text().indexOf('divergence'))
     expect(results).not.toContain('epochs')
     expect(results).toContain('no numbers to compare')
@@ -333,7 +305,6 @@ describe('the comparison collapses a wide sweep', () => {
   it('says an output holds no numbers rather than that nothing materialized', async () => {
     const { wrapper } = await compare({
       handlers: {
-        // Most kinds record no numbers at all — a frame previews as head rows.
         'asset.preview': (params) => ({
           flow: 'churn',
           branch: String(params.branch),
@@ -383,8 +354,6 @@ describe('the comparison collapses a wide sweep', () => {
   it('lists what neither divergence shape covers', async () => {
     const { wrapper } = await compare()
 
-    // Absences and renames are exhaustive but secondary — behind a disclosure,
-    // and not rendered at all until it is opened.
     expect(wrapper.text()).not.toContain('not on exp/lr-3e4')
     await wrapper
       .findAll('[data-pc-name="accordionheader"]')
@@ -455,8 +424,6 @@ describe('the comparison collapses a wide sweep', () => {
   it('marks no column best, because no output declares which way it reads', async () => {
     const { wrapper } = await compare()
 
-    // The green best-dot the fixture comparison draws is a claim the runtime
-    // never recorded; a live comparison shows the numbers and ranks nothing.
     expect(wrapper.find('.text-emerald-600').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('higher is better')
 
@@ -495,11 +462,7 @@ describe('comparability is checked, not assumed', () => {
     expect(text).toContain('divergent pin')
     expect(text).toContain('sweep_config')
     expect(text).toContain('were not computed against the same')
-    // Above the numbers it qualifies: a side-by-side of two results computed
-    // under different code is worse read than not read.
     expect(text.indexOf('divergent pin')).toBeLessThan(text.indexOf('divergence'))
-    // The branches it affects are named — the trunk that moved on is not among
-    // them, since it holds the version the others never picked up.
     const affects = wrapper.findAll('div').find((node) => node.text().startsWith('affects'))
     expect(affects?.text()).toContain('exp/lr-3e4')
     expect(affects?.text()).not.toContain('main')
@@ -542,9 +505,7 @@ describe('adopt is pick-a-side', () => {
       from_branch: 'exp/lr-3e4',
       branch: 'main',
     })
-    // Every mutating call carries the intent the journal will read back.
     expect(String(adopts[0].intent)).toContain('adopted train_model')
-    // The comparison re-reads: the target branch now selects another version.
     expect(asked(live, 'diff').length).toBeGreaterThan(1)
 
     wrapper.unmount()
@@ -573,7 +534,6 @@ describe('adopt is pick-a-side', () => {
       .trigger('click')
     await settle()
 
-    // Nothing was written, and the daemon's own sentence is what is shown.
     expect(wrapper.text()).toContain('edited on both main and exp/lr-3e4')
     expect(wrapper.text()).toContain('nothing changed.')
     expect(adopts.every((call) => !call.force)).toBe(true)

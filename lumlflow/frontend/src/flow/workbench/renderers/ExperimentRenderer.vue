@@ -7,7 +7,6 @@
       <span class="font-mono text-base truncate">{{ preview.runName }}</span>
       <span v-if="preview.tracker?.url" class="flex items-center gap-2 whitespace-nowrap">
         <RouterLink class="link text-sm" :to="preview.tracker.url">open in Experiments</RouterLink>
-        <!-- Upload takes the tracker record straight from the card; no detour through Experiments. -->
         <TrackerUploadLink
           v-if="preview.tracker.state === 'ok'"
           :experiment-id="preview.tracker.id"

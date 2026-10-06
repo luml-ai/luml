@@ -1,6 +1,4 @@
 class CorrelationHeatmap:
-    """Heatmap of pairwise feature correlations, including the target."""
-
     uid = "01M00M61EX9MZJHJD9DE9JY4MX"
     consumes = {"data": "load_data.data"}
     produces = {"plot": "asset"}

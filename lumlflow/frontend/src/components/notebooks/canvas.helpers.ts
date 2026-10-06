@@ -1,11 +1,5 @@
 import type { CellEdge } from '@/components/notebooks/notebooks.interface'
 
-/**
- * The edges that lead into a cell: its own inputs, and the inputs of every
- * cell those came from, all the way up. Selecting a cell lights the whole path
- * its result was computed along, which is what "what feeds this" means on a
- * graph that is not linear.
- */
 export function edgesLeadingTo(edges: CellEdge[], slug: string | null): Set<string> {
   const lit = new Set<string>()
   if (!slug) return lit

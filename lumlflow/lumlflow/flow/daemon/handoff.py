@@ -1,5 +1,3 @@
-"""Cell context copied from the workbench to an agent."""
-
 import re
 from typing import TYPE_CHECKING, Any
 

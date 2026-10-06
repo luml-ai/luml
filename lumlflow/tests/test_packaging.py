@@ -1,11 +1,3 @@
-"""Packaging guarantees: the built web app must reach every artifact.
-
-`lumlflow/static/` is gitignored, `frontend/` needs an npm workspace root that
-only the monorepo has, and the server mounts the SPA only if `static/index.html`
-exists — three places a missing bundle can pass unnoticed. These tests pin the
-build hook's decisions and the pyproject config that carries the bundle.
-"""
-
 import subprocess
 import tarfile
 import tomllib
@@ -34,7 +26,6 @@ def make_project(
     workspace_root: bool,
     bundle: bool,
 ) -> Path:
-    """Lay out a project root and return it; the hook reads `root/..` too."""
     workspace = tmp_path / "workspace"
     root = workspace / "lumlflow"
     (root / "lumlflow").mkdir(parents=True)
@@ -53,7 +44,6 @@ def make_project(
 
 
 def run_hook(root: Path) -> None:
-    """Drive `initialize` the way hatchling does, minus the builder machinery."""
     hook = FrontendBuildHook(
         str(root), {}, cast(Any, None), cast(Any, None), str(root), "wheel"
     )
@@ -61,8 +51,6 @@ def run_hook(root: Path) -> None:
 
 
 class NpmRecorder:
-    """Stands in for `subprocess.run`; optionally emits a dist/ like vite would."""
-
     def __init__(self, dist_dir: Path | None = None) -> None:
         self.commands: list[list[str]] = []
         self.cwds: list[Path] = []

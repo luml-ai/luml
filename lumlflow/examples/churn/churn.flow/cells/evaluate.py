@@ -1,6 +1,4 @@
 class Evaluate:
-    """Evaluate the trained model on the held-out test split."""
-
     uid = "01M00KZ617GMHXT002D3K9VG7W"
     consumes = {"model": "train_model.model", "test": "split.test"}
     produces = {"metrics": "experiment"}

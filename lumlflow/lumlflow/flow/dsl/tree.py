@@ -1,11 +1,3 @@
-"""The workspace tree hash — the shared code every flow computes against.
-
-Watched `.py` files outside any flow's `cells/` are shared code: workspace
-helpers, and the occasional stray module inside a flow directory. The store
-never versions them; it records one hash over all of them, and a change to it
-is what marks every cell with a cause naming the file.
-"""
-
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,8 +31,6 @@ _VENV_MARKER = "pyvenv.cfg"
 
 
 class WorkspaceExclusions:
-    """Named, virtual-environment and gitignored paths under one scan root."""
-
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
         self._gitignores: dict[Path, GitIgnoreSpec | None] = {}
@@ -90,8 +80,6 @@ class WorkspaceExclusions:
 
 @dataclass(frozen=True)
 class WorkspaceTree:
-    """`strays` names shared code that sits inside a flow — a hygiene note."""
-
     tree_hash: str
     files: dict[str, str] = field(default_factory=dict)
     strays: list[str] = field(default_factory=list)
@@ -147,7 +135,6 @@ def stray_note(relative_path: str) -> str:
 
 
 def _flow_root(directory: Path, root: Path) -> Path | None:
-    """The `.flow` directory this one lives in, if any."""
     for parent in (directory, *directory.parents):
         if parent == root:
             return None

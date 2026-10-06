@@ -32,15 +32,6 @@ Emit = Callable[[str, int, bytes], None]
 
 
 class Capture:
-    """Capture stdout/stderr for the duration of the `with` block.
-
-    `emit` receives every chunk as it lands — the live console channel. What
-    the block accumulates is a capped artifact: the head and the tail, because
-    a run's first output says what it started and its last says how it failed.
-
-    Stdin is pinned at EOF, which is what makes a cell non-interactive.
-    """
-
     def __init__(
         self,
         emit: Emit,
@@ -108,7 +99,6 @@ class Capture:
         return self._omitted > 0
 
     def artifact(self) -> bytes:
-        """The stored log blob: head, a stated gap, tail."""
         head = b"".join(self._head)
         if not self._omitted:
             return head + b"".join(self._tail)
@@ -135,7 +125,6 @@ class Capture:
         try:
             self._emit(stream, seq, data)
         except Exception:
-            # The console channel is best-effort; the artifact is the record.
             pass
 
     def _accumulate(self, data: bytes) -> None:
@@ -185,7 +174,6 @@ class Capture:
 
 
 def _reopen(fd: int, mode: str) -> Any:
-    """A stream over a private duplicate, so closing it never closes the fd."""
     return os.fdopen(
         os.dup(fd), mode, buffering=1, encoding="utf-8", errors="backslashreplace"
     )

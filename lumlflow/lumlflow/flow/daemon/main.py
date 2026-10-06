@@ -1,5 +1,3 @@
-"""The one per-user daemon, serving every flow opened by path."""
-
 import argparse
 import asyncio
 import contextlib
@@ -29,14 +27,11 @@ from lumlflow.flow.daemon.watcher import Watcher
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowError
 
-# What a caller is told once the workspace is being served, and from where.
 Announce = Callable[[DaemonRecord], None]
-# The agent sessions one connection is carrying, as (flow, actor, label).
 Leases = set[tuple[str | None, str, str]]
 
 _AUTH_TIMEOUT_S = 10.0
 _BACKLOG = 64
-# How long the browser endpoint is given to close its connections politely.
 _WEB_GRACE_S = 3.0
 _DEFAULT_WEB_HOST = "127.0.0.1"
 DEFAULT_WEB_PORT = 5000
@@ -56,10 +51,7 @@ logger = logging.getLogger(__name__)
 # and an agent that is gone but still connected would keep its name, its
 # colour and its place in the pairing line for as long as that lasts.
 QUIET_AFTER_S = 15 * 60
-# How often the daemon looks for agents that have gone quiet.
 _QUIET_SWEEP_S = 30.0
-# Calls that say nothing about an agent being at work: the handshake and the
-# probes a harness sends to see whether the daemon is there.
 _NOT_PRESENCE = frozenset({"ping", "authenticate"})
 
 
@@ -67,8 +59,6 @@ class Daemon:
     def __init__(self, directory: Path) -> None:
         self.directory = directory.resolve()
         self.instance_id = secrets.token_hex(16)
-        # Everything a browser watches goes through here, and a session that is
-        # opened before it would announce its commits to nobody.
         self.streams = Streams()
         self.hub = Hub(streams=self.streams)
         self.api = Api(
@@ -92,11 +82,7 @@ class Daemon:
         self._calls: set[asyncio.Task[None]] = set()
         self._clients: set[asyncio.StreamWriter] = set()
         self._client_leases: dict[asyncio.StreamWriter, Leases] = {}
-        # Sessions ended because their agent went quiet, per connection: the
-        # connection is still there, and the agent's next call brings the
-        # session back under the same lease without the agent knowing.
         self._quiet: dict[asyncio.StreamWriter, Leases] = {}
-        # When each (flow, actor) a connection carries last made a call.
         self._last_call: dict[tuple[str | None, str], float] = {}
         self.clock: Callable[[], float] = time.monotonic
         self._sweeper: asyncio.Task[None] | None = None
@@ -115,10 +101,7 @@ class Daemon:
         announce: Announce | None = None,
         report_attached: bool = False,
     ) -> int:
-        """Hold the singleton lock and serve until this process is stopped."""
         daemon_log.configure()
-        # The signals before the lock: a Ctrl-C during startup is an answer,
-        # not a traceback over a workspace half taken.
         _install_signals(self.stop)
         _install_exception_logging()
         # The lock before anything else: whoever holds it owns the stores, and
@@ -172,24 +155,15 @@ class Daemon:
         return 0
 
     def _announce(self, record: DaemonRecord) -> None:
-        """The log line a background process leaves for whoever reads its log."""
         logger.info("lumlflow daemon on 127.0.0.1:%s", self.port)
         if self.web_port:
             logger.info("workbench on %s", self.api.web)
 
     def _serve_web(self, listener: socket.socket) -> None:
-        """Put the browser's surface on the port that was just bound.
-
-        The app is built here rather than in `__init__` because it carries the
-        token, and the token is what makes this port the workspace's rather
-        than anything else's on the machine.
-        """
         self.api.web = f"http://{self.web_host}:{self.web_port}"
         self._web = _WebServer(
             uvicorn.Config(
                 web.build_app(self.hub, self.api, self.streams, token=self.token),
-                # The daemon's own log is the workspace's log; uvicorn
-                # reconfiguring logging for the process would take it over.
                 log_config=None,
                 access_log=False,
             )
@@ -214,15 +188,6 @@ class Daemon:
         self._lock.release()
 
     async def _stop_web(self) -> None:
-        """Let go of the browsers before the stores they are reading close.
-
-        Asked first, forced after. A tab left open overnight is the normal
-        case, and a client that will not take the close frame is no reason a
-        workspace cannot be let go of — but forcing cancels the shutdown
-        mid-flight, and the traceback for that lands in the user's terminal
-        now that this runs in the foreground. The grace is what buys the
-        polite path whenever it is available, which is nearly always.
-        """
         task, self._web_task = self._web_task, None
         if self._web is not None:
             self._web.should_exit = True
@@ -249,8 +214,6 @@ class Daemon:
             return
         self._server.close()
         for writer in list(self._clients):
-            # Whatever is already in the transport buffer — the shutdown
-            # caller's own answer — is flushed on the way out.
             writer.close()
         with contextlib.suppress(Exception):
             await self._server.wait_closed()
@@ -300,14 +263,10 @@ class Daemon:
         except OSError:
             pass
         finally:
-            # The caller is gone; a run already in flight belongs to the queue
-            # and finishes on its own.
             for call in mine:
                 call.cancel()
             self._clients.discard(writer)
             self._client_leases.pop(writer, None)
-            # A session that already went quiet was ended then; nothing of it
-            # is left to release.
             self._quiet.pop(writer, None)
             writer.close()
             for _, actor, _ in leased:
@@ -315,24 +274,12 @@ class Daemon:
             await self._release(leased)
 
     async def _release(self, leased: "Leases") -> None:
-        """End the agent sessions this connection was carrying.
-
-        The connection is the session for a client that connected to be paired,
-        so one that was killed rather than closed must leave no flow registered
-        to nobody.
-
-        A daemon on its way out is the other case entirely: the client is still
-        there and will register again with whoever serves the workspace next,
-        and committing here would race the stores closing underneath it.
-        """
         if self._stopped.is_set():
             return
         ended = sorted(leased, key=lambda lease: (lease[0] or "", lease[1]))
         # Dropped before the ends are committed: the watchers reading the
         # announcement must not see a lease this connection no longer holds.
         leased.clear()
-        # A call the connection died inside of never reaches its `ended`;
-        # cleared here so no card stays dimmed for an agent that is gone.
         for flow, actor, _ in ended:
             self.api.forget_agent(actor)
             if flow:
@@ -344,8 +291,6 @@ class Daemon:
             self._announce_agents(flow)
 
     async def _sweep_quiet(self) -> None:
-        """Every little while, end the sessions whose agent stopped calling and
-        the claims nobody has touched."""
         while True:
             await asyncio.sleep(_QUIET_SWEEP_S)
             try:
@@ -355,14 +300,6 @@ class Daemon:
                 logger.exception("ending quiet agent sessions failed")
 
     async def end_quiet(self) -> None:
-        """End the session of every connected agent quiet for `QUIET_AFTER_S`.
-
-        Ended the way a dropped connection ends one — committed, announced,
-        its claims and calls let go — so it leaves the pairing line, gives its
-        name back, and stops counting as a second author. The connection is
-        kept, and the lease set aside rather than forgotten: the agent's next
-        call is what brings it back.
-        """
         if self._stopped.is_set():
             return
         now = self.clock()
@@ -395,7 +332,6 @@ class Daemon:
     async def _revive(
         self, writer: asyncio.StreamWriter, leased: Leases, actor: str
     ) -> None:
-        """Bring back the sessions this agent had before it went quiet."""
         quiet = self._quiet.get(writer)
         if not quiet:
             return
@@ -432,7 +368,6 @@ class Daemon:
             del self._last_call[key]
 
     def _leases(self) -> Leases:
-        """Every agent session a live connection is carrying right now."""
         return {
             lease
             for client_leases in self._client_leases.values()
@@ -440,11 +375,6 @@ class Daemon:
         }
 
     def _announce_activity(self, activity: "Activity", phase: str) -> None:
-        """Tell a flow's watchers a leased agent is inside a call, or out of it.
-
-        Best effort, like every announcement: a watcher that cannot be told is
-        not a reason to fail the call the agent made.
-        """
         flow, actor, label, tool, slug = activity
         with contextlib.suppress(FlowError, OSError):
             self.api.announce_activity(
@@ -457,12 +387,6 @@ class Daemon:
             )
 
     def _announce_agents(self, flow: str | None) -> None:
-        """Tell a flow's watchers who is really there, once a lease changed hands.
-
-        The registration itself announced when it committed, but without the
-        lease — that is only taken on the reply. This is the second, complete
-        word; on a dropped connection it is the only one.
-        """
         with contextlib.suppress(FlowError, OSError):
             self.api.announce_agents(flow)
 
@@ -515,10 +439,7 @@ class Daemon:
         await asyncio.gather(*calls, return_exceptions=True)
 
     async def _authenticated(self, reader: asyncio.StreamReader) -> bool:
-        """The token is what separates this workspace's clients from anything
-        else that reached a loopback port."""
         try:
-            # A connection that proves nothing must not hold a slot forever.
             message = json.loads(
                 await asyncio.wait_for(reader.readline(), _AUTH_TIMEOUT_S)
             )
@@ -553,12 +474,9 @@ class Daemon:
         params = message.get("params") or {}
         caller = str(params.get("actor") or "")
         if caller and str(message["method"]) not in _NOT_PRESENCE:
-            # Any call is the agent being here. One that went quiet is brought
-            # back first, so the call below runs under its lease as before.
             if str(message["method"]) != "agent.end":
                 await self._revive(writer, leased, caller)
             else:
-                # Ending a session that already went quiet ends nothing more.
                 quiet = self._quiet.get(writer, set())
                 quiet.difference_update(
                     {lease for lease in quiet if lease[1] == caller}
@@ -568,10 +486,6 @@ class Daemon:
         announced = False
         try:
             if activity is not None:
-                # A leased agent's change onto a lane moved under it, or onto
-                # a cell another agent holds, is refused here — before the
-                # method can land it, and before any watcher is told the
-                # agent is on that cell, because it never was.
                 self.api.fence(str(message["method"]), params)
                 self.api.claim(str(message["method"]), params, label=activity[2])
                 self._announce_activity(activity, "started")
@@ -609,8 +523,6 @@ class Daemon:
         finally:
             if activity is not None and announced:
                 self._announce_activity(activity, "ended")
-        # The caller may already be gone — an answer nobody is there for is not
-        # a daemon-level failure.
         with contextlib.suppress(OSError):
             await writer.drain()
 
@@ -632,7 +544,6 @@ class _WebServer(uvicorn.Server):
 def serve_here(
     directory: Path, *, web_host: str, web_port: int, announce: Announce
 ) -> int:
-    """Run the daemon role in the visible `ui` process."""
     daemon_log.configure()
     try:
         return asyncio.run(
@@ -654,7 +565,6 @@ def serve_here(
 
 
 def _bind_exactly(host: str, port: int) -> socket.socket:
-    """The port asked for, or a refusal naming it. Never a different one."""
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     if sys.platform != "win32":
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -670,13 +580,6 @@ def _bind_exactly(host: str, port: int) -> socket.socket:
 
 
 def _bind_web(host: str, port: int) -> socket.socket:
-    """The requested host, on the requested port or whichever one is free.
-
-    A port somebody else holds is not a reason to refuse to be a daemon: every
-    verb in the workspace goes through this process, and they all work without
-    a browser. The port that answers is the one the record names, so nothing
-    downstream has to guess which of the two it got.
-    """
     for wanted in (port, 0) if port else (0,):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if sys.platform != "win32":
@@ -729,11 +632,8 @@ def _log_loop_exception(
         logger.error(message)
 
 
-# One call a leased agent is inside of: (flow, actor, label, method, slug).
 Activity = tuple[str, str, str, str, str | None]
 
-# Calls that say nothing about work on a flow: the handshake, the lease
-# itself, and the probes a harness sends to see whether the daemon is there.
 _SILENT = frozenset(
     {
         "ping",
@@ -750,13 +650,6 @@ _SILENT = frozenset(
 
 
 def _activity(leased: Leases, method: str, params: dict[str, Any]) -> Activity | None:
-    """What a watcher should be told this call is, if the caller is leased.
-
-    Only a connection carrying a lease on the flow it addresses is an agent
-    working there; a CLI verb connects per call and holds none. The cell the
-    call names — `slug`, or the cell half of a `target` — is what lets the
-    workbench mark one card rather than the flow.
-    """
     if method in _SILENT:
         return None
     actor = str(params.get("actor") or "")
@@ -775,12 +668,6 @@ def _activity(leased: Leases, method: str, params: dict[str, Any]) -> Activity |
 
 
 def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) -> None:
-    """Which agent sessions this connection has taken responsibility for.
-
-    Read off the answer rather than off the request: the actor a registration
-    landed under is the daemon's to decide, and a lease over a name the caller
-    merely proposed would end a session belonging to somebody else.
-    """
     if not isinstance(result, dict):
         return
     actor = str(result.get("actor") or "")

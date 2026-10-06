@@ -1,16 +1,3 @@
-"""The read side of the daemon API: what a surface renders, shaped once here.
-
-Every verdict a surface shows — staleness and its causes, what diverged between
-branches, what the pending work costs — is derived from recorded facts on this
-side of the socket, so the CLI, the MCP server and the browser cannot disagree
-about them. Nothing here writes.
-
-The vocabulary is the user's: cells are named by slug, branches by name, outputs
-by the names the cell declared. Identifiers the runtime keys on — uids, content
-hashes, memo keys — stay inside; these shapes carry verdicts and words instead,
-which is what keeps them out of every surface built on top.
-"""
-
 import inspect
 import json
 from collections.abc import Callable, Iterable, Mapping
@@ -55,11 +42,6 @@ _TRACEBACK_LINES = 12
 EXPERIMENT_CACHE_MAX_AGE_S = 5.0
 ExperimentStateName = Literal["ok", "missing", "unreachable"]
 
-# `experiment > eval > plot > frame > note > metric > dataset > model > file >
-# checkpoint > pickle`: experiments, evals and plots are what a reader came for;
-# a model's config dump is not. Declared asset types share the ordering with
-# inferred kinds — a cell that says `experiment` and one whose value turned out
-# to be an experiment are the same thing to a reader.
 _KIND_ORDER = {
     kind: order
     for order, kind in enumerate(
@@ -156,34 +138,19 @@ class ExperimentStates:
 
 @dataclass(frozen=True)
 class Slice:
-    """One branch's cells, its verdicts about them, and what it last observed."""
-
     branch: BranchRow
     versions: dict[str, VersionRow]
     verdicts: dict[str, Verdict]
     mats: dict[str, MaterializationRow]
     env_lock_hash: str | None = None
-    #: Cells whose baseline a memo hit put there — nothing ran for them here.
     reused: frozenset[str] = frozenset()
-    #: The step each cell was minted at, store-wide — the notebook's tiebreak.
     born: dict[str, int] = field(default_factory=dict)
-    #: Flow-wide presentation keys, falling back to mint steps.
     order: dict[str, Decimal] = field(default_factory=dict)
-    #: Cells opted into eager materialization, whatever the cost threshold says.
     eager: frozenset[str] = frozenset()
-    #: How to ask reactivity what it decided. Deferred, not held: answering
-    #: costs a plan per stale cell, and most reads of a slice — paging a value,
-    #: diffing, previewing — never look. `auto` is the property that asks.
     reactivity: "Callable[[], dict[str, planner.AutoVerdict]]" = dict
 
     @cached_property
     def auto(self) -> dict[str, planner.AutoVerdict]:
-        """What reactivity decided about each cell it has an opinion about.
-
-        Only the ones that are not already current are in it, and under `lazy`
-        none of them are — reactivity has no opinion about a cell it will never
-        act on either way.
-        """
         return self.reactivity()
 
     def uid_of(self, slug: str) -> str:
@@ -238,7 +205,6 @@ def experiment_state(session: "FlowSession", ref: TrackerRef) -> ExperimentState
 def experiment_locations(
     session: "FlowSession", experiment_id: str
 ) -> list[tuple[str, str]]:
-    """The selected cells whose cards a tracker deletion changes."""
     locations: set[tuple[str, str]] = set()
     served = session.tracker.store_path.resolve()
     index = session.store.index
@@ -266,7 +232,6 @@ def experiment_locations(
 
 
 def cell(here: Slice, uid: str) -> dict[str, Any]:
-    """One card's worth of facts: what it is, where it stands, and why."""
     version, verdict = here.versions[uid], here.verdicts[uid]
     mat = here.mats.get(uid)
     return {
@@ -274,48 +239,25 @@ def cell(here: Slice, uid: str) -> dict[str, Any]:
         "state": verdict.state,
         "causes": [cause.detail for cause in verdict.causes],
         "upstream": list(verdict.upstream),
-        # The transitive view, served rather than left to be re-derived from the
-        # two fields above: a surface that computed it would be the second place
-        # this verdict is defined, and the first one to drift.
         "transitive": verdict.transitive,
         "outputs": list(version.manifest.produces),
-        # What each output reads as, so a lens over the slice — the panel's
-        # experiments, models and data — can name kinds without pulling every
-        # cell's detail and every preview behind it.
         "kinds": {
             name: _kind_of(name, version, mat) for name in version.manifest.produces
         },
         "primary": primary_output(version, mat),
         "consumes": {name: ref.ref for name, ref in version.manifest.consumes.items()},
         "note": version.manifest.classification == "note",
-        # Reads something the store does not version — a workspace file, a
-        # network call — so it never memoizes and its inputs are not ours to
-        # track. Declared or observed on the last run; either one is the fact.
         "external": (mat is not None and mat.external)
         or version.manifest.volatility == "external",
         "flags": [{"code": flag.code, "detail": flag.detail} for flag in version.flags],
         "cost_seconds": mat.cost_seconds if mat is not None else None,
-        # The mint order, which is what breaks ties in the notebook's column:
-        # sorting siblings by name would move a card whenever one is renamed.
         "created_step": here.born.get(uid, 0),
         "order": format(here.order.get(uid, Decimal(here.born.get(uid, 0))), "f"),
         "changed_step": version.created_step,
-        # The result the branch observed, so a rerun, a memo hit and a rewind
-        # all read as a change to a surface showing it.
         "mat_id": mat.mat_id if mat is not None else None,
         "older_env": _older_env(here, mat),
-        # A memo hit put this result here: the cost below is what the run cost
-        # whoever ran it, and printing that alone would read as work that just
-        # happened. A fork inheriting a baseline is not this — nothing was
-        # claimed for it, and nothing is badged.
         "reused": uid in here.reused,
-        # Opted out of the cost threshold: this one rematerializes on change
-        # however expensive its closure is.
         "eager": uid in here.eager,
-        # Why this one is *not* refreshing itself, when reactivity is on and it
-        # is out of date. Silence is the thing that made auto mode feel broken:
-        # a cell whose closure is over the threshold looked exactly like a cell
-        # the runtime had forgotten about.
         "auto_declined": _declined(here, uid),
     }
 
@@ -342,7 +284,6 @@ def cells(
 
 
 def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
-    """A cell in full: its source, its declarations, and its last run."""
     here = read(session, branch)
     uid = here.uid_of(slug)
     version = here.versions[uid]
@@ -351,13 +292,8 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
     return cell(here, uid) | {
         "uid": uid,
         "branch": branch,
-        # The version an editor started from, handed back with `cells edit
-        # --base` to take the optimistic lock. Nothing prints it.
         "definition_hash": version.definition_hash,
         "source": source,
-        # What the cell says it is, in the author's words — and the whole of a
-        # note cell, whose docstring is not a description of the content but
-        # the content.
         "doc": _docstring(source),
         "params": dict(version.manifest.params),
         "author": version.author,
@@ -369,9 +305,6 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
         "tracker": _cell_tracker(session, here, uid),
         "sdk_version_warning": (mat.sdk_version_warning if mat is not None else None),
         "error": failure(session, mat),
-        # Who wrote the version that broke, which need not be whoever wrote the
-        # one on screen: an edit after a failure moves the head and leaves the
-        # failure where it happened.
         "failed_by": _failed_by(session, mat),
         "provenance": _provenance(session, version),
         "notes": [
@@ -388,13 +321,6 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
 
 
 def logs(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
-    """The console the branch's last observed run of this cell left behind.
-
-    Keyed on the baseline rather than on the newest run anywhere, so a rewound
-    branch answers with *that* run's output: every materialization keeps its
-    own capped artifact, and reading the latest would show a run this branch
-    has no record of.
-    """
     here = read(session, branch)
     mat = here.mats.get(here.uid_of(slug))
     return {
@@ -407,12 +333,6 @@ def logs(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
 
 
 def hygiene(session: "FlowSession") -> list[str]:
-    """Shared code sitting inside the flow — a note, never a refusal.
-
-    Read off the recorded workspace tree rather than the disk: the scan already
-    drops `cells/` under a flow root, so anything left under this flow's
-    directory is a stray by construction and no second walk is needed.
-    """
     tree = session.store.index.workspace_tree()
     if tree is None:
         return []
@@ -423,12 +343,6 @@ def hygiene(session: "FlowSession") -> list[str]:
 def agent_sessions(
     session: "FlowSession", *, leased: frozenset[str] = frozenset()
 ) -> list[dict[str, Any]]:
-    """Registered agent sessions, newest first, each saying whether it is live.
-
-    The journal knows who registered; only the daemon knows whose connection is
-    still there, and `leased` is that knowledge handed in. A surface reads
-    "paired" off the flag, never off the row's mere existence.
-    """
     return [
         {
             "actor": row.actor,
@@ -443,11 +357,6 @@ def agent_sessions(
 def tree(
     session: "FlowSession", *, leased: frozenset[str] = frozenset()
 ) -> dict[str, Any]:
-    """The fork tree: every branch, where it split, and how it stands.
-
-    Read from the store rather than from any session's memory, so a branch
-    nobody has viewed since the daemon started reads the same as the open one.
-    """
     index = session.store.index
     bound = session.store.branches.bound_branch()
     sessions = index.agent_sessions()
@@ -470,12 +379,6 @@ def graph(
     around: str | None = None,
     depth: int = DEFAULT_DEPTH,
 ) -> dict[str, Any]:
-    """The declared wiring — the graph the scheduler runs, not a second one.
-
-    `around` slices a neighbourhood out of it: the cells within `depth` hops of
-    one, upstream and downstream both, which is what keeps a large flow's graph
-    answerable in a terminal.
-    """
     here = read(session, branch)
     edges = _edges(here)
     kept = (
@@ -503,14 +406,6 @@ def graph(
 
 
 def diff(session: "FlowSession", branches: list[str]) -> dict[str, Any]:
-    """How 2–5 branches differ, split by what a reader can do about it.
-
-    Definition divergence is someone having edited the cell — structural, rare,
-    and the branching point of everything below it. Materialization divergence
-    is the same code fed different inputs, which is most of a sweep and collapses
-    to one row per asset. What neither shape covers — a cell one branch does not
-    carry, a name that moved — is listed exhaustively underneath.
-    """
     slices = _compared(session, branches)
     definition: list[dict[str, Any]] = []
     materialization: list[dict[str, Any]] = []
@@ -524,9 +419,6 @@ def diff(session: "FlowSession", branches: list[str]) -> dict[str, Any]:
             definition.append(
                 {
                     "slug": name,
-                    # Each side says what it is *and* what it produced: a
-                    # comparison whose subject is the edited cell would
-                    # otherwise be the one asset with no results on screen.
                     "versions": [
                         _version_side(branch, here.versions[uid])
                         | _result_side(branch, here, uid)
@@ -555,12 +447,6 @@ def diff(session: "FlowSession", branches: list[str]) -> dict[str, Any]:
 
 
 def export(session: "FlowSession", branch: str) -> dict[str, Any]:
-    """A branch's cells as one file — the flow's travelling form, not the flow.
-
-    Producers first, so the file reads the way the flow runs, and the sources
-    are the ones the store holds rather than the ones on disk: a branch nobody
-    has checked out exports exactly as well as the one somebody has.
-    """
     here = read(session, branch)
     ordered = [here.versions[uid] for uid in planner.reading_order(here.versions)]
     carried = [
@@ -579,11 +465,6 @@ def export(session: "FlowSession", branch: str) -> dict[str, Any]:
 
 
 def asset(session: "FlowSession", branch: str, target: str) -> dict[str, Any]:
-    """One output as the store holds it: its verdict, and its stored preview.
-
-    Previews are the kernel-free tier — browsing a flow never starts a process,
-    however large the value behind it is.
-    """
     here = read(session, branch)
     slug, output, record = locate(here, target)
     uid = here.uid_of(slug)
@@ -609,11 +490,6 @@ def asset(session: "FlowSession", branch: str, target: str) -> dict[str, Any]:
 
 
 def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
-    """Resolve `slug` or `slug.output` to the output record the branch observed.
-
-    A bare slug means the cell's primary output — the one its card opens on — so
-    that naming an asset never requires knowing how many outputs it has.
-    """
     slug, _, output = target.partition(".")
     uid = here.uid_of(slug)
     version = here.versions[uid]
@@ -632,12 +508,6 @@ def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
 def training_frames(
     session: "FlowSession", here: Slice, version: VersionRow
 ) -> list[dict[str, str]]:
-    """Where the bytes of every stored frame a cell consumed are, in manifest
-    order — the candidates a model's packaging takes its input sample from.
-    The kernel picks the one whose columns cover the model's features, so a
-    test frame or a frame still carrying the target does not win by being
-    consumed first. Empty when the cell read no stored frame: the flavor is
-    then asked to package without one."""
     found: list[dict[str, str]] = []
     for consumed in version.manifest.consumes.values():
         if consumed.uid is None or consumed.output is None:
@@ -653,13 +523,6 @@ def training_frames(
 
 
 def _kind_of(name: str, version: VersionRow, mat: MaterializationRow | None) -> str:
-    """What one output reads as — the badge, and what a lens groups it under.
-
-    The declared word wins where there is one: `model`, `dataset` and
-    `experiment` say what leaves the flow, and a run whose value happened to
-    infer as a frame or a dict of numbers does not demote it. An `asset` says
-    nothing about shape, so what the value turned out to be answers for it.
-    """
     spec = version.manifest.produces[name]
     record = mat.outputs.get(name) if mat is not None else None
     if spec.type != "asset":
@@ -670,7 +533,6 @@ def _kind_of(name: str, version: VersionRow, mat: MaterializationRow | None) -> 
 def primary_output(
     version: VersionRow, mat: MaterializationRow | None = None
 ) -> str | None:
-    """The output a cell is read by: experiments and plots first, dumps last."""
     produces = version.manifest.produces
     if not produces:
         return None
@@ -686,7 +548,6 @@ def downstream_outputs(
     *,
     include_all: bool = False,
 ) -> list[str]:
-    """Outputs a scaffold consumes, without preferring an experiment handle."""
     outputs = list(version.manifest.produces)
     if include_all:
         return outputs
@@ -705,22 +566,12 @@ def downstream_outputs(
 
 
 def context(session: "FlowSession", branch: str) -> dict[str, Any]:
-    """The brief an agent reads before it does anything: where it is, what is
-    unsynced and why, what broke, what the pending work costs, what just
-    happened.
-
-    Budgeted on purpose — an agent that has to page through its own orientation
-    reads none of it.
-    """
     here = read(session, branch)
     index = session.store.index
     checkpoint = index.checkpoint(here.branch.branch_id)
     dirty = [uid for uid in here.ordered() if not here.verdicts[uid].synced]
     sessions = index.agent_sessions()
     agent = sessions[0] if sessions else None
-    # Both facts are about the files, and the files are one branch's: a brief on
-    # a branch nobody checked out must not claim the agent working in `main` is
-    # working in it.
     bound = session.store.branches.bound_branch()
     checked_out = _same(bound, here.branch)
     rewrite = index.last_cells_rewrite(bound.branch_id) if bound is not None else None
@@ -764,11 +615,6 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
 
 
 def head(session: "FlowSession", branch: str, slug: str) -> VersionRow:
-    """The version a branch selects for a name — what an edit starts from.
-
-    A slice read without the verdicts: what asks for this is about to write, not
-    to render, and deriving staleness for it would be work nobody reads.
-    """
     record = session.store.branches.get(branch)
     for version in session.store.index.slice_versions(record.branch_id).values():
         if version.slug == slug:
@@ -777,7 +623,6 @@ def head(session: "FlowSession", branch: str, slug: str) -> VersionRow:
 
 
 def failure(session: "FlowSession", mat: MaterializationRow | None) -> str | None:
-    """The tail of a failed run's log — the traceback, where the cell left it."""
     if mat is None or mat.state == "succeeded":
         return None
     captured = _captured(session, mat)
@@ -805,13 +650,6 @@ def _failed_by(session: "FlowSession", mat: MaterializationRow | None) -> str | 
 
 
 def _provenance(session: "FlowSession", version: VersionRow) -> dict[str, Any]:
-    """Who made this cell, who last touched it, and how sure the store is.
-
-    The last word is the honest one: a version accepted while an agent held the
-    worktree may well have been the human typing in another window, and the
-    transaction that recorded it says as much. Nothing here guesses a name over
-    a flag the runtime already raised.
-    """
     index = session.store.index
     born = index.first_version(version.uid) or version
     line = index.transaction(version.created_step)
@@ -827,7 +665,6 @@ def _provenance(session: "FlowSession", version: VersionRow) -> dict[str, Any]:
 
 
 def _missing(slug: str, branch: str) -> CellNotFound:
-    """One wording for a name the branch does not know, wherever it is asked."""
     return CellNotFound(f"no cell named `{slug}` on `{branch}`")
 
 
@@ -843,13 +680,6 @@ def _compared(session: "FlowSession", branches: list[str]) -> dict[str, Slice]:
 
 
 def _rank(name: str, version: VersionRow, mat: MaterializationRow | None) -> int:
-    """Where this output sits in the reading order.
-
-    Both what the cell said and what the value turned out to be count, and the
-    stronger claim wins: a dict of numbers infers as a `metric` whether it is a
-    config dump or the run whose experiment the reader came for — the declared
-    `experiment` is what tells those apart.
-    """
     spec = version.manifest.produces[name]
     record = mat.outputs.get(name) if mat is not None else None
     claims = [spec.type, spec.kind, record.kind if record is not None else None]
@@ -888,9 +718,6 @@ def _branch(
         states[verdict.state] = states.get(verdict.state, 0) + 1
     return {
         "branch": record.name,
-        # The key the journal scopes transactions by. A surface never prints it
-        # — branches are named — but a client reading the stream has no other
-        # way to tell which branch a transaction landed on.
         "branch_id": record.branch_id,
         "parent": parent.name if parent is not None else None,
         "forked_at_step": record.fork_step,
@@ -900,8 +727,6 @@ def _branch(
         "cells": len(verdicts),
         "states": states,
         "checkpoint": checkpoint.step if checkpoint is not None else None,
-        # Where the branch stands, and its newest own step. They differ after a
-        # rewind, and until the next change on the branch moves it on.
         "head_step": head_step,
         "newest_step": newest_step,
         "last_intent": _transaction(standing) if standing is not None else None,
@@ -910,7 +735,6 @@ def _branch(
 
 
 def _edges(here: Slice) -> list[tuple[str, str, str, str]]:
-    """(producer, consumer, output, input name) for wiring that resolved."""
     return [
         (ref.uid, uid, ref.output or "", name)
         for uid, version in here.versions.items()
@@ -920,7 +744,6 @@ def _edges(here: Slice) -> list[tuple[str, str, str, str]]:
 
 
 def _near(uid: str, edges: Iterable[tuple[str, str, str, str]], depth: int) -> set[str]:
-    """Everything within `depth` hops of a cell, upstream and downstream."""
     adjacency: dict[str, set[str]] = {}
     for producer, consumer, _, _ in edges:
         adjacency.setdefault(producer, set()).add(consumer)
@@ -938,12 +761,6 @@ def _near(uid: str, edges: Iterable[tuple[str, str, str, str]], depth: int) -> s
 
 
 def _declined(here: Slice, uid: str) -> dict[str, Any] | None:
-    """Reactivity's refusal, in the words a card renders — or None.
-
-    None covers three different silences that need no sentence: reactivity is
-    off, the cell is current, or the cell is about to refresh itself and saying
-    so would be a label that is gone by the time it is read.
-    """
     verdict = here.auto.get(uid)
     if verdict is None or verdict.taken:
         return None
@@ -958,13 +775,6 @@ def _declined(here: Slice, uid: str) -> dict[str, Any] | None:
 
 
 def _older_env(here: Slice, mat: MaterializationRow | None) -> bool:
-    """Was this result computed under packages the workspace has since moved?
-
-    Provenance, not staleness — the result stands, and nothing reruns over it.
-    A run from before the flow observed any env recorded no lock hash, and
-    calling that older than something would compare against a baseline that
-    never existed.
-    """
     return (
         mat is not None
         and mat.env_lock_hash is not None
@@ -1074,7 +884,6 @@ def _failures(
 def _pending_cost(
     session: "FlowSession", here: Slice, dirty: list[str]
 ) -> dict[str, Any]:
-    """What running everything unsynced would cost, counted once per cell."""
     recompute: dict[str, None] = {}
     unknown: dict[str, None] = {}
     for uid in dirty:
@@ -1126,7 +935,6 @@ def _results_differ(present: Iterable[Slice], uid: str) -> bool:
 
 
 def _fingerprint(mat: MaterializationRow | None) -> str:
-    """What a branch has of an asset, as one comparable string."""
     if mat is None:
         return "unmaterialized"
     return json.dumps(
@@ -1142,8 +950,6 @@ def _version_side(branch: str, version: VersionRow) -> dict[str, Any]:
         "author": version.author,
         "step": version.created_step,
         "flags": [flag.code for flag in version.flags],
-        # What the sides of a sweep actually differ by, nine times in ten. They
-        # are declared data and stay read-only wherever they are shown.
         "params": dict(version.manifest.params),
     }
 
@@ -1151,15 +957,6 @@ def _version_side(branch: str, version: VersionRow) -> dict[str, Any]:
 def _integrity(
     session: "FlowSession", slices: Mapping[str, Slice]
 ) -> list[dict[str, Any]]:
-    """Where pin-at-fork stopped holding, so the columns are not comparable.
-
-    A fork pins its parent's selections, which is what keeps a sweep varying
-    exactly what its branches edited and nothing else. The one thing that
-    breaks it is the parent moving on: a branch still holding what it pinned,
-    read beside the branch that has edited the cell since, is two results
-    computed under different code — a difference nobody chose and the reason a
-    side-by-side of two numbers can be worse than no comparison at all.
-    """
     index = session.store.index
     named = {here.branch.branch_id: name for name, here in slices.items()}
     drifted: dict[tuple[str, str], list[str]] = {}

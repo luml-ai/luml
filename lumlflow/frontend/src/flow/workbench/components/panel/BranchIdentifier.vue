@@ -24,7 +24,6 @@
           />
         </span>
         <span class="text-sm font-normal text-muted-color">{{ familyLine }}</span>
-        <!-- Rewound and left there: the next change asks where it should go. -->
         <span v-if="behind" data-testid="behind" class="text-sm font-normal text-muted-color">
           at step {{ branch.headStep }} · {{ aheadLine }} · a change from here offers a new lane
         </span>
@@ -34,7 +33,6 @@
       </span>
     </Button>
 
-    <!-- The actions for this lane and its steps, beside the count they are about. -->
     <div class="flex items-center gap-0.5">
       <Button
         ref="stepsButton"
@@ -101,20 +99,11 @@ import BranchTag from '../../ui/BranchTag.vue'
 import MetaBadge from '../../ui/MetaBadge.vue'
 import StepTimeline from '../branch/StepTimeline.vue'
 
-/**
- * The viewed branch's identity, its family position, and the two ways out of
- * it: sideways into the lane map, and backwards through its own steps.
- *
- * Viewing is a pure store read; only using a lane here rebinds files. The
- * caption keeps the verbs apart.
- */
 const props = defineProps<{
   branch: BranchInfo
   worktreeBranch: string
-  /** This branch's transactions, newest first — what the timeline navigates. */
   journal: JournalEntry[]
   children: BranchInfo[]
-  /** An op is in flight; the timeline's verbs wait rather than race it. */
   busy?: boolean
 }>()
 
@@ -140,16 +129,10 @@ const familyLine = computed(() => {
 
 const stepsLabel = computed(() => formatCount(props.branch.headStep, 'step'))
 
-/** Rewound and left there: the branch stands behind its newest step. */
 const behind = computed(
   () => (props.branch.newestStep ?? props.branch.headStep) > props.branch.headStep,
 )
 
-/**
- * The steps ahead of where it stands, counted from the timeline's own rows
- * rather than from step numbers — those are flow-global and count every other
- * lane's lines in between.
- */
 const aheadLine = computed(() => {
   const ahead = props.journal.filter((entry) => entry.step > props.branch.headStep).length
   return ahead > 0

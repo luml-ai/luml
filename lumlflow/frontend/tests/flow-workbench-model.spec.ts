@@ -18,7 +18,6 @@ import {
 } from '@/flow/workbench/model/registry'
 import type { AssetKind, FlowCell } from '@/flow/workbench/model/types'
 
-/** A cell carrying only what the notebook's order reads: wiring and effective key. */
 function authoredCell(slug: string, authoredStep: number, ...consumes: string[]): FlowCell {
   return {
     slug,
@@ -74,8 +73,6 @@ describe('primary output ranking', () => {
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b))
     expect(new Set(ranks).size).toBe(documented.length)
 
-    // An attachment kind is not in the daemon's vocabulary; it sorts after the
-    // kinds that are, rather than ahead of the checkpoint beside it.
     for (const unlisted of ['image', 'html', 'text'] as AssetKind[]) {
       expect(rankOf(unlisted)).toBeGreaterThan(rankOf('unknown'))
     }
@@ -116,7 +113,6 @@ describe('slice wiring', () => {
     expect(order.indexOf('features')).toBeLessThan(order.indexOf('train_model'))
     expect(order.indexOf('train_model')).toBeLessThan(order.indexOf('holdout_eval'))
     expect(order.indexOf('holdout_eval')).toBeLessThan(order.indexOf('roc_curve'))
-    // Deterministic: same input, same order.
     expect(topologicalOrder(mainCells).map((cell) => cell.slug)).toEqual(order)
   })
 
@@ -187,9 +183,6 @@ describe('slice wiring', () => {
     const before = topologicalOrder(chain).map((cell) => cell.slug)
     expect(before).toEqual(['load', 'features', 'train_model', 'holdout_eval'])
 
-    // A root nobody reads, ordered last: it belongs at the bottom, where it was
-    // written. Landing it above cells minted before it would move every card
-    // under it down a slot — the effective-key priority rules out.
     const after = topologicalOrder([...chain, authoredCell('alpha_scan', 12)])
     expect(after.map((cell) => cell.slug)).toEqual([...before, 'alpha_scan'])
   })
@@ -205,7 +198,7 @@ describe('fixture integrity', () => {
     for (const [branch, cells] of Object.entries(cellsByBranch)) {
       const slugs = new Set(cells.map((cell) => cell.slug))
       for (const cell of cells) {
-        if (cell.flag) continue // deliberately dangling (did-you-mean specimen)
+        if (cell.flag) continue
         for (const reference of cell.consumes) {
           expect(slugs.has(producerOf(reference)), `${branch}: ${cell.slug} → ${reference}`).toBe(
             true,
@@ -246,8 +239,8 @@ describe('fixture integrity', () => {
     const blob = userFacing.join('\n')
     expect(blob).not.toMatch(/\buid\b/i)
     expect(blob).not.toMatch(/memo key/i)
-    expect(blob).not.toMatch(/\b[0-9a-f]{12,}\b/i) // hash-looking tokens
-    expect(blob).not.toMatch(/\b[0-7][0-9A-HJKMNP-TV-Z]{25}\b/) // ULIDs
+    expect(blob).not.toMatch(/\b[0-9a-f]{12,}\b/i)
+    expect(blob).not.toMatch(/\b[0-7][0-9A-HJKMNP-TV-Z]{25}\b/)
   })
 })
 

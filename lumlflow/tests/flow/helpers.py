@@ -1,5 +1,3 @@
-"""Op builders for store tests — real ULIDs, real content hashes."""
-
 from collections.abc import Sequence
 from typing import Protocol
 
@@ -53,7 +51,6 @@ def cell_accepted(
     copied_from: str | None = None,
     author: str = "user",
 ) -> CellAccepted:
-    """`consumes` maps an input name to its reference, `bound_to` to its uid."""
     body = source.encode()
     return CellAccepted(
         uid=uid or new_ulid(),
@@ -94,7 +91,6 @@ def accept(
     produces: dict[str, OutputSpec] | None = None,
     env_sensitive: bool = False,
 ) -> CellAccepted:
-    """Accept a version and select it on the branch, as acceptance would."""
     branch_id = store.branches.get(branch).branch_id
     op = cell_accepted(
         uid=uid,
@@ -115,9 +111,6 @@ def accept(
 
 
 class Accepted(Protocol):
-    """What `record_run` needs of a version, whether the op or the pipeline
-    result named it — both address the same row, and both are frozen."""
-
     @property
     def uid(self) -> str: ...
     @property
@@ -136,7 +129,6 @@ def record_run(
     state: MaterializationState = "succeeded",
     memo_key: str | None = None,
 ) -> RunRecorded:
-    """Stage the value in the CAS, then journal the run — the store's ordering."""
     store.values.put(content)
     branch_id = store.branches.get(branch).branch_id
     run = run_recorded(
@@ -227,7 +219,6 @@ def output_record(content: bytes = b"rows") -> OutputRecord:
 
 
 def snapshot(index: Index) -> dict[str, list[tuple[object, ...]]]:
-    """Every indexed row, order-normalized — the shape a rebuild must reproduce."""
     return {
         table: [
             tuple(row)

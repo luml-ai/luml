@@ -1,15 +1,3 @@
-"""What a cell file declares, read by parsing it — never by importing it.
-
-Only the declaration block is read: literal class attributes and whether a
-`materialize` method exists. The body is never interpreted, so nothing here
-infers wiring the file did not spell out, and no user code runs.
-
-Classification inside a `cells/` file is a closed set of shapes: the one class
-that declares a cell, a docstring-only class (a note), or nothing qualifying.
-Every unhappy shape produces a flag and still yields something to accept —
-agents iterate through broken intermediate states, so a file is never refused.
-"""
-
 import ast
 import re
 from dataclasses import dataclass, field
@@ -60,8 +48,6 @@ class ParsedCell:
 
 @dataclass(frozen=True)
 class ParsedFile:
-    """`cell` is None only when the file holds nothing to accept a version of."""
-
     cell: ParsedCell | None
     flags: list[VersionFlag] = field(default_factory=list)
     recovered_uid: str | None = None
@@ -146,11 +132,6 @@ def _extract(node: ast.ClassDef, flags: list[VersionFlag]) -> ParsedCell:
 def _declared_literals(
     node: ast.ClassDef, flags: list[VersionFlag]
 ) -> dict[str, object]:
-    """Every declaration attribute the class assigns, evaluated as a literal.
-
-    A non-literal is the one thing static extraction cannot follow, so it is
-    flagged and dropped rather than guessed at.
-    """
     declared: dict[str, object] = {}
     for statement in node.body:
         name, value = _assignment(statement)
@@ -202,7 +183,6 @@ def _produces(value: object, flags: list[VersionFlag]) -> dict[str, OutputSpec]:
 
 
 def _output_spec(name: str, declared: object, flags: list[VersionFlag]) -> OutputSpec:
-    """One output's declaration: a type word, or a dict overriding kind/persist."""
     if isinstance(declared, str):
         return OutputSpec(type=_asset_type(name, declared, flags))
     if not isinstance(declared, dict):
@@ -230,7 +210,6 @@ def _asset_type(name: str, declared: object, flags: list[VersionFlag]) -> AssetT
     if declared in ASSET_TYPES:
         return declared  # type: ignore[return-value]
     # Coerced rather than dropped: the output keeps its name so consumers still
-    # bind, and the flag carries what the word should have been.
     flags.append(
         _invalid(
             f"`produces[{name!r}]` declares {declared!r}. outputs are {_vocabulary()}"
@@ -274,7 +253,6 @@ def _has_materialize(node: ast.ClassDef) -> bool:
 
 
 def _is_note(node: ast.ClassDef) -> bool:
-    """A docstring and nothing else — the uid write-back does not change that."""
     if ast.get_docstring(node) is None:
         return False
     return all(
@@ -294,7 +272,6 @@ def _declared_uid(node: ast.ClassDef) -> str | None:
 
 
 def _recover_uid(source: str) -> str | None:
-    """Recover the daemon-written identity while the surrounding AST is broken."""
     for match in _UID_ASSIGNMENT.finditer(source):
         uid = match.group("uid")
         if is_ulid(uid):

@@ -1,18 +1,3 @@
-"""Staleness, derived from recorded facts — never stored anywhere.
-
-Nothing in the store says "stale". A verdict comes from two things it already
-holds: the branch's baseline pointer, which is the last materialization that
-branch observed for a cell, and the version the branch selects now. That is
-what lets a fork inherit verdicts by copying pointers and a rewind restore them
-by restoring pointers — neither op has a stale flag to get wrong.
-
-Both views the surfaces serve are this one derivation. A cell's own facts give
-its state and its causes; the cells above it give `upstream`, the transitive
-view. They disagree on purpose: a consumer of an edited parent is genuinely
-current until that parent reruns and produces something different, so the
-direct view calls it synced and the transitive view says what it sits below.
-"""
-
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -38,8 +23,6 @@ _NAMED_FILES = 3
 
 @dataclass(frozen=True)
 class Cause:
-    """`detail` is the sentence a surface renders: slugs and filenames, in words."""
-
     kind: CauseKind
     detail: str
 
@@ -58,12 +41,10 @@ class Verdict:
 
     @property
     def transitive(self) -> bool:
-        """Current on its own facts, sitting below something that is not."""
         return self.state == "synced" and bool(self.upstream)
 
 
 def derive(index: Index, branch_id: str, uid: str) -> Verdict | None:
-    """One cell's verdict, or None when the branch does not select it."""
     return derive_all(index, branch_id).get(uid)
 
 
@@ -74,8 +55,6 @@ def derive_all(index: Index, branch_id: str) -> dict[str, Verdict]:
 
 
 class _Derivation:
-    """The branch's facts, read once: what it selects and what it last observed."""
-
     def __init__(self, index: Index, branch_id: str) -> None:
         self.index = index
         self.here = index.slice_versions(branch_id)
@@ -92,8 +71,6 @@ class _Derivation:
         version = self.here[uid]
         mat = self.mats.get(uid)
         if mat is None:
-            # Nothing observed: asserting a change against a baseline that does
-            # not exist is a claim the runtime refuses to make.
             return Verdict(uid=uid, slug=version.slug, state="unmaterialized")
         causes = (
             *self._code_causes(version, mat),
@@ -108,7 +85,6 @@ class _Derivation:
     def _code_causes(
         self, version: VersionRow, mat: MaterializationRow
     ) -> tuple[Cause, ...]:
-        """Did the cell itself move — its wiring first, since it says more."""
         now = {
             name: (ref.uid, ref.output)
             for name, ref in version.manifest.consumes.items()
@@ -143,11 +119,6 @@ class _Derivation:
         return ()
 
     def _input_causes(self, mat: MaterializationRow) -> tuple[Cause, ...]:
-        """Does any input still hold the content this run consumed?
-
-        A parent the branch has observed nothing of proves nothing either way,
-        so it raises no cause here — `upstream` is where it shows up.
-        """
         causes = []
         for ref in mat.inputs.values():
             producer = self.mats.get(ref.uid)
@@ -163,7 +134,6 @@ class _Derivation:
         return tuple(dict.fromkeys(causes))
 
     def _workspace_causes(self, mat: MaterializationRow) -> tuple[Cause, ...]:
-        """Shared code differs from the tree encoded in the run's memo key."""
         if self.tree is None:
             return ()
         ran = self.index.version(mat.version_id)
@@ -179,11 +149,6 @@ class _Derivation:
     def _env_causes(
         self, version: VersionRow, mat: MaterializationRow
     ) -> tuple[Cause, ...]:
-        """An opted-in cell's key holds the current lock hash, not the one it ran under.
-
-        A run that recorded none is behind a workspace that has since observed
-        one; two absences are no move.
-        """
         if not version.manifest.env_sensitive:
             return ()
         if mat.env_lock_hash == self.env_lock_hash:
@@ -194,12 +159,6 @@ class _Derivation:
 def _with_upstream(
     direct: dict[str, Verdict], here: dict[str, VersionRow]
 ) -> dict[str, Verdict]:
-    """Name, for every cell, the cells above it that are not current.
-
-    Grown to a fixed point rather than walked recursively: a `consumes` graph
-    an author has tied into a cycle is a flagged version, not a reason for the
-    view over it to hang.
-    """
     producers = {
         uid: sorted(
             {

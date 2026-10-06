@@ -18,7 +18,6 @@
 import { computed } from 'vue'
 import type { FlowState } from '../model/types'
 
-/** The five-state flow indicator — running/stopped alone would not be honest. */
 const props = defineProps<{ state: FlowState; dotOnly?: boolean }>()
 
 const CONFIG: Record<FlowState, { label: string; tooltip: string; dot: string }> = {

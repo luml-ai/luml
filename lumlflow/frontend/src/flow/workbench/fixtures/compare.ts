@@ -1,12 +1,3 @@
-/**
- * Fixture for the compare surface (ui-draft.md §7): 2–5 branches selected from
- * the branch graph, aligned on asset.
- *
- * The two divergence kinds are the load-bearing distinction: definition
- * divergence (someone edited the cell — rare, structural, rendered as the
- * branching point) vs materialization divergence (same code, different inputs —
- * transitively closed, rendered collapsed to one row per asset).
- */
 import type { BranchName, CompareView } from '../model/types'
 
 import { trainingCurves } from './previews'

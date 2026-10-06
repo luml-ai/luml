@@ -10,11 +10,6 @@
     @update:model-value="onView"
     @hide="confirming = false"
   >
-    <!--
-      Viewing is a store read, so the trigger says which branch is being read
-      and whether that is the one the files are on: the two facts a reader
-      needs before touching anything.
-    -->
     <template #value>
       <span class="flex min-w-0 items-center gap-1.5">
         <Eye
@@ -38,11 +33,6 @@
 
     <template #footer>
       <div class="flex flex-col gap-1.5 border-t border-surface-200 p-2 dark:border-surface-700">
-        <!--
-          Using a lane here is the one gesture that touches files, so it never
-          rides a selection: browsing re-scopes the screen, and this is a
-          separate ask with the sentence that says what it moves.
-        -->
         <template v-if="viewingOther">
           <div v-if="confirming" class="flex flex-col gap-2 px-1 py-0.5">
             <p class="text-sm text-muted-color">
@@ -92,23 +82,9 @@ import { formatCount } from '../../model/format'
 import type { BranchInfo } from '../../model/types'
 import BranchTag from '../../ui/BranchTag.vue'
 
-/**
- * The shortcut between branches: pick one and the whole screen re-scopes to it.
- *
- * Switching here changes what is **viewed**, which is a store read costing no
- * kernel, and the URL follows so the new scope is a link. Making a
- * branch the working copy on disk is the other verb entirely and sits one
- * gesture deeper, behind a sentence naming what it moves — a dropdown that
- * rebound files as a side effect of browsing would make looking dangerous.
- *
- * The branch graph is still the map: it draws where each branch split and is
- * where two get picked for a comparison. This is the shortcut for the one
- * thing that map is opened for most.
- */
 const props = defineProps<{
   branches: BranchInfo[]
   viewedBranch: string
-  /** Where the files are — the one branch this list marks as checked out. */
   worktreeBranch: string
   disabled?: boolean
 }>()
@@ -124,7 +100,6 @@ const ACTION_PT = { root: { class: 'w-full justify-start font-normal' } }
 
 const confirming = ref(false)
 
-/** Archived branches live behind the graph's own toggle; this is the short list. */
 const options = computed(() =>
   props.branches.filter((branch) => !branch.archived || branch.name === props.viewedBranch),
 )

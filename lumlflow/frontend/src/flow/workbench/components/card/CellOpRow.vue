@@ -32,10 +32,6 @@
       <template #icon><ClipboardCopy :size="14" /></template>
     </Button>
 
-    <!--
-      The common controls stay visible, and the rest are one click away: nine cards on a canvas
-      carried forty-five icon buttons, which is more chrome than the work.
-    -->
     <span ref="moreAnchor" class="inline-flex">
       <Button
         v-tooltip.top="'more'"
@@ -92,13 +88,6 @@ import {
 import type { FlowCell, Preflight } from '../../model/types'
 import PreflightPopover from './PreflightPopover.vue'
 
-/**
- * The op row: the run and everything else. Every verb is mapped to a daemon op
- * and each is honest about scope: the preflight before any run, awaiter-aware
- * stop wording, a per-lane delete confirm, duplicate buried in the menu.
- */
-
-/** A `Menu` model row carrying the glyph the `#itemicon` slot renders. */
 type CellMenuItem = MenuItem & { glyph?: LucideIcon }
 const props = defineProps<{
   cell: FlowCell
@@ -111,7 +100,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   run: [payload: { force: boolean }]
-  /** The run closure is wanted — asked for when the popover opens, not before. */
   preflight: []
   stop: []
   expand: []
@@ -131,8 +119,6 @@ const moreAnchor = useTemplateRef<HTMLElement>('moreAnchor')
 
 const awaiters = computed(() => props.awaiters ?? 0)
 
-// Preemption fires only when no awaiter still wants the result; when other
-// branches await the run, stop only requeues this branch.
 const stopTooltip = computed(() => {
   const others = awaiters.value
   if (others === 0) return 'stop the run'
@@ -141,15 +127,6 @@ const stopTooltip = computed(() => {
   return `leave the run, requeue this lane. ${branches} for it.`
 })
 
-/**
- * Four groups, in the order a reader reaches for them: look at it, change it,
- * move its value, destroy it. Nothing here is a sentence — a menu is scanned,
- * not read, and the two labels that carried caveats ("mints a new identity with
- * no consumers", "materialize and download · ~2.4s") were the reason this one
- * could not be. `download` is not among them: `expand` is the item above, and
- * the drawer it opens carries the download for the output on screen, with the
- * same materialize-first wording. Eight is the ceiling.
- */
 const menuItems = computed<CellMenuItem[]>(() => {
   const items: CellMenuItem[] = [
     { label: 'expand', glyph: Maximize2, command: () => emit('expand') },

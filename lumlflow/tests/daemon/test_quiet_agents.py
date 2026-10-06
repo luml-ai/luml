@@ -1,11 +1,3 @@
-"""A connected agent that stops calling stops counting as here.
-
-A harness can keep its MCP server — and with it the connection — alive long
-after the session that started it ended. So presence is the connection *and*
-a call within `QUIET_AFTER_S`: past that the session is ended as if the agent
-had hung up, and its next call brings it back under the same lease.
-"""
-
 import asyncio
 import contextlib
 import json
@@ -27,8 +19,6 @@ class _Clock:
 
 
 class _Agent:
-    """One connection to the daemon, speaking its line protocol."""
-
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self.reader = reader
         self.writer = writer
@@ -119,8 +109,6 @@ async def test_a_quiet_agent_leaves_and_its_next_call_brings_it_back(
                 agent.writer.close()
 
     assert both == {"codex-1": ("codex", True), "claude-1": ("claude-code", True)}
-    # Codex made no call for the whole window and is gone; Claude called
-    # within it and stays.
     assert after_quiet == {"claude-1": ("claude-code", True)}
     assert back == {"codex-1": ("codex", True), "claude-1": ("claude-code", True)}
 
@@ -128,7 +116,6 @@ async def test_a_quiet_agent_leaves_and_its_next_call_brings_it_back(
 async def test_a_quiet_agent_gives_its_name_back(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A new window of the same harness is not numbered after a gone one."""
     root = make_workspace(tmp_path / "project")
     async with _daemon(root, monkeypatch) as (daemon, clock):
         stale = await _connect(daemon)
@@ -145,7 +132,6 @@ async def test_a_quiet_agent_gives_its_name_back(
                 "agent.begin",
                 {"flow": "churn", "actor": "codex-2", "label": "codex", "lease": True},
             )
-            # The stale one comes back and takes the next free name.
             await stale.call("context", {"flow": "churn", "actor": "codex-1"})
             present = await _present(daemon)
         finally:

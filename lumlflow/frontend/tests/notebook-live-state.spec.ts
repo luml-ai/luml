@@ -1,12 +1,3 @@
-/**
- * The notebooks page's live states: what is happening to a cell right now, as
- * opposed to what its stored state says it last was.
- *
- * None of it is journaled. A run's lifecycle and an agent's call arrive as
- * frames and in the catch-up, and the store is the only place that remembers
- * them — so the card reads them off the store, and the pairing tag says what
- * the agent is inside of.
- */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -223,7 +214,6 @@ describe('live cell states in the store', () => {
     store.receiveLiveFrame(activity('ended', 'cells.edit', 'train'))
     expect(store.cellLiveStates.train).toMatchObject({ tool: null, inCall: false })
 
-    // A call that names another cell it does not hold is not on this one.
     store.receiveLiveFrame(activity('started', 'cells.show', 'score'))
     expect(store.cellLiveStates.train).toMatchObject({ inCall: false })
     expect(store.cellLiveStates.score).toBeUndefined()
@@ -369,7 +359,6 @@ describe('a card an agent holds but has stopped working on', () => {
       expect(store.cellLiveStates.train).toMatchObject({ kind: 'agent', active: true })
       vi.advanceTimersByTime(AGENT_ACTIVE_MS + 5_000)
       expect(store.cellLiveStates.train).toMatchObject({ kind: 'agent', active: false })
-      // Inside a call it is working, however long ago the hold began.
       store.receiveLiveFrame(activity('started', 'cells.edit', 'train'))
       expect(store.cellLiveStates.train).toMatchObject({ active: true, inCall: true })
     } finally {

@@ -1,5 +1,4 @@
 class TrainModel:
-    """Train a logistic regression baseline on the scaled training split."""
     uid = "01M36TK7ATD6Z1RER02GED8YP0"
 
     consumes = {"x_train": "features.x_train"}

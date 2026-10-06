@@ -1,12 +1,3 @@
-"""Export and import: a flow's travelling form, and the trip back.
-
-The claim under test is that the round trip is one — the same cells, under the
-same identities, hashing to the same definitions on the other side. Anything
-less and an export would be a copy of a flow's text rather than the flow, and
-importing one back would read as twelve new cells rather than the twelve that
-left.
-"""
-
 from pathlib import Path
 
 import pytest
@@ -45,8 +36,6 @@ async def test_a_round_trip_keeps_each_cells_identity_and_definition(tmp_path: P
     assert {slug: cell.definition_hash for slug, cell in arrived.items()} == {
         slug: cell.definition_hash for slug, cell in left.items()
     }
-    # The wiring came with them: `report` reads the `score` that arrived beside
-    # it, not a name that resolved to nothing.
     assert arrived["report"].manifest.consumes["summary"].uid == arrived["score"].uid
     assert not arrived["report"].flags
 
@@ -62,7 +51,6 @@ async def test_the_export_reads_producers_first_and_renders_the_same_bytes_twice
         once = await api.export({"flow": "churn"})
         twice = await api.export({"flow": "churn"})
 
-    # By name `report` comes first; by wiring it cannot.
     assert once["cells"] == ["score", "report"]
     assert once["source"].index(f"{portable.MARKER}score") < once["source"].index(
         f"{portable.MARKER}report"
@@ -119,7 +107,6 @@ async def test_an_import_lands_as_one_transaction_and_writes_the_files(tmp_path:
 
 
 async def test_importing_an_edited_export_edits_the_cell_it_names(tmp_path: Path):
-    """The same cell, a version further on — never a second cell beside it."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -180,7 +167,6 @@ async def test_reimporting_an_export_ignores_format_only_trailing_newlines(
 
 
 async def test_a_hand_reordered_file_still_binds_its_references(tmp_path: Path):
-    """The format writes producers first; a file somebody rearranged need not."""
     root = make_workspace(tmp_path / "project")
     upside_down = (
         f"{portable.MARKER}report\n{REPORT_CELL.strip()}\n\n"
@@ -241,7 +227,6 @@ async def test_an_import_under_an_agent_is_written_and_not_reconciled_away(
 async def test_a_block_duplicated_under_a_new_name_is_refused_not_collapsed(
     tmp_path: Path,
 ):
-    """Both blocks name one cell, so importing both would land one — and say two."""
     root = make_workspace(tmp_path / "project", flows=("churn", "copy"))
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
@@ -255,7 +240,6 @@ async def test_a_block_duplicated_under_a_new_name_is_refused_not_collapsed(
                 {"flow": "copy", "source": _duplicated(exported["source"])}
             )
         landed = slice_of(api.hub.session("copy"), "main")
-        # The remedy the message names: a block of its own arrives as its own cell.
         await api.import_cells(
             {"flow": "copy", "source": _without_uid(variant, slug="score_hi")}
         )
@@ -280,21 +264,18 @@ async def test_an_empty_flow_exports_and_imports_as_nothing(tmp_path: Path):
 
 
 def _duplicated(source: str, *, as_slug: str | None = None) -> str:
-    """The file with its last block written twice — a variant made by hand."""
     slug, block = source.rsplit(portable.MARKER, 1)[1].split("\n", 1)
     name = as_slug or slug
     return f"{source}\n\n{portable.MARKER}{name}\n{block}"
 
 
 def _without_uid(source: str, *, slug: str) -> str:
-    """One block's uid line dropped — what the refusal tells the user to do."""
     head, block = source.rsplit(f"{portable.MARKER}{slug}\n", 1)
     kept = [line for line in block.split("\n") if not line.strip().startswith("uid =")]
     return f"{head}{portable.MARKER}{slug}\n" + "\n".join(kept)
 
 
 def _accepting(entries: list[Transaction]) -> list[Transaction]:
-    """The transactions that took a cell in — never the housekeeping around them."""
     return [
         entry
         for entry in entries

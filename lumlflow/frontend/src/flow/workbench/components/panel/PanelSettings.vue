@@ -24,8 +24,6 @@
           @update:model-value="setThreshold"
         />
       </div>
-      <!-- The setting decides whether the daemon runs things by itself, which
-           is worth one sentence at the control rather than only in the guide. -->
       <p class="text-sm text-muted-color">{{ reactivityHint }}</p>
     </div>
 

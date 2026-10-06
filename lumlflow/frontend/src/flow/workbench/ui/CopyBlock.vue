@@ -29,17 +29,6 @@ import { Button } from 'primevue'
 import { Check, Copy } from 'lucide-vue-next'
 import { useCopy } from './useCopy'
 
-/**
- * Something handed over whole, such as a configuration snippet. The reader
- * checks it and copies all of it, so the block is the preview and the copy at
- * once — `CopyField` is the one-line sibling, and truncating a block would hide
- * most of what the button is about to carry.
- *
- * The copy sits in the corner with `absolute!`: `.p-button` sets `position:
- * relative` and wins the cascade over the utility, which lands the button at
- * its static position — under the block, outside the border, where it reads as
- * an icon belonging to nothing.
- */
 const props = withDefaults(defineProps<{ value: string; label?: string }>(), { label: 'Copy' })
 
 const { copied, copy } = useCopy(() => props.value)

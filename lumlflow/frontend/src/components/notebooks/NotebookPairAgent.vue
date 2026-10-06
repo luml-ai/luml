@@ -133,20 +133,12 @@ const flowStore = useFlowStore()
 const visible = ref(false)
 const ending = ref<string | null>(null)
 
-// Paired is read off the store, which reads it off the daemon's lease state.
-// Nothing in this dialog sets it: the agent connects, and the tag follows.
-// The toolbar keeps one element however many agents are connected — the
-// line must not grow with them. One agent reads in full; several fold into a
-// count with a dot each, and the list is a click away, like the logged
-// models in the experiments table.
 const popover = useTemplateRef<InstanceType<typeof Popover>>('popover')
 const agentsOnFlow = computed(() => flowStore.pairedAgents)
 const soleAgent = computed(() =>
   agentsOnFlow.value.length === 1 ? (agentsOnFlow.value[0] ?? null) : null,
 )
 
-// Enough dots to say "several, in these colours" without the trigger
-// growing with the count; the number beside them says how many.
 const MAX_DOTS = 4
 
 const POPOVER_PT: PopoverPassThroughOptions = {
@@ -158,8 +150,6 @@ function onCellClick(slug: string) {
   popover.value?.hide()
 }
 
-// Idle, an agent is paired; holding a cell, which one; inside a call on it,
-// what it is doing.
 function chipText(agent: PairedAgent): string {
   if (!agent.slug && !agent.tool) return `${agent.label} paired`
   const verb = agent.tool ? agentToolVerb(agent.tool) : 'working on'
@@ -179,8 +169,6 @@ const agents = useAgentHarnesses(
 
 function openDialog() {
   visible.value = true
-  // Detected on every open: a harness installed since the last look is the
-  // whole reason to look again.
   void agents.refresh()
 }
 

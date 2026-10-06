@@ -1,6 +1,4 @@
 class FeatureDistributions:
-    """Histograms of each feature and the target."""
-
     uid = "01M00M5X7PCEF070G7QV7VNEXA"
     consumes = {"data": "load_data.data"}
     produces = {"plot": "asset"}

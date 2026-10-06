@@ -75,7 +75,7 @@ class TestEarlyCutoff:
     async def test_a_consumer_of_an_unchanged_output_never_reruns(
         self, flow: Flow
     ) -> None:
-        """`train` reruns; only the consumer of the output that moved follows."""
+        pass
         flow.add("train", produces={"run": "experiment", "checkpoint": "asset"})
         flow.add("uses_run", consumes={"rows": "train.run"})
         flow.add("uses_ckpt", consumes={"rows": "train.checkpoint"})
@@ -93,7 +93,7 @@ class TestEarlyCutoff:
         assert flow.executor.slugs == ["train", "uses_run"]
 
     async def test_a_swapped_pair_of_inputs_is_not_a_hit(self, flow: Flow) -> None:
-        """A named map, not a bag: same hashes, different names, different key."""
+        pass
         flow.add("splits", produces={"a": "asset", "b": "asset"})
         flow.add("consumer", consumes={"train": "splits.a", "test": "splits.b"})
         flow.executor.content[("splits", "a")] = b"first"
@@ -165,8 +165,6 @@ class TestMemoHits:
         assert flow.executor.slugs == ["features", "features"]
 
     async def test_a_declared_external_cell_never_memoizes(self, flow: Flow) -> None:
-        """Remote data leaves no trace the kernel can observe; the declaration
-        is the only signal."""
         flow.add("features", volatility="external")
         await flow.run("features")
 
@@ -177,9 +175,6 @@ class TestMemoHits:
 
 
 class TestForcedRuns:
-    """`--force` is the labeled modifier: it buys back a suspect result by
-    spending the closure's cost again, and buys nothing else."""
-
     async def test_forcing_recomputes_what_early_cutoff_would_have_skipped(
         self, flow: Flow
     ) -> None:
@@ -201,7 +196,6 @@ class TestForcedRuns:
         outcome = await flow.queue.submit("features", branch="sweep", force=True)
 
         assert outcome.executed == ("features",)
-        # A forced run is a run, not a hit — the journal says so too.
         assert flow.ops(MemoHit) == []
         assert len(flow.ops(RunRecorded)) == 2
 
@@ -214,16 +208,12 @@ class TestForcedRuns:
 
         outcome = await flow.queue.submit("plot", branch="sweep", force=True)
 
-        # Both would have been hits on the fork; forcing runs the pair.
         assert outcome.executed == ("features", "plot")
         assert flow.executor.slugs[-2:] == ["features", "plot"]
 
     async def test_forcing_does_not_reach_an_ancestor_the_branch_has_current(
         self, flow: Flow
     ) -> None:
-        """Forcing is scoped to the closure the request is about. A parent this
-        branch already holds is not part of that closure, and rerunning the flow
-        from its roots is not what one click asked for."""
         flow.add("features")
         flow.add("plot", consumes={"rows": "features.data"})
         await flow.run("plot")
@@ -237,8 +227,6 @@ class TestForcedRuns:
     async def test_an_ordinary_run_after_a_forced_one_is_cheap_again(
         self, flow: Flow
     ) -> None:
-        """Forcing spends once. It does not put the branch into a state where
-        everything reruns from then on."""
         flow.add("features")
         await flow.run("features", force=True)
         flow.executor.requests.clear()
@@ -349,7 +337,7 @@ class TestCoalescing:
     async def test_a_waiter_runs_its_own_when_the_shared_one_reads_identity(
         self, flow: Flow
     ) -> None:
-        """Coalescing has to unwind: identity dependence is only known after."""
+        pass
         flow.add("train")
         flow.executor.identity.add("train")
         flow.executor.holding.add("train")
@@ -371,7 +359,7 @@ class TestCoalescing:
     async def test_a_waiter_runs_its_own_when_the_shared_one_reads_outside(
         self, flow: Flow
     ) -> None:
-        """Same unwind for `external`: nothing here knows what it read."""
+        pass
         flow.add("train")
         flow.executor.external.add("train")
         flow.executor.holding.add("train")
@@ -416,8 +404,6 @@ class TestCoalescing:
 
         assert (await main).abandoned is True
         assert (await joined).cached == ("train",)
-        # Leaving is not stopping, and the report says which one happened so a
-        # surface never claims a run ended that is still going.
         assert (left.stopped, left.awaiting) == (False, 1)
 
     async def test_the_last_branch_leaving_preempts_the_run(self, flow: Flow) -> None:
@@ -442,8 +428,7 @@ class TestCoalescing:
     async def test_the_awaiter_count_is_announced_as_branches_join_and_leave(
         self, flow: Flow
     ) -> None:
-        """The stop button's wording moves while the run is in flight, and no
-        journal line carries it — only this."""
+        pass
         flow.add("train")
         flow.executor.holding.add("train")
         main = asyncio.create_task(flow.run("train"))
@@ -532,7 +517,6 @@ class TestPlanChanges:
 
 
 def rewind(flow: Flow, to_step: int, branch: str = MAIN_BRANCH) -> None:
-    """What the rewind verb does: journal the move, then leave the lane's runs."""
     flow.store.branches.rewind(branch, to_step=to_step)
     flow.queue.abandon(branch)
 
@@ -642,8 +626,6 @@ class TestRewinds:
     async def test_a_run_waiting_at_the_gate_when_its_lane_is_rewound_is_dropped(
         self, flow: Flow
     ) -> None:
-        """The rewind keeps the cell's version, so the checks before the kernel
-        pass: only the anchor taken when the run was asked for catches it."""
         flow.add("train")
         flow.add("blocker")
         at = flow.store.next_step - 1

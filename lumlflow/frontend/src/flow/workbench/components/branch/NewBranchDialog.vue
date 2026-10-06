@@ -27,17 +27,9 @@
 import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { Button, Dialog, InputText } from 'primevue'
 
-/**
- * Naming a fork. The parent is stated rather than chosen: a branch is forked
- * from the one being viewed, which is the branch every other surface on the
- * screen is already scoped to — a second picker here would let the two disagree.
- */
 const props = defineProps<{
-  /** The branch this forks off — the viewed one. */
   from: string
-  /** A gesture-specific suggestion, such as the cell name for a forked edit. */
   initialName?: string
-  /** The daemon's refusal, when it named one (a name already taken). */
   refusal?: string | null
   busy?: boolean
 }>()

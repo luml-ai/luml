@@ -1,5 +1,4 @@
 class Features:
-    """Standardize features; the scaler is fitted on train and applied to test."""
     uid = "01M36TK79XXJY52X4Q95GAZ55H"
 
     consumes = {"train": "split.train", "test": "split.test"}

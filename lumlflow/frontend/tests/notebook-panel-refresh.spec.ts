@@ -1,9 +1,3 @@
-/**
- * An open notebook panel shows the lane on screen and what that lane holds for
- * its cell now: the output and logs panels follow the result the lane
- * observed, the code panel follows the version. A refresh that changes
- * neither leaves the panel alone, and a draft outlives any reload.
- */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -70,7 +64,6 @@ function summary(overrides: Partial<CellSummary>): CellSummary {
   }
 }
 
-/** What the daemon holds for `train`, per lane: its result and its version. */
 let results: Record<string, string>
 let versions: Record<string, string>
 let store: ReturnType<typeof useFlowStore>
@@ -83,7 +76,6 @@ function onScreen(branch: string): void {
   }))
 }
 
-/** The cell list arriving from a refetch, a fresh object as the store would get. */
 function cellListReports(overrides: Partial<CellSummary>): void {
   const current = store.cells.find((cell) => cell.slug === 'train')
   store.cells = [summary({ ...current, ...overrides })]

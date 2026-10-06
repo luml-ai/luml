@@ -1,5 +1,3 @@
-"""Discover, start, and call the one per-user daemon."""
-
 import json
 import os
 import signal
@@ -120,7 +118,6 @@ def attach(
 
 
 def is_alive(record: DaemonRecord) -> bool:
-    """The record's exact daemon answers; a reused pid or port is not enough."""
     try:
         with attach(record, timeout=_PING_TIMEOUT_S) as live:
             answer = live.call("ping")
@@ -133,7 +130,6 @@ def is_alive(record: DaemonRecord) -> bool:
 
 
 def discover(*, timeout: float = _HELD_RETRY_S) -> DaemonRecord | None:
-    """Return the answering daemon, clean a stale row, or name a hung holder."""
     deadline = time.monotonic() + timeout
     while True:
         record = workspace.read_record()
@@ -152,7 +148,6 @@ def discover(*, timeout: float = _HELD_RETRY_S) -> DaemonRecord | None:
 
 
 def connect(directory: Path | None = None, *, start: bool = True) -> DaemonClient:
-    """Attach to the daemon, starting it in the caller's directory if absent."""
     record = discover()
     if record is not None:
         return attach(record)
@@ -163,7 +158,6 @@ def connect(directory: Path | None = None, *, start: bool = True) -> DaemonClien
 
 
 def stop(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
-    """Signal the recorded pid only while the singleton lock proves it is live."""
     if not workspace.lock_held():
         workspace.clear_record(instance_id=record.instance_id)
         return False
@@ -188,7 +182,6 @@ def stop(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
 
 
 def wait_stopped(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
-    """Wait for a daemon that already accepted a graceful shutdown request."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         current = workspace.read_record()
@@ -262,7 +255,6 @@ def _spawn(directory: Path, log: Path) -> "subprocess.Popen[bytes]":
 def _await_registration(
     process: "subprocess.Popen[bytes]", deadline: float
 ) -> DaemonRecord | None:
-    """The daemon once one answers, or None when a loser leaves no winner."""
     exited_at: float | None = None
     while time.monotonic() < deadline:
         record = workspace.read_record()
@@ -289,7 +281,6 @@ def _detached() -> dict[str, Any]:
 
 
 def _raised(error: dict[str, Any]) -> FlowError:
-    """Rebuild the failure the server named, so verbs catch what they expect."""
     kind = (error.get("data") or {}).get("kind")
     message = str(error.get("message", "lumlflow refused the call"))
     raised = getattr(errors, str(kind), None) if kind else None
@@ -297,8 +288,6 @@ def _raised(error: dict[str, Any]) -> FlowError:
         try:
             return raised(message)
         except TypeError:
-            # A failure that carries structure — the adopt conflict menu — does
-            # not rebuild from a sentence. Its wording still crosses.
             return FlowError(message)
     return FlowError(message)
 

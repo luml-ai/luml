@@ -1,11 +1,3 @@
-"""`lumlflow ui`: a server the user starts, watches, and ends with Ctrl-C.
-
-The signal handling, the port refusal and the second-instance handshake are
-only true across processes, so those run the real command in its own process.
-The rest — which port is asked for, what the help says, what is safe to
-restart — is decided in-process and tested there.
-"""
-
 import json
 import os
 import signal
@@ -35,7 +27,6 @@ from typer.testing import CliRunner
 from tests.daemon.conftest import Reap
 from tests.daemon.helpers import SCORE_CELL, make_workspace, write_cell
 
-# A workspace root and the port asked for; hands back the running command.
 Serve = Callable[..., "subprocess.Popen[str]"]
 
 _READY_TIMEOUT_S = 90.0
@@ -56,8 +47,6 @@ class Gated:
 
 @pytest.fixture
 def serve(servers: Reap) -> Serve:
-    """`lumlflow ui`, in its own process, ended when the test is."""
-
     def start(root: Path, *args: str) -> "subprocess.Popen[str]":
         running = subprocess.Popen(
             [sys.executable, "-m", "lumlflow.cli", "ui", "--no-browser", *args],
@@ -75,7 +64,6 @@ def serve(servers: Reap) -> Serve:
 def test_the_default_port_is_5000_and_a_flag_is_what_changes_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """5000 is the address the product has; asking for another is a gesture."""
     root = make_workspace(tmp_path / "project", flows=())
     asked: list[tuple[str, int]] = []
 
@@ -125,12 +113,6 @@ def test_ui_accepts_a_launch_directory(
 def test_the_browser_is_opened_on_the_address_that_carries_the_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The tab is handed the key by being opened, or it is not connected at all.
-
-    The flow API asks every caller for this workspace's token and the SPA is
-    the one caller with no other way to have it, so what gets opened is the
-    printed address in full — never the bare port.
-    """
     root = make_workspace(tmp_path / "project", flows=())
     record = _record()
     opened = _opens(monkeypatch)
@@ -249,8 +231,6 @@ def test_the_web_listener_binds_the_requested_non_loopback_host() -> None:
 def test_a_second_ui_opens_the_browser_on_the_one_already_serving(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Attaching is a way to reach the first, so it owes the same address —
-    with the key the server that is actually serving minted, not a new one."""
     root = make_workspace(tmp_path / "project", flows=())
     record = _record()
     opened = _opens(monkeypatch)
@@ -265,7 +245,6 @@ def test_a_second_ui_opens_the_browser_on_the_one_already_serving(
     runner.invoke(app, ["ui", "--no-browser"])
 
     assert opened == [_ui_url(record, root)]
-    # It attached; nothing was started to open a browser on.
     assert started == []
 
 
@@ -375,7 +354,6 @@ def test_ui_attaches_without_interrupting_a_run_or_leased_session(
 
 
 def _opens(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """What `lumlflow ui` sent to a browser, in order."""
     opened: list[str] = []
 
     def open_url(url: str, *args: Any, **kwargs: Any) -> bool:
@@ -390,7 +368,6 @@ def _opens(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def test_ctrl_c_ends_it_and_everything_it_was_holding(
     tmp_path: Path, serve: Serve
 ) -> None:
-    """The whole point of the foreground: nothing it started survives it."""
     root = make_workspace(tmp_path / "project", flows=())
     port = _free_port()
 
@@ -406,7 +383,6 @@ def test_ctrl_c_ends_it_and_everything_it_was_holding(
     assert _ui_url(record, root) in printed
     assert "Ctrl+C" in printed
     assert "Traceback" not in printed
-    # Deregistered, unlocked, and the port handed back: nothing left behind.
     assert workspace.read_record() is None
     lock = workspace.WorkspaceLock()
     assert lock.acquire()
@@ -418,8 +394,6 @@ def test_ctrl_c_ends_it_and_everything_it_was_holding(
 def test_ctrl_c_takes_the_kernels_it_spawned_with_it(
     tmp_path: Path, serve: Serve
 ) -> None:
-    """Surviving nothing reaches past the server itself: a kernel left running
-    would hold the workspace's env and its stores open with nobody driving."""
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
     port = _free_port()
@@ -489,7 +463,6 @@ def test_ctrl_c_names_attached_clients_and_still_stops(
 def test_a_terminating_signal_lets_go_the_same_way(
     tmp_path: Path, serve: Serve
 ) -> None:
-    """A supervisor that stops it is the same gesture as a person doing so."""
     root = make_workspace(tmp_path / "project", flows=())
     port = _free_port()
 
@@ -506,7 +479,6 @@ def test_a_terminating_signal_lets_go_the_same_way(
 def test_a_port_somebody_else_holds_is_a_refusal_that_names_it(
     tmp_path: Path, serve: Serve
 ) -> None:
-    """Never a quiet move to another port: the address was the request."""
     root = make_workspace(tmp_path / "project", flows=())
     held = socket.socket()
     held.bind(("127.0.0.1", 0))
@@ -523,14 +495,12 @@ def test_a_port_somebody_else_holds_is_a_refusal_that_names_it(
     assert f"port {port} is already in use" in refused
     assert "--port" in refused
     assert printed == ""
-    # It refused before taking anything: no workspace was claimed on the way.
     assert workspace.read_record() is None
 
 
 def test_a_second_ui_in_another_directory_opens_the_one_already_serving(
     tmp_path: Path, serve: Serve
 ) -> None:
-    """The launch directory does not select a second daemon."""
     root = make_workspace(tmp_path / "project", flows=())
     other = make_workspace(tmp_path / "other", flows=())
     port, wanted = _free_port(), _free_port()
@@ -548,13 +518,10 @@ def test_a_second_ui_in_another_directory_opens_the_one_already_serving(
     assert second.returncode == 0
     assert _ui_url(record, other) in second.stdout
     assert f"it is serving port {port}, not {wanted}" in second.stdout
-    # The first is untouched, and no second server took the workspace.
     assert workspace.read_record() == record
 
 
 def test_a_verb_still_starts_a_server_behind_the_user(tmp_path: Path) -> None:
-    """Plumbing stays plumbing: a verb that finds nobody home starts one, in
-    the background, and says nothing about it."""
     root = make_workspace(tmp_path / "project", flows=())
 
     done = subprocess.run(
@@ -647,8 +614,6 @@ def test_daemon_stop_and_status_are_visible_but_start_is_hidden() -> None:
 
 
 def _command_paths() -> list[tuple[str, ...]]:
-    """Every command the app can be asked for help on, group or leaf."""
-
     def walk(command: Any, path: tuple[str, ...]) -> list[tuple[str, ...]]:
         found = [path] if path else []
         for name, sub in getattr(command, "commands", {}).items():
@@ -687,7 +652,6 @@ def _ui_url(record: DaemonRecord, directory: Path) -> str:
 
 
 def _served(root: Path, port: int) -> DaemonRecord:
-    """The record of a `ui` that has come up, or the reason it never did."""
     deadline = time.monotonic() + _READY_TIMEOUT_S
     while time.monotonic() < deadline:
         record = workspace.read_record()
@@ -708,7 +672,6 @@ def _rpc(record: DaemonRecord, method: str = "status", **params: Any) -> Any:
 
 
 def _kernels(root: Path) -> list[str]:
-    """Kernel processes still running for this workspace, by command line."""
     listed = subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True)
     return [
         line
@@ -718,7 +681,6 @@ def _kernels(root: Path) -> list[str]:
 
 
 def _settled(wanted: Callable[[], bool], timeout: float = 30.0) -> bool:
-    """An OS reaps on its own schedule; the answer is what it settles on."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if wanted():

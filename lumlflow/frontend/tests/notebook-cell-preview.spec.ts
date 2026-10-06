@@ -1,11 +1,3 @@
-/**
- * What a canvas card shows of a cell's output.
- *
- * A preview is a flat list of blocks; the card reads it as sections — a
- * heading and what it introduced — so a chart can carry its metric filter and
- * a long list its expand action on the heading line. On a card a chart wins
- * the room: a list beside one shows seven rows and offers the rest.
- */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -97,8 +89,6 @@ describe('the preview on a card', () => {
       global: {
         plugins: [PrimeVue],
         directives: { tooltip: Tooltip },
-        // Plotly does not draw in a test DOM; what the chart is asked to
-        // leave out is what is under test.
         stubs: {
           CellChart: {
             props: ['section', 'hidden'],
@@ -151,7 +141,6 @@ describe('the preview on a card', () => {
 
     document.body.querySelectorAll<HTMLInputElement>('.filter-row input')[1]?.click()
     await settle()
-    // Nothing redraws until Apply.
     expect(hidden()).toBe('')
 
     const apply = [...document.body.querySelectorAll('button')].find(

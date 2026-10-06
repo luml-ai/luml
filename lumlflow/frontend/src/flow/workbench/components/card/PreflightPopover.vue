@@ -83,25 +83,14 @@ import { Play } from 'lucide-vue-next'
 import { formatCost, formatCount } from '../../model/format'
 import type { Preflight } from '../../model/types'
 
-/**
- * Run never happens blind: the closure (what is cached, what recomputes, and
- * the total seconds) is on screen before the click. Force-rerun is a labeled
- * modifier, never the default.
- *
- * The closure is the daemon's to compute, so opening the popover asks for it
- * and the answer lands under the reader. Until it does the popover says it is
- * still asking; a placeholder closure would be a cost estimate nobody made.
- */
 const props = defineProps<{
   preflight: Preflight | null
   target: string
-  /** Optional trigger label; without it the trigger is an icon button. */
   label?: string
 }>()
 
 const emit = defineEmits<{
   run: [payload: { force: boolean }]
-  /** Opened — the moment the closure is worth asking the daemon for. */
   open: []
 }>()
 
@@ -115,7 +104,6 @@ const runLabel = computed(() => {
   if (!props.preflight) return 'run'
   const { cached, recompute, totalSeconds } = props.preflight
   if (force.value && cached.length > 0) {
-    // Memo hits recompute too; their cost is unknown, so the total is open-ended.
     return `run ${formatCount(recompute.length + cached.length, 'cell')} · ~${formatCost(totalSeconds)}+`
   }
   return `run ${formatCount(recompute.length, 'cell')} · ~${formatCost(totalSeconds)}`

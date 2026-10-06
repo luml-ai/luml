@@ -1,23 +1,3 @@
-"""The run queue: one cell at a time, the branch you are looking at first.
-
-Execution is serial by design — one kernel runs one cell — so the queue's real
-work is deciding what does *not* have to run. Three rules do that, applied to
-each step of a plan as it is reached, against facts that may have changed while
-the step above it ran:
-
-*Early cutoff.* A step whose memo key matches what this branch already ran is
-skipped. A parent that rematerialized to the same bytes leaves its consumers'
-keys untouched, so a plan collapses to nothing below the change.
-
-*Memo hits.* A key matching any succeeded materialization is journaled as a hit
-rather than executed, cross-branch included.
-
-*Coalescing.* A key already in flight is awaited, not started twice — twenty
-forks of one sweep share one run. That run is preempted only when the last
-branch awaiting it has stopped wanting it; one branch editing out from under it
-just leaves.
-"""
-
 import asyncio
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -51,8 +31,6 @@ StepOutcome = Literal["pruned", "cached", "executed", "failed", "abandoned"]
 
 @dataclass(frozen=True)
 class RunRequest:
-    """What a kernel needs to run one cell. No store handles cross this line."""
-
     run_id: str
     flow: str
     flow_id: str
@@ -101,12 +79,6 @@ class RunOutcome:
 
 @dataclass(frozen=True)
 class Abandoned:
-    """What leaving a run actually did — the wording after the click.
-
-    `stopped` is false when other branches were still awaiting the result, in
-    which case this branch merely left and `awaiting` counts who stayed.
-    """
-
     branch: str
     left: int = 0
     stopped: bool = False
@@ -122,13 +94,9 @@ class _Waiter:
 
 @dataclass
 class _Flight:
-    """One execution and everyone waiting on it, keyed by its memo key."""
-
     key: str
     run_id: str
     origin: str
-    #: The journal step at which the origin asked for this run — a rewind of
-    #: the origin at or after it means the result belongs nowhere on that lane.
     asked_step: int
     slug: str = ""
     waiters: list[_Waiter] = field(default_factory=list)
@@ -157,24 +125,14 @@ class RunQueue:
 
     @property
     def busy(self) -> bool:
-        """Is a cell executing right now — what a kernel restart would kill."""
         return self._busy
 
     def focus(self, branch: str | None) -> None:
-        """The branch the user is watching: it goes first when the gate frees."""
         self._active = branch
 
     async def submit(
         self, target: str, *, branch: str, actor: str = "user", force: bool = False
     ) -> RunOutcome:
-        """Run the target's minimal stale closure.
-
-        `force` is the labeled modifier, not the default: it drops both savings
-        — early cutoff and memo hits — for every step of *this* plan, so a
-        result the store could have served is computed again. Ancestors the
-        branch already has current stay out of the plan either way; forcing
-        re-runs the closure the request is about, not the whole flow.
-        """
         plan = self._planner.plan(target, branch=branch)
         _validate_experiment_outputs(plan)
         done: dict[str, list[str]] = {"executed": [], "cached": [], "pruned": []}
@@ -183,8 +141,6 @@ class RunQueue:
         for step in plan.steps:
             outcome = await self._advance(plan, step, actor=actor, force=force)
             if outcome in ("failed", "abandoned"):
-                # Nothing below a step that did not produce can run: its
-                # consumers have no input to resolve.
                 failed = step.slug if outcome == "failed" else None
                 abandoned = outcome == "abandoned"
                 break
@@ -200,13 +156,6 @@ class RunQueue:
         )
 
     def abandon(self, branch: str) -> Abandoned:
-        """The branch's inputs moved: stop it awaiting what it no longer wants.
-
-        Preemption is the last waiter leaving, never the first. A run twenty
-        forks are awaiting keeps going when one of them edits; only that branch
-        re-queues — and the report says which of the two happened, so nothing
-        upstream has to claim a run stopped that is still going.
-        """
         left = 0
         stopped = False
         awaiting = 0
@@ -288,7 +237,6 @@ class RunQueue:
     async def _join(
         self, flight: _Flight, plan: Plan, step: Step, key: str, *, actor: str
     ) -> StepOutcome | None:
-        """Await someone else's run. None means it turned out unusable here."""
         waiter = self._wait_on(flight, plan.branch)
         result = await waiter.future
         if waiter.abandoned:
@@ -300,8 +248,6 @@ class RunQueue:
         if _external(step, result):
             return None
         if result.identity_dependent and plan.branch != flight.origin:
-            # Only knowable once it has run: the branch that asked for it under
-            # its own name has to run it under its own name.
             return None
         self._record_hit(plan, step, key, flight.mat_id, actor=actor)
         return "cached"
@@ -325,7 +271,6 @@ class RunQueue:
         self._flights[flight.run_id] = flight
         waiter = self._wait_on(flight, plan.branch)
         # The run is the queue's, not the caller's: the caller may walk away
-        # while other branches are still awaiting the same result.
         flight.task = asyncio.create_task(
             self._drive(flight, plan, step, inputs, actor=actor)
         )
@@ -377,12 +322,8 @@ class RunQueue:
         *,
         actor: str,
     ) -> RunResult | None:
-        """None when the lane was rewound since it asked: the result is dropped,
-        and whoever else awaits it runs their own."""
         request = self._request(flight.run_id, plan, step, inputs)
         # Read before the run, not after it: an install landing mid-run moves
-        # the lockfile, and the result still came out of the modules the kernel
-        # had already imported.
         env_lock_hash = self._store.index.env_lock_hash()
         self._store.index.pin_values(
             flight.run_id,
@@ -392,7 +333,6 @@ class RunQueue:
             result = await self._executor.run(request)
             if self._rewound_since(plan.branch_id, flight.asked_step):
                 # Even a cancelled record is a change, and would move the lane
-                # off the step it was rewound to.
                 return None
             flight.mat_id = self._record_run(
                 plan,
@@ -525,7 +465,6 @@ class RunQueue:
     def _record_hit(
         self, plan: Plan, step: Step, key: str, mat_id: str, *, actor: str
     ) -> None:
-        """A hit is journaled and moves the baseline — it is not a 0-second run."""
         self._store.commit(
             [
                 MemoHit(
@@ -550,13 +489,6 @@ class RunQueue:
         return waiter
 
     def _announce(self, flight: _Flight) -> None:
-        """Who is awaiting this run, as it changes.
-
-        A run's lifecycle is not journaled, and the awaiter set moves between
-        its start and its end — a fork joining, a branch leaving — so a surface
-        that only heard `started` would word its stop button on the count at
-        the moment nobody else had arrived yet.
-        """
         if self._on_event is None:
             return
         self._on_event(
@@ -605,13 +537,10 @@ class RunQueue:
 
 
 def _external(step: Step, result: RunResult) -> bool:
-    """Declared volatility counts as much as observed access: a cell that
-    fetches remote data never touches `ctx.workspace_dir` for the kernel to see."""
     return result.external or step.version.manifest.volatility == "external"
 
 
 def _awaiting(flight: _Flight) -> int:
-    """Distinct branches awaiting this run — a branch counts once, not per ask."""
     return len({waiter.branch for waiter in flight.waiters if not waiter.abandoned})
 
 

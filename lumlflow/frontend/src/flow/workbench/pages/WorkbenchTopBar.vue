@@ -7,7 +7,6 @@
       <FlowStateDot :state="session.state" />
     </div>
 
-    <!-- The branch is named by the control that changes it, not beside one. -->
     <BranchSwitcher
       :branches="branches"
       :viewed-branch="viewedBranch"
@@ -18,7 +17,6 @@
       @new-branch="emit('new-branch')"
     />
 
-    <!-- The flow's views, in the one bar that already names the flow. -->
     <FlowTabs />
 
     <CatchUpMarker
@@ -27,7 +25,6 @@
       @open="emit('open-catchup')"
     />
 
-    <!-- What the branch owes rides in the bar that names the branch. -->
     <StaleSummary
       v-if="stale"
       v-model:show-tint="showTint"
@@ -111,47 +108,28 @@ import type { BranchInfo, Preflight, StaleCounts, WorkbenchSession } from '../mo
 import CopyField from '../ui/CopyField.vue'
 import FlowStateDot from '../ui/FlowStateDot.vue'
 
-/**
- * The workbench's only chrome: what flow is open and in what state, which
- * branch is being read, the flow's views, and the two session-wide ops.
- * Stop-session carries its honest scope — lumlflow owns the run queue, the
- * agent's process is not ours to kill.
- *
- * Who is paired is the left panel's line and is not repeated here.
- */
 const props = defineProps<{
   session: WorkbenchSession
   viewedBranch: string
-  /** Every branch the flow has, for the switcher that scopes this screen. */
   branches: BranchInfo[]
-  /**
-   * The batch closure for rerun-to-leaves. Null while it is still being asked
-   * for — the popover says so rather than showing a cost nobody computed.
-   */
   branchPreflight: Preflight | null
-  /** Is there anything on this branch to run? An empty slice hides both ops. */
   runnable?: boolean
   opsDisabled?: boolean
-  /** What the branch owes, counted by the page that holds the slice. */
   stale?: StaleCounts
 }>()
 
 const emit = defineEmits<{
   'rerun-branch': [payload: { force: boolean }]
-  /** The batch closure is wanted — asked for when the popover opens. */
   'branch-preflight': []
   'stop-session': []
   'open-catchup': []
-  /** A pure store read: the whole screen re-scopes, no lock and no kernel. */
   'view-branch': [name: string]
-  /** The one gesture in this bar that touches files. */
   'checkout-branch': [name: string]
   'new-branch': []
 }>()
 
 const view = defineModel<'canvas' | 'notebook'>('view', { required: true })
 
-/** The downstream lens, toggled from the stale summary's popover. */
 const showTint = defineModel<boolean>('showTint', { default: false })
 
 const VIEW_OPTIONS = [
@@ -161,11 +139,6 @@ const VIEW_OPTIONS = [
 
 const stopPopover = useTemplateRef<InstanceType<typeof Popover>>('stopPopover')
 
-/**
- * The "run cancelled, move on" handoff. A sentence rather than a command:
- * the agent runs in the user's own terminal and nothing here drives it, so
- * offering something to run would name a gesture this side does not have.
- */
 const stopPayload = computed(
   () =>
     `lumlflow cancelled the run on \`${props.session.worktreeBranch}\`. ` +

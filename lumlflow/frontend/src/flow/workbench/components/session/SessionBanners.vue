@@ -27,19 +27,6 @@ import CatchUpMarker from './CatchUpMarker.vue'
 import DaemonDownBanner from './DaemonDownBanner.vue'
 import SocketReconnectBanner from './SocketReconnectBanner.vue'
 
-/**
- * The degraded-state machine's verdicts, as the surfaces that show them.
- *
- * Every condition a tab can be left in has one of these, because a failure
- * mode without a surface is a spinner that never resolves. What is
- * absent from here is deliberate: `kernel-not-started` is not a banner, it is
- * the hint the expand/page/diff gestures carry at the moment they would start
- * one — announcing it up front would read as something being wrong, when the
- * whole browsing tier is designed to work without a kernel.
- *
- * A refused token is not a dropped socket. Reconnecting cannot fix it — the
- * process that minted this tab's token is gone — so it says what does.
- */
 const props = defineProps<{
   degraded: DegradedKind[]
   changesBehind: number

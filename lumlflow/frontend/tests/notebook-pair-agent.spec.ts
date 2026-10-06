@@ -1,11 +1,3 @@
-/**
- * The notebooks page's pairing line: detected, never declared.
- *
- * "Paired" is read off the daemon's lease state, not off a list the user picks
- * from. The dialog behind the button detects harnesses and offers to set them
- * up; the one thing it can do to a session is end a registration nobody is
- * behind.
- */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -32,8 +24,6 @@ vi.mock('@/api/slices/workspace/workspace.api', () => ({
   },
 }))
 
-// The store takes a toast at creation, outside any component; the component's
-// own toast comes from the ToastService plugin below.
 const toasts: unknown[] = []
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
@@ -139,8 +129,6 @@ describe('the notebooks pairing line', () => {
   })
 
   it('reads a registration without a connection as unpaired, whatever the branch says', () => {
-    // `MAIN.agent` names Codex — the newest registration — and that is exactly
-    // the row this line must not trust: nobody is behind it.
     const { wrapper } = pairingLine([STALE_CODEX])
 
     expect(wrapper.text()).toContain('Unpaired')
@@ -240,7 +228,6 @@ describe('the notebooks pairing line', () => {
     await clickInOverlay('End')
 
     expect(mocked.endAgentSession).toHaveBeenCalledWith('codex', undefined)
-    // The store re-reads the tree once the end is committed.
     expect(mocked.tree).toHaveBeenCalled()
     wrapper.unmount()
   })
