@@ -225,6 +225,36 @@ class TestListing:
             assert "status-active" in str(status_cell.style)
 
 
+class TestRefreshBeforeMount:
+    async def test_live_refresh_landing_before_on_mount_fills_table(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        group = tracker.create_group("g")
+        ids = _seed_experiments(tracker, group.name, 2)
+        original_on_mount = ExperimentsScreen.on_mount
+
+        # A live-refresh tick can target the pushed screen once it is
+        # composed but before its `on_mount` has run.
+        def refresh_then_mount(self: ExperimentsScreen) -> None:
+            self._on_refresh_result(facade.list_group_experiments(group.id))
+            original_on_mount(self)
+
+        monkeypatch.setattr(ExperimentsScreen, "on_mount", refresh_then_mount)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = _push_experiments_screen(
+                app, facade, group_id=group.id, group_name=group.name
+            )
+            await settle_workers(pilot)
+            table = screen.query_one("#experiments-table", DataTable)
+            assert len(table.columns) == 7
+            assert set(_row_keys(table)) == set(ids)
+
+
 class TestAllExperimentsMode:
     async def test_aggregates_across_groups(
         self, facade: DataFacade, tracker: ExperimentTracker

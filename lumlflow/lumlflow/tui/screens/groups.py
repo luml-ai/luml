@@ -215,13 +215,15 @@ class GroupsScreen(BaseScreen):
                     self._empty_state_text(),
                     id="groups-empty",
                 )
-                yield DataTable(
+                # Columns are added here, not in `on_mount`: a live-refresh
+                # tick can deliver rows before `on_mount` runs.
+                table: DataTable[Any] = DataTable(
                     id="groups-table", cursor_type="row", zebra_stripes=True
                 )
+                table.add_columns("Name", "Tags", "Description", "Created")
+                yield table
 
     def on_mount(self) -> None:
-        table = self.query_one("#groups-table", DataTable)
-        table.add_columns("Name", "Tags", "Description", "Created")
         # Empty state visible by default; load_first_page will hide if
         # rows arrive. Skip the initial fetch when no facade is wired
         # — that path is used by chrome-only tests.

@@ -107,6 +107,33 @@ class TestEmptyState:
             assert ALL_EXPERIMENTS_KEY in _row_keys(table)
 
 
+class TestRefreshBeforeMount:
+    async def test_live_refresh_landing_before_on_mount_fills_table(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        names = _seed_groups(tracker, 2)
+        original_on_mount = GroupsScreen.on_mount
+
+        # A live-refresh tick can target the screen once it is composed
+        # but before its `on_mount` has run.
+        def refresh_then_mount(self: GroupsScreen) -> None:
+            self._on_refresh_result(facade.list_groups())
+            original_on_mount(self)
+
+        monkeypatch.setattr(GroupsScreen, "on_mount", refresh_then_mount)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = app.screen
+            assert isinstance(screen, GroupsScreen)
+            table = screen.query_one("#groups-table", DataTable)
+            assert len(table.columns) == 4
+            assert table.row_count == len(names) + 1
+
+
 class TestStoreUriWiring:
     """The CLI launches the app with a resolved `store_uri` and no
     pre-built facade; the app must read from exactly that store.

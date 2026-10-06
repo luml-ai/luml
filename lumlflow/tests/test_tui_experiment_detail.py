@@ -462,6 +462,34 @@ class TestOverview:
 # ---------------------------------------------------------------------------
 
 
+class TestRefreshBeforeMount:
+    async def test_live_refresh_landing_before_on_mount_fills_models_table(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        exp_id, model_id = _seed_experiment_with_model(tracker, tmp_path)
+        original_on_mount = ExperimentDetailScreen.on_mount
+
+        # A live-refresh tick can target the pushed screen once it is
+        # composed but before its `on_mount` has run.
+        def refresh_then_mount(self: ExperimentDetailScreen) -> None:
+            self._on_refresh_details_result(facade.get_experiment(exp_id))
+            original_on_mount(self)
+
+        monkeypatch.setattr(ExperimentDetailScreen, "on_mount", refresh_then_mount)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            table = screen.query_one("#overview-models-table", DataTable)
+            assert len(table.columns) == 4
+            assert [row.key.value for row in table.ordered_rows] == [model_id]
+
+
 class TestModelEdit:
     async def test_edit_model_dialog_opens(
         self,

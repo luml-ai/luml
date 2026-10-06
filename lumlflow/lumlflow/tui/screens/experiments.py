@@ -262,17 +262,20 @@ class ExperimentsScreen(BaseScreen):
                     self._empty_state_text(),
                     id="experiments-empty",
                 )
-                yield DataTable(
+                # Columns are added here, not in `on_mount`: a live-refresh
+                # tick can deliver rows to the pushed screen before
+                # `on_mount` runs.
+                table: DataTable[Any] = DataTable(
                     id="experiments-table",
                     cursor_type="row",
                     zebra_stripes=True,
                 )
+                table.add_columns(
+                    "Sel", "Name", "Status", "Duration", "Tags", "Group", "Created"
+                )
+                yield table
 
     def on_mount(self) -> None:
-        table = self.query_one("#experiments-table", DataTable)
-        table.add_columns(
-            "Sel", "Name", "Status", "Duration", "Tags", "Group", "Created"
-        )
         self._update_empty_state()
         self._update_panel_subtitle()
         # Sync the header to the cross-screen selection count so users

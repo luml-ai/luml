@@ -524,11 +524,16 @@ class ExperimentDetailScreen(BaseScreen):
                         classes="overview-card -full overview-card-last",
                         id="overview-models-card",
                     ):
-                        yield DataTable(
+                        # Columns are added here, not in `on_mount`: a
+                        # live-refresh tick can deliver rows to the
+                        # pushed screen before its `on_mount` runs.
+                        models_table: DataTable[Any] = DataTable(
                             id="overview-models-table",
                             cursor_type="row",
                             zebra_stripes=True,
                         )
+                        models_table.add_columns("Name", "Tags", "Description", "Size")
+                        yield models_table
             with Container(id="pane-metrics", classes="tab-pane"):
                 yield MetricGrid(id="metrics-grid")
                 yield MetricZoomView(id="metrics-zoom")
@@ -558,10 +563,6 @@ class ExperimentDetailScreen(BaseScreen):
                 )
 
     def on_mount(self) -> None:
-        # Set up the models table columns now so the table is well-formed
-        # before any data arrives.
-        models_table = self.query_one("#overview-models-table", DataTable)
-        models_table.add_columns("Name", "Tags", "Description", "Size")
         # Show only the initial pane.
         self._refresh_pane_visibility()
         # Metrics tab: start on the grid; the zoom view is hidden until
