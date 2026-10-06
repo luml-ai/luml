@@ -298,4 +298,15 @@ describe('the code panel', () => {
     expect(wrapper.find('[data-testid="edit-conflict"]').exists()).toBe(true)
     expect(draft()).toBe('my draft')
   })
+
+  it('shows the newly selected cell when cells share a version', async () => {
+    store.cells = [summary({}), summary({ slug: 'score', order: '2' })]
+    await click('Edit')
+    await wrapper.setProps({ slug: 'score' })
+    await settle()
+
+    expect(mocked.cellSource).toHaveBeenLastCalledWith('score', undefined, 'main')
+    expect(readOnlySource()).toBe('source of score on main at h-main-1')
+    expect(draft()).toBeUndefined()
+  })
 })

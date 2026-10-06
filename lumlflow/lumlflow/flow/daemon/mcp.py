@@ -500,7 +500,7 @@ class Server:
         parts = urlsplit(uri)
         if parts.scheme != _FLOW_SCHEME or not parts.netloc:
             raise _Refused(RESOURCE_NOT_FOUND, f"nothing is served at `{uri}`")
-        route = parts.path.strip("/").split("/")
+        route = [unquote(part) for part in parts.path.strip("/").split("/")]
         try:
             flow = self._flow(unquote(parts.netloc))
             scoped = {"flow": flow.path, "branch": flow.branch}
@@ -659,7 +659,8 @@ def _json_content(uri: str, body: Any) -> dict[str, Any]:
 
 
 def _uri(flow: _Flow, *route: str) -> str:
-    return f"{_FLOW_SCHEME}://{quote(flow.path, safe='')}/{'/'.join(route)}"
+    path = "/".join(quote(part, safe="") for part in route)
+    return f"{_FLOW_SCHEME}://{quote(flow.path, safe='')}/{path}"
 
 
 def _failed(request_id: Any, code: int, message: str) -> dict[str, Any]:

@@ -33,6 +33,7 @@ export function useCellPanelPayload<T>(options: CellPanelPayloadOptions<T>): {
   onBeforeMount(reload)
   watch(
     [
+      options.slug,
       () => flowStore.currentBranch?.branch,
       () => {
         const cell = flowStore.cells.find((entry) => entry.slug === options.slug())

@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import type { NotebookCodeProps } from '@/components/notebooks/cell/cell.interface'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Button, Message } from 'primevue'
 import { useToast } from 'primevue/usetoast'
 import { Pencil } from 'lucide-vue-next'
@@ -102,6 +102,14 @@ const { isLoading, reload: load } = useCellPanelPayload({
   },
   onFailed: (error) => toast.add(errorToast(error, 'Failed to load code')),
 })
+
+watch(
+  () => props.slug,
+  () => {
+    closeEditing()
+    isForkPromptVisible.value = false
+  },
+)
 
 function onEdit() {
   if (!flowStore.ensureOnLaneHead()) return

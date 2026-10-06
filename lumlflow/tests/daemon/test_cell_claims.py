@@ -129,6 +129,21 @@ async def test_a_rename_or_delete_by_the_holder_follows_the_cell(
         api.claim("cells.new", _by("claude-1", slug="renamed"), label="claude-code")
 
 
+async def test_dotted_cells_are_held_apart(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        for slug in ("train.v1", "train.v2"):
+            await api.cells_new({"flow": "churn", "slug": slug, "source": NOTE})
+        api.claim("cells.edit", _by("codex-1", slug="train.v1"), label="codex")
+        api.claim("cells.edit", _by("claude-1", slug="train.v2"), label="claude")
+
+        with pytest.raises(CellClaimed):
+            api.claim("run", _by("claude-1", target="train.v1"), label="claude")
+        with pytest.raises(CellClaimed):
+            api.claim("run", _by("claude-1", target="train.v1.out"), label="claude")
+
+
 async def test_the_same_cell_on_another_lane_is_another_cell(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project")
     async with daemon_api(root) as api:

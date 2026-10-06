@@ -1929,6 +1929,53 @@ async def test_publishing_a_model_packages_it_in_the_kernel_and_uploads_the_bund
     assert not Path(form.file_path).exists()
 
 
+async def test_publishing_a_dotted_cell_names_the_bundle_with_one_dot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from lumlflow.api import luml as luml_api
+    from lumlflow.flow.daemon.kernel_proc import KernelProcess
+
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train.v2", MODEL_CELL)
+    bundles: list[str] = []
+
+    async def export_model(
+        self: KernelProcess,
+        value_ref: str,
+        kind: str,
+        *,
+        destination: Path,
+        samples: Any,
+    ) -> dict[str, Any]:
+        destination.write_bytes(b"bundle")
+        return {"path": str(destination), "flavor": "sklearn", "size": 6}
+
+    def upload_file(form: Any, job_id: str) -> None:
+        bundles.append(Path(form.file_path).name)
+        luml_api.progress_store.set_complete(job_id, [])
+
+    monkeypatch.setattr(KernelProcess, "export_model", export_model)
+    monkeypatch.setattr(luml_api.artifact_handler, "upload_file", upload_file)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train.v2"})
+        published = await api.asset_publish(
+            {
+                "flow": "churn",
+                "target": "train.v2.model",
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "forest"},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+
+    assert published["slug"] == "train.v2"
+    assert bundles[0].startswith("train_v2_model-")
+    assert bundles[0].split(".")[1] == "luml"
+
+
 async def test_publishing_hands_the_kernel_the_frame_the_model_trained_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

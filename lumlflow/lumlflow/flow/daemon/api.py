@@ -25,7 +25,7 @@ from lumlflow.flow.errors import (
     ValueNotStored,
 )
 from lumlflow.flow.ids import new_ulid
-from lumlflow.flow.scheduler.planner import Plan, Preflight, reading_order
+from lumlflow.flow.scheduler.planner import Plan, Preflight, reading_order, split_target
 from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
 from lumlflow.flow.store.flowstore import FlowStore, store_dir
@@ -574,7 +574,8 @@ class Api:
         # Named inside the daemon's own temp dir: the kernel writes it, the
         # uploader reads it, and it is gone once the job has ended. One dot
         # only: the LUML client reads the format as what follows the first.
-        handle, bundle = tempfile.mkstemp(prefix=f"{slug}_{output}-", suffix=".luml")
+        prefix = f"{slug}_{output}-".replace(".", "_")
+        handle, bundle = tempfile.mkstemp(prefix=prefix, suffix=".luml")
         os.close(handle)
         destination = Path(bundle)
         try:
@@ -1154,8 +1155,7 @@ class Api:
             self._release_where(session, lambda claim: claim.actor == actor)
 
     def claim(self, method: str, params: dict[str, Any], *, label: str) -> None:
-        slug = _cell_named(params)
-        if slug is None:
+        if not _names_a_cell(params):
             return
         actor = _actor(params)
         try:
@@ -1163,6 +1163,9 @@ class Api:
             branch = _branch(session, params)
             row = session.store.branches.get(branch)
         except FlowError:
+            return
+        slug = _cell_named(params, session, row.branch_id)
+        if slug is None:
             return
         flow = session.ref.address
         now = self.clock()
@@ -1205,16 +1208,16 @@ class Api:
         self._announce_claims(session)
 
     def settled(self, method: str, params: dict[str, Any]) -> None:
-        if method not in {"rename", "cells.delete"}:
-            return
-        slug = _cell_named(params)
-        if slug is None:
+        if method not in {"rename", "cells.delete"} or not _names_a_cell(params):
             return
         actor = _actor(params)
         try:
             session = self._session(params, actor=actor)
             row = session.store.branches.get(_branch(session, params))
         except FlowError:
+            return
+        slug = _cell_named(params, session, row.branch_id)
+        if slug is None:
             return
         key = (session.ref.address, row.branch_id, slug.casefold())
         held = self._claims.pop(key, None)
@@ -1639,11 +1642,21 @@ def _flow_name(params: dict[str, Any]) -> str | None:
     return str(name) if name else None
 
 
-def _cell_named(params: dict[str, Any]) -> str | None:
-    named = params.get("slug") or params.get("target")
-    if not named:
+def _names_a_cell(params: dict[str, Any]) -> bool:
+    return bool(params.get("slug") or params.get("target"))
+
+
+def _cell_named(
+    params: dict[str, Any], session: FlowSession, branch_id: str
+) -> str | None:
+    if slug := params.get("slug"):
+        return str(slug).strip() or None
+    target = str(params.get("target") or "").strip()
+    if not target:
         return None
-    cell = str(named).split(".", 1)[0].strip()
+    versions = session.store.index.slice_versions(branch_id)
+    slugs = {version.slug for version in versions.values()}
+    cell, _ = split_target(target, slugs)
     return cell or None
 
 
