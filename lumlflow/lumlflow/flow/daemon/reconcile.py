@@ -290,11 +290,9 @@ def _rewire(
         if cell is None:
             continue
         canonical = {
-            reference: reference.replace(
-                f"{accepted.renamed_from}.", f"{accepted.slug}.", 1
-            )
+            reference: f"{accepted.slug}.{reference.rpartition('.')[2]}"
             for reference in cell.consumes.values()
-            if reference.split(".", 1)[0] == accepted.renamed_from
+            if reference.rpartition(".")[0] == accepted.renamed_from
         }
         if not canonical:
             continue

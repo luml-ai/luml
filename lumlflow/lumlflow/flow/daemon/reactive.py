@@ -83,7 +83,9 @@ class Reactor:
         session = self._session
         moved = False
         for branch in session.store.index.branches():
-            if branch.archived:
+            # A rewound lane keeps its promise that nothing recomputes until
+            # its next change clears `head_step`.
+            if branch.archived or branch.head_step is not None:
                 continue
             moved = await self._advance_lane(branch.name) or moved
         return moved

@@ -179,6 +179,61 @@ async def test_a_rewind_wakes_no_sweep_and_stays_where_it_was_put(tmp_path: Path
     assert position["step"] == edited
 
 
+async def test_a_sweep_woken_by_another_lane_leaves_a_rewound_lane_alone(
+    tmp_path: Path,
+):
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "score"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.92"),
+                "intent": "raise the score",
+            }
+        )
+        edited = (await api.context({"flow": "churn"}))["recent"][0]["step"]
+        await api.run({"flow": "churn", "target": "score"})
+        await api.fork({"flow": "churn", "name": "sweep"})
+        session = api.hub.session("churn")
+        await session.reactor.settled()
+        await api.rewind({"flow": "churn", "to_step": edited})
+
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "branch": "sweep",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.93"),
+                "intent": "try another score",
+            }
+        )
+        await session.reactor.settled()
+        main_id = session.store.branches.get("main").branch_id
+        sweep_id = session.store.branches.get("sweep").branch_id
+        main_ops = [
+            op.op
+            for entry in session.store.journal.replay()
+            if entry.step > edited and entry.branch == main_id
+            for op in entry.ops
+        ]
+        sweep_ops = [
+            op.op
+            for entry in session.store.journal.replay()
+            if entry.branch == sweep_id
+            for op in entry.ops
+        ]
+        position = (await api.context({"flow": "churn"}))["position"]
+
+    assert main_ops[-1] == "rewound"
+    assert "run_recorded" in sweep_ops
+    assert position["step"] == edited
+
+
 async def test_a_checkpoint_marks_the_step_it_names_and_adds_none(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)

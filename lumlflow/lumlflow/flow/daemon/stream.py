@@ -221,6 +221,8 @@ class Streams:
             self._chunk(flow, params)
             return
         if event == _KERNEL_STATE:
+            if params.get("state") == "stopped":
+                self._retire_live(flow, step=step)
             self._deliver(
                 lambda subscription: flow in subscription.journals,
                 {
@@ -278,6 +280,17 @@ class Streams:
             "step": transaction.step,
             "transaction": transaction.model_dump(mode="json"),
         }
+
+    def _retire_live(self, flow: str, *, step: int) -> None:
+        # A kernel that dies mid-run never reports an ending for it.
+        for on_flow, run_id in [key for key in self._live if key[0] == flow]:
+            slug = self._live[(on_flow, run_id)]
+            self.kernel(
+                flow,
+                "failed",
+                {"run_id": run_id, "slug": slug, "state": "failed"},
+                step=step,
+            )
 
     def _track(self, flow: str, event: str, params: dict[str, Any]) -> None:
         key = (flow, str(params.get("run_id") or ""))

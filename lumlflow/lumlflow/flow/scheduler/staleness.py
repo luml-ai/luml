@@ -99,7 +99,7 @@ class _Derivation:
             comes = "come" if len(moved) > 1 else "comes"
             missing = sorted(
                 {
-                    ref.ref.split(".", 1)[0]
+                    ref.ref.rpartition(".")[0]
                     for name in moved
                     if (ref := version.manifest.consumes.get(name)) is not None
                     and ref.uid is None

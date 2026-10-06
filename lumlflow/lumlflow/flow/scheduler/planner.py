@@ -520,7 +520,7 @@ def _bind(
     producer = here.get(ref.uid)
     return Bound(
         uid=ref.uid,
-        slug=producer.slug if producer is not None else ref.ref.split(".", 1)[0],
+        slug=producer.slug if producer is not None else ref.ref.rpartition(".")[0],
         output=ref.output,
         kind=record.kind,
         content_hash=record.content_hash,

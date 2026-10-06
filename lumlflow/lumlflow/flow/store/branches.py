@@ -451,7 +451,7 @@ def _binding_changes(
     for consumed in incoming.manifest.consumes.values():
         if "." not in consumed.ref:
             continue
-        here_uid = names.get(consumed.ref.split(".", 1)[0])
+        here_uid = names.get(consumed.ref.rpartition(".")[0])
         if here_uid == consumed.uid:
             continue
         rebinding.append(consumed.ref)

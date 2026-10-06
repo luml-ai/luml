@@ -328,6 +328,28 @@ async def test_an_mv_is_a_rename_that_rewires_consumers_for_free(tmp_path: Path)
     assert slugs(opened, "synced") == ["auc", "report"]
 
 
+async def test_an_mv_of_a_dotted_cell_rewires_its_consumers(tmp_path: Path):
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score.v2", SCORE_CELL)
+    write_cell(
+        flow, "report", REPORT_CELL.replace('"score.summary"', '"score.v2.summary"')
+    )
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "report"})
+        session = api.hub.session("churn")
+        before = slice_of(session, "main")["report"]
+
+        (flow / "cells" / "score.v2.py").rename(flow / "cells" / "auc.py")
+        opened = await api.flow_open({"flow": "churn"})
+        after = slice_of(session, "main")["report"]
+
+    assert "auc.summary" in source_of(flow, "report")
+    assert (after.uid, after.definition_hash) == (before.uid, before.definition_hash)
+    assert slugs(opened, "synced") == ["auc", "report"]
+
+
 async def test_an_mv_during_a_syntax_error_keeps_the_cell_uid(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"

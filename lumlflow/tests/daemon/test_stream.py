@@ -227,6 +227,24 @@ async def test_a_kernel_state_event_leaves_the_runs_in_flight_alone():
     ]
 
 
+async def test_a_stopped_kernel_fails_the_runs_it_was_executing():
+    streams = Streams()
+    watching = streams.subscribe()
+    watching.journals.add("churn.flow")
+    streams.kernel("churn.flow", "started", start("run-1"), step=3)
+    streams.kernel("sweep.flow", "started", start("run-2"), step=3)
+    await frames(watching, 1)
+
+    streams.kernel("churn.flow", "kernel_state", {"state": "stopped"}, step=4)
+
+    said = await frames(watching, 2)
+    assert [frame["event"] for frame in said] == ["failed", "kernel_state"]
+    assert (said[0]["run_id"], said[0]["slug"]) == ("run-1", "train")
+    assert streams.running("churn.flow") == []
+    assert [run["run_id"] for run in streams.running("sweep.flow")] == ["run-2"]
+    await quiet(watching)
+
+
 async def test_a_catch_up_longer_than_the_queue_still_arrives_whole():
     streams = Streams()
     watching = streams.subscribe()

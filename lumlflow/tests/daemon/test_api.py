@@ -2056,6 +2056,27 @@ async def test_a_dotted_cell_name_resolves_as_a_target_and_a_producer(
     assert downstream["executed"] == ["report"]
     assert (previewed["slug"], previewed["output"]) == ("score.v2", "summary")
 
+
+async def test_renaming_a_dotted_cell_rewires_its_consumers(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score.v2", SCORE_CELL)
+    write_cell(
+        flow, "report", REPORT_CELL.replace('"score.summary"', '"score.v2.summary"')
+    )
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "report"})
+        await api.rename({"flow": "churn", "slug": "score.v2", "to": "headline"})
+        ran = await api.run({"flow": "churn", "target": "report"})
+        here = slice_of(api.hub.session("churn"), "main")
+
+    consumer = (flow / "cells" / "report.py").read_text("utf-8")
+    assert '"headline.summary"' in consumer
+    assert here["report"].manifest.consumes["summary"].uid == here["headline"].uid
+    assert ran["executed"] == []
+
 async def test_publishing_without_a_destination_in_luml_is_refused(
     tmp_path: Path,
 ) -> None:

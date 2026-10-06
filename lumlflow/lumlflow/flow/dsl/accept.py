@@ -708,7 +708,7 @@ def _consumers_of(here: dict[str, VersionRow], slug: str | None, own: str) -> li
         for uid, version in here.items()
         if uid != own
         and any(
-            consumed.ref.split(".", 1)[0] == slug
+            consumed.ref.rpartition(".")[0] == slug
             for consumed in version.manifest.consumes.values()
             if "." in consumed.ref
         )
