@@ -524,6 +524,28 @@ class TestPlanChanges:
             if op.uid == original.uid
         )
 
+    async def test_a_step_edited_while_queued_announces_it_left_the_queue(
+        self, flow: Flow
+    ) -> None:
+        flow.add("blocker")
+        flow.add("child")
+        flow.executor.holding.add("blocker")
+        blocking = asyncio.create_task(flow.run("blocker"))
+        await flow.executor.started.wait()
+        queued = asyncio.create_task(flow.run("child"))
+        await settle()
+
+        flow.edit("child", "v2")
+        flow.executor.release()
+        await asyncio.gather(blocking, queued)
+
+        counts = [
+            params["awaiting"]
+            for event, params in flow.events
+            if event == "awaiting" and params["slug"] == "child"
+        ]
+        assert counts == [1, 0]
+
     async def test_a_branch_edited_while_joining_gets_no_old_memo_hit(
         self, flow: Flow
     ) -> None:

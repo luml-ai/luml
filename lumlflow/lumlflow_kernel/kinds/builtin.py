@@ -277,7 +277,10 @@ class EvalKind:
         if not all(isinstance(row, dict) for row in value):
             return False
         keys = set(value[0])
-        if not keys or any(set(row) != keys for row in value):
+        # JSON would turn non-string keys into strings on the way back
+        if not keys or not all(isinstance(key, str) for key in keys):
+            return False
+        if any(set(row) != keys for row in value):
             return False
         if not all(_is_scalar(entry) for row in value for entry in row.values()):
             return False

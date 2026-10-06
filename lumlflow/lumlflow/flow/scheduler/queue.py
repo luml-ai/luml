@@ -320,6 +320,7 @@ class RunQueue:
     ) -> None:
         result: RunResult | None = None
         error: BaseException | None = None
+        ran = False
         try:
             await self._acquire(plan.branch)
             try:
@@ -328,6 +329,7 @@ class RunQueue:
                     and flight.waiters
                     and self._still_selected(plan, step)
                 ):
+                    ran = True
                     result = await self._run(flight, plan, step, inputs, actor=actor)
             finally:
                 self._release()
@@ -335,6 +337,9 @@ class RunQueue:
             error = failure
         if self._flights.get(flight.run_id) is flight:
             del self._flights[flight.run_id]
+        if not ran:
+            # The kernel never saw this run, so nothing else ends its queued state
+            self._emit_awaiting(flight, 0)
         self._settle(flight, result, error)
 
     def _still_selected(self, plan: Plan, step: Step) -> bool:
@@ -517,15 +522,14 @@ class RunQueue:
         return waiter
 
     def _announce(self, flight: _Flight) -> None:
+        self._emit_awaiting(flight, _awaiting(flight))
+
+    def _emit_awaiting(self, flight: _Flight, awaiting: int) -> None:
         if self._on_event is None:
             return
         self._on_event(
             "awaiting",
-            {
-                "run_id": flight.run_id,
-                "slug": flight.slug,
-                "awaiting": _awaiting(flight),
-            },
+            {"run_id": flight.run_id, "slug": flight.slug, "awaiting": awaiting},
         )
 
     def _settle(

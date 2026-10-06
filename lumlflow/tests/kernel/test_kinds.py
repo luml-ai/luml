@@ -436,6 +436,7 @@ def test_uniform_rows_with_a_score_column_are_an_eval(
         [{"case": "a", "score": 0.5}, {"case": "b", "grade": 0.9}],
         [{"case": "a", "verdict": "good"}, {"case": "b", "verdict": "bad"}],
         [{"case": "a", "score": 0.5}, {"case": "b", "score": "high"}],
+        [{0: 0.1, 1: 0.9}, {0: 0.7, 1: 0.3}],
     ],
 )
 def test_ragged_or_scoreless_rows_are_not_an_eval(
@@ -453,6 +454,7 @@ def test_ragged_or_scoreless_rows_are_not_an_eval(
         (builtin.NOTE, "## Findings\n\nThe seed matters — café included."),
         (builtin.PLOT, {"$schema": "https://vega.github.io/schema/v5.json", "a": 1}),
         (builtin.PICKLE, {"threshold": {"low": 0.1}}),
+        (builtin.PICKLE, [{0: 0.1, 1: 0.9}]),
     ],
 )
 def test_a_value_comes_back_equal_from_its_blob(
