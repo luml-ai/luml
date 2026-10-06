@@ -5,7 +5,7 @@
         <Skeleton v-for="i in 4" :key="i" height="40px" class="not-last:mb-1" />
       </div>
       <div v-else-if="items.length === 0">
-        <p class="text-sm">No flows found in this directory</p>
+        <p class="text-sm">No notebooks found in this directory</p>
       </div>
       <template v-else>
         <WorkspaceFolderItem v-for="item in items" :key="item.id" :item="item" />

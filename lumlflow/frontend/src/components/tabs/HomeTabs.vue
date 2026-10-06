@@ -33,7 +33,7 @@ const items = [
     icon: FlaskConical,
   },
   {
-    label: 'Workspace',
+    label: 'Notebooks',
     route: { name: ROUTE_NAMES.WORKSPACES },
     icon: Folder,
   },

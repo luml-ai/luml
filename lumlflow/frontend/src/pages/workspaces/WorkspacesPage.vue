@@ -6,7 +6,7 @@
         @click="goUp"
       >
         <ChevronLeft :size="14" />
-        <span>Workspace</span>
+        <span>Notebooks</span>
       </button>
       <div class="text-(--p-breadcrumb-item-color) truncate pl-4">
         {{ workspaceStore.currentDirectory }}

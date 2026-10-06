@@ -2,11 +2,11 @@
   <div class="px-1">
     <Button variant="text" @click="openDialog">
       <Plus :size="16" />
-      <span> New flow</span>
+      <span> New notebook</span>
     </Button>
     <Dialog
       v-model:visible="visible"
-      header="CREATE NEW FLOW"
+      header="CREATE NEW NOTEBOOK"
       modal
       dismissable-mask
       :draggable="false"
@@ -23,7 +23,12 @@
         <FormField v-slot="$field" name="name">
           <label for="name" class="inline-block mb-2 required">Name</label>
           <InputGroup>
-            <InputText v-model="initialValues.name" id="name" fluid placeholder="Name your flow" />
+            <InputText
+              v-model="initialValues.name"
+              id="name"
+              fluid
+              placeholder="Name your notebook"
+            />
             <InputGroupAddon>{{ FLOW_FILE_EXTENSION }}</InputGroupAddon>
           </InputGroup>
           <Message v-if="$field?.invalid" severity="error" size="small" variant="simple">
@@ -34,7 +39,7 @@
       <template #footer>
         <Button
           type="submit"
-          label="Create flow"
+          label="Create notebook"
           :loading="loading"
           :disabled="!initialValues.name || loading"
           form="create-flow-form"
@@ -136,7 +141,7 @@ async function createFlow(name: string) {
     await workspaceStore.createFlow(name)
     resetForm()
     visible.value = false
-    toast.add(successToast('Flow created successfully'))
+    toast.add(successToast('Notebook created successfully'))
   } catch (error) {
     toast.add(errorToast(error))
   } finally {

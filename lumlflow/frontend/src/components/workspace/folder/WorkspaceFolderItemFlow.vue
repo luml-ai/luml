@@ -101,7 +101,7 @@ async function saveName() {
   isSaving.value = true
   try {
     await workspaceStore.renameFlow(props.item.id, name)
-    toast.add(successToast('Flow renamed successfully'))
+    toast.add(successToast('Notebook renamed successfully'))
     isRenaming.value = false
   } catch (error) {
     toast.add(errorToast(error))
@@ -116,7 +116,7 @@ onKeyStroke('Escape', cancelRename)
 async function onDuplicate() {
   try {
     await workspaceStore.duplicateFlow(props.item.id)
-    toast.add(successToast('Flow duplicated successfully'))
+    toast.add(successToast('Notebook duplicated successfully'))
   } catch (error) {
     toast.add(errorToast(error))
   }
@@ -129,7 +129,7 @@ function onDelete() {
 async function onDeleteConfirm() {
   try {
     await workspaceStore.deleteFlow(props.item.id)
-    toast.add(successToast('Flow deleted successfully'))
+    toast.add(successToast('Notebook deleted successfully'))
   } catch (error) {
     toast.add(errorToast(error))
   }

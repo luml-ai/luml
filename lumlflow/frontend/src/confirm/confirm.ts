@@ -50,9 +50,9 @@ export const deleteExperimentConfirmOptions = (
 export const deleteFlowConfirmOptions = (accept: () => void): ConfirmationOptions => {
   return {
     message: PERMANENT_ACTION_MESSAGE,
-    header: 'Delete flow?',
+    header: 'Delete notebook?',
     acceptProps: {
-      label: 'Delete flow',
+      label: 'Delete notebook',
       severity: 'warn',
       variant: 'outlined',
     },
