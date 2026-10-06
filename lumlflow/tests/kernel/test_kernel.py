@@ -227,7 +227,7 @@ def test_a_frame_without_pyarrow_names_the_package_to_install(
 
 @pytest.fixture
 def fake_flavor(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    pass
+    pytest.importorskip("luml")
     import types
 
     from luml.experiments import tracker
@@ -395,7 +395,7 @@ def test_exporting_a_model_picks_the_frame_that_carries_its_features(
 def test_exporting_without_a_sample_to_a_flavor_that_needs_one_says_why(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    pass
+    pytest.importorskip("luml")
     import types
 
     from luml.experiments import tracker
@@ -433,6 +433,7 @@ def test_exporting_without_a_sample_to_a_flavor_that_needs_one_says_why(
 def test_exporting_a_model_of_no_known_flavor_names_the_supported_ones(
     tmp_path: Path,
 ) -> None:
+    pytest.importorskip("luml")
     kernel, _ = make_kernel(tmp_path)
     record = run(
         kernel,

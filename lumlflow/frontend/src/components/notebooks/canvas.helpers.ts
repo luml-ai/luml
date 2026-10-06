@@ -1,4 +1,22 @@
+import type { CellSummary } from '@/api/slices/workspace/workspace.interface'
 import type { CellEdge } from '@/components/notebooks/notebooks.interface'
+
+function producerOf(reference: string): string {
+  const dot = reference.lastIndexOf('.')
+  return dot === -1 ? reference : reference.slice(0, dot)
+}
+
+export function buildEdges(cells: CellSummary[]): CellEdge[] {
+  const slugs = new Set(cells.map((cell) => cell.slug))
+  const edges: CellEdge[] = []
+  for (const cell of cells) {
+    for (const [input, reference] of Object.entries(cell.consumes)) {
+      const from = producerOf(reference)
+      if (slugs.has(from) && from !== cell.slug) edges.push({ from, to: cell.slug, input })
+    }
+  }
+  return edges
+}
 
 export function edgesLeadingTo(edges: CellEdge[], slug: string | null): Set<string> {
   const lit = new Set<string>()

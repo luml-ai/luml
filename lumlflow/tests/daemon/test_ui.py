@@ -648,7 +648,7 @@ def _ui_url(record: DaemonRecord, directory: Path) -> str:
             "log": str(workspace.log_path()),
         }
     )
-    return f"http://{record.web_host}:{record.web_port}/flow?{query}"
+    return f"http://{record.web_host}:{record.web_port}/workspaces?{query}"
 
 
 def _served(root: Path, port: int) -> DaemonRecord:

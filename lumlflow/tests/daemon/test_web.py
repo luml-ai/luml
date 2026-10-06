@@ -821,7 +821,7 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
 
     assert result.exit_code == 0, result.output
     parsed = urlparse(printed)
-    assert parsed.path == "/flow"
+    assert parsed.path == "/workspaces"
     assert parse_qs(parsed.query) == {
         "token": [TOKEN],
         "directory": [str(Path.cwd())],

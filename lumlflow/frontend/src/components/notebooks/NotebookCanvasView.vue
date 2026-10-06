@@ -66,30 +66,13 @@ import type {
   NotebookAssetInterface,
 } from '@/components/notebooks/notebooks.interface'
 import { useFlowStore } from '@/store/flow'
-import { edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
+import { buildEdges, edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
 import NotebookCellNode from '@/components/notebooks/cell/NotebookCellNode.vue'
 import NotebooksCanvasToolbar from '@/components/notebooks/NotebooksCanvasToolbar.vue'
 import {
   NOTEBOOK_CANVAS_LEVEL_HEIGHT,
   NOTEBOOK_CANVAS_NODE_WIDTH,
 } from '@/components/notebooks/notebooks.const'
-
-function producerOf(reference: string): string {
-  const dot = reference.indexOf('.')
-  return dot === -1 ? reference : reference.slice(0, dot)
-}
-
-function buildEdges(cells: CellSummary[]): CellEdge[] {
-  const slugs = new Set(cells.map((cell) => cell.slug))
-  const edges: CellEdge[] = []
-  for (const cell of cells) {
-    for (const [input, reference] of Object.entries(cell.consumes)) {
-      const from = producerOf(reference)
-      if (slugs.has(from) && from !== cell.slug) edges.push({ from, to: cell.slug, input })
-    }
-  }
-  return edges
-}
 
 function buildLevels(cells: CellSummary[], edges: CellEdge[]): Map<string, number> {
   const parents = new Map<string, string[]>(cells.map((cell) => [cell.slug, []]))

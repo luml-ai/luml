@@ -1,7 +1,8 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
+import type { CellSummary } from '@/api/slices/workspace/workspace.interface'
+import { buildEdges, edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
 import type { CellEdge } from '@/components/notebooks/notebooks.interface'
 
 const EDGES: CellEdge[] = [
@@ -35,5 +36,20 @@ describe('the edges leading to a selected cell', () => {
   it('survives a cycle the graph should not have', () => {
     const looped: CellEdge[] = [...EDGES, { from: 'report', to: 'load', input: 'again' }]
     expect(edgesLeadingTo(looped, 'train').size).toBe(looped.length)
+  })
+})
+
+const cell = (slug: string, consumes: Record<string, string> = {}) =>
+  ({ slug, consumes }) as unknown as CellSummary
+
+describe('the edges between cells', () => {
+  it('splits a reference at its last dot, as the backend does', () => {
+    const cells = [cell('train'), cell('train.v2'), cell('score', { model: 'train.v2.model' })]
+    expect(buildEdges(cells)).toEqual([{ from: 'train.v2', to: 'score', input: 'model' }])
+  })
+
+  it('draws no edge to a cell that only shares the first part of the name', () => {
+    const cells = [cell('train'), cell('score', { model: 'train.v2.model' })]
+    expect(buildEdges(cells)).toEqual([])
   })
 })

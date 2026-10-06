@@ -170,7 +170,7 @@ def _url(record: "DaemonRecord", directory: Path) -> str:
             "log": str(daemon_workspace.log_path()),
         }
     )
-    return f"http://{record.web_host}:{record.web_port}/flow?{query}"
+    return f"http://{record.web_host}:{record.web_port}/workspaces?{query}"
 
 
 def _show_log_path() -> None:

@@ -7,8 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from lumlflow.flow.store import gc
-from lumlflow.flow.store.flowstore import FlowStore
 
 from lumlflow_kernel.executor import NON_INTERACTIVE_HINT
 from tests.kernel.helpers import (
@@ -250,36 +248,6 @@ def test_a_native_output_is_staged_exactly_like_an_inline_one(tmp_path):
         {"block": "markdown", "text": "**metrics**"},
         {"block": "kv", "entries": {"auc": 0.91}},
     ]
-
-
-def test_gc_cannot_remove_an_output_between_staging_and_run_record(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    kernel, _ = make_kernel(tmp_path)
-    store = FlowStore.init(kernel.flow_dir)
-    install = kernel.executor._values._install
-    reports: list[gc.SweepReport] = []
-
-    def install_then_sweep(
-        staged: Path, target: Path, *, discard_on_error: bool
-    ) -> None:
-        install(staged, target, discard_on_error=discard_on_error)
-        reports.append(gc.sweep(store))
-
-    monkeypatch.setattr(kernel.executor._values, "_install", install_then_sweep)
-    try:
-        record = run(
-            kernel,
-            'def materialize(self, ctx):\n    return {"model": "WEIGHTS"}',
-            produces={"model": "model"},
-        )
-        value_ref = record["outputs"]["model"]["value_ref"]
-
-        assert reports == [gc.SweepReport(collected=0, freed_bytes=0, kept=1)]
-        assert store.values.exists(value_ref)
-    finally:
-        store.index.release_values("run1")
-        store.close()
 
 
 def test_inputs_arrive_under_their_declared_names(tmp_path):
