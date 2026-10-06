@@ -236,6 +236,7 @@ export interface FlowMethods {
   'agents.setup': Method<{ harness: string; consent: boolean }, AgentHarness>
   'agents.remove': Method<{ harness: string }, AgentHarness>
   'agent.payload': Method<BranchScoped & { slug: string }, CellContextPayload>
+  'settings.get': Method<FlowScoped, { flow: string; settings: FlowSettingsReport }>
   'settings.set': Method<
     FlowScoped & Partial<FlowSettingsReport>,
     { flow: string; settings: FlowSettingsReport }

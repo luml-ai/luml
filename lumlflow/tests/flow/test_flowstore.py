@@ -318,6 +318,71 @@ class TestOpen:
             FlowStore.open(flow_dir)
 
 
+class TestExternalManifestEdits:
+    def edit_on_disk(
+        self,
+        flow_dir: Path,
+        settings: dict[str, object],
+        extra: dict[str, object] | None = None,
+    ) -> None:
+        manifest = read_manifest(flow_dir)
+        on_disk = manifest["settings"]
+        assert isinstance(on_disk, dict)
+        on_disk.update(settings)
+        manifest.update(extra or {})
+        (flow_dir / "flow.yaml").write_text(yaml.safe_dump(manifest))
+
+    def test_refresh_picks_up_an_external_edit(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        self.edit_on_disk(flow_dir, {"reactivity": "lazy"})
+
+        store.refresh_manifest()
+
+        assert store.manifest.settings.reactivity == "lazy"
+
+    def test_a_save_keeps_an_external_edit_alongside_its_own_change(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        self.edit_on_disk(
+            flow_dir, {"reactivity": "lazy"}, extra={"future_section": {"on": True}}
+        )
+
+        store.manifest.settings.eager_cost_threshold_s = 30.0
+        store.save_manifest()
+
+        rewritten = read_manifest(flow_dir)
+        assert rewritten["future_section"] == {"on": True}
+        assert rewritten["settings"] == {
+            "eager_cost_threshold_s": 30.0,
+            "reactivity": "lazy",
+            "eager": [],
+        }
+
+    def test_its_own_change_wins_where_both_sides_changed_the_same_key(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        self.edit_on_disk(flow_dir, {"eager_cost_threshold_s": 10.0})
+
+        store.manifest.settings.eager_cost_threshold_s = 30.0
+        store.save_manifest()
+
+        settings = read_manifest(flow_dir)["settings"]
+        assert isinstance(settings, dict)
+        assert settings["eager_cost_threshold_s"] == 30.0
+
+    def test_a_save_with_nothing_to_change_leaves_the_file_alone(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        manifest_file = flow_dir / "flow.yaml"
+        before = manifest_file.stat().st_mtime_ns
+        os.utime(manifest_file, ns=(before - 10**9, before - 10**9))
+
+        store.save_manifest()
+
+        assert manifest_file.stat().st_mtime_ns == before - 10**9
+
+
 class TestCommit:
     def test_requires_an_intent(self, store: FlowStore) -> None:
         with pytest.raises(ValueError):

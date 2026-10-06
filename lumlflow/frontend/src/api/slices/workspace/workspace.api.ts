@@ -329,7 +329,7 @@ export const workspaceApi = {
     }),
 
   getSettings: (flow?: string) =>
-    call<{ flow?: string }, SavedSettings>('settings.set', {
+    call<{ flow?: string }, SavedSettings>('settings.get', {
       ...(flow ? { flow } : {}),
     }),
 

@@ -36,6 +36,8 @@ INDEX_NAME = "store.sqlite"
 _CAS_AREAS = ("objects", "values", "previews", "logs")
 _STORE_SUBDIRS = (*_CAS_AREAS, "kernel", "worktrees")
 
+_ABSENT = object()
+
 _CLOUD_MARKER_FILES = {".dropbox": "Dropbox", ".dropbox.cache": "Dropbox"}
 _CLOUD_DIR_NAMES = {
     "dropbox": "Dropbox",
@@ -68,6 +70,8 @@ class FlowStore:
         self._lock = threading.Lock()
         self._next_step = index.last_step + 1
         self._index_stale = False
+        self._manifest_on_disk = _manifest_bytes(flow_dir)
+        self._manifest_base = manifest.model_dump(mode="json")
 
     @classmethod
     def init(
@@ -184,10 +188,36 @@ class FlowStore:
         self.index.rebuild(self.journal.replay())
         self._index_stale = False
 
+    def refresh_manifest(self) -> None:
+        """Fold edits made to `flow.yaml` behind the store's back (a `git pull`,
+        a hand edit) into the in-memory manifest.
+
+        A three-way merge against the copy last read or written: a key the store
+        has not changed since takes the disk's value, a key it has changed keeps
+        its own, so neither side's edit is lost.
+        """
+        on_disk = _manifest_bytes(self.flow_dir)
+        if on_disk is None or on_disk == self._manifest_on_disk:
+            return
+        theirs = _parse_manifest(manifest_path(self.flow_dir), on_disk)
+        theirs_payload = theirs.model_dump(mode="json")
+        merged = _merge3(
+            self._manifest_base, self.manifest.model_dump(mode="json"), theirs_payload
+        )
+        self.manifest = FlowManifest.model_validate(merged)
+        self._manifest_on_disk = on_disk
+        self._manifest_base = theirs_payload
+
     def save_manifest(self) -> None:
+        self.refresh_manifest()
         self._sync_manifest_cells()
         self._drop_unselected_order_entries()
-        _write_manifest(self.flow_dir, self.manifest)
+        body = _manifest_body(self.manifest)
+        if body == self._manifest_on_disk:
+            return
+        atomic_write_bytes(manifest_path(self.flow_dir), body)
+        self._manifest_on_disk = body
+        self._manifest_base = self.manifest.model_dump(mode="json")
 
     def effective_order(self) -> dict[str, Decimal]:
         born = self.index.creation_steps()
@@ -360,18 +390,49 @@ def _read_manifest(flow_dir: Path) -> FlowManifest:
     path = manifest_path(flow_dir)
     if not path.exists():
         raise FlowNotFound(f"no flow at {flow_dir}")
+    return _parse_manifest(path, path.read_bytes())
+
+
+def _parse_manifest(path: Path, body: bytes) -> FlowManifest:
     try:
-        return FlowManifest.model_validate(yaml.safe_load(path.read_text("utf-8")))
-    except (yaml.YAMLError, ValidationError) as error:
+        return FlowManifest.model_validate(yaml.safe_load(body.decode("utf-8")))
+    except (yaml.YAMLError, ValidationError, UnicodeDecodeError) as error:
         raise FlowError(f"{path} is unreadable") from error
 
 
+def _manifest_bytes(flow_dir: Path) -> bytes | None:
+    try:
+        return manifest_path(flow_dir).read_bytes()
+    except FileNotFoundError:
+        return None
+
+
 def _write_manifest(flow_dir: Path, manifest: FlowManifest) -> None:
+    atomic_write_bytes(manifest_path(flow_dir), _manifest_body(manifest))
+
+
+def _manifest_body(manifest: FlowManifest) -> bytes:
     payload = manifest.model_dump(mode="json")
     if payload.get("order") is None:
         payload.pop("order", None)
-    body = yaml.safe_dump(payload, sort_keys=False)
-    atomic_write_bytes(manifest_path(flow_dir), body.encode("utf-8"))
+    return yaml.safe_dump(payload, sort_keys=False).encode("utf-8")
+
+
+def _merge3(base: object, ours: object, theirs: object) -> object:
+    if ours == base:
+        return theirs
+    if theirs == base or not (
+        isinstance(base, dict) and isinstance(ours, dict) and isinstance(theirs, dict)
+    ):
+        return ours
+    merged: dict[object, object] = {}
+    for key in {**base, **ours, **theirs}:
+        value = _merge3(
+            base.get(key, _ABSENT), ours.get(key, _ABSENT), theirs.get(key, _ABSENT)
+        )
+        if value is not _ABSENT:
+            merged[key] = value
+    return merged
 
 
 def _order_decimal(value: object) -> Decimal | None:

@@ -153,8 +153,14 @@ class Watcher:
         woken, self._woken = self._woken, set()
         for path in sorted(woken):
             session = self.hub.attached(path)
-            if session is not None:
+            if session is None:
+                continue
+            # One flow's broken file plane must not cost the rest of the batch
+            # their wake: it is already swapped out and nothing re-delivers it.
+            try:
                 await self.hub.quiesce(session, tier="live")
+            except Exception:
+                logger.exception("reconciling %s after a file event failed", path)
 
     def _schedule(self, root: Path) -> None:
         observer = self._observer

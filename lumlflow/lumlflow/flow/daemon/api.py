@@ -163,6 +163,7 @@ class Api:
             "agent.begin": self.agent_begin,
             "agent.end": self.agent_end,
             "agent.payload": self.agent_payload,
+            "settings.get": self.settings_get,
             "settings.set": self.settings_set,
             "env.status": self.env_status,
             "run": self.run,
@@ -893,28 +894,27 @@ class Api:
             slug=_named(params.get("slug")),
         )
 
+    async def settings_get(self, params: dict[str, Any]) -> dict[str, Any]:
+        session = self._session(params, actor=_actor(params))
+        return _settings_report(session)
+
     async def settings_set(self, params: dict[str, Any]) -> dict[str, Any]:
         session = self._session(params, actor=_actor(params))
         settings = session.store.manifest.settings
-        if params.get("reactivity") is not None:
+        reactivity = params.get("reactivity")
+        threshold = params.get("eager_cost_threshold_s")
+        if reactivity is not None:
             settings.reactivity = _one_of(
-                params["reactivity"], get_args(Reactivity), "reactivity"
+                reactivity, get_args(Reactivity), "reactivity"
             )
-        if params.get("eager_cost_threshold_s") is not None:
+        if threshold is not None:
             settings.eager_cost_threshold_s = _number(
-                params["eager_cost_threshold_s"],
-                float,
-                name="eager_cost_threshold_s",
+                threshold, float, name="eager_cost_threshold_s"
             )
-        session.store.save_manifest()
-        session.reactor.arm()
-        return {
-            "flow": session.ref.name,
-            "settings": {
-                "reactivity": settings.reactivity,
-                "eager_cost_threshold_s": settings.eager_cost_threshold_s,
-            },
-        }
+        if reactivity is not None or threshold is not None:
+            session.store.save_manifest()
+            session.reactor.arm()
+        return _settings_report(session)
 
     async def run(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch = await self._read(params)
@@ -1035,7 +1035,9 @@ class Api:
         actor: str | None = None,
     ) -> FlowSession:
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
-        return self.hub.open(ref, actor=actor)
+        session = self.hub.open(ref, actor=actor)
+        session.store.refresh_manifest()
+        return session
 
     def _directory(self, params: dict[str, Any]) -> Path:
         asked = params.get("directory")
@@ -1394,6 +1396,17 @@ class Api:
         if session.worktree.bound() is None or branch != session.branch:
             return None
         return session.worktree.project(branch)
+
+
+def _settings_report(session: FlowSession) -> dict[str, Any]:
+    settings = session.store.manifest.settings
+    return {
+        "flow": session.ref.name,
+        "settings": {
+            "reactivity": settings.reactivity,
+            "eager_cost_threshold_s": settings.eager_cost_threshold_s,
+        },
+    }
 
 
 def _flags(accepted: AcceptedCell) -> list[dict[str, str | None]]:

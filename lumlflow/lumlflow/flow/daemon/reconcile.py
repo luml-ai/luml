@@ -66,6 +66,7 @@ def reconcile(
     actor: str | None = None,
     intent: str | None = None,
 ) -> Reconciliation:
+    session.store.refresh_manifest()
     worktree = session.worktree
     if not worktree.projects_files():
         return Reconciliation()

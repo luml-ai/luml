@@ -6,7 +6,7 @@ from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import FlowSession
 from lumlflow.flow.daemon.reconcile import MIXED_EDITING
 from lumlflow.flow.daemon.watcher import Watcher, Watches, WatchSet
-from lumlflow.flow.store.flowstore import store_dir
+from lumlflow.flow.store.flowstore import manifest_path, store_dir
 from lumlflow.flow.store.models import FlagSet
 
 from tests.daemon.helpers import (
@@ -206,6 +206,32 @@ async def test_a_data_file_nobody_declared_wakes_nobody(tmp_path: Path):
         after = [len(transactions(session)) for session in sessions]
 
     assert after == before
+
+
+async def test_a_broken_flow_yaml_does_not_cost_its_neighbour_its_wake(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=FLOWS)
+    for name in FLOWS:
+        write_cell(root / f"{name}.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.status({})
+        sales = api.hub.session("sales")
+        watcher = Watcher(api.hub, debounce_s=600)
+        write_file(
+            manifest_path(root / "churn.flow"),
+            "<<<<<<< HEAD\nname: churn\n=======\nname: other\n>>>>>>> theirs\n",
+        )
+        write_cell(root / "churn.flow", "score", SCORE_CELL.replace("0.91", "0.92"))
+        write_cell(root / "sales.flow", "score", SCORE_CELL.replace("0.91", "0.93"))
+        for name in FLOWS:
+            watcher.notice(root / f"{name}.flow" / "cells" / "score.py")
+        await watcher.flush()
+        await watcher.stop()
+        observed = _stored(sales)
+
+    assert "0.93" in observed
 
 
 async def test_a_flow_nobody_opened_is_not_opened_by_an_event(tmp_path: Path):

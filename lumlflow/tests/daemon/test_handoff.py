@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 from lumlflow.flow.errors import CellNotFound, FlowError
 
 from tests.daemon.helpers import (
@@ -148,6 +149,54 @@ async def test_settings_write_what_a_panel_renders_without_journaling(
     assert threshold["settings"]["eager_cost_threshold_s"] == 30.0
     assert reread.reactivity == "lazy"
     assert after == before
+
+
+async def test_reading_settings_keeps_an_external_flow_yaml_edit(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        manifest_file = root / "churn.flow" / "flow.yaml"
+        pulled = yaml.safe_load(manifest_file.read_text())
+        pulled["settings"]["reactivity"] = "lazy"
+        manifest_file.write_text(yaml.safe_dump(pulled))
+        on_disk = manifest_file.read_bytes()
+
+        read = await api.settings_get({"flow": "churn"})
+        unchanged = await api.settings_set({"flow": "churn"})
+
+        assert manifest_file.read_bytes() == on_disk
+
+    assert read["settings"]["reactivity"] == "lazy"
+    assert unchanged["settings"]["reactivity"] == "lazy"
+
+
+async def test_a_daemon_save_keeps_an_external_flow_yaml_edit(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        manifest_file = root / "churn.flow" / "flow.yaml"
+        pulled = yaml.safe_load(manifest_file.read_text())
+        pulled["settings"]["reactivity"] = "lazy"
+        pulled["pulled_section"] = {"from": "git"}
+        manifest_file.write_text(yaml.safe_dump(pulled))
+
+        await api.cells_eager({"flow": "churn", "slug": "score", "eager": True})
+        await api.settings_set({"flow": "churn", "eager_cost_threshold_s": 30})
+
+        saved = yaml.safe_load(manifest_file.read_text())
+
+    assert saved["pulled_section"] == {"from": "git"}
+    assert saved["settings"]["reactivity"] == "lazy"
+    assert saved["settings"]["eager_cost_threshold_s"] == 30.0
+    assert len(saved["settings"]["eager"]) == 1
 
 
 async def test_reactivity_only_takes_the_words_it_has(tmp_path: Path) -> None:
