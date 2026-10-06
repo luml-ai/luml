@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from lumlflow.flow.daemon import kernel_proc
 from lumlflow.flow.daemon.kernel_proc import spawn_environment
+from lumlflow.flow.daemon.stream import Streams
 from lumlflow.flow.errors import KernelError
 from lumlflow.flow.store.cas import Cas
 from lumlflow.flow.store.flowstore import store_dir
@@ -283,6 +284,30 @@ async def test_a_kernel_that_dies_names_the_cell_and_the_next_run_respawns(
         assert result.state == "succeeded"
         assert kernel.handshake is not None
         assert kernel.handshake["pid"] != first["pid"]
+
+
+async def test_a_kernel_that_dies_mid_run_reports_stopped_once_and_retires_the_run(
+    tmp_path: Path,
+):
+    root = make_workspace(tmp_path / "project")
+    streams = Streams()
+    states: list[str] = []
+
+    def record(event: str, params: dict[str, Any]) -> None:
+        if event == kernel_proc.KERNEL_STATE_EVENT:
+            states.append(str(params["state"]))
+        streams.kernel("churn.flow", event, params, step=1)
+
+    async with flow_kernel(root, on_event=record) as kernel:
+        with pytest.raises(KernelError):
+            await kernel.run(run_request("crashes", CRASHES))
+
+        assert states == ["running", "stopped"]
+        assert streams.running("churn.flow") == []
+
+        await kernel.run(run_request("score", SCORE, run_id="after"))
+
+        assert states == ["running", "stopped", "running"]
 
 
 async def test_restart_is_a_new_process_and_forgets_nothing_the_store_holds(

@@ -343,6 +343,7 @@ class KernelProcess:
                 self._writer = None
                 self.handshake = None
                 self._fail_pending("the kernel link closed")
+                self._emit(KERNEL_STATE_EVENT, {"state": "stopped"})
             writer.close()
 
     async def _authenticated(self, reader: asyncio.StreamReader) -> bool:

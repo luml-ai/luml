@@ -113,6 +113,9 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
+# Each flow's cells/ is its own namespace, so cell names repeat across flows.
+exclude = ['\.flow/']
+
 # The luml SDK ships without a py.typed marker; treat its imports as
 # untyped instead of erroring on every `from luml...` import.
 [[tool.mypy.overrides]]
