@@ -615,3 +615,6 @@ class TestMultipleNewExperiments:
             assert attached is not None
             ids = {e.id for e in tracker.list_experiments()}
             assert attached in ids
+            # Let the child exit before teardown closes the loop, or its
+            # subprocess transport is collected on a closed loop.
+            await _wait_until(lambda: run_screen._exited, pilot=pilot, timeout=10.0)

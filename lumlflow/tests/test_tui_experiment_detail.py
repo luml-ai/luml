@@ -40,6 +40,8 @@ from lumlflow.tui.widgets.panel_frame import PanelFrame
 from textual.containers import Container
 from textual.widgets import DataTable, Static
 
+from tests.tui_helpers import settle_workers
+
 
 @pytest.fixture
 def tracker(tmp_path: Path) -> ExperimentTracker:
@@ -540,11 +542,9 @@ class TestModelEdit:
             screen = _push_detail_screen(
                 app, facade, experiment_id=exp_id, experiment_name="exp"
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_model_edit_submitted(model_id, EntityEditResult(name="renamed"))
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             updated = next(r for r in screen._model_rows if r.key == model_id)
             assert updated.name == "renamed"
 
@@ -585,11 +585,9 @@ class TestModelDelete:
             screen = _push_detail_screen(
                 app, facade, experiment_id=exp_id, experiment_name="exp"
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_model_delete_confirmed(model_id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             assert all(r.key != model_id for r in screen._model_rows)
 
 

@@ -53,6 +53,8 @@ from lumlflow.tui.widgets.traces_panel import (
 )
 from textual.widgets import DataTable, Input, Static, Tree
 
+from tests.tui_helpers import settle_workers
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -839,15 +841,11 @@ class TestSpanAnnotationCrud:
                 trace_id="tr-1",
             )
             app.push_screen(screen)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._set_selected_span(root_id)
-            await pilot.pause()
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_annotation_delete_confirmed(created.id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             assert all(a.id != created.id for a in screen._span_annotations)
             # And the handler-side state reflects it too.
             remaining = facade.list_span_annotations(exp_id, "tr-1", root_id).unwrap()

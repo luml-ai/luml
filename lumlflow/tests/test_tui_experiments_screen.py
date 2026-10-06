@@ -37,6 +37,8 @@ from lumlflow.tui.widgets.dialogs import (
 )
 from textual.widgets import DataTable, Input, Static
 
+from tests.tui_helpers import settle_workers
+
 
 def _header_selected(event: SimpleNamespace) -> DataTable.HeaderSelected:
     return cast(DataTable.HeaderSelected, event)
@@ -553,11 +555,9 @@ class TestEdit:
             screen = _push_experiments_screen(
                 app, facade, group_id=group.id, group_name=group.name
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_edit_submitted(exp_id, EntityEditResult(name="renamed"))
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             renamed = next(r for r in screen._rows if r.key == exp_id)
             assert renamed.name == "renamed"
 
@@ -579,11 +579,9 @@ class TestDelete:
             screen = _push_experiments_screen(
                 app, facade, group_id=group.id, group_name=group.name
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_delete_confirmed(exp_id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             assert all(r.key != exp_id for r in screen._rows)
 
     async def test_delete_blocked_by_linked_model(
@@ -606,11 +604,9 @@ class TestDelete:
             screen = _push_experiments_screen(
                 app, facade, group_id=group.id, group_name=group.name
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_delete_confirmed(exp_id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             # 409 constraint failure — experiment remains visible in the
             # screen's rows and the screen stays usable.
             assert any(r.key == exp_id for r in screen._rows)

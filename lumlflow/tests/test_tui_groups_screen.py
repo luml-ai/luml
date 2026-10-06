@@ -34,6 +34,8 @@ from lumlflow.tui.widgets.dialogs import (
 )
 from textual.widgets import DataTable, Input, Static
 
+from tests.tui_helpers import settle_workers
+
 
 def _header_selected(event: SimpleNamespace) -> DataTable.HeaderSelected:
     return cast(DataTable.HeaderSelected, event)
@@ -73,8 +75,7 @@ class TestEmptyState:
     ) -> None:
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             empty = screen.query_one("#groups-empty", Static)
@@ -93,7 +94,7 @@ class TestEmptyState:
         _seed_groups(tracker, 3)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             # Give the worker a moment to populate the table.
@@ -121,9 +122,7 @@ class TestStoreUriWiring:
 
         app = LumlflowApp(store_uri=f"sqlite://{store}", show_first_run_hint=False)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
@@ -138,8 +137,7 @@ class TestStoreUriWiring:
 
         app = LumlflowApp(store_uri=f"sqlite://{store}", show_first_run_hint=False)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             empty = screen.query_one("#groups-empty", Static)
@@ -153,8 +151,7 @@ class TestSyntheticAllExperimentsRow:
         _seed_groups(tracker, 2)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             keys = _row_keys(screen.query_one("#groups-table", DataTable))
@@ -166,8 +163,7 @@ class TestSyntheticAllExperimentsRow:
         _seed_groups(tracker, 3)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             await pilot.press("slash")
             await pilot.pause()
             search = app.screen.query_one("#groups-search", Input)
@@ -189,8 +185,7 @@ class TestNavigation:
         _seed_groups(tracker, 3)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
@@ -225,8 +220,7 @@ class TestNavigation:
         _seed_groups(tracker, 2)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
@@ -252,8 +246,7 @@ class TestSearch:
         tracker.create_group("gamma")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             await pilot.press("slash")
             await pilot.pause()
             screen = app.screen
@@ -281,8 +274,7 @@ class TestSearch:
         tracker.create_group("alpha")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             await pilot.press("slash")
             await pilot.pause()
             search = app.screen.query_one("#groups-search", Input)
@@ -301,8 +293,7 @@ class TestSearch:
         tracker.create_group("beta")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             await pilot.press("slash")
@@ -329,8 +320,7 @@ class TestSort:
         _seed_groups(tracker, 2)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             await pilot.press("s")
             await pilot.pause()
             assert isinstance(app.screen, SortChooserDialog)
@@ -341,8 +331,7 @@ class TestSort:
         _seed_groups(tracker, 2)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = next(s for s in app.screen_stack if isinstance(s, GroupsScreen))
             # Apply a sort change programmatically (the dialog is exercised
             # in its own test); confirm the screen state updates.
@@ -360,8 +349,7 @@ class TestEdit:
         group = tracker.create_group("orig-name", description="orig desc")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
@@ -384,8 +372,7 @@ class TestEdit:
         _seed_groups(tracker, 1)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
@@ -404,8 +391,7 @@ class TestEdit:
         group = tracker.create_group("orig", description="d")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             # Drive the edit via the internal callback.
@@ -413,8 +399,7 @@ class TestEdit:
                 group.id,
                 EntityEditResult(name="renamed"),
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             # The row state in the screen should reflect the new name.
             renamed = next(r for r in screen._rows if r.key == group.id)
             assert renamed.name == "renamed"
@@ -427,13 +412,11 @@ class TestDelete:
         group = tracker.create_group("to-go")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             screen._on_delete_confirmed(group.id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             assert all(r.key != group.id for r in screen._rows)
 
     async def test_delete_blocked_by_linked_experiments(
@@ -443,13 +426,11 @@ class TestDelete:
         tracker.start_experiment(name="some-exp", group=group.name)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             screen._on_delete_confirmed(group.id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             # Group still present (constraint failure).
             assert any(r.key == group.id for r in screen._rows)
 
@@ -459,8 +440,7 @@ class TestDelete:
         _seed_groups(tracker, 1)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
@@ -478,8 +458,7 @@ class TestDelete:
         group = tracker.create_group("doomed")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             table = app.screen.query_one("#groups-table", DataTable)
             table.focus()
             await pilot.pause()
@@ -529,8 +508,7 @@ class TestPanelFrameReskin:
 
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             panel = screen.query_one("#groups-panel", PanelFrame)
@@ -544,8 +522,7 @@ class TestPanelFrameReskin:
     async def test_panel_title_is_groups(self, facade: DataFacade) -> None:
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             panel = screen.query_one("#groups-panel", PanelFrame)
@@ -559,9 +536,7 @@ class TestPanelFrameReskin:
         _seed_groups(tracker, 3)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             panel = screen.query_one("#groups-panel", PanelFrame)
@@ -580,8 +555,7 @@ class TestPanelFrameReskin:
         tracker.create_group("beta")
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             screen._apply_search("alpha")
@@ -595,8 +569,7 @@ class TestPanelFrameReskin:
 
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             panel = screen.query_one("#groups-panel", PanelFrame)
@@ -619,8 +592,7 @@ class TestPanelFrameReskin:
         _seed_groups(tracker, 2)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             empty = screen.query_one("#groups-empty", Static)
@@ -643,8 +615,7 @@ class TestHeaderClickSort:
             tracker.create_group(name)
         app = _make_app(facade)
         async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen = app.screen
             assert isinstance(screen, GroupsScreen)
             table = screen.query_one("#groups-table", DataTable)
