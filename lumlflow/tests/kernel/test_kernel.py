@@ -90,7 +90,6 @@ def test_the_handshake_reports_the_protocol_the_interpreter_and_the_verbs(
     assert reported["pid"] == os.getpid()
     assert reported["capabilities"] == [
         "cancel",
-        "eval",
         "evict_workspace_modules",
         "export_model",
         "handshake",

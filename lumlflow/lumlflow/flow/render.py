@@ -414,21 +414,6 @@ def abandoned(payload: dict[str, Any]) -> list[str]:
     ]
 
 
-def evaluated(payload: dict[str, Any]) -> list[str]:
-    """What the scratch code printed, then what it came to.
-
-    A prompt's order, and a prompt's silence: code that printed nothing and
-    answered `None` says nothing back.
-    """
-    lines = (payload.get("output") or "").rstrip("\n").splitlines()
-    error = payload.get("error")
-    if error:
-        return lines + str(error["traceback"]).rstrip().splitlines()
-    if payload.get("repr") is not None:
-        lines.append(str(payload["repr"]))
-    return lines
-
-
 def cell_lines(listed: Iterable[dict[str, Any]]) -> list[str]:
     lines = []
     for entry in listed:

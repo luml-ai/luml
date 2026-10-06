@@ -205,7 +205,6 @@ class Api:
             "settings.set": self.settings_set,
             "env.status": self.env_status,
             "run": self.run,
-            "eval": self.eval,
             "preflight": self.preflight,
             "cancel": self.cancel,
             "kernel.restart": self.kernel_restart,
@@ -1160,21 +1159,6 @@ class Api:
             "unplanned": unplanned,
             "abandoned": abandoned,
         }
-
-    async def eval(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Scratch code against a branch's values — a read, never a write.
-
-        Names resolve to what this branch observed and hydrate as copies, so no
-        version, materialization or journal line comes of it. Checking a branch
-        out is not part of it either: any branch evaluates, including one whose
-        files are nowhere.
-        """
-        session, branch = await self._read(params)
-        here = queries.read(session, branch)
-        result = await session.kernel.eval(
-            queries.repl_names(session, here), str(params.get("code") or "")
-        )
-        return {"flow": session.ref.name, "branch": branch} | result
 
     async def preflight(self, params: dict[str, Any]) -> dict[str, Any]:
         """What a run would cost, for one target or for several at once.

@@ -38,8 +38,7 @@ class Capture:
     the block accumulates is a capped artifact: the head and the tail, because
     a run's first output says what it started and its last says how it failed.
 
-    `stdin_at_eof` is what makes a cell non-interactive. The scratch REPL turns
-    it off: that surface is one a person is typing at.
+    Stdin is pinned at EOF, which is what makes a cell non-interactive.
     """
 
     def __init__(
@@ -47,10 +46,8 @@ class Capture:
         emit: Emit,
         *,
         cap_bytes: int = DEFAULT_CAP_BYTES,
-        stdin_at_eof: bool = True,
     ) -> None:
         self._emit = emit
-        self._stdin_at_eof = stdin_at_eof
         self._half_cap = max(cap_bytes // 2, 1)
         self._lock = threading.Lock()
         self._seq = 0
@@ -65,14 +62,13 @@ class Capture:
 
     def __enter__(self) -> Capture:
         _flush_streams()
-        for fd in (0, 1, 2) if self._stdin_at_eof else (1, 2):
+        for fd in (0, 1, 2):
             self._saved[fd] = os.dup(fd)
-        if self._stdin_at_eof:
-            devnull = os.open(os.devnull, os.O_RDONLY)
-            try:
-                os.dup2(devnull, 0)
-            finally:
-                os.close(devnull)
+        devnull = os.open(os.devnull, os.O_RDONLY)
+        try:
+            os.dup2(devnull, 0)
+        finally:
+            os.close(devnull)
         for fd, stream in ((1, "stdout"), (2, "stderr")):
             read_fd, write_fd = os.pipe()
             os.dup2(write_fd, fd)
@@ -172,8 +168,7 @@ class Capture:
         instead of arriving all at once when it exits.
         """
         self._streams = {name: getattr(sys, name) for name in _STREAMS}
-        if self._stdin_at_eof:
-            sys.stdin = _reopen(0, "r")
+        sys.stdin = _reopen(0, "r")
         sys.stdout = _reopen(1, "w")
         sys.stderr = _reopen(2, "w")
 

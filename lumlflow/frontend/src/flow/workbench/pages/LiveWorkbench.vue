@@ -75,22 +75,7 @@
           <Button text label="add a cell" :disabled="!session.reachable.value" @click="onAddCell()">
             <template #icon><Plus :size="14" /></template>
           </Button>
-          <Button
-            text
-            severity="secondary"
-            :label="scratchOpen ? 'hide scratch' : 'scratch'"
-            @click="scratchOpen = !scratchOpen"
-          >
-            <template #icon><Terminal :size="14" /></template>
-          </Button>
         </div>
-
-        <ReplPanel
-          v-if="scratchOpen"
-          :branch="viewedBranch"
-          :disabled="!session.reachable.value"
-          :evaluate="ops.evaluate"
-        />
 
         <div class="min-h-0 flex-1">
           <!-- A branch still being read is not a branch with nothing on it. -->
@@ -206,7 +191,7 @@ import { computed, onScopeDispose, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button, Dialog, InputText } from 'primevue'
 import { useToast } from 'primevue/usetoast'
-import { Plus, Terminal } from 'lucide-vue-next'
+import { Plus } from 'lucide-vue-next'
 
 import { FlowApiError } from '@/flow/api/client'
 import type { FlowStream } from '@/flow/api/stream'
@@ -219,7 +204,6 @@ import KernelDeathBanner from '../components/card/KernelDeathBanner.vue'
 import LiveCellCard from '../components/card/LiveCellCard.vue'
 import BranchGraphOverlay from '../components/graph/BranchGraphOverlay.vue'
 import LeftPanel from '../components/panel/LeftPanel.vue'
-import ReplPanel from '../components/repl/ReplPanel.vue'
 import SessionBanners from '../components/session/SessionBanners.vue'
 import { coalesceTransactions } from '../live/toasts'
 import { formatCount } from '../model/format'
@@ -432,7 +416,6 @@ const graphVisible = ref(false)
 
 /** Which panel sections are open — the catch-up marker's destination. */
 const panelOpen = ref<string[]>(['cells'])
-const scratchOpen = ref(false)
 const renaming = ref(false)
 const renameFrom = ref('')
 const renameTo = ref('')

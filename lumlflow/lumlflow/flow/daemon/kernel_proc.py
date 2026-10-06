@@ -236,25 +236,6 @@ class KernelProcess:
         )
         return dict(result or {})
 
-    async def eval(
-        self,
-        branch_slice: dict[str, dict[str, str]],
-        code: str,
-    ) -> dict[str, Any]:
-        """Run scratch code against a branch's values.
-
-        Starts a kernel the way paging does, and writes nothing: the REPL is
-        handed copies of what the branch resolved. No deadline either — an
-        expression a person typed is as long as they made it.
-        """
-        await self.ensure_started()
-        result = await self._call(
-            "eval",
-            {"slice": branch_slice, "code": code},
-            timeout=None,
-        )
-        return dict(result or {})
-
     def cancel(self, run_id: str) -> None:
         """Fire-and-forget: the kernel answers a cancel on its reader thread."""
         if run_id in self._active_runs:

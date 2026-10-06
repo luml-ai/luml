@@ -30,6 +30,7 @@ def write_cell(
     produces: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
     env_sensitive: bool = False,
+    volatility: str | None = None,
     edit: str = "",
     docstring: str | None = None,
 ) -> Path:
@@ -43,6 +44,7 @@ def write_cell(
             produces=produces if produces is not None else {"data": "asset"},
             params=params or {},
             env_sensitive=env_sensitive,
+            volatility=volatility,
             edit=edit,
             docstring=docstring,
         ),
@@ -65,6 +67,7 @@ def _source(
     produces: dict[str, Any],
     params: dict[str, Any],
     env_sensitive: bool,
+    volatility: str | None,
     edit: str,
     docstring: str | None,
 ) -> str:
@@ -77,6 +80,8 @@ def _source(
         lines.append(f"    params = {params!r}")
     if env_sensitive:
         lines.append("    env_sensitive = True")
+    if volatility:
+        lines.append(f"    volatility = {volatility!r}")
     signature = ", ".join(["self", "ctx", *consumes])
     lines.append("")
     lines.append(f"    def materialize({signature}):")

@@ -652,37 +652,6 @@ def training_frames(
     return found
 
 
-def repl_names(session: "FlowSession", here: Slice) -> dict[str, dict[str, str]]:
-    """The names scratch code resolves on a branch, and where their bytes are.
-
-    Every stored output is `cell_output`, and each cell's primary output is
-    also its own bare name — the same two spellings `slug.output` and `slug`
-    already mean everywhere else, rendered as identifiers. A cell's own name
-    never loses to a derived one.
-
-    Only outputs whose bytes are in the store are named: a declared
-    `persist: False` output has none to hand out, and a name bound to nothing
-    would read as a value that is empty rather than one that was never kept.
-    """
-    derived: dict[str, dict[str, str]] = {}
-    primary: dict[str, dict[str, str]] = {}
-    for uid, version in here.versions.items():
-        mat = here.mats.get(uid)
-        if mat is None or mat.state != "succeeded":
-            continue
-        leading = primary_output(version, mat)
-        for name, record in mat.outputs.items():
-            if record.value_ref is None or not session.store.values.exists(
-                record.value_ref
-            ):
-                continue
-            where = {"value_ref": record.value_ref, "kind": record.kind}
-            derived[f"{version.slug}_{name}"] = where
-            if name == leading:
-                primary[version.slug] = where
-    return derived | primary
-
-
 def _kind_of(name: str, version: VersionRow, mat: MaterializationRow | None) -> str:
     """What one output reads as — the badge, and what a lens groups it under.
 

@@ -280,7 +280,6 @@ Everything the workbench does is also available through a verb. Both surfaces re
 | `lumlflow run [cell[.output]] [--force]` | Run a cell, or every leaf when omitted, and whatever they need first |
 | `lumlflow preflight <cell[.output]>` | What running it would recompute, reuse, and cost |
 | `lumlflow cancel` | Stop waiting on the run this lane asked for |
-| `lumlflow eval "<python>"` | Try something against a lane's values; it writes nothing |
 | `lumlflow lane new <name> [--from <lane>]` | Start a lane; it copies no file and no value |
 | `lumlflow lane use <lane>` | Put a lane on disk by writing its selected cells |
 | `lumlflow rewind <step>` | Restore a lane to a step; nothing recomputes |

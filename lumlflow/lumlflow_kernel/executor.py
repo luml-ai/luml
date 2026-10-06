@@ -14,7 +14,6 @@ knows how to hold, not a protocol error.
 from __future__ import annotations
 
 import contextlib
-import copy
 import ctypes
 import linecache
 import logging
@@ -273,19 +272,6 @@ class Executor:
     def fresh(self, value_ref: str, kind: str) -> Any:
         """The same value read again — never the object the cache holds."""
         return self._registry.get(kind).deserialize(self._values.path(value_ref))
-
-    def copy_of(self, value_ref: str, kind: str) -> Any:
-        """A value the caller cannot reach the cached one through.
-
-        The hot cache is what makes reading a large frame a second time
-        instant, so it is read — and never handed out. A value no copy protocol
-        reaches is read again from its own bytes instead, which is a copy by
-        construction.
-        """
-        try:
-            return copy.deepcopy(self.value(value_ref, kind))
-        except Exception:
-            return self.fresh(value_ref, kind)
 
     @contextlib.contextmanager
     def _claim(self, run_id: str) -> Iterator[Callable[[], None]]:

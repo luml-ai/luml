@@ -24,7 +24,6 @@ import type {
   CellDetail,
   CellLogs,
   CellSummary,
-  EvalResult,
   FlagCode,
   FlowBrief,
   FlowExport,
@@ -288,8 +287,6 @@ export interface FlowMethods {
   'agents.remove': Method<{ harness: string }, AgentHarness>
   /** Stored cell context, including a trimmed traceback when the cell failed. */
   'agent.payload': Method<BranchScoped & { slug: string }, CellContextPayload>
-  /** A read against a branch's values — never a version, never a journal line. */
-  eval: Method<BranchScoped & { code: string }, EvalResult>
   /** Config, not history: the settings the panel renders, journaled nowhere. */
   'settings.set': Method<
     FlowScoped & Partial<FlowSettingsReport>,

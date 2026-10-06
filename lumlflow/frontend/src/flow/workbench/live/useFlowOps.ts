@@ -15,7 +15,6 @@ import { getCurrentInstance, inject, type InjectionKey } from 'vue'
 import type { EditedCell, FlowMethods } from '@/flow/api/client'
 import type {
   CellContextPayload,
-  EvalResult,
   FlowBrief,
   FlowSettingsReport,
   Preflight,
@@ -68,7 +67,6 @@ export interface FlowOps {
   archive: (branch: string) => Result<'archive'>
   /** A read copied from one card; it carries no intent because it journals nothing. */
   copyContext: (slug: string, branch: string) => Promise<CellContextPayload>
-  evaluate: (code: string, branch: string) => Promise<EvalResult>
   saveSettings: (settings: Partial<FlowSettingsReport>) => Result<'settings.set'>
   restartKernel: () => Result<'kernel.restart'>
 }
@@ -266,10 +264,6 @@ export function useFlowOps(
       session.request('archive', { flow: flow(), branch, intent: `archived ${branch}` }),
 
     copyContext: (slug, branch) => session.request('agent.payload', { flow: flow(), branch, slug }),
-
-    // A read of what the branch already observed. The names hydrate as copies,
-    // so this writes no version, no materialization and no journal line.
-    evaluate: (code, branch) => session.request('eval', { flow: flow(), branch, code }),
 
     // Config rather than history — which is why it carries no intent and lands
     // in `flow.yaml` instead of the journal.

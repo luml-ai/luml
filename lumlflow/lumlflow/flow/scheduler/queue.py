@@ -297,7 +297,7 @@ class RunQueue:
             return "abandoned"
         if result is None or result.state != "succeeded" or flight.mat_id is None:
             return None
-        if result.external:
+        if _external(step, result):
             return None
         if result.identity_dependent and plan.branch != flight.origin:
             # Only knowable once it has run: the branch that asked for it under
@@ -486,7 +486,7 @@ class RunQueue:
                     },
                     outputs=outputs,
                     identity_dependent=result.identity_dependent,
-                    external=result.external,
+                    external=_external(step, result),
                     env_lock_hash=env_lock_hash,
                     cost_seconds=result.cost_seconds,
                     log_ref=result.log_ref,
@@ -602,6 +602,12 @@ class RunQueue:
         )
         _, future = self._gate.pop(position)
         future.set_result(None)
+
+
+def _external(step: Step, result: RunResult) -> bool:
+    """Declared volatility counts as much as observed access: a cell that
+    fetches remote data never touches `ctx.workspace_dir` for the kernel to see."""
+    return result.external or step.version.manifest.volatility == "external"
 
 
 def _awaiting(flight: _Flight) -> int:

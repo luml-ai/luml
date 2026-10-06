@@ -164,6 +164,17 @@ class TestMemoHits:
         assert outcome.executed == ("features",)
         assert flow.executor.slugs == ["features", "features"]
 
+    async def test_a_declared_external_cell_never_memoizes(self, flow: Flow) -> None:
+        """Remote data leaves no trace the kernel can observe; the declaration
+        is the only signal."""
+        flow.add("features", volatility="external")
+        await flow.run("features")
+
+        outcome = await flow.run("features")
+
+        assert outcome.executed == ("features",)
+        assert flow.executor.slugs == ["features", "features"]
+
 
 class TestForcedRuns:
     """`--force` is the labeled modifier: it buys back a suspect result by
@@ -363,6 +374,21 @@ class TestCoalescing:
         """Same unwind for `external`: nothing here knows what it read."""
         flow.add("train")
         flow.executor.external.add("train")
+        flow.executor.holding.add("train")
+        main = asyncio.create_task(flow.run("train"))
+        await flow.executor.started.wait()
+        joined = asyncio.create_task(flow.run("train"))
+        await settle()
+        flow.executor.release()
+
+        assert (await main).executed == ("train",)
+        assert (await joined).executed == ("train",)
+        assert flow.executor.slugs == ["train", "train"]
+
+    async def test_a_waiter_runs_its_own_when_the_shared_one_is_declared_external(
+        self, flow: Flow
+    ) -> None:
+        flow.add("train", volatility="external")
         flow.executor.holding.add("train")
         main = asyncio.create_task(flow.run("train"))
         await flow.executor.started.wait()

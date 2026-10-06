@@ -21,7 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
-from lumlflow_kernel import PROTOCOL_VERSION, publish, repl
+from lumlflow_kernel import PROTOCOL_VERSION, publish
 from lumlflow_kernel.executor import Executor
 from lumlflow_kernel.kinds import registry
 
@@ -53,7 +53,6 @@ class Kernel:
             "handshake": self.handshake,
             "run": self.run,
             "cancel": self.cancel,
-            "eval": self.eval,
             "page": self.page,
             "export_model": self.export_model,
             "evict_workspace_modules": self.evict_workspace_modules,
@@ -84,18 +83,6 @@ class Kernel:
 
     def cancel(self, params: dict[str, Any]) -> dict[str, Any]:
         return {"cancelled": self.executor.cancel(str(params.get("run_id", "")))}
-
-    def eval(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Scratch code against a branch's values. Writes no asset.
-
-        Queued behind a run like every other worker method: the console capture
-        is process-wide, so an expression never runs beside a materialization.
-        """
-        return repl.evaluate(
-            self.executor,
-            refs=dict(params.get("slice") or {}),
-            code=str(params.get("code", "")),
-        )
 
     def page(self, params: dict[str, Any]) -> dict[str, Any]:
         return self.executor.page(

@@ -874,16 +874,6 @@ export interface CellContextPayload {
   text: string
 }
 
-/** `eval`: scratch code against copies of a branch's values. */
-export interface EvalResult {
-  flow: string
-  branch: string
-  repr: string | null
-  output: string
-  names: string[]
-  error: { type: string; message: string; traceback: string } | null
-}
-
 export interface JournalPage {
   flow: string
   path: string

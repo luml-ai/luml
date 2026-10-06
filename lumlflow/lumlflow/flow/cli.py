@@ -67,7 +67,6 @@ def register(app: typer.Typer) -> None:
         guide,
         graph,
         run,
-        eval,
         preflight,
         cancel,
         rewind,
@@ -285,26 +284,6 @@ def run(
     assert result is not None
     _emit(result, as_json, _run_lines(result))
     if _run_failed(result):
-        raise typer.Exit(1)
-
-
-def eval(
-    code: str = typer.Argument(..., help="Python to run against a lane's values."),
-    flow: str | None = _FLOW,
-    lane: str | None = _LANE,
-    as_json: bool = _JSON,
-) -> None:
-    """Try something against a lane's values. Nothing is written.
-
-    Cells are in scope by name. A cell's primary output takes the cell's own
-    name; every output is also `cell_output`. What you get is a copy. A
-    mutation here reaches no other lane, no stored value, and no cell.
-    Every lane evaluates, on disk or not.
-    """
-    params = {"code": code, "branch": lane}
-    result = _call("eval", params, flow=flow, as_json=as_json)
-    _emit(result, as_json, render.evaluated)
-    if result.get("error"):
         raise typer.Exit(1)
 
 

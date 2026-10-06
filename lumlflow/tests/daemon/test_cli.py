@@ -57,17 +57,6 @@ Invoke = Callable[..., Result]
 ULID = re.compile(r"\b[0-9A-HJKMNP-TV-Z]{26}\b")
 SHA256 = re.compile(r"\b[0-9a-f]{64}\b")
 
-HOLED_FRAME_CELL = """
-class Rows:
-    \"\"\"A frame with a hole in it, so dropping rows shows.\"\"\"
-    produces = {"rows": {"type": "asset", "kind": "frame"}}
-
-    def materialize(self, ctx):
-        import pandas
-
-        return {"rows": pandas.DataFrame({"n": [1.0, None, 3.0]})}
-"""
-
 FANOUT_CELL = """
 class Fanout:
     \"\"\"Two outputs, read by two different cells.\"\"\"
@@ -1354,46 +1343,6 @@ def test_an_intent_typed_at_a_verb_is_what_the_history_reads_back(
     _no_internals(read_back)
 
 
-def test_the_scratch_repl_hands_out_copies_and_writes_nothing(
-    cli: Invoke, workspace: Path
-):
-    """`lumlflow eval` against a frame, mutating it — and the store is untouched.
-
-    The mutation is real inside the expression that made it, which is what a
-    REPL is for; the next one starts from the branch's value again, and nothing
-    in between became a stored value.
-    """
-    pytest.importorskip("pandas")
-    pytest.importorskip("pyarrow")
-    cli("init", "churn")
-    flow = workspace / "churn.flow"
-    write_cell(flow, "train_df", HOLED_FRAME_CELL)
-    cli("run", "train_df")
-    stored = _stored_values(flow)
-
-    mutated = cli("eval", "train_df.dropna(inplace=True); len(train_df)")
-    again = cli("eval", "len(train_df)")
-
-    assert mutated.output.strip() == "2"
-    assert again.output.strip() == "3"
-    assert _stored_values(flow) == stored
-    _no_internals(mutated)
-
-
-def test_a_failing_expression_prints_its_traceback_and_exits_nonzero(
-    cli: Invoke, workspace: Path
-):
-    cli("init", "churn")
-    write_cell(workspace / "churn.flow", "score", SCORE_CELL)
-    cli("run", "score")
-
-    failed = cli("eval", "score['missing']")
-
-    assert failed.exit_code == 1
-    assert "KeyError" in failed.output
-    _no_internals(failed)
-
-
 def test_paging_reads_a_window_into_a_value_a_preview_only_summarises(
     cli: Invoke, workspace: Path
 ):
@@ -1504,12 +1453,6 @@ def _receive_caught_up(
         if frame.get("type") == "caught_up":
             return
     raise AssertionError("the stream did not catch up")
-
-
-def _stored_values(flow: Path) -> list[str]:
-    """Every value the flow holds, by content — a new one would be a new name."""
-    values = flow / ".lumlflow" / "values"
-    return sorted(path.name for path in values.rglob("*") if path.is_file())
 
 
 def _no_internals(result: Result) -> None:

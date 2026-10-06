@@ -1,12 +1,11 @@
 /**
  * Handing work to the agent, reading what it did, and the ops that are not runs.
  *
- * Four rules carry this suite. A copied context is the **daemon's**: the cell
+ * Three rules carry this suite. A copied context is the **daemon's**: the cell
  * address goes over the wire and what comes back is what the reader copies,
  * because the traceback of a run nobody opened is a fact only the store has.
  * The activity feed is **read-only and cursor-anchored** — a marker, not an
- * inbox. The scratch REPL is a **read of any branch**, including one whose
- * files are nowhere, and it writes no version. Env ops and the flow's settings
+ * inbox. Env ops and the flow's settings
  * go through the daemon and render its answer, never a control that looks like
  * it took a change and dropped it.
  */
@@ -455,66 +454,6 @@ describe('the activity feed is read-only and opens at the cursor', () => {
     expect(entry, 'no refresh failure in the activity feed').toBeTruthy()
     expect(entry?.text().split(sentence)).toHaveLength(2)
     expect(entry?.find('p').exists()).toBe(false)
-    wrapper.unmount()
-  })
-})
-
-// --- the scratch REPL --------------------------------------------------------
-
-describe('the scratch REPL reads the viewed branch', () => {
-  it('evaluates against a branch nobody checked out and writes nothing', async () => {
-    const { wrapper, live } = await workbench({
-      at: `/flow/${FLOW}?branch=sweep`,
-      handlers: {
-        eval: (params) => ({
-          flow: 'churn',
-          branch: String(params.branch),
-          repr: '(1200, 8)',
-          output: '',
-          names: ['train_df'],
-          error: null,
-        }),
-      },
-    })
-
-    await clickText(wrapper, 'scratch')
-    await wrapper.find('textarea').setValue('train_df.shape')
-    await settle()
-    await clickText(wrapper, 'evaluate')
-
-    expect(asked(live, 'eval')).toEqual([{ flow: FLOW, branch: 'sweep', code: 'train_df.shape' }])
-    expect(wrapper.text()).toContain('(1200, 8)')
-    // The worktree stays where it was: reading a branch is not checking it out.
-    expect(asked(live, 'switch')).toEqual([])
-    expect(asked(live, 'cells.edit')).toEqual([])
-    expect(asked(live, 'run')).toEqual([])
-    wrapper.unmount()
-  })
-
-  it('renders the traceback of an expression that failed', async () => {
-    const { wrapper } = await workbench({
-      handlers: {
-        eval: () => ({
-          flow: 'churn',
-          branch: 'main',
-          repr: null,
-          output: '',
-          names: [],
-          error: {
-            type: 'NameError',
-            message: "name 'nope' is not defined",
-            traceback: "NameError: name 'nope' is not defined",
-          },
-        }),
-      },
-    })
-
-    await clickText(wrapper, 'scratch')
-    await wrapper.find('textarea').setValue('nope')
-    await settle()
-    await clickText(wrapper, 'evaluate')
-
-    expect(wrapper.text()).toContain("NameError: name 'nope' is not defined")
     wrapper.unmount()
   })
 })
