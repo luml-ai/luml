@@ -83,7 +83,6 @@ test.describe('Deployments', () => {
         page.getByRole('heading', { name: 'Deployments', exact: true }),
       ).toBeVisible({ timeout: 15000 })
       await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 10000 })
-      await expect(page.getByText(/^1 Deployment$/)).toBeVisible()
     })
 
     test('shows empty state with "Add new Deployment" card when there are no deployments', async ({
@@ -506,5 +505,52 @@ test.describe('Deployments', () => {
       await expect(page.getByText('org-b-deployment')).toBeVisible({ timeout: 10000 })
       await expect(page.getByText('prod-deployment')).not.toBeVisible()
     })
+  })
+})
+
+
+test.describe('Deployment batch actions', () => {
+  test.beforeEach(async ({ apiMocks }) => {
+    await mockDeploymentsBaseline(apiMocks)
+  })
+
+  test('stops every selected deployment and shows mixed outcomes', async ({ page, apiMocks }) => {
+    await apiMocks.get(
+      new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments(\\?|$)`),
+      [makeDeployment(), makeDeployment({ id: DEPLOYMENT_ID_2, name: 'blocked-deployment' })],
+    )
+    await apiMocks.post(`**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments/batch`, {
+      succeeded: [DEPLOYMENT_ID],
+      failed: [{ deployment_id: DEPLOYMENT_ID_2, name: 'blocked-deployment', reason: 'already_pending', message: 'Deployment deletion already pending' }],
+    })
+    await page.goto(deploymentsUrl)
+    await expect(page.getByText('prod-deployment')).toBeVisible()
+    await page.getByRole('checkbox').first().check()
+    await expect(page.getByText('2 Selected')).toBeVisible()
+    await page.getByTestId('batch-stop').click()
+    const request = page.waitForRequest((req) => req.method() === 'POST' && req.url().endsWith('/deployments/batch'))
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Stop', exact: true }).click()
+    expect((await request).postDataJSON()).toEqual({ deployment_ids: [DEPLOYMENT_ID, DEPLOYMENT_ID_2], action: 'undeploy' })
+    await expect(page.getByText('Deployment "prod-deployment" is stopping')).toBeVisible()
+    await expect(page.getByTestId('batch-results')).toContainText('blocked-deployment')
+    await expect(page.getByTestId('batch-results')).toContainText('Deployment deletion already pending')
+    await expect(page.getByTestId('batch-results')).not.toContainText('prod-deployment')
+  })
+
+  test('force deletes the last deployment and returns to the empty state', async ({ page, apiMocks }) => {
+    await apiMocks.get(
+      new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments(\\?|$)`),
+      [makeDeployment({ status: DeploymentStatus.failed })],
+    )
+    await apiMocks.post(`**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments/batch`, { succeeded: [DEPLOYMENT_ID], failed: [] })
+    await page.goto(deploymentsUrl)
+    await expect(page.getByText('prod-deployment')).toBeVisible()
+    await page.getByRole('checkbox').first().check()
+    await page.getByTestId('batch-delete').click()
+    await page.getByPlaceholder('delete', { exact: true }).fill('delete')
+    await page.getByRole('dialog').getByRole('button', { name: 'force delete', exact: true }).click()
+    await expect(page.getByText('Deployment "prod-deployment" deleted')).toBeVisible()
+    await expect(page.getByTestId('batch-results')).toHaveCount(0)
+    await expect(page.getByText('Add new Deployment')).toBeVisible()
   })
 })

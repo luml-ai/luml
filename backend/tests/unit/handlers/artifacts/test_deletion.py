@@ -585,6 +585,9 @@ class TestArtifactDeletion:
         await mocks.handler.force_delete_artifact(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, COLLECTION_ID, ARTIFACT_ID
         )
+        mocks.deployment_repository.undeploy_artifact_deployments.assert_awaited_once_with(
+            ARTIFACT_ID, mocks.session
+        )
         mocks.lineage_repository.refresh_node_copy.assert_awaited_once_with(
             ARTIFACT_ID, mocks.session
         )
@@ -598,7 +601,7 @@ class TestArtifactDeletion:
             ORGANIZATION_ID, USER_ID, Resource.ARTIFACT, Action.DELETE, ORBIT_ID
         )
 
-    async def test_force_delete_artifact_deletes_deployments_and_artifact_when_deployed(
+    async def test_force_delete_artifact_undeploys_deployments(
         self, mocks: CollaboratorMocks[ArtifactHandler]
     ) -> None:
         mocks.track_entry_repository.has_entries_for_artifact.return_value = False
@@ -621,8 +624,8 @@ class TestArtifactDeletion:
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID, USER_ID, Resource.ARTIFACT, Action.DELETE, ORBIT_ID
         )
-        mocks.deployment_repository.delete_deployments_by_artifact_id.assert_awaited_once_with(
-            ARTIFACT_ID
+        mocks.deployment_repository.undeploy_artifact_deployments.assert_awaited_once_with(
+            ARTIFACT_ID, mocks.session
         )
         mocks.lineage_repository.refresh_node_copy.assert_awaited_once_with(
             ARTIFACT_ID, mocks.session

@@ -63,3 +63,17 @@ export interface DeploymentErrorMessage {
   error: string
   reason: string
 }
+
+export type DeploymentBatchAction = 'undeploy' | 'delete'
+
+export interface DeploymentBatchFailure {
+  deployment_id: string
+  name: string | null
+  reason: string
+  message: string
+}
+
+export interface DeploymentsBatchResponse {
+  succeeded: string[]
+  failed: DeploymentBatchFailure[]
+}

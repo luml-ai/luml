@@ -19,6 +19,7 @@
         label="Predict"
         type="submit"
         fluid
+        :loading="loading"
         :disabled="isManualPredictButtonDisabled"
         @click="onManualSubmit"
       />
@@ -62,6 +63,7 @@
         label="Predict"
         type="submit"
         fluid
+        :loading="loading"
         :disabled="isPredictButtonDisabled"
         @click="onFileSubmit"
       />

@@ -7,6 +7,8 @@ import {
 } from '@/lib/api/deployments/interfaces'
 import DeploymentsTable from './DeploymentsTable.vue'
 
+vi.mock('@/stores/deployments', () => ({ useDeploymentsStore: () => ({ batchAction: vi.fn() }) }))
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {}, params: {} }),
   useRouter: () => ({ replace: vi.fn() }),
@@ -49,6 +51,9 @@ vi.mock('primevue', async () => {
 
   return {
     DataTable,
+    Dialog: passthrough('Dialog'),
+    useConfirm: () => ({ require: () => undefined }),
+    useToast: () => ({ add: () => undefined }),
     Column,
     IconField: passthrough('IconField'),
     InputIcon: passthrough('InputIcon'),
@@ -108,6 +113,7 @@ function mountTable(data: Deployment[]) {
       stubs: {
         RouterLink: { template: '<a><slot /></a>' },
         DeploymentsEditor: true,
+        ForceDeleteConfirmDialog: true,
         DeploymentErrorModal: true,
         UiId: { props: ['id'], template: '<span>{{ id }}</span>' },
       },
@@ -132,19 +138,5 @@ describe('DeploymentsTable progress notes', () => {
     const wrapper = mountTable([deployment(DeploymentStatusEnum.pending)])
 
     expect(wrapper.find('[data-testid="deployment-progress-note"]').exists()).toBe(false)
-  })
-})
-
-describe('DeploymentsTable count label', () => {
-  it.each([
-    [0, '0 Deployments'],
-    [1, '1 Deployment'],
-    [2, '2 Deployments'],
-  ])('renders %s deployments as %s', (count, label) => {
-    const data = Array.from({ length: count }, (_, index) =>
-      deployment(DeploymentStatusEnum.active, String(index)),
-    )
-
-    expect(mountTable(data).get('.title').text()).toBe(label)
   })
 })

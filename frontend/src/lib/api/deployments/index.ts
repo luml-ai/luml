@@ -1,5 +1,11 @@
 import type { AxiosInstance } from 'axios'
-import type { CreateDeploymentPayload, Deployment, UpdateDeploymentPayload } from './interfaces'
+import type {
+  CreateDeploymentPayload,
+  Deployment,
+  UpdateDeploymentPayload,
+  DeploymentBatchAction,
+  DeploymentsBatchResponse,
+} from './interfaces'
 
 export class DeploymentsApi {
   private api: AxiosInstance
@@ -48,6 +54,19 @@ export class DeploymentsApi {
       payload,
     )
     return responseData
+  }
+
+  async batchAction(
+    organizationId: string,
+    orbitId: string,
+    deploymentIds: string[],
+    action: DeploymentBatchAction,
+  ) {
+    const { data } = await this.api.post<DeploymentsBatchResponse>(
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/deployments/batch`,
+      { deployment_ids: deploymentIds, action },
+    )
+    return data
   }
 
   async forceDeleteDeployment(organizationId: string, orbitId: string, deploymentId: string) {
