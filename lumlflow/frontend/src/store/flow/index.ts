@@ -142,6 +142,7 @@ function toNotebookCell(cell: CellSummary): NotebookAssetInterface {
   return {
     id: cell.slug,
     type: assetTypeFromKind(kind),
+    produces: [...new Set(Object.values(cell.kinds).map(assetTypeFromKind))],
     name: cell.slug,
     unmaterialized: cell.state === 'unmaterialized',
   }

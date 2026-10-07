@@ -10,7 +10,7 @@ import NotebookAccordionAssetsList from '@/components/notebooks/sidebar-accordio
 const flowStore = useFlowStore()
 
 const items = computed(() =>
-  flowStore.notebookCells.filter((cell) => cell.type === 'experiment'),
+  flowStore.notebookCells.filter((cell) => cell.produces.includes('experiment')),
 )
 </script>
 

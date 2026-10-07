@@ -10,10 +10,10 @@ export function useSidebarSections() {
   const flowStore = useFlowStore()
 
   const experimentsCount = computed(
-    () => flowStore.notebookCells.filter((cell) => cell.type === 'experiment').length,
+    () => flowStore.notebookCells.filter((cell) => cell.produces.includes('experiment')).length,
   )
   const modelsCount = computed(
-    () => flowStore.notebookCells.filter((cell) => cell.type === 'model').length,
+    () => flowStore.notebookCells.filter((cell) => cell.produces.includes('model')).length,
   )
 
   return computed(() => [

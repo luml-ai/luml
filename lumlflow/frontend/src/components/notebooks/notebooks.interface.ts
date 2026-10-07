@@ -6,6 +6,8 @@ export type NotebookAssetType = 'graph' | 'model' | 'dataset' | 'experiment' | '
 export interface NotebookAssetInterface {
   id: string
   type: NotebookAssetType
+  /** Every type the cell produces; `type` is only the primary one. */
+  produces: NotebookAssetType[]
   name: string
   unmaterialized: boolean
 }
