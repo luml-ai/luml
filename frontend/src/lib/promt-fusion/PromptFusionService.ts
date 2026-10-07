@@ -158,18 +158,20 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.isTrainingActive = true
     this.changeOptimizationState(false)
     this.emit('CHANGE_TRAINING_STATE', this.isTrainingActive)
-    const result = await DataProcessingWorker.startTraining<TrainingData<ClassificationMetrics>>(
-      { task_spec: this.payload as PromptFusionPayload },
-      WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
-    )
-    if (result.status === 'success' && result.model_id) {
-      this.setModelId(result.model_id)
-      this.savePredictionFields()
+    try {
+      const result = await DataProcessingWorker.startTraining<TrainingData<ClassificationMetrics>>(
+        { task_spec: this.payload as PromptFusionPayload },
+        WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
+      )
+      if (result.status === 'success' && result.model_id) {
+        this.setModelId(result.model_id)
+        this.savePredictionFields()
+        this.saveModel(result.model)
+      } else {
+        throw new Error(result.error_message || 'Training failed')
+      }
+    } finally {
       this.endTraining()
-      this.saveModel(result.model)
-    } else {
-      this.endTraining()
-      throw new Error(result.error_message || 'Training failed')
     }
   }
 
