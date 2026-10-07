@@ -313,6 +313,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "luml-sdk" },
     { name = "sqlalchemy" },
     { name = "typer" },
@@ -332,6 +333,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.4" },
     { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "httpx", specifier = ">=0.28.0" },
     { name = "luml-sdk", specifier = ">=0.2.0,<0.3.0" },
     { name = "sqlalchemy", specifier = ">=2.0.47" },
     { name = "typer", specifier = ">=0.15.0" },
