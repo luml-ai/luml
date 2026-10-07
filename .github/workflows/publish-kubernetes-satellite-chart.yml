@@ -23,6 +23,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -55,7 +57,45 @@ jobs:
       - name: Log in to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GHCR_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+        run: |
+          echo "$GHCR_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+          echo "$GHCR_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Pin images to their latest releases
+        working-directory: satellite/implementations/kubernetes/chart
+        run: |
+          {
+            echo "| Values | Release tag | Image |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for entry in satellite:kubernetes sidecar:serving monitoring:monitoring model:model-server; do
+            KEY="${entry%%:*}"
+            COMPONENT="${entry##*:}"
+
+            RELEASE_TAG=$(git tag --list "satellite/$COMPONENT/v*" \
+              | { grep -E "^satellite/$COMPONENT/v[0-9]+\.[0-9]+\.[0-9]+$" || true; } \
+              | sort -V | tail -n 1)
+            if [[ -z "$RELEASE_TAG" ]]; then
+              echo "No stable release tag satellite/$COMPONENT/vX.Y.Z" >&2
+              exit 1
+            fi
+
+            IMAGE_TAG="${RELEASE_TAG##*/}"
+            REPOSITORY=$(KEY="$KEY" yq '.[strenv(KEY)].image.repository' values.yaml)
+            IMAGE="$REPOSITORY:$IMAGE_TAG"
+            if ! docker manifest inspect "$IMAGE" > /dev/null; then
+              echo "Image $IMAGE from $RELEASE_TAG is not in the registry" >&2
+              exit 1
+            fi
+
+            for file in values.yaml defaults.yaml; do
+              KEY="$KEY" IMAGE_TAG="$IMAGE_TAG" yq -i '.[strenv(KEY)].image.tag = strenv(IMAGE_TAG)' "$file"
+            done
+            echo "| \`$KEY.image.tag\` | \`$RELEASE_TAG\` | \`$IMAGE\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          helm lint . --strict -f ci/vanilla-values.yaml
 
       - name: Package and publish chart
         env:
