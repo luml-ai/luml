@@ -3,11 +3,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from luml_satellite.convergence import ModelDescription
+from luml_satellite.convergence import HealthCheck, ModelDescription
 from luml_satellite.wire import Deployment
 from luml_satellite.workload import ProfileStatus
 
-type HealthStep = bool | Exception
+type HealthStep = bool | HealthCheck | Exception
 type DescriptionStep = ModelDescription | Exception
 
 
@@ -89,13 +89,15 @@ class FakeServingPlacement:
         deployment: Deployment,
         *,
         upstream_url: str | None,
-    ) -> bool:
+    ) -> HealthCheck:
         deployment_id = str(deployment.id)
         self.health_calls.append((deployment_id, upstream_url))
         step = _next(self._health_steps[deployment_id])
         if isinstance(step, Exception):
             raise step
-        return True if step is None else step
+        if isinstance(step, HealthCheck):
+            return step
+        return HealthCheck(healthy=True if step is None else step)
 
     def note_platform_record(self, deployment_id: str, record: Deployment) -> None:
         if self.note_error is not None:

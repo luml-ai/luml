@@ -14,6 +14,12 @@ class ModelDescription:
     profile_status: ProfileStatus = ProfileStatus.ABSENT
 
 
+@dataclass(frozen=True)
+class HealthCheck:
+    healthy: bool
+    detail: str | None = None
+
+
 class ServingPlacement(Protocol):
     @property
     def router(self) -> object | None: ...
@@ -42,7 +48,7 @@ class ServingPlacement(Protocol):
         deployment: Deployment,
         *,
         upstream_url: str | None,
-    ) -> bool: ...
+    ) -> HealthCheck: ...
 
     def note_platform_record(self, deployment_id: str, record: Deployment) -> None: ...
 
@@ -85,8 +91,8 @@ class NoServingPlacement:
         deployment: Deployment,
         *,
         upstream_url: str | None,
-    ) -> bool:
-        return True
+    ) -> HealthCheck:
+        return HealthCheck(healthy=True)
 
     def note_platform_record(self, deployment_id: str, record: Deployment) -> None:
         return None
