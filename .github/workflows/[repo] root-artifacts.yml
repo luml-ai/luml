@@ -1,0 +1,21 @@
+name: Repo Root Artifacts Check
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  no-codie-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject codie artifacts in repo root
+        run: |
+          offending=$(git ls-files -- ':(glob)CODIE-*.md' 'SPEC.md' ':(glob)codie/**')
+          if [ -n "$offending" ]; then
+            echo "::error::Codie artifacts must not be committed to the repo root:"
+            echo "$offending"
+            exit 1
+          fi
