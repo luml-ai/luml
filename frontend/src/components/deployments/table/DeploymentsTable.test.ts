@@ -52,6 +52,8 @@ vi.mock('primevue', async () => {
   return {
     DataTable,
     Dialog: passthrough('Dialog'),
+    useConfirm: () => ({ require: () => undefined }),
+    useToast: () => ({ add: () => undefined }),
     Column,
     IconField: passthrough('IconField'),
     InputIcon: passthrough('InputIcon'),

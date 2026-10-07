@@ -1,50 +1,38 @@
 <template>
   <div>
-    <DataTable
-      :value="data"
-      v-model:filters="filters"
-      v-model:selection="selection"
-      data-key="id"
-      paginator
-      :rows="10"
-      :rows-per-page-options="[10, 25, 50]"
-    >
+    <DataTable :value="data" v-model:filters="filters" v-model:selection="selection" data-key="id">
       <template #header>
-        <div>
+        <div class="header-left">
           <h4 class="title">
             {{ data.length }} {{ data.length === 1 ? 'Deployment' : 'Deployments' }}
           </h4>
-          <div v-if="selection.length" class="batch-actions" data-testid="deployment-actions">
-            <span>{{ selection.length }} selected</span>
+          <div class="toolbar">
+            <div class="counter">{{ selection.length }} Selected</div>
             <Button
-              size="small"
-              severity="warn"
-              outlined
-              :disabled="loading"
+              variant="text"
+              severity="secondary"
+              aria-label="Stop"
+              v-tooltip="'Stop'"
+              :disabled="loading || !selection.length"
               data-testid="batch-stop"
-              @click="stopVisible = true"
+              @click="onStopClick"
             >
-              Stop
+              <template #icon>
+                <CircleStop :size="14" />
+              </template>
             </Button>
             <Button
-              size="small"
-              severity="danger"
-              outlined
-              :disabled="loading"
+              variant="text"
+              severity="secondary"
+              aria-label="Force delete"
+              v-tooltip="'Force delete'"
+              :disabled="loading || !selection.length"
               data-testid="batch-delete"
               @click="forceVisible = true"
             >
-              Force delete
-            </Button>
-            <Button
-              size="small"
-              severity="secondary"
-              variant="text"
-              :disabled="loading"
-              data-testid="clear-selection"
-              @click="selection = []"
-            >
-              Clear selection
+              <template #icon>
+                <Trash2 :size="14" />
+              </template>
             </Button>
           </div>
         </div>
@@ -177,54 +165,33 @@
         </template>
       </Column>
     </DataTable>
-    <Dialog
-      v-model:visible="stopVisible"
-      modal
-      :draggable="false"
-      :closable="!loading"
-      :header="`Stop ${selection.length} deployments?`"
-      :style="{ width: '400px' }"
-    >
-      <p>
-        This schedules each satellite to shut down the selected deployments. An offline satellite
-        will process the request when it reconnects.
-      </p>
-      <template #footer>
-        <Button severity="secondary" :disabled="loading" @click="stopVisible = false"
-          >Cancel</Button
-        >
-        <Button
-          severity="warn"
-          :loading="loading"
-          :disabled="loading"
-          data-testid="confirm-stop"
-          @click="runBatchAction('undeploy')"
-          >Stop</Button
-        >
-      </template>
-    </Dialog>
     <ForceDeleteConfirmDialog
       v-model:visible="forceVisible"
-      :title="`Force delete ${selection.length} deployments?`"
+      :title="
+        selection.length > 1
+          ? `Force delete ${selection.length} deployments?`
+          : 'Force delete this deployment?'
+      "
       text='This removes deployment records without shutting down satellite workloads. Active deployments must be stopped first. Records with dependencies cannot be deleted. Type "delete" to confirm.'
       :loading="loading"
       @confirm="runBatchAction('delete')"
     />
     <Dialog
-      v-model:visible="resultsVisible"
+      :pt="BATCH_RESULT_DIALOG_PT"
+      :visible="!!failures.length"
       modal
       :draggable="false"
-      header="Deployment action results"
-      :style="{ width: '500px' }"
+      @update:visible="failures = []"
     >
-      <ul class="batch-results" data-testid="batch-results">
-        <li v-for="result in actionResults" :key="result.id">
-          <strong>{{ result.name }}</strong
-          >: {{ result.message }}
-        </li>
-      </ul>
+      <template #header>{{ failuresTitle }}</template>
+      <div class="failures" data-testid="batch-results">
+        <div v-for="failure in failures" :key="failure.deployment_id">
+          <div class="failure-name">Deployment: {{ failure.name ?? failure.deployment_id }}</div>
+          <div class="failure-reason">{{ failure.message }}</div>
+        </div>
+      </div>
       <template #footer>
-        <Button @click="resultsVisible = false">Close</Button>
+        <Button @click="failures = []">Close</Button>
       </template>
     </Dialog>
     <DeploymentsEditor
@@ -243,15 +210,28 @@
 </template>
 
 <script setup lang="ts">
-import { DataTable, Column, IconField, InputIcon, InputText, Tag, Button, Dialog } from 'primevue'
+import {
+  DataTable,
+  Column,
+  IconField,
+  InputIcon,
+  InputText,
+  Tag,
+  Button,
+  Dialog,
+  useConfirm,
+  useToast,
+} from 'primevue'
+import type { DialogPassThroughOptions } from 'primevue'
 import { FilterMatchMode } from '@primevue/core/api'
 import { computed, onBeforeMount, ref, watch } from 'vue'
-import { Search, Bolt, TriangleAlert, Braces, Activity } from 'lucide-vue-next'
+import { Search, Bolt, TriangleAlert, Braces, Activity, CircleStop, Trash2 } from 'lucide-vue-next'
 import {
   DeploymentStatusEnum,
   MonitoringMode,
   type Deployment,
   type DeploymentBatchAction,
+  type DeploymentBatchFailure,
   type DeploymentErrorMessage,
 } from '@/lib/api/deployments/interfaces'
 import DeploymentsEditor from '../edit/DeploymentsEditor.vue'
@@ -260,6 +240,13 @@ import DeploymentErrorModal from '../error/DeploymentErrorModal.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDeploymentsStore } from '@/stores/deployments'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
+import { stopDeploymentsConfirmOptions } from '@/lib/primevue/data/confirm'
+import { simpleSuccessToast } from '@/lib/primevue/data/toasts'
+
+const BATCH_RESULT_DIALOG_PT: DialogPassThroughOptions = {
+  root: { style: 'width: 450px;' },
+  header: { style: 'text-transform: uppercase; font-size: 16px; font-weight: 600;' },
+}
 
 type Props = {
   data: Deployment[]
@@ -274,12 +261,19 @@ const editableDeployment = ref<Deployment | null>(null)
 const error = ref<DeploymentErrorMessage | null>(null)
 
 const deploymentsStore = useDeploymentsStore()
+const confirm = useConfirm()
+const toast = useToast()
 const selectedDeployments = ref<Deployment[]>([])
 const loading = ref(false)
-const stopVisible = ref(false)
 const forceVisible = ref(false)
-const resultsVisible = ref(false)
-const actionResults = ref<{ id: string; name: string; message: string }[]>([])
+const failures = ref<DeploymentBatchFailure[]>([])
+const failuresAction = ref<DeploymentBatchAction>('undeploy')
+const failuresTitle = computed(() => {
+  const verb = failuresAction.value === 'delete' ? 'deleted' : 'stopped'
+  return failures.value.length === 1
+    ? `Deployment was not ${verb}`
+    : `Some deployments were not ${verb}`
+})
 const selection = computed({
   get: () => selectedDeployments.value,
   set: (value: Deployment[]) => {
@@ -301,9 +295,16 @@ watch(
   () => [route.params.organizationId, route.params.id],
   () => {
     selectedDeployments.value = []
-    resultsVisible.value = false
+    failures.value = []
   },
 )
+
+function onStopClick() {
+  if (loading.value || !selection.value.length) return
+  confirm.require(
+    stopDeploymentsConfirmOptions(() => runBatchAction('undeploy'), selection.value.length),
+  )
+}
 
 async function runBatchAction(action: DeploymentBatchAction) {
   if (loading.value || !selection.value.length) return
@@ -320,24 +321,33 @@ async function runBatchAction(action: DeploymentBatchAction) {
       action,
     )
     const succeeded = new Set(result.succeeded)
-    const failures = new Map(result.failed.map((failure) => [failure.deployment_id, failure]))
-    actionResults.value = selected.map(({ id }) => ({
-      id,
-      name: names.get(id) ?? id,
-      message: succeeded.has(id)
-        ? action === 'delete'
-          ? 'Deleted'
-          : 'Stop requested'
-        : (failures.get(id)?.message ??
-          'Outcome not confirmed. Refresh the table before retrying.'),
-    }))
     selectedDeployments.value = selectedDeployments.value.filter(({ id }) => !succeeded.has(id))
-    resultsVisible.value = true
+    if (result.succeeded.length) {
+      toast.add(simpleSuccessToast(successMessage(action, result.succeeded, names)))
+    }
+    failuresAction.value = action
+    failures.value = result.failed.map((failure) => ({
+      ...failure,
+      name: failure.name ?? names.get(failure.deployment_id) ?? null,
+    }))
   } finally {
     loading.value = false
-    stopVisible.value = false
     forceVisible.value = false
   }
+}
+
+function successMessage(
+  action: DeploymentBatchAction,
+  ids: string[],
+  names: Map<string, string>,
+): string {
+  if (ids.length === 1) {
+    const name = names.get(ids[0]) ?? ids[0]
+    return action === 'delete' ? `Deployment "${name}" deleted` : `Deployment "${name}" is stopping`
+  }
+  return action === 'delete'
+    ? `${ids.length} deployments deleted`
+    : `${ids.length} deployments are stopping`
 }
 
 const initFilters = () => {
@@ -390,19 +400,40 @@ onBeforeMount(() => {
   align-items: center;
 }
 
-.batch-actions {
+.header-left {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 20px;
 }
 
-.batch-results {
-  display: grid;
+.toolbar {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  padding-left: 20px;
+  font-weight: 500;
+}
+
+.counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.failures {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.failure-name {
+  margin-bottom: 4px;
+  color: var(--p-text-muted-color);
+  font-size: 12px;
+  font-weight: 500;
   overflow-wrap: anywhere;
+}
+
+.failure-reason {
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .title {

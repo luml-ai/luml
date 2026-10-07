@@ -1,7 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PrimeVue from 'primevue/config'
-import ToastService from 'primevue/toastservice'
 import {
   DeploymentStatusEnum,
   MonitoringMode,
@@ -9,8 +8,17 @@ import {
 } from '@/lib/api/deployments/interfaces'
 import DeploymentsTable from './DeploymentsTable.vue'
 
-const { batchAction } = vi.hoisted(() => ({ batchAction: vi.fn() }))
+const { batchAction, confirmRequire, toastAdd } = vi.hoisted(() => ({
+  batchAction: vi.fn(),
+  confirmRequire: vi.fn(),
+  toastAdd: vi.fn(),
+}))
 vi.mock('@/stores/deployments', () => ({ useDeploymentsStore: () => ({ batchAction }) }))
+vi.mock('primevue', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('primevue')>()),
+  useConfirm: () => ({ require: confirmRequire }),
+  useToast: () => ({ add: toastAdd }),
+}))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {}, params: { organizationId: 'org-1', id: 'orbit-1' } }),
   useRouter: () => ({ replace: vi.fn() }),
@@ -45,7 +53,7 @@ function mountTable(data = [deployment(1), deployment(2)]) {
   return mount(DeploymentsTable, {
     props: { data },
     global: {
-      plugins: [PrimeVue, ToastService],
+      plugins: [PrimeVue],
       directives: { tooltip: () => undefined },
       stubs: {
         RouterLink: { template: '<a><slot /></a>' },
@@ -70,6 +78,8 @@ function mountTable(data = [deployment(1), deployment(2)]) {
 
 beforeEach(() => {
   batchAction.mockReset()
+  confirmRequire.mockReset()
+  toastAdd.mockReset()
   vi.stubGlobal(
     'matchMedia',
     vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
@@ -79,45 +89,45 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+function counter(wrapper: ReturnType<typeof mountTable>) {
+  return wrapper.get('.counter').text()
+}
+
 describe('DeploymentsTable selection and batch actions', () => {
-  it('selects individual rows, shows the count, and clears the action bar', async () => {
+  it('selects individual rows and enables the toolbar actions only with a selection', async () => {
     const wrapper = mountTable()
-    expect(wrapper.find('[data-testid="deployment-actions"]').exists()).toBe(false)
+    expect(counter(wrapper)).toBe('0 Selected')
+    expect(wrapper.get('[data-testid="batch-stop"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="batch-delete"]').attributes('disabled')).toBeDefined()
     await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
-    expect(wrapper.get('[data-testid="deployment-actions"]').text()).toContain('1 selected')
+    expect(counter(wrapper)).toBe('1 Selected')
+    expect(wrapper.get('[data-testid="batch-stop"]').attributes('disabled')).toBeUndefined()
     await wrapper.findAll('input[type="checkbox"]')[2].setValue(true)
-    expect(wrapper.get('[data-testid="deployment-actions"]').text()).toContain('2 selected')
-    await wrapper.get('[data-testid="clear-selection"]').trigger('click')
-    expect(wrapper.find('[data-testid="deployment-actions"]').exists()).toBe(false)
+    expect(counter(wrapper)).toBe('2 Selected')
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(false)
+    expect(counter(wrapper)).toBe('1 Selected')
   })
 
-  it('selects all across pages and keeps selected rows after a status refresh', async () => {
+  it('renders every row without pagination and keeps the selection after a status refresh', async () => {
     const data = Array.from({ length: 12 }, (_, index) => deployment(index))
     const wrapper = mountTable(data)
+    expect(wrapper.find('.p-paginator').exists()).toBe(false)
+    expect(wrapper.findAll('tbody tr')).toHaveLength(12)
     await wrapper.findAll('input[type="checkbox"]')[0].setValue(true)
-    expect(wrapper.get('[data-testid="deployment-actions"]').text()).toContain('12 selected')
-    await wrapper.get('[aria-label="Next Page"]').trigger('click')
-    expect(
-      wrapper
-        .findAll('input[type="checkbox"]')
-        .slice(1)
-        .every((input) => (input.element as HTMLInputElement).checked),
-    ).toBe(true)
+    expect(counter(wrapper)).toBe('12 Selected')
     await wrapper.setProps({
       data: data.map((row) => ({ ...row, status: DeploymentStatusEnum.not_responding })),
     })
-    expect(wrapper.get('[data-testid="deployment-actions"]').text()).toContain('12 selected')
+    expect(counter(wrapper)).toBe('12 Selected')
     expect(
       wrapper
         .findAll('input[type="checkbox"]')
         .slice(1)
         .every((input) => (input.element as HTMLInputElement).checked),
     ).toBe(true)
-    await wrapper.findAll('input[type="checkbox"]')[1].setValue(false)
-    expect(wrapper.get('[data-testid="deployment-actions"]').text()).toContain('11 selected')
   }, 15000)
 
-  it('submits the whole selection and reports success and refusal per deployment', async () => {
+  it('stops the selection after confirmation and reports refusals', async () => {
     batchAction.mockResolvedValue({
       succeeded: ['deployment-1'],
       failed: [
@@ -133,7 +143,10 @@ describe('DeploymentsTable selection and batch actions', () => {
     await wrapper.findAll('input[type="checkbox"]')[0].setValue(true)
     await wrapper.get('[data-testid="batch-stop"]').trigger('click')
     expect(batchAction).not.toHaveBeenCalled()
-    await wrapper.get('[data-testid="confirm-stop"]').trigger('click')
+    expect(confirmRequire).toHaveBeenCalledWith(
+      expect.objectContaining({ header: 'Stop 2 deployments?' }),
+    )
+    confirmRequire.mock.calls[0][0].accept()
     await flushPromises()
     expect(batchAction).toHaveBeenCalledWith(
       'org-1',
@@ -141,12 +154,17 @@ describe('DeploymentsTable selection and batch actions', () => {
       ['deployment-1', 'deployment-2'],
       'undeploy',
     )
+    expect(toastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'success',
+        detail: 'Deployment "Deployment 1" is stopping',
+      }),
+    )
     const results = wrapper.get('[data-testid="batch-results"]').text()
-    expect(results).toContain('Deployment 1')
-    expect(results).toContain('Stop requested')
     expect(results).toContain('Deployment 2')
     expect(results).toContain('Deployment deletion already pending')
-    expect(wrapper.get('[data-testid="deployment-actions"]').text()).toContain('1 selected')
+    expect(results).not.toContain('Deployment 1')
+    expect(counter(wrapper)).toBe('1 Selected')
   })
 
   it('requires confirmation for force deletion and submits every selected row', async () => {
@@ -166,7 +184,10 @@ describe('DeploymentsTable selection and batch actions', () => {
       ['deployment-1', 'deployment-2'],
       'delete',
     )
-    expect(wrapper.get('[data-testid="batch-results"]').text()).toContain('Deleted')
-    expect(wrapper.find('[data-testid="deployment-actions"]').exists()).toBe(false)
+    expect(toastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'success', detail: '2 deployments deleted' }),
+    )
+    expect(wrapper.find('[data-testid="batch-results"]').exists()).toBe(false)
+    expect(counter(wrapper)).toBe('0 Selected')
   })
 })

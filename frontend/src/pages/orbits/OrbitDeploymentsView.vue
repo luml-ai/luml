@@ -42,8 +42,11 @@
       <Skeleton v-for="i in 1" :key="i" style="height: 100px" />
     </div>
     <div v-else>
-      <DeploymentsTable :data="deploymentsStore.deployments" />
-      <div v-if="!deploymentsStore.deployments.length" class="list">
+      <DeploymentsTable
+        v-if="deploymentsStore.deployments.length"
+        :data="deploymentsStore.deployments"
+      />
+      <div v-else class="list">
         <UiCardAdd
           title="Add new Deployment"
           text="Instantly deploy models in a single click."
