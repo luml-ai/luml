@@ -293,17 +293,18 @@ class TestWorkerDeployments:
             DEPLOYMENT_ID, SATELLITE_ID
         )
 
-    async def test_delete_worker_deployment_raises_not_found_when_deployment_is_missing(
+    async def test_delete_worker_deployment_returns_when_deployment_is_already_deleted(
         self, mocks: CollaboratorMocks[DeploymentHandler]
     ) -> None:
         mocks.repo.get_satellite_deployment.return_value = None
+        mocks.repo.deployment_exists.return_value = False
 
-        with pytest.raises(NotFoundError, match="Deployment not found"):
-            await mocks.handler.delete_worker_deployment(SATELLITE_ID, DEPLOYMENT_ID)
+        await mocks.handler.delete_worker_deployment(SATELLITE_ID, DEPLOYMENT_ID)
 
         mocks.repo.get_satellite_deployment.assert_awaited_once_with(
             DEPLOYMENT_ID, SATELLITE_ID
         )
+        mocks.repo.delete_satellite_deployment.assert_not_awaited()
 
     async def test_delete_worker_deployment_raises_not_found_for_foreign_satellite(
         self, mocks: CollaboratorMocks[DeploymentHandler]
@@ -320,6 +321,7 @@ class TestWorkerDeployments:
             return deployment
 
         mocks.repo.get_satellite_deployment.side_effect = owned_by_first_satellite
+        mocks.repo.deployment_exists.return_value = True
 
         with pytest.raises(NotFoundError, match="Deployment not found") as error:
             await mocks.handler.delete_worker_deployment(
