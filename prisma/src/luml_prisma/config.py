@@ -28,14 +28,26 @@ class AppConfig:
     cors_origins: list[str] = field(default_factory=_default_cors_origins)
 
 
+DATA_DIR_ENV_VAR = "LUML_PRISMA_DATA_DIR"
+
+
 def get_data_dir() -> Path:
-    data_dir = Path.home() / ".luml" / "prisma"
+    """Where the engine keeps its database, sessions and custom agents.
+
+    ``LUML_PRISMA_DATA_DIR`` points a separate engine instance (a demo, a test
+    stand) at its own state instead of the shared ``~/.luml/prisma``.
+    """
+    configured = os.environ.get(DATA_DIR_ENV_VAR, "").strip()
+    if configured:
+        data_dir = Path(configured).expanduser()
+    else:
+        data_dir = Path.home() / ".luml" / "prisma"
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
 
 def get_config_path() -> Path:
-    return Path.home() / ".luml" / "prisma" / "config.toml"
+    return get_data_dir() / "config.toml"
 
 
 def load_config() -> AppConfig:

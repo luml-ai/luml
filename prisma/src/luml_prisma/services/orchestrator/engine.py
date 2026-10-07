@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from luml_prisma.config import get_data_dir
 from luml_prisma.database import Database
 from luml_prisma.models import RunNodeOrm
 from luml_prisma.services.orchestrator.models import (
@@ -225,7 +226,7 @@ class OrchestratorEngine:
         if not scrollback:
             return
         try:
-            sessions_dir = Path.home() / ".luml" / "prisma" / "sessions"
+            sessions_dir = get_data_dir() / "sessions"
             sessions_dir.mkdir(parents=True, exist_ok=True)
             (sessions_dir / f"{session_id}.log").write_bytes(scrollback)
         except Exception:
@@ -235,7 +236,7 @@ class OrchestratorEngine:
 
     @staticmethod
     def load_scrollback(session_id: str) -> bytes:
-        path = Path.home() / ".luml" / "prisma" / "sessions" / f"{session_id}.log"
+        path = get_data_dir() / "sessions" / f"{session_id}.log"
         if path.exists():
             return path.read_bytes()
         return b""
