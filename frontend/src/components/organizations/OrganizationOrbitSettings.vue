@@ -30,7 +30,11 @@
           optionLabel="user.email"
           @complete="onComplete"
         />
-        <Button :disabled="loading || !searchModel.length" :loading="loading" @click="addUsers"
+        <Button
+          class="add-button"
+          :disabled="loading || !searchModel.length"
+          :loading="loading"
+          @click="addUsers"
           >Add members</Button
         >
       </div>
@@ -296,7 +300,13 @@ watch(visible, (val) => {
 }
 .form {
   display: flex;
+  align-items: flex-start;
   gap: 16px;
+}
+.add-button {
+  flex-shrink: 0;
+  min-height: 46px;
+  white-space: nowrap;
 }
 .footer-buttons {
   width: 100%;
