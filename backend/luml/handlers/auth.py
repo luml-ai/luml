@@ -118,7 +118,7 @@ class AuthHandler:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             if payload.get("type") != "access":
                 raise AuthError("Invalid token type", 401)
-            email: EmailStr = payload.get("sub")
+            email: EmailStr | None = payload.get("sub")
             if email is None:
                 raise AuthError("Invalid token", 401)
             return email
@@ -182,7 +182,7 @@ class AuthHandler:
             if payload.get("type") != "refresh":
                 raise AuthError("Invalid token type", 400)
 
-            email: EmailStr = payload.get("sub")
+            email: EmailStr | None = payload.get("sub")
             if email is None:
                 raise AuthError("Invalid token", 400)
 
@@ -190,7 +190,7 @@ class AuthHandler:
             if service_user is None:
                 raise AuthError("User not found", 404)
 
-            exp = int(payload.get("exp"))
+            exp = int(payload["exp"])
 
             if not await self.__token_black_list_repository.add_token(
                 refresh_token, exp
@@ -257,7 +257,7 @@ class AuthHandler:
             payload = jwt.decode(
                 refresh_token, self.secret_key, algorithms=[self.algorithm]
             )
-            refresh_exp = payload.get("exp")
+            refresh_exp = payload["exp"]
 
             if access_token:
                 try:
@@ -265,7 +265,7 @@ class AuthHandler:
                         access_token, self.secret_key, algorithms=[self.algorithm]
                     )
                     await self.__token_black_list_repository.add_token(
-                        access_token, access_payload.get("exp")
+                        access_token, access_payload["exp"]
                     )
                 except InvalidTokenError:
                     pass
@@ -340,7 +340,7 @@ class AuthHandler:
     async def handle_email_confirmation(self, token: str) -> None:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            email: EmailStr = payload.get("sub")
+            email: EmailStr | None = payload.get("sub")
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 400) from err
         if payload.get("type") != "email_confirmation":
@@ -363,7 +363,7 @@ class AuthHandler:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             if payload.get("type") != "password_reset":
                 raise AuthError("Invalid token type", 400)
-            email: EmailStr = payload.get("sub")
+            email: EmailStr | None = payload.get("sub")
             exp = payload.get("exp")
             if exp is None or exp < time():
                 raise AuthError("Token expired", 400)
