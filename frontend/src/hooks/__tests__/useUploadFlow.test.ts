@@ -10,6 +10,7 @@ vi.mock('@/lib/api', () => ({
     dataAgent: {
       postUploadUrl: vi.fn(),
       getPendingUploads: vi.fn(),
+      dismissUpload: vi.fn(),
     },
   },
 }))
@@ -19,6 +20,7 @@ import { api } from '@/lib/api'
 const mockArtifactsCreate = vi.mocked(api.artifacts.create)
 const mockPostUploadUrl = vi.mocked(api.dataAgent.postUploadUrl)
 const mockGetPendingUploads = vi.mocked(api.dataAgent.getPendingUploads)
+const mockDismissUpload = vi.mocked(api.dataAgent.dismissUpload)
 
 function makeUploadReadyEvent(overrides: Partial<UploadReadyEvent> = {}): UploadReadyEvent {
   return {
@@ -271,14 +273,16 @@ describe('useUploadFlow', () => {
       file_index: { 'manifest.json': [0, 128] as [number, number] },
     }
 
-    it('skips pending uploads the engine reports without their archive metadata', async () => {
+    it('dismisses pending uploads the engine reports without their archive metadata', async () => {
       mockGetPendingUploads.mockResolvedValue([
-        { ...resumableUpload, manifest: undefined, file_index: undefined },
+        { ...resumableUpload, manifest: null, file_index: null },
       ])
+      mockDismissUpload.mockResolvedValue()
 
       await flow.resumePendingUploads('run-1', 'col-1', 'org-1', 'orb-1')
 
       expect(mockArtifactsCreate).not.toHaveBeenCalled()
+      expect(mockDismissUpload).toHaveBeenCalledWith('run-1', 'upload-a')
       expect(flow.activeUploads.value).toHaveLength(0)
     })
 

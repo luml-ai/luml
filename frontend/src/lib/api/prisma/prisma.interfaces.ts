@@ -108,8 +108,8 @@ export interface PendingUpload {
   retry_count: number
   created_at: string
   updated_at: string
-  manifest?: Manifest
-  file_index?: Record<string, [number, number]>
+  manifest?: Manifest | null
+  file_index?: Record<string, [number, number]> | null
 }
 
 export interface UploadReadyEvent {

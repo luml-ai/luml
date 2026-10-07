@@ -235,6 +235,10 @@ def dismiss_upload(
     upload = upload_queue.get(upload_id)
     if upload is None or upload.run_id != run_id:
         return JSONResponse(status_code=404, content={"detail": "Upload not found"})
+    if not upload_queue.claim(upload_id):
+        return JSONResponse(
+            status_code=409, content={"detail": "Upload is not pending"},
+        )
     upload_queue.complete(upload_id)
     return JSONResponse(status_code=200, content={"status": "dismissed"})
 

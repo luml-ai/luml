@@ -196,9 +196,10 @@ export function useUploadFlow() {
     }
 
     for (const upload of pending) {
-      // The backend derives the artifact type from the manifest and file index; a
-      // resumed upload without them would be rejected on every page load.
-      if (!upload.manifest || !upload.file_index) continue
+      if (!upload.manifest || !upload.file_index) {
+        api.dataAgent.dismissUpload(upload.run_id, upload.id).catch(() => {})
+        continue
+      }
       const event: UploadReadyEvent = {
         upload_id: upload.id,
         run_id: upload.run_id,

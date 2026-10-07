@@ -189,6 +189,23 @@ class TestResumeMetadata:
         assert stored.status == UploadStatus.COMPLETED
 
     @pytest.mark.asyncio
+    async def test_dismiss_in_progress_upload_is_409(
+        self,
+        client: AsyncClient,
+        queue: UploadQueue,
+        model_file: Path,
+    ) -> None:
+        upload = queue.enqueue("run-1", "node-1", str(model_file), ["exp-1"])
+        queue.claim(upload.id)
+
+        resp = await client.post(f"/api/runs/run-1/uploads/{upload.id}/dismiss")
+
+        assert resp.status_code == 409
+        stored = queue.get(upload.id)
+        assert stored is not None
+        assert stored.status == UploadStatus.IN_PROGRESS
+
+    @pytest.mark.asyncio
     async def test_dismiss_unknown_upload_is_404(
         self,
         client: AsyncClient,
