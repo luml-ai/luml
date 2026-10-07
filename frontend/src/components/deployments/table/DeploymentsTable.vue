@@ -2,39 +2,34 @@
   <div>
     <DataTable :value="data" v-model:filters="filters" v-model:selection="selection" data-key="id">
       <template #header>
-        <div class="header-left">
-          <h4 class="title">
-            {{ data.length }} {{ data.length === 1 ? 'Deployment' : 'Deployments' }}
-          </h4>
-          <div class="toolbar">
-            <div class="counter">{{ selection.length }} Selected</div>
-            <Button
-              variant="text"
-              severity="secondary"
-              aria-label="Stop"
-              v-tooltip="'Stop'"
-              :disabled="loading || !selection.length"
-              data-testid="batch-stop"
-              @click="onStopClick"
-            >
-              <template #icon>
-                <CircleStop :size="14" />
-              </template>
-            </Button>
-            <Button
-              variant="text"
-              severity="secondary"
-              aria-label="Force delete"
-              v-tooltip="'Force delete'"
-              :disabled="loading || !selection.length"
-              data-testid="batch-delete"
-              @click="forceVisible = true"
-            >
-              <template #icon>
-                <Trash2 :size="14" />
-              </template>
-            </Button>
-          </div>
+        <div class="toolbar">
+          <div class="counter">{{ selection.length }} Selected</div>
+          <Button
+            variant="text"
+            severity="secondary"
+            aria-label="Stop"
+            v-tooltip="'Stop'"
+            :disabled="loading || !selection.length"
+            data-testid="batch-stop"
+            @click="onStopClick"
+          >
+            <template #icon>
+              <CircleStop :size="14" />
+            </template>
+          </Button>
+          <Button
+            variant="text"
+            severity="secondary"
+            aria-label="Force delete"
+            v-tooltip="'Force delete'"
+            :disabled="loading || !selection.length"
+            data-testid="batch-delete"
+            @click="forceVisible = true"
+          >
+            <template #icon>
+              <Trash2 :size="14" />
+            </template>
+          </Button>
         </div>
         <IconField>
           <InputText v-model="filters['global'].value" size="small" placeholder="Search" />
@@ -400,12 +395,6 @@ onBeforeMount(() => {
   align-items: center;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
 .toolbar {
   display: flex;
   align-items: center;
@@ -434,10 +423,6 @@ onBeforeMount(() => {
 .failure-reason {
   font-size: 14px;
   line-height: 1.5;
-}
-
-.title {
-  font-size: 16px;
 }
 
 :deep(.p-iconfield .p-inputicon:last-child) {

@@ -83,7 +83,6 @@ test.describe('Deployments', () => {
         page.getByRole('heading', { name: 'Deployments', exact: true }),
       ).toBeVisible({ timeout: 15000 })
       await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 10000 })
-      await expect(page.getByText(/^1 Deployment$/)).toBeVisible()
     })
 
     test('shows empty state with "Add new Deployment" card when there are no deployments', async ({
