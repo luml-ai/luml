@@ -213,6 +213,28 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
                 DeploymentOrm.orbit_id == orbit_id,
             )
 
+    async def force_delete_inactive_deployment(
+        self, deployment_id: UUID, orbit_id: UUID
+    ) -> Deployment | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(DeploymentOrm)
+                .where(
+                    DeploymentOrm.id == deployment_id,
+                    DeploymentOrm.orbit_id == orbit_id,
+                )
+                .with_for_update()
+            )
+            dep = result.scalar_one_or_none()
+            if not dep:
+                return None
+            if dep.status == DeploymentStatus.ACTIVE:
+                raise InvalidStatusTransitionError("Stop active deployments first")
+            deployment = dep.to_deployment()
+            await session.delete(dep)
+            await session.commit()
+            return deployment
+
     async def delete_satellite_deployment(
         self, deployment_id: UUID, satellite_id: UUID
     ) -> None:

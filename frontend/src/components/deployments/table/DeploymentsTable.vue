@@ -1,10 +1,53 @@
 <template>
   <div>
-    <DataTable :value="data" v-model:filters="filters">
+    <DataTable
+      :value="data"
+      v-model:filters="filters"
+      v-model:selection="selection"
+      data-key="id"
+      paginator
+      :rows="10"
+      :rows-per-page-options="[10, 25, 50]"
+    >
       <template #header>
-        <h4 class="title">
-          {{ data.length }} {{ data.length === 1 ? 'Deployment' : 'Deployments' }}
-        </h4>
+        <div>
+          <h4 class="title">
+            {{ data.length }} {{ data.length === 1 ? 'Deployment' : 'Deployments' }}
+          </h4>
+          <div v-if="selection.length" class="batch-actions" data-testid="deployment-actions">
+            <span>{{ selection.length }} selected</span>
+            <Button
+              size="small"
+              severity="warn"
+              outlined
+              :disabled="loading"
+              data-testid="batch-stop"
+              @click="stopVisible = true"
+            >
+              Stop
+            </Button>
+            <Button
+              size="small"
+              severity="danger"
+              outlined
+              :disabled="loading"
+              data-testid="batch-delete"
+              @click="forceVisible = true"
+            >
+              Force delete
+            </Button>
+            <Button
+              size="small"
+              severity="secondary"
+              variant="text"
+              :disabled="loading"
+              data-testid="clear-selection"
+              @click="selection = []"
+            >
+              Clear selection
+            </Button>
+          </div>
+        </div>
         <IconField>
           <InputText v-model="filters['global'].value" size="small" placeholder="Search" />
           <InputIcon>
@@ -13,6 +56,7 @@
         </IconField>
       </template>
       <template #empty>Deployments not found...</template>
+      <Column selection-mode="multiple" />
       <Column header="Deployment name" field="name">
         <template #body="{ data }">
           <div class="cell cell--name">{{ data.name }}</div>
@@ -133,6 +177,56 @@
         </template>
       </Column>
     </DataTable>
+    <Dialog
+      v-model:visible="stopVisible"
+      modal
+      :draggable="false"
+      :closable="!loading"
+      :header="`Stop ${selection.length} deployments?`"
+      :style="{ width: '400px' }"
+    >
+      <p>
+        This schedules each satellite to shut down the selected deployments. An offline satellite
+        will process the request when it reconnects.
+      </p>
+      <template #footer>
+        <Button severity="secondary" :disabled="loading" @click="stopVisible = false"
+          >Cancel</Button
+        >
+        <Button
+          severity="warn"
+          :loading="loading"
+          :disabled="loading"
+          data-testid="confirm-stop"
+          @click="runBatchAction('undeploy')"
+          >Stop</Button
+        >
+      </template>
+    </Dialog>
+    <ForceDeleteConfirmDialog
+      v-model:visible="forceVisible"
+      :title="`Force delete ${selection.length} deployments?`"
+      text='This removes deployment records without shutting down satellite workloads. Active deployments must be stopped first. Records with dependencies cannot be deleted. Type "delete" to confirm.'
+      :loading="loading"
+      @confirm="runBatchAction('delete')"
+    />
+    <Dialog
+      v-model:visible="resultsVisible"
+      modal
+      :draggable="false"
+      header="Deployment action results"
+      :style="{ width: '500px' }"
+    >
+      <ul class="batch-results" data-testid="batch-results">
+        <li v-for="result in actionResults" :key="result.id">
+          <strong>{{ result.name }}</strong
+          >: {{ result.message }}
+        </li>
+      </ul>
+      <template #footer>
+        <Button @click="resultsVisible = false">Close</Button>
+      </template>
+    </Dialog>
     <DeploymentsEditor
       v-if="editableDeployment"
       :visible="!!editableDeployment"
@@ -149,20 +243,23 @@
 </template>
 
 <script setup lang="ts">
-import { DataTable, Column, IconField, InputIcon, InputText, Tag, Button } from 'primevue'
+import { DataTable, Column, IconField, InputIcon, InputText, Tag, Button, Dialog } from 'primevue'
 import { FilterMatchMode } from '@primevue/core/api'
-import { onBeforeMount, ref } from 'vue'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { Search, Bolt, TriangleAlert, Braces, Activity } from 'lucide-vue-next'
 import {
   DeploymentStatusEnum,
   MonitoringMode,
   type Deployment,
+  type DeploymentBatchAction,
   type DeploymentErrorMessage,
 } from '@/lib/api/deployments/interfaces'
 import DeploymentsEditor from '../edit/DeploymentsEditor.vue'
 import UiId from '@/components/ui/UiId.vue'
 import DeploymentErrorModal from '../error/DeploymentErrorModal.vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useDeploymentsStore } from '@/stores/deployments'
+import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
 
 type Props = {
   data: Deployment[]
@@ -175,6 +272,73 @@ const router = useRouter()
 const filters = ref()
 const editableDeployment = ref<Deployment | null>(null)
 const error = ref<DeploymentErrorMessage | null>(null)
+
+const deploymentsStore = useDeploymentsStore()
+const selectedDeployments = ref<Deployment[]>([])
+const loading = ref(false)
+const stopVisible = ref(false)
+const forceVisible = ref(false)
+const resultsVisible = ref(false)
+const actionResults = ref<{ id: string; name: string; message: string }[]>([])
+const selection = computed({
+  get: () => selectedDeployments.value,
+  set: (value: Deployment[]) => {
+    if (!loading.value) selectedDeployments.value = value
+  },
+})
+
+watch(
+  () => props.data,
+  (data) => {
+    const rows = new Map(data.map((deployment) => [deployment.id, deployment]))
+    selectedDeployments.value = selectedDeployments.value.map(
+      (deployment) => rows.get(deployment.id) ?? deployment,
+    )
+  },
+)
+
+watch(
+  () => [route.params.organizationId, route.params.id],
+  () => {
+    selectedDeployments.value = []
+    resultsVisible.value = false
+  },
+)
+
+async function runBatchAction(action: DeploymentBatchAction) {
+  if (loading.value || !selection.value.length) return
+  const selected = [...selection.value]
+  const names = new Map(selected.map(({ id, name }) => [id, name]))
+  const organizationId = route.params.organizationId as string
+  const orbitId = route.params.id as string
+  loading.value = true
+  try {
+    const result = await deploymentsStore.batchAction(
+      organizationId,
+      orbitId,
+      selected.map(({ id }) => id),
+      action,
+    )
+    const succeeded = new Set(result.succeeded)
+    const failures = new Map(result.failed.map((failure) => [failure.deployment_id, failure]))
+    actionResults.value = selected.map(({ id }) => ({
+      id,
+      name: names.get(id) ?? id,
+      message: succeeded.has(id)
+        ? action === 'delete'
+          ? 'Deleted'
+          : 'Stop requested'
+        : (failures.get(id)?.message ??
+          'Outcome not confirmed. Refresh the table before retrying.'),
+    }))
+    selectedDeployments.value = selectedDeployments.value.filter(({ id }) => !succeeded.has(id))
+    resultsVisible.value = true
+  } finally {
+    loading.value = false
+    stopVisible.value = false
+    forceVisible.value = false
+  }
+}
 
 const initFilters = () => {
   filters.value = {
@@ -224,6 +388,21 @@ onBeforeMount(() => {
   gap: 20px;
   justify-content: space-between;
   align-items: center;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.batch-results {
+  display: grid;
+  gap: 12px;
+  padding-left: 20px;
+  overflow-wrap: anywhere;
 }
 
 .title {

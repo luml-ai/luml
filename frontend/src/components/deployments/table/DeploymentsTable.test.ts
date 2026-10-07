@@ -7,6 +7,8 @@ import {
 } from '@/lib/api/deployments/interfaces'
 import DeploymentsTable from './DeploymentsTable.vue'
 
+vi.mock('@/stores/deployments', () => ({ useDeploymentsStore: () => ({ batchAction: vi.fn() }) }))
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {}, params: {} }),
   useRouter: () => ({ replace: vi.fn() }),
@@ -49,6 +51,7 @@ vi.mock('primevue', async () => {
 
   return {
     DataTable,
+    Dialog: passthrough('Dialog'),
     Column,
     IconField: passthrough('IconField'),
     InputIcon: passthrough('InputIcon'),
@@ -108,6 +111,7 @@ function mountTable(data: Deployment[]) {
       stubs: {
         RouterLink: { template: '<a><slot /></a>' },
         DeploymentsEditor: true,
+        ForceDeleteConfirmDialog: true,
         DeploymentErrorModal: true,
         UiId: { props: ['id'], template: '<span>{{ id }}</span>' },
       },
