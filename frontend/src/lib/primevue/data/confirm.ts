@@ -131,6 +131,26 @@ export const deleteArtifactConfirmOptions = (
   accept,
 })
 
+export const stopDeploymentsConfirmOptions = (
+  accept: () => void,
+  count: number,
+): ConfirmationOptions => ({
+  message:
+    count > 1
+      ? 'This action will schedule a task for your satellites to shut down these deployments.'
+      : 'This action will schedule a task for your satellite to shut down this deployment.',
+  header: count > 1 ? `Stop ${count} deployments?` : 'Stop this deployment?',
+  rejectProps: {
+    label: 'Cancel',
+  },
+  acceptProps: {
+    label: 'Stop',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
 export const deleteBucketConfirmOptions = (accept: () => void): ConfirmationOptions => ({
   message:
     'This bucket and all its contents will be deleted. It will also be removed from all Orbits where it is used.',

@@ -4,6 +4,7 @@ from typing import Never
 from uuid import UUID
 
 from fastapi import status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from luml.handlers.api_keys import APIKeyHandler
 from luml.handlers.permissions import PermissionsHandler
@@ -12,9 +13,11 @@ from luml.infra.exceptions import (
     ApplicationError,
     ArtifactStatusMismatchError,
     InsufficientPermissionsError,
+    InvalidStatusTransitionError,
     NotFoundError,
 )
 from luml.repositories.artifacts import ArtifactRepository
+from luml.repositories.base import is_foreign_key_violation
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
@@ -24,10 +27,14 @@ from luml.repositories.users import UserRepository
 from luml.schemas.artifacts import Artifact
 from luml.schemas.deployment import (
     Deployment,
+    DeploymentBatchAction,
+    DeploymentBatchFailure,
     DeploymentCreate,
     DeploymentCreateIn,
     DeploymentDetailsUpdate,
     DeploymentDetailsUpdateIn,
+    DeploymentsBatchRequest,
+    DeploymentsBatchResponse,
     DeploymentStatus,
     DeploymentUpdate,
     DeploymentUpdateIn,
@@ -520,6 +527,68 @@ class DeploymentHandler:
             raise NotFoundError("Deployment not found")
 
         return await self.__repo.delete_deployment(deployment_id, orbit_id)
+
+    async def batch_action(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        data: DeploymentsBatchRequest,
+    ) -> DeploymentsBatchResponse:
+        await self.__permissions_handler.check_permissions(
+            organization_id, user_id, Resource.DEPLOYMENT, Action.DELETE, orbit_id
+        )
+        response = DeploymentsBatchResponse()
+        for deployment_id in data.deployment_ids:
+            name = None
+            try:
+                deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
+                if not deployment:
+                    raise NotFoundError("Deployment not found")
+                name = deployment.name
+                if data.action == DeploymentBatchAction.UNDEPLOY:
+                    result = await self.__repo.request_deployment_deletion(
+                        orbit_id, deployment_id
+                    )
+                    if result is None:
+                        raise NotFoundError("Deployment not found")
+                    if result[1] is None:
+                        raise ApplicationError(
+                            "Deployment deletion already pending", 409
+                        )
+                else:
+                    deleted = await self.__repo.force_delete_inactive_deployment(
+                        deployment_id, orbit_id
+                    )
+                    if deleted is None:
+                        raise NotFoundError("Deployment not found")
+                response.succeeded.append(deployment_id)
+                continue
+            except ApplicationError as error:
+                reason = {
+                    NotFoundError: "not_found",
+                    InvalidStatusTransitionError: "active",
+                }.get(type(error), "already_pending")
+                message = error.message
+            except SQLAlchemyError as error:
+                reason, message = (
+                    ("references", "Other records depend on this deployment")
+                    if isinstance(error, IntegrityError)
+                    and is_foreign_key_violation(error)
+                    else (
+                        "database_error",
+                        "Could not act on this deployment. Try again.",
+                    )
+                )
+            response.failed.append(
+                DeploymentBatchFailure(
+                    deployment_id=deployment_id,
+                    name=name,
+                    reason=reason,
+                    message=message,
+                )
+            )
+        return response
 
     async def list_worker_deployments(self, satellite_id: UUID) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
