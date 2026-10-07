@@ -1,5 +1,11 @@
 import { api } from '@/api/client'
-import type { AgentHarness, PublishedAsset, PublishTarget } from '@/flow/api/types'
+import type {
+  AgentHarness,
+  ExperimentPublishOptions,
+  PublishedAsset,
+  PublishedExperiment,
+  PublishTarget,
+} from '@/flow/api/types'
 import type {
   AssetPreview,
   BranchTree,
@@ -193,6 +199,24 @@ export const workspaceApi = {
         ...destination,
       },
     ),
+
+  publishExperiment: (
+    target: string,
+    destination: PublishTarget,
+    options: ExperimentPublishOptions,
+    flow?: string,
+    branch?: string,
+  ) =>
+    call<
+      { flow?: string; branch?: string; target: string } & PublishTarget & ExperimentPublishOptions,
+      PublishedExperiment
+    >('experiment.publish', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      target,
+      ...destination,
+      ...options,
+    }),
 
   journalSince: (flow?: string, cursor = 0) =>
     call<{ flow?: string; cursor: number }, JournalPage>('journal.since', {

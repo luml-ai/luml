@@ -5,8 +5,8 @@ export type ArtifactKind = 'model' | 'experiment'
 /**
  * The kinds one upload produces. This mirrors the daemon's `upload_artifact`:
  * `experiment` sends the `.luml` export, `model` sends every tracker model,
- * and `auto` sends the one model with the experiment embedded when there is
- * exactly one, and otherwise the models plus the experiment.
+ * and `auto` embeds the experiment into every model it sends, adding the
+ * experiment on its own unless there is exactly one model.
  */
 export function requiredArtifactKinds(type: UploadTypeEnum, modelCount: number): ArtifactKind[] {
   switch (type) {

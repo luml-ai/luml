@@ -219,6 +219,12 @@ function modelOutputName(): string | undefined {
   return outputNameOfKind('model')
 }
 
+function modelOutputNames(): string[] {
+  return Object.entries(props.cell.kinds)
+    .filter(([, declared]) => declared === 'model')
+    .map(([name]) => name)
+}
+
 async function onOpenInExperiments() {
   const output = experimentOutputName()
   if (!output) return
@@ -235,8 +241,8 @@ async function onOpenInExperiments() {
 }
 
 async function onPromoteToLuml() {
-  if (modelOutputName()) return promoteModel()
-  return promoteExperiment()
+  if (experimentOutputName()) return promoteExperiment()
+  return promoteModel()
 }
 
 async function promoteModel() {
@@ -267,7 +273,14 @@ async function promoteExperiment() {
       toast.add(errorToast(new Error('This experiment has not been tracked yet')))
       return
     }
-    if (await authStore.ensureAuth()) flowStore.setUploadExperimentId(asset.tracker.id)
+    if (await authStore.ensureAuth()) {
+      flowStore.setUploadExperimentTarget({
+        slug: props.cell.slug,
+        output,
+        experimentId: asset.tracker.id,
+        models: modelOutputNames(),
+      })
+    }
   } catch (error) {
     toast.add(errorToast(error))
   }

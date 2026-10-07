@@ -18,6 +18,10 @@ from lumlflow_kernel.executor import Executor
 from lumlflow_kernel.kinds import registry
 
 _VENV_MARKERS = ("site-packages", "dist-packages")
+# The kernel's own packages. An editable install of lumlflow puts their sources
+# under a workspace that holds lumlflow itself, and re-importing them would
+# leave the kind registry and cells holding two different `ExperimentRef`s.
+_RUNTIME_PACKAGES = frozenset({"lumlflow", "lumlflow_kernel", "lumlflow_typing"})
 
 
 class Link(Protocol):
@@ -94,6 +98,8 @@ class Kernel:
     def evict_workspace_modules(self, params: dict[str, Any]) -> dict[str, Any]:
         evicted = []
         for name, module in list(sys.modules.items()):
+            if name.partition(".")[0] in _RUNTIME_PACKAGES:
+                continue
             path = _module_path(module)
             if path is not None and self._is_workspace_code(path):
                 del sys.modules[name]

@@ -1,4 +1,3 @@
-
 import type {
   AgentHarness,
   AssetPage,
@@ -8,6 +7,7 @@ import type {
   CellContextPayload,
   CellDetail,
   CellLogs,
+  ExperimentPublishOptions,
   CellSummary,
   FlagCode,
   FlowBrief,
@@ -19,6 +19,7 @@ import type {
   Preflight,
   PublishTarget,
   PublishedAsset,
+  PublishedExperiment,
   RunOutcome,
   StaleState,
   WorkspaceStatus,
@@ -174,6 +175,10 @@ export interface FlowMethods {
     AssetPage
   >
   'asset.publish': Method<BranchScoped & { target: string } & PublishTarget, PublishedAsset>
+  'experiment.publish': Method<
+    BranchScoped & { target: string } & PublishTarget & ExperimentPublishOptions,
+    PublishedExperiment
+  >
   'cells.new': Method<
     Intentful & {
       slug?: string

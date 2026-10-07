@@ -12,6 +12,7 @@
       :max-zoom="4"
       class="w-full h-full"
       @node-click="onNodeClick"
+      @pane-click="flowStore.selectCell(null)"
     >
       <template #node-cell="{ data }">
         <NotebookCellNode

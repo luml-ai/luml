@@ -137,6 +137,28 @@ def test_evicting_workspace_modules_forgets_the_workspace_and_nothing_else(
     assert "json" in sys.modules
 
 
+def test_evicting_keeps_the_kernels_own_packages_inside_the_workspace(
+    tmp_path: Path, import_state: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import types
+
+    kernel, _ = make_kernel(tmp_path, files={"helpers_mod.py": "VALUE = 1\n"})
+    sys.path.insert(0, str(kernel.workspace_dir))
+    importlib.invalidate_caches()
+    importlib.import_module("helpers_mod")
+    # An editable lumlflow whose sources sit under the workspace, as when a
+    # flow lives inside the lumlflow checkout.
+    own = types.ModuleType("lumlflow_kernel.vendored_here")
+    own.__file__ = str(kernel.workspace_dir / "lumlflow_kernel" / "vendored_here.py")
+    monkeypatch.setitem(sys.modules, own.__name__, own)
+
+    evicted = kernel.evict_workspace_modules({})["evicted"]
+
+    assert "helpers_mod" in evicted
+    assert own.__name__ not in evicted
+    assert sys.modules[own.__name__] is own
+
+
 def test_an_evicted_workspace_module_is_imported_again_on_the_next_run(
     tmp_path: Path, import_state: None
 ) -> None:

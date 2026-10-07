@@ -27,7 +27,10 @@
     />
     <UploadModal
       v-model:visible="isUploadModalVisible"
-      :experiment-id="flowStore.uploadExperimentId ?? ''"
+      :experiment-id="flowStore.uploadExperimentTarget?.experimentId"
+      :publish-experiment="flowStore.publishExperiment"
+      :model-count="flowStore.uploadExperimentTarget?.models.length ?? 0"
+      :default-name="experimentUploadName"
     />
     <UploadModal
       v-model:visible="isModelUploadModalVisible"
@@ -75,10 +78,15 @@ const isExpandedCellVisible = computed({
 })
 
 const isUploadModalVisible = computed({
-  get: () => flowStore.uploadExperimentId !== null,
+  get: () => flowStore.uploadExperimentTarget !== null,
   set: (visible: boolean) => {
-    if (!visible) flowStore.setUploadExperimentId(null)
+    if (!visible) flowStore.setUploadExperimentTarget(null)
   },
+})
+
+const experimentUploadName = computed(() => {
+  const target = flowStore.uploadExperimentTarget
+  return target ? `${target.slug}.${target.output}` : ''
 })
 
 const isModelUploadModalVisible = computed({

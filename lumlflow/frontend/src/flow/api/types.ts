@@ -1,4 +1,3 @@
-
 export type FlagCode =
   | 'dangling_ref'
   | 'ambiguous'
@@ -513,6 +512,23 @@ export interface PublishedAsset {
   job_id: string
   flavor: string | null
   size: number | null
+}
+
+export type ExperimentUploadType = 'auto' | 'model' | 'experiment'
+
+export interface ExperimentPublishOptions {
+  upload_type: ExperimentUploadType
+  embed_experiment: boolean
+}
+
+export interface PublishedExperiment {
+  flow: string
+  branch: string
+  slug: string
+  output: string
+  job_id: string
+  models: string[]
+  experiment_id: string
 }
 
 export interface CellLogs {

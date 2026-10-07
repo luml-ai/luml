@@ -7,7 +7,13 @@ import type {
   RanCell,
   RanLane,
 } from '@/api/slices/workspace/workspace.interface'
-import type { AgentSessionRecord, PublishedAsset, PublishTarget } from '@/flow/api/types'
+import type {
+  AgentSessionRecord,
+  ExperimentPublishOptions,
+  PublishedAsset,
+  PublishedExperiment,
+  PublishTarget,
+} from '@/flow/api/types'
 import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/lanes/interface'
 import type {
   NotebookAssetInterface,
@@ -22,6 +28,14 @@ import { compareOrder } from './order'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FlowStream, streamToken } from '@/api/streams/flow'
 import type { AgentActivity, AgentClaim, StreamFrame } from '@/api/streams/flow'
+
+export interface ExperimentUploadTarget {
+  slug: string
+  output: string
+  experimentId: string
+  /** The cell's `model` outputs, which go when the tracker links no models. */
+  models: string[]
+}
 
 export interface CellEditContext {
   flow: string | undefined
@@ -178,7 +192,7 @@ export const useFlowStore = defineStore('flow', () => {
 
   const selectedCellId = ref<string | null>(null)
   const expandedCellId = ref<string | null>(null)
-  const uploadExperimentId = ref<string | null>(null)
+  const uploadExperimentTarget = ref<ExperimentUploadTarget | null>(null)
   const uploadModelTarget = ref<{ slug: string; output: string } | null>(null)
   const experimentRemovals = ref<Record<string, number>>({})
 
@@ -339,8 +353,8 @@ export const useFlowStore = defineStore('flow', () => {
     expandedCellId.value = id
   }
 
-  function setUploadExperimentId(id: string | null) {
-    uploadExperimentId.value = id
+  function setUploadExperimentTarget(target: ExperimentUploadTarget | null) {
+    uploadExperimentTarget.value = target
   }
 
   function setUploadModelTarget(target: { slug: string; output: string } | null) {
@@ -353,6 +367,21 @@ export const useFlowStore = defineStore('flow', () => {
     return workspaceApi.publishAsset(
       `${target.slug}.${target.output}`,
       destination,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+  }
+
+  async function publishExperiment(
+    destination: PublishTarget,
+    options: ExperimentPublishOptions,
+  ): Promise<PublishedExperiment> {
+    const target = uploadExperimentTarget.value
+    if (!target) throw new Error('No experiment selected to promote')
+    return workspaceApi.publishExperiment(
+      `${target.slug}.${target.output}`,
+      destination,
+      options,
       currentFlow.value ?? undefined,
       currentBranch.value?.branch,
     )
@@ -848,7 +877,7 @@ export const useFlowStore = defineStore('flow', () => {
     isJournalLoading.value = false
     selectedCellId.value = null
     expandedCellId.value = null
-    uploadExperimentId.value = null
+    uploadExperimentTarget.value = null
     uploadModelTarget.value = null
     experimentRemovals.value = {}
   }
@@ -910,8 +939,9 @@ export const useFlowStore = defineStore('flow', () => {
     selectCell,
     expandedCellId,
     setExpandedCellId,
-    uploadExperimentId,
-    setUploadExperimentId,
+    uploadExperimentTarget,
+    setUploadExperimentTarget,
+    publishExperiment,
     uploadModelTarget,
     setUploadModelTarget,
     publishModel,

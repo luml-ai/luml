@@ -171,7 +171,7 @@ const requiredKinds = computed(() =>
     ? requiredArtifactKinds(UploadTypeEnum.MODEL, 1)
     : requiredArtifactKinds(
         (formRef.value?.states['type']?.value as UploadTypeEnum | undefined) ?? UploadTypeEnum.AUTO,
-        models.value.length,
+        models.value.length || (props.modelCount ?? 0),
       ),
 )
 
@@ -203,21 +203,34 @@ function handleChangeCollection(collection: CollectionInfo | undefined) {
   existingTags.value = collection?.tags || []
 }
 
+function publishTarget(event: FormSubmitEvent): PublishTarget {
+  return {
+    organization_id: event.values.organization,
+    orbit_id: event.values.orbit,
+    collection_id: event.values.collection,
+    artifact: {
+      name: event.values.name,
+      description: event.values.description,
+      tags: event.values.tags,
+    },
+  }
+}
+
 function handleSubmit(event: FormSubmitEvent) {
   if (!event.valid) return
   if (props.publish) {
-    const target: PublishTarget = {
-      organization_id: event.values.organization,
-      orbit_id: event.values.orbit,
-      collection_id: event.values.collection,
-      artifact: {
-        name: event.values.name,
-        description: event.values.description,
-        tags: event.values.tags,
-      },
-    }
     const publish = props.publish
-    follow(() => publish(target))
+    follow(() => publish(publishTarget(event)))
+    return
+  }
+  if (props.publishExperiment) {
+    const publishExperiment = props.publishExperiment
+    follow(() =>
+      publishExperiment(publishTarget(event), {
+        upload_type: event.values.type,
+        embed_experiment: event.values.embedExperiment,
+      }),
+    )
     return
   }
   const experimentId = props.experimentId
@@ -291,6 +304,7 @@ watch(error, (value) => {
 watch(complete, (value) => {
   if (value) {
     toast.add(successToast('Successfully uploaded to LUML'))
+    visible.value = false
   }
 })
 </script>

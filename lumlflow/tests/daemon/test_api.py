@@ -2180,6 +2180,231 @@ async def test_renaming_a_dotted_cell_rewires_its_consumers(tmp_path: Path) -> N
     assert ran["executed"] == []
 
 
+TWO_MODELS_AND_EXPERIMENT_CELL = """
+class Train:
+    produces = {"forest": "model", "boost": "model", "run": "experiment"}
+
+    def materialize(self, ctx):
+        return {"forest": "TREES", "boost": "STUMPS", "run": ctx.tracker.record}
+"""
+
+
+def _capture_experiment_uploads(
+    monkeypatch: pytest.MonkeyPatch, linked: tuple[str, ...] = ()
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    from types import SimpleNamespace
+
+    from lumlflow.api import luml as luml_api
+    from lumlflow.flow.daemon.kernel_proc import KernelProcess
+
+    packaged: list[dict[str, Any]] = []
+    uploaded: list[dict[str, Any]] = []
+
+    async def export_model(
+        self: KernelProcess,
+        value_ref: str,
+        kind: str,
+        *,
+        destination: Path,
+        samples: Any,
+    ) -> dict[str, Any]:
+        packaged.append({"value_ref": value_ref, "destination": destination})
+        destination.write_bytes(b"bundle")
+        return {"path": str(destination), "flavor": "sklearn", "size": 6}
+
+    def upload_model_files(form: Any, job_id: str, models: Any) -> None:
+        uploaded.append(
+            {
+                "form": form,
+                "job_id": job_id,
+                "models": [(name, path.exists()) for path, name in models],
+                "paths": [path for path, _ in models],
+            }
+        )
+        luml_api.progress_store.set_complete(job_id, [])
+
+    monkeypatch.setattr(KernelProcess, "export_model", export_model)
+    monkeypatch.setattr(
+        luml_api.artifact_handler, "upload_model_files", upload_model_files
+    )
+    monkeypatch.setattr(
+        luml_api.artifact_handler.tracker,
+        "get_models",
+        lambda experiment_id: [SimpleNamespace(name=name) for name in linked],
+    )
+    return packaged, uploaded
+
+
+async def test_publishing_an_experiment_prefers_the_models_linked_in_the_tracker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_AND_EXPERIMENT_CELL)
+    packaged, uploaded = _capture_experiment_uploads(
+        monkeypatch, linked=("forest", "boost", "linear", "stumps")
+    )
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        published = await api.experiment_publish(
+            {
+                "flow": "churn",
+                "target": "train.run",
+                "upload_type": "auto",
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "churn run"},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+
+    assert published["models"] == ["forest", "boost", "linear", "stumps"]
+    assert packaged == []
+    assert uploaded[0]["models"] == []
+
+
+async def test_publishing_an_experiment_sends_the_cells_model_beside_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_AND_EXPERIMENT_CELL)
+    packaged, uploaded = _capture_experiment_uploads(monkeypatch)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        published = await api.experiment_publish(
+            {
+                "flow": "churn",
+                "target": "train.run",
+                "upload_type": "auto",
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "churn run"},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+
+    upload = uploaded[0]
+    form = upload["form"]
+    assert published["models"] == ["train.model"]
+    assert published["job_id"] == upload["job_id"]
+    assert len(packaged) == 1
+    assert upload["models"] == [("train.model", True)]
+    assert (form.upload_type, form.experiment_id) == (
+        "auto",
+        published["experiment_id"],
+    )
+    assert (form.organization_id, form.orbit_id, form.collection_id) == (
+        "org",
+        "orbit",
+        "coll",
+    )
+    assert not any(path.exists() for path in upload["paths"])
+
+
+async def test_publishing_an_experiment_packages_every_model_of_the_cell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", TWO_MODELS_AND_EXPERIMENT_CELL)
+    packaged, uploaded = _capture_experiment_uploads(monkeypatch)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        published = await api.experiment_publish(
+            {
+                "flow": "churn",
+                "target": "train.run",
+                "upload_type": "model",
+                "embed_experiment": True,
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "churn run"},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+
+    assert sorted(published["models"]) == ["train.boost", "train.forest"]
+    assert len(packaged) == 2
+    assert uploaded[0]["form"].embed_experiment is True
+
+
+async def test_publishing_only_the_experiment_packages_no_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_AND_EXPERIMENT_CELL)
+    packaged, uploaded = _capture_experiment_uploads(monkeypatch)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        await api.hub.session("churn").kernel.stop()
+        published = await api.experiment_publish(
+            {
+                "flow": "churn",
+                "target": "train.run",
+                "upload_type": "experiment",
+                "organization_id": "org",
+                "orbit_id": "orbit",
+                "collection_id": "coll",
+                "artifact": {"name": "churn run"},
+            }
+        )
+        await asyncio.gather(*api._uploads)
+        stopped = api.hub.session("churn").kernel.state
+
+    assert published["models"] == []
+    assert packaged == []
+    assert uploaded[0]["models"] == []
+    assert stopped == "stopped"
+
+
+async def test_publishing_a_model_output_as_an_experiment_is_refused(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_AND_EXPERIMENT_CELL)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        with pytest.raises(FlowError, match="not declared as an experiment"):
+            await api.experiment_publish(
+                {
+                    "flow": "churn",
+                    "target": "train.model",
+                    "organization_id": "org",
+                    "orbit_id": "orbit",
+                    "collection_id": "coll",
+                    "artifact": {"name": "churn run"},
+                }
+            )
+
+
+async def test_publishing_an_experiment_with_an_unknown_upload_type_is_refused(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "train", MODEL_AND_EXPERIMENT_CELL)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "train"})
+        with pytest.raises(FlowError, match="`upload_type` must be one of"):
+            await api.experiment_publish(
+                {
+                    "flow": "churn",
+                    "target": "train.run",
+                    "upload_type": "everything",
+                    "organization_id": "org",
+                    "orbit_id": "orbit",
+                    "collection_id": "coll",
+                    "artifact": {"name": "churn run"},
+                }
+            )
+
+
 async def test_publishing_without_a_destination_in_luml_is_refused(
     tmp_path: Path,
 ) -> None:

@@ -1,5 +1,5 @@
 <template>
-  <div class="wrapper">
+  <div class="wrapper" @click.self="flowStore.selectCell(null)">
     <NotebookCell
       v-for="cell in cells"
       :key="cell.asset.id"

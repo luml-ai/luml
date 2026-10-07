@@ -151,6 +151,7 @@ class Api:
             "asset.page": self.asset_page,
             "asset.download": self.asset_download,
             "asset.publish": self.asset_publish,
+            "experiment.publish": self.experiment_publish,
             "export": self.export,
             "import": self.import_cells,
             "fork": self.fork,
@@ -570,6 +571,118 @@ class Api:
                 "declared `model` are published to LUML"
             )
         form = _publish_form(params)
+        bundle, packaged = await self._package_model(
+            session, here, uid, slug, output, record
+        )
+        try:
+            job_id = self._start_upload(bundle, form)
+        except Exception:
+            bundle.unlink(missing_ok=True)
+            raise
+        return {
+            "flow": session.ref.name,
+            "branch": branch,
+            "slug": slug,
+            "output": output,
+            "job_id": job_id,
+            "flavor": packaged.get("flavor"),
+            "size": packaged.get("size"),
+        }
+
+    async def experiment_publish(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Publish a cell's experiment together with its models.
+
+        Its models are the ones linked to the experiment in the tracker, as on
+        the Experiments page. A cell that returns its models as `model`
+        outputs instead of logging them has none linked, so those outputs
+        stand in. `upload_type` picks among them exactly as the Experiments
+        page does: `auto` embeds the experiment into a lone model, and
+        otherwise sends every model plus the experiment on its own.
+        """
+
+        from lumlflow.handlers.luml.artifacts import upload_plan
+        from lumlflow.schemas.luml import UploadType
+
+        session, branch = await self._read(params)
+        here = queries.read(session, branch)
+        slug, output, _ = queries.locate(here, _target(params))
+        uid = here.uid_of(slug)
+        produces = here.versions[uid].manifest.produces
+        if produces[output].type != "experiment":
+            raise FlowError(
+                f"`{slug}.{output}` is not declared as an experiment. only "
+                "outputs declared `experiment` are published with this call"
+            )
+        try:
+            upload_type = UploadType(str(params.get("upload_type") or "auto"))
+        except ValueError:
+            raise FlowError(
+                "`upload_type` must be one of "
+                + ", ".join(f"`{kind.value}`" for kind in UploadType)
+            ) from None
+        embed_experiment = params.get("embed_experiment") is True
+        form = _publish_form(params)
+        tracker = queries.asset(session, branch, f"{slug}.{output}")["tracker"]
+        if tracker is None or tracker["state"] != "ok":
+            raise FlowError(
+                f"`{slug}.{output}` has not been tracked yet. run the cell first"
+            )
+        from lumlflow.api.luml import artifact_handler
+
+        linked = [
+            model.name
+            for model in await asyncio.to_thread(
+                artifact_handler.tracker.get_models, tracker["id"]
+            )
+        ]
+        outputs = (
+            []
+            if linked
+            else [name for name, spec in produces.items() if spec.type == "model"]
+        )
+        plan = upload_plan(upload_type, embed_experiment, len(linked or outputs))
+        bundles: list[tuple[Path, str]] = []
+        try:
+            for model in outputs if plan.models else []:
+                record = here.mats[uid].outputs.get(model) if uid in here.mats else None
+                if record is None or record.value_ref is None:
+                    raise ValueNotStored(_unstored(slug, model, record is not None))
+                bundle, _ = await self._package_model(
+                    session, here, uid, slug, model, record
+                )
+                bundles.append((bundle, f"{slug}.{model}"))
+            job_id = self._start_experiment_upload(
+                bundles,
+                {
+                    **form,
+                    "upload_type": upload_type,
+                    "embed_experiment": embed_experiment,
+                    "experiment_id": tracker["id"],
+                },
+            )
+        except Exception:
+            for bundle, _ in bundles:
+                bundle.unlink(missing_ok=True)
+            raise
+        return {
+            "flow": session.ref.name,
+            "branch": branch,
+            "slug": slug,
+            "output": output,
+            "job_id": job_id,
+            "models": (linked or [name for _, name in bundles]) if plan.models else [],
+            "experiment_id": tracker["id"],
+        }
+
+    async def _package_model(
+        self,
+        session: FlowSession,
+        here: queries.Slice,
+        uid: str,
+        slug: str,
+        output: str,
+        record: OutputRecord,
+    ) -> tuple[Path, dict[str, Any]]:
         value_ref = record.value_ref
         assert value_ref is not None
         # Named inside the daemon's own temp dir: the kernel writes it, the
@@ -589,23 +702,10 @@ class Api:
         except Exception:
             destination.unlink(missing_ok=True)
             raise
-        try:
-            job_id = self._start_upload(destination, form)
-        except Exception:
-            destination.unlink(missing_ok=True)
-            raise
-        return {
-            "flow": session.ref.name,
-            "branch": branch,
-            "slug": slug,
-            "output": output,
-            "job_id": job_id,
-            "flavor": packaged.get("flavor"),
-            "size": packaged.get("size"),
-        }
+        return destination, packaged
 
     def _start_upload(self, bundle: Path, form: dict[str, Any]) -> str:
-        from lumlflow.api.luml import artifact_handler, progress_store
+        from lumlflow.api.luml import artifact_handler
         from lumlflow.schemas.luml import ArtifactIn, UploadFileForm
 
         upload = UploadFileForm(
@@ -615,14 +715,34 @@ class Api:
             collection_id=str(form["collection_id"]),
             artifact=ArtifactIn.model_validate(form["artifact"]),
         )
+        return self._spawn_upload(
+            lambda job_id: artifact_handler.upload_file(upload, job_id), [bundle]
+        )
+
+    def _start_experiment_upload(
+        self, bundles: list[tuple[Path, str]], form: dict[str, Any]
+    ) -> str:
+        from lumlflow.api.luml import artifact_handler
+        from lumlflow.schemas.luml import UploadArtifactForm
+
+        upload = UploadArtifactForm.model_validate(form)
+        return self._spawn_upload(
+            lambda job_id: artifact_handler.upload_model_files(upload, job_id, bundles),
+            [bundle for bundle, _ in bundles],
+        )
+
+    def _spawn_upload(self, upload: Callable[[str], None], cleanup: list[Path]) -> str:
+        from lumlflow.api.luml import progress_store
+
         job_id = str(uuid.uuid4())
         progress_store.create(job_id)
 
         async def send() -> None:
             try:
-                await asyncio.to_thread(artifact_handler.upload_file, upload, job_id)
+                await asyncio.to_thread(upload, job_id)
             finally:
-                bundle.unlink(missing_ok=True)
+                for path in cleanup:
+                    path.unlink(missing_ok=True)
 
         task = asyncio.create_task(send())
         self._uploads.add(task)

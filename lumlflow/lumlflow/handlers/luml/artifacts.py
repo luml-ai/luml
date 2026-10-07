@@ -1,6 +1,8 @@
 import os
 import shutil
 import tempfile
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from luml.artifacts.experiment import save_experiment
@@ -17,6 +19,46 @@ from lumlflow.schemas.luml import (
     UploadModelForm,
     UploadType,
 )
+
+
+@dataclass(frozen=True)
+class UploadPlan:
+    models: bool
+    embed: bool
+    experiment: bool
+
+
+def upload_plan(
+    upload_type: UploadType, embed_experiment: bool, models: int
+) -> UploadPlan:
+    """What one upload sends, given how many models the experiment has.
+
+    `auto` embeds the experiment into every model it sends. With more than
+    one model the experiment also goes on its own, and with none it is all
+    that goes.
+    """
+
+    match upload_type:
+        case UploadType.EXPERIMENT:
+            return UploadPlan(models=False, embed=False, experiment=True)
+        case UploadType.MODEL:
+            return UploadPlan(models=True, embed=embed_experiment, experiment=False)
+        case UploadType.AUTO:
+            return UploadPlan(models=True, embed=models > 0, experiment=models != 1)
+
+
+def _numbered(data: UploadArtifactForm, index: int) -> UploadArtifactForm:
+    """The form for the `index`-th of several models, told apart by a suffix.
+
+    Every model of one upload shares the name the user typed and lands in the
+    same collection. Without a typed name each keeps its own.
+    """
+
+    if not data.artifact.name:
+        return data
+    name = f"{data.artifact.name}_{index}"
+    artifact = data.artifact.model_copy(update={"name": name})
+    return data.model_copy(update={"artifact": artifact})
 
 
 class ArtifactHandler(BaseLumlHandler):
@@ -38,13 +80,27 @@ class ArtifactHandler(BaseLumlHandler):
             raise ApplicationError(
                 f"Model '{model.name}' has no file path", status_code=422
             )
+        return self._upload_model_file(
+            data,
+            self.tracker.backend.base_path / model.path,
+            name=model.name,
+            embed=embed,
+            on_progress=on_progress,
+        )
 
-        model_path = str(self.tracker.backend.base_path / model.path)
+    def _upload_model_file(
+        self,
+        data: UploadArtifactForm | UploadModelForm,
+        model_path: Path,
+        name: str,
+        embed: bool,
+        on_progress,
+    ) -> Artifact:
         temp_path = None
 
         try:
             if embed:
-                fd, temp_path = tempfile.mkstemp(suffix=Path(model_path).suffix)
+                fd, temp_path = tempfile.mkstemp(suffix=model_path.suffix)
                 os.close(fd)
                 shutil.copy2(model_path, temp_path)
 
@@ -53,13 +109,13 @@ class ArtifactHandler(BaseLumlHandler):
                 )
                 upload_path = temp_path
             else:
-                upload_path = model_path
+                upload_path = str(model_path)
 
             luml = self._get_luml_client(data.organization_id, data.orbit_id)
 
             return luml.artifacts.upload(
                 file_path=upload_path,
-                name=data.artifact.name or model.name,
+                name=data.artifact.name or name,
                 description=data.artifact.description,
                 tags=data.artifact.tags,
                 collection_id=data.collection_id,
@@ -100,53 +156,64 @@ class ArtifactHandler(BaseLumlHandler):
         self,
         data: UploadArtifactForm,
         job_id: str,
-        models: list[DbModel],
-        embed: bool,
-        with_experiment: bool,
+        models: Sequence[DbModel | tuple[Path, str]],
     ) -> list[Artifact]:
-        total = len(models) + int(with_experiment)
+        plan = upload_plan(data.upload_type, data.embed_experiment, len(models))
+        uploaded = models if plan.models else []
+        total = len(uploaded) + int(plan.experiment)
         results = []
 
-        for i, model in enumerate(models):
+        for i, model in enumerate(uploaded):
             on_progress = self.progress_store.make_handler(job_id, i, total)
-            results.append(
-                self._upload_model(data, model, embed=embed, on_progress=on_progress)
-            )
+            form = _numbered(data, i + 1) if len(uploaded) > 1 else data
+            if isinstance(model, tuple):
+                path, name = model
+                artifact = self._upload_model_file(
+                    form, path, name=name, embed=plan.embed, on_progress=on_progress
+                )
+            else:
+                artifact = self._upload_model(
+                    form, model, embed=plan.embed, on_progress=on_progress
+                )
+            results.append(artifact)
 
-        if with_experiment:
-            on_progress = self.progress_store.make_handler(job_id, len(models), total)
+        if plan.experiment:
+            on_progress = self.progress_store.make_handler(job_id, len(uploaded), total)
             results.append(self._upload_experiment(data, on_progress=on_progress))
 
         return results
 
     def upload_artifact(self, data: UploadArtifactForm, job_id: str) -> None:
-        results = []
+        self._run_upload(
+            job_id, lambda: self.tracker.get_models(data.experiment_id), data
+        )
 
+    def upload_model_files(
+        self, data: UploadArtifactForm, job_id: str, models: list[tuple[Path, str]]
+    ) -> None:
+        """Upload an experiment with the models of the flow cell that ran it.
+
+        A cell that logs its models links them to the experiment, and those
+        go just as in `upload_artifact`. One that returns them as `model`
+        outputs links none, so they arrive packaged as `(path, name)` files
+        instead. Which models go, and whether the experiment is embedded or
+        sent beside them, follows the same `upload_plan` either way.
+        """
+
+        self._run_upload(
+            job_id,
+            lambda: models or self.tracker.get_models(data.experiment_id),
+            data,
+        )
+
+    def _run_upload(
+        self,
+        job_id: str,
+        models: Callable[[], Sequence[DbModel | tuple[Path, str]]],
+        data: UploadArtifactForm,
+    ) -> None:
         try:
-            match data.upload_type:
-                case UploadType.EXPERIMENT:
-                    results = self._upload_all(
-                        data, job_id, models=[], embed=False, with_experiment=True
-                    )
-                case UploadType.MODEL:
-                    models = self.tracker.get_models(data.experiment_id)
-                    results = self._upload_all(
-                        data,
-                        job_id,
-                        models=models,
-                        embed=data.embed_experiment,
-                        with_experiment=False,
-                    )
-                case UploadType.AUTO:
-                    models = self.tracker.get_models(data.experiment_id)
-                    results = self._upload_all(
-                        data,
-                        job_id,
-                        models=models,
-                        embed=len(models) == 1,
-                        with_experiment=len(models) != 1,
-                    )
-
+            results = self._upload_all(data, job_id, models())
         except Exception as e:
             self.progress_store.set_error(job_id, str(e))
             return

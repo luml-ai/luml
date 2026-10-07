@@ -838,7 +838,7 @@ class CloudPublishScreen(BaseScreen):
             Label("Upload type", classes="field-label"),
             ListView(
                 ListItem(
-                    Static("auto · embed a single model, else models + archive"),
+                    Static("auto · embed into each model, + archive unless one"),
                     id="publish-type-auto",
                 ),
                 ListItem(
