@@ -3,6 +3,8 @@ import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024
+
 
 class HTTPException(Exception):
     def __init__(
@@ -173,11 +175,16 @@ class UvicornBaseService:
 
     @staticmethod
     async def _read_body(receive: Callable[[], Awaitable[dict[str, Any]]]) -> str:  # noqa: ANN401
-        body = b""
+        body = bytearray()
         while True:
             message = await receive()
+            if message["type"] == "http.disconnect":
+                raise HTTPException(400, "Client disconnected while reading request body")
             if message["type"] == "http.request":
-                body += message.get("body", b"")
+                chunk = message.get("body", b"")
+                if len(body) + len(chunk) > MAX_REQUEST_BODY_BYTES:
+                    raise HTTPException(413, "Request body too large")
+                body.extend(chunk)
                 if not message.get("more_body", False):
                     break
         return body.decode()
