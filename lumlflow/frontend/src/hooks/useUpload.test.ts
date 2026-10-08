@@ -1,53 +1,52 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { UploadTypeEnum } from '@/components/upload/upload.interface'
+import { api } from '@/api/client'
+import { useUpload } from './useUpload'
 
 vi.mock('@/api/api.service', () => ({
-  apiService: {
-    uploadArtifact: vi.fn().mockResolvedValue({ job_id: 'upload-job' }),
-  },
+  apiService: { uploadArtifact: vi.fn().mockResolvedValue({ job_id: 'job' }) },
 }))
+vi.mock('@/api/client', () => ({ api: { get: vi.fn() } }))
+vi.mock('primevue', () => ({ useToast: () => ({ add: vi.fn() }) }))
+vi.mock('@/toasts', () => ({ errorToast: vi.fn() }))
 
-vi.mock('primevue', () => ({
-  useToast: () => ({ add: vi.fn() }),
-}))
+afterEach(() => {
+  vi.useRealTimers()
+})
 
-describe('upload progress URL', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    vi.unstubAllGlobals()
-    vi.resetModules()
+describe('authenticated upload progress', () => {
+  it('handles streamed events split across chunks through the API client', async () => {
+    vi.useFakeTimers()
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"type":"progress","percent":50}\n'))
+        controller.enqueue(encoder.encode('\ndata: {"type":"complete"}\n\n'))
+        controller.close()
+      },
+    })
+    vi.mocked(api.get).mockResolvedValue({ data: stream })
+    const upload = useUpload()
+    await upload.upload({} as Parameters<typeof upload.upload>[0])
+    expect(api.get).toHaveBeenCalledWith('/luml/artifact/job/progress', {
+      adapter: 'fetch',
+      responseType: 'stream',
+    })
+    expect(upload.progress.value).toBe(100)
+    expect(upload.complete.value).toBe(true)
+    expect(upload.loading.value).toBe(false)
+    expect(upload.error.value).toBeNull()
   })
 
-  it.each([
-    [undefined, '/api/luml/artifact/upload-job/progress'],
-    ['', '/api/luml/artifact/upload-job/progress'],
-    ['/custom-api', '/custom-api/luml/artifact/upload-job/progress'],
-    [
-      'https://api.example.test/api',
-      'https://api.example.test/api/luml/artifact/upload-job/progress',
-    ],
-    [
-      'https://api.example.test/api/',
-      'https://api.example.test/api/luml/artifact/upload-job/progress',
-    ],
-  ])('opens the progress stream with API URL %s', async (baseURL, expectedURL) => {
-    vi.stubEnv('VITE_API_URL', baseURL)
-    const eventSource = vi.fn(function () {
-      return { close: vi.fn() }
+  it('reports an interrupted stream', async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.close()
+      },
     })
-    vi.stubGlobal('EventSource', eventSource)
-    const { useUpload } = await import('./useUpload')
-
-    await useUpload().upload({
-      upload_type: UploadTypeEnum.EXPERIMENT,
-      embed_experiment: false,
-      experiment_id: 'experiment-id',
-      organization_id: 'organization-id',
-      orbit_id: 'orbit-id',
-      collection_id: 'collection-id',
-      artifact: { name: 'artifact', description: '', tags: [] },
-    })
-
-    expect(eventSource).toHaveBeenCalledWith(expectedURL)
+    vi.mocked(api.get).mockResolvedValue({ data: stream })
+    const upload = useUpload()
+    await upload.upload({} as Parameters<typeof upload.upload>[0])
+    expect(upload.error.value).toContain('Failed to receive upload progress')
+    expect(upload.loading.value).toBe(false)
   })
 })

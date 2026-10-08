@@ -28,24 +28,25 @@ def ui(
     if path is not None:
         os.environ["BACKEND_STORE_URI"] = path
 
+    from lumlflow.server import app as server_app
     from lumlflow.settings import get_config
 
     typer.echo(f"Using experiment store: {get_config().BACKEND_STORE_URI}")
-    url = f"http://{host}:{port}"
+    url = f"http://{host}:{port}/#session-token={server_app.state.session_token}"
 
     def open_browser_delayed() -> None:
         time.sleep(1.0)
         webbrowser.open(url)
 
     if not no_browser:
-        typer.echo(f"Opening {url} in browser...")
+        typer.echo(f"Opening http://{host}:{port} in browser...")
         thread = threading.Thread(target=open_browser_delayed, daemon=True)
         thread.start()
     else:
         typer.echo(f"Lumlflow UI available at {url}")
 
     uvicorn.run(
-        "lumlflow.server:app",
+        server_app,
         host=host,
         port=port,
         reload=False,
