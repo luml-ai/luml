@@ -329,9 +329,12 @@ class OrbitHandler:
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
+        member_id: UUID,
         member: UpdateOrbitMember,
     ) -> OrbitMember:
-        member_obj = await self.__orbits_repository.get_orbit_member(member.id)
+        member_obj = await self.__orbits_repository.get_orbit_member(
+            member_id, orbit_id
+        )
 
         if not member_obj:
             raise OrbitMemberNotFoundError()
@@ -346,7 +349,9 @@ class OrbitHandler:
             Action.UPDATE,
             orbit_id,
         )
-        updated = await self.__orbits_repository.update_orbit_member(member)
+        updated = await self.__orbits_repository.update_orbit_member(
+            member_id, orbit_id, member
+        )
 
         if not updated:
             raise OrbitMemberNotFoundError()
@@ -360,7 +365,9 @@ class OrbitHandler:
         orbit_id: UUID,
         member_id: UUID,
     ) -> None:
-        member_obj = await self.__orbits_repository.get_orbit_member(member_id)
+        member_obj = await self.__orbits_repository.get_orbit_member(
+            member_id, orbit_id
+        )
 
         if not member_obj:
             raise OrbitMemberNotFoundError()
@@ -375,4 +382,4 @@ class OrbitHandler:
             Action.DELETE,
             orbit_id,
         )
-        return await self.__orbits_repository.delete_orbit_member(member_id)
+        return await self.__orbits_repository.delete_orbit_member(member_id, orbit_id)

@@ -54,10 +54,11 @@ async def update_orbit_member(
     request: Request,
     organization_id: UUID,
     orbit_id: UUID,
+    member_id: UUID,
     member: UpdateOrbitMember,
 ) -> OrbitMember:
     return await orbit_handler.update_orbit_member(
-        request.user.id, organization_id, orbit_id, member
+        request.user.id, organization_id, orbit_id, member_id, member
     )
 
 

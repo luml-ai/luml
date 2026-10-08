@@ -196,9 +196,16 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             )
             return OrbitMembersOrm.to_orbit_members_list(db_members)
 
-    async def get_orbit_member(self, member_id: UUID) -> OrbitMember | None:
+    async def get_orbit_member(
+        self, member_id: UUID, orbit_id: UUID
+    ) -> OrbitMember | None:
         async with self._get_session() as session:
-            db_member = await self.get_model(session, OrbitMembersOrm, member_id)
+            db_member = await self.get_model_where(
+                session,
+                OrbitMembersOrm,
+                OrbitMembersOrm.id == member_id,
+                OrbitMembersOrm.orbit_id == orbit_id,
+            )
             return db_member.to_orbit_member() if db_member else None
 
     async def get_orbit_member_where(
@@ -226,17 +233,26 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             return [member.to_orbit_member() for member in db_members]
 
     async def update_orbit_member(
-        self, member: UpdateOrbitMember
+        self, member_id: UUID, orbit_id: UUID, member: UpdateOrbitMember
     ) -> OrbitMember | None:
         async with self._get_session() as session:
-            db_member = await self.update_model(
-                session=session, orm_class=OrbitMembersOrm, data=member
+            db_member = await self.update_model_where(
+                session,
+                OrbitMembersOrm,
+                member,
+                OrbitMembersOrm.id == member_id,
+                OrbitMembersOrm.orbit_id == orbit_id,
             )
             return db_member.to_orbit_member() if db_member else None
 
-    async def delete_orbit_member(self, member_id: UUID) -> None:
+    async def delete_orbit_member(self, member_id: UUID, orbit_id: UUID) -> None:
         async with self._get_session() as session:
-            return await self.delete_model(session, OrbitMembersOrm, member_id)
+            return await self.delete_model_where(
+                session,
+                OrbitMembersOrm,
+                OrbitMembersOrm.id == member_id,
+                OrbitMembersOrm.orbit_id == orbit_id,
+            )
 
     async def get_organization_orbits_count(self, organization_id: UUID) -> int:
         async with self._get_session() as session:
