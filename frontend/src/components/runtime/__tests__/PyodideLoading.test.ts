@@ -5,10 +5,11 @@ import PrimeVue from 'primevue/config'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 
-const { compute, addToast, training, deallocate } = vi.hoisted(() => ({
+const { compute, addToast, training, prediction, deallocate } = vi.hoisted(() => ({
   compute: vi.fn(),
   addToast: vi.fn(),
   training: vi.fn(),
+  prediction: vi.fn(),
   deallocate: vi.fn(),
 }))
 
@@ -21,6 +22,7 @@ vi.mock('@/lib/data-processing/DataProcessingWorker', () => ({
   DataProcessingWorker: {
     computePythonModel: compute,
     startTraining: training,
+    startPredict: prediction,
     deallocateModels: deallocate,
   },
 }))
@@ -146,6 +148,27 @@ describe('first-use loading feedback', () => {
     await pending
     expect(hook.isLoading.value).toBe(false)
     expect(addToast).toHaveBeenCalledWith(expect.objectContaining({ detail: 'Download failed' }))
+    wrapper.unmount()
+  })
+
+  it('clears express prediction loading and shows a toast when the worker rejects', async () => {
+    prediction.mockRejectedValue(new Error('Python failed'))
+    let hook!: ReturnType<typeof useModelTraining>
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          hook = useModelTraining('tabular')
+          return () => null
+        },
+      }),
+    )
+    const pending = hook.startPredict({ model_id: 'model', data: {} })
+    expect(hook.isLoading.value).toBe(true)
+    await expect(pending).resolves.toBeUndefined()
+    expect(hook.isLoading.value).toBe(false)
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: 'Python failed' }),
+    )
     wrapper.unmount()
   })
 })
