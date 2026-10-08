@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from urllib.parse import urlencode
+from uuid import UUID
 
 import httpx
+import jwt
 
 from luml.infra.exceptions import AuthError
 from luml.schemas.auth import UserInfo
@@ -24,7 +26,7 @@ class OAuthProvider(ABC):
 
     @staticmethod
     @abstractmethod
-    async def get_user_info(client: httpx.AsyncClient, access_token: str) -> UserInfo:
+    async def get_user_info(client: httpx.AsyncClient, token: str) -> UserInfo:
         pass
 
 
@@ -73,11 +75,11 @@ class OAuthGoogleProvider(OAuthProvider):
         return str(access_token)
 
     @staticmethod
-    async def get_user_info(client: httpx.AsyncClient, access_token: str) -> UserInfo:
+    async def get_user_info(client: httpx.AsyncClient, token: str) -> UserInfo:
         try:
             response = await client.get(
                 config.GOOGLE_USERINFO_URL,
-                headers={"Authorization": f"Bearer {access_token}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
             response.raise_for_status()
         except Exception as err:
@@ -89,7 +91,7 @@ class OAuthGoogleProvider(OAuthProvider):
             email=result.get("email"),
             full_name=result.get("name"),
             photo_url=result.get("picture"),
-            email_verified=result.get("verified_email"),
+            email_verified=result.get("verified_email") is True,
             hosted_domain=result.get("hd"),
         )
 
@@ -107,7 +109,7 @@ class OAuthMicrosoftProvider(OAuthProvider):
             "client_id": config.MICROSOFT_CLIENT_ID,
             "redirect_uri": config.MICROSOFT_REDIRECT_URI,
             "response_type": "code",
-            "scope": "openid email profile User.Read",
+            "scope": "openid email profile",
             "state": "microsoft",
         }
         return auth_url + "?" + urlencode(params)
@@ -132,36 +134,71 @@ class OAuthMicrosoftProvider(OAuthProvider):
             raise AuthError(f"Failed to get access token: {err}", 503) from err
 
         token_data = response.json()
-        access_token = token_data.get("access_token")
+        id_token = token_data.get("id_token")
 
-        if not access_token:
-            raise AuthError("Failed to retrieve access token from Microsoft", 400)
+        if not isinstance(id_token, str) or not id_token:
+            raise AuthError("Failed to retrieve ID token from Microsoft", 400)
 
-        return str(access_token)
+        return id_token
 
     @staticmethod
-    async def get_user_info(client: httpx.AsyncClient, access_token: str) -> UserInfo:
+    async def get_user_info(client: httpx.AsyncClient, token: str) -> UserInfo:
         try:
+            header = jwt.get_unverified_header(token)
+            unverified = jwt.decode(token, options={"verify_signature": False})
+            tenant_id = str(UUID(unverified["tid"]))
+            authority = config.MICROSOFT_AUTH_URL.rstrip("/")
+            expected_issuer = f"{authority}/{tenant_id}/v2.0"
+            if (
+                config.MICROSOFT_TENANT.lower() == "organizations"
+                and tenant_id == "9188040d-6c67-4c5b-b112-36a304b66dad"
+            ):
+                raise jwt.InvalidIssuerError("Consumer account is not allowed")
+
             response = await client.get(
-                config.MICROSOFT_GRAPH_URL,
-                headers={"Authorization": f"Bearer {access_token}"},
+                f"{authority}/{config.MICROSOFT_TENANT}"
+                "/v2.0/.well-known/openid-configuration"
             )
             response.raise_for_status()
-        except Exception as err:
-            raise AuthError(f"Failed to get user info: {err}", 503) from err
+            metadata = response.json()
+            issuer = metadata["issuer"].replace("{tenantid}", tenant_id)
+            if issuer != expected_issuer:
+                raise jwt.InvalidIssuerError("Tenant does not match configured issuer")
 
-        result = response.json()
-        email = result.get("mail")
-        if not email:
-            other_mails = result.get("otherMails")
-            email = (
-                other_mails[0]
-                if other_mails and len(other_mails) > 0
-                else result.get("userPrincipalName")
+            response = await client.get(metadata["jwks_uri"])
+            response.raise_for_status()
+            signing_key = next(
+                key for key in response.json()["keys"] if key["kid"] == header["kid"]
+            )
+            if signing_key["issuer"].replace("{tenantid}", tenant_id) != issuer:
+                raise jwt.InvalidIssuerError("Signing key issuer does not match")
+
+            result = jwt.decode(
+                token,
+                jwt.PyJWK.from_dict(signing_key, algorithm="RS256"),
+                algorithms=["RS256"],
+                audience=config.MICROSOFT_CLIENT_ID,
+                issuer=issuer,
+                options={"require": ["iss", "aud", "exp", "iat", "sub", "tid"]},
             )
 
-        return UserInfo(
-            email=email,
-            full_name=result.get("displayName", email),
-            photo_url=None,
-        )
+            return UserInfo(
+                email=result.get("email"),
+                full_name=result.get("name") or result.get("email") or "",
+                photo_url=None,
+                email_verified=(
+                    result.get("email_verified") is True
+                    or result.get("xms_edov") is True
+                ),
+            )
+        except httpx.HTTPError as err:
+            raise AuthError("Failed to verify Microsoft ID token", 503) from err
+        except (
+            jwt.PyJWTError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            StopIteration,
+        ) as err:
+            raise AuthError("Invalid Microsoft ID token", 403) from err
