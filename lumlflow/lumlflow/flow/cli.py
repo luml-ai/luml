@@ -34,7 +34,15 @@ daemon_app = typer.Typer(
 )
 
 _JSON = typer.Option(False, "--json", help="Answer as JSON, verbatim.")
-_FLOW = typer.Option(None, "--flow", help="Which flow, when the workspace has several.")
+_FLOW = typer.Option(
+    None,
+    "--flow",
+    help=(
+        "Which flow, when the workspace has several. A bare name finds an open "
+        "flow beneath this directory or a direct child. Name any other flow by "
+        "its path."
+    ),
+)
 _LANE = typer.Option(None, "--lane", help="Which lane. Defaults to the one on disk.")
 _INTENT = typer.Option(None, "-m", "--intent", help="Why. Recorded in the journal.")
 
@@ -169,7 +177,10 @@ def gc(
         exists=True,
         file_okay=False,
         resolve_path=True,
-        help="Directory whose flow stores to sweep. Defaults to the current one.",
+        help=(
+            "Directory whose flow stores to sweep: its own flows and the open "
+            "ones beneath it. Defaults to the current one."
+        ),
     ),
     as_json: bool = _JSON,
 ) -> None:
@@ -776,11 +787,13 @@ def agents_setup(
         return
     if result.get("error"):
         _fail(FlowError(str(result["error"])), as_json)
+    replaced = result.get("replaced_build")
     _emit(
         result,
         as_json,
         [
             f"{result['display_name']} · {result['state']}",
+            *([f"was set up for {_lumlflow_build(replaced)}"] if replaced else []),
             str(result["post_write_hint"]),
         ],
     )
@@ -887,8 +900,13 @@ def daemon_status(as_json: bool = _JSON) -> None:
         "running": running,
         "record": record.__dict__ if record is not None else None,
     }
-    if not running:
+    if record is None:
         _emit(result, as_json, ["lumlflow daemon is not running. any verb starts it"])
+        return
+    mismatch = client.version_mismatch(record)
+    if mismatch is not None:
+        result["version_mismatch"] = mismatch
+        _emit(result, as_json, ["lumlflow daemon is running", mismatch])
         return
     try:
         with client.connect(Path.cwd(), start=False) as live:
@@ -1116,10 +1134,14 @@ def _agent_harness_lines(listed: Sequence[dict[str, Any]]) -> list[str]:
     for harness in listed:
         lines.extend(
             [
-                f"{harness['display_name']} ({harness['id']}) · {harness['state']}",
+                f"{harness['display_name']} ({harness['id']}) · "
+                f"{_agent_harness_state(harness)}",
                 f"  {harness['config_path']}",
             ]
         )
+        replaced = harness.get("replaced_build")
+        if replaced:
+            lines.append(f"  was set up for {_lumlflow_build(replaced)}")
         if harness.get("shell_hint"):
             lines.append(f"  {harness['shell_hint']}")
         if not harness["can_setup"]:
@@ -1128,6 +1150,22 @@ def _agent_harness_lines(listed: Sequence[dict[str, Any]]) -> list[str]:
         if harness.get("error"):
             lines.append(f"  {harness['error']}")
     return lines
+
+
+def _agent_harness_state(harness: dict[str, Any]) -> str:
+    other = harness.get("other_build")
+    if not other:
+        return str(harness["state"])
+    return (
+        f"set up for {_lumlflow_build(other)}; "
+        f"run `lumlflow agents setup {harness['id']}` from this build"
+    )
+
+
+def _lumlflow_build(build: dict[str, Any]) -> str:
+    if build.get("version"):
+        return f"lumlflow {build['version']} at {build['path']}"
+    return f"another lumlflow at {build['path']}"
 
 
 def _actor_label(label: str | None, command: Sequence[str]) -> str:

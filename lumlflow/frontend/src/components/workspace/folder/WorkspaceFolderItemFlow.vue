@@ -31,20 +31,18 @@
         :last-activity="openFlow.last_activity"
         class="relative z-10"
       />
-      <template v-if="actions">
-        <Button
-          severity="secondary"
-          variant="text"
-          class="relative z-10 shrink-0"
-          aria-haspopup="menu"
-          @click="menu?.toggle($event)"
-        >
-          <template #icon>
-            <EllipsisVertical :size="16" />
-          </template>
-        </Button>
-        <Menu ref="menu" :model="menuItems" popup />
-      </template>
+      <Button
+        severity="secondary"
+        variant="text"
+        class="relative z-10 shrink-0"
+        aria-haspopup="menu"
+        @click="menu?.toggle($event)"
+      >
+        <template #icon>
+          <EllipsisVertical :size="16" />
+        </template>
+      </Button>
+      <Menu ref="menu" :model="menuItems" popup />
     </div>
   </div>
 </template>
@@ -65,10 +63,9 @@ import FlowStateMarker from '@/components/workspace/FlowStateMarker.vue'
 
 interface Props {
   item: IWorkspaceFolderItem
-  actions?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), { actions: true })
+const props = defineProps<Props>()
 
 const workspaceStore = useWorkspaceStore()
 

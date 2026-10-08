@@ -39,9 +39,6 @@ from lumlflow.tracker import TrackerProvider
 
 logger = logging.getLogger(__name__)
 
-# How long a directory's walk stands in for the next one.
-WALK_TTL_S = 5.0
-
 
 class FlowSession:
     def __init__(
@@ -146,10 +143,8 @@ class Hub:
         self._streams = streams
         self._sessions: dict[Path, FlowSession] = {}
         self._known: dict[Path, FlowRef] = {}
-        # Flows a walk came across: findable by name, but never opened.
+        # Flows a listing came across: findable by name, but never opened.
         self._found: dict[Path, FlowRef] = {}
-        self._walks: dict[Path, tuple[float, list[FlowRef]]] = {}
-        self.clock: Callable[[], float] = time.monotonic
         self._loop: asyncio.AbstractEventLoop | None = _running_loop()
         self._closed: bool = False
         self._unsubscribe_tracker = tracker.on_experiment_deleted(
@@ -163,35 +158,25 @@ class Hub:
             key=lambda ref: str(ref.path),
         )
 
-    def walk(self, root: Path) -> list[FlowRef]:
-        root = root.resolve()
-        now = self.clock()
-        cached = self._walks.get(root)
-        if cached is not None and now - cached[0] < WALK_TTL_S:
-            return [ref for ref in cached[1] if ref.path.is_dir()]
-        refs = workspace.find_flows(root)
-        self._walks[root] = (now, refs)
-        for ref in refs:
+    def listing(self, root: Path) -> workspace.DirectoryListing:
+        listing = workspace.list_directory(root)
+        for ref in listing.flows:
             self._found[ref.path] = ref
-        return refs
+        return listing
 
-    def forget_walks(self) -> None:
-        self._walks.clear()
-
-    def forget_walk(self, root: Path, *, before: float) -> bool:
-        """Drop `root`'s walk if it was taken before `before`; whether it was."""
+    def reported(self, root: Path) -> list[FlowRef]:
+        """`root`'s own flows and the open ones beneath it, which a listing
+        one level deep would otherwise drop from a report."""
         root = root.resolve()
-        cached = self._walks.get(root)
-        if cached is None or cached[0] >= before:
-            return False
-        del self._walks[root]
-        return True
+        refs = {ref.path: ref for ref in self.listing(root).flows}
+        for session in self._sessions.values():
+            if session.ref.path.is_relative_to(root):
+                refs.setdefault(session.ref.path, _relative_to(session.ref, root))
+        return sorted(refs.values(), key=lambda ref: ref.relpath)
 
-    def lookup(
-        self, name: str, directory: Path, *, inside: bool = True
-    ) -> FlowRef | None:
-        """The open-then-known flow `name` means among those inside `directory`
-        (or, with `inside=False`, those outside it), found without a walk."""
+    def lookup(self, name: str, directory: Path) -> FlowRef | None:
+        """The open-then-known flow `name` means among those inside
+        `directory`, found without listing."""
         directory = directory.resolve()
         wanted = name.removesuffix(FLOW_SUFFIX).strip("/")
         if not wanted:
@@ -207,7 +192,7 @@ class Hub:
                 ref
                 for ref in refs
                 if _answers(ref, wanted, directory)
-                and _inside(ref.path, directory) is inside
+                and _inside(ref.path, directory)
                 and ref.path.is_dir()
             ]
             for refs in (opened, known)
@@ -355,7 +340,6 @@ class Hub:
         if ref.path.exists():
             raise FlowAlreadyExists(f"`{ref.relpath}` already exists")
         store = FlowStore.init(ref.path, name=ref.name)
-        self.forget_walks()
         session = self._session(ref, store)
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
         return session
@@ -419,7 +403,6 @@ class Hub:
         while (session := self._sessions.get(ref.path)) is not None:
             await self.close_session(session)
         shutil.rmtree(ref.path)
-        self.forget_walks()
 
     async def rename_flow(self, ref: FlowRef, name: str) -> FlowRef:
         if not _is_flow(ref.path):
@@ -434,7 +417,6 @@ class Hub:
         while (session := self._sessions.get(ref.path)) is not None:
             await self.close_session(session)
         ref.path.rename(renamed.path)
-        self.forget_walks()
         self._found[renamed.path] = renamed
         return renamed
 
@@ -453,7 +435,6 @@ class Hub:
         except BaseException:
             shutil.rmtree(duplicated.path, ignore_errors=True)
             raise
-        self.forget_walks()
         self._found[duplicated.path] = duplicated
         return duplicated
 
@@ -539,7 +520,7 @@ def _inside(path: Path, directory: Path) -> bool:
 
 
 def _relative_to(ref: FlowRef, directory: Path) -> FlowRef:
-    """The ref as a walk of `directory` would have named it."""
+    """The ref named relative to `directory` where it lies beneath it."""
     if ref.path != directory and ref.path.is_relative_to(directory):
         relpath = ref.path.relative_to(directory).as_posix()
     elif directory.is_relative_to(ref.path):

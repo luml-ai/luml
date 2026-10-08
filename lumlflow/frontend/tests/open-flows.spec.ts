@@ -8,7 +8,11 @@ import type { StreamFrame } from '@/api/streams/flow'
 vi.mock('@/api/slices/workspace/workspace.api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/slices/workspace/workspace.api')>()),
   workspaceApi: {
-    listFlows: vi.fn(async (directory?: string) => ({ directory: directory ?? '/p', flows: [] })),
+    listFlows: vi.fn(async (directory?: string) => ({
+      directory: directory ?? '/p',
+      flows: [],
+      folders: [],
+    })),
     openFlows: vi.fn(),
     openFlow: vi.fn(async () => ({
       flow: 'churn',
@@ -59,6 +63,9 @@ import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import WorkspaceFolderItem from '@/components/workspace/folder/WorkspaceFolderItem.vue'
 import WorkspaceFolderItemFlow from '@/components/workspace/folder/WorkspaceFolderItemFlow.vue'
 import FlowStateMarker from '@/components/workspace/FlowStateMarker.vue'
+import OpenFlowsSummary from '@/components/workspace/OpenFlowsSummary.vue'
+import { ROUTE_NAMES } from '@/router/router.const'
+import { defineComponent, h, nextTick } from 'vue'
 import { useFlowStore } from '@/store/flow'
 import { useWorkspaceStore } from '@/store/workspace'
 import { settle } from './fakes'
@@ -92,6 +99,20 @@ function listing(flows: OpenFlow[]): OpenFlowsListing {
       leased_sessions: flows.reduce((sum, flow) => sum + flow.leased_sessions, 0),
     },
   }
+}
+
+async function listDirectory(
+  folders: { name: string; path: string }[],
+  directory = '/p',
+  flows: { name: string; path: string; relative_path: string }[] = [],
+) {
+  vi.useFakeTimers()
+  mocked.listFlows!.mockResolvedValueOnce({ directory, flows, folders })
+  const store = useWorkspaceStore()
+  const fetched = store.fetchDirectory(directory)
+  await vi.runAllTimersAsync()
+  await fetched
+  return store
 }
 
 function deferred<T>() {
@@ -134,7 +155,6 @@ describe('open flows in the workspace store', () => {
 
     expect(store.openFlowsByPath.get('/p/churn.flow')?.active_runs).toBe(2)
     expect(store.openFlowsByPath.has('/q/far.flow')).toBe(true)
-    expect(store.openFlowsElsewhere.map((flow) => flow.path)).toEqual(['/q/far.flow'])
     expect(store.openFlowsTotals).toMatchObject({ open_flows: 2, running_kernels: 1 })
   })
 
@@ -204,15 +224,33 @@ describe('open flows in the workspace store', () => {
         openFlow(),
       ]),
     )
-    const store = useWorkspaceStore()
-    store.currentDirectory = '/p'
-    await store.fetchOpenFlows()
+    const store = await listDirectory([{ name: 'team', path: '/p/team' }])
 
     expect(store.openFlowsByFolder.get('/p/team')?.map((flow) => flow.path)).toEqual([
       '/p/team/a.flow',
       '/p/team/deep/b.flow',
     ])
     expect(store.openFlowsByFolder.size).toBe(1)
+  })
+
+  it('lists flows and folders one level deep, flows first', async () => {
+    const store = await listDirectory([{ name: 'team', path: '/p/team' }], '/p', [
+      { name: 'churn', path: '/p/churn.flow', relative_path: 'churn.flow' },
+    ])
+
+    expect(store.sortedItems.map((item) => [item.type, item.name, item.path])).toEqual([
+      ['flow', 'churn.flow', '/p/churn.flow'],
+      ['folder', 'team', '/p/team'],
+    ])
+  })
+
+  it('keys folder markers by the listed folder path, whatever the separator', async () => {
+    mocked.openFlows!.mockResolvedValue(
+      listing([openFlow({ path: 'C:\\p\\team\\deep\\b.flow', relative_path: 'team/deep/b.flow' })]),
+    )
+    const store = await listDirectory([{ name: 'team', path: 'C:\\p\\team' }], 'C:\\p')
+
+    expect([...store.openFlowsByFolder.keys()]).toEqual(['C:\\p\\team'])
   })
 })
 
@@ -359,6 +397,17 @@ describe('the flow row marker', () => {
     expect(tooltip(wrapper)).toBe('Kernel running · 1 agent')
   })
 
+  it('marks a listed folder from a flow open deeper inside it', async () => {
+    mocked.openFlows!.mockResolvedValue(
+      listing([openFlow({ path: '/p/team/deep/b.flow', relative_path: 'team/deep/b.flow' })]),
+    )
+    const store = await listDirectory([{ name: 'team', path: '/p/team' }])
+    const folder = store.sortedItems.find((item) => item.type === 'folder')!
+    const wrapper = mount(WorkspaceFolderItem, { props: { item: folder } })
+
+    expect(wrapper.find('.marker').exists()).toBe(true)
+  })
+
   it('sums the open flows beneath a folder', async () => {
     mocked.openFlows!.mockResolvedValue(
       listing([
@@ -366,9 +415,7 @@ describe('the flow row marker', () => {
         openFlow({ path: '/p/team/b.flow', relative_path: 'team/b.flow', kernel: 'running' }),
       ]),
     )
-    const store = useWorkspaceStore()
-    store.currentDirectory = '/p'
-    await store.fetchOpenFlows()
+    await listDirectory([{ name: 'team', path: '/p/team' }])
     const wrapper = mount(WorkspaceFolderItem, {
       props: { item: { id: '/p/team', name: 'team', type: 'folder', path: '/p/team', size: 0 } },
     })
@@ -376,5 +423,88 @@ describe('the flow row marker', () => {
     expect(wrapper.find('.marker-label').exists()).toBe(false)
     expect(wrapper.find('.marker-dot--running').exists()).toBe(true)
     expect(tooltip(wrapper)).toBe('2 open flows · kernel running')
+  })
+})
+
+describe('the open flows summary', () => {
+  const RouterLinkStub = defineComponent({
+    props: { to: { type: Object, required: true } },
+    setup(props, { slots }) {
+      return () => h('a', { 'data-to': JSON.stringify(props.to) }, slots.default?.())
+    },
+  })
+
+  async function summary(flows: OpenFlow[]) {
+    mocked.openFlows!.mockResolvedValue(listing(flows))
+    await useWorkspaceStore().fetchOpenFlows()
+    return mount(OpenFlowsSummary, {
+      attachTo: document.body,
+      global: { stubs: { RouterLink: RouterLinkStub } },
+    })
+  }
+
+  function rows(): HTMLAnchorElement[] {
+    return [...document.body.querySelectorAll<HTMLAnchorElement>('.open-flow')]
+  }
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('shows no trigger without open flows', async () => {
+    const wrapper = await summary([])
+    expect(wrapper.find('button').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('opens one row per open flow, in path order, linking to the notebook', async () => {
+    const wrapper = await summary([
+      openFlow({ flow: 'far', path: '/q/far.flow', relative_path: null, inside: false }),
+      openFlow({ path: '/p/team/a.flow', relative_path: 'team/a.flow', kernel: 'running' }),
+      openFlow(),
+    ])
+    expect(wrapper.find('button').text()).toBe('3 open · 1 running')
+
+    await wrapper.find('button').trigger('click')
+    await nextTick()
+
+    expect(rows().map((row) => row.querySelector('.open-flow-name')?.textContent)).toEqual([
+      'churn.flow',
+      'a.flow',
+      'far.flow',
+    ])
+    expect(
+      rows().map((row) => row.querySelector('.open-flow-directory')?.textContent ?? null),
+    ).toEqual([null, 'team', '/q'])
+    expect(rows().map((row) => JSON.parse(row.dataset.to!))).toEqual(
+      ['/p/churn.flow', '/p/team/a.flow', '/q/far.flow'].map((path) => ({
+        name: ROUTE_NAMES.WORKSPACE_FLOW,
+        query: { directory: path },
+      })),
+    )
+    expect(rows().every((row) => row.querySelector('.marker'))).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('updates in place with the poll and goes away when nothing is open', async () => {
+    const wrapper = await summary([
+      openFlow(),
+      openFlow({ path: '/p/b.flow', relative_path: 'b.flow' }),
+    ])
+    await wrapper.find('button').trigger('click')
+    await nextTick()
+    expect(rows()).toHaveLength(2)
+
+    mocked.openFlows!.mockResolvedValue(listing([openFlow()]))
+    await useWorkspaceStore().fetchOpenFlows()
+    await nextTick()
+    expect(rows()).toHaveLength(1)
+
+    mocked.openFlows!.mockResolvedValue(listing([]))
+    await useWorkspaceStore().fetchOpenFlows()
+    await nextTick()
+    expect(wrapper.find('button').exists()).toBe(false)
+    expect(rows()).toHaveLength(0)
+    wrapper.unmount()
   })
 })

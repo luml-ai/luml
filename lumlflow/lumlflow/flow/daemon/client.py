@@ -9,6 +9,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+from lumlflow import __version__
 from lumlflow.flow import errors
 from lumlflow.flow.daemon import harnesses, workspace
 from lumlflow.flow.daemon.workspace import DaemonRecord
@@ -150,11 +151,31 @@ def discover(*, timeout: float = _HELD_RETRY_S) -> DaemonRecord | None:
 def connect(directory: Path | None = None, *, start: bool = True) -> DaemonClient:
     record = discover()
     if record is not None:
+        _refuse_other_version(record)
         return attach(record)
     if not start:
         raise ServerError("the lumlflow daemon is not running")
     record, started = _start_daemon((directory or Path.cwd()).resolve())
+    _refuse_other_version(record)
     return attach(record, started=started)
+
+
+def version_mismatch(record: DaemonRecord) -> str | None:
+    if record.version == __version__:
+        return None
+    return (
+        f"the running lumlflow daemon is version `{record.version}` "
+        f"(pid {record.pid}) but this is `{__version__}`. stop it with "
+        "`lumlflow daemon stop` or use that build's `lumlflow`"
+    )
+
+
+def _refuse_other_version(record: DaemonRecord) -> None:
+    """Builds differ in their RPC surface and the UI they serve, so a client
+    never talks to a daemon from another one."""
+    mismatch = version_mismatch(record)
+    if mismatch is not None:
+        raise ServerError(mismatch)
 
 
 def stop(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:

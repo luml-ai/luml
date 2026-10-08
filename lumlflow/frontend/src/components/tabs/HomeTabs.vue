@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { ROUTE_NAMES } from '@/router/router.const'
-import { FlaskConical, Folder } from 'lucide-vue-next'
+import { FlaskConical, Notebook } from 'lucide-vue-next'
 import { Tabs, TabList, Tab, type TabListPassThroughOptions } from 'primevue'
 import { useRoute } from 'vue-router'
 import { computed } from 'vue'
@@ -35,7 +35,7 @@ const items = [
   {
     label: 'Notebooks',
     route: { name: ROUTE_NAMES.WORKSPACES },
-    icon: Folder,
+    icon: Notebook,
   },
 ]
 

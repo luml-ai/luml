@@ -4,12 +4,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from lumlflow import __version__
+from lumlflow.flow import cli
 from lumlflow.flow.daemon import harnesses
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.main import Daemon
 
-from tests.daemon.helpers import make_workspace
+from tests.daemon.helpers import fake_lumlflow_build, make_workspace
 
 
 def _executable(path: Path) -> str:
@@ -116,7 +118,7 @@ def test_sync_rewrites_a_path_scoped_entry_but_honours_manual_removal(
     entry = json.loads(config.read_text("utf-8"))["mcpServers"]["lumlflow"]
 
     assert synced[0]["state"] == "set up"
-    assert entry["command"] == "lumlflow"
+    assert entry["command"] == str((tmp_path / "bin" / "lumlflow").resolve())
     assert entry["args"] == ["mcp"]
 
     config.unlink()
@@ -124,6 +126,107 @@ def test_sync_rewrites_a_path_scoped_entry_but_honours_manual_removal(
 
     assert removed["state"] == "removed by you"
     assert not config.exists()
+
+
+def test_sync_leaves_another_install_s_entry_and_setup_replaces_it(
+    tmp_path: Path,
+) -> None:
+    ours = _executable(tmp_path / "venv" / "bin" / "lumlflow")
+    service = _service(tmp_path, binaries=("claude",), running_executable=ours)
+    service.setup("claude-code", consent=True)
+    theirs = fake_lumlflow_build(tmp_path / "conda", "0.2.0")
+    config = tmp_path / "home" / ".claude.json"
+    document = json.loads(config.read_text("utf-8"))
+    document["mcpServers"]["lumlflow"]["command"] = theirs
+    config.write_text(json.dumps(document), encoding="utf-8")
+    foreign = config.read_bytes()
+
+    (listed,) = service.list_harnesses()
+
+    assert config.read_bytes() == foreign
+    assert listed["state"] == "set up for another lumlflow"
+    assert listed["replaced_build"] is None
+    assert cli._agent_harness_lines([listed])[0] == (
+        f"Claude Code (claude-code) · set up for lumlflow 0.2.0 at "
+        f"{Path(theirs).resolve()}; run `lumlflow agents setup claude-code` "
+        "from this build"
+    )
+
+    taken = service.setup("claude-code", consent=False)
+    entry = json.loads(config.read_text("utf-8"))["mcpServers"]["lumlflow"]
+
+    assert taken["state"] == "set up"
+    assert taken["replaced_build"] == {
+        "path": str(Path(theirs).resolve()),
+        "version": "0.2.0",
+    }
+    assert entry["command"] == str(Path(ours).resolve())
+    assert cli._agent_harness_lines([taken])[2] == (
+        f"  was set up for lumlflow 0.2.0 at {Path(theirs).resolve()}"
+    )
+    assert service.list_harnesses()[0]["replaced_build"] is None
+
+
+def _bare_entry(tmp_path: Path, marker: str) -> tuple[harnesses.HarnessService, Path]:
+    ours = _executable(tmp_path / "venv" / "bin" / "lumlflow")
+    service = _service(tmp_path, binaries=("claude",), running_executable=ours)
+    service.setup("claude-code", consent=True)
+    config = tmp_path / "home" / ".claude.json"
+    document = json.loads(config.read_text("utf-8"))
+    document["mcpServers"]["lumlflow"] = harnesses.desired_entry(
+        harnesses.harness_by_id("claude-code"), executable="lumlflow", version=marker
+    )
+    config.write_text(json.dumps(document), encoding="utf-8")
+    return service, config
+
+
+def test_sync_pins_a_bare_entry_this_version_wrote_to_this_build(
+    tmp_path: Path,
+) -> None:
+    service, config = _bare_entry(tmp_path, __version__)
+
+    (listed,) = service.list_harnesses()
+    entry = json.loads(config.read_text("utf-8"))["mcpServers"]["lumlflow"]
+
+    assert listed["state"] == "set up"
+    assert entry["command"] == str((tmp_path / "venv" / "bin" / "lumlflow").resolve())
+
+
+def test_sync_leaves_a_bare_entry_another_version_wrote(tmp_path: Path) -> None:
+    service, config = _bare_entry(tmp_path, "0.2.0")
+    written = config.read_bytes()
+
+    (listed,) = service.list_harnesses()
+
+    assert config.read_bytes() == written
+    assert cli._agent_harness_lines([listed])[0] == (
+        "Claude Code (claude-code) · set up for lumlflow 0.2.0 at lumlflow; "
+        "run `lumlflow agents setup claude-code` from this build"
+    )
+
+
+def test_an_unconsented_entry_for_another_install_says_how_to_take_it(
+    tmp_path: Path,
+) -> None:
+    ours = _executable(tmp_path / "venv" / "bin" / "lumlflow")
+    service = _service(tmp_path, binaries=("claude",), running_executable=ours)
+    theirs = fake_lumlflow_build(tmp_path / "conda", "0.2.0")
+    harness = harnesses.harness_by_id("claude-code")
+    config = tmp_path / "home" / ".claude.json"
+    config.parent.mkdir()
+    entry = harnesses.desired_entry(harness, executable=theirs)
+    config.write_text(json.dumps({"mcpServers": {"lumlflow": entry}}), "utf-8")
+
+    (listed,) = service.list_harnesses()
+
+    assert listed["state"] == "set up for another lumlflow"
+    assert listed["action"] == "update"
+    assert json.loads(config.read_text("utf-8"))["mcpServers"]["lumlflow"] == entry
+    assert cli._agent_harness_lines([listed])[0] == (
+        f"Claude Code (claude-code) · set up for lumlflow 0.2.0 at "
+        f"{Path(theirs).resolve()}; run `lumlflow agents setup claude-code` "
+        "from this build"
+    )
 
 
 def test_failed_sync_is_the_only_time_an_owned_entry_stays_out_of_date(

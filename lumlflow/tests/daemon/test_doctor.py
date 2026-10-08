@@ -108,6 +108,63 @@ def test_doctor_warns_for_a_running_non_loopback_daemon(
     assert NON_LOOPBACK_WARNING in result.output
 
 
+def test_doctor_names_another_version_and_the_install_each_entry_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    record = DaemonRecord(
+        pid=1234,
+        instance_id="foreign",
+        port=1234,
+        token="secret",
+        web_host="127.0.0.1",
+        web_port=5000,
+        tracker_store=str(tmp_path / "experiments"),
+        version="0.0.0-other",
+    )
+    monkeypatch.setattr(workspace, "read_record", lambda: record)
+    monkeypatch.setattr(workspace, "lock_held", lambda: True)
+    monkeypatch.setattr(client, "is_alive", lambda _record: True)
+    monkeypatch.setattr(
+        harnesses.HarnessService,
+        "owned_entries",
+        lambda _self: [
+            {
+                "id": "claude-code",
+                "display_name": "Claude Code",
+                "state": "set up for another lumlflow",
+                "config_path": str(tmp_path / ".claude.json"),
+                "command_path": "/other/bin/lumlflow",
+                "this_build": False,
+                "other_build": {"path": "/other/bin/lumlflow", "version": "0.2.0"},
+            }
+        ],
+    )
+
+    report = diagnostics.report(root)
+    shown = CliRunner().invoke(app, ["doctor", str(root)])
+
+    assert (report["running_version"], report["this_version"]) == (
+        "0.0.0-other",
+        __version__,
+    )
+    assert shown.exit_code == 0, shown.output
+    assert f"daemon 0.0.0-other · this lumlflow {__version__}" in shown.output
+    assert "runs /other/bin/lumlflow (not this build)" in shown.output
+
+
+def test_doctor_leaves_out_versions_that_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=())
+    monkeypatch.setattr(workspace, "read_record", lambda: None)
+    monkeypatch.setattr(harnesses.HarnessService, "owned_entries", lambda _self: [])
+
+    report = diagnostics.report(root)
+
+    assert "running_version" not in report
+
+
 @pytest.mark.parametrize(
     ("recorded", "held", "alive", "status"),
     [

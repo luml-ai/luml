@@ -16,7 +16,7 @@ else:
 from lumlflow import __version__
 from lumlflow.flow.atomic import atomic_write_bytes
 from lumlflow.flow.dsl.tree import EXCLUDED_DIRS
-from lumlflow.flow.errors import FlowAmbiguous, FlowNotFound
+from lumlflow.flow.errors import FlowAmbiguous, FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import FLOW_SUFFIX, store_dir
 
 STATE_DIR_ENV = "LUMLFLOW_STATE_DIR"
@@ -73,27 +73,51 @@ class DaemonRecord:
         return json.dumps(self.__dict__, sort_keys=True).encode("utf-8")
 
 
-def find_flows(root: Path) -> list[FlowRef]:
+@dataclass(frozen=True)
+class DirectoryListing:
+    flows: list[FlowRef]
+    folders: list[Path]
+
+
+def list_directory(root: Path) -> DirectoryListing:
     root = root.resolve()
-    found: list[FlowRef] = []
-    for dirpath, dirnames, _ in os.walk(root):
-        here = Path(dirpath)
-        dirnames[:] = sorted(name for name in dirnames if name not in EXCLUDED_DIRS)
-        flows = [name for name in dirnames if name.endswith(FLOW_SUFFIX)]
-        dirnames[:] = [name for name in dirnames if name not in flows]
-        for name in flows:
-            path = here / name
-            found.append(
+    if root.name.endswith(FLOW_SUFFIX) and root.is_dir():
+        return DirectoryListing(
+            flows=[
+                FlowRef(name=root.name[: -len(FLOW_SUFFIX)], path=root, relpath=".")
+            ],
+            folders=[],
+        )
+    try:
+        entries = sorted(os.scandir(root), key=lambda entry: entry.name)
+    except (FileNotFoundError, NotADirectoryError):
+        raise FlowError(f"there is no directory `{root}`") from None
+    except OSError:
+        raise FlowError(f"cannot read `{root}`") from None
+    flows: list[FlowRef] = []
+    folders: list[Path] = []
+    for entry in entries:
+        # One level, never descended: a linked directory cannot loop.
+        try:
+            if not entry.is_dir():
+                continue
+        except OSError:
+            continue
+        if entry.name.endswith(FLOW_SUFFIX):
+            path = Path(entry.path)
+            flows.append(
                 FlowRef(
-                    name=name[: -len(FLOW_SUFFIX)],
-                    path=path,
-                    relpath=path.relative_to(root).as_posix(),
+                    name=entry.name[: -len(FLOW_SUFFIX)],
+                    path=path.resolve() if entry.is_symlink() else path,
+                    relpath=entry.name,
                 )
             )
-    return found
+        elif entry.name not in EXCLUDED_DIRS and not entry.name.startswith("."):
+            folders.append(root / entry.name)
+    return DirectoryListing(flows=flows, folders=folders)
 
 
-Walk = Callable[[Path], list[FlowRef]]
+Lister = Callable[[Path], DirectoryListing]
 
 
 def select_flow(
@@ -101,27 +125,21 @@ def select_flow(
     *,
     name: str | None = None,
     cwd: Path | None = None,
-    walk: Walk | None = None,
+    lister: Lister | None = None,
 ) -> FlowRef:
-    walk = walk or find_flows
+    root = root.resolve()
+    lister = lister or list_directory
     if name is not None:
-        return _addressed(root, name, walk)
+        return _addressed(root, name, lister)
     standing = _standing_flow(cwd or root)
     if standing is not None:
         return standing
-    flows = walk(root)
-    inside = _containing_flow(flows, cwd) if cwd is not None else None
-    if inside is not None:
-        return inside
+    flows = lister(root).flows
     if not flows:
         raise FlowNotFound(f"no flow in {root}. create one with `lumlflow init`")
     if len(flows) > 1:
         raise FlowAmbiguous(f"which flow? {_candidates(flows)}. name one with `--flow`")
     return flows[0]
-
-
-def flow_here(root: Path, cwd: Path) -> FlowRef | None:
-    return _standing_flow(cwd) or _containing_flow(find_flows(root), cwd)
 
 
 class WorkspaceLock:
@@ -295,42 +313,44 @@ def _unlock(handle: int) -> None:
         pass
 
 
-def _named(flows: list[FlowRef], name: str) -> FlowRef:
-    wanted = name.removesuffix(FLOW_SUFFIX).strip("/")
-    matches = [
-        flow
-        for flow in flows
-        if wanted in (flow.name, flow.relpath, flow.relpath.removesuffix(FLOW_SUFFIX))
-    ]
-    if not matches:
-        raise FlowNotFound(
-            f"no flow called `{name}`"
-            + (f". this workspace has {_candidates(flows)}" if flows else "")
-        )
-    if len(matches) > 1:
-        raise FlowAmbiguous(
-            f"`{name}` names more than one flow: {_paths(matches)}. "
-            "use the path to say which"
-        )
-    return matches[0]
+def _addressed(root: Path, name: str, lister: Lister) -> FlowRef:
+    if Path(name).is_absolute():
+        return _at_path(root, Path(name).resolve())
+    wanted = name.strip("/")
+    if ".." in Path(wanted).parts:
+        raise FlowError(f"`{name}` is not a path a flow can be named by")
+    if len(Path(wanted).parts) > 1:
+        if not wanted.endswith(FLOW_SUFFIX):
+            wanted += FLOW_SUFFIX
+        return _at_path(root, (root / wanted).resolve())
+    bare = wanted.removesuffix(FLOW_SUFFIX)
+    standing = _standing_flow(root)
+    if standing is not None and bare == standing.name:
+        return standing
+    path = root / f"{bare}{FLOW_SUFFIX}"
+    if bare and path.is_dir():
+        return FlowRef(name=bare, path=path, relpath=path.name)
+    raise _missing(root, name, lister)
 
 
-def _containing_flow(flows: list[FlowRef], cwd: Path) -> FlowRef | None:
-    here = cwd.resolve()
-    return next(
-        (flow for flow in flows if here == flow.path or here.is_relative_to(flow.path)),
-        None,
+def _missing(root: Path, name: str, lister: Lister) -> FlowNotFound:
+    listing = lister(root)
+    has = (
+        f"this directory has {', '.join(f'`{flow.name}`' for flow in listing.flows)}"
+        if listing.flows
+        else "this directory has no flows"
     )
+    if listing.folders:
+        bare = name.strip("/").removesuffix(FLOW_SUFFIX)
+        hint = (
+            f". name a nested flow by its path, like `{listing.folders[0].name}/{bare}`"
+        )
+    else:
+        hint = ""
+    return FlowNotFound(f"no flow called `{name}` in `{root}`. {has}{hint}")
 
 
-def _addressed(root: Path, name: str, walk: Walk) -> FlowRef:
-    asked = Path(name)
-    if not asked.is_absolute():
-        standing = _standing_flow(root)
-        if standing is not None and name.removesuffix(FLOW_SUFFIX) == standing.name:
-            return standing
-        return _named(walk(root), name)
-    path = asked.resolve()
+def _at_path(root: Path, path: Path) -> FlowRef:
     if path == root and path.name.endswith(FLOW_SUFFIX):
         if not path.is_dir():
             raise FlowNotFound(f"there is no flow at `{path}`")
@@ -342,27 +362,22 @@ def _addressed(root: Path, name: str, walk: Walk) -> FlowRef:
     if path.is_relative_to(root):
         relpath = path.relative_to(root)
         if path.is_dir() and _discoverable(relpath):
-            # What the walk would find at this path, without walking a root
-            # as wide as a home directory on every call.
             return FlowRef(
                 name=path.name[: -len(FLOW_SUFFIX)],
                 path=path,
                 relpath=relpath.as_posix(),
             )
-        return _named(walk(root), relpath.as_posix())
+        raise FlowNotFound(f"there is no flow at `{path}`")
     return _outside_flow(path)
 
 
 def _discoverable(relpath: Path) -> bool:
-    """Whether `find_flows` reaches a flow at `relpath`.
-
-    It names a `.flow` directory and none of the directories above it is one
-    the walk skips or stops at.
-    """
+    """Whether `relpath` names a `.flow` directory with no `.flow` directory
+    above it. A folder a listing hides is still reached by its path."""
 
     *above, name = relpath.parts or ("",)
     return name.endswith(FLOW_SUFFIX) and not any(
-        part in EXCLUDED_DIRS or part.endswith(FLOW_SUFFIX) for part in above
+        part.endswith(FLOW_SUFFIX) for part in above
     )
 
 
@@ -395,7 +410,3 @@ def _standing_flow(directory: Path) -> FlowRef | None:
 
 def _candidates(flows: list[FlowRef]) -> str:
     return ", ".join(f"`{flow.name}` (`{flow.address}`)" for flow in flows)
-
-
-def _paths(flows: list[FlowRef]) -> str:
-    return ", ".join(f"`{flow.address}`" for flow in flows)

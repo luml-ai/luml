@@ -166,12 +166,33 @@ async def test_the_landing_page_lists_flows_beneath_the_requested_directory(
                 "path": str(requested / "sales.flow"),
                 "relative_path": "sales.flow",
             },
-            {
-                "name": "sweep",
-                "path": str(requested / "nested" / "sweep.flow"),
-                "relative_path": "nested/sweep.flow",
-            },
         ],
+        "folders": [{"name": "nested", "path": str(requested / "nested")}],
+    }
+
+
+async def test_a_listing_names_flows_and_folders_but_skips_the_rest(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=("churn",))
+    make_workspace(root / "data", flows=("deep",))
+    (root / "node_modules" / "hidden.flow").mkdir(parents=True)
+    (root / ".cache").mkdir()
+    (root / "notes.md").write_text("")
+
+    async with daemon_api(root) as api:
+        listed = await api.workspace_list({})
+
+    assert listed == {
+        "directory": str(root),
+        "flows": [
+            {
+                "name": "churn",
+                "path": str(root / "churn.flow"),
+                "relative_path": "churn.flow",
+            }
+        ],
+        "folders": [{"name": "data", "path": str(root / "data")}],
     }
 
 
@@ -243,7 +264,7 @@ async def test_a_flow_opened_from_outside_runs_under_its_own_workspace(
         session = api.hub.session(str(other / "sales.flow"))
         hosted = {
             ref.name: api.hub.open(ref).workspace_dir
-            for ref in workspace.find_flows(root)
+            for ref in workspace.list_directory(root).flows
         }
 
     assert ran["executed"] == ["where"]
@@ -281,7 +302,7 @@ async def test_a_nested_flow_runs_from_its_containing_directory(
     write_cell(flow, "workspace", WORKSPACE_CELL)
 
     async with daemon_api(root) as api:
-        outcome = await api.run({"flow": "churn", "target": "workspace"})
+        outcome = await api.run({"flow": "experiments/q3/churn", "target": "workspace"})
         session = api.hub.session("churn")
 
     assert outcome["executed"] == ["workspace"]

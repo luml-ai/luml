@@ -437,17 +437,17 @@ def test_two_same_named_flows_stay_distinct_in_one_mcp_session(
     assert talk.hub.session(str(first)) is not talk.hub.session(str(second))
 
 
-def test_a_bare_duplicate_name_is_refused_with_both_paths_over_mcp(
+def test_a_bare_name_of_nested_flows_is_refused_with_a_path_hint_over_mcp(
     talk: Talk, workspace: Path
 ) -> None:
-    first = make_workspace(workspace / "a", flows=("sales",)) / "sales.flow"
-    second = make_workspace(workspace / "b", flows=("sales",)) / "sales.flow"
+    make_workspace(workspace / "a", flows=("sales",))
+    make_workspace(workspace / "b", flows=("sales",))
 
     answers = talk(hello(), tool(1, "context", {"flow": "sales"}))
     refusal = failed(answers, 1)
 
-    assert str(first) in refusal
-    assert str(second) in refusal
+    assert "no flow called `sales`" in refusal
+    assert "by its path, like `a/sales`" in refusal
 
 
 def test_status_and_init_flow_take_an_optional_directory(

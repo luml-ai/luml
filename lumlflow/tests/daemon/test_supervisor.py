@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import json
 import os
 import signal
@@ -667,6 +668,38 @@ def test_an_oversized_rpc_line_is_refused_without_dropping_the_connection(
     assert answered["result"]["pid"] == live.record.pid
 
 
+def test_a_daemon_from_another_version_is_found_but_never_attached(
+    tmp_path: Path, start: Starter
+):
+    root = make_workspace(tmp_path / "project")
+    live = start(root)
+    foreign = dataclasses.replace(live.record, version="0.0.0-other")
+    workspace.write_record(foreign)
+    refusal = (
+        f"the running lumlflow daemon is version `0.0.0-other` (pid {foreign.pid}) "
+        f"but this is `{__version__}`. stop it with `lumlflow daemon stop` or use "
+        "that build's `lumlflow`"
+    )
+
+    assert client.discover() == foreign
+    with pytest.raises(ServerError) as refused:
+        client.connect(root)
+    assert str(refused.value) == refusal
+
+    status = CliRunner().invoke(app, ["daemon", "status"])
+    assert status.exit_code == 0, status.output
+    assert refusal in status.output
+
+    shown = CliRunner().invoke(app, ["ui", str(root), "--no-browser"])
+    assert shown.exit_code == 1
+    assert refusal in shown.output
+
+    stopped = CliRunner().invoke(app, ["daemon", "stop"])
+    assert stopped.exit_code == 0, stopped.output
+    assert "lumlflow daemon stopped" in stopped.output
+    assert not workspace.lock_held()
+
+
 def test_no_daemon_is_started_when_the_caller_says_not_to(tmp_path: Path):
     root = make_workspace(tmp_path / "project")
 
@@ -681,9 +714,7 @@ def test_an_mcp_client_that_is_killed_leaves_no_session_and_no_lock(
 ):
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "score", SCORE_CELL)
-    command = harnesses.resolve_executable(
-        Path(sys.executable).with_name("lumlflow"), search_path=""
-    )
+    command = harnesses.resolve_executable(Path(sys.executable).with_name("lumlflow"))
     if not Path(command).exists():
         pytest.skip("lumlflow is not installed as a console script here")
 

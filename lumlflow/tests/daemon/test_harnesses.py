@@ -8,12 +8,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from lumlflow import __version__
 from lumlflow.flow.daemon import harnesses
 
-from tests.daemon.helpers import make_workspace
+from tests.daemon.helpers import fake_lumlflow_build, make_workspace
 
 
 def _executable(path: Path) -> str:
+    # `#!/bin/sh` scripts exercise the branch with no python shebang to follow.
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("#!/bin/sh\n", encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
@@ -163,6 +165,37 @@ def test_owned_entries_lists_only_configs_lumlflow_manages(tmp_path: Path) -> No
     owned = service.owned_entries()
 
     assert [(entry["id"], entry["state"]) for entry in owned] == [("codex", "set up")]
+    assert owned[0]["command_path"] == str(Path(executable).resolve())
+    assert owned[0]["this_build"] is True
+    assert owned[0]["other_build"] is None
+
+
+def test_owned_entries_name_the_install_a_foreign_entry_runs(tmp_path: Path) -> None:
+    user_home = tmp_path / "home"
+    ours = _executable(tmp_path / "venv" / "bin" / "lumlflow")
+    theirs = fake_lumlflow_build(tmp_path / "conda", "0.2.0")
+    codex = harnesses.harness_by_id("codex")
+    harnesses.write_config(
+        codex, executable=theirs, home=user_home, platform="linux", environment={}
+    )
+    service = harnesses.HarnessService(
+        ours,
+        state_directory=tmp_path / "state",
+        home=user_home,
+        platform="linux",
+        environment={},
+        search_path="",
+    )
+
+    (owned,) = service.owned_entries()
+
+    assert owned["state"] == "set up for another lumlflow"
+    assert owned["command_path"] == str(Path(theirs).resolve())
+    assert owned["this_build"] is False
+    assert owned["other_build"] == {
+        "path": str(Path(theirs).resolve()),
+        "version": "0.2.0",
+    }
 
 
 def test_first_touch_backup_is_not_replaced_on_later_updates(tmp_path: Path) -> None:
@@ -258,7 +291,7 @@ def test_out_of_date_and_broken_entries_are_distinct(tmp_path: Path) -> None:
         harnesses.entry_state(
             harness, executable=current_executable, version="0.1.0", path=path
         )
-        == harnesses.EntryState.OUT_OF_DATE
+        == harnesses.EntryState.OTHER_BUILD
     )
 
     Path(old_executable).unlink()
@@ -307,18 +340,142 @@ def test_detection_uses_binaries_or_user_config_directories(tmp_path: Path) -> N
     assert {entry.id for entry in detected} == {"cursor", "gemini"}
 
 
-def test_executable_is_bare_on_path_and_absolute_otherwise(tmp_path: Path) -> None:
-    binary_dir = tmp_path / "bin"
-    on_path = _executable(binary_dir / "lumlflow")
-    running = tmp_path / "venv" / "bin" / "lumlflow"
+def test_the_registered_command_is_never_bare(tmp_path: Path) -> None:
+    running = Path(_executable(tmp_path / "venv" / "bin" / "lumlflow"))
+
+    assert harnesses.resolve_command(running) == (str(running.resolve()),)
+    linked = tmp_path / "bin" / "lumlflow"
+    linked.parent.mkdir()
+    linked.symlink_to(running)
+    assert harnesses.resolve_executable(linked) == str(running.resolve())
+    missing = tmp_path / "gone" / "lumlflow"
+    assert harnesses.resolve_executable(missing) == str(missing.resolve())
+
+
+def test_a_service_on_a_path_led_by_its_own_venv_still_registers_a_path(
+    tmp_path: Path,
+) -> None:
+    running = _executable(tmp_path / "venv" / "bin" / "lumlflow")
+    service = harnesses.HarnessService(
+        running,
+        state_directory=tmp_path / "state",
+        home=tmp_path / "home",
+        platform="linux",
+        environment={},
+        search_path=str(Path(running).parent),
+    )
+
+    assert service.command == (str(Path(running).resolve()),)
+
+
+@pytest.mark.parametrize(
+    ("marker", "state"),
+    [
+        (__version__, harnesses.EntryState.OUT_OF_DATE),
+        ("0.2.0", harnesses.EntryState.OTHER_BUILD),
+    ],
+)
+def test_a_bare_entry_is_judged_by_its_marker(
+    tmp_path: Path, marker: str, state: harnesses.EntryState
+) -> None:
+    harness = harnesses.harness_by_id("claude-code")
+    path = tmp_path / ".claude.json"
+    ours = _executable(tmp_path / "venv" / "bin" / "lumlflow")
+    entry = harnesses.desired_entry(harness, executable="lumlflow", version=marker)
+    path.write_text(json.dumps({"mcpServers": {"lumlflow": entry}}), "utf-8")
+
+    status = harnesses.entry_status(
+        harness, executable=ours, path=path, search_path=str(Path(ours).parent)
+    )
+
+    assert status.state == state
+    if state == harnesses.EntryState.OTHER_BUILD:
+        assert status.other_build == harnesses.OtherBuild(
+            path="lumlflow", version="0.2.0"
+        )
+
+
+def test_a_command_that_is_not_python_is_not_given_an_installed_version(
+    tmp_path: Path,
+) -> None:
+    harness = harnesses.harness_by_id("claude-code")
+    path = tmp_path / ".claude.json"
+    ours = _executable(tmp_path / "venv" / "bin" / "lumlflow")
+    fake_lumlflow_build(tmp_path / "usr", "9.9.9")
+    uv = _executable(tmp_path / "usr" / "bin" / "uv")
+    entry = {
+        "command": uv,
+        "args": ["run", "lumlflow", "mcp"],
+        "env": {harnesses.MANAGED_ENV: __version__},
+    }
+    path.write_text(json.dumps({"mcpServers": {"lumlflow": entry}}), "utf-8")
+
+    status = harnesses.entry_status(harness, executable=ours, path=path)
+
+    assert status.other_build == harnesses.OtherBuild(
+        path=str(Path(uv).resolve()), version=None
+    )
+
+
+def test_a_module_invocation_registers_this_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interpreter = Path(_executable(tmp_path / "env" / "bin" / "python"))
+    monkeypatch.setattr(harnesses.sys, "executable", str(interpreter))
+    script = tmp_path / "src" / "lumlflow" / "__main__.py"
+
+    command = harnesses.resolve_command(script)
+
+    assert command == (str(interpreter), "-m", "lumlflow.cli")
+    for harness in harnesses.HARNESSES:
+        entry = harnesses.desired_entry(harness, executable=command)
+        if harness.shape == harnesses.ConfigShape.OPENCODE:
+            assert entry["command"] == [*command, "mcp"]
+        else:
+            assert [entry["command"], *entry["args"]] == [*command, "mcp"]
+
+    sibling = _executable(interpreter.with_name("lumlflow"))
+    assert harnesses.resolve_command(script) == (sibling,)
+
+
+def test_an_entry_running_another_install_is_reported_with_its_version(
+    tmp_path: Path,
+) -> None:
+    harness = harnesses.harness_by_id("claude-code")
+    path = tmp_path / ".claude.json"
+    ours = fake_lumlflow_build(tmp_path / "venv", "0.1.0")
+    theirs = fake_lumlflow_build(tmp_path / "conda", "0.2.0")
+    entry = harnesses.desired_entry(harness, executable=theirs, version="0.1.0")
+    path.write_text(json.dumps({"mcpServers": {"lumlflow": entry}}), "utf-8")
+
+    status = harnesses.entry_status(
+        harness,
+        executable=ours,
+        version="0.1.0",
+        path=path,
+        search_path=str(Path(theirs).parent),
+    )
+
+    assert status.state == harnesses.EntryState.OTHER_BUILD
+    assert status.other_build == harnesses.OtherBuild(
+        path=str(Path(theirs).resolve()), version="0.2.0"
+    )
+
+
+def test_the_same_install_reached_another_way_is_not_another_build(
+    tmp_path: Path,
+) -> None:
+    harness = harnesses.harness_by_id("claude-code")
+    path = tmp_path / ".claude.json"
+    script = fake_lumlflow_build(tmp_path / "venv", "0.1.0")
+    entry = harnesses.desired_entry(harness, executable=script, version="0.0.9")
+    path.write_text(json.dumps({"mcpServers": {"lumlflow": entry}}), "utf-8")
+    module = (str(Path(script).with_name("python")), "-m", "lumlflow.cli")
 
     assert (
-        harnesses.resolve_executable(running, search_path=str(binary_dir)) == "lumlflow"
+        harnesses.entry_state(harness, executable=module, version="0.1.0", path=path)
+        == harnesses.EntryState.OUT_OF_DATE
     )
-    assert harnesses.resolve_executable(running, search_path="") == str(
-        running.resolve()
-    )
-    assert Path(on_path).is_file()
 
 
 def test_registry_records_only_verified_shell_markers() -> None:
@@ -579,7 +736,7 @@ def test_the_harness_entry_command_serves_mcp_without_a_workspace_argument(
 ) -> None:
     root = make_workspace(tmp_path / "project")
     installed = Path(sys.executable).with_name("lumlflow")
-    command = harnesses.resolve_executable(installed, search_path="")
+    command = harnesses.resolve_executable(installed)
     if not Path(command).exists():
         pytest.skip("lumlflow is not installed as a console script here")
     handshake = {

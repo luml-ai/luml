@@ -23,7 +23,6 @@ from lumlflow.flow.errors import (
     CellClaimed,
     EditConflict,
     FlowError,
-    FlowNotFound,
     LaneMoved,
     ValueNotStored,
 )
@@ -208,7 +207,7 @@ class Api:
         else:
             flows = [
                 await self._listed_status(ref, actor=actor)
-                for ref in self.hub.walk(directory)
+                for ref in self.hub.reported(directory)
             ]
         return {
             "workspace": str(directory),
@@ -237,7 +236,7 @@ class Api:
     async def gc_sweep(self, params: dict[str, Any]) -> dict[str, Any]:
         directory = self._directory(params)
         flows: list[dict[str, Any]] = []
-        for ref in self.hub.walk(directory):
+        for ref in self.hub.reported(directory):
             session = self.hub.attached(ref.path)
             if session is None and not store_dir(ref.path).is_dir():
                 continue
@@ -298,6 +297,7 @@ class Api:
 
     async def workspace_list(self, params: dict[str, Any]) -> dict[str, Any]:
         directory = self._directory(params)
+        listing = self.hub.listing(directory)
         return {
             "directory": str(directory),
             "flows": [
@@ -306,7 +306,10 @@ class Api:
                     "path": ref.address,
                     "relative_path": ref.relpath,
                 }
-                for ref in self.hub.walk(directory)
+                for ref in listing.flows
+            ],
+            "folders": [
+                {"name": folder.name, "path": str(folder)} for folder in listing.folders
             ],
         }
 
@@ -1177,29 +1180,12 @@ class Api:
 
     def resolve(self, name: str | None, *, directory: Path | None = None) -> FlowRef:
         directory = directory or self.directory
-        if name is None or Path(name).is_absolute():
-            return self._select(name, directory)
+        if name is None or Path(name).is_absolute() or _nested(name):
+            return workspace.select_flow(directory, name=name, lister=self.hub.listing)
         here = self.hub.lookup(name, directory)
         if here is not None:
             return here
-        try:
-            return self._select(name, directory)
-        except FlowNotFound:
-            elsewhere = self.hub.lookup(name, directory, inside=False)
-            if elsewhere is None:
-                raise
-            return elsewhere
-
-    def _select(self, name: str | None, directory: Path) -> FlowRef:
-        """`select_flow` over the cached walk, walking afresh before saying no:
-        a flow made or renamed by hand is missing from a walk taken before."""
-        asked = self.hub.clock()
-        try:
-            return workspace.select_flow(directory, name=name, walk=self.hub.walk)
-        except FlowNotFound:
-            if not self.hub.forget_walk(directory, before=asked):
-                raise
-            return workspace.select_flow(directory, name=name, walk=self.hub.walk)
+        return workspace.select_flow(directory, name=name, lister=self.hub.listing)
 
     async def sweep_idle(self) -> None:
         """Stop the kernels nothing has used lately, then let go of the flows
@@ -1957,6 +1943,10 @@ def _cell_named(
     slugs = {version.slug for version in versions.values()}
     cell, _ = split_target(target, slugs)
     return cell or None
+
+
+def _nested(name: str) -> bool:
+    return len(Path(name.strip("/")).parts) > 1
 
 
 def _named(value: Any) -> str | None:

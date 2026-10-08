@@ -282,3 +282,17 @@ _PATHISH = re.compile(r"\S*/\S*")
 def no_git_words(text: str, where: str) -> None:
     found = sorted(set(GIT_WORDS.findall(_PATHISH.sub(" ", text))))
     assert not found, f"{where} says {found}:\n{text}"
+
+
+def fake_lumlflow_build(root: Path, version: str) -> str:
+    """A lumlflow script whose python shebang leads to an install of `version`."""
+    python = root / "bin" / "python"
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.write_text("#!/bin/sh\n", encoding="utf-8")
+    python.chmod(python.stat().st_mode | stat.S_IEXEC)
+    site = root / "lib" / "python3.12" / "site-packages"
+    (site / f"lumlflow-{version}.dist-info").mkdir(parents=True)
+    script = root / "bin" / "lumlflow"
+    script.write_text(f"#!{python}\nimport lumlflow\n", encoding="utf-8")
+    script.chmod(0o755)
+    return str(script)

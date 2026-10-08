@@ -91,9 +91,15 @@ export interface WorkspaceFlow {
   relative_path: string
 }
 
+export interface WorkspaceFolder {
+  name: string
+  path: string
+}
+
 export interface WorkspaceListing {
   directory: string
   flows: WorkspaceFlow[]
+  folders: WorkspaceFolder[]
 }
 
 export interface BranchTree {

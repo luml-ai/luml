@@ -9,15 +9,15 @@ from lumlflow.flow.daemon import web, workspace
 from lumlflow.flow.daemon.api import Api, Leases
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.stream import Streams
-from lumlflow.flow.errors import FlowAmbiguous
+from lumlflow.flow.errors import FlowAmbiguous, FlowNotFound
 
 from tests.daemon.helpers import SCORE_CELL, daemon_api, make_workspace, write_cell
 
 HOUR_S = 3600.0
 
 
-def _no_walk(root: Path) -> list[workspace.FlowRef]:
-    raise AssertionError(f"`{root}` was walked")
+def _no_listing(root: Path) -> workspace.DirectoryListing:
+    raise AssertionError(f"`{root}` was listed")
 
 
 def _age(session: FlowSession, api: Api) -> None:
@@ -46,7 +46,7 @@ async def _streamed_api(
         await hub.close()
 
 
-async def test_a_name_resolves_against_an_open_flow_without_a_walk(
+async def test_a_name_resolves_against_an_open_flow_without_listing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     home = make_workspace(tmp_path / "home", flows=())
@@ -54,7 +54,7 @@ async def test_a_name_resolves_against_an_open_flow_without_a_walk(
 
     async with daemon_api(project) as api:
         await api.flow_open({"flow": "churn", "worktree": False})
-        monkeypatch.setattr(workspace, "find_flows", _no_walk)
+        monkeypatch.setattr(workspace, "list_directory", _no_listing)
         from_home = api.resolve("churn", directory=home)
         from_project = api.resolve("churn.flow", directory=project)
 
@@ -82,46 +82,14 @@ async def test_a_name_prefers_the_open_flow_under_the_directory(tmp_path: Path):
     assert str(second / "churn.flow") in str(ambiguous.value)
 
 
-async def test_the_walk_is_kept_until_a_flow_is_made_renamed_or_deleted(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    root = make_workspace(tmp_path / "project", flows=("churn",))
-    walked: list[Path] = []
-    walk = workspace.find_flows
-
-    def counted(directory: Path) -> list[workspace.FlowRef]:
-        walked.append(directory)
-        return walk(directory)
-
-    monkeypatch.setattr(workspace, "find_flows", counted)
-
-    async def names(api: Api) -> list[str]:
-        listed = await api.workspace_list({})
-        return [flow["name"] for flow in listed["flows"]]
-
-    async with daemon_api(root) as api:
-        assert await names(api) == ["churn"]
-        assert await names(api) == ["churn"]
-        assert len(walked) == 1
-
-        await api.flow_init({"name": "sales"})
-        assert await names(api) == ["churn", "sales"]
-        await api.flow_rename({"flow": "sales", "name": "leads"})
-        assert await names(api) == ["churn", "leads"]
-        await api.flow_delete({"flow": "leads"})
-        assert await names(api) == ["churn"]
-
-    assert len(walked) == 4
-
-
-async def test_a_listed_flow_is_found_by_name_without_walking_again(
+async def test_a_listed_flow_is_found_by_name_without_listing_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     root = make_workspace(tmp_path / "project", flows=("churn",))
 
     async with daemon_api(root) as api:
         await api.workspace_list({})
-        monkeypatch.setattr(workspace, "find_flows", _no_walk)
+        monkeypatch.setattr(workspace, "list_directory", _no_listing)
         ref = api.resolve("churn")
 
     assert ref.path == root / "churn.flow"
@@ -238,7 +206,7 @@ async def test_an_idle_flow_loses_its_kernel_then_its_session_but_not_its_name(
         assert api.hub.attached(session.ref.path) is None
         assert api.hub.watches.roots() == []
 
-        monkeypatch.setattr(workspace, "find_flows", _no_walk)
+        monkeypatch.setattr(workspace, "list_directory", _no_listing)
         ref = api.resolve("churn")
         reopened = await api.cells_list({"flow": "churn"})
 
@@ -277,7 +245,7 @@ async def test_the_idle_limits_come_from_the_environment(
         assert api.hub.attached(session.ref.path) is session
 
 
-async def test_an_open_flow_elsewhere_does_not_shadow_an_unseen_one_beneath(
+async def test_a_bare_name_never_settles_on_an_open_flow_elsewhere(
     tmp_path: Path,
 ):
     elsewhere = make_workspace(tmp_path / "a", flows=("churn",))
@@ -287,33 +255,41 @@ async def test_an_open_flow_elsewhere_does_not_shadow_an_unseen_one_beneath(
 
     async with daemon_api(elsewhere) as api:
         await api.flow_open({"flow": "churn", "worktree": False})
-        nested = api.resolve("churn", directory=asked)
+        with pytest.raises(FlowNotFound) as unseen:
+            api.resolve("churn", directory=asked)
+        by_path = api.resolve("proj/churn", directory=asked)
         direct = api.resolve("churn", directory=asked / "proj")
-        fallback = api.resolve("churn", directory=unrelated)
-
-    assert nested.path == beneath
-    assert direct.path == beneath
-    assert fallback.path == elsewhere / "churn.flow"
-
-
-async def test_two_open_flows_elsewhere_are_ambiguous(tmp_path: Path):
-    first = make_workspace(tmp_path / "first", flows=("churn",))
-    second = make_workspace(tmp_path / "second", flows=("churn",))
-    unrelated = make_workspace(tmp_path / "unrelated", flows=())
-
-    async with daemon_api(first) as api:
-        await api.flow_open({"flow": "churn", "worktree": False})
-        await api.flow_open(
-            {"flow": "churn", "directory": str(second), "worktree": False}
-        )
-
-        with pytest.raises(FlowAmbiguous):
+        with pytest.raises(FlowNotFound):
             api.resolve("churn", directory=unrelated)
+        absolute = api.resolve(str(elsewhere / "churn.flow"), directory=unrelated)
+
+    assert "by its path, like `proj/churn`" in str(unseen.value)
+    assert (by_path.path, by_path.relpath) == (beneath, "proj/churn.flow")
+    assert direct.path == beneath
+    assert absolute.path == elsewhere / "churn.flow"
 
 
-async def test_a_flow_renamed_or_made_by_hand_is_found_despite_the_walk_cache(
-    tmp_path: Path,
-):
+async def test_an_open_flow_beneath_stays_in_the_directory_reports(tmp_path: Path):
+    root = make_workspace(tmp_path / "project", flows=("sales",))
+    make_workspace(root / "work", flows=("churn",))
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "work/churn", "worktree": False})
+        status = await api.status({})
+        swept = await api.gc_sweep({})
+        listed = await api.workspace_list({})
+
+    assert [flow["relative_path"] for flow in status["flows"]] == [
+        "sales.flow",
+        "work/churn.flow",
+    ]
+    assert [flow["path"] for flow in swept["flows"]] == [
+        str(root / "work" / "churn.flow")
+    ]
+    assert [flow["relative_path"] for flow in listed["flows"]] == ["sales.flow"]
+
+
+async def test_a_flow_renamed_or_made_by_hand_is_found_at_once(tmp_path: Path):
     root = make_workspace(tmp_path / "project", flows=("churn",))
     empty = make_workspace(tmp_path / "empty", flows=())
 

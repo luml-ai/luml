@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 
+from lumlflow import __version__
 from lumlflow.flow.daemon import client, envs, harnesses, workspace
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.store.flowstore import store_dir
@@ -27,6 +28,11 @@ def report(directory: Path) -> dict[str, Any]:
         if record is not None and handshake["status"] == "answering"
         else Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
     )
+    versions = (
+        {"running_version": record.version, "this_version": __version__}
+        if record is not None and record.version != __version__
+        else {}
+    )
     return {
         "directory": str(requested),
         "state_directory": {
@@ -34,6 +40,7 @@ def report(directory: Path) -> dict[str, Any]:
             "local": workspace.state_dir_is_local(),
         },
         "record": _record(record),
+        **versions,
         "lock": "held" if held else "free",
         "handshake": handshake,
         "log_path": str(workspace.log_path().resolve()),
@@ -87,7 +94,7 @@ def _network_bind_warning(
 
 def _flow_store_usage(directory: Path) -> dict[str, Any]:
     flows: list[dict[str, Any]] = []
-    for ref in workspace.find_flows(directory):
+    for ref in workspace.list_directory(directory).flows:
         path = store_dir(ref.path)
         if not path.is_dir():
             continue

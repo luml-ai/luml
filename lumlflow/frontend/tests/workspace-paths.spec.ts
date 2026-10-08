@@ -4,12 +4,16 @@ import { createPinia, setActivePinia } from 'pinia'
 vi.mock('@/api/slices/workspace/workspace.api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/slices/workspace/workspace.api')>()),
   workspaceApi: {
-    listFlows: vi.fn(async (directory?: string) => ({ directory: directory ?? 'C:\\start', flows: [] })),
+    listFlows: vi.fn(async (directory?: string) => ({
+      directory: directory ?? 'C:\\start',
+      flows: [],
+      folders: [],
+    })),
   },
 }))
 
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
-import { baseName, parentDirectory } from '@/helpers/path'
+import { baseName, parentDirectory, pathSegments } from '@/helpers/path'
 import { useWorkspaceStore } from '@/store/workspace'
 
 describe('path helpers', () => {
@@ -57,5 +61,23 @@ describe('workspace navigation', () => {
 
     expect(workspaceApi.listFlows).toHaveBeenLastCalledWith('C:\\Users\\me')
     expect(store.currentDirectory).toBe('C:\\Users\\me')
+  })
+})
+
+describe('pathSegments', () => {
+  it('gives every directory the path up to itself', () => {
+    expect(pathSegments('/Users/o/work')).toEqual([
+      { name: 'Users', path: '/Users' },
+      { name: 'o', path: '/Users/o' },
+      { name: 'work', path: '/Users/o/work' },
+    ])
+  })
+
+  it('keeps a drive as the first segment', () => {
+    expect(pathSegments('C:\\p\\team')).toEqual([
+      { name: 'C:', path: 'C:\\' },
+      { name: 'p', path: 'C:\\p' },
+      { name: 'team', path: 'C:\\p\\team' },
+    ])
   })
 })

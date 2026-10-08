@@ -46,6 +46,11 @@ def doctor(payload: dict[str, Any]) -> list[str]:
                 f"  version       {record['version']}",
             ]
         )
+    if payload.get("running_version"):
+        lines.append(
+            f"version         daemon {payload['running_version']} · "
+            f"this lumlflow {payload['this_version']}"
+        )
     handshake = payload["handshake"]
     identity = f" · {handshake['instance_id']}" if handshake.get("instance_id") else ""
     stores = payload["flow_stores"]
@@ -69,11 +74,21 @@ def doctor(payload: dict[str, Any]) -> list[str]:
     lines.append(f"owned harness entries {len(entries)}")
     lines.extend(
         f"  {entry['display_name']} ({entry['id']}) · {entry['state']} · "
-        f"{entry['config_path']}"
+        f"{entry['config_path']} · {_entry_command(entry)}"
         for entry in entries
     )
     lines.extend(payload.get("warnings") or [])
     return lines
+
+
+def _entry_command(entry: dict[str, Any]) -> str:
+    command = entry.get("command_path")
+    if not command:
+        return "command missing"
+    this_build = entry.get("this_build")
+    if this_build is None:
+        return f"runs {command} (found on the harness's PATH)"
+    return f"runs {command}{'' if this_build else ' (not this build)'}"
 
 
 def gc(payload: dict[str, Any]) -> list[str]:

@@ -133,8 +133,12 @@ def _attach(
     tracker_store: str,
     no_browser: bool,
 ) -> None:
+    from lumlflow.flow.daemon import client
     from lumlflow.flow.errors import FlowError
 
+    mismatch = client.version_mismatch(record)
+    if mismatch is not None:
+        raise FlowError(mismatch)
     if record.tracker_store != tracker_store or record.web_host != host:
         raise FlowError(
             "lumlflow is already serving tracker store "

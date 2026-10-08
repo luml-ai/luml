@@ -14,6 +14,7 @@ import pytest
 import typer.main
 import websockets.sync.client
 import yaml
+from lumlflow import __version__
 from lumlflow.cli import app
 from lumlflow.flow import render
 from lumlflow.flow.daemon import client, docs, web
@@ -1230,7 +1231,7 @@ def test_daemon_status_lists_the_open_flows_when_it_is_running(
         web_host="127.0.0.1",
         web_port=1,
         tracker_store=str(workspace / "experiments"),
-        version="0",
+        version=__version__,
     )
     monkeypatch.setattr(client, "discover", lambda: record)
     cli("init", "churn")

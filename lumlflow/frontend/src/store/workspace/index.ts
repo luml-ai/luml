@@ -5,6 +5,7 @@ import type {
   OpenFlow,
   OpenFlowsTotals,
   WorkspaceFlow,
+  WorkspaceFolder,
 } from '@/api/slices/workspace/workspace.interface'
 import { parentDirectory } from '@/helpers/path'
 import { defineStore } from 'pinia'
@@ -27,32 +28,28 @@ const NO_OPEN_FLOWS: OpenFlowsTotals = {
   leased_sessions: 0,
 }
 
-function joinPath(directory: string, segment: string): string {
-  if (!directory) return segment
-  return /[\\/]$/.test(directory) ? `${directory}${segment}` : `${directory}/${segment}`
-}
-
 export const useWorkspaceStore = defineStore('workspace', () => {
   const currentDirectory = ref<string | null>(null)
   const flows = ref<WorkspaceFlow[]>([])
+  const folders = ref<WorkspaceFolder[]>([])
   const isDirectoryLoading = ref(false)
   const openFlows = ref<OpenFlow[]>([])
   const openFlowsTotals = ref<OpenFlowsTotals>(NO_OPEN_FLOWS)
   let openFlowsRequest = 0
 
   const openFlowsByPath = computed(() => new Map(openFlows.value.map((flow) => [flow.path, flow])))
-  const openFlowsElsewhere = computed(() => openFlows.value.filter((flow) => !flow.inside))
-  // Open flows inside the listed directory but under one of its folders, by folder path.
+  // Open flows inside the listed directory but under one of its folders, keyed by the
+  // folder's path as listed, so the key matches the row whatever the separator.
   const openFlowsByFolder = computed(() => {
-    const directory = currentDirectory.value ?? ''
-    const folders = new Map<string, OpenFlow[]>()
+    const folderPaths = new Map(folders.value.map((folder) => [folder.name, folder.path]))
+    const grouped = new Map<string, OpenFlow[]>()
     for (const flow of openFlows.value) {
       const [folder, ...rest] = (flow.relative_path ?? '').split('/').filter(Boolean)
-      if (!flow.inside || !folder || rest.length === 0) continue
-      const path = joinPath(directory, folder)
-      folders.set(path, [...(folders.get(path) ?? []), flow])
+      const path = folder && folderPaths.get(folder)
+      if (!flow.inside || !path || rest.length === 0) continue
+      grouped.set(path, [...(grouped.get(path) ?? []), flow])
     }
-    return folders
+    return grouped
   })
 
   // Polled, so a failure keeps the last answer rather than raising a toast.
@@ -86,6 +83,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       if (listing.directory !== currentDirectory.value) forgetOpenFlows()
       currentDirectory.value = listing.directory
       flows.value = listing.flows
+      folders.value = listing.folders
       // Every listing change (navigation, rename, delete, …) lands here.
       void fetchOpenFlows()
     } finally {
@@ -107,37 +105,22 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return fetchDirectory(parent ?? undefined)
   }
 
-  const items = computed<IWorkspaceFolderItem[]>(() => {
-    const directory = currentDirectory.value ?? ''
-    const flowItems: IWorkspaceFolderItem[] = []
-    const folderNames = new Set<string>()
-
-    for (const flow of flows.value) {
-      const segments = flow.relative_path.split('/').filter(Boolean)
-      const [firstSegment] = segments
-      if (segments.length <= 1 && firstSegment) {
-        flowItems.push({
-          id: flow.path,
-          name: firstSegment,
-          type: 'flow',
-          path: flow.path,
-          size: 0,
-        })
-      } else if (firstSegment) {
-        folderNames.add(firstSegment)
-      }
-    }
-
-    const folderItems: IWorkspaceFolderItem[] = [...folderNames].map((name) => ({
-      id: joinPath(directory, name),
-      name,
-      type: 'folder',
-      path: joinPath(directory, name),
+  const items = computed<IWorkspaceFolderItem[]>(() => [
+    ...flows.value.map((flow) => ({
+      id: flow.path,
+      name: flow.relative_path,
+      type: 'flow' as const,
+      path: flow.path,
       size: 0,
-    }))
-
-    return [...flowItems, ...folderItems]
-  })
+    })),
+    ...folders.value.map((folder) => ({
+      id: folder.path,
+      name: folder.name,
+      type: 'folder' as const,
+      path: folder.path,
+      size: 0,
+    })),
+  ])
 
   const sortedItems = computed(() => {
     return [...items.value].sort((a, b) => {
@@ -196,7 +179,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     isDirectoryLoading,
     canGoUp,
     openFlowsByPath,
-    openFlowsElsewhere,
+    openFlows,
     openFlowsByFolder,
     openFlowsTotals,
     fetchOpenFlows,

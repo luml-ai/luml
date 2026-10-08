@@ -15,7 +15,11 @@ class Evaluate:
         mae = float(mean_absolute_error(y_test, preds))
         r2 = float(r2_score(y_test, preds))
 
-        ctx.tracker.log_params({"alpha": model.alpha})
+        params = {"model": type(model).__name__}
+        for k in ("n_estimators", "learning_rate", "max_depth", "min_samples_leaf"):
+            if hasattr(model, k):
+                params[k] = getattr(model, k)
+        ctx.tracker.log_params(params)
         ctx.tracker.log_metrics({"rmse": rmse, "mae": mae, "r2": r2})
 
         return {"metrics": ctx.tracker.record}

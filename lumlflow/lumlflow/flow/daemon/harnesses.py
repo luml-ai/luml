@@ -6,7 +6,7 @@ import shutil
 import sys
 import threading
 import tomllib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -41,6 +41,7 @@ class EntryState(StrEnum):
     OUT_OF_DATE = "out of date"
     BROKEN = "broken"
     REMOVED_BY_YOU = "removed by you"
+    OTHER_BUILD = "set up for another lumlflow"
 
 
 class HarnessConfigError(FlowError):
@@ -332,6 +333,18 @@ HARNESS_REGISTRY = HARNESSES
 
 
 @dataclass(frozen=True)
+class OtherBuild:
+    path: str
+    version: str | None
+
+
+@dataclass(frozen=True)
+class EntryStatus:
+    state: EntryState
+    other_build: OtherBuild | None = None
+
+
+@dataclass(frozen=True)
 class WriteResult:
     path: Path
     changed: bool
@@ -381,13 +394,24 @@ def _normalized_name(name: str) -> str:
     return "".join(character for character in name.casefold() if character.isalnum())
 
 
-def resolve_executable(
-    running_executable: str | Path, *, search_path: str | None = None
-) -> str:
-    effective_path = search_path if search_path is not None else os.environ.get("PATH")
-    if shutil.which(SERVER_NAME, path=effective_path) is not None:
-        return SERVER_NAME
+def resolve_executable(running_executable: str | Path) -> str:
+    """Never bare: a harness resolves a bare name on its own PATH, which may
+    find another lumlflow than the one this process sees first."""
     return str(Path(running_executable).resolve())
+
+
+def resolve_command(running_executable: str | Path) -> tuple[str, ...]:
+    """`python -m lumlflow.flow.daemon` and the like are not commands a harness
+    can launch, so this interpreter's own entry point stands in for them."""
+    running = Path(running_executable)
+    if _is_lumlflow_command(running.name):
+        return (resolve_executable(running),)
+    interpreter = Path(sys.executable)
+    for name in (SERVER_NAME, f"{SERVER_NAME}.exe"):
+        sibling = interpreter.with_name(name)
+        if sibling.is_file():
+            return (resolve_executable(sibling),)
+    return (str(interpreter.absolute()), "-m", "lumlflow.cli")
 
 
 def detected_harnesses(
@@ -441,17 +465,18 @@ def is_detected(
 def desired_entry(
     harness: Harness,
     *,
-    executable: str,
+    executable: str | Sequence[str],
     version: str = __version__,
 ) -> dict[str, Any]:
     marker = {MANAGED_ENV: version}
+    command = _argv(executable)
     if harness.shape == ConfigShape.OPENCODE:
         return {
             "type": harness.stdio_type or "local",
-            "command": [executable, "mcp"],
+            "command": [*command, "mcp"],
             "environment": marker,
         }
-    entry: dict[str, Any] = {"command": executable, "args": ["mcp"]}
+    entry: dict[str, Any] = {"command": command[0], "args": [*command[1:], "mcp"]}
     if harness.stdio_type is not None:
         entry = {"type": harness.stdio_type, **entry}
     entry["env"] = marker
@@ -463,7 +488,7 @@ def desired_entry(
 def config_snippet(
     harness: Harness,
     *,
-    executable: str,
+    executable: str | Sequence[str],
     version: str = __version__,
 ) -> str:
     shape = harness.shape or ConfigShape.MCP_SERVERS
@@ -496,7 +521,7 @@ def read_config(
 def entry_state(
     harness: Harness,
     *,
-    executable: str,
+    executable: str | Sequence[str],
     version: str = __version__,
     home: Path | None = None,
     platform: str | None = None,
@@ -504,6 +529,29 @@ def entry_state(
     path: Path | None = None,
     search_path: str | None = None,
 ) -> EntryState:
+    return entry_status(
+        harness,
+        executable=executable,
+        version=version,
+        home=home,
+        platform=platform,
+        environment=environment,
+        path=path,
+        search_path=search_path,
+    ).state
+
+
+def entry_status(
+    harness: Harness,
+    *,
+    executable: str | Sequence[str],
+    version: str = __version__,
+    home: Path | None = None,
+    platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    path: Path | None = None,
+    search_path: str | None = None,
+) -> EntryStatus:
     document = read_config(
         harness,
         home=home,
@@ -514,24 +562,37 @@ def entry_state(
     section = _section(document, harness.shape, create=False)
     owned = [(name, entry) for name, entry in section.items() if is_owned(name, entry)]
     if not owned:
-        return EntryState.NOT_SET_UP
-    desired = desired_entry(harness, executable=executable, version=version)
-    if owned != [(SERVER_NAME, desired)]:
-        return EntryState.OUT_OF_DATE
+        return EntryStatus(EntryState.NOT_SET_UP)
     resolved_environment = environment if environment is not None else os.environ
     environment_path = resolved_environment.get("PATH")
     effective_search_path = search_path if search_path is not None else environment_path
+    desired = desired_entry(harness, executable=executable, version=version)
+    if owned != [(SERVER_NAME, desired)]:
+        ours = _locate(_argv(executable)[0], effective_search_path)
+        for _, entry in owned:
+            other = _other_build(entry, ours, effective_search_path, version)
+            if other is not None:
+                return EntryStatus(EntryState.OTHER_BUILD, other)
+        return EntryStatus(EntryState.OUT_OF_DATE)
     if any(
         not _entry_command_exists(entry, effective_search_path) for _, entry in owned
     ):
-        return EntryState.BROKEN
-    return EntryState.SET_UP
+        return EntryStatus(EntryState.BROKEN)
+    return EntryStatus(EntryState.SET_UP)
+
+
+def entry_command_path(entry: object, search_path: str | None) -> Path | None:
+    command = _entry_command(entry)
+    if command is None:
+        return None
+    located = _locate(command, search_path)
+    return located.resolve() if located is not None else None
 
 
 def write_config(
     harness: Harness,
     *,
-    executable: str,
+    executable: str | Sequence[str],
     version: str = __version__,
     home: Path | None = None,
     platform: str | None = None,
@@ -820,11 +881,110 @@ def _is_lumlflow_command(command: str | None) -> bool:
 
 def _entry_command_exists(entry: object, search_path: str | None) -> bool:
     command = _entry_command(entry)
-    if command is None:
+    return command is not None and _locate(command, search_path) is not None
+
+
+def _argv(executable: str | Sequence[str]) -> tuple[str, ...]:
+    if isinstance(executable, str):
+        return (executable,)
+    return tuple(executable)
+
+
+def _has_separator(command: str) -> bool:
+    return Path(command).is_absolute() or "/" in command or "\\" in command
+
+
+def _locate(command: str, search_path: str | None) -> Path | None:
+    if _has_separator(command):
+        return Path(command) if Path(command).is_file() else None
+    found = shutil.which(command, path=search_path)
+    return Path(found) if found is not None else None
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    try:
+        return os.path.samefile(first.resolve(), second.resolve())
+    except OSError:
         return False
-    if Path(command).is_absolute() or "/" in command or "\\" in command:
-        return Path(command).is_file()
-    return shutil.which(command, path=search_path) is not None
+
+
+def _other_build(
+    entry: object, ours: Path | None, search_path: str | None, version: str
+) -> OtherBuild | None:
+    """The marker says which version wrote the entry, not which one it runs, so
+    the version comes from the install the command lives in when it can. A bare
+    name resolves on the harness's PATH, not ours, so only its marker counts."""
+    command = _entry_command(entry)
+    if ours is None or command is None:
+        return None
+    marker = _entry_marker(entry)
+    if not _has_separator(command):
+        return None if marker == version else OtherBuild(path=command, version=marker)
+    theirs = _locate(command, search_path)
+    if theirs is None or _same_build(theirs, ours):
+        return None
+    environment = _build_directory(theirs)
+    installed = _installed_version(environment) if environment is not None else None
+    if installed is None and marker != version:
+        installed = marker
+    return OtherBuild(path=str(theirs.resolve()), version=installed)
+
+
+def _same_build(first: Path, second: Path) -> bool:
+    if _same_file(first, second):
+        return True
+    first_build = _build_directory(first)
+    second_build = _build_directory(second)
+    if first_build is None or second_build is None:
+        return False
+    try:
+        return os.path.samefile(first_build, second_build)
+    except OSError:
+        return False
+
+
+def _build_directory(command: Path) -> Path | None:
+    """Where the interpreter lives, unresolved: a virtualenv's python is a
+    symlink to a shared base interpreter, so resolving it would merge builds."""
+    interpreter = (
+        _shebang_interpreter(command) if _is_lumlflow_command(command.name) else command
+    )
+    if interpreter is None or not interpreter.name.lower().startswith("python"):
+        return None
+    return Path(os.path.abspath(interpreter)).parent
+
+
+def _shebang_interpreter(script: Path) -> Path | None:
+    try:
+        with script.open("rb") as handle:
+            first = handle.readline(1024)
+    except OSError:
+        return None
+    if not first.startswith(b"#!"):
+        return None
+    words = first[2:].decode("utf-8", errors="replace").split()
+    return Path(words[0]) if words else None
+
+
+def _installed_version(build: Path) -> str | None:
+    found = {
+        candidate.name.removeprefix(f"{SERVER_NAME}-").removesuffix(".dist-info")
+        for root, pattern in (
+            (build.parent, f"lib/python*/site-packages/{SERVER_NAME}-*.dist-info"),
+            (build.parent, f"Lib/site-packages/{SERVER_NAME}-*.dist-info"),
+            (build, f"Lib/site-packages/{SERVER_NAME}-*.dist-info"),
+        )
+        for candidate in root.glob(pattern)
+    }
+    return found.pop() if len(found) == 1 else None
+
+
+def _entry_marker(entry: object) -> str | None:
+    if not isinstance(entry, dict):
+        return None
+    env = entry.get("env") or entry.get("environment")
+    marker = env.get(MANAGED_ENV) if isinstance(env, dict) else None
+    return marker if isinstance(marker, str) else None
 
 
 class HarnessService:
@@ -847,6 +1007,7 @@ class HarnessService:
         self._search_path_override = search_path
         self._detected: tuple[Harness, ...] | None = None
         self._errors: dict[str, str] = {}
+        self._replaced: dict[str, OtherBuild] = {}
         self._lock = threading.RLock()
 
     @property
@@ -880,23 +1041,37 @@ class HarnessService:
                 if not self._can_setup(harness):
                     continue
                 try:
-                    state = self._entry_state(harness)
+                    status = self._entry_status(harness)
+                    entry = self._owned_entry(harness)
                 except (HarnessConfigError, OSError):
                     continue
-                if state not in {
+                if status.state not in {
                     EntryState.SET_UP,
                     EntryState.OUT_OF_DATE,
                     EntryState.BROKEN,
+                    EntryState.OTHER_BUILD,
                 }:
                     continue
                 config_path = self._config_path(harness)
                 assert config_path is not None
+                bare = _entry_command(entry)
+                command: Path | str | None = (
+                    bare
+                    if bare is not None and not _has_separator(bare)
+                    else entry_command_path(entry, self._search_path())
+                )
                 owned.append(
                     {
                         "id": harness.id,
                         "display_name": harness.display_name,
-                        "state": str(state),
+                        "state": str(status.state),
                         "config_path": str(config_path),
+                        "command_path": str(command) if command else None,
+                        "this_build": None
+                        if isinstance(command, str)
+                        else status.state != EntryState.OTHER_BUILD
+                        and command is not None,
+                        "other_build": _other_build_fields(status.other_build),
                     }
                 )
             return owned
@@ -914,10 +1089,12 @@ class HarnessService:
                 if not consent:
                     return self._describe(harness, preferences)
             self._errors.pop(harness.id, None)
+            self._replaced.pop(harness.id, None)
             try:
+                replaced = self._entry_status(harness).other_build
                 write_config(
                     harness,
-                    executable=self.executable,
+                    executable=self.command,
                     home=self._home,
                     platform=self._platform,
                     environment=self._environment,
@@ -925,6 +1102,8 @@ class HarnessService:
             except (HarnessConfigError, OSError) as error:
                 self._errors[harness.id] = str(error)
                 return self._describe(harness, preferences)
+            if replaced is not None:
+                self._replaced[harness.id] = replaced
             if harness.id not in preferences.consented:
                 preferences.consented.add(harness.id)
                 preferences.removed.discard(harness.id)
@@ -956,14 +1135,14 @@ class HarnessService:
             return self._describe(harness, preferences)
 
     @property
-    def executable(self) -> str:
-        return resolve_executable(
-            self._running_executable,
-            search_path=self._search_path(),
-        )
+    def command(self) -> tuple[str, ...]:
+        return resolve_command(self._running_executable)
 
     def _sync(self, preferences: _Preferences) -> None:
+        """Another build's entry is only reported: two installs rewriting it on
+        every daemon start would fight over the user's config."""
         self._errors.clear()
+        self._replaced.clear()
         for harness in self._detected_harnesses():
             if (
                 harness.id not in preferences.consented
@@ -972,11 +1151,10 @@ class HarnessService:
             ):
                 continue
             try:
-                state = self._entry_state(harness)
-                if state == EntryState.OUT_OF_DATE:
+                if self._entry_status(harness).state == EntryState.OUT_OF_DATE:
                     write_config(
                         harness,
-                        executable=self.executable,
+                        executable=self.command,
                         home=self._home,
                         platform=self._platform,
                         environment=self._environment,
@@ -988,9 +1166,11 @@ class HarnessService:
         consented = harness.id in preferences.consented
         error = self._errors.get(harness.id)
         state = EntryState.NOT_SET_UP
+        other_build: OtherBuild | None = None
         if self._can_setup(harness):
             try:
-                state = self._entry_state(harness)
+                status = self._entry_status(harness)
+                state, other_build = status.state, status.other_build
             except (HarnessConfigError, OSError) as failure:
                 error = error or str(failure)
                 state = EntryState.OUT_OF_DATE if consented else EntryState.NOT_SET_UP
@@ -1001,7 +1181,7 @@ class HarnessService:
 
         can_setup = self._can_setup(harness)
         action: str | None = None
-        if can_setup and state == EntryState.OUT_OF_DATE:
+        if can_setup and state in {EntryState.OUT_OF_DATE, EntryState.OTHER_BUILD}:
             action = "update"
         elif can_setup and state in {
             EntryState.NOT_SET_UP,
@@ -1018,7 +1198,9 @@ class HarnessService:
             "display_name": harness.display_name,
             "state": str(state),
             "config_path": shown_path,
-            "snippet": config_snippet(harness, executable=self.executable),
+            "snippet": config_snippet(harness, executable=self.command),
+            "other_build": _other_build_fields(other_build),
+            "replaced_build": _other_build_fields(self._replaced.get(harness.id)),
             "can_setup": can_setup,
             "action": action,
             "consent_required": consent_required,
@@ -1037,14 +1219,27 @@ class HarnessService:
             "error": error,
         }
 
-    def _entry_state(self, harness: Harness) -> EntryState:
-        return entry_state(
+    def _entry_status(self, harness: Harness) -> EntryStatus:
+        return entry_status(
             harness,
-            executable=self.executable,
+            executable=self.command,
             home=self._home,
             platform=self._platform,
             environment=self._environment,
             search_path=self._search_path(),
+        )
+
+    def _owned_entry(self, harness: Harness) -> object:
+        document = read_config(
+            harness,
+            home=self._home,
+            platform=self._platform,
+            environment=self._environment,
+        )
+        section = _section(document, harness.shape, create=False)
+        return next(
+            (entry for name, entry in section.items() if is_owned(name, entry)),
+            None,
         )
 
     def _detected_harnesses(self) -> tuple[Harness, ...]:
@@ -1115,6 +1310,12 @@ class HarnessService:
         ).encode("utf-8")
         atomic_write_bytes(self.consent_path, body + b"\n")
         self.consent_path.chmod(0o600)
+
+
+def _other_build_fields(other: OtherBuild | None) -> dict[str, Any] | None:
+    if other is None:
+        return None
+    return {"path": other.path, "version": other.version}
 
 
 def _platform(platform: str | None) -> Platform:

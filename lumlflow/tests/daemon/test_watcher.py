@@ -81,7 +81,7 @@ async def test_nested_flows_hold_their_containing_directories_as_watch_roots(
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "a"})
-        await api.flow_open({"flow": "b"})
+        await api.flow_open({"flow": "exp/b"})
         outer_session = api.hub.session("a")
         inner_session = api.hub.session("b")
 
