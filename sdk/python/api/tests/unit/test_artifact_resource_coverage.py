@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from luml_api._exceptions import FileError, FileUploadError
+from luml_api._exceptions import FileError, FileUploadError, LumlAPIError
 from luml_api._types import (
     Artifact,
     ArtifactStatus,
@@ -221,8 +221,9 @@ async def test_async_upload_invalid_format(mock_async_client: AsyncMock) -> None
 # --------------------------------------------------------------------------- #
 # upload: failure marks artifact UPLOAD_FAILED and re-raises
 # --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("error_type", [FileUploadError, LumlAPIError, ValueError])
 def test_upload_failure_marks_failed(
-    mock_sync_client: Mock, sample_artifact: Artifact
+    mock_sync_client: Mock, sample_artifact: Artifact, error_type: type[Exception]
 ) -> None:
     mock_sync_client.post.return_value = _created_artifact_payload(sample_artifact)
     mock_sync_client.patch.return_value = sample_artifact.model_dump()
@@ -235,18 +236,22 @@ def test_upload_failure_marks_failed(
         handler_cls.return_value.artifact_details.return_value = (
             _artifact_details_mock()
         )
-        service_cls.return_value.upload_file.side_effect = FileUploadError("boom")
+        error = error_type("boom")
+        service_cls.return_value.upload_file.side_effect = error
 
-        with pytest.raises(FileUploadError, match="boom"):
+        with pytest.raises(error_type, match="boom") as caught:
             resource.upload("model.fnnx")
 
+    assert caught.value is error
+    mock_sync_client.patch.assert_called_once()
     patch_json = mock_sync_client.patch.call_args.kwargs["json"]
     assert patch_json["status"] == ArtifactStatus.UPLOAD_FAILED.value
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("error_type", [FileUploadError, LumlAPIError, ValueError])
 async def test_async_upload_failure_marks_failed(
-    mock_async_client: AsyncMock, sample_artifact: Artifact
+    mock_async_client: AsyncMock, sample_artifact: Artifact, error_type: type[Exception]
 ) -> None:
     mock_async_client.post.return_value = _created_artifact_payload(sample_artifact)
     mock_async_client.patch.return_value = sample_artifact.model_dump()
@@ -259,13 +264,14 @@ async def test_async_upload_failure_marks_failed(
         handler_cls.return_value.artifact_details.return_value = (
             _artifact_details_mock()
         )
-        service_cls.return_value.upload_file = AsyncMock(
-            side_effect=FileUploadError("boom")
-        )
+        error = error_type("boom")
+        service_cls.return_value.upload_file = AsyncMock(side_effect=error)
 
-        with pytest.raises(FileUploadError, match="boom"):
+        with pytest.raises(error_type, match="boom") as caught:
             await resource.upload("model.fnnx")
 
+    assert caught.value is error
+    mock_async_client.patch.assert_awaited_once()
     patch_json = mock_async_client.patch.call_args.kwargs["json"]
     assert patch_json["status"] == ArtifactStatus.UPLOAD_FAILED.value
 
