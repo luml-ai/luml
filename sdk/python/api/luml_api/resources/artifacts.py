@@ -11,6 +11,7 @@ from luml_api._exceptions import (
     ArtifactBatchDeleteError,
     ArtifactDeleteError,
     FileError,
+    NotFoundError,
 )
 from luml_api._types import (
     Artifact,
@@ -314,8 +315,9 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         return self._get_by_name(collection_id, artifact_value)
 
     def _get_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
+        # server search only filters names, so include all pages for file names.
         return find_by_value(
-            self.list(collection_id=collection_id).items,
+            list(self.list_all(collection_id=collection_id)),
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
@@ -323,10 +325,13 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
     def _get_by_id(
         self, collection_id: str | None, artifact_value: str
     ) -> Artifact | None:
-        for model in self.list(collection_id=collection_id).items:
-            if model.id == artifact_value:
-                return model
-        return None
+        try:
+            response = self._client.get(
+                f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_value}"
+            )
+        except NotFoundError:
+            return None
+        return Artifact.model_validate(response) if response is not None else None
 
     @validate_collection
     def list_all(
@@ -902,7 +907,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         If collection_id is None, uses the default collection from client.
 
         Args:
-            artifact_id: ID of the artifact to download.
+            artifact_id: ID or exact name (name or file_name) of the artifact.
             file_path: Local path to save the downloaded file. If None,
                 uses the original file name.
             collection_id: ID of the collection containing the model. If not provided,
@@ -912,7 +917,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             None: File is saved to the specified path.
 
         Raises:
-            ValueError: If model with specified ID not found.
+            ValueError: If artifact with specified ID or name not found.
             ConfigurationError: If collection_id not provided and
                 no default collection set.
 
@@ -935,13 +940,13 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
         ```
         """
-        if file_path is None:
-            artifact = self._get_by_id(
-                collection_id=collection_id, artifact_value=artifact_id
-            )
+        if file_path is None or not is_uuid(artifact_id):
+            artifact = self.get(artifact_id, collection_id=collection_id)
             if artifact is None:
                 raise ValueError(f"Artifact with id {artifact_id} not found")
-            file_path = artifact.file_name
+            artifact_id = artifact.id
+            if file_path is None:
+                file_path = artifact.file_name
 
         download_info = self.download_url(
             artifact_id=artifact_id, collection_id=collection_id
@@ -1557,8 +1562,9 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
     async def _get_by_name(
         self, collection_id: str | None, name: str
     ) -> Artifact | None:
+        # server search only filters names, so include all pages for file names.
         return find_by_value(
-            (await self.list(collection_id=collection_id)).items,
+            [artifact async for artifact in self.list_all(collection_id=collection_id)],
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
@@ -1566,10 +1572,13 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
     async def _get_by_id(
         self, collection_id: str | None, artifact_value: str
     ) -> Artifact | None:
-        for model in (await self.list(collection_id=collection_id)).items:
-            if model.id == artifact_value:
-                return model
-        return None
+        try:
+            response = await self._client.get(
+                f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_value}"
+            )
+        except NotFoundError:
+            return None
+        return Artifact.model_validate(response) if response is not None else None
 
     @validate_collection
     def list_all(
@@ -2333,7 +2342,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         If collection_id is None, uses the default collection from client.
 
         Args:
-            artifact_id: ID of the artifact to download.
+            artifact_id: ID or exact name (name or file_name) of the artifact.
             file_path: Local path to save the downloaded file. If None,
                 uses the original file name.
             collection_id: ID of the collection containing the model. If not provided,
@@ -2343,7 +2352,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             None: File is saved to the specified path.
 
         Raises:
-            ValueError: If model with specified ID not found.
+            ValueError: If artifact with specified ID or name not found.
             ConfigurationError: If collection_id not provided and
                 no default collection set.
 
@@ -2373,13 +2382,13 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
         ```
         """
-        if file_path is None:
-            artifact = await self._get_by_id(
-                collection_id=collection_id, artifact_value=artifact_id
-            )
+        if file_path is None or not is_uuid(artifact_id):
+            artifact = await self.get(artifact_id, collection_id=collection_id)
             if artifact is None:
                 raise ValueError(f"Artifact with id {artifact_id} not found")
-            file_path = artifact.file_name
+            artifact_id = artifact.id
+            if file_path is None:
+                file_path = artifact.file_name
 
         download_info = await self.download_url(
             artifact_id=artifact_id, collection_id=collection_id
