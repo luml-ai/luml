@@ -326,7 +326,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.18.4" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", specifier = ">=0.28.0" },
-    { name = "luml-sdk", specifier = ">=0.2.0,<0.3.0" },
+    { name = "luml-sdk", specifier = ">=0.2.0,<0.5.0" },
     { name = "sqlalchemy", specifier = ">=2.0.47" },
     { name = "typer", specifier = ">=0.15.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
@@ -343,7 +343,7 @@ dev = [
 
 [[package]]
 name = "luml-sdk"
-version = "0.2.0"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cloudpickle" },
@@ -353,7 +353,7 @@ dependencies = [
     { name = "sqlparse" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/81/ffc13ad817d14a87a2a8f4179acd81ed29fa6ef96909e56b808a78fdeec1/luml_sdk-0.2.0-py3-none-any.whl", hash = "sha256:035c9b4238b3459e846ebd24181585c1edbaf9a243e5eef4e682fc189786367a", size = 151345, upload-time = "2026-07-11T16:50:34.876Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/9f/4976f3c8da47e7659c8ee644e58c519a9be531c7ef0af85116e92382db0f/luml_sdk-0.3.0-py3-none-any.whl", hash = "sha256:70c9bc13a56c9b8fa5457f5f838aece97ffbed8dba6762a4ab575972a499f921", size = 161810, upload-time = "2026-09-08T13:44:23.794Z" },
 ]
 
 [[package]]
