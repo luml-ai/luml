@@ -55,14 +55,29 @@ class DataProcessingWorkerClass {
           const message = event.data
           const callback = this.callbacks.get(message.id)
           this.callbacks.delete(message.id)
-          if (message.error) callback?.reject(new Error(message.error))
-          else callback?.resolve(message.payload)
+          if (message.error !== undefined || message.payload?.status === 'error') {
+            callback?.reject(
+              new Error(
+                message.error || message.payload?.error_message || 'Webworker request failed',
+              ),
+            )
+          } else callback?.resolve(message.payload)
         }
         worker.onerror = (event) => {
           this.resetWorker(new Error(event.message || 'Webworker failed'), worker)
         }
-        const ready = await this.postMessage<boolean>(WebworkerMessage.LOAD_PYODIDE)
-        if (!ready) throw new Error('Webworker is not ready')
+        worker.onmessageerror = () => {
+          this.resetWorker(new Error('Could not decode webworker response'), worker)
+        }
+        const timeout = setTimeout(() => {
+          this.resetWorker(new Error('Pyodide initialization timed out. Please try again.'), worker)
+        }, 120_000)
+        try {
+          const ready = await this.postMessage<boolean>(WebworkerMessage.LOAD_PYODIDE)
+          if (!ready) throw new Error('Webworker is not ready')
+        } finally {
+          clearTimeout(timeout)
+        }
       })().catch((error) => {
         this.resetWorker(error, worker)
         throw error
