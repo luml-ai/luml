@@ -331,8 +331,30 @@ def _addressed(root: Path, name: str) -> FlowRef:
             relpath=path.name,
         )
     if path.is_relative_to(root):
-        return _named(find_flows(root), path.relative_to(root).as_posix())
+        relpath = path.relative_to(root)
+        if path.is_dir() and _discoverable(relpath):
+            # What the walk would find at this path, without walking a root
+            # as wide as a home directory on every call.
+            return FlowRef(
+                name=path.name[: -len(FLOW_SUFFIX)],
+                path=path,
+                relpath=relpath.as_posix(),
+            )
+        return _named(find_flows(root), relpath.as_posix())
     return _outside_flow(path)
+
+
+def _discoverable(relpath: Path) -> bool:
+    """Whether `find_flows` reaches a flow at `relpath`.
+
+    It names a `.flow` directory and none of the directories above it is one
+    the walk skips or stops at.
+    """
+
+    *above, name = relpath.parts or ("",)
+    return name.endswith(FLOW_SUFFIX) and not any(
+        part in EXCLUDED_DIRS or part.endswith(FLOW_SUFFIX) for part in above
+    )
 
 
 def _outside_flow(path: Path) -> FlowRef:

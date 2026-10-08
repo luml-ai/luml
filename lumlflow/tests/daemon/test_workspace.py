@@ -92,6 +92,32 @@ def test_a_flow_outside_the_workspace_is_addressed_by_its_own_path(tmp_path: Pat
         workspace.select_flow(root, name=str(tmp_path / "nowhere.flow"))
 
 
+def test_an_absolute_path_inside_a_wide_root_is_addressed_without_a_walk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    root = make_workspace(tmp_path / "home", flows=())
+    flow = make_workspace(root / "work" / "ml", flows=("churn",)) / "churn.flow"
+
+    def walk(root: Path) -> list[workspace.FlowRef]:
+        raise AssertionError("a flow named by its path needs no walk")
+
+    monkeypatch.setattr(workspace, "find_flows", walk)
+    ref = workspace.select_flow(root, name=str(flow))
+
+    assert (ref.name, ref.path, ref.relpath) == ("churn", flow, "work/ml/churn.flow")
+
+
+def test_an_absolute_path_the_walk_would_skip_is_still_refused(tmp_path: Path):
+    root = make_workspace(tmp_path / "project", flows=())
+    hidden = make_workspace(root / "node_modules" / "pkg", flows=("x",)) / "x.flow"
+    nested = make_workspace(root / "outer.flow", flows=("inner",)) / "inner.flow"
+
+    with pytest.raises(FlowNotFound):
+        workspace.select_flow(root, name=str(hidden))
+    with pytest.raises(FlowNotFound):
+        workspace.select_flow(root, name=str(nested))
+
+
 def test_only_the_daemon_instance_that_registered_clears_the_record() -> None:
     record = _record("first")
     workspace.write_record(record)
