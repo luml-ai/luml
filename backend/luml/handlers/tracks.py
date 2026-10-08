@@ -221,6 +221,7 @@ class TracksHandler:
                 TrackUpdate(id=track_id, **update_fields),
                 stages=track_in.stages,
                 expected_stage_ids=track_in.expected_stage_ids,
+                orbit_id=orbit_id,
             )
         except IntegrityError as error:
             raise stage_sync_error(error) from error
@@ -250,9 +251,9 @@ class TracksHandler:
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         track = await self.__track_repository.get_track(track_id)
-        if not track:
+        if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
-        await self.__track_repository.delete_track(track_id)
+        await self.__track_repository.delete_track(track_id, orbit_id=orbit_id)
 
     @staticmethod
     def _entry_write_error(
@@ -553,7 +554,17 @@ class TracksHandler:
             Action.READ,
             orbit_id,
         )
-        return await self.__entry_repository.list_entries_for_artifact(artifact_id)
+        artifact = await self.__artifact_repository.get_artifact(artifact_id)
+        if not artifact:
+            raise NotFoundError("Artifact not found")
+        collection = await self.__collection_repository.get_collection(
+            artifact.collection_id
+        )
+        if not collection or collection.orbit_id != orbit_id:
+            raise NotFoundError("Artifact not found")
+        return await self.__entry_repository.list_entries_for_artifact(
+            artifact_id, orbit_id=orbit_id
+        )
 
     async def create_stage(
         self,
@@ -623,6 +634,10 @@ class TracksHandler:
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
 
+        stage = await self.__stage_repository.get_stage(stage_id)
+        if not stage or stage.track_id != track_id:
+            raise NotFoundError("Stage not found")
+
         try:
             updated = await self.__stage_repository.update_stage(
                 stage_id, StageUpdate(id=stage_id, name=stage_in.name)
@@ -656,6 +671,10 @@ class TracksHandler:
         track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
+
+        stage = await self.__stage_repository.get_stage(stage_id)
+        if not stage or stage.track_id != track_id:
+            raise NotFoundError("Stage not found")
 
         in_use = await self.__stage_repository.is_stage_in_use(stage_id)
         if in_use and not force:

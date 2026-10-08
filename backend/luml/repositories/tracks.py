@@ -149,10 +149,17 @@ class TrackRepository(RepositoryBase, CrudMixin):
         data: TrackUpdate,
         stages: list[StageUpsertIn] | None = None,
         expected_stage_ids: list[UUID] | None = None,
+        *,
+        orbit_id: UUID,
     ) -> Track | None:
         data.id = track_id
         async with self._get_session() as session:
-            db_track = await self.get_model(session, TrackOrm, track_id)
+            db_track = await self.get_model_where(
+                session,
+                TrackOrm,
+                TrackOrm.id == track_id,
+                TrackOrm.orbit_id == orbit_id,
+            )
             if db_track is None:
                 return None
 
@@ -169,9 +176,14 @@ class TrackRepository(RepositoryBase, CrudMixin):
             await session.refresh(db_track)
             return Track.model_validate(db_track)
 
-    async def delete_track(self, track_id: UUID) -> None:
+    async def delete_track(self, track_id: UUID, *, orbit_id: UUID) -> None:
         async with self._get_session() as session:
-            await self.delete_model(session, TrackOrm, track_id)
+            await self.delete_model_where(
+                session,
+                TrackOrm,
+                TrackOrm.id == track_id,
+                TrackOrm.orbit_id == orbit_id,
+            )
 
     async def get_tracks_for_artifact(self, artifact_id: UUID) -> list[TrackBase]:
         async with self._get_session() as session:
@@ -516,12 +528,17 @@ class TrackEntryRepository(RepositoryBase, CrudMixin):
             )
             await session.commit()
 
-    async def list_entries_for_artifact(self, artifact_id: UUID) -> list[TrackEntry]:
+    async def list_entries_for_artifact(
+        self, artifact_id: UUID, *, orbit_id: UUID
+    ) -> list[TrackEntry]:
         async with self._get_session() as session:
             rows = await self.get_models_where(
                 session,
                 TrackArtifactOrm,
                 TrackArtifactOrm.artifact_id == artifact_id,
+                TrackArtifactOrm.track_id.in_(
+                    select(TrackOrm.id).where(TrackOrm.orbit_id == orbit_id)
+                ),
                 order_by=[TrackArtifactOrm.created_at],
             )
             return [TrackEntry.model_validate(r) for r in rows]

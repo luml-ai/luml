@@ -440,7 +440,9 @@ class TestTracks:
 
         await mocks.handler.delete_track(USER_ID, ORGANIZATION_ID, ORBIT_ID, TRACK_ID)
 
-        mocks.track_repository.delete_track.assert_awaited_once_with(TRACK_ID)
+        mocks.track_repository.delete_track.assert_awaited_once_with(
+            TRACK_ID, orbit_id=ORBIT_ID
+        )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID, USER_ID, Resource.TRACK, Action.DELETE, ORBIT_ID
         )
@@ -466,3 +468,15 @@ class TestTracks:
             await mocks.handler.delete_track(
                 USER_ID, ORGANIZATION_ID, ORBIT_ID, TRACK_ID
             )
+
+
+async def test_delete_track_rejects_foreign_orbit(
+    mocks: CollaboratorMocks[TracksHandler],
+) -> None:
+    mocks.orbit_repository.get_orbit_simple.return_value = Mock(
+        organization_id=ORGANIZATION_ID
+    )
+    mocks.track_repository.get_track.return_value = _make_track(orbit_id=OTHER_ORBIT_ID)
+    with pytest.raises(NotFoundError, match="Track not found"):
+        await mocks.handler.delete_track(USER_ID, ORGANIZATION_ID, ORBIT_ID, TRACK_ID)
+    mocks.track_repository.delete_track.assert_not_awaited()
