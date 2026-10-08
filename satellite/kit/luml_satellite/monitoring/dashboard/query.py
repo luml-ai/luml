@@ -8,7 +8,7 @@ from client input.
 import json
 import math
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from time import time
@@ -84,9 +84,11 @@ from luml_satellite.monitoring.storage.query_store import (
     StoredAlert,
     StoredMetricResult,
 )
+from luml_satellite.workload import RecordingStatus
 
 # Reads the worker's counters for one deployment plus its (window, interval) cadence.
 HealthSource = Callable[[UUID], tuple["HealthSnapshot", tuple[float, float]]]
+RecordingSource = Callable[[UUID], Awaitable[RecordingStatus | None]]
 
 GROUP_RUNTIME = "runtime"
 GROUP_DATA_QUALITY = "data_quality"
@@ -387,10 +389,12 @@ class MonitoringQueryService:
         store: MonitoringStore,
         clock: Callable[[], float] = time,
         health_source: HealthSource | None = None,
+        recording_source: RecordingSource | None = None,
     ) -> None:
         self._store = store
         self._clock = clock
         self._health_source = health_source
+        self._recording_source = recording_source
 
     def _window_bounds(self, dims: QueryDimensions) -> tuple[datetime, datetime]:
         if dims.start is not None and dims.end is not None:
@@ -799,26 +803,28 @@ class MonitoringQueryService:
         )
 
     async def worker_health(self, deployment_id: UUID) -> WorkerHealthResponse:
+        recording = await self._recording_source(deployment_id) if self._recording_source else None
         if self._health_source is not None:
             snapshot, cadence = self._health_source(deployment_id)
         else:
             try:
                 heartbeats = await self._store.read_worker_heartbeats()
             except MonitoringStoreUnavailable:
-                return WorkerHealthResponse(state=SectionState.UNAVAILABLE)
+                return WorkerHealthResponse(state=SectionState.UNAVAILABLE, recording=recording)
             merged = WorkerHeartbeat.merge(
                 heartbeats,
                 deployment_id,
                 now=datetime.fromtimestamp(self._clock(), tz=UTC),
             )
             if merged is None:
-                return WorkerHealthResponse(state=SectionState.UNAVAILABLE)
+                return WorkerHealthResponse(state=SectionState.UNAVAILABLE, recording=recording)
             snapshot = merged.snapshot
             cadence = (merged.window_seconds, merged.interval_seconds)
         deployment = snapshot.deployment
         incidents = await self._metric_incidents(deployment_id)
         return WorkerHealthResponse(
             state=SectionState.OK,
+            recording=recording,
             running=snapshot.running,
             last_tick_at=snapshot.last_tick_at,
             windows_processed=deployment.windows_processed,

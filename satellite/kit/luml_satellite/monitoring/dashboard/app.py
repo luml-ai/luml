@@ -11,7 +11,11 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from luml_satellite.monitoring.dashboard.api import build_query_router
-from luml_satellite.monitoring.dashboard.query import HealthSource, MonitoringQueryService
+from luml_satellite.monitoring.dashboard.query import (
+    HealthSource,
+    MonitoringQueryService,
+    RecordingSource,
+)
 from luml_satellite.monitoring.dashboard.session import (
     DEFAULT_SESSION_TTL_SECONDS,
     MonitoringSession,
@@ -146,12 +150,16 @@ def register_monitoring(
     clock: Callable[[], float] = time.time,
     cookie_secure: bool = True,
     health_source: HealthSource | None = None,
+    recording_source: RecordingSource | None = None,
 ) -> None:
     store = session_store or MonitoringSessionStore(ttl_seconds=session_ttl_seconds)
     app.state.monitoring_sessions = store
     app.state.monitoring_cookie_secure = cookie_secure
     app.state.monitoring_query = MonitoringQueryService(
-        data_store or InMemoryMonitoringStore(), clock=clock, health_source=health_source
+        data_store or InMemoryMonitoringStore(),
+        clock=clock,
+        health_source=health_source,
+        recording_source=recording_source,
     )
 
     app.add_middleware(FrameAncestorsMiddleware, csp_value=frame_ancestors_csp(frame_ancestors))

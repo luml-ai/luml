@@ -9,6 +9,7 @@ from luml_satellite import (
     Convergence,
     DeploymentSettings,
     DriverError,
+    HealthCheck,
     NoServingPlacement,
     PlatformClient,
     PollingPass,
@@ -287,6 +288,34 @@ async def test_waiting_states_fail_at_one_deadline_and_clean_up(
     assert "x" * 1001 not in str(error["error"])
     assert driver.remove_calls == [DEPLOYMENT_ID]
     assert serving.unregister_calls == [DEPLOYMENT_ID]
+
+
+@pytest.mark.asyncio
+async def test_health_deadline_reports_why_the_workload_is_unhealthy() -> None:
+    platform = FakePlatform()
+    seed_deploy(platform, deployment={"satellite_parameters": {"health_check_timeout": 60}})
+    driver = FakeDriver()
+    driver.script_start(DEPLOYMENT_ID, StartResult(StartStatus.IN_PROGRESS))
+    driver.script_observe(DEPLOYMENT_ID, WorkloadObservation(WorkloadState.READY))
+    serving = FakeServingPlacement()
+    unhealthy = HealthCheck(
+        healthy=False,
+        detail="Inference recording is off: The monitoring extra is not installed",
+    )
+    serving.script_health(DEPLOYMENT_ID, unhealthy, unhealthy)
+    clock = FakeClock()
+
+    async with harness(platform, driver=driver, serving=serving, clock=clock) as kit:
+        await kit.poller.run()
+        await kit.poller.drain()
+        clock.now = 61
+        await kit.poller.run()
+
+    error = platform.deployments[DEPLOYMENT_ID]["error_message"]
+    assert platform.deployments[DEPLOYMENT_ID]["status"] == "failed"
+    assert isinstance(error, dict)
+    assert error["reason"] == "healthcheck timeout"
+    assert error["error"] == "Inference recording is off: The monitoring extra is not installed"
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel
 
@@ -23,6 +23,11 @@ class RecordingPolicy:
         if not 0 <= random_value < 1:
             raise ValueError("random_value must be between 0 inclusive and 1 exclusive")
         return random_value < self.sample_rate and (self.keep_inputs or self.keep_outputs)
+
+
+class RecordingStatus(BaseModel):
+    state: Literal["recording", "disabled", "unavailable", "fault"]
+    reason: str | None = None
 
 
 class ProfileStatus(StrEnum):
@@ -114,6 +119,7 @@ class LocalDeployment:
     reference_profile: dict[str, Any] | None = None
     profile_status: ProfileStatus = ProfileStatus.ABSENT
     monitoring_enabled: bool = False
+    recording_status: RecordingStatus | None = None
     metadata: DeploymentMetadata = field(default_factory=DeploymentMetadata)
     upstream_url: str | None = None
     recording_policy: RecordingPolicy = field(default_factory=RecordingPolicy)

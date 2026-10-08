@@ -35,6 +35,7 @@ from luml_satellite.convergence.reconciliation import (
     ReconciliationPlatform,
 )
 from luml_satellite.convergence.serving import (
+    HealthCheck,
     ModelDescription,
     NoServingPlacement,
     ServingPlacement,
@@ -63,6 +64,7 @@ __all__ = [
     "ConvergencePlatform",
     "CustomTaskHandler",
     "DriverCallTimeout",
+    "HealthCheck",
     "InProgressDeployment",
     "InProgressKind",
     "ModelDescription",

@@ -90,7 +90,8 @@ async def test_in_process_placement_reads_registers_and_updates_a_deployment() -
     )
     try:
         description = await placement.describe(deployment, upstream_url="http://model")
-        assert await placement.check_health(deployment, upstream_url="http://model") is True
+        health = await placement.check_health(deployment, upstream_url="http://model")
+        assert health.healthy is True
         await placement.register(
             deployment,
             upstream_url="http://model",
@@ -173,7 +174,7 @@ async def test_description_parts_are_independently_optional_and_health_errors_ar
         await placement.aclose()
 
     assert description == ModelDescription()
-    assert healthy is False
+    assert healthy.healthy is False
 
 
 @pytest.mark.asyncio

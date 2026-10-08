@@ -44,6 +44,10 @@
       @apply="applyCompare"
     />
 
+    <div v-if="recordingOff" class="recording-status" role="alert" data-testid="recording-status">
+      <strong>Recording is off.</strong> {{ workerHealth?.recording?.reason }}
+    </div>
+
     <PlaceholderBanner v-if="isPlaceholderProfile" />
 
     <DashboardTabs :active="activeTab" :tabs="visibleTabs" @select="setActiveTab" />
@@ -226,6 +230,11 @@ const {
   setActiveTab,
 } = useMonitoringDashboard()
 
+const recordingOff = computed(() => {
+  const state = workerHealth.value?.recording?.state
+  return state !== undefined && state !== 'recording'
+})
+
 const headerView = computed(() => sectionView(headerStatus.value, header.value?.state))
 
 const compareOpen = ref(false)
@@ -281,6 +290,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.recording-status {
+  padding: 12px;
+  border: 1px solid var(--luml-danger);
+  border-radius: var(--luml-radius-md);
+  color: var(--luml-danger-tint-fg);
+  background: var(--luml-bg-card);
+}
 .compare-strip {
   display: flex;
   align-items: center;

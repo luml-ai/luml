@@ -1771,6 +1771,36 @@
         "title": "ProfileStatus",
         "type": "string"
       },
+      "RecordingStatus": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "state": {
+            "enum": [
+              "recording",
+              "disabled",
+              "unavailable",
+              "fault"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "RecordingStatus",
+        "type": "object"
+      },
       "ReferenceProfileFeature": {
         "properties": {
           "bin_edges": {
@@ -2699,6 +2729,16 @@
               }
             ],
             "title": "Last Window End"
+          },
+          "recording": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordingStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "running": {
             "default": false,

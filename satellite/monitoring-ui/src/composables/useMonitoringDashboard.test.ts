@@ -314,6 +314,31 @@ describe('useMonitoringDashboard', () => {
     }
   })
 
+  it('auto-refresh updates recording health on a saved non-overview tab', async () => {
+    vi.useFakeTimers()
+    try {
+      localStorage.setItem(
+        'monitoring-settings:dep-1',
+        JSON.stringify({ v: 1, tab: 'data-quality' }),
+      )
+      const dashboard = useMonitoringDashboard()
+      await dashboard.load()
+      getWorkerHealth.mockClear()
+      getWorkerHealth.mockResolvedValue(makeWorkerHealth({
+        recording: { state: 'fault', reason: 'Monitoring could not start' },
+      }))
+
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(getWorkerHealth).toHaveBeenCalledTimes(1)
+      expect(dashboard.workerHealth.value?.recording?.state).toBe('fault')
+      expect(getOverview).not.toHaveBeenCalled()
+      dashboard.setAutoRefresh(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('an auto-refresh tick never rewrites a deeper traces page under the reader', async () => {
     vi.useFakeTimers()
     try {

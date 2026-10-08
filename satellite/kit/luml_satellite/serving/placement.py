@@ -9,7 +9,7 @@ import httpx
 from fastapi import APIRouter, FastAPI
 
 from luml_satellite.authorization import Authorizer
-from luml_satellite.convergence import ModelDescription
+from luml_satellite.convergence import HealthCheck, ModelDescription
 from luml_satellite.tokens import TokenDeriver
 from luml_satellite.wire import Deployment
 from luml_satellite.workload import (
@@ -169,15 +169,15 @@ class InProcessServingPlacement:
         deployment: Deployment,
         *,
         upstream_url: str | None,
-    ) -> bool:
+    ) -> HealthCheck:
         del deployment
         if upstream_url is None:
-            return False
+            return HealthCheck(healthy=False)
         try:
             response = await self._client.get(f"{upstream_url.rstrip('/')}/healthz")
         except Exception:
-            return False
-        return response.status_code == 200
+            return HealthCheck(healthy=False)
+        return HealthCheck(healthy=response.status_code == 200)
 
     def note_platform_record(self, deployment_id: str, record: Deployment) -> None:
         deployment = self._deployments.get(deployment_id)
@@ -370,9 +370,9 @@ class CompanionServingPlacement:
         deployment: Deployment,
         *,
         upstream_url: str | None,
-    ) -> bool:
+    ) -> HealthCheck:
         if upstream_url is None:
-            return False
+            return HealthCheck(healthy=False)
         token = self._token_deriver.companion_token(str(deployment.id))
         try:
             response = await self._client.get(
@@ -380,8 +380,10 @@ class CompanionServingPlacement:
                 headers={"Authorization": f"Bearer {token}"},
             )
         except Exception:
-            return False
-        return response.status_code == 200
+            return HealthCheck(healthy=False)
+        if response.status_code == 200:
+            return HealthCheck(healthy=True)
+        return HealthCheck(healthy=False, detail=_recording_off_detail(response))
 
     def note_platform_record(self, deployment_id: str, record: Deployment) -> None:
         companion = self._records.get(deployment_id)
@@ -505,3 +507,15 @@ def without_secret_attributes(
 
 def _monitoring_enabled(mode: str | None) -> bool:
     return (mode or "off").strip().lower() == "full"
+
+
+def _recording_off_detail(response: httpx.Response) -> str | None:
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    recording = body.get("recording") if isinstance(body, dict) else None
+    if not isinstance(recording, dict) or recording.get("state") in {"recording", "disabled"}:
+        return None
+    reason = recording.get("reason") or recording.get("state")
+    return f"Inference recording is off: {reason}"
