@@ -334,16 +334,25 @@ class UserRepository(RepositoryBase, CrudMixin):
             return OrganizationMemberOrm.to_organization_members(db_members)
 
     async def update_organization_member(
-        self, member_id: UUID, member: UpdateOrganizationMember
+        self, organization_id: UUID, member_id: UUID, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
-        member.id = member_id
         async with self._get_session() as session:
-            db_member = await self.update_model(session, OrganizationMemberOrm, member)
+            db_member = await self.update_model_where(
+                session,
+                OrganizationMemberOrm,
+                member,
+                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.id == member_id,
+            )
             return db_member.to_organization_member() if db_member else None
 
-    async def delete_organization_member(self, member_id: UUID) -> None:
-        async with self._get_session() as session:
-            return await self.delete_model(session, OrganizationMemberOrm, member_id)
+    async def delete_organization_member(
+        self, organization_id: UUID, member_id: UUID
+    ) -> None:
+        return await self.delete_organization_member_where(
+            OrganizationMemberOrm.organization_id == organization_id,
+            OrganizationMemberOrm.id == member_id,
+        )
 
     async def delete_organization_member_where(self, *where_conditions: Any) -> None:  # noqa: ANN401
         async with self._get_session() as session:
@@ -398,10 +407,15 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
 
     async def get_organization_member_by_id(
-        self, member_id: UUID
+        self, organization_id: UUID, member_id: UUID
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
-            db_member = await self.get_model(session, OrganizationMemberOrm, member_id)
+            db_member = await self.get_model_where(
+                session,
+                OrganizationMemberOrm,
+                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.id == member_id,
+            )
             return db_member.to_organization_member() if db_member else None
 
     async def get_organization_member_by_email(
