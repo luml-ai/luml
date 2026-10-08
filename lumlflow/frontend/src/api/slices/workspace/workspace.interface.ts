@@ -1,4 +1,6 @@
-import type { AgentSessionRecord } from '@/flow/api/types'
+import type { AgentSessionRecord, KernelReport } from '@/flow/api/types'
+
+export type { KernelState, OpenFlow, OpenFlowsListing, OpenFlowsTotals } from '@/flow/api/types'
 
 export interface WorkspaceFlow {
   name: string
@@ -151,6 +153,12 @@ export interface OpenedFlow {
   flow: string
   flow_id: string
   path: string
+  kernel?: KernelReport
+}
+
+export interface RestartedKernel {
+  flow: string
+  kernel: KernelReport
 }
 
 export interface TableBlock {
@@ -319,4 +327,3 @@ export interface JournalPage {
   cursor: number
   transactions: JournalTransaction[]
 }
-

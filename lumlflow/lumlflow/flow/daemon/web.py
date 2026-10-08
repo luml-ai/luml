@@ -217,6 +217,7 @@ def _subscribed(
         session = hub.session(named)
     except FlowNotFound:
         session = hub.open(api.resolve(named))
+    session.touch()
     flow = session.ref.address
     if channel == "logs":
         run_id = str(message.get("run_id") or "")

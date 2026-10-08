@@ -22,18 +22,30 @@
       </div>
       <span v-else class="item-name">{{ item.name }}</span>
     </div>
-    <Button
-      severity="secondary"
-      variant="text"
-      class="relative z-10 shrink-0"
-      aria-haspopup="menu"
-      @click="menu?.toggle($event)"
-    >
-      <template #icon>
-        <EllipsisVertical :size="16" />
+    <div class="item-side">
+      <FlowStateMarker
+        v-if="openFlow"
+        :kernel="openFlow.kernel"
+        :label="openFlow.active_runs"
+        :agents="openFlow.leased_sessions"
+        :last-activity="openFlow.last_activity"
+        class="relative z-10"
+      />
+      <template v-if="actions">
+        <Button
+          severity="secondary"
+          variant="text"
+          class="relative z-10 shrink-0"
+          aria-haspopup="menu"
+          @click="menu?.toggle($event)"
+        >
+          <template #icon>
+            <EllipsisVertical :size="16" />
+          </template>
+        </Button>
+        <Menu ref="menu" :model="menuItems" popup />
       </template>
-    </Button>
-    <Menu ref="menu" :model="menuItems" popup />
+    </div>
   </div>
 </template>
 
@@ -42,21 +54,25 @@ import type { IWorkspaceFolderItem } from './interface'
 import type { MenuItem } from 'primevue/menuitem'
 import { Button, InputText, Menu, useConfirm, useToast } from 'primevue'
 import { FileCodeCorner, EllipsisVertical } from 'lucide-vue-next'
-import { ref, useTemplateRef } from 'vue'
+import { computed, ref, useTemplateRef } from 'vue'
 import { onClickOutside, onKeyStroke } from '@vueuse/core'
 import { deleteFlowConfirmOptions } from '@/confirm/confirm'
 import { errorToast, successToast } from '@/toasts'
 import { useWorkspaceStore } from '@/store/workspace'
 import { FLOW_FILE_EXTENSION } from '@/components/workspace/workspace.const'
 import { ROUTE_NAMES } from '@/router/router.const'
+import FlowStateMarker from '@/components/workspace/FlowStateMarker.vue'
 
 interface Props {
   item: IWorkspaceFolderItem
+  actions?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { actions: true })
 
 const workspaceStore = useWorkspaceStore()
+
+const openFlow = computed(() => workspaceStore.openFlowsByPath.get(props.item.path) ?? null)
 
 const confirm = useConfirm()
 const toast = useToast()
@@ -154,6 +170,10 @@ async function onDeleteConfirm() {
 
 .item-main-info {
   @apply flex items-center gap-2 overflow-hidden;
+}
+
+.item-side {
+  @apply flex items-center gap-3 shrink-0;
 }
 
 .item-icon {

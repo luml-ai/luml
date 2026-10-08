@@ -91,6 +91,14 @@ class Streams:
     def watchers(self) -> int:
         return len(self._subscribers)
 
+    def subscribers(self, flow: str) -> int:
+        return sum(
+            1
+            for subscription in self._subscribers
+            if flow in subscription.journals
+            or any(on_flow == flow for on_flow, _ in subscription.runs)
+        )
+
     def subscribe(self) -> Subscription:
         subscription = Subscription(self)
         self._subscribers.append(subscription)

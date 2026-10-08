@@ -655,6 +655,37 @@ export interface WorkspaceStatus {
   pid: number
   python: { path: string; source: string }
   flows: FlowStatus[]
+  active?: OpenFlowsTotals
+}
+
+export type KernelState = KernelReport['state']
+
+export interface OpenFlow {
+  flow: string
+  path: string
+  /** Null when the flow lives outside the listed directory. */
+  relative_path: string | null
+  inside: boolean
+  kernel: KernelState
+  active_runs: number
+  leased_sessions: number
+  stream_subscribers: number
+  checked_out: boolean
+  /** ISO-8601 UTC. */
+  last_activity: string | null
+}
+
+export interface OpenFlowsTotals {
+  open_flows: number
+  running_kernels: number
+  active_runs: number
+  leased_sessions: number
+}
+
+export interface OpenFlowsListing {
+  directory: string
+  flows: OpenFlow[]
+  totals: OpenFlowsTotals
 }
 
 export interface Preflight {

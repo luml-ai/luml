@@ -854,6 +854,8 @@ async def test_status_covers_every_flow_and_names_the_interpreter(tmp_path: Path
     write_cell(root / "churn.flow", "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
+        for name in ("churn", "sales"):
+            await api.flow_open({"flow": name, "worktree": False})
         status = await api.status({})
 
     assert [flow["flow"] for flow in status["flows"]] == ["churn", "sales"]

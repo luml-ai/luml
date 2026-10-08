@@ -4,6 +4,7 @@ import os
 import platform
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -92,15 +93,23 @@ def find_flows(root: Path) -> list[FlowRef]:
     return found
 
 
+Walk = Callable[[Path], list[FlowRef]]
+
+
 def select_flow(
-    root: Path, *, name: str | None = None, cwd: Path | None = None
+    root: Path,
+    *,
+    name: str | None = None,
+    cwd: Path | None = None,
+    walk: Walk | None = None,
 ) -> FlowRef:
+    walk = walk or find_flows
     if name is not None:
-        return _addressed(root, name)
+        return _addressed(root, name, walk)
     standing = _standing_flow(cwd or root)
     if standing is not None:
         return standing
-    flows = find_flows(root)
+    flows = walk(root)
     inside = _containing_flow(flows, cwd) if cwd is not None else None
     if inside is not None:
         return inside
@@ -314,13 +323,13 @@ def _containing_flow(flows: list[FlowRef], cwd: Path) -> FlowRef | None:
     )
 
 
-def _addressed(root: Path, name: str) -> FlowRef:
+def _addressed(root: Path, name: str, walk: Walk) -> FlowRef:
     asked = Path(name)
     if not asked.is_absolute():
         standing = _standing_flow(root)
         if standing is not None and name.removesuffix(FLOW_SUFFIX) == standing.name:
             return standing
-        return _named(find_flows(root), name)
+        return _named(walk(root), name)
     path = asked.resolve()
     if path == root and path.name.endswith(FLOW_SUFFIX):
         if not path.is_dir():
@@ -340,7 +349,7 @@ def _addressed(root: Path, name: str) -> FlowRef:
                 path=path,
                 relpath=relpath.as_posix(),
             )
-        return _named(find_flows(root), relpath.as_posix())
+        return _named(walk(root), relpath.as_posix())
     return _outside_flow(path)
 
 

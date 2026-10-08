@@ -8,6 +8,7 @@ import secrets
 import shutil
 import socket
 import tempfile
+import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -48,6 +49,8 @@ _STDIO_TAIL_LINES = 40
 
 KernelState = Literal["stopped", "running"]
 KERNEL_STATE_EVENT = "kernel_state"
+# Calls the daemon makes of its own accord; none of them is anybody using it.
+_NOT_USE = frozenset({"loaded_packages", "shutdown"})
 OnEvent = Callable[[str, dict[str, Any]], None]
 FailExperiment = Callable[[str], None]
 
@@ -98,10 +101,15 @@ class KernelProcess:
         self._active_runs: set[str] = set()
         self._cancelled_runs: set[str] = set()
         self._tracked_runs: dict[str, _TrackedExperiment] = {}
+        self.used: float = time.monotonic()
 
     @property
     def state(self) -> KernelState:
         return "running" if self._writer is not None else "stopped"
+
+    @property
+    def busy(self) -> bool:
+        return bool(self._pending or self._active_runs)
 
     @property
     def stdio_tail(self) -> str:
@@ -423,6 +431,8 @@ class KernelProcess:
         writer = self._writer
         if writer is None:
             raise KernelError("the kernel is not running")
+        if method not in _NOT_USE:
+            self.used = time.monotonic()
         self._next_id += 1
         request_id = self._next_id
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()

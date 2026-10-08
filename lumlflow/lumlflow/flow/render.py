@@ -396,8 +396,41 @@ def cell_lines(listed: Iterable[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def open_flows(payload: dict[str, Any]) -> list[str]:
+    flows = payload.get("flows") or []
+    if not flows:
+        return ["no flow is open"]
+    rows = [
+        (
+            str(flow["flow"]),
+            str(flow.get("relative_path") or flow["path"]),
+            str(flow["kernel"]),
+            str(flow["active_runs"]),
+            str(flow["leased_sessions"]),
+            _activity(flow.get("last_activity")),
+        )
+        for flow in flows
+    ]
+    table = [("flow", "path", "kernel", "runs", "agents", "last activity"), *rows]
+    widths = [max(len(row[at]) for row in table) for at in range(len(table[0]))]
+    return [
+        "  ".join(
+            cell.ljust(width) for cell, width in zip(row, widths, strict=True)
+        ).rstrip()
+        for row in table
+    ]
+
+
+def _activity(stamp: str | None) -> str:
+    if not stamp:
+        return "-"
+    return stamp.replace("T", " ").removesuffix("Z").split(".", 1)[0] + " UTC"
+
+
 def _flow_heading(flow: dict[str, Any]) -> list[str]:
     kernel = flow.get("kernel") or {}
+    if flow.get("open") is False:
+        return [f"{flow['flow']} · not open"]
     heading = f"{flow['flow']} · {flow['branch']}"
     if not flow.get("checked_out", True):
         heading += " (not on disk)"

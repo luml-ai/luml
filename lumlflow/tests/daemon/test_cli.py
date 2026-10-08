@@ -1219,6 +1219,43 @@ def test_root_is_gone_and_daemon_status_answers_without_a_flow(
     assert "daemon is not running" in daemon.output
 
 
+def test_daemon_status_lists_the_open_flows_when_it_is_running(
+    cli: Invoke, workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    record = DaemonRecord(
+        pid=1,
+        instance_id="running",
+        port=1,
+        token="token",
+        web_host="127.0.0.1",
+        web_port=1,
+        tracker_store=str(workspace / "experiments"),
+        version="0",
+    )
+    monkeypatch.setattr(client, "discover", lambda: record)
+    cli("init", "churn")
+
+    shown = cli("daemon", "status")
+    payload = json.loads(cli("daemon", "status", "--json").output)
+
+    header, row = shown.output.splitlines()[2:4]
+    assert "lumlflow daemon is running" in shown.output
+    assert header.split() == [
+        "flow",
+        "path",
+        "kernel",
+        "runs",
+        "agents",
+        "last",
+        "activity",
+    ]
+    assert row.split()[:5] == ["churn", "churn.flow", "stopped", "0", "0"]
+    assert payload["running"] is True
+    assert payload["record"]["instance_id"] == "running"
+    assert [flow["flow"] for flow in payload["flows"]] == ["churn"]
+    assert payload["totals"]["open_flows"] == 1
+
+
 def test_status_says_what_the_flow_costs_on_disk(cli: Invoke, workspace: Path):
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)

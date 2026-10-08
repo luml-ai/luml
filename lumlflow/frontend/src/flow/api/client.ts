@@ -16,6 +16,7 @@ import type {
   FlowStatus,
   JournalPage,
   KernelReport,
+  OpenFlowsListing,
   Preflight,
   PublishTarget,
   PublishedAsset,
@@ -163,6 +164,7 @@ export interface FlowMethods {
   diff: Method<FlowScoped & { branches: string[] }, BranchDiff>
   export: Method<BranchScoped, FlowExport>
   'workspace.list': Method<{ directory?: string }, WorkspaceListing>
+  'flows.open': Method<{ directory?: string }, OpenFlowsListing>
   'flow.init': Method<{ name: string; directory?: string }, FlowBrief & { warnings: string[] }>
   'flow.checkout': Method<Intentful, Projected & FlowBrief>
   'flow.open': Method<FlowScoped & { worktree?: boolean }, FlowStatus>

@@ -363,7 +363,8 @@ async def test_a_watched_helper_edit_reaches_every_flow_in_the_workspace(
     write_cell(root / "sales.flow", "score", SCORE_CELL)
 
     async with daemon_api(root) as api:
-        await api.status({})
+        for name in FLOWS:
+            await api.flow_open({"flow": name, "worktree": False})
         watcher = Watcher(api.hub, debounce_s=_DEBOUNCE_S)
         watcher.start()
         try:

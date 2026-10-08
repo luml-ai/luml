@@ -11,6 +11,12 @@
       <Folder :size="16" class="item-icon" />
       <span class="item-name">{{ item.name }}</span>
     </div>
+    <FlowStateMarker
+      v-if="openBeneath.length"
+      :kernel="openBeneath.some((flow) => flow.kernel === 'running') ? 'running' : 'stopped'"
+      :flows="openBeneath.length"
+      :agents="openBeneath.reduce((sum, flow) => sum + flow.leased_sessions, 0)"
+    />
   </div>
   <WorkspaceFolderItemFlow v-else-if="item.type === 'flow'" :item="item" />
 </template>
@@ -22,16 +28,22 @@ import { useToast } from 'primevue'
 import { getSizeText } from '@/helpers/string'
 import { errorToast } from '@/toasts'
 import { useWorkspaceStore } from '@/store/workspace'
+import { computed } from 'vue'
+import FlowStateMarker from '@/components/workspace/FlowStateMarker.vue'
 import WorkspaceFolderItemFlow from './WorkspaceFolderItemFlow.vue'
 
 interface Props {
   item: IWorkspaceFolderItem
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const toast = useToast()
 const workspaceStore = useWorkspaceStore()
+
+const openBeneath = computed(() =>
+  props.item.type === 'folder' ? (workspaceStore.openFlowsByFolder.get(props.item.path) ?? []) : [],
+)
 
 async function openFolder(path: string) {
   try {

@@ -298,6 +298,10 @@ class Daemon:
                 self.api.expire_claims()
             except Exception:
                 logger.exception("ending quiet agent sessions failed")
+            try:
+                await self.api.sweep_idle()
+            except Exception:
+                logger.exception("letting go of idle flows failed")
 
     async def end_quiet(self) -> None:
         if self._stopped.is_set():
@@ -651,6 +655,7 @@ _SILENT = frozenset(
         "agent.end",
         "status",
         "workspace.list",
+        "flows.open",
         "flow.open",
         "tree",
         "agents.harnesses",

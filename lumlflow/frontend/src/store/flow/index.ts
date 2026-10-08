@@ -4,6 +4,7 @@ import type {
   CancelledRun,
   CellSummary,
   JournalTransaction,
+  KernelState,
   RanCell,
   RanLane,
 } from '@/api/slices/workspace/workspace.interface'
@@ -185,6 +186,12 @@ export const useFlowStore = defineStore('flow', () => {
 
   const cells = ref<CellSummary[]>([])
   const isCellsLoading = ref(false)
+
+  const kernelState = ref<KernelState | null>(null)
+  const restartingFlow = ref<string | null>(null)
+  const isKernelRestarting = computed(
+    () => restartingFlow.value !== null && restartingFlow.value === currentFlow.value,
+  )
 
   const journal = ref<JournalTransaction[]>([])
   const isJournalLoading = ref(false)
@@ -469,6 +476,12 @@ export const useFlowStore = defineStore('flow', () => {
     if (!token) return
     try {
       const opened = await workspaceApi.openFlow(flow)
+      // A later setFlow owns the stream now. Nothing below awaits, so an
+      // older open stops here before it can create one.
+      if (currentFlow.value !== flow) return
+      // A→B→A puts two opens of A in flight; the second replaces the first.
+      disconnectCascadeStream()
+      if (opened.kernel) kernelState.value = opened.kernel.state
       const stream = new FlowStream({ token })
       cascadeStream = stream
       stopCascadeFrame = stream.onFrame((frame: StreamFrame) => {
@@ -583,6 +596,7 @@ export const useFlowStore = defineStore('flow', () => {
 
   function receiveKernelFrame(frame: Extract<StreamFrame, { type: 'kernel' }>) {
     if (frame.event === 'kernel_state') {
+      if (frame.kernel) kernelState.value = frame.kernel
       // A kernel that died mid-run reports no ending for it.
       if (frame.kernel === 'stopped') liveRuns.value = []
       return
@@ -608,9 +622,23 @@ export const useFlowStore = defineStore('flow', () => {
     }
   }
 
+  async function restartKernel() {
+    const flow = currentFlow.value
+    if (flow === null) return
+    restartingFlow.value = flow
+    try {
+      const restarted = await workspaceApi.restartKernel(flow)
+      if (currentFlow.value === flow) kernelState.value = restarted.kernel.state
+    } finally {
+      if (restartingFlow.value === flow) restartingFlow.value = null
+    }
+  }
+
   function setFlow(flow: string | null) {
     if (currentFlow.value === flow) return
     currentFlow.value = flow
+    kernelState.value = null
+    restartingFlow.value = null
     void fetchBranches()
     void fetchSettings()
     if (flow) {
@@ -874,6 +902,8 @@ export const useFlowStore = defineStore('flow', () => {
     isLaneForkPromptVisible.value = false
     cells.value = []
     isCellsLoading.value = false
+    kernelState.value = null
+    restartingFlow.value = null
     journal.value = []
     isJournalLoading.value = false
     selectedCellId.value = null
@@ -920,6 +950,9 @@ export const useFlowStore = defineStore('flow', () => {
     notebookCells,
     isCellsLoading,
     fetchCells,
+    kernelState,
+    isKernelRestarting,
+    restartKernel,
     renameCell,
     fetchCellSource,
     fetchCellLogs,

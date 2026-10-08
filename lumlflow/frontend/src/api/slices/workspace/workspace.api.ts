@@ -26,10 +26,12 @@ import type {
   JournalPage,
   NewCell,
   OpenedFlow,
+  OpenFlowsListing,
   RanCell,
   RanLane,
   RenamedCell,
   RenamedFlow,
+  RestartedKernel,
   RewoundBranch,
   SavedSettings,
   SwitchedBranch,
@@ -111,6 +113,13 @@ export const workspaceApi = {
   listFlows: (directory?: string) => {
     return call<{ directory?: string }, WorkspaceListing>(
       'workspace.list',
+      directory ? { directory } : {},
+    )
+  },
+
+  openFlows: (directory?: string) => {
+    return call<{ directory?: string }, OpenFlowsListing>(
+      'flows.open',
       directory ? { directory } : {},
     )
   },
@@ -349,6 +358,11 @@ export const workspaceApi = {
 
   openFlow: (flow?: string) =>
     call<{ flow?: string }, OpenedFlow>('flow.open', {
+      ...(flow ? { flow } : {}),
+    }),
+
+  restartKernel: (flow?: string) =>
+    call<{ flow?: string }, RestartedKernel>('kernel.restart', {
       ...(flow ? { flow } : {}),
     }),
 

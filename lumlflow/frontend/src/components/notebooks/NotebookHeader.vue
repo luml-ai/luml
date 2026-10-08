@@ -27,6 +27,19 @@
         size="small"
         @update:model-value="flowStore.setViewMode($event)"
       />
+      <Button
+        v-tooltip.bottom="kernelTooltip"
+        variant="outlined"
+        severity="secondary"
+        size="small"
+        class="kernel-button"
+        :class="{ 'kernel-button--running': flowStore.kernelState === 'running' }"
+        :aria-label="kernelTooltip"
+        :loading="flowStore.isKernelRestarting"
+        @click="restartKernel"
+      >
+        <template #icon> <RotateCcw :size="12" /> </template>
+      </Button>
       <NotebookSettings />
     </div>
   </div>
@@ -34,8 +47,8 @@
 
 <script setup lang="ts">
 import type { NotebookHealthState } from '@/components/notebooks/notebooks.interface'
-import { ChevronLeft } from 'lucide-vue-next'
-import { SelectButton } from 'primevue'
+import { ChevronLeft, RotateCcw } from 'lucide-vue-next'
+import { Button, SelectButton, useToast } from 'primevue'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROUTE_NAMES } from '@/router/router.const'
@@ -48,8 +61,22 @@ import {
 } from '@/components/notebooks/notebooks.const'
 import NotebookPairAgent from '@/components/notebooks/NotebookPairAgent.vue'
 import NotebookSettings from '@/components/notebooks/NotebookSettings.vue'
+import { errorToast } from '@/toasts'
 
 const flowStore = useFlowStore()
+const toast = useToast()
+
+const kernelTooltip = computed(() =>
+  flowStore.kernelState ? `Kernel ${flowStore.kernelState} · Restart` : 'Restart kernel',
+)
+
+async function restartKernel() {
+  try {
+    await flowStore.restartKernel()
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
+}
 
 const backTarget = computed(() => {
   const flow = flowStore.currentFlow
@@ -131,6 +158,12 @@ const statusTooltip = computed(() => NOTEBOOK_HEALTH_LABELS[notebookHealth.value
 }
 .toolbar-title {
   @apply flex items-center gap-2;
+}
+.kernel-button {
+  @apply p-0 h-10! w-10! text-muted-color!;
+}
+.kernel-button--running {
+  @apply text-(--p-badge-success-background)!;
 }
 .toolbar-right {
   @apply flex gap-4;

@@ -875,7 +875,7 @@ def daemon_start(as_json: bool = _JSON) -> None:
 
 @daemon_app.command("status")
 def daemon_status(as_json: bool = _JSON) -> None:
-    """Show whether the daemon is answering."""
+    """Show whether the daemon is answering, and which flows it has open."""
     from lumlflow.flow.daemon import client
 
     try:
@@ -883,18 +883,23 @@ def daemon_status(as_json: bool = _JSON) -> None:
     except FlowError as failure:
         _fail(failure, as_json)
     running = record is not None
-    _emit(
-        {
-            "running": running,
-            "record": record.__dict__ if record is not None else None,
-        },
-        as_json,
-        [
-            "lumlflow daemon is running"
-            if running
-            else "lumlflow daemon is not running. any verb starts it"
-        ],
-    )
+    result: dict[str, Any] = {
+        "running": running,
+        "record": record.__dict__ if record is not None else None,
+    }
+    if not running:
+        _emit(result, as_json, ["lumlflow daemon is not running. any verb starts it"])
+        return
+    try:
+        with client.connect(Path.cwd(), start=False) as live:
+            opened = live.call("flows.open", {"directory": str(Path.cwd())})
+    except FlowError:
+        opened = None
+    lines = ["lumlflow daemon is running"]
+    if isinstance(opened, dict):
+        result |= opened
+        lines += ["", *render.open_flows(opened)]
+    _emit(result, as_json, lines)
 
 
 @daemon_app.command("stop")

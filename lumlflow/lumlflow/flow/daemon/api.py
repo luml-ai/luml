@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import shutil
 import tempfile
@@ -6,6 +7,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, get_args
@@ -21,6 +23,7 @@ from lumlflow.flow.errors import (
     CellClaimed,
     EditConflict,
     FlowError,
+    FlowNotFound,
     LaneMoved,
     ValueNotStored,
 )
@@ -48,6 +51,13 @@ _FENCED = frozenset(
 _OBSERVES = _FENCED | {"context", "rewind"}
 
 CLAIM_IDLE_S = 180.0
+
+KERNEL_IDLE_ENV = "LUMLFLOW_KERNEL_IDLE_S"
+SESSION_IDLE_ENV = "LUMLFLOW_SESSION_IDLE_S"
+KERNEL_IDLE_S = 30 * 60.0
+SESSION_IDLE_S = 60 * 60.0
+
+logger = logging.getLogger(__name__)
 
 _TOUCHES = frozenset(
     {
@@ -121,6 +131,8 @@ class Api:
         self._moved_by: dict[tuple[str, str], str] = {}
         self._claims: dict[tuple[str, str, str], _Claim] = {}
         self.clock: Callable[[], float] = time.time
+        self.kernel_idle_s = _idle_seconds(KERNEL_IDLE_ENV, KERNEL_IDLE_S)
+        self.session_idle_s = _idle_seconds(SESSION_IDLE_ENV, SESSION_IDLE_S)
         self.methods: dict[str, Method] = {
             "ping": self.ping,
             "status": self.status,
@@ -139,6 +151,7 @@ class Api:
             "flow.delete": self.flow_delete,
             "flow.rename": self.flow_rename,
             "flow.duplicate": self.flow_duplicate,
+            "flows.open": self.flows_open,
             "cells.list": self.cells_list,
             "cells.show": self.cells_show,
             "cells.logs": self.cells_logs,
@@ -188,11 +201,15 @@ class Api:
     async def status(self, params: dict[str, Any]) -> dict[str, Any]:
         directory = self._directory(params)
         interpreter = envs.describe(directory)
-        refs = (
-            [self.resolve(_flow_name(params), directory=directory)]
-            if params.get("flow")
-            else workspace.find_flows(directory)
-        )
+        actor = _actor(params)
+        if params.get("flow"):
+            ref = self.resolve(_flow_name(params), directory=directory)
+            flows = [await self._flow_status(ref, actor=actor)]
+        else:
+            flows = [
+                await self._listed_status(ref, actor=actor)
+                for ref in self.hub.walk(directory)
+            ]
         return {
             "workspace": str(directory),
             "pid": os.getpid(),
@@ -200,15 +217,27 @@ class Api:
                 "path": str(interpreter.python),
                 "source": interpreter.source,
             },
+            "flows": flows,
+            "active": self._active_totals(),
+        }
+
+    async def flows_open(self, params: dict[str, Any]) -> dict[str, Any]:
+        directory = self._directory(params)
+        return {
+            "directory": str(directory),
             "flows": [
-                await self._flow_status(ref, actor=_actor(params)) for ref in refs
+                self._open_flow(session, directory)
+                for session in sorted(
+                    self.hub.opened(), key=lambda session: str(session.ref.path)
+                )
             ],
+            "totals": self._active_totals(),
         }
 
     async def gc_sweep(self, params: dict[str, Any]) -> dict[str, Any]:
         directory = self._directory(params)
         flows: list[dict[str, Any]] = []
-        for ref in workspace.find_flows(directory):
+        for ref in self.hub.walk(directory):
             session = self.hub.attached(ref.path)
             if session is None and not store_dir(ref.path).is_dir():
                 continue
@@ -277,7 +306,7 @@ class Api:
                     "path": ref.address,
                     "relative_path": ref.relpath,
                 }
-                for ref in workspace.find_flows(directory)
+                for ref in self.hub.walk(directory)
             ],
         }
 
@@ -1049,6 +1078,7 @@ class Api:
                 force=bool(params.get("force")),
             )
             result = _outcome(outcome)
+        session.touch()
         session.reactor.arm()
         return {"path": session.ref.address} | result
 
@@ -1146,7 +1176,69 @@ class Api:
         return {"stopping": True, "attached": attached}
 
     def resolve(self, name: str | None, *, directory: Path | None = None) -> FlowRef:
-        return workspace.select_flow(directory or self.directory, name=name)
+        directory = directory or self.directory
+        if name is None or Path(name).is_absolute():
+            return self._select(name, directory)
+        here = self.hub.lookup(name, directory)
+        if here is not None:
+            return here
+        try:
+            return self._select(name, directory)
+        except FlowNotFound:
+            elsewhere = self.hub.lookup(name, directory, inside=False)
+            if elsewhere is None:
+                raise
+            return elsewhere
+
+    def _select(self, name: str | None, directory: Path) -> FlowRef:
+        """`select_flow` over the cached walk, walking afresh before saying no:
+        a flow made or renamed by hand is missing from a walk taken before."""
+        asked = self.hub.clock()
+        try:
+            return workspace.select_flow(directory, name=name, walk=self.hub.walk)
+        except FlowNotFound:
+            if not self.hub.forget_walk(directory, before=asked):
+                raise
+            return workspace.select_flow(directory, name=name, walk=self.hub.walk)
+
+    async def sweep_idle(self) -> None:
+        """Stop the kernels nothing has used lately, then let go of the flows
+        nobody is using at all. A closed flow stays known by name."""
+        now = time.monotonic()
+        for session in list(self.hub.opened()):
+            if self._kernel_idle(session, now):
+                try:
+                    await session.kernel.stop()
+                except Exception:
+                    logger.exception(
+                        "stopping the idle kernel of `%s` failed", session.ref.address
+                    )
+            elif self._session_idle(session, now):
+                await self.hub.close_session(
+                    session,
+                    still=lambda held: self._session_idle(held, time.monotonic()),
+                )
+
+    def _kernel_idle(self, session: FlowSession, now: float) -> bool:
+        kernel = session.kernel
+        return bool(
+            self.kernel_idle_s
+            and kernel.state == "running"
+            and not kernel.busy
+            and not session.queue.in_flight
+            and now - max(session.ran, kernel.used) >= self.kernel_idle_s
+        )
+
+    def _session_idle(self, session: FlowSession, now: float) -> bool:
+        return bool(
+            self.session_idle_s
+            and session.kernel.state == "stopped"
+            and not session.kernel.busy
+            and not session.queue.in_flight
+            and now - session.touched >= self.session_idle_s
+            and not self._leased_here(session)
+            and not _subscribers(session)
+        )
 
     def _session(
         self,
@@ -1172,13 +1264,69 @@ class Api:
         return session, _branch(session, params)
 
     async def _flow_status(self, ref: FlowRef, *, actor: str) -> dict[str, Any]:
-        session = self.hub.open(ref, actor=actor)
+        return await self._session_status(self.hub.open(ref, actor=actor), actor=actor)
+
+    async def _listed_status(self, ref: FlowRef, *, actor: str) -> dict[str, Any]:
+        """A flow as a listing reports it: in full if it is open, and only by
+        name if not. Listing a directory as wide as a home must not open every
+        flow under it."""
+        session = self.hub.attached(ref.path)
+        if session is not None:
+            return await self._session_status(session, actor=actor) | {
+                "relative_path": ref.relpath
+            }
+        return {
+            "flow": ref.name,
+            "path": ref.address,
+            "relative_path": ref.relpath,
+            "open": False,
+            "kernel": {"state": "stopped"},
+        }
+
+    async def _session_status(
+        self, session: FlowSession, *, actor: str
+    ) -> dict[str, Any]:
         await self.hub.quiesce(session, actor=actor)
         return await self._flow_brief(session) | {
+            "open": True,
             "cells": queries.cells(session, session.branch)["cells"],
             "disk_bytes": gc.disk_bytes(session.store),
             "hygiene": queries.hygiene(session),
         }
+
+    def _open_flow(self, session: FlowSession, directory: Path) -> dict[str, Any]:
+        path = session.ref.path
+        inside = path.is_relative_to(directory)
+        return {
+            "flow": session.ref.name,
+            "path": session.ref.address,
+            "relative_path": path.relative_to(directory).as_posix() if inside else None,
+            "inside": inside,
+            "kernel": session.kernel.state,
+            "active_runs": session.queue.in_flight,
+            "leased_sessions": self._leased_here(session),
+            "stream_subscribers": _subscribers(session),
+            "checked_out": session.worktree.bound() is not None,
+            "last_activity": datetime.fromtimestamp(session.touched_at, UTC)
+            .isoformat()
+            .replace("+00:00", "Z"),
+        }
+
+    def _active_totals(self) -> dict[str, int]:
+        sessions = self.hub.opened()
+        return {
+            "open_flows": len(sessions),
+            "running_kernels": sum(
+                1 for session in sessions if session.kernel.state == "running"
+            ),
+            "active_runs": sum(session.queue.in_flight for session in sessions),
+            "leased_sessions": sum(self._leased_here(session) for session in sessions),
+        }
+
+    def _leased_here(self, session: FlowSession) -> int:
+        if self._leases is None:
+            return 0
+        return sum(1 for flow, _, _ in self._leases() if flow == session.ref.address)
 
     def _distinct_label(self, session: FlowSession, label: str, *, actor: str) -> str:
         leased = self._leased_actors(session)
@@ -1768,6 +1916,24 @@ def _unstored(slug: str, output: str, materialized: bool) -> str:
         f"`{slug}.{output}` is declared not to persist, so lumlflow never "
         f"stored its value. run `{slug}` again to materialize it"
     )
+
+
+def _subscribers(session: FlowSession) -> int:
+    if session.streams is None:
+        return 0
+    return session.streams.subscribers(session.ref.address)
+
+
+def _idle_seconds(variable: str, default: float) -> float:
+    raw = os.environ.get(variable)
+    if not raw:
+        return default
+    try:
+        seconds = float(raw)
+    except ValueError:
+        logger.warning("`%s` is not a number of seconds: %r", variable, raw)
+        return default
+    return max(0.0, seconds)
 
 
 def _flow_name(params: dict[str, Any]) -> str | None:
