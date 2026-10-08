@@ -11,7 +11,6 @@ from luml_api._exceptions import (
     ArtifactBatchDeleteError,
     ArtifactDeleteError,
     FileError,
-    FileUploadError,
 )
 from luml_api._types import (
     Artifact,
@@ -875,13 +874,13 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 if 200 <= response.status_code < 300
                 else ArtifactStatus.UPLOAD_FAILED
             )
-        except FileUploadError as error:
+        except Exception:
             self.update(
                 artifact_id=artifact.id,
                 status=ArtifactStatus.UPLOAD_FAILED,
                 collection_id=collection_id,
             )
-            raise error
+            raise
 
         return self.update(
             artifact_id=artifact.id,
@@ -2307,13 +2306,13 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 if 200 <= response.status_code < 300
                 else ArtifactStatus.UPLOAD_FAILED
             )
-        except FileUploadError as error:
+        except Exception:
             await self.update(
                 artifact.id,
                 status=ArtifactStatus.UPLOAD_FAILED,
                 collection_id=collection_id,
             )
-            raise error
+            raise
 
         return await self.update(
             artifact.id, status=status, collection_id=collection_id
