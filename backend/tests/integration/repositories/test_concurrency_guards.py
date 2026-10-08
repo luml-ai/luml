@@ -700,7 +700,9 @@ class TestConcurrencyGuards:
             is not None
         )
 
-        await user_repository.delete_organization_member(member.id)
+        await user_repository.delete_organization_member(
+            seeded_organization.organization.id, member.id
+        )
         assert await user_repository.delete_organization(uuid.uuid4()) is False
         assert (
             await user_repository.delete_organization(
