@@ -1,7 +1,8 @@
 import uuid
+from contextlib import nullcontext
 
 import pytest
-from luml.infra.exceptions import DatabaseConstraintError
+from luml.infra.exceptions import ArtifactDeployedError, ArtifactTrackedError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.lineage import LineageRepository
@@ -14,9 +15,14 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.lineage import LineageVia
-from luml.schemas.satellite import SatelliteCreate
+from luml.schemas.satellite import (
+    SatelliteCreate,
+    SatelliteTaskStatus,
+    SatelliteTaskType,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from tests.integration.repositories.artifacts.conftest import _add_artifact_to_track
 from tests.support.builders import create_artifact
 from tests.support.seeds import CollectionFixtureData
 
@@ -133,7 +139,7 @@ class TestArtifactRepositoryDeletion:
             seeded_collection.orbit.id, [edge.id]
         )
 
-    async def test_delete_artifact_raises_conflict_when_artifact_is_deployed(
+    async def test_delete_artifact_refuses_deployed_artifact(
         self,
         repository: ArtifactRepository,
         engine: AsyncEngine,
@@ -193,7 +199,7 @@ class TestArtifactRepositoryDeletion:
         await deployment_repository.create_deployment(deployment_data)
         await lineage_repository.refresh_node_copy(created_model.id)
 
-        with pytest.raises(DatabaseConstraintError) as error:
+        with pytest.raises(ArtifactDeployedError) as error:
             await repository.delete_artifact(created_model.id)
 
         assert error.value.status_code == 409
@@ -207,3 +213,90 @@ class TestArtifactRepositoryDeletion:
         assert await lineage_repository.get_edges_by_ids(
             seeded_collection.orbit.id, [edge.id]
         )
+
+    @pytest.mark.parametrize("tracked", [False, True])
+    async def test_forced_deletion_undeploys_then_removes_the_artifact(
+        self,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+        tracked: bool,
+    ) -> None:
+        orbit = seeded_collection.orbit
+        lineage_repository = LineageRepository(engine)
+        deployment_repository = DeploymentRepository(engine)
+        satellite_repository = SatelliteRepository(engine)
+        artifact = await create_artifact(
+            engine, new_artifact, seeded_collection.collection.id, name="deployed"
+        )
+        satellite = await satellite_repository.create_satellite(
+            SatelliteCreate(
+                orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test_satellite"
+            )
+        )
+        deployment, _ = await deployment_repository.create_deployment(
+            DeploymentCreate(
+                name="my-deployment",
+                orbit_id=orbit.id,
+                satellite_id=satellite.id,
+                artifact_id=artifact.id,
+                status=DeploymentStatus.ACTIVE,
+            )
+        )
+        if tracked:
+            await _add_artifact_to_track(
+                engine, orbit.id, artifact.id, seeded_collection.user.email
+            )
+
+        with pytest.raises(ArtifactTrackedError) if tracked else nullcontext():
+            async with lineage_repository.transaction() as session:
+                await lineage_repository.lock_orbit(orbit.id, session)
+                await deployment_repository.undeploy_artifact_deployments(
+                    artifact.id, session
+                )
+                await lineage_repository.refresh_node_copy(artifact.id, session)
+                await repository.delete_artifact(artifact.id, session)
+                await lineage_repository.delete_unreachable_deleted_nodes(
+                    orbit.id, session
+                )
+
+        stored = await repository.get_artifact(artifact.id)
+        remaining = await deployment_repository.list_deployments(orbit.id)
+        tasks = await satellite_repository.list_tasks(
+            satellite.id, status=SatelliteTaskStatus.PENDING
+        )
+        undeploys = [task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY]
+        if tracked:
+            assert stored is not None
+            assert [item.id for item in remaining] == [deployment.id]
+            assert undeploys == []
+        else:
+            assert stored is None
+            assert remaining == []
+            assert [task.payload["deployment_id"] for task in undeploys] == [
+                str(deployment.id)
+            ]
+
+    async def test_delete_artifact_refuses_tracked_artifact(
+        self,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+    ) -> None:
+        artifact = await create_artifact(
+            engine, new_artifact, seeded_collection.collection.id, name="tracked"
+        )
+        await _add_artifact_to_track(
+            engine,
+            seeded_collection.orbit.id,
+            artifact.id,
+            seeded_collection.user.email,
+        )
+
+        with pytest.raises(ArtifactTrackedError) as error:
+            await repository.delete_artifact(artifact.id)
+
+        assert error.value.status_code == 409
+        assert await repository.get_artifact(artifact.id) is not None

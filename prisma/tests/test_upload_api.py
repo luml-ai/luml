@@ -145,6 +145,75 @@ class TestListUploads:
         assert data[0]["node_id"] == "node-2"
 
 
+class TestResumeMetadata:
+    @pytest.mark.asyncio
+    async def test_pending_uploads_carry_manifest_and_file_index(
+        self,
+        client: AsyncClient,
+        queue: UploadQueue,
+        tmp_path: Path,
+    ) -> None:
+        import io
+        import json
+        import tarfile
+
+        archive = tmp_path / "model.luml"
+        with tarfile.open(archive, "w") as tar:
+            body = json.dumps({"variant": "pyfunc", "producer_tags": ["x"]}).encode()
+            info = tarfile.TarInfo(name="manifest.json")
+            info.size = len(body)
+            tar.addfile(info, io.BytesIO(body))
+        queue.enqueue("run-1", "node-1", str(archive), ["exp-1"])
+
+        resp = await client.get("/api/runs/run-1/uploads?status=pending")
+
+        data = resp.json()[0]
+        assert data["manifest"]["variant"] == "pyfunc"
+        assert list(data["file_index"]) == ["manifest.json"]
+
+    @pytest.mark.asyncio
+    async def test_dismiss_closes_the_upload(
+        self,
+        client: AsyncClient,
+        queue: UploadQueue,
+        model_file: Path,
+    ) -> None:
+        upload = queue.enqueue("run-1", "node-1", str(model_file), ["exp-1"])
+
+        resp = await client.post(f"/api/runs/run-1/uploads/{upload.id}/dismiss")
+
+        assert resp.status_code == 200
+        assert queue.get_pending("run-1") == []
+        stored = queue.get(upload.id)
+        assert stored is not None
+        assert stored.status == UploadStatus.COMPLETED
+
+    @pytest.mark.asyncio
+    async def test_dismiss_in_progress_upload_is_409(
+        self,
+        client: AsyncClient,
+        queue: UploadQueue,
+        model_file: Path,
+    ) -> None:
+        upload = queue.enqueue("run-1", "node-1", str(model_file), ["exp-1"])
+        queue.claim(upload.id)
+
+        resp = await client.post(f"/api/runs/run-1/uploads/{upload.id}/dismiss")
+
+        assert resp.status_code == 409
+        stored = queue.get(upload.id)
+        assert stored is not None
+        assert stored.status == UploadStatus.IN_PROGRESS
+
+    @pytest.mark.asyncio
+    async def test_dismiss_unknown_upload_is_404(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        resp = await client.post("/api/runs/run-1/uploads/nope/dismiss")
+        assert resp.status_code == 404
+
+
 class TestRetryBehavior:
     @pytest.mark.asyncio
     async def test_failed_upload_retryable_via_endpoint(

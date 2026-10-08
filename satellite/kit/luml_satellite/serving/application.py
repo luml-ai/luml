@@ -101,7 +101,9 @@ class _ComputeProxy:
         upstream_timeout_seconds: float,
         clock: Callable[[], float],
         logger: logging.Logger,
+        recording_result: Callable[[bool], None] | None = None,
     ) -> None:
+        self._recording_result = recording_result
         self._upstream_client = upstream_client
         self._secret_source = secret_source
         self._recorder = recorder
@@ -312,6 +314,8 @@ class _ComputeProxy:
                 deployment.recording_policy,
             )
         except Exception:
+            if self._recording_result is not None:
+                self._recording_result(False)
             self._logger.warning("failed to start inference recording", exc_info=True)
             return None
 
@@ -324,7 +328,11 @@ class _ComputeProxy:
             return
         try:
             await session.complete(outcome)
+            if self._recording_result is not None:
+                self._recording_result(True)
         except Exception:
+            if self._recording_result is not None:
+                self._recording_result(False)
             self._logger.warning("failed to complete inference recording", exc_info=True)
 
     def _latency_ms(self, started_at: float) -> float:
@@ -346,6 +354,7 @@ def create_serving_application(
     upstream_timeout_seconds: float = UPSTREAM_TIMEOUT_SECONDS,
     authorization_unavailable_status_code: int = 502,
     authorization_unavailable_detail: str = "Authorization failed",
+    recording_result: Callable[[bool], None] | None = None,
     last_monitored_at: Callable[[str], datetime | None] | None = None,
     clock: Callable[[], float] = time.monotonic,
     logger: logging.Logger | None = None,
@@ -369,6 +378,7 @@ def create_serving_application(
         upstream_timeout_seconds=upstream_timeout_seconds,
         clock=clock,
         logger=active_logger,
+        recording_result=recording_result,
     )
     application = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
     application.state.serving_upstream_client = client

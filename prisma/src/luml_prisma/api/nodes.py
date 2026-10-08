@@ -41,6 +41,7 @@ async def node_action(
     body: NodeActionIn,
 ) -> dict[str, Any]:
     handler = request.app.state.node_handler
-    return await handler.execute_action(
+    outcome: dict[str, Any] = await handler.execute_action(
         node_id, body.action, body.payload,
     )
+    return outcome

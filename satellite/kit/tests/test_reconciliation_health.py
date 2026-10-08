@@ -8,6 +8,7 @@ from luml_satellite import (
     ArtifactResolver,
     Convergence,
     Deployment,
+    HealthCheck,
     ModelDescription,
     PlatformClient,
     PollingPass,
@@ -168,6 +169,31 @@ async def test_health_pass_applies_each_nonhealthy_state(
         assert platform.deployment_transitions == []
     else:
         assert platform.deployments[DEPLOYMENT_ID]["error_message"]["reason"] == expected_reason
+
+
+@pytest.mark.asyncio
+async def test_health_pass_reports_why_a_ready_workload_is_unhealthy() -> None:
+    platform = FakePlatform()
+    seed_active(platform, monitoring_mode="full")
+    driver = FakeDriver()
+    driver.add_workload(DEPLOYMENT_ID, observation=observed(WorkloadState.READY))
+    serving = FakeServingPlacement()
+    serving.script_health(
+        DEPLOYMENT_ID,
+        HealthCheck(
+            healthy=False,
+            detail="Inference recording is off: The monitoring package failed to load",
+        ),
+    )
+
+    async with recovery_harness(platform, driver=driver, serving=serving) as kit:
+        await kit.convergence.health_pass()
+
+    assert platform.deployments[DEPLOYMENT_ID]["status"] == "not_responding"
+    assert platform.deployments[DEPLOYMENT_ID]["error_message"] == {
+        "reason": "Health check failed",
+        "error": "Inference recording is off: The monitoring package failed to load",
+    }
 
 
 @pytest.mark.asyncio

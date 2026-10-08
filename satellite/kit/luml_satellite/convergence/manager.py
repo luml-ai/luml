@@ -35,7 +35,7 @@ from luml_satellite.workload import (
     status_transition_allowed,
 )
 
-from .serving import ModelDescription, NoServingPlacement, ServingPlacement
+from .serving import HealthCheck, ModelDescription, NoServingPlacement, ServingPlacement
 
 FAILED_TO_GET_DEPLOYMENT_REASON = "failed to get deployment details"
 INVALID_SETTINGS_REASON = "Invalid deployment settings"
@@ -439,7 +439,8 @@ class Convergence:
                 observation,
                 kind=InProgressKind.RELAUNCH,
             )
-            if await self._check_health(entry):
+            health = await self._check_health(entry)
+            if health.healthy:
                 if (
                     not at_start
                     and deployment.status == DeploymentStatus.ACTIVE
@@ -456,7 +457,7 @@ class Convergence:
             await self._mark_not_responding(
                 deployment,
                 HEALTH_CHECK_FAILED_REASON,
-                observation.error or "workload health check failed",
+                health.detail or observation.error or "workload health check failed",
                 observation.recent_logs,
             )
             return
@@ -1162,15 +1163,15 @@ class Convergence:
         )
 
         if observation.state is WorkloadState.READY:
-            healthy = await self._check_health(entry)
-            if healthy:
+            health = await self._check_health(entry)
+            if health.healthy:
                 if entry.kind is InProgressKind.REAPPLY:
                     await self._adopt(entry.deployment, observation)
                     self._in_progress.pop(deployment_id, None)
                 else:
                     await self._finalize_deploy(entry)
                 return
-            await self._fail_at_deadline(entry, observation.error)
+            await self._fail_at_deadline(entry, health.detail or observation.error)
             return
 
         if observation.state in {WorkloadState.STARTING, WorkloadState.UNKNOWN}:
@@ -1233,7 +1234,7 @@ class Convergence:
                 cleanup=True,
             )
 
-    async def _check_health(self, entry: InProgressDeployment) -> bool:
+    async def _check_health(self, entry: InProgressDeployment) -> HealthCheck:
         try:
             async with asyncio.timeout(self.health_probe_timeout):
                 return await self.serving.check_health(
@@ -1246,7 +1247,7 @@ class Convergence:
                 entry.deployment.id,
                 error,
             )
-            return False
+            return HealthCheck(healthy=False)
 
     async def _finalize_deploy(self, entry: InProgressDeployment) -> None:
         deployment = entry.deployment

@@ -80,7 +80,9 @@ async function initPyWorker() {
     return true;
 }
 
-self.pyodideReadyPromise = initPyWorker();
+self.pyodideReadyPromise = initPyWorker().catch((error) => ({
+    error: error instanceof Error ? error.message : String(error),
+}));
 
 
 async function invokeRoute(route, data) {
@@ -112,12 +114,15 @@ async function tabularDeallocate(model_id) {
 self.onmessage = async (event) => {
     const m = event.data;
     const pyodideReady = await self.pyodideReadyPromise;
+    if (pyodideReady.error) {
+        self.postMessage({ message: m.message, id: m.id, error: pyodideReady.error });
+        return;
+    }
     switch (m.message) {
         case MESSAGES.LOAD_PYODIDE:
             if (pyodideReady) {
                 self.postMessage({ message: m.message, id: m.id, payload: true });
             }
-            // TODO: if an error occurs here, it has to be handled in the frontend
             break;
         case "tabular_train":
             const tabularResult = await tabularTrain(m.payload.task, m.payload.data, m.payload.target, m.payload.groups);
@@ -139,6 +144,7 @@ self.onmessage = async (event) => {
             const interrupt = new Uint8Array(new SharedArrayBuffer(1));
             interrupt[0] = 2;
             self.pyodide.setInterruptBuffer(interrupt);
+            self.postMessage({ message: m.message, id: m.id, payload: true });
             break;
     }
 };

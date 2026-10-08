@@ -18,7 +18,7 @@
           :id="item.id"
           :name="item.name"
           :description="item.description ?? ''"
-          :stages="item.tags ?? []"
+          :stages="item.stages"
           :tags="item.tags ?? []"
         />
       </div>

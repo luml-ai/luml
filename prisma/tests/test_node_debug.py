@@ -1,4 +1,6 @@
 import asyncio
+import shutil
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -47,6 +49,46 @@ def config(tmp_path: Path) -> AppConfig:
     return AppConfig(
         data_dir=tmp_path, db_path=tmp_path / "test.db",
     )
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        check=True, capture_output=True,
+    )
+
+
+class TestComputeGitDiff:
+    @pytest.fixture
+    def worktree(self, tmp_path: Path) -> Path:
+        repo = tmp_path / "repo"
+        (repo / "data").mkdir(parents=True)
+        (repo / "data" / "big.csv").write_text("x,y\n" * 20000)
+        (repo / "main.py").write_text("print('v1')\n")
+        _git(repo, "init", "-b", "main")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "base")
+        _git(repo, "checkout", "-b", "prisma/branch")
+        shutil.rmtree(repo / "data")
+        (repo / "data").symlink_to(tmp_path / "shared-data")
+        (repo / "main.py").write_text("print('v2')\n")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-m", "agent changes")
+        return repo
+
+    def test_excludes_shared_paths(self, worktree: Path) -> None:
+        diff = DebugNodeHandler._compute_git_diff(
+            str(worktree), "main", exclude=["data"],
+        )
+        assert "v2" in diff
+        assert "big.csv" not in diff
+
+    def test_truncates_to_budget(self, worktree: Path) -> None:
+        diff = DebugNodeHandler._compute_git_diff(
+            str(worktree), "main", max_chars=500,
+        )
+        assert len(diff) < 600
+        assert diff.endswith("(diff truncated to 500 chars)")
 
 
 class TestDebugNodeHandler:

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import subprocess
+from collections.abc import Sequence
 from typing import Any
 
 from luml_prisma.services.agents import build_agent_command, get_agent
@@ -16,6 +17,8 @@ from luml_prisma.services.worktree import auto_commit_changes
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MAX_DIFF_CHARS = 10000
+
 
 class DebugNodeHandler:
     def type_id(self) -> str:
@@ -28,19 +31,31 @@ class DebugNodeHandler:
     def _compute_git_diff(
         worktree_path: str,
         base_branch: str,
+        exclude: Sequence[str] = (),
+        max_chars: int = DEFAULT_MAX_DIFF_CHARS,
     ) -> str:
+        """The branch's diff against its base, bounded so it fits in an agent prompt.
+
+        Shared paths are symlinked into worktrees and show up as a wholesale
+        delete of their content; they carry no signal and can exceed the
+        kernel's argument-size limit on their own, so they are left out.
+        """
+        pathspec = [f":(exclude){path}" for path in exclude if path]
         try:
             result = subprocess.run(
-                ["git", "diff", f"{base_branch}...HEAD"],
+                ["git", "diff", f"{base_branch}...HEAD", "--", ".", *pathspec],
                 cwd=worktree_path,
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
-            return result.stdout
         except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as exc:
             logger.warning("git diff failed in %s: %s", worktree_path, exc)
             return "(git diff unavailable)"
+        diff = result.stdout
+        if len(diff) > max_chars:
+            return diff[:max_chars] + f"\n... (diff truncated to {max_chars} chars)"
+        return diff
 
     async def execute(self, ctx: NodeExecutionContext) -> NodeResult:
         worktree_path = ctx.parent_worktree_path
@@ -50,7 +65,12 @@ class DebugNodeHandler:
         failure_context = ctx.payload.get("failure_context", {})
         logs = failure_context.get("logs", "")
 
-        git_diff = self._compute_git_diff(worktree_path, ctx.base_branch)
+        git_diff = self._compute_git_diff(
+            worktree_path,
+            ctx.base_branch,
+            exclude=ctx.services.config.shared_paths,
+            max_chars=int(ctx.run_config.get("max_log_tail", DEFAULT_MAX_DIFF_CHARS)),
+        )
         debug_prompt = build_debug_prompt(
             ctx.payload, git_diff, logs, ctx.run_config,
         )

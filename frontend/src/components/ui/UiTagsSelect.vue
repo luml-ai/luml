@@ -1,5 +1,5 @@
 <template>
-  <div class="wrapper">
+  <div class="wrapper" @keydown.capture="onKeydown">
     <AutoComplete
       ref="elementRef"
       :name="name"
@@ -69,6 +69,25 @@ function onFocus() {
   elementRef.value?.show()
 }
 
+function onKeydown(event: KeyboardEvent) {
+  if (event.code !== 'Backspace') return
+
+  const target = event.target as HTMLElement
+  const value =
+    target instanceof HTMLInputElement
+      ? target.value
+        ? undefined
+        : modelValue.value.at(-1)
+      : Array.from(target.children)
+          .find((option) => option.id === target.getAttribute('aria-activedescendant'))
+          ?.getAttribute('aria-label')
+
+  if (value && props.disabledValues.includes(value)) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+}
+
 function getTooltip(value: string) {
   return props.itemsTooltips[value]
 }
@@ -100,7 +119,8 @@ watch(modelValue, (value) => {
   cursor: pointer;
 }
 .remove-icon-disabled {
-  opacity: 0.6;
+  cursor: not-allowed;
+  opacity: 0.3;
 }
 :deep(.p-autocomplete:has(.p-autocomplete-chip-item) .p-autocomplete-input-chip) {
   display: none;

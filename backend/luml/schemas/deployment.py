@@ -159,3 +159,30 @@ class DeploymentDetailsUpdate(DeploymentDetailsUpdateBase):
 
 class DeploymentStatusUpdateIn(BaseModel):
     status: DeploymentStatus
+
+
+class DeploymentBatchAction(StrEnum):
+    UNDEPLOY = "undeploy"
+    DELETE = "delete"
+
+
+class DeploymentsBatchRequest(BaseModel):
+    deployment_ids: Annotated[list[UUID], Field(min_length=1, max_length=100)]
+    action: DeploymentBatchAction
+
+    @field_validator("deployment_ids")
+    @classmethod
+    def collapse_duplicate_ids(cls, deployment_ids: list[UUID]) -> list[UUID]:
+        return list(dict.fromkeys(deployment_ids))
+
+
+class DeploymentBatchFailure(BaseModel):
+    deployment_id: UUID
+    name: str | None
+    reason: str
+    message: str
+
+
+class DeploymentsBatchResponse(BaseModel):
+    succeeded: list[UUID] = Field(default_factory=list)
+    failed: list[DeploymentBatchFailure] = Field(default_factory=list)

@@ -244,6 +244,10 @@ export class PrismaApi {
     return resp.status
   }
 
+  async dismissUpload(runId: string, uploadId: string): Promise<void> {
+    await this.api.post(`/runs/${runId}/uploads/${uploadId}/dismiss`)
+  }
+
   async postArtifactLink(
     runId: string,
     uploadId: string,

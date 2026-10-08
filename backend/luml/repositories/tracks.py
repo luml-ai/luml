@@ -148,6 +148,7 @@ class TrackRepository(RepositoryBase, CrudMixin):
         track_id: UUID,
         data: TrackUpdate,
         stages: list[StageUpsertIn] | None = None,
+        expected_stage_ids: list[UUID] | None = None,
     ) -> Track | None:
         data.id = track_id
         async with self._get_session() as session:
@@ -160,7 +161,9 @@ class TrackRepository(RepositoryBase, CrudMixin):
                 setattr(db_track, field, value)
 
             if stages is not None:
-                await TrackStageRepository.apply_stage_sync(session, track_id, stages)
+                await TrackStageRepository.apply_stage_sync(
+                    session, track_id, stages, expected_stage_ids
+                )
 
             await session.commit()
             await session.refresh(db_track)
@@ -264,7 +267,10 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
 
     @staticmethod
     async def apply_stage_sync(
-        session: AsyncSession, track_id: UUID, desired: list[StageUpsertIn]
+        session: AsyncSession,
+        track_id: UUID,
+        desired: list[StageUpsertIn],
+        expected_stage_ids: list[UUID] | None = None,
     ) -> None:
         track_exists = await session.scalar(
             select(TrackOrm.id).where(TrackOrm.id == track_id).with_for_update()
@@ -283,6 +289,14 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
             .all()
         )
         current_by_id = {stage.id: stage for stage in current}
+        if expected_stage_ids is not None and set(expected_stage_ids) != set(
+            current_by_id
+        ):
+            raise ApplicationError(
+                "Track stages were changed by someone else. "
+                "Reload the stages and try again.",
+                409,
+            )
         desired_ids = {item.id for item in desired if item.id is not None}
 
         for item in desired:

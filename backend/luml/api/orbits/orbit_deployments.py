@@ -10,6 +10,8 @@ from luml.schemas.deployment import (
     Deployment,
     DeploymentCreateIn,
     DeploymentDetailsUpdateIn,
+    DeploymentsBatchRequest,
+    DeploymentsBatchResponse,
 )
 from luml.schemas.monitoring import MonitoringEligibility, MonitoringLaunchToken
 from luml.schemas.satellite import SatelliteQueueTask
@@ -44,6 +46,18 @@ async def list_deployments(
     request: Request, organization_id: UUID, orbit_id: UUID
 ) -> list[Deployment]:
     return await handler.list_deployments(request.user.id, organization_id, orbit_id)
+
+
+@deployments_router.post(
+    "/batch", responses=endpoint_responses, response_model=DeploymentsBatchResponse
+)
+async def batch_deployment_action(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    data: DeploymentsBatchRequest,
+) -> DeploymentsBatchResponse:
+    return await handler.batch_action(request.user.id, organization_id, orbit_id, data)
 
 
 @deployments_router.get(

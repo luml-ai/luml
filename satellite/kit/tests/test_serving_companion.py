@@ -5,7 +5,13 @@ from dataclasses import dataclass, field
 import httpx
 import pytest
 
-from luml_satellite import AuthorizationVerdict, Deployment, ModelDescription, TokenDeriver
+from luml_satellite import (
+    AuthorizationVerdict,
+    Deployment,
+    HealthCheck,
+    ModelDescription,
+    TokenDeriver,
+)
 from luml_satellite.serving import (
     COMPANION_PATH,
     CompanionAuthorization,
@@ -21,7 +27,7 @@ from luml_satellite.serving import (
     SecretUnavailable,
     create_sidecar_internal_application,
 )
-from luml_satellite.workload import DeploymentMetadata, RecordingPolicy
+from luml_satellite.workload import DeploymentMetadata, RecordingPolicy, RecordingStatus
 from tests.helpers import ARTIFACT_ID, DEPLOYMENT_ID, deployment_record
 
 OTHER_DEPLOYMENT_ID = "10000000-0000-0000-0000-000000000002"
@@ -296,7 +302,7 @@ async def test_companion_placement_reads_the_guarded_sidecar_internal_port() -> 
     assert description.manifest == {"producer_tags": ["luml.ai::tabular_monitoring:v1"]}
     assert description.schema == {"openapi": "3.1.0"}
     assert description.reference_profile is not None
-    assert healthy is True
+    assert healthy == HealthCheck(healthy=True)
 
 
 @pytest.mark.asyncio
@@ -337,3 +343,45 @@ def test_companion_metadata_policy_round_trip() -> None:
         body_max_bytes=1024,
         keep_inputs=False,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("recording", "detail"),
+    [
+        (
+            RecordingStatus(state="fault", reason="The monitoring package failed to load"),
+            "Inference recording is off: The monitoring package failed to load",
+        ),
+        (
+            RecordingStatus(state="unavailable", reason="The monitoring extra is not installed"),
+            "Inference recording is off: The monitoring extra is not installed",
+        ),
+        (RecordingStatus(state="recording"), None),
+        (RecordingStatus(state="disabled", reason="Deployment monitoring is disabled"), None),
+    ],
+)
+async def test_companion_placement_reports_why_the_sidecar_is_unhealthy(
+    recording: RecordingStatus,
+    detail: str | None,
+) -> None:
+    tokens = TokenDeriver("satellite-token", "derivation-key")
+    sidecar_internal = create_sidecar_internal_application(
+        tokens.companion_token(DEPLOYMENT_ID),
+        description=ModelDescription,
+        health=lambda: asyncio.sleep(0, result=False),
+        recording=lambda: recording,
+    )
+    placement = CompanionServingPlacement(
+        AllowKnownKeys(),
+        StaticSecrets(),
+        tokens,
+        upstream_transport=httpx.ASGITransport(app=sidecar_internal),
+    )
+    deployment = Deployment.model_validate(deployment_record())
+    try:
+        health = await placement.check_health(deployment, upstream_url="http://sidecar")
+    finally:
+        await placement.aclose()
+
+    assert health == HealthCheck(healthy=False, detail=detail)

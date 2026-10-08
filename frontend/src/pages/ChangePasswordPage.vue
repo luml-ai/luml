@@ -11,6 +11,9 @@
         @submit="onFormSubmit"
         class="form"
       >
+        <d-message v-if="!token" severity="error" size="small" variant="simple">
+          Invalid or missing reset link
+        </d-message>
         <div class="input-wrapper">
           <d-float-label variant="on">
             <d-password

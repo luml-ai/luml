@@ -15,7 +15,7 @@ from luml_satellite.monitoring.compute.models import (
 from luml_satellite.monitoring.dashboard.profile import profile_status
 from luml_satellite.tokens import TokenDeriver
 from luml_satellite.wire import Deployment, PlatformClient
-from luml_satellite.workload import DeploymentMetadata
+from luml_satellite.workload import DeploymentMetadata, RecordingStatus
 
 logger = logging.getLogger("luml_satellite.monitoring")
 
@@ -101,7 +101,7 @@ class PlatformDeploymentSource:
                 deployment
                 for record in records
                 if (deployment := _parse_deployment(record)) is not None
-                and deployment.status == "active"
+                and deployment.status in {"active", "not_responding"}
                 and deployment.monitoring_mode.strip().lower() == "full"
             ]
             loaded = await asyncio.gather(
@@ -121,10 +121,17 @@ class PlatformDeploymentSource:
     async def _load_deployment(
         self, deployment: Deployment
     ) -> tuple[MonitoredDeployment, LocalDeployment]:
-        profile, manifest = await asyncio.gather(
+        profile, manifest, recording = await asyncio.gather(
             self._sidecar_json(deployment.id, "reference_profile"),
             self._sidecar_json(deployment.id, "manifest"),
+            self._sidecar_json(deployment.id, "recording"),
         )
+        try:
+            recording_status = RecordingStatus.model_validate(recording)
+        except ValueError:
+            recording_status = RecordingStatus(
+                state="unavailable", reason="Sidecar recording status is unavailable"
+            )
         status = profile_status(profile)
         monitored = MonitoredDeployment(
             deployment_id=deployment.id,
@@ -137,6 +144,7 @@ class PlatformDeploymentSource:
             reference_profile=profile,
             profile_status=status,
             monitoring_enabled=True,
+            recording_status=recording_status,
             metadata=DeploymentMetadata.from_platform(deployment.model_dump()),
         )
         return monitored, local
