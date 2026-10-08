@@ -2,6 +2,7 @@ import os
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,6 +48,13 @@ class Settings(BaseSettings):
     LIVE_SESSION_VIEWER_IDLE_SECONDS: int = 604800
 
     CORS_ORIGINS: str = "https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
+
+    LOGFIRE_TOKEN: SecretStr | None = None
+    LOGFIRE_ENVIRONMENT: Literal["dev", "staging", "prod"] = "dev"
+    LOGFIRE_SERVICE_VERSION: str = "0.1.0"
+    LOGFIRE_BASE_URL: Literal[
+        "https://logfire-us.pydantic.dev", "https://logfire-eu.pydantic.dev"
+    ] = "https://logfire-us.pydantic.dev"
 
     PLATFORM_ADMIN_EMAIL: str | None = None
     PLATFORM_ADMIN_AUTH_METHODS: str = "GOOGLE"
