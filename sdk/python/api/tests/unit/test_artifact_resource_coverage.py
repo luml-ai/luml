@@ -79,10 +79,7 @@ def test_abstract_base_methods_raise_not_implemented() -> None:
 # get by id / _get_by_id
 # --------------------------------------------------------------------------- #
 def test_get_by_uuid(mock_sync_client: Mock, sample_artifact: Artifact) -> None:
-    mock_sync_client.get.return_value = {
-        "items": [sample_artifact.model_dump()],
-        "cursor": None,
-    }
+    mock_sync_client.get.return_value = sample_artifact.model_dump()
     resource = ArtifactResource(mock_sync_client)
 
     artifact = resource.get(VALID_UUID)
@@ -92,7 +89,7 @@ def test_get_by_uuid(mock_sync_client: Mock, sample_artifact: Artifact) -> None:
 
 
 def test_get_by_uuid_not_found(mock_sync_client: Mock) -> None:
-    mock_sync_client.get.return_value = {"items": [], "cursor": None}
+    mock_sync_client.get.return_value = None
     resource = ArtifactResource(mock_sync_client)
 
     assert resource.get("00000000-0000-0000-0000-000000000000") is None
@@ -102,10 +99,7 @@ def test_get_by_uuid_not_found(mock_sync_client: Mock) -> None:
 async def test_async_get_by_uuid(
     mock_async_client: AsyncMock, sample_artifact: Artifact
 ) -> None:
-    mock_async_client.get.return_value = {
-        "items": [sample_artifact.model_dump()],
-        "cursor": None,
-    }
+    mock_async_client.get.return_value = sample_artifact.model_dump()
     resource = AsyncArtifactResource(mock_async_client)
 
     artifact = await resource.get(VALID_UUID)
@@ -116,7 +110,7 @@ async def test_async_get_by_uuid(
 
 @pytest.mark.asyncio
 async def test_async_get_by_uuid_not_found(mock_async_client: AsyncMock) -> None:
-    mock_async_client.get.return_value = {"items": [], "cursor": None}
+    mock_async_client.get.return_value = None
     resource = AsyncArtifactResource(mock_async_client)
 
     assert await resource.get("00000000-0000-0000-0000-000000000000") is None
@@ -312,7 +306,7 @@ def test_download_resolves_filename_when_path_none(
     mock_sync_client: Mock, sample_artifact: Artifact
 ) -> None:
     mock_sync_client.get.side_effect = [
-        {"items": [sample_artifact.model_dump()], "cursor": None},
+        sample_artifact.model_dump(),
         {"url": "https://example.com/file"},
     ]
     resource = ArtifactResource(mock_sync_client)
@@ -325,7 +319,7 @@ def test_download_resolves_filename_when_path_none(
 
 
 def test_download_artifact_not_found(mock_sync_client: Mock) -> None:
-    mock_sync_client.get.return_value = {"items": [], "cursor": None}
+    mock_sync_client.get.return_value = None
     resource = ArtifactResource(mock_sync_client)
 
     with pytest.raises(ValueError, match="not found"):
@@ -351,7 +345,7 @@ async def test_async_download_resolves_filename_when_path_none(
     mock_async_client: AsyncMock, sample_artifact: Artifact
 ) -> None:
     mock_async_client.get.side_effect = [
-        {"items": [sample_artifact.model_dump()], "cursor": None},
+        sample_artifact.model_dump(),
         {"url": "https://example.com/file"},
     ]
     resource = AsyncArtifactResource(mock_async_client)
@@ -367,7 +361,7 @@ async def test_async_download_resolves_filename_when_path_none(
 async def test_async_download_artifact_not_found(
     mock_async_client: AsyncMock,
 ) -> None:
-    mock_async_client.get.return_value = {"items": [], "cursor": None}
+    mock_async_client.get.return_value = None
     resource = AsyncArtifactResource(mock_async_client)
 
     with pytest.raises(ValueError, match="not found"):
