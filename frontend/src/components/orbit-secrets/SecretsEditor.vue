@@ -51,7 +51,7 @@
 
 <script setup lang="ts">
 import { getErrorMessage } from '@/helpers/helpers'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { InputText, AutoComplete, Password, useToast, useConfirm } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Bolt } from 'lucide-vue-next'
@@ -77,11 +77,16 @@ const orbitsStore = useOrbitsStore()
 const toast = useToast()
 
 const formData = ref<UpdateSecretPayload>({
-  id: props.secret?.id || '',
-  name: props.secret?.name || '',
+  id: '',
+  name: '',
   value: '',
-  tags: props.secret?.tags ? [...props.secret.tags] : [],
+  tags: [],
 })
+
+const loadedSecretId = ref<string | null>(null)
+const canSave = computed(
+  () => props.visible && !!props.secret?.id && loadedSecretId.value === props.secret.id,
+)
 
 const footerActions = computed<FooterActions>(() => {
   return {
@@ -100,61 +105,47 @@ const footerActions = computed<FooterActions>(() => {
         type: 'submit',
         form: 'secret-edit-form',
         loading: updateLoading.value,
+        disabled: !canSave.value,
       },
     },
   }
 })
 
-async function loadSecretDetails() {
-  if (!props.secret?.id) return
+watch(
+  [() => props.secret?.id, () => props.visible],
+  async ([secretId, visible], _, onCleanup) => {
+    loadedSecretId.value = null
+    formData.value = { id: '', name: '', value: '', tags: [] }
 
-  const orbit = orbitsStore.currentOrbitDetails
-  if (!orbit?.organization_id || !orbit?.id) return
+    let current = true
+    onCleanup(() => {
+      current = false
+    })
+    if (!visible || !secretId) return
 
-  try {
-    const fullSecret = await secretsStore.getSecretById(
-      orbit.organization_id,
-      orbit.id,
-      props.secret.id,
-    )
+    // wait for both props to settle before starting one request per open
+    await nextTick()
+    if (!current) return
 
-    if (fullSecret) {
+    const orbit = orbitsStore.currentOrbitDetails
+    if (!orbit?.organization_id || !orbit?.id) return
+
+    try {
+      const fullSecret = await secretsStore.getSecretById(orbit.organization_id, orbit.id, secretId)
+      if (!current || !fullSecret || fullSecret.id !== secretId) return
+
       formData.value = {
         id: fullSecret.id,
         name: fullSecret.name || '',
         value: fullSecret.value || '',
         tags: fullSecret.tags ? [...fullSecret.tags] : [],
       }
-    }
-  } catch {
-    toast.add(simpleErrorToast('Failed to load secret details'))
-  }
-}
-
-watch(
-  () => props.secret,
-  async (secret) => {
-    if (secret?.id) {
-      await loadSecretDetails()
-    } else {
-      formData.value = {
-        id: '',
-        name: '',
-        value: '',
-        tags: [],
-      }
+      loadedSecretId.value = secretId
+    } catch {
+      if (current) toast.add(simpleErrorToast('Failed to load secret details'))
     }
   },
-  { immediate: true },
-)
-
-watch(
-  () => props.visible,
-  async (visible) => {
-    if (visible && props.secret?.id) {
-      await loadSecretDetails()
-    }
-  },
+  { immediate: true, flush: 'sync' },
 )
 
 const updateLoading = ref(false)
@@ -178,7 +169,7 @@ function getRequestInfo() {
 }
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid || !props.secret) return
+  if (!valid || !props.secret || !canSave.value) return
   try {
     updateLoading.value = true
     const req = getRequestInfo()
