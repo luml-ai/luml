@@ -87,7 +87,9 @@ self.pyodideReadyPromise = initPyWorker().catch((error) => ({
 
 async function invokeRoute(route, data) {
     const dfw = self.pyodide.pyimport("dfs_webworker");
-    const res = (await dfw.invoke(route, data)).toJs();
+    const response = await dfw.invoke(route, data);
+    // store deletion returns none on success
+    const res = response == null ? null : response.toJs();
     return JSON.parse(JSON.stringify(res));
 }
 

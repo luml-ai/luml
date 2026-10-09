@@ -40,7 +40,7 @@ const toast = useToast()
 
 type Props = {
   uploadCallback: (file: File) => unknown
-  removeCallback: () => void
+  removeCallback: () => unknown
 }
 type Emits = {
   continue: []
@@ -57,9 +57,12 @@ const file = ref<FileData>({})
 const isModelLoading = ref(false)
 const isError = ref(false)
 
-const isContinueAvailable = computed(() => !!file.value.name)
+const isContinueAvailable = computed(
+  () => !!file.value.name && !isModelLoading.value && !isError.value,
+)
 
 async function selectFile(event: File) {
+  if (isModelLoading.value) return
   isError.value = false
   isModelLoading.value = true
   try {
@@ -76,10 +79,18 @@ async function selectFile(event: File) {
     isModelLoading.value = false
   }
 }
-function removeFile() {
+async function removeFile() {
   isError.value = false
-  file.value = {}
-  props.removeCallback()
+  isModelLoading.value = true
+  try {
+    await props.removeCallback()
+    file.value = {}
+  } catch (error) {
+    toast.add(predictErrorToast(error instanceof Error ? error.message : String(error)))
+    isError.value = true
+  } finally {
+    isModelLoading.value = false
+  }
 }
 </script>
 
