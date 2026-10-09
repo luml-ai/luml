@@ -1,300 +1,216 @@
-## Artifact
+<a id="luml_api._types"></a>
 
-*model* `Artifact(id, collection_id, file_name, name, description=None, extra_values, manifest, file_hash, file_index, bucket_location, size, unique_identifier, tags=None, status, type, created_at, updated_at=None)`
+# luml_api._types
 
-**Fields**
+<a id="luml_api._types.BucketType"></a>
 
-- **id** (*str*)
-- **collection_id** (*str*)
-- **file_name** (*str*)
-- **name** (*str*)
-- **description** (*str | None, optional*) – Defaults to `None`.
-- **extra_values** (*dict*)
-- **manifest** (*dict*)
-- **file_hash** (*str*)
-- **file_index** (*dict[str, tuple[int, int]]*)
-- **bucket_location** (*str*)
-- **size** (*int*)
-- **unique_identifier** (*str*)
-- **tags** (*list[str] | None, optional*) – Defaults to `None`.
-- **status** (*str*)
-- **type** (*ArtifactType*)
-- **created_at** (*str*)
-- **updated_at** (*str | None, optional*) – Defaults to `None`.
+## BucketType Objects
 
-## ArtifactFileDetails
+```python
+class BucketType(StrEnum)
+```
 
-*model* `ArtifactFileDetails(file_name, extra_values, manifest, file_hash, file_index, size)`
+Options: "s3", "azure
 
-**Fields**
+<a id="luml_api._types.CollectionType"></a>
 
-- **file_name** (*str*)
-- **extra_values** (*dict*)
-- **manifest** (*dict*)
-- **file_hash** (*str*)
-- **file_index** (*dict[str, tuple[int, int]]*)
-- **size** (*int*)
+## CollectionType Objects
 
-## ArtifactSortBy
+```python
+class CollectionType(StrEnum)
+```
 
-*enum* `ArtifactSortBy`
+Options: "model", "dataset", "experiment", "model_dataset",
+"dataset_experiment", "model_experiment", "mixed".
 
-**Members**
+<a id="luml_api._types.CollectionTypeFilter"></a>
 
-- **CREATED_AT** – `'created_at'`
-- **NAME** – `'name'`
-- **SIZE** – `'size'`
-- **DESCRIPTION** – `'description'`
-- **STATUS** – `'status'`
-- **TYPE** – `'type'`
+## CollectionTypeFilter Objects
 
-## ArtifactStatus
+```python
+class CollectionTypeFilter(StrEnum)
+```
 
-*enum* `ArtifactStatus`
+Options: "model", "dataset", "experiment", "mixed".
 
-**Members**
+<a id="luml_api._types.ArtifactType"></a>
 
-- **PENDING_UPLOAD** – `'pending_upload'`
-- **UPLOADED** – `'uploaded'`
-- **UPLOAD_FAILED** – `'upload_failed'`
-- **DELETION_FAILED** – `'deletion_failed'`
+## ArtifactType Objects
 
-## ArtifactType
+```python
+class ArtifactType(StrEnum)
+```
 
-*enum* `ArtifactType`
+Options: "model", "experiment", "dataset"
 
-**Members**
+<a id="luml_api._types.ArtifactStatus"></a>
 
-- **MODEL** – `'model'`
-- **EXPERIMENT** – `'experiment'`
-- **DATASET** – `'dataset'`
+## ArtifactStatus Objects
 
-## ArtifactsList
+```python
+class ArtifactStatus(StrEnum)
+```
 
-*model* `ArtifactsList(items, cursor=None)`
+Options: "pending_upload", "uploaded", "upload_failed", "deletion_failed"
 
-**Fields**
+<a id="luml_api._types.ArtifactSortBy"></a>
 
-- **items** (*list[~T]*)
-- **cursor** (*str | None, optional*) – Defaults to `None`.
+## ArtifactSortBy Objects
 
-## AzureBucketSecret
+```python
+class ArtifactSortBy(StrEnum)
+```
 
-*model* `AzureBucketSecret(id, type=<BucketType.AZURE: 'azure'>, endpoint, bucket_name, organization_id, created_at, updated_at=None)`
+Options: "created_at", "name", "description", "size", "status", "type"
 
-**Fields**
+<a id="luml_api._types.SortOrder"></a>
 
-- **id** (*str*)
-- **type** (*Literal[&lt;AZURE: 'azure'&gt;], optional*) – Defaults to `<BucketType.AZURE: 'azure'>`.
-- **endpoint** (*str*)
-- **bucket_name** (*str*)
-- **organization_id** (*str*)
-- **created_at** (*str*)
-- **updated_at** (*str | None, optional*) – Defaults to `None`.
+## SortOrder Objects
 
-## BucketMultipartUpload
+```python
+class SortOrder(StrEnum)
+```
 
-*model* `BucketMultipartUpload(bucket_id, bucket_location, size, upload_id)`
+Options: "asc", "desc"
 
-**Fields**
+<a id="luml_api._types.CollectionSortBy"></a>
 
-- **bucket_id** (*str*)
-- **bucket_location** (*str*)
-- **size** (*int*)
-- **upload_id** (*str*)
+## CollectionSortBy Objects
 
-## BucketType
+```python
+class CollectionSortBy(StrEnum)
+```
 
-*enum* `BucketType`
+Options: "created_at", "name", "description", "type", "total_artifacts"
 
-**Members**
+<a id="luml_api._types.Deployment"></a>
 
-- **S3** – `'s3'`
-- **AZURE** – `'azure'`
+## Deployment Objects
 
-## Collection
+```python
+class Deployment(BaseModel)
+```
 
-*model* `Collection(id, orbit_id, description, name, type, tags=None, total_artifacts=0, created_at, updated_at=None)`
+A model deployment on a Satellite, as the Platform records it.
 
-**Fields**
+<a id="luml_api._types.Satellite"></a>
 
-- **id** (*str*)
-- **orbit_id** (*str*)
-- **description** (*str*)
-- **name** (*str*)
-- **type** (*str*)
-- **tags** (*list[str] | None, optional*) – Defaults to `None`.
-- **total_artifacts** (*int, optional*) – Defaults to `0`.
-- **created_at** (*str*)
-- **updated_at** (*str | None, optional*) – Defaults to `None`.
+## Satellite Objects
 
-## CollectionDetails
+```python
+class Satellite(_SatelliteRecord)
+```
 
-*model* `CollectionDetails(id, orbit_id, description, name, type, tags=None, total_artifacts=0, created_at, updated_at=None, artifacts_tags=None, artifacts_extra_values=None)`
+A Satellite record bound to its Platform and machine APIs.
 
-**Fields**
+<a id="luml_api._types.Satellite.operations"></a>
 
-- **id** (*str*)
-- **orbit_id** (*str*)
-- **description** (*str*)
-- **name** (*str*)
-- **type** (*str*)
-- **tags** (*list[str] | None, optional*) – Defaults to `None`.
-- **total_artifacts** (*int, optional*) – Defaults to `0`.
-- **created_at** (*str*)
-- **updated_at** (*str | None, optional*) – Defaults to `None`.
-- **artifacts_tags** (*list[str] | None, optional*) – Defaults to `None`.
-- **artifacts_extra_values** (*list[str] | None, optional*) – Defaults to `None`.
+#### operations
 
-## CollectionSortBy
+```python
+def operations(facet: str | None = None) -> list[dict[str, Any]]
+```
 
-*enum* `CollectionSortBy`
+List the Satellite's endpoints from its stored OpenAPI document.
 
-**Members**
+The document is the one the Satellite pushed to the Platform when it
+paired; the Satellite itself is not contacted. Each entry describes one
+operation: method, path template, summary, description, parameters and
+security.
 
-- **CREATED_AT** – `'created_at'`
-- **NAME** – `'name'`
-- **TYPE** – `'type'`
-- **DESCRIPTION** – `'description'`
-- **TOTAL_ARTIFACTS** – `'total_artifacts'`
+**Arguments**:
 
-## CollectionType
+- `facet` - Only list operations tagged with this facet id, for example "deployment:monitoring". None lists every operation.
+  
 
-*enum* `CollectionType`
+**Returns**:
 
-**Members**
+  list of dicts with "method", "path", "summary", "description",
+  "parameters" and "security".
+  
 
-- **MODEL** – `'model'`
-- **DATASET** – `'dataset'`
-- **EXPERIMENT** – `'experiment'`
-- **MODEL_DATASET** – `'model_dataset'`
-- **DATASET_EXPERIMENT** – `'dataset_experiment'`
-- **MODEL_EXPERIMENT** – `'model_experiment'`
-- **MIXED** – `'mixed'`
+**Raises**:
 
-## CollectionTypeFilter
+- `LumlAPIError` - If the Satellite paired without an OpenAPI document, so no description is available.
+  
 
-*enum* `CollectionTypeFilter`
+**Example**:
 
-**Members**
+```python
+satellite = luml.satellites.get("0199c9cd-3e36-72c0-b823-040eb8195067")
+operations = satellite.operations(facet="deployment:monitoring")
+```
 
-- **MODEL** – `'model'`
-- **DATASET** – `'dataset'`
-- **EXPERIMENT** – `'experiment'`
-- **MIXED** – `'mixed'`
+<a id="luml_api._types.Satellite.request"></a>
 
-## CollectionsList
+#### request
 
-*model* `CollectionsList(items, cursor=None)`
+```python
+def request(method: str, path: str, **kwargs: Any) -> Any
+```
 
-**Fields**
+Perform one HTTP call against the Satellite's own API.
 
-- **items** (*list[~T]*)
-- **cursor** (*str | None, optional*) – Defaults to `None`.
+Sends the request with the client's bearer key and returns the parsed
+JSON as-is. Use it together with `operations()` to call endpoints the SDK
+has no native method for, such as a custom capability's routes.
 
-## CreatedArtifact
+**Arguments**:
 
-*model* `CreatedArtifact(upload_details, artifact)`
+- `method` - HTTP method, for example "GET".
+- `path` - Path relative to the Satellite's base URL, or an absolute URL on the same origin. Any other origin raises before a request is sent, so the key cannot leak to a foreign host.
+- `**kwargs` - Passed to the underlying HTTP client, for example `params` or `json`.
+  
 
-**Fields**
+**Returns**:
 
-- **upload_details** (*UploadDetails*)
-- **artifact** (*Artifact*)
+  The Satellite's parsed JSON response.
+  
 
-## MultiPartUploadDetails
+**Raises**:
 
-*model* `MultiPartUploadDetails(type, upload_id=None, parts, complete_url)`
+- `LumlAPIError` - If `path` resolves to a different origin than the Satellite's base URL.
+- `APIStatusError` - Subclass matching the HTTP error status, if any.
+  
 
-**Fields**
+**Example**:
 
-- **type** (*BucketType*)
-- **upload_id** (*str | None, optional*) – Defaults to `None`.
-- **parts** (*list[PartDetails]*)
-- **complete_url** (*str*)
+```python
+satellite = luml.satellites.get("0199c9cd-3e36-72c0-b823-040eb8195067")
+health = satellite.request("GET", "/healthz")
+```
 
-## MultipartUploadInfo
+<a id="luml_api._types.AsyncSatellite"></a>
 
-*model* `MultipartUploadInfo(upload_id, parts_count, part_size)`
+## AsyncSatellite Objects
 
-**Fields**
+```python
+class AsyncSatellite(_SatelliteRecord)
+```
 
-- **upload_id** (*str*)
-- **parts_count** (*int*)
-- **part_size** (*int*)
+Async Satellite record bound to its Platform and machine APIs.
 
-## Orbit
+<a id="luml_api._types.AsyncSatellite.operations"></a>
 
-*model* `Orbit(id, name, organization_id, bucket_secret_id, total_members=None, total_collections=None, created_at, updated_at=None)`
+#### operations
 
-**Fields**
+```python
+async def operations(facet: str | None = None) -> list[dict[str, Any]]
+```
 
-- **id** (*str*)
-- **name** (*str*)
-- **organization_id** (*str*)
-- **bucket_secret_id** (*str*)
-- **total_members** (*int | None, optional*) – Defaults to `None`.
-- **total_collections** (*int | None, optional*) – Defaults to `None`.
-- **created_at** (*str*)
-- **updated_at** (*str | None, optional*) – Defaults to `None`.
+List the Satellite's endpoints from its stored OpenAPI document.
 
-## Organization
+Async variant of `Satellite.operations`.
 
-*model* `Organization(id, name, logo=None, created_at, updated_at=None)`
+<a id="luml_api._types.AsyncSatellite.request"></a>
 
-**Fields**
+#### request
 
-- **id** (*str*)
-- **name** (*str*)
-- **logo** (*str | None, optional*) – Defaults to `None`.
-- **created_at** (*str*)
-- **updated_at** (*str | None, optional*) – Defaults to `None`.
+```python
+async def request(method: str, path: str, **kwargs: Any) -> Any
+```
 
-## PartDetails
+Perform one HTTP call against the Satellite's own API.
 
-*model* `PartDetails(part_number, url, start_byte, end_byte, part_size)`
+Async variant of `Satellite.request`.
 
-**Fields**
-
-- **part_number** (*int*)
-- **url** (*str*)
-- **start_byte** (*int*)
-- **end_byte** (*int*)
-- **part_size** (*int*)
-
-## S3BucketSecret
-
-*model* `S3BucketSecret(id, type=<BucketType.S3: 's3'>, endpoint, bucket_name, secure=None, region, cert_check=None, organization_id, created_at, updated_at=None)`
-
-**Fields**
-
-- **id** (*str*)
-- **type** (*Literal[&lt;S3: 's3'&gt;], optional*) – Defaults to `<BucketType.S3: 's3'>`.
-- **endpoint** (*str*)
-- **bucket_name** (*str*)
-- **secure** (*bool | None, optional*) – Defaults to `None`.
-- **region** (*str*)
-- **cert_check** (*bool | None, optional*) – Defaults to `None`.
-- **organization_id** (*str*)
-- **created_at** (*str*)
-- **updated_at** (*str | None, optional*) – Defaults to `None`.
-
-## SortOrder
-
-*enum* `SortOrder`
-
-**Members**
-
-- **ASC** – `'asc'`
-- **DESC** – `'desc'`
-
-## UploadDetails
-
-*model* `UploadDetails(type, url=None, multipart=False, bucket_location, bucket_secret_id)`
-
-**Fields**
-
-- **type** (*BucketType*)
-- **url** (*str | None, optional*) – Defaults to `None`.
-- **multipart** (*bool, optional*) – Defaults to `False`.
-- **bucket_location** (*str*)
-- **bucket_secret_id** (*str*)

@@ -61,7 +61,6 @@ import { useArtifactsList } from '@/hooks/useArtifactsList'
 import { useRoute } from 'vue-router'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
-import { useDebounceFn } from '@vueuse/core'
 import { useTracksStore } from '@/stores/tracks'
 import CollectionSelect from '@/components/orbits/tabs/registry/CollectionSelect.vue'
 import ArtifactsList from '@/components/orbits/tabs/registry/collection/artifact/ArtifactsList.vue'
@@ -148,11 +147,6 @@ async function resetList() {
   }
 }
 
-const debouncedOnSearch = useDebounceFn((query: string) => {
-  setSearchQuery(query)
-  resetList()
-}, 500)
-
 function onTrackChanged(track: Track | null) {
   if (track) {
     setTypesQuery([track.artifact_type])
@@ -197,7 +191,7 @@ watch(() => initialValues.value.collection, onCollectionChanged)
 
 watch(() => tracksStore.currentTrack, onTrackChanged, { immediate: true })
 
-watch(artifactSearch, debouncedOnSearch)
+watch(artifactSearch, setSearchQuery)
 </script>
 
 <style scoped>

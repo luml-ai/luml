@@ -13,6 +13,8 @@ services:
       - satellite-network
     volumes:
       - greptimedb-data:/tmp/greptimedb
+    ports:
+      - "4000:4000"
     restart: unless-stopped
 
   otel-collector:
@@ -29,7 +31,7 @@ services:
   model-image:
     image: luml-random-svc:latest
     build:
-      context: model_server
+      context: ../model_servers/default
     command: ["true"]
     restart: "no"
     networks:
@@ -39,9 +41,13 @@ services:
     image: luml-satellite-agent:latest
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: implementations/docker/Dockerfile
     networks:
-      - satellite-network
+      satellite-network:
+        # Model containers call the Agent by this name. Without the alias only
+        # "agent" and "satellite-agent-1" resolve, and the URL they are given does not.
+        aliases:
+          - satellite-agent
     environment:
       SATELLITE_TOKEN: ${SATELLITE_TOKEN:?Set SATELLITE_TOKEN in .env}
       PLATFORM_URL: ${PLATFORM_URL:-http://localhost:8000}
@@ -50,6 +56,8 @@ services:
       POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-2}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       MONITORING_ENABLED: "true"
+      GREPTIMEDB_HOST: greptimedb
+      MONITORING_FRAME_ANCESTORS: ${MONITORING_FRAME_ANCESTORS:-http://localhost:5173}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     user: "0:0"

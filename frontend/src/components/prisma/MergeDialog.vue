@@ -4,7 +4,7 @@ import { Dialog, Button } from 'primevue'
 import { Check } from 'lucide-vue-next'
 import type { MergePreview } from '@/lib/api/prisma/prisma.interfaces'
 import { api } from '@/lib/api'
-import { getErrorMessage } from '@/helpers/helpers'
+import { getErrorDetail, getErrorMessage } from '@/helpers/helpers'
 import type { AxiosError } from 'axios'
 
 const props = defineProps<{
@@ -57,12 +57,12 @@ async function confirmMerge() {
     emit('merged')
   } catch (e: unknown) {
     const err = e as AxiosError
-    const data = err?.response?.data as { conflicting_files?: string[]; detail?: string }
+    const data = err?.response?.data as { conflicting_files?: string[]; detail?: unknown }
     if (err?.response?.status === 409 && data?.conflicting_files) {
       conflictingFiles.value = data.conflicting_files
-      error.value = data.detail ?? 'Merge conflicts detected'
+      error.value = getErrorDetail(data.detail) ?? 'Merge conflicts detected'
     } else {
-      error.value = data?.detail ?? 'Merge failed'
+      error.value = getErrorDetail(data?.detail) ?? 'Merge failed'
     }
   }
 }

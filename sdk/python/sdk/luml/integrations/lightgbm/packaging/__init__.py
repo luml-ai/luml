@@ -90,7 +90,10 @@ def _add_io(
 
 
 def _get_default_tags() -> list[str]:
-    return [FNNX_PRODUCER_NAME + "::lightgbm:v1"]
+    return [
+        FNNX_PRODUCER_NAME + "::lightgbm:v1",
+        FNNX_PRODUCER_NAME + "::kind_tabular:v1",
+    ]
 
 
 def save_lightgbm(  # noqa: C901

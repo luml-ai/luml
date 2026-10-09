@@ -49,7 +49,6 @@ const orbitId = computed(() => String(route.params.id))
   text-overflow: ellipsis;
 }
 .link {
-  color: var(--p-text-link-color);
   text-decoration: underline;
   transition: color 0.3s;
 }

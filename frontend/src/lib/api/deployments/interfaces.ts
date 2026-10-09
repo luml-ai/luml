@@ -4,7 +4,13 @@ export enum DeploymentStatusEnum {
   failed = 'failed',
   deleted = 'deleted',
   deletion_pending = 'deletion_pending',
+  deletion_failed = 'deletion_failed',
   not_responding = 'not_responding',
+}
+
+export enum MonitoringMode {
+  off = 'off',
+  full = 'full',
 }
 
 export interface CreateDeploymentPayload {
@@ -12,6 +18,7 @@ export interface CreateDeploymentPayload {
   description: string
   satellite_id: string
   artifact_id: string
+  monitoring_mode: MonitoringMode
   satellite_parameters: Record<string, string | number | boolean>
   dynamic_attributes_secrets: Record<string, string>
   env_variables_secrets: Record<string, string>
@@ -26,6 +33,7 @@ export interface Deployment {
   artifact_id: string
   inference_url: string
   status: DeploymentStatusEnum
+  monitoring_mode: MonitoringMode
   secrets: Record<string, string>
   created_by_user: string
   tags: string[]
@@ -39,16 +47,33 @@ export interface Deployment {
   artifact_name: string
   error_message: DeploymentErrorMessage | null
   schemas: object
+  provider_ref?: string | null
+  progress_note?: string | null
 }
 
 export interface UpdateDeploymentPayload {
-  name: string
-  description: string
-  tags: string[]
-  dynamic_attributes_secrets: Record<string, string>
+  name?: string
+  description?: string
+  tags?: string[]
+  dynamic_attributes_secrets?: Record<string, string>
+  monitoring_mode?: MonitoringMode
 }
 
 export interface DeploymentErrorMessage {
   error: string
   reason: string
+}
+
+export type DeploymentBatchAction = 'undeploy' | 'delete'
+
+export interface DeploymentBatchFailure {
+  deployment_id: string
+  name: string | null
+  reason: string
+  message: string
+}
+
+export interface DeploymentsBatchResponse {
+  succeeded: string[]
+  failed: DeploymentBatchFailure[]
 }

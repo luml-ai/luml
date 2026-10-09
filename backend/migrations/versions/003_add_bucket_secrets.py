@@ -98,7 +98,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(None, "orbits", type_="foreignkey")
+    op.drop_constraint("orbits_bucket_secret_id_fkey", "orbits", type_="foreignkey")
     op.drop_column("orbits", "bucket_secret_id")
     op.drop_table("ml_models")
     op.drop_table("collections")

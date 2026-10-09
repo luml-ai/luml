@@ -4,7 +4,7 @@
 
     <div v-else-if="collectionsStore.currentCollection" class="page-content">
       <CollectionBreadcrumb></CollectionBreadcrumb>
-      <RouterView></RouterView>
+      <RouterView :key="String(route.params.artifactId ?? '')"></RouterView>
     </div>
 
     <Ui404 v-else></Ui404>
@@ -12,7 +12,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeMount, onUnmounted, ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/collections'
 import { useOrbitsStore } from '@/stores/orbits'
@@ -31,6 +31,7 @@ const collectionsStore = useCollectionsStore()
 const toast = useToast()
 
 const loading = ref(true)
+let latestInit = 0
 
 function ensureString(param: string | string[] | undefined): string {
   if (Array.isArray(param)) return param[0]
@@ -38,22 +39,24 @@ function ensureString(param: string | string[] | undefined): string {
   return param
 }
 
-async function init(organizationId: string) {
+async function init(organizationId: string, orbitId: string, collectionId: string): Promise<void> {
+  const initId = ++latestInit
   try {
     loading.value = true
-
-    const orbitId = ensureString(route.params.id)
-    const collectionId = ensureString(route.params.collectionId)
+    collectionsStore.resetCurrentCollection()
 
     if (orbitsStore.currentOrbitDetails?.id !== orbitId) {
       const details = await orbitsStore.getOrbitDetails(organizationId, orbitId)
+      if (initId !== latestInit) return
       orbitsStore.setCurrentOrbitDetails(details)
     }
     await collectionsStore.setCurrentCollection(collectionId)
   } catch {
-    toast.add(simpleErrorToast('Failed to load collection data'))
+    if (initId === latestInit) {
+      toast.add(simpleErrorToast('Failed to load collection data'))
+    }
   } finally {
-    loading.value = false
+    if (initId === latestInit) loading.value = false
   }
 }
 
@@ -68,10 +71,13 @@ watch(
   },
 )
 
-onBeforeMount(() => {
-  const organizationId = ensureString(route.params.organizationId)
-  init(organizationId)
-})
+watch(
+  [() => route.params.organizationId, () => route.params.id, () => route.params.collectionId],
+  async ([organizationId, orbitId, collectionId]) => {
+    await init(ensureString(organizationId), ensureString(orbitId), ensureString(collectionId))
+  },
+  { immediate: true },
+)
 
 onUnmounted(() => {
   collectionsStore.resetCurrentCollection()

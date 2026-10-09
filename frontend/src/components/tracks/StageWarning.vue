@@ -17,11 +17,17 @@ import { TriangleAlert } from 'lucide-vue-next'
 
 interface Props {
   artifact: TrackEntry
+  allowReassignment?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  allowReassignment: true,
+})
 
 const description = computed(() => {
+  if (!props.allowReassignment) {
+    return `The artifact ${props.artifact.artifact_name} is assigned to this stage. Choose another stage or leave the stage unassigned to link this artifact.`
+  }
   return `Once confirmed, the artifact ${props.artifact.artifact_name} will be unlinked from this stage.`
 })
 </script>

@@ -64,9 +64,7 @@ describe('buildForecastSegments segmentation', () => {
 
   it('adds dotted confidence-bound lines from the test_fit bounds', () => {
     const segments = buildForecastSegments(chart, { targetCol: 'sales' })
-    const bounds = segments.filter(
-      (s) => s.column === 'sales' && s.role === 'testFit' && s.isBound,
-    )
+    const bounds = segments.filter((s) => s.column === 'sales' && s.role === 'testFit' && s.isBound)
 
     expect(bounds).toHaveLength(2)
     expect(bounds[0].data).toEqual([

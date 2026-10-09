@@ -1,0 +1,113 @@
+name: Publish Kubernetes Satellite Chart
+
+on:
+  push:
+    tags:
+      - "satellite/kubernetes/chart/v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic chart version
+        required: true
+        type: string
+
+concurrency:
+  group: publish-kubernetes-satellite-chart-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish-chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+
+      - name: Resolve version
+        id: version
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="$DISPATCH_VERSION"
+          else
+            TAG="$REF_NAME"
+            if [[ ! "$TAG" =~ ^satellite/kubernetes/chart/v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+              echo "Unsupported release tag: $TAG" >&2
+              exit 1
+            fi
+            VERSION="${BASH_REMATCH[1]}"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semantic version: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+          echo "$GHCR_TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Pin images to their latest releases
+        working-directory: satellite/implementations/kubernetes/chart
+        run: |
+          {
+            echo "| Values | Release tag | Image |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for entry in satellite:kubernetes sidecar:serving monitoring:monitoring model:model-server; do
+            KEY="${entry%%:*}"
+            COMPONENT="${entry##*:}"
+
+            RELEASE_TAG=$(git tag --list "satellite/$COMPONENT/v*" \
+              | { grep -E "^satellite/$COMPONENT/v[0-9]+\.[0-9]+\.[0-9]+$" || true; } \
+              | sort -V | tail -n 1)
+            if [[ -z "$RELEASE_TAG" ]]; then
+              echo "No stable release tag satellite/$COMPONENT/vX.Y.Z" >&2
+              exit 1
+            fi
+
+            IMAGE_TAG="${RELEASE_TAG##*/}"
+            REPOSITORY=$(KEY="$KEY" yq '.[strenv(KEY)].image.repository' values.yaml)
+            IMAGE="$REPOSITORY:$IMAGE_TAG"
+            if ! docker manifest inspect "$IMAGE" > /dev/null; then
+              echo "Image $IMAGE from $RELEASE_TAG is not in the registry" >&2
+              exit 1
+            fi
+
+            for file in values.yaml defaults.yaml; do
+              KEY="$KEY" IMAGE_TAG="$IMAGE_TAG" yq -i '.[strenv(KEY)].image.tag = strenv(IMAGE_TAG)' "$file"
+            done
+            echo "| \`$KEY.image.tag\` | \`$RELEASE_TAG\` | \`$IMAGE\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          helm lint . --strict -f ci/vanilla-values.yaml
+
+      - name: Package and publish chart
+        env:
+          OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          OWNER_LOWER="${OWNER,,}"
+          mkdir -p "$RUNNER_TEMP/luml-chart"
+          helm package satellite/implementations/kubernetes/chart \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination "$RUNNER_TEMP/luml-chart"
+          helm push \
+            "$RUNNER_TEMP/luml-chart/luml-satellite-kubernetes-$VERSION.tgz" \
+            "oci://ghcr.io/$OWNER_LOWER/charts"

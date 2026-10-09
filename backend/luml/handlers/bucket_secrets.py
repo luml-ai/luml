@@ -88,7 +88,9 @@ class BucketSecretHandler:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
         )
-        secret = await self.__secret_repository.get_bucket_secret_details(secret_id)
+        secret = await self.__secret_repository.get_bucket_secret_details(
+            secret_id, organization_id
+        )
 
         if not secret:
             raise NotFoundError("Secret not found")
@@ -106,7 +108,9 @@ class BucketSecretHandler:
             organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
         )
 
-        existing = await self.__secret_repository.get_bucket_secret(secret_id)
+        existing = await self.__secret_repository.get_bucket_secret(
+            secret_id, organization_id
+        )
         if not existing:
             raise NotFoundError("Secret not found")
 
@@ -133,7 +137,7 @@ class BucketSecretHandler:
         )
         try:
             db_secret = await self.__secret_repository.update_bucket_secret(
-                secret_update
+                secret_update, organization_id
             )
         except DatabaseConstraintError as error:
             raise ApplicationError(
@@ -153,9 +157,14 @@ class BucketSecretHandler:
             organization_id, user_id, Resource.BUCKET_SECRET, Action.DELETE
         )
         try:
-            await self.__secret_repository.delete_bucket_secret(secret_id)
+            deleted = await self.__secret_repository.delete_bucket_secret(
+                secret_id, organization_id
+            )
         except DatabaseConstraintError as e:
             raise BucketSecretInUseError() from e
+
+        if not deleted:
+            raise NotFoundError("Secret not found")
 
     async def get_bucket_urls(self, secret: BucketSecretCreateIn) -> BucketSecretUrls:
         return await self.generate_bucket_urls(secret)
@@ -174,9 +183,22 @@ class BucketSecretHandler:
         )
 
     async def get_existing_bucket_urls(
-        self, secret: BucketSecretUpdate
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        secret_id: UUID,
+        secret: BucketSecretUpdate,
     ) -> BucketSecretUrls:
-        original_secret = await self.__secret_repository.get_bucket_secret(secret.id)
+        await self.__permissions_handler.check_permissions(
+            organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
+        )
+
+        if secret.id != secret_id:
+            raise ApplicationError("Secret id does not match the path", 400)
+
+        original_secret = await self.__secret_repository.get_bucket_secret(
+            secret_id, organization_id
+        )
 
         if not original_secret:
             raise NotFoundError("Secret not found")

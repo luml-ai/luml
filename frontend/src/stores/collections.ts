@@ -13,6 +13,8 @@ export const useCollectionsStore = defineStore('collections', () => {
   const collectionsList = ref<OrbitCollection[]>([])
   const currentCollection = ref<OrbitCollection | null>(null)
   const creatorVisible = ref(false)
+  const collectionsTags = ref<string[]>([])
+  let currentCollectionRequest = 0
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -35,6 +37,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       payload,
     )
     setCollectionsList([collection, ...collectionsList.value])
+    await getCollectionsTags()
   }
 
   async function updateCollection(collectionId: string, payload: OrbitCollectionCreator) {
@@ -48,6 +51,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       return collection.id === collectionId ? updatedCollection : collection
     })
     setCollectionsList(newCollections)
+    await getCollectionsTags()
   }
 
   async function deleteCollection(collectionId: string) {
@@ -60,6 +64,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       (collection) => collection.id !== collectionId,
     )
     setCollectionsList(newCollections)
+    await getCollectionsTags()
   }
 
   function setCollectionsList(collections: OrbitCollection[]) {
@@ -67,17 +72,20 @@ export const useCollectionsStore = defineStore('collections', () => {
   }
 
   async function setCurrentCollection(collectionId: string) {
+    const requestId = ++currentCollectionRequest
     const collection = await getCollection(collectionId)
-    currentCollection.value = collection
+    if (requestId === currentCollectionRequest) currentCollection.value = collection
   }
 
   function resetCurrentCollection() {
+    currentCollectionRequest += 1
     currentCollection.value = null
   }
 
   function reset() {
     collectionsList.value = []
-    resetCurrentCollection()
+    currentCollection.value = null
+    collectionsTags.value = []
   }
 
   function showCreator() {
@@ -96,6 +104,14 @@ export const useCollectionsStore = defineStore('collections', () => {
     )
   }
 
+  async function getCollectionsTags() {
+    const tags = await api.orbitCollections.getCollectionsTags(
+      requestInfo.value.organizationId,
+      requestInfo.value.orbitId,
+    )
+    collectionsTags.value = tags
+  }
+
   return {
     collectionsList,
     setCollectionsList,
@@ -111,5 +127,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     showCreator,
     hideCreator,
     getCollection,
+    getCollectionsTags,
+    collectionsTags,
   }
 })

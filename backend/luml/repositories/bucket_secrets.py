@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -29,16 +30,28 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             except IntegrityError as e:
                 raise DatabaseConstraintError() from e
 
-    async def get_bucket_secret(self, secret_id: UUID) -> BucketSecret | None:
+    async def get_bucket_secret(
+        self, secret_id: UUID, organization_id: UUID | None = None
+    ) -> BucketSecret | None:
         async with self._get_session() as session:
-            db_secret = await self.get_model(session, BucketSecretOrm, secret_id)
+            conditions: list[Any] = [BucketSecretOrm.id == secret_id]
+            if organization_id is not None:
+                conditions.append(BucketSecretOrm.organization_id == organization_id)
+            db_secret = await self.get_model_where(
+                session, BucketSecretOrm, *conditions
+            )
             return db_secret.to_bucket_secret() if db_secret else None
 
     async def get_bucket_secret_details(
-        self, secret_id: UUID
+        self, secret_id: UUID, organization_id: UUID
     ) -> BucketSecretOut | None:
         async with self._get_session() as session:
-            db_secret = await self.get_model(session, BucketSecretOrm, secret_id)
+            db_secret = await self.get_model_where(
+                session,
+                BucketSecretOrm,
+                BucketSecretOrm.id == secret_id,
+                BucketSecretOrm.organization_id == organization_id,
+            )
             return validate_bucket_secret_out(db_secret) if db_secret else None
 
     async def get_organization_bucket_secrets(
@@ -53,11 +66,14 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             return [validate_bucket_secret_out(secret) for secret in db_secrets]
 
     async def update_bucket_secret(
-        self, secret: BucketSecretUpdate
+        self, secret: BucketSecretUpdate, organization_id: UUID
     ) -> BucketSecret | None:
         async with self._get_session() as session:
             result = await session.execute(
-                select(BucketSecretOrm).where(BucketSecretOrm.id == secret.id)
+                select(BucketSecretOrm).where(
+                    BucketSecretOrm.id == secret.id,
+                    BucketSecretOrm.organization_id == organization_id,
+                )
             )
             db_secret = result.scalar_one_or_none()
 
@@ -81,9 +97,21 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             except IntegrityError as e:
                 raise DatabaseConstraintError() from e
 
-    async def delete_bucket_secret(self, secret_id: UUID) -> None:
+    async def delete_bucket_secret(
+        self, secret_id: UUID, organization_id: UUID
+    ) -> bool:
         async with self._get_session() as session:
+            db_secret = await self.get_model_where(
+                session,
+                BucketSecretOrm,
+                BucketSecretOrm.id == secret_id,
+                BucketSecretOrm.organization_id == organization_id,
+            )
+            if not db_secret:
+                return False
+            await session.delete(db_secret)
             try:
-                return await self.delete_model(session, BucketSecretOrm, secret_id)
+                await session.commit()
             except IntegrityError as e:
                 raise DatabaseConstraintError() from e
+            return True

@@ -11,8 +11,10 @@
       <CollectionsToolbar
         :types="typesQuery"
         :search="searchQuery"
+        :tags="tagsQuery"
         @update:search="onSearch"
         @update:types="setTypesQuery"
+        @update:tags="setTagsQuery"
       />
       <div v-if="isLoading" class="loading-container">
         <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
@@ -63,6 +65,8 @@ const {
   typesQuery,
   setTypesQuery,
   isLoading,
+  tagsQuery,
+  setTagsQuery,
 } = useCollectionsList()
 
 const initialLoading = ref(true)
@@ -98,15 +102,23 @@ async function getFirstCollectionsPage() {
   }
 }
 
+async function fetchCollectionsTags() {
+  try {
+    await collectionsStore.getCollectionsTags()
+  } catch {
+    toast.add(simpleErrorToast('Failed to load collections tags'))
+  }
+}
+
 const debouncedFirstPage = useDebounceFn(getFirstCollectionsPage, 500)
 
-watch([searchQuery, typesQuery], debouncedFirstPage)
+watch([searchQuery, typesQuery, tagsQuery], debouncedFirstPage)
 
 watch(
   () => route.params.id,
   async (newId) => {
     if (!newId) return
-    await getFirstCollectionsPage()
+    await Promise.all([getFirstCollectionsPage(), fetchCollectionsTags()])
   },
   { immediate: true },
 )

@@ -35,6 +35,7 @@ export interface CreateDeploymentForm {
   collectionId: string
   modelId: string
   satelliteId: string
+  monitoringEnabled: boolean
   secretDynamicAttributes: FieldInfo<string>[]
   dynamicAttributes: FieldInfo<string>[]
   secretEnvs: FieldInfo<string>[]

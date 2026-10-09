@@ -11,7 +11,7 @@ export interface OrbitCollection {
   description: string
   name: string
   type: OrbitCollectionTypeEnum
-  tags: string[]
+  tags: string[] | null
   total_artifacts: number
   created_at: Date
   updated_at: Date
@@ -41,4 +41,5 @@ export interface GetCollectionsListParams {
   order?: 'asc' | 'desc'
   search?: string
   types?: OrbitCollectionTypeEnum[]
+  tags?: string[]
 }

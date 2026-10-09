@@ -23,6 +23,7 @@ export const useArtifactUpload = () => {
   const artifactsStore = useArtifactsStore()
 
   const progress = ref<number | null>(null)
+  let uploadId = 0
 
   async function upload(
     file: File,
@@ -31,10 +32,17 @@ export const useArtifactUpload = () => {
     description: string,
     tags: string[],
     requestInfo?: { organizationId: string; orbitId: string; collectionId: string },
+    signal?: AbortSignal,
   ) {
+    const currentUploadId = ++uploadId
+    progress.value = null
+    signal?.throwIfAborted()
     const { manifest, file_index, extra_values } = await getArtifactData(file, type)
+    signal?.throwIfAborted()
     const artifactBuffer = await file.arrayBuffer()
+    signal?.throwIfAborted()
     const fileHash = await getSha256(artifactBuffer)
+    signal?.throwIfAborted()
 
     const payload: CreateArtifactPayload = {
       type,
@@ -50,7 +58,16 @@ export const useArtifactUpload = () => {
     }
     const response = await artifactsStore.initiateCreateArtifact(payload, requestInfo)
 
-    await uploadToBucket(response, artifactBuffer, file.name, name, description, tags, requestInfo)
+    await uploadToBucket(
+      response,
+      artifactBuffer,
+      currentUploadId,
+      name,
+      description,
+      tags,
+      requestInfo,
+      signal,
+    )
 
     const confirmPayload: UpdateArtifactPayload = {
       id: response.artifact.id,
@@ -65,19 +82,25 @@ export const useArtifactUpload = () => {
   async function uploadToBucket(
     data: CreateArtifactResponse,
     buffer: ArrayBuffer,
-    fileName: string,
+    currentUploadId: number,
     modelName: string,
     description: string,
     tags: string[],
     requestInfo?: { organizationId: string; orbitId: string; collectionId: string },
+    signal?: AbortSignal,
   ) {
     try {
-      progress.value = 0
+      signal?.throwIfAborted()
+      if (currentUploadId === uploadId) progress.value = 0
       const url = data.upload_details.url
       await axios.put(url, buffer, {
         headers: { 'Content-Type': 'application/octet-stream', 'x-ms-blob-type': 'BlockBlob' },
-        onUploadProgress,
+        signal,
+        onUploadProgress: (event) => {
+          if (currentUploadId === uploadId && !signal?.aborted) onUploadProgress(event)
+        },
       })
+      signal?.throwIfAborted()
     } catch (e) {
       await artifactsStore.cancelArtifactUpload(
         {
@@ -91,7 +114,7 @@ export const useArtifactUpload = () => {
       )
       throw e
     } finally {
-      progress.value = null
+      if (currentUploadId === uploadId) progress.value = null
     }
   }
 

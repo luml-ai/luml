@@ -90,9 +90,7 @@ function boundSegments(
   color: string,
   points: ForecastPoint[],
 ): ForecastChartSegment[] {
-  const bounded = points.filter(
-    (point) => point.lower !== undefined && point.upper !== undefined,
-  )
+  const bounded = points.filter((point) => point.lower !== undefined && point.upper !== undefined)
   if (bounded.length < 2) return []
   const bound = (label: 'low' | 'high', pick: (p: ForecastPoint) => number | undefined) => ({
     name: `${column} (${ROLE_LABEL[role]} ${label})`,

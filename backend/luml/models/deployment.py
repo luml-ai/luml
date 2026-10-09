@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from luml.models.artifacts import ArtifactOrm
 from luml.models.base import Base, TimestampMixin
+from luml.models.orbit import OrbitOrm
 from luml.models.satellite import SatelliteOrm
 from luml.schemas.deployment import Deployment
 
@@ -18,6 +19,10 @@ class DeploymentOrm(TimestampMixin, Base):
             "status in ('pending','active','failed',"
             "'deletion_pending', 'not_responding', 'deletion_failed')",
             name="deployments_status_check",
+        ),
+        CheckConstraint(
+            "monitoring_mode in ('off','full')",
+            name="deployments_monitoring_mode_check",
         ),
     )
 
@@ -38,6 +43,9 @@ class DeploymentOrm(TimestampMixin, Base):
         .where(SatelliteOrm.id == satellite_id)
         .scalar_subquery()
     )
+    orbit_name: Mapped[str] = column_property(
+        select(OrbitOrm.name).where(OrbitOrm.id == orbit_id).scalar_subquery()
+    )
     artifact_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("artifacts.id", ondelete="RESTRICT"),
@@ -51,11 +59,15 @@ class DeploymentOrm(TimestampMixin, Base):
         .where(ArtifactOrm.id == artifact_id)
         .scalar_subquery()
     )
-    inference_url: Mapped[str | None] = mapped_column(
-        String, nullable=True, unique=True
-    )
+    inference_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    monitoring_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    provider_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    progress_note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="pending", server_default="pending"
+    )
+    monitoring_mode: Mapped[str] = mapped_column(
+        String, nullable=False, default="off", server_default="off"
     )
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     dynamic_attributes_secrets: Mapped[dict[str, str]] = mapped_column(

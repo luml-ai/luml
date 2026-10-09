@@ -6,7 +6,12 @@
     :draggable="false"
     :pt="dialogPt"
   >
-    <Form :initial-values="formData" :resolver="modelUploadResolver" @submit="onSubmit">
+    <Form
+      v-if="visible"
+      :initial-values="formData"
+      :resolver="modelUploadResolver"
+      @submit="onSubmit"
+    >
       <div class="inputs">
         <div class="field">
           <label for="name" class="label required">Orbit</label>
@@ -60,7 +65,25 @@
           ></AutoComplete>
         </div>
       </div>
-      <Button type="submit" fluid rounded :loading="loading">Upload</Button>
+      <div v-if="loading" class="upload-section">
+        <p class="upload-description">Model uploading</p>
+        <ProgressBar
+          :value="progress ?? undefined"
+          :mode="progress === null ? 'indeterminate' : 'determinate'"
+          aria-label="Model upload progress"
+        />
+      </div>
+      <Button
+        v-if="loading"
+        type="button"
+        fluid
+        rounded
+        severity="secondary"
+        @click="visible = false"
+      >
+        Cancel
+      </Button>
+      <Button v-else type="submit" fluid rounded>Upload</Button>
     </Form>
   </Dialog>
 </template>
@@ -69,9 +92,18 @@
 import { getErrorMessage } from '@/helpers/helpers'
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
 import type { Tasks } from '@/lib/data-processing/interfaces'
-import { computed, onBeforeMount, ref, watch } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
-import { Button, Select, Dialog, InputText, Textarea, AutoComplete, useToast } from 'primevue'
+import {
+  Button,
+  Select,
+  Dialog,
+  InputText,
+  Textarea,
+  AutoComplete,
+  ProgressBar,
+  useToast,
+} from 'primevue'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'
 import { useArtifactsTags } from '@/hooks/useArtifactsTags'
@@ -114,16 +146,18 @@ const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const { getTagsByQuery, loadTags } = useArtifactsTags()
-const { upload } = useArtifactUpload()
+const { upload, progress } = useArtifactUpload()
+let uploadController: AbortController | null = null
 
 const loading = ref(false)
-const formData = ref<FormData>({
+const makeInitialFormData = (): FormData => ({
   orbit: null,
   collection: null,
   name: '',
   description: '',
   tags: [],
 })
+const formData = ref<FormData>(makeInitialFormData())
 const autocompleteItems = ref<string[]>([])
 
 const organizationId = computed(() => {
@@ -158,7 +192,11 @@ function getRequestInfo() {
 }
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid) return
+  if (!valid || loading.value) return
+
+  const controller = new AbortController()
+  uploadController = controller
+  const name = formData.value.name
 
   try {
     loading.value = true
@@ -173,21 +211,43 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       formData.value.description,
       [...formData.value.tags],
       ids,
+      controller.signal,
     )
-    toast.add(
-      simpleSuccessToast(`${formData.value.name} has been added to the collection successfully.`),
-    )
-    visible.value = false
+    toast.add(simpleSuccessToast(`${name} has been added to the collection successfully.`))
+    if (!controller.signal.aborted) visible.value = false
   } catch (e: unknown) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))
+    if (!controller.signal.aborted)
+      toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))
   } finally {
-    loading.value = false
+    if (uploadController === controller) {
+      loading.value = false
+      uploadController = null
+    }
   }
+}
+
+function reset() {
+  uploadController?.abort()
+  uploadController = null
+  loading.value = false
+  progress.value = null
+  formData.value = makeInitialFormData()
+  autocompleteItems.value = []
 }
 
 onBeforeMount(async () => {
   await getOrbitsList()
 })
+
+onBeforeUnmount(() => uploadController?.abort())
+
+watch(
+  visible,
+  (value) => {
+    if (!value) reset()
+  },
+  { flush: 'sync' },
+)
 
 watch(() => formData.value.collection, onCollectionChange)
 </script>
@@ -207,5 +267,13 @@ watch(() => formData.value.collection, onCollectionChange)
 .label {
   align-self: flex-start;
   font-size: 14px;
+}
+
+.upload-section {
+  margin-bottom: 28px;
+}
+
+.upload-description {
+  margin-bottom: 8px;
 }
 </style>

@@ -1,11 +1,11 @@
 <template>
   <d-button severity="secondary" @click="onProviderButtonClick">
-    <span>providers</span>
+    <span>Providers</span>
     <brain :size="14" />
   </d-button>
   <d-dialog v-model:visible="visible" modal style="width: 100%; max-width: 500px" dismissable-mask>
     <template #header>
-      <h2 class="dialog-title">Model Provider</h2>
+      <h2 class="dialog-title">Model provider</h2>
     </template>
     <div class="providers">
       <provider-item v-for="provider in providers" :key="provider.name" :provider="provider" />

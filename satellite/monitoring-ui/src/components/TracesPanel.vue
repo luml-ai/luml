@@ -1,0 +1,364 @@
+<template>
+  <div class="card" data-testid="traces-panel">
+    <!-- Arrivals counted while the reader sits on a deeper page; one click catches up. -->
+    <button
+      v-if="newCount > 0"
+      type="button"
+      class="new-traces"
+      data-testid="new-traces"
+      @click="$emit('show-latest')"
+    >
+      <ArrowUp :size="13" />
+      {{ newCount >= pageSize ? `${pageSize}+` : newCount }} new
+      {{ newCount === 1 ? 'trace' : 'traces' }} — show latest
+    </button>
+
+    <StateBlock
+      v-if="view !== 'ready'"
+      :view="view"
+      :skeleton-rows="4"
+      empty-title="No inference calls in this window"
+      empty-detail="Recent prediction requests will appear here once the deployment serves traffic."
+    />
+
+    <template v-else-if="traces">
+      <div class="table-scroll table-viewport">
+        <table class="traces">
+          <thead>
+            <tr>
+              <th>
+                <button type="button" class="sort" data-testid="sort-ts" @click="$emit('sort', 'ts')">
+                  Time <span class="arrow">{{ arrow('ts') }}</span>
+                </button>
+              </th>
+              <th>Request</th>
+              <th>Features</th>
+              <th>Prediction</th>
+              <th class="num">
+                <button type="button" class="sort" data-testid="sort-latency" @click="$emit('sort', 'latency')">
+                  Latency <span class="arrow">{{ arrow('latency') }}</span>
+                </button>
+              </th>
+              <th>
+                <button type="button" class="sort" data-testid="sort-status" @click="$emit('sort', 'status')">
+                  Status <span class="arrow">{{ arrow('status') }}</span>
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in traces.rows"
+              :key="row.event_id"
+              class="row"
+              :class="{ fresh: freshIds.has(row.event_id) }"
+              data-testid="trace-row"
+              tabindex="0"
+              role="button"
+              :aria-label="`Open call ${row.event_id}`"
+              @click="$emit('open', row.event_id)"
+              @keydown.enter.prevent="$emit('open', row.event_id)"
+              @keydown.space.prevent="$emit('open', row.event_id)"
+            >
+              <td class="nowrap">{{ formatTimestamp(row.ts) ?? '—' }}</td>
+              <td class="mono id">
+                <span class="id-cell">
+                  <span class="id-text">{{ row.event_id }}</span>
+                  <CopyButton :value="row.event_id" label="event id" />
+                </span>
+              </td>
+              <td class="mono summary">{{ row.features_summary ?? '—' }}</td>
+              <td class="mono summary">{{ row.prediction ?? '—' }}</td>
+              <td class="num nowrap">{{ Math.round(row.latency_ms) }} ms</td>
+              <td>
+                <span class="status" :class="statusClass(row.status_code)">{{ row.status }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <span class="range">{{ rangeLabel }}</span>
+        <div class="buttons">
+          <button
+            type="button"
+            data-testid="traces-prev"
+            :disabled="traces.offset <= 0"
+            @click="$emit('page', traces.offset - traces.limit)"
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            data-testid="traces-next"
+            :disabled="!hasNext"
+            @click="$emit('page', traces.offset + traces.limit)"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <TraceDetailDialog
+      v-if="openTraceId"
+      :event-id="openTraceId"
+      :trace="traceDetail"
+      :status="traceDetailStatus"
+      @close="$emit('close-trace')"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { ArrowUp } from 'lucide-vue-next'
+import type { SortOrder, TraceDetail, TraceSortKey, TracesResponse } from '@/api/types'
+import { TRACES_PAGE_SIZE, type LoadStatus } from '@/composables/useMonitoringDashboard'
+import { sectionView } from '@/lib/section'
+import { formatTimestamp } from '@/lib/format'
+import StateBlock from '@/components/StateBlock.vue'
+import TraceDetailDialog from '@/components/TraceDetailDialog.vue'
+import CopyButton from '@/components/CopyButton.vue'
+
+const props = withDefaults(
+  defineProps<{
+    traces: TracesResponse | null
+    status: LoadStatus
+    openTraceId: string | null
+    traceDetail: TraceDetail | null
+    traceDetailStatus: LoadStatus
+    newCount?: number
+    sortKey?: TraceSortKey
+    sortOrder?: SortOrder
+  }>(),
+  { newCount: 0, sortKey: 'ts', sortOrder: 'desc' },
+)
+defineEmits<{
+  page: [number]
+  open: [string]
+  'close-trace': []
+  'show-latest': []
+  sort: [TraceSortKey]
+}>()
+
+/** The active column shows its direction; the others a quiet both-ways hint. */
+function arrow(key: TraceSortKey): string {
+  if (props.sortKey !== key) return '↕'
+  return props.sortOrder === 'desc' ? '↓' : '↑'
+}
+
+const pageSize = TRACES_PAGE_SIZE
+
+const view = computed(() => sectionView(props.status, props.traces?.state))
+
+/**
+ * Rows that were not in the previous newest-page response get a brief highlight,
+ * so a live tail reads as "these just arrived" instead of a silent reshuffle.
+ * Only successive first pages compare — flipping pages is navigation, not news.
+ */
+const freshIds = ref<Set<string>>(new Set())
+let prevFirstPageIds: Set<string> | null = null
+
+watch(
+  () => props.traces,
+  (response) => {
+    if (!response || response.offset !== 0) {
+      freshIds.value = new Set()
+      prevFirstPageIds = null
+      return
+    }
+    const ids = new Set(response.rows.map((row) => row.event_id))
+    freshIds.value =
+      prevFirstPageIds === null
+        ? new Set()
+        : new Set(response.rows.filter((row) => !prevFirstPageIds!.has(row.event_id)).map((row) => row.event_id))
+    prevFirstPageIds = ids
+  },
+  // The mount page is the baseline; without it the first tick's rows would count as old.
+  { immediate: true },
+)
+
+const rangeLabel = computed(() => {
+  const traces = props.traces
+  if (!traces || traces.total === 0) return 'No calls'
+  if (traces.rows.length === 0) return `0 of ${traces.total}`
+  const first = traces.offset + 1
+  const last = traces.offset + traces.rows.length
+  return `${first}–${last} of ${traces.total}`
+})
+
+const hasNext = computed(() => {
+  const traces = props.traces
+  return traces ? traces.offset + traces.limit < traces.total : false
+})
+
+function statusClass(statusCode: number): string {
+  return statusCode >= 500 ? 'err' : statusCode >= 400 ? 'warn' : 'ok'
+}
+</script>
+
+<style scoped>
+.section-title.small {
+  font-size: var(--luml-text-base);
+}
+.new-traces {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 5px 12px;
+  border: 1px solid var(--luml-brand-tint-strong);
+  border-radius: var(--luml-radius-pill);
+  background: var(--luml-brand-tint);
+  color: var(--luml-brand);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.new-traces:hover {
+  background: var(--luml-brand-tint-strong);
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.traces {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.sort {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sort:hover {
+  color: var(--luml-fg-strong);
+}
+.arrow {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.traces th {
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--luml-fg-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--luml-border);
+  white-space: nowrap;
+  /* the header stays put while the list scrolls under it */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--luml-bg-card);
+}
+.traces td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--luml-surface-100);
+  color: var(--luml-fg);
+  vertical-align: top;
+}
+.traces .num {
+  text-align: right;
+}
+.row {
+  cursor: pointer;
+}
+.row:hover,
+.row:focus-visible {
+  background: var(--luml-bg-hover);
+  outline: none;
+}
+.row.fresh td {
+  animation: fresh-row 2.2s ease-out;
+}
+@keyframes fresh-row {
+  from {
+    background: var(--luml-brand-tint);
+  }
+  to {
+    background: transparent;
+  }
+}
+.nowrap {
+  white-space: nowrap;
+}
+.id {
+  color: var(--luml-fg-muted);
+}
+.id-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.id-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.summary {
+  /* the copy affordance costs the row some width; the summaries give it back */
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.status {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--luml-radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+}
+.status.ok {
+  background: var(--luml-success-tint-bg);
+  color: var(--luml-success-tint-fg);
+}
+.status.warn {
+  background: var(--luml-warn-tint-bg);
+  color: var(--luml-warn-tint-fg);
+}
+.status.err {
+  background: var(--luml-danger-tint-bg);
+  color: var(--luml-danger-tint-fg);
+}
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--luml-space-4);
+}
+.range {
+  font-size: 12px;
+  color: var(--luml-fg-muted);
+}
+.buttons {
+  display: flex;
+  gap: var(--luml-space-2);
+}
+.buttons button {
+  padding: 6px 14px;
+  border: 1px solid var(--luml-border);
+  border-radius: var(--luml-radius-md);
+  background: var(--luml-bg-card);
+  color: var(--luml-fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.buttons button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.buttons button:not(:disabled):hover {
+  background: var(--luml-bg-hover);
+}
+</style>

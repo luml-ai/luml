@@ -1,3 +1,4 @@
+import { fromCSV } from 'arquero'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 import { nextTick } from 'vue'
@@ -342,9 +343,9 @@ describe('Forecasting evaluate — downloads', () => {
 
   it('offers a registry upload entry in the export menu', () => {
     const { wrapper } = mountEvaluate()
-    const items = wrapper
-      .findComponent({ name: 'SplitButton' })
-      .props('model') as Array<{ label: string }>
+    const items = wrapper.findComponent({ name: 'SplitButton' }).props('model') as Array<{
+      label: string
+    }>
     expect(items.map((item) => item.label)).toEqual(['Upload to Registry', 'Download model'])
   })
 
@@ -360,5 +361,25 @@ describe('Forecasting evaluate — downloads', () => {
     const csv = await readBlob(blob)
     expect(csv).toContain('predicted_sales_lower')
     expect(csv).toContain('predicted_sales_upper')
+  })
+
+  it('escapes values containing commas and quotes in the predictions CSV', async () => {
+    const forecast: ForecastPredictedRecord[] = [
+      { date: '2020-04-01', store: 'Kyiv, "Center"', predicted_sales: 20 },
+      { date: '2020-05-01', store: 'Lviv', predicted_sales: 21 },
+    ]
+    const { wrapper } = mountEvaluate({ forecast })
+    await setEndDate(wrapper, new Date('2020-05-01'))
+    await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+    await flushPromises()
+
+    downloadMock.mockClear()
+    await wrapper.find('[data-testid="download-predictions"]').trigger('click')
+    const csv = await readBlob(downloadMock.mock.calls[0][0] as Blob)
+
+    expect(fromCSV(csv, { autoType: false }).objects()).toEqual([
+      { date: '2020-04-01', store: 'Kyiv, "Center"', predicted_sales: '20' },
+      { date: '2020-05-01', store: 'Lviv', predicted_sales: '21' },
+    ])
   })
 })

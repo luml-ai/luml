@@ -4,6 +4,7 @@ from uuid import UUID
 from luml.infra.db import engine
 from luml.infra.exceptions import (
     InsufficientPermissionsError,
+    NotFoundError,
 )
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
@@ -49,6 +50,13 @@ class PermissionsHandler:
 
         if not org_member_role:
             raise InsufficientPermissionsError()
+
+        # Must precede the org-role short-circuit: every user owns a personal
+        # organization, so an org role alone says nothing about the addressed orbit.
+        if orbit_id and not await self.__orbits_repository.get_orbit_simple(
+            orbit_id, organization_id
+        ):
+            raise NotFoundError("Orbit not found")
 
         has_org_permission = self.has_organization_permission(
             org_member_role, resource, action
@@ -121,8 +129,10 @@ class PermissionsHandler:
     def get_orbit_permissions_by_role(
         self, org_role: str | None = None, role: str | None = None
     ) -> dict[str, list[str]]:
+        permissions: dict[str, list[str]] = {}
+
         if org_role and org_role in (OrgRole.OWNER, OrgRole.ADMIN):
-            return self._get_organization_permissions_for_role_and_resources(
+            permissions = self._get_organization_permissions_for_role_and_resources(
                 OrgRole(org_role),
                 [
                     Resource.ORBIT,
@@ -136,19 +146,23 @@ class PermissionsHandler:
                 ],
             )
 
-        if not role:
-            return {}
+        if role:
+            orbit_role_permissions = self.get_orbit_permissions_for_role_and_resources(
+                OrbitRole(role),
+                [
+                    Resource.ORBIT,
+                    Resource.ORBIT_USER,
+                    Resource.ARTIFACT,
+                    Resource.COLLECTION,
+                    Resource.TRACK,
+                    Resource.SATELLITE,
+                    Resource.ORBIT_SECRET,
+                    Resource.DEPLOYMENT,
+                ],
+            )
+            for resource, actions in orbit_role_permissions.items():
+                permissions[resource] = list(
+                    dict.fromkeys([*permissions.get(resource, []), *actions])
+                )
 
-        return self.get_orbit_permissions_for_role_and_resources(
-            OrbitRole(role),
-            [
-                Resource.ORBIT,
-                Resource.ORBIT_USER,
-                Resource.ARTIFACT,
-                Resource.COLLECTION,
-                Resource.TRACK,
-                Resource.SATELLITE,
-                Resource.ORBIT_SECRET,
-                Resource.DEPLOYMENT,
-            ],
-        )
+        return permissions

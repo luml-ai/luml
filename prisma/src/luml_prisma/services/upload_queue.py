@@ -7,6 +7,8 @@ from enum import StrEnum
 from pathlib import Path
 from uuid import uuid4
 
+from luml_prisma.config import get_data_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -74,7 +76,7 @@ def _row_to_upload(row: sqlite3.Row) -> PendingUpload:
 class UploadQueue:
     def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
-            db_path = Path.home() / ".luml" / "prisma" / "uploads.db"
+            db_path = get_data_dir() / "uploads.db"
         path = Path(db_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = str(path)

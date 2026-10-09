@@ -2,7 +2,7 @@ from uuid import UUID
 
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
-from luml.infra.exceptions import CollectionDeleteError, NotFoundError
+from luml.infra.exceptions import NotFoundError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbits import OrbitRepository
@@ -78,6 +78,7 @@ class CollectionHandler:
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: list[str] | None = None,
     ) -> CollectionsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -108,9 +109,31 @@ class CollectionHandler:
             pagination=pagination,
             search=search,
             types=types,
+            tags=tags,
         )
 
         return CollectionsList(items=items, cursor=encode_cursor(cursor))
+
+    async def get_orbit_collections_tags(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+    ) -> list[str]:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.COLLECTION,
+            Action.LIST,
+            orbit_id,
+        )
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
+        if not orbit or orbit.organization_id != organization_id:
+            raise NotFoundError("Orbit not found")
+
+        return await self.__repository.get_orbit_collections_tags(orbit_id)
 
     async def get_collection_details(
         self,
@@ -168,6 +191,7 @@ class CollectionHandler:
             raise NotFoundError("Orbit not found")
         updated = await self.__repository.update_collection(
             collection_id,
+            orbit_id,
             CollectionUpdate(
                 id=collection_id,
                 description=collection.description,
@@ -199,13 +223,7 @@ class CollectionHandler:
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         collection = await self.__repository.get_collection(collection_id)
-        if not collection:
+        if not collection or collection.orbit_id != orbit_id:
             raise NotFoundError("Collection not found")
-        artifacts_count = (
-            await self.__artifacts_repository.get_collection_artifacts_count(
-                collection_id
-            )
-        )
-        if artifacts_count:
-            raise CollectionDeleteError("Collection has artifacts and cant be deleted")
-        await self.__repository.delete_collection(collection_id)
+        if not await self.__repository.delete_collection(collection_id, orbit_id):
+            raise NotFoundError("Collection not found")

@@ -94,7 +94,15 @@ def test_error_handling(client_with_mocks: LumlClient, respx_mock: MockRouter) -
 
 @pytest.mark.parametrize(
     "resource_name",
-    ["organizations", "orbits", "collections", "bucket_secrets", "artifacts"],
+    [
+        "organizations",
+        "orbits",
+        "collections",
+        "bucket_secrets",
+        "artifacts",
+        "tracks",
+        "satellites",
+    ],
 )
 @pytest.mark.respx(base_url=TEST_BASE_URL)
 def test_all_resources_accessible(

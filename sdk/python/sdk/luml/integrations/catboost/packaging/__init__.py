@@ -103,7 +103,10 @@ def _add_io(
 
 
 def _get_default_tags() -> list[str]:
-    return [FNNX_PRODUCER_NAME + "::catboost:v1"]
+    return [
+        FNNX_PRODUCER_NAME + "::catboost:v1",
+        FNNX_PRODUCER_NAME + "::kind_tabular:v1",
+    ]
 
 
 def save_catboost(

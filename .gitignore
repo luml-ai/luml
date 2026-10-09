@@ -4,7 +4,8 @@ wasm/test_*.py
 /dev/.env
 /frontend/.env.development.local
 /.idea/.gitignore
-/backend/.coverage
+.coverage
+.coverage.*
 /backend/luml/factories/
 /.gitignore
 __pycache__/
@@ -24,4 +25,6 @@ node_modules
 luml-agent/uv.lock
 /.mcp.json
 /codie.bash
-/sdk/python/api/.coverage
+
+# CatBoost writes training logs into cwd
+catboost_info/

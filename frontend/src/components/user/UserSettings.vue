@@ -85,12 +85,12 @@
     </button>
     <div class="footer">
       <d-button
-        label="delete account"
+        label="Delete account"
         severity="warn"
         variant="outlined"
         @click="deleteAccountConfirm"
       />
-      <d-button label="save changes" type="submit" :disabled="userStore.isUserDisabled" />
+      <d-button label="Save changes" type="submit" :disabled="userStore.isUserDisabled" />
     </div>
   </d-form>
 </template>
@@ -213,8 +213,9 @@ watch(
 }
 
 .change-password-link {
-  align-self: flex-start;
+  align-self: flex-end;
   padding: 10px 0;
+  font-size: 12px;
 }
 
 .footer {

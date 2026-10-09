@@ -1,6 +1,12 @@
 <template>
   <div class="zoom">
-    <Button variant="text" severity="secondary" size="small" @click="emit('zoomOut')">
+    <Button
+      variant="text"
+      severity="secondary"
+      size="small"
+      class="button"
+      @click="emit('zoomOut')"
+    >
       <template #icon>
         <ZoomOut :size="14" />
       </template>
@@ -9,7 +15,7 @@
       <input v-model="modelValue" type="number" class="zoom-input" @input="changeZoom" />
       <span>%</span>
     </div>
-    <Button variant="text" severity="secondary" size="small" @click="emit('zoomIn')">
+    <Button variant="text" severity="secondary" size="small" class="button" @click="emit('zoomIn')">
       <template #icon>
         <ZoomIn :size="14" />
       </template>
@@ -61,5 +67,10 @@ function changeZoom(e: Event) {
   display: inline-block;
   width: 23px;
   font-size: 12px;
+}
+.button {
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0;
 }
 </style>

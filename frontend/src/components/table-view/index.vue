@@ -32,7 +32,7 @@
           :target="target"
           @edit="(event) => $emit('edit', event)"
         />
-        <d-button severity="secondary" rounded variant="outlined" @click="exportCallback">
+        <d-button severity="secondary" variant="outlined" @click="exportCallback">
           <span class="button-label">Export</span>
           <CloudDownload width="14" height="14" />
         </d-button>
@@ -51,6 +51,7 @@
         :virtualScrollerOptions="{ itemSize: 31 }"
         size="small"
         :style="{ fontSize: '14px' }"
+        class="table-with-external-border"
       >
         <Column
           v-for="column in currentColumns"

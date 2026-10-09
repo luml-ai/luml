@@ -296,7 +296,7 @@ test.describe('Orbits', () => {
 
       await page.locator('.orbit-popover-wrapper .menu-link').click()
       const activeRow = page.locator('.orbit-popover-wrapper .orbit-item.active')
-      await activeRow.getByRole('button').last().click() 
+      await activeRow.getByRole('button').last().click()
 
       const dialog = page
         .getByRole('dialog')
@@ -304,7 +304,7 @@ test.describe('Orbits', () => {
       await expect(dialog).toBeVisible()
 
       await dialog.getByLabel('Name').fill('Renamed Orbit')
-      await dialog.getByRole('button', { name: 'save changes' }).click()
+      await dialog.getByRole('button', { name: 'Save changes' }).click()
 
       await expect.poll(() => patchPayload).toMatchObject({
         id: ORBIT_ID,
@@ -335,9 +335,9 @@ test.describe('Orbits', () => {
       const dialog = page
         .getByRole('dialog')
         .filter({ has: page.getByText('orbit settings', { exact: true }) })
-      await dialog.getByRole('button', { name: /delete Orbit/i }).click()
+      await dialog.getByRole('button', { name: 'Delete Orbit' }).click()
       const confirmBtn = page
-        .getByRole('button', { name: /^(delete|confirm|yes|accept)$/i })
+        .getByRole('button', { name: /^(Delete|Confirm|Yes|Accept)$/i })
         .first()
       await confirmBtn.click()
 

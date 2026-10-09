@@ -8,3 +8,6 @@ FORECASTING_TAG = f"{PRODUCER}::forecasting:v1"
 FORECASTING_METRICS_TAG = f"{PRODUCER}::forecasting_metrics:v1"
 FORECASTING_CHART_TAG = f"{PRODUCER}::forecasting_chart:v1"
 REGISTRY_METRICS_TAG = f"{PRODUCER}::registry_metrics:v1"
+
+REFERENCE_PROFILE_TAG = "reference_profile:v1"
+REFERENCE_PROFILE_FILENAME = "reference_profile.json"

@@ -9,13 +9,13 @@ import type {
   IPostSignupResponse,
   TDeleteAccountResponse,
   IPostChangePasswordResponse,
+  IPostChangePasswordRequest,
   TPostLogoutResponse,
   IUpdateUserRequest,
   IPostForgotPasswordRequest,
   IPostForgotPasswordResponse,
   IGetGoogleLoginRequest,
   IResetPasswordRequest,
-  ISendEmailRequest,
   Organization,
   Invitation,
   CreateOrganizationPayload,
@@ -43,8 +43,10 @@ import { ApiKeysApi } from './api-keys'
 import { SatellitesApi } from './satellites'
 import { OrbitSecretsApi } from './orbit-secrets'
 import { DeploymentsApi } from './deployments'
+import { MonitoringApi } from './monitoring'
 import { OrbitTracksApi } from './orbit-tracks'
 import { PrismaApi } from './prisma'
+import { LineageApi } from './lineage'
 
 export class ApiClass {
   private api: AxiosInstance
@@ -55,8 +57,10 @@ export class ApiClass {
   public satellites: SatellitesApi
   public orbitSecrets: OrbitSecretsApi
   public deployments: DeploymentsApi
+  public monitoring: MonitoringApi
   public orbitTracks: OrbitTracksApi
   public dataAgent: PrismaApi
+  public lineage: LineageApi
 
   constructor() {
     this.api = axios.create({
@@ -74,8 +78,10 @@ export class ApiClass {
     this.satellites = new SatellitesApi(this.api)
     this.orbitSecrets = new OrbitSecretsApi(this.api)
     this.deployments = new DeploymentsApi(this.api)
+    this.monitoring = new MonitoringApi(this.api)
     this.orbitTracks = new OrbitTracksApi(this.api)
     this.dataAgent = new PrismaApi()
+    this.lineage = new LineageApi(this.api)
   }
 
   public async signUp(data: IPostSignupRequest): Promise<IPostSignupResponse> {
@@ -140,6 +146,14 @@ export class ApiClass {
     return responseData
   }
 
+  public async changePassword(
+    data: IPostChangePasswordRequest,
+  ): Promise<IPostChangePasswordResponse> {
+    const { data: responseData } = await this.api.post('/v1/auth/change-password', data)
+
+    return responseData
+  }
+
   public async updateUser(data: IUpdateUserRequest): Promise<IPostChangePasswordResponse> {
     const { data: responseData } = await this.api.patch('/v1/auth/users/me', data)
 
@@ -159,12 +173,6 @@ export class ApiClass {
 
   public async resetPassword(data: IResetPasswordRequest) {
     await this.api.post('/v1/auth/reset-password', data)
-  }
-
-  public async sendEmail(data: ISendEmailRequest) {
-    await this.api.post('/v1/stats/email-send', data, {
-      skipInterceptors: true,
-    })
   }
 
   public async getInvitations() {

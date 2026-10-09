@@ -95,7 +95,7 @@ const emit = defineEmits(['success'])
 
 const userStore = useUserStore()
 
-const initialValues = ref(userChangePasswordInitialValues)
+const initialValues = ref({ ...userChangePasswordInitialValues })
 const resolver = ref(userChangePasswordResolver)
 const formResponseError = ref('')
 

@@ -1,244 +1,125 @@
-# ruff: noqa: T201
+"""The basic flow on the async client.
+
+``AsyncLumlClient`` mirrors ``LumlClient`` call for call: every method of the
+sync client exists on the async one with the same arguments and the same
+answers, only awaited. The per-resource files in this directory show the calls
+in detail; this file runs through the basic flow once, top to bottom.
+"""
+
 import asyncio
 
-from luml_api import AsyncLumlClient
-from luml_api._types import ArtifactStatus, CollectionType
+from luml_api import ArtifactType, AsyncLumlClient, CollectionType
 
-# Will use Luml API Production url "https://api.luml.ai"
-# And search for LUML_API_KEY in .env
-luml_simple = AsyncLumlClient()
+ORGANIZATION_ID = "0199c455-21ec-7c74-8efe-41470e29bae5"
+ORBIT_ID = "0199c455-21ed-7aba-9fe5-5231611220de"
+COLLECTION_ID = "0199c455-21ee-74c6-b747-19a82f1a1e75"
+DATASET_ID = "0199c455-21ee-74c6-b747-19a82f1a1e80"
+MODEL_IDS = [
+    "0199c455-21ee-74c6-b747-19a82f1a1e90",
+    "0199c455-21ee-74c6-b747-19a82f1a1e91",
+    "0199c455-21ee-74c6-b747-19a82f1a1e92",
+]
 
-# No default organization, orbit and collection are set
+# Reads LUML_API_KEY and LUML_BASE_URL from the environment when they are not given
 luml = AsyncLumlClient(api_key="luml_your_api_key_here")
 
 
-async def demo_client_defaults() -> None:
-    # Set up defaults
+async def main() -> None:
+    # The async client takes no defaults in its constructor: they are resolved
+    # with one awaited call, by name or by id
     await luml.setup_config(
-        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-        collection="0199c455-21ee-74c6-b747-19a82f1a1e75",
+        organization=ORGANIZATION_ID,
+        orbit=ORBIT_ID,
+        collection=COLLECTION_ID,
     )
-
-    # Get client defaults ids
-    default_organization_id = luml.organization
-    default_orbit_id = luml.orbit
-    default_collection_id = luml.collection
-
-    print(default_organization_id, default_orbit_id, default_collection_id)
-
-    # Set default resources
-    luml.organization = "0199c455-21ec-7c74-8efe-41470e29bae5"
-    luml.orbit = "0199c455-21ed-7aba-9fe5-5231611220de"
-    luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
-
     print(luml.organization, luml.orbit, luml.collection)
 
+    # Organizations the API key has access to
+    organizations = await luml.organizations.list()
+    print(f"Organizations: {organizations}")
 
-async def demo_organizations() -> None:
-    # List all available organization for user
-    all_my_organization = await luml.organizations.list()
-    print(f"All user organization: {all_my_organization}")
-
-    # Get default organization
-    default_org_details = await luml.organizations.get()
-    print(f"Default organization: {default_org_details}")
-
-    # Get organization by name
-    organization_by_name = await luml.organizations.get("My Organization")
-    print(f"Organization by name: {organization_by_name}")
-
-    # Get organization by id
-    organization_by_id = await luml.organizations.get(
-        "0199c455-21ec-7c74-8efe-41470e29bae5"
-    )
-    print(f"Organization by id: {organization_by_id}")
-
-
-async def demo_bucket_secrets() -> None:
-    # Create a new bucket secret
+    # A bucket is registered once per organization and attached to orbits
     bucket_secret = await luml.bucket_secrets.create(
         endpoint="s3.amazonaws.com",
-        bucket_name="my-ml-models-bucket",
+        bucket_name="my-ml-artifacts-bucket",
         access_key="AKIAIOSFODNN7EXAMPLE",
         secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         secure=True,
         region="us-east-1",
     )
-    print(f"Created bucket secret: {bucket_secret}")
+    print(f"Bucket secret: {bucket_secret}")
 
-    # List all bucket secrets
-    secrets = await luml.bucket_secrets.list()
-    print(f"Bucket secrets: {secrets}")
-
-    # Get bucket secret by name
-    secret = await luml.bucket_secrets.get("my-ml-models-bucket")
-    print(f"Bucket secret by name: {secret}")
-
-    # Get bucket secret by id
-    secret = await luml.bucket_secrets.get("0199c455-21ed-7aba-9fe5-5231611220de")
-    print(f"Bucket secret by id: {secret}")
-
-    # Update bucket secret
-    updated_secret = await luml.bucket_secrets.update(
-        secret_id=bucket_secret.id, secure=False, region="us-west-2"
-    )
-    print(f"Updated bucket secret: {updated_secret}")
-
-    # Delete bucket secret
-    await luml.bucket_secrets.delete("0199c455-21ed-7aba-9fe5-5231611220de")
-
-
-async def demo_orbits() -> None:
-    # Create a new orbit
+    # An orbit on that bucket, and a collection of models inside it
     orbit = await luml.orbits.create(
         name="ML Production Orbit",
-        bucket_secret_id="0199c455-21ed-7aba-9fe5-5231611220de",
+        bucket_secret_id=bucket_secret.id,
     )
-    print(f"Created orbit: {orbit}")
+    print(f"Orbit: {orbit}")
 
-    # Get Orbit by name
-    orbit_by_name = await luml.orbits.get("ML Production Orbit")
-    print(f"Orbit by name: {orbit_by_name}")
-
-    # Get Orbit by id
-    orbit_by_id = await luml.orbits.get("0199c455-21ed-7aba-9fe5-5231611220de")
-    print(f"Orbit by id: {orbit_by_id}")
-
-    # List all orbits
-    orbits = await luml.orbits.list()
-    print(f"Orbits: {orbits}")
-
-    # Update orbit
-    updated_orbit = await luml.orbits.update(name="ML Production Environment")
-    print(f"Updated orbit: {updated_orbit}")
-
-    # Delete Orbit
-    await luml.orbits.delete("0199c455-21ed-7aba-9fe5-5231611220de")
-
-
-async def demo_collections() -> None:
-    # Create a model collection
     collection = await luml.collections.create(
-        name="Production Models",
-        description="Trained models ready for production deployment",
+        name="Production artifacts",
+        description="Trained artifacts ready for production deployment",
         type=CollectionType.MODEL,
-        tags=["production", "ml", "models"],
+        tags=["production", "ml", "artifacts"],
     )
-    print(f"Created collection: {collection}")
+    print(f"Collection: {collection}")
 
-    # Get default collection
-    default_collection = await luml.collections.get()
-    print(f"Get Default Collection Details: {default_collection}")
-
-    # Get collection by name
-    collection_by_name = await luml.collections.get("Production Models")
-    print(f"Collection by name: {collection_by_name}")
-
-    # Get collection by id
-    collection_by_id = await luml.collections.get(
-        "0199c455-21ee-74c6-b747-19a82f1a1e75"
-    )
-    print(f"Collection by id: {collection_by_id}")
-
-    # List all collections in the orbit
-    collections = await luml.collections.list()
-    print(f"Collection: {collections}")
-
-    # Update collection with new tags
-    updated_collection = await luml.collections.update(
-        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-        description="Updated: Production-ready ML models",
-    )
-    print(f"Updated collection: {updated_collection}")
-
-    # Delete collection
-    await luml.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
-
-
-async def demo_artifacts() -> None:
-    # Create new model artifact record with upload URL
-    model_created = await luml.artifacts.create(
-        file_name="customer_churn_model.fnnx",
-        extra_values={"accuracy": 0.95, "precision": 0.92, "recall": 0.88},
-        manifest={"version": "1.0", "framework": "xgboost"},
-        file_hash="abc123def456",
-        file_index={"layer1": (0, 1024), "layer2": (1024, 2048)},
-        size=1048576,
+    # Upload a model, recording the dataset it was trained on
+    model = await luml.artifacts.upload(
+        file_path="/path/to/your/artifact.fnnx",
         name="Customer Churn Predictor",
-        description="XGBoost model predicting customer churn probability",
+        description="XGBoost artifact predicting customer churn probability",
         tags=["xgboost", "churn", "production"],
+        lineage_inputs=[DATASET_ID],
+        collection_id=collection.id,
     )
-    print(f"Created model: {model_created}")
+    print(f"Uploaded: {model}")
 
-    # List all model artifacts in the collection
-    models = await luml.artifacts.list()
-    print(f"All models in collection: {models}")
+    models = await luml.artifacts.list(types=[ArtifactType.MODEL], search="churn")
+    print(f"Churn models: {models}")
 
-    # Get model by ID
-    artifact_by_id = await luml.artifacts.get("0199c455-21ee-74c6-b747-19a82f1a1e75")
-    print(f"Artifact by id: {artifact_by_id}")
+    download_url = await luml.artifacts.download_url(model.id)
+    print(f"Download URL: {download_url}")
 
-    # Get model by name
-    artifact_by_name = await luml.artifacts.get("Customer Churn Predictor")
-    print(f"Artifact by name: {artifact_by_name}")
+    # The lineage graph around the model
+    graph = await luml.artifacts.get_lineage(model.id)
+    print(f"{len(graph.nodes)} nodes, {len(graph.edges)} edges")
 
-    # Get model from specific collection
-    artifact_by_id_collection = await luml.artifacts.get(
-        "0199c455-21ee-74c6-b747-19a82f1a1e75",
-        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+    # Where async pays off: independent requests run at the same time. The
+    # direct neighbours of many artifacts arrive together instead of one by one
+    graphs = await asyncio.gather(
+        *(luml.artifacts.get_lineage(model_id, depth=1) for model_id in MODEL_IDS)
     )
-    print(f"Artifact by id: {artifact_by_id_collection}")
+    for model_id, model_graph in zip(MODEL_IDS, graphs, strict=True):
+        print(f"{model_id}: {len(model_graph.edges)} connections")
 
-    # Update model metadata
-    updated_model = await luml.artifacts.update(
-        artifact_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-        description="Updated: Advanced churn prediction model",
-        tags=["xgboost", "churn", "production", "v2.1"],
-        status=ArtifactStatus.UPLOADED,
+    # The model becomes the next version of its track and goes to production
+    track = await luml.tracks.create(
+        name="churn-model",
+        artifact_type=ArtifactType.MODEL,
+        stages=["dev", "staging", "production"],
     )
-    print(f"Updated artifact: {updated_model}")
-
-    # Get download URL
-    download_url = await luml.artifacts.download_url(
-        "0199c455-21ee-74c6-b747-19a82f1a1e75"
+    entry = await luml.tracks.add_artifact(str(track.id), model.id, stage="dev")
+    promoted = await luml.tracks.update_artifact(
+        str(track.id), str(entry.id), stage="production", force=True
     )
-    print(f"Artifact Download URL: {download_url}")
+    print(f"v{promoted.version} of {track.name} is in {promoted.stage_name}")
 
-    # Get delete URL
-    delete_url = await luml.artifacts.delete_url("0199c455-21ee-74c6-b747-19a82f1a1e75")
-    print(f"Artifact Delete URL: {delete_url}")
+    # Deployments of the orbit, and the monitoring of one of them: the sections
+    # are independent reads, so a report fetches the ones it needs at once
+    deployments = await luml.deployments.list()
+    print(f"Deployments: {deployments}")
 
-    # Upload a model file (example - file should exist)
-    uploaded_model = await luml.artifacts.upload(
-        file_path="/path/to/your/model.dfs",
-        model_name="Customer Churn Predictor",
-        description="XGBoost model predicting customer churn probability",
-        tags=["xgboost", "churn", "production"],
+    monitoring = await luml.deployments.monitoring("My Deployment")
+    overview, runtime, alerts = await asyncio.gather(
+        monitoring.overview(window="7d"),
+        monitoring.runtime(window="24h"),
+        monitoring.alerts(window="7d", severity="critical"),
     )
-    print(f"Uploaded artifact: {uploaded_model}")
-
-    # Download model
-    await luml.artifacts.download("0199c455-21ee-74c6-b747-19a82f1a1e75", "output.dfs")
-
-    # Delete model permanently
-    await luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
-
-
-async def async_main() -> None:
-    print("\n--------------------------------\n")
-    await demo_client_defaults()
-    print("\n--------------------------------\n")
-    await demo_organizations()
-    print("\n--------------------------------\n")
-    await demo_bucket_secrets()
-    print("\n--------------------------------\n")
-    await demo_orbits()
-    print("\n--------------------------------\n")
-    await demo_collections()
-    print("\n--------------------------------\n")
-    await demo_artifacts()
+    print(f"Overview: {overview}")
+    print(f"Runtime: {runtime}")
+    print(f"Alerts: {alerts}")
 
 
 if __name__ == "__main__":
-    asyncio.run(async_main())
+    asyncio.run(main())

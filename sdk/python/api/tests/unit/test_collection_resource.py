@@ -65,6 +65,49 @@ def test_collection_list_none_response(mock_sync_client: Mock) -> None:
     assert len(collections.items) == 0
 
 
+def test_collection_list_with_tags(
+    mock_sync_client: Mock, sample_collection: Collection
+) -> None:
+    organization_id = mock_sync_client.organization
+    orbit_id = mock_sync_client.orbit
+    mock_sync_client.get.return_value = {
+        "items": [sample_collection.model_dump()],
+        "cursor": None,
+    }
+
+    resource = CollectionResource(mock_sync_client)
+    collections = resource.list(tags=["production", "ml"])
+
+    mock_sync_client.get.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections",
+        params={"limit": 100, "order": "desc", "tags": ["production", "ml"]},
+    )
+    assert len(collections.items) == 1
+
+
+def test_collection_list_tags(mock_sync_client: Mock) -> None:
+    organization_id = mock_sync_client.organization
+    orbit_id = mock_sync_client.orbit
+    mock_sync_client.get.return_value = ["ml", "production", "staging"]
+
+    resource = CollectionResource(mock_sync_client)
+    tags = resource.list_tags()
+
+    mock_sync_client.get.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/tags"
+    )
+    assert tags == ["ml", "production", "staging"]
+
+
+def test_collection_list_tags_none_response(mock_sync_client: Mock) -> None:
+    mock_sync_client.get.return_value = None
+
+    resource = CollectionResource(mock_sync_client)
+    tags = resource.list_tags()
+
+    assert tags == []
+
+
 def test_collection_create(
     mock_sync_client: Mock, sample_collection: Collection
 ) -> None:
@@ -252,6 +295,54 @@ async def test_async_collection_list_none_response(
     collections = await resource.list()
 
     assert len(collections.items) == 0
+
+
+@pytest.mark.asyncio
+async def test_async_collection_list_with_tags(
+    mock_async_client: AsyncMock, sample_collection: Collection
+) -> None:
+    organization_id = mock_async_client.organization
+    orbit_id = mock_async_client.orbit
+    mock_async_client.get.return_value = {
+        "items": [sample_collection.model_dump()],
+        "cursor": None,
+    }
+
+    resource = AsyncCollectionResource(mock_async_client)
+    collections = await resource.list(tags=["production", "ml"])
+
+    mock_async_client.get.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections",
+        params={"limit": 100, "order": "desc", "tags": ["production", "ml"]},
+    )
+    assert len(collections.items) == 1
+
+
+@pytest.mark.asyncio
+async def test_async_collection_list_tags(mock_async_client: AsyncMock) -> None:
+    organization_id = mock_async_client.organization
+    orbit_id = mock_async_client.orbit
+    mock_async_client.get.return_value = ["ml", "production", "staging"]
+
+    resource = AsyncCollectionResource(mock_async_client)
+    tags = await resource.list_tags()
+
+    mock_async_client.get.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/tags"
+    )
+    assert tags == ["ml", "production", "staging"]
+
+
+@pytest.mark.asyncio
+async def test_async_collection_list_tags_none_response(
+    mock_async_client: AsyncMock,
+) -> None:
+    mock_async_client.get.return_value = None
+
+    resource = AsyncCollectionResource(mock_async_client)
+    tags = await resource.list_tags()
+
+    assert tags == []
 
 
 @pytest.mark.asyncio

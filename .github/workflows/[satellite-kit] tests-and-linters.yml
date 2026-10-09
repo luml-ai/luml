@@ -1,0 +1,46 @@
+name: Satellite Kit Tests and Linters
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'satellite/kit/**'
+      - '.github/workflows/*satellite-kit*tests-and-linters.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'satellite/kit/**'
+      - '.github/workflows/*satellite-kit*tests-and-linters.yml'
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: satellite/kit
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies with uv
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --group dev --extra monitoring
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Test
+        run: uv run pytest

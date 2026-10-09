@@ -23,7 +23,10 @@ export async function orbitMiddleware(
     return toSetup(next, targetTab)
   }
 
-  if (!organizationStore.availableOrganizations.length) {
+  if (
+    !organizationStore.availableOrganizations.length ||
+    organizationStore.availableOrganizationsRequest
+  ) {
     try {
       await organizationStore.getAvailableOrganizations()
     } catch {
@@ -33,7 +36,17 @@ export async function orbitMiddleware(
 
   const urlOrgId = to.params.organizationId as string
 
-  if (!orbitsStore.orbitsList.length) {
+  if (!organizationStore.availableOrganizations.some((org) => org.id === urlOrgId)) {
+    return toSetup(next, targetTab)
+  }
+
+  if (organizationStore.currentOrganization?.id !== urlOrgId) {
+    try {
+      await organizationStore.switchOrganization(urlOrgId)
+    } catch {
+      return toSetup(next, targetTab)
+    }
+  } else if (!orbitsStore.orbitsList.length) {
     try {
       await orbitsStore.loadOrbitsList(urlOrgId)
     } catch {

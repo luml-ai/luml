@@ -1307,6 +1307,7 @@ class TestArtifactHandlerUploadModel:
         handler = facade.artifacts
         handler.progress_store.create("job-m2")
         uploaded = MagicMock()
+        uploaded.id = "a-1"
         uploaded.model_dump.return_value = {"id": "a-1"}
         client = MagicMock()
         client.artifacts.upload.return_value = uploaded

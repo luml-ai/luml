@@ -3,11 +3,21 @@ from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import (
+    BaseModel,
+    Field,
+    StringConstraints,
+    ValidationInfo,
+    computed_field,
+    field_validator,
+)
 
 from luml.schemas.base import BaseOrmConfig
 
 TagList = Annotated[list[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
+DeploymentName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
 
 
 class DeploymentStatus(StrEnum):
@@ -17,6 +27,11 @@ class DeploymentStatus(StrEnum):
     DELETION_PENDING = "deletion_pending"
     DELETION_FAILED = "deletion_failed"
     NOT_RESPONDING = "not_responding"
+
+
+class MonitoringMode(StrEnum):
+    OFF = "off"
+    FULL = "full"
 
 
 class DeploymentBase(BaseModel, BaseOrmConfig):
@@ -31,12 +46,18 @@ class Deployment(DeploymentBase):
     orbit_id: UUID
     satellite_id: UUID
     satellite_name: str
+    # The orbit's name doubles as the deployment's environment label on dashboards.
+    orbit_name: str | None = None
     name: str
     artifact_id: UUID
     artifact_name: str
     collection_id: UUID
     inference_url: str | None = None
+    monitoring_url: str | None = None
+    provider_ref: str | None = None
+    progress_note: str | None = None
     status: DeploymentStatus
+    monitoring_mode: MonitoringMode = MonitoringMode.OFF
     satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = None
     dynamic_attributes_secrets: dict[str, str] = Field(default_factory=dict)
@@ -63,7 +84,8 @@ class Deployment(DeploymentBase):
 class DeploymentCreateBase(BaseModel):
     satellite_id: UUID
     artifact_id: UUID
-    name: str = Field(max_length=100)
+    name: DeploymentName
+    monitoring_mode: MonitoringMode = MonitoringMode.OFF
     satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = Field(default=None, max_length=1000)
     env_variables: dict[str, str] = Field(default_factory=dict)
@@ -85,6 +107,9 @@ class DeploymentCreate(DeploymentCreateBase, BaseOrmConfig):
 
 class DeploymentUpdateIn(BaseModel):
     inference_url: str | None = Field(default=None, max_length=2048)
+    monitoring_url: str | None = Field(default=None, max_length=2048)
+    provider_ref: str | None = Field(default=None, max_length=512)
+    progress_note: str | None = Field(default=None, max_length=1000)
     status: DeploymentStatus | None = None
     tags: TagList | None = None
     schemas: dict[str, Any] | None = None
@@ -104,15 +129,28 @@ class InferenceAccessOut(BaseModel):
 
 
 class DeploymentDetailsUpdateBase(BaseModel):
-    name: str | None = Field(default=None, max_length=100)
+    name: DeploymentName | None = None
     description: str | None = Field(default=None, max_length=1000)
+    monitoring_mode: MonitoringMode | None = None
     schemas: dict[str, Any] | None = None
     error_message: dict[str, Any] | None = None
     tags: TagList | None = None
 
+    @field_validator("name", "monitoring_mode", mode="before")
+    @classmethod
+    def _reject_explicit_null(cls, value: Any, info: ValidationInfo) -> Any:  # noqa: ANN401
+        if value is None:
+            raise ValueError(f"{info.field_name} cannot be null; omit it instead")
+        return value
+
 
 class DeploymentDetailsUpdateIn(DeploymentDetailsUpdateBase):
     dynamic_attributes_secrets: dict[str, UUID] | None = None
+
+    @field_validator("dynamic_attributes_secrets", mode="before")
+    @classmethod
+    def _null_clears_the_mapping(cls, value: Any) -> Any:  # noqa: ANN401
+        return {} if value is None else value
 
 
 class DeploymentDetailsUpdate(DeploymentDetailsUpdateBase):
@@ -121,3 +159,30 @@ class DeploymentDetailsUpdate(DeploymentDetailsUpdateBase):
 
 class DeploymentStatusUpdateIn(BaseModel):
     status: DeploymentStatus
+
+
+class DeploymentBatchAction(StrEnum):
+    UNDEPLOY = "undeploy"
+    DELETE = "delete"
+
+
+class DeploymentsBatchRequest(BaseModel):
+    deployment_ids: Annotated[list[UUID], Field(min_length=1, max_length=100)]
+    action: DeploymentBatchAction
+
+    @field_validator("deployment_ids")
+    @classmethod
+    def collapse_duplicate_ids(cls, deployment_ids: list[UUID]) -> list[UUID]:
+        return list(dict.fromkeys(deployment_ids))
+
+
+class DeploymentBatchFailure(BaseModel):
+    deployment_id: UUID
+    name: str | None
+    reason: str
+    message: str
+
+
+class DeploymentsBatchResponse(BaseModel):
+    succeeded: list[UUID] = Field(default_factory=list)
+    failed: list[DeploymentBatchFailure] = Field(default_factory=list)

@@ -1,7 +1,7 @@
 <template>
   <VirtualScroller
     :items="list"
-    :itemSize="126"
+    :itemSize="160"
     lazy
     @lazy-load="$emit('lazy-load', $event)"
     class="border border-surface-200 dark:border-surface-700 rounded"
@@ -11,13 +11,15 @@
       <div class="card-wrapper">
         <TrackCard
           :key="item.id"
-          :date="item.updated_at ?? item.created_at"
+          :createdAt="item.created_at"
+          :updatedAt="item.updated_at"
           :type="item.artifact_type"
           :artifactsCount="item.total_entries"
           :id="item.id"
           :name="item.name"
           :description="item.description ?? ''"
-          :stages="item.tags ?? []"
+          :stages="item.stages"
+          :tags="item.tags ?? []"
         />
       </div>
     </template>
@@ -25,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Track } from '@/lib/api/orbit-tracks/interfaces.js'
+import type { Track } from '@/lib/api/orbit-tracks/interfaces'
 import TrackCard from './TrackCard.vue'
 import { VirtualScroller, type VirtualScrollerLazyEvent } from 'primevue'
 

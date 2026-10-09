@@ -106,7 +106,10 @@ def _add_io(builder: PyfuncBuilder, graph: Pregel) -> None:
 
 
 def _get_default_tags() -> list[str]:
-    return [FNNX_PRODUCER_NAME + "::langgraph:v1"]
+    return [
+        FNNX_PRODUCER_NAME + "::langgraph:v1",
+        FNNX_PRODUCER_NAME + "::kind_llm:v1",
+    ]
 
 
 def save_langgraph(  # noqa: C901

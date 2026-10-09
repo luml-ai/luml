@@ -28,11 +28,20 @@ if TYPE_CHECKING:
         AsyncCollectionResource,
         CollectionResource,
     )
+    from luml_api.resources.deployments import (
+        AsyncDeploymentResource,
+        DeploymentResource,
+    )
     from luml_api.resources.orbits import AsyncOrbitResource, OrbitResource
     from luml_api.resources.organizations import (
         AsyncOrganizationResource,
         OrganizationResource,
     )
+    from luml_api.resources.satellites import (
+        AsyncSatelliteResource,
+        SatelliteResource,
+    )
+    from luml_api.resources.tracks import AsyncTrackResource, TrackResource
 
 
 class LumlClientBase(ABC):
@@ -155,6 +164,21 @@ class LumlClientBase(ABC):
     def artifacts(self) -> "ArtifactResource | AsyncArtifactResource":
         raise NotImplementedError()
 
+    @cached_property
+    @abstractmethod
+    def tracks(self) -> "TrackResource | AsyncTrackResource":
+        raise NotImplementedError()
+
+    @cached_property
+    @abstractmethod
+    def deployments(self) -> "DeploymentResource | AsyncDeploymentResource":
+        raise NotImplementedError()
+
+    @cached_property
+    @abstractmethod
+    def satellites(self) -> "SatelliteResource | AsyncSatelliteResource":
+        raise NotImplementedError()
+
 
 class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
     def __init__(
@@ -178,6 +202,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
             collections: Interface for managing collections.
             bucket_secrets: Interface for managing bucket secrets.
             artifacts: Interface for managing Artifacts.
+            tracks: Interface for managing Tracks.
 
         Raises:
             AuthenticationError: If API key is invalid or missing.
@@ -372,6 +397,27 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
         return AsyncArtifactResource(self)
 
+    @cached_property
+    def tracks(self) -> "AsyncTrackResource":
+        """Tracks interface."""
+        from luml_api.resources.tracks import AsyncTrackResource
+
+        return AsyncTrackResource(self)
+
+    @cached_property
+    def deployments(self) -> "AsyncDeploymentResource":
+        """Deployments and their monitoring."""
+        from luml_api.resources.deployments import AsyncDeploymentResource
+
+        return AsyncDeploymentResource(self)
+
+    @cached_property
+    def satellites(self) -> "AsyncSatelliteResource":
+        """Satellites and their advertised operations."""
+        from luml_api.resources.satellites import AsyncSatelliteResource
+
+        return AsyncSatelliteResource(self)
+
 
 class LumlClient(LumlClientBase, SyncBaseClient):
     def __init__(
@@ -404,6 +450,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
             collections: Interface for managing collections.
             bucket_secrets: Interface for managing bucket secrets.
             artifacts: Interface for managing Artifacts.
+            tracks: Interface for managing Tracks.
 
         Raises:
             AuthenticationError: If API key is invalid or missing.
@@ -574,3 +621,24 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         from luml_api.resources.artifacts import ArtifactResource
 
         return ArtifactResource(self)
+
+    @cached_property
+    def tracks(self) -> "TrackResource":
+        """Tracks interface."""
+        from luml_api.resources.tracks import TrackResource
+
+        return TrackResource(self)
+
+    @cached_property
+    def deployments(self) -> "DeploymentResource":
+        """Deployments and their monitoring."""
+        from luml_api.resources.deployments import DeploymentResource
+
+        return DeploymentResource(self)
+
+    @cached_property
+    def satellites(self) -> "SatelliteResource":
+        """Satellites and their advertised operations."""
+        from luml_api.resources.satellites import SatelliteResource
+
+        return SatelliteResource(self)

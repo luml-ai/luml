@@ -84,7 +84,7 @@ class OrbitSecretHandler:
             Action.READ,
             orbit_id,
         )
-        secret = await self.__secret_repository.get_orbit_secret(secret_id)
+        secret = await self.__secret_repository.get_orbit_secret(secret_id, orbit_id)
         if not secret:
             raise NotFoundError("Orbit secret not found")
         return OrbitSecretOut.model_validate(secret)
@@ -104,7 +104,9 @@ class OrbitSecretHandler:
             Action.UPDATE,
             orbit_id,
         )
-        updated = await self.__secret_repository.update_orbit_secret(secret_id, secret)
+        updated = await self.__secret_repository.update_orbit_secret(
+            secret_id, orbit_id, secret
+        )
         if not updated:
             raise NotFoundError("Orbit secret not found")
         return OrbitSecretOut.model_validate(updated)
@@ -123,7 +125,11 @@ class OrbitSecretHandler:
             Action.DELETE,
             orbit_id,
         )
-        await self.__secret_repository.delete_orbit_secret(secret_id)
+        deleted = await self.__secret_repository.delete_orbit_secret(
+            secret_id, orbit_id
+        )
+        if not deleted:
+            raise NotFoundError("Orbit secret not found")
 
     async def get_worker_orbit_secrets(self, orbit_id: UUID) -> list[OrbitSecret]:
         return await self.__secret_repository.get_orbit_secrets(orbit_id)
@@ -131,7 +137,7 @@ class OrbitSecretHandler:
     async def get_worker_orbit_secret(
         self, orbit_id: UUID, secret_id: UUID
     ) -> OrbitSecret:
-        secret = await self.__secret_repository.get_orbit_secret(secret_id)
-        if not secret or secret.orbit_id != orbit_id:
+        secret = await self.__secret_repository.get_orbit_secret(secret_id, orbit_id)
+        if not secret:
             raise NotFoundError("Orbit secret not found")
         return secret

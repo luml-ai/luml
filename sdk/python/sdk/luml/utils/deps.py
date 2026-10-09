@@ -1,3 +1,4 @@
+import os
 import re
 import site
 import sys
@@ -195,8 +196,33 @@ def get_all_platform_packages() -> dict[str, str]:
     return PLATFORM_MARKERS.copy()
 
 
+def _normalized(path: object) -> str:
+    """A comparable form of a path, whichever path-like the metadata API hands out."""
+    return os.path.normcase(os.path.normpath(str(path)))
+
+
+def _owning_distribution(
+    module_file: Path,
+    top_level: str,
+    file_to_dist: dict[str, str],
+    module_to_dist: dict[str, str],
+) -> str | None:
+    """The distribution that ships a loaded module.
+
+    Looked up by the module's own file first: a top-level package can be shared by
+    several distributions — ``langgraph`` is filled in by ``langgraph``,
+    ``langgraph-prebuilt``, ``langgraph-sdk`` and ``langgraph-checkpoint`` alike — and
+    a mapping keyed on the package name alone can only ever name one of them, so the
+    others (the core one included) silently dropped out of the packaged requirements.
+    The package-name mapping remains the fallback for modules whose file the metadata
+    does not list, such as compiled extensions.
+    """
+    return file_to_dist.get(_normalized(module_file)) or module_to_dist.get(top_level)
+
+
 def find_dependencies() -> tuple[list[str], list[str]]:  # noqa: C901
     module_to_dist: dict[str, str] = {}
+    file_to_dist: dict[str, str] = {}
 
     for dist in distributions():
         dist_name = dist.metadata["Name"]
@@ -215,6 +241,7 @@ def find_dependencies() -> tuple[list[str], list[str]]:  # noqa: C901
 
         if dist.files:
             for file in dist.files:
+                file_to_dist.setdefault(_normalized(dist.locate_file(file)), dist_name)
                 if file.suffix == ".py":
                     parts = file.parts
                     if parts:
@@ -262,10 +289,12 @@ def find_dependencies() -> tuple[list[str], list[str]]:  # noqa: C901
         if is_site_package:
             top_level = mod_name.split(".")[0]
 
-            dist_name = module_to_dist.get(top_level)  # type: ignore[assignment]
+            owner = _owning_distribution(
+                mod_path, top_level, file_to_dist, module_to_dist
+            )
 
             pkg_version = None
-            for name in [dist_name, top_level]:
+            for name in [owner, top_level]:
                 if name is None:
                     continue
                 try:

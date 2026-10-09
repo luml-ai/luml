@@ -8,6 +8,9 @@ from pathlib import Path
 from luml.artifacts.experiment import save_experiment
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends.data_types import Model as DbModel
+from luml_api import LumlClient
+from luml_api._exceptions import NotFoundError
+from luml_api.utils.progress import BaseProgressHandler
 
 from lumlflow.handlers.luml.base_luml import BaseLumlHandler
 from lumlflow.infra.exceptions import ApplicationError, NotFound
@@ -74,7 +77,8 @@ class ArtifactHandler(BaseLumlHandler):
         data: UploadArtifactForm | UploadModelForm,
         model: DbModel,
         embed: bool,
-        on_progress,
+        on_progress: BaseProgressHandler,
+        uploaded_experiment_id: str | None,
     ) -> Artifact:
         if not model.path:
             raise ApplicationError(
@@ -86,6 +90,8 @@ class ArtifactHandler(BaseLumlHandler):
             name=model.name,
             embed=embed,
             on_progress=on_progress,
+            uploaded_experiment_id=uploaded_experiment_id,
+            model_id=model.id,
         )
 
     def _upload_model_file(
@@ -94,9 +100,11 @@ class ArtifactHandler(BaseLumlHandler):
         model_path: Path,
         name: str,
         embed: bool,
-        on_progress,
+        on_progress: BaseProgressHandler,
+        uploaded_experiment_id: str | None,
+        model_id: str | None = None,
     ) -> Artifact:
-        temp_path = None
+        temp_path: str | None = None
 
         try:
             if embed:
@@ -112,23 +120,79 @@ class ArtifactHandler(BaseLumlHandler):
                 upload_path = str(model_path)
 
             luml = self._get_luml_client(data.organization_id, data.orbit_id)
-
-            return luml.artifacts.upload(
-                file_path=upload_path,
-                name=data.artifact.name or name,
-                description=data.artifact.description,
-                tags=data.artifact.tags,
-                collection_id=data.collection_id,
-                on_progress=on_progress,
+            experiment_artifact_id = self._resolve_experiment_artifact_id(
+                data, uploaded_experiment_id
             )
+            remembered_experiment = (
+                uploaded_experiment_id is None and experiment_artifact_id is not None
+            )
+
+            def upload(lineage_inputs: list[str] | None) -> Artifact:
+                return luml.artifacts.upload(
+                    file_path=upload_path,
+                    name=data.artifact.name or name,
+                    description=data.artifact.description,
+                    tags=data.artifact.tags,
+                    lineage_inputs=lineage_inputs,
+                    collection_id=data.collection_id,
+                    on_progress=on_progress,
+                )
+
+            try:
+                artifact = upload(
+                    [experiment_artifact_id]
+                    if experiment_artifact_id is not None
+                    else None
+                )
+            except NotFoundError:
+                # A remembered experiment may have been deleted on the platform
+                # since it was uploaded; ask the platform instead of guessing
+                # from the error text.
+                if not remembered_experiment or not self._artifact_is_gone(
+                    luml, experiment_artifact_id
+                ):
+                    raise
+                self.tracker.delete_remote_artifact(
+                    "experiment",
+                    data.experiment_id,
+                    data.orbit_id,
+                )
+                artifact = upload(None)
+
+            if model_id is not None:
+                self.tracker.set_remote_artifact(
+                    "model", model_id, data.orbit_id, artifact.id
+                )
+            return artifact
         finally:
             if temp_path:
                 Path(temp_path).unlink(missing_ok=True)
 
+    @staticmethod
+    def _artifact_is_gone(luml: LumlClient, artifact_id: str | None) -> bool:
+        if artifact_id is None:
+            return False
+        try:
+            luml.artifacts.get_lineage(artifact_id, depth=1)
+        except NotFoundError:
+            return True
+        return False
+
+    def _resolve_experiment_artifact_id(
+        self,
+        data: UploadArtifactForm | UploadModelForm,
+        uploaded: str | None,
+    ) -> str | None:
+        if uploaded is not None:
+            return uploaded
+        return self.tracker.get_remote_artifact(
+            "experiment", data.experiment_id, data.orbit_id
+        )
+
     def _upload_experiment(
         self,
         data: UploadArtifactForm,
-        on_progress,
+        on_progress: BaseProgressHandler,
     ) -> Artifact:
         experiment = self.tracker.get_experiment_record(data.experiment_id)
         if not experiment:
@@ -141,7 +205,7 @@ class ArtifactHandler(BaseLumlHandler):
             save_experiment(self.tracker, data.experiment_id, output_path)
             luml = self._get_luml_client(data.organization_id, data.orbit_id)
 
-            return luml.artifacts.upload(
+            artifact = luml.artifacts.upload(
                 file_path=output_path,
                 name=data.artifact.name or experiment.name,
                 description=data.artifact.description,
@@ -149,6 +213,10 @@ class ArtifactHandler(BaseLumlHandler):
                 collection_id=data.collection_id,
                 on_progress=on_progress,
             )
+            self.tracker.set_remote_artifact(
+                "experiment", data.experiment_id, data.orbit_id, artifact.id
+            )
+            return artifact
         finally:
             Path(output_path).unlink(missing_ok=True)
 
@@ -160,26 +228,40 @@ class ArtifactHandler(BaseLumlHandler):
     ) -> list[Artifact]:
         plan = upload_plan(data.upload_type, data.embed_experiment, len(models))
         uploaded = models if plan.models else []
-        total = len(uploaded) + int(plan.experiment)
-        results = []
+        offset = int(plan.experiment)
+        total = len(uploaded) + offset
+        results: list[Artifact] = []
+        uploaded_experiment_id: str | None = None
+
+        # The experiment goes first so the models can name it as their lineage.
+        if plan.experiment:
+            on_progress = self.progress_store.make_handler(job_id, 0, total)
+            experiment = self._upload_experiment(data, on_progress=on_progress)
+            results.append(experiment)
+            uploaded_experiment_id = experiment.id
 
         for i, model in enumerate(uploaded):
-            on_progress = self.progress_store.make_handler(job_id, i, total)
+            on_progress = self.progress_store.make_handler(job_id, i + offset, total)
             form = _numbered(data, i + 1) if len(uploaded) > 1 else data
             if isinstance(model, tuple):
                 path, name = model
                 artifact = self._upload_model_file(
-                    form, path, name=name, embed=plan.embed, on_progress=on_progress
+                    form,
+                    path,
+                    name=name,
+                    embed=plan.embed,
+                    on_progress=on_progress,
+                    uploaded_experiment_id=uploaded_experiment_id,
                 )
             else:
                 artifact = self._upload_model(
-                    form, model, embed=plan.embed, on_progress=on_progress
+                    form,
+                    model,
+                    embed=plan.embed,
+                    on_progress=on_progress,
+                    uploaded_experiment_id=uploaded_experiment_id,
                 )
             results.append(artifact)
-
-        if plan.experiment:
-            on_progress = self.progress_store.make_handler(job_id, len(uploaded), total)
-            results.append(self._upload_experiment(data, on_progress=on_progress))
 
         return results
 
@@ -236,7 +318,11 @@ class ArtifactHandler(BaseLumlHandler):
                 raise NotFound(f"Model not found: {data.model_id}")
             on_progress = self.progress_store.make_handler(job_id, 0, 1)
             artifact = self._upload_model(
-                data, model, embed=data.embed_experiment, on_progress=on_progress
+                data,
+                model,
+                embed=data.embed_experiment,
+                on_progress=on_progress,
+                uploaded_experiment_id=None,
             )
         except Exception as e:
             self.progress_store.set_error(job_id, str(e))

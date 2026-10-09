@@ -1,0 +1,72 @@
+suite: standard path ingress
+templates:
+  - templates/ingress.yaml
+release:
+  name: routes
+  namespace: models
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+  satellite.host: models.example.test
+tests:
+  - it: routes dashboard before satellite and never exposes the internal port
+    asserts:
+      - isAPIVersion:
+          of: networking.k8s.io/v1
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.rules[0].host
+          value: models.example.test
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /monitoring
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: http
+      - equal:
+          path: spec.rules[0].http.paths[1].path
+          value: /
+      - equal:
+          path: spec.rules[0].http.paths[1].backend.service.port.name
+          value: http
+      - notContains:
+          path: spec.rules[0].http.paths
+          content:
+            backend:
+              service:
+                port:
+                  name: internal
+          any: true
+
+  - it: uses the OpenShift ingress preset without rendering a Route
+    set:
+      podSecurity.preset: openshift
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: openshift-default
+      - equal:
+          path: metadata.annotations["route.openshift.io/termination"]
+          value: edge
+
+  - it: omits the dashboard route when monitoring is disabled
+    set:
+      monitoring.enabled: false
+    asserts:
+      - lengthEqual:
+          path: spec.rules[0].http.paths
+          count: 1
+      - equal:
+          path: spec.rules[0].http.paths[0].path
+          value: /
+
+  - it: keeps a boolean-like host as a string
+    set:
+      satellite.host: "true"
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: "true"

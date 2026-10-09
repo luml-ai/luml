@@ -5,14 +5,18 @@
     </template>
   </Button>
   <Dialog
-    v-model:visible="visible"
+    :visible="visible"
     :draggable="false"
+    :closable="!loading"
     modal
     :pt="dialogPt"
     header="Manage Orbit Members"
+    @update:visible="!loading && (visible = $event)"
   >
     <div class="dialog-content">
-      <p class="text">Add or remove members and assign roles within this orbit.</p>
+      <p class="text">
+        Click Add members to add selected users immediately. Role changes require Save changes.
+      </p>
       <div class="form">
         <AutoComplete
           v-model="searchModel"
@@ -21,12 +25,17 @@
           multiple
           fluid
           :suggestions="searchedMembers"
+          :disabled="loading"
           class="autocomplete"
           optionLabel="user.email"
           @complete="onComplete"
         />
-        <Button severity="secondary" :disabled="!searchedMembers.length" @click="addUsers"
-          >Add user</Button
+        <Button
+          class="add-button"
+          :disabled="loading || !searchModel.length"
+          :loading="loading"
+          @click="addUsers"
+          >Add members</Button
         >
       </div>
       <div class="body">
@@ -58,6 +67,7 @@
                 <div class="cell">
                   <Select
                     v-model="member.role"
+                    :disabled="loading"
                     :options="OPTIONS"
                     option-label="label"
                     option-value="value"
@@ -86,13 +96,8 @@
     </div>
     <template #footer>
       <div class="footer-buttons">
-        <Button
-          type="submit"
-          :disabled="loading || !changedMembers.length"
-          form="editOrganizationForm"
-          @click="saveChanges"
-        >
-          save changes
+        <Button :disabled="loading || !changedMembers.length" @click="saveChanges">
+          Save changes
         </Button>
       </div>
     </template>
@@ -166,7 +171,8 @@ const changedMembers = computed(() =>
 function onComplete(event: AutoCompleteCompleteEvent) {
   if (!organizationsStore.organizationDetails?.members?.length) return
   searchedMembers.value = organizationsStore.organizationDetails.members.filter((member) => {
-    if (orbitMembers.value.find((memberInOrbit) => memberInOrbit.id === member.id)) return false
+    if (orbitMembers.value.find((memberInOrbit) => memberInOrbit.user.id === member.user.id))
+      return false
     if (member.user.id === userStore.getUserId) return false
 
     return (
@@ -177,6 +183,7 @@ function onComplete(event: AutoCompleteCompleteEvent) {
 }
 
 async function addUsers() {
+  if (loading.value || !searchModel.value.length) return
   const organizationId = organizationsStore.organizationDetails?.id
   if (!organizationId) return
 
@@ -189,24 +196,41 @@ async function addUsers() {
   })
 
   try {
-    const response = await Promise.all(
+    loading.value = true
+    const results = await Promise.allSettled(
       payloads.map((payload) => orbitsStore.addMemberToOrbit(organizationId, payload)),
     )
-    orbitMembers.value = [...orbitMembers.value, ...response]
-    toast.add(simpleSuccessToast('Users have been added to the organization'))
-  } catch {
-    toast.add(simpleErrorToast('Failed to add user to orbit'))
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        orbitMembers.value.push({ ...result.value })
+        initialOrbitMembers.value.push({ ...result.value })
+      }
+    }
+    searchModel.value = searchModel.value.filter(
+      (_, index) => results[index]?.status === 'rejected',
+    )
+    searchedMembers.value = []
+    if (results.some((result) => result.status === 'fulfilled')) {
+      toast.add(simpleSuccessToast('Members added to orbit'))
+    }
+    if (searchModel.value.length) {
+      toast.add(simpleErrorToast('Failed to add selected members to orbit. Please try again.'))
+    }
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to add members to orbit')))
+  } finally {
+    loading.value = false
   }
 }
 
 async function getOrbitDetails() {
   loading.value = true
-  const organizationId = organizationsStore.currentOrganization?.id
-  if (!organizationId) return
   try {
+    const organizationId = organizationsStore.currentOrganization?.id
+    if (!organizationId) throw new Error('Current organization not found')
     const details = await orbitsStore.getOrbitDetails(organizationId, props.orbitId)
-    orbitMembers.value = details.members
-    initialOrbitMembers.value = JSON.parse(JSON.stringify(details.members))
+    orbitMembers.value = details.members.map((member) => ({ ...member }))
+    initialOrbitMembers.value = details.members.map((member) => ({ ...member }))
   } catch {
     toast.add(simpleErrorToast('Failed to load orbit details'))
   } finally {
@@ -263,6 +287,8 @@ watch(visible, (val) => {
   } else {
     orbitMembers.value = []
     initialOrbitMembers.value = []
+    searchModel.value = []
+    searchedMembers.value = []
   }
 })
 </script>
@@ -274,7 +300,13 @@ watch(visible, (val) => {
 }
 .form {
   display: flex;
+  align-items: flex-start;
   gap: 16px;
+}
+.add-button {
+  flex-shrink: 0;
+  min-height: 46px;
+  white-space: nowrap;
 }
 .footer-buttons {
   width: 100%;

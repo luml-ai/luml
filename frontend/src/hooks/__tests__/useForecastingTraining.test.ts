@@ -94,6 +94,24 @@ describe('useForecastingTraining metric rows', () => {
 })
 
 describe('useForecastingTraining startTraining', () => {
+  it('shows loading while first-use initialization is pending and clears it on failure', async () => {
+    let reject!: (reason: Error) => void
+    startTrainingMock.mockReturnValue(
+      new Promise((_resolve, fail) => {
+        reject = fail
+      }),
+    )
+    const { hook } = setupHook()
+    const pending = hook.startTraining(trainPayload)
+    expect(hook.isLoading.value).toBe(true)
+    reject(new Error('Download failed'))
+    await pending
+    expect(hook.isLoading.value).toBe(false)
+    expect(toastAddMock).toHaveBeenCalledWith(
+      expect.objectContaining({ detail: 'Download failed' }),
+    )
+  })
+
   it('stores the result and builds the model blob on success', async () => {
     startTrainingMock.mockResolvedValue({ ...trainingData, model: { 0: 1, 1: 2, 2: 3 } })
     const { hook } = setupHook()

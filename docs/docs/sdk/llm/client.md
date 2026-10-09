@@ -42,4 +42,3 @@ client = OpenAIClient(model="gpt-4.1-mini", temperature=0.0)
 client = OpenAIClient(base_url="http://localhost:8080/v1")
 ```
 
-

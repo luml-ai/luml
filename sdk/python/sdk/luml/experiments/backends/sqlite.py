@@ -1258,6 +1258,49 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
         conn.commit()
 
+    def set_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str, artifact_id: str
+    ) -> None:
+        conn = self._get_meta_connection()
+        conn.execute(
+            """
+            INSERT INTO remote_artifacts (
+                local_type, local_id, orbit_id, artifact_id
+            ) VALUES (?, ?, ?, ?)
+            ON CONFLICT (local_type, local_id, orbit_id)
+            DO UPDATE SET artifact_id = excluded.artifact_id
+            """,
+            (local_type, local_id, orbit_id, artifact_id),
+        )
+        conn.commit()
+
+    def get_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str
+    ) -> str | None:
+        conn = self._get_meta_connection()
+        row = conn.execute(
+            """
+            SELECT artifact_id
+            FROM remote_artifacts
+            WHERE local_type = ? AND local_id = ? AND orbit_id = ?
+            """,
+            (local_type, local_id, orbit_id),
+        ).fetchone()
+        return row[0] if row is not None else None
+
+    def delete_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str
+    ) -> None:
+        conn = self._get_meta_connection()
+        conn.execute(
+            """
+            DELETE FROM remote_artifacts
+            WHERE local_type = ? AND local_id = ? AND orbit_id = ?
+            """,
+            (local_type, local_id, orbit_id),
+        )
+        conn.commit()
+
     def create_group(
         self,
         name: str,

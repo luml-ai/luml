@@ -433,6 +433,21 @@ the current experiment details.
 - `Experiment` - Updated experiment object if the update is successful or the record is retrieved.
 - `None` - If the experiment with the given ID does not exist.
 
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.update_experiment_metadata"></a>
+
+#### update_experiment_metadata
+
+```python
+def update_experiment_metadata(
+        experiment_id: str,
+        updates: dict[str, Any]
+) -> dict[str, Any]
+```
+
+Merge `updates` into the experiment's `metadata` column.
+
+Keys mapped to `None` are removed. Returns the updated metadata dict.
+
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.create_group"></a>
 
 #### create_group
@@ -1282,7 +1297,7 @@ def get_experiment_traces(
 Retrieve paginated trace summaries for a given experiment.
 
 Returns an aggregated summary per trace: trace_id, execution_time
-(MAX(end) - MIN(start) across all spans in seconds), span_count,
+(MAX(end) - MIN(start) across all spans in nanoseconds), span_count,
 created_at, state, and linked eval IDs. Supports filtering by trace_id
 substring and state, sorting by execution_time, span_count or created_at,
 and cursor-based pagination.
@@ -1320,7 +1335,7 @@ backend.get_experiment_traces(
   items=[
   TraceRecord(
   trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-  execution_time=15.442,
+  execution_time=15442000000,
   span_count=6,
   created_at=datetime(2024, 6, 1, 12, 0, 1),
   state=TraceState.OK,
@@ -1350,7 +1365,7 @@ def get_experiment_traces_all(
 Retrieve paginated trace summaries for a given experiment.
 
 Returns an aggregated summary per trace: trace_id, execution_time
-(MAX(end) - MIN(start) across all spans in seconds), span_count,
+(MAX(end) - MIN(start) across all spans in nanoseconds), span_count,
 created_at, state, and linked eval IDs. Supports filtering by trace_id
 substring and state, sorting by execution_time, span_count or created_at,
 and cursor-based pagination.
@@ -1386,7 +1401,7 @@ backend.get_experiment_traces(
   [
   TraceRecord(
   trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-  execution_time=15.442,
+  execution_time=15442000000,
   span_count=6,
   created_at=datetime(2024, 6, 1, 12, 0, 1),
   state=TraceState.OK,

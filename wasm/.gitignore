@@ -3,3 +3,4 @@ test.py
 **/dist/
 **/build/
 **/*.egg-info/
+uv.lock

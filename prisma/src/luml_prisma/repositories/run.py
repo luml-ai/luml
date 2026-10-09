@@ -37,7 +37,8 @@ class RunRepository(RepositoryBase):
 
     def get(self, run_id: str) -> RunOrm | None:
         with self._session_factory() as session:
-            return session.get(RunOrm, run_id)
+            run: RunOrm | None = session.get(RunOrm, run_id)
+            return run
 
     def list_all(
         self, repository_id: str | None = None,

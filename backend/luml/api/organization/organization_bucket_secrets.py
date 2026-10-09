@@ -84,6 +84,11 @@ async def delete_bucket_secret(
     "/{secret_id}/urls", responses=endpoint_responses, response_model=BucketSecretUrls
 )
 async def get_existing_bucket_secret_connection_urls(
+    request: Request,
+    organization_id: UUID,
+    secret_id: UUID,
     secret: BucketSecretUpdate,
 ) -> BucketSecretUrls:
-    return await bucket_secret_handler.get_existing_bucket_urls(secret)
+    return await bucket_secret_handler.get_existing_bucket_urls(
+        request.user.id, organization_id, secret_id, secret
+    )

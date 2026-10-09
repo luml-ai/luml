@@ -112,7 +112,8 @@ async def merge_preview(
     request: Request, run_id: str,
 ) -> dict[str, Any]:
     handler = request.app.state.run_handler
-    return await handler.merge_preview(run_id)
+    preview: dict[str, Any] = await handler.merge_preview(run_id)
+    return preview
 
 
 @router.post("/{run_id}/merge")

@@ -24,4 +24,3 @@ scorer = Summarization()
 scorer = Summarization(input_key="document")
 ```
 
-

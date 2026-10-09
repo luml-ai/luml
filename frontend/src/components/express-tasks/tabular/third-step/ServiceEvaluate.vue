@@ -16,17 +16,17 @@
       <h1 class="title">Model Evaluation Dashboard</h1>
       <div class="buttons">
         <d-button severity="secondary" @click="isPredictVisible = true">
-          <span>predict</span>
+          <span>Predict</span>
           <wand-sparkles width="14" height="14" />
         </d-button>
         <SplitButton
-          label="export"
+          label="Export"
           severity="secondary"
           @click="onDownloadClick"
           :model="EXPORT_ITEMS"
         />
         <d-button @click="finishConfirm">
-          <span>exit</span>
+          <span>Exit</span>
           <log-out width="14" height="14" />
         </d-button>
       </div>

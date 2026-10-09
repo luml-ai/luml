@@ -12,10 +12,13 @@ from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging._template import SKlearnPyFunc
 from luml.utils.deps import find_dependencies, has_dependency
 from luml.utils.imports import get_version
+from luml.utils.packaging import TABULAR_MONITORING_TAG, add_reference_profile
 from luml.utils.time import get_epoch
 
 if TYPE_CHECKING:
     from sklearn.base import BaseEstimator  # type: ignore[import-untyped]
+
+    from luml.utils.reference_profile import TaskType
 
 try:
     import pandas as pd  # type: ignore[import-untyped]
@@ -41,19 +44,25 @@ def _get_default_deps() -> list[str]:
 
 
 def _get_default_tags() -> list[str]:
-    return [FNNX_PRODUCER_NAME + "::sklearn:v1"]
+    return [
+        FNNX_PRODUCER_NAME + "::sklearn:v1",
+        FNNX_PRODUCER_NAME + "::kind_tabular:v1",
+    ]
 
 
 def _add_io(
     builder: PyfuncBuilder,
     estimator: "BaseEstimator",
     inputs: Any,  # noqa: ANN401
-) -> None:
+) -> bool:
+    """Declare the artifact's inputs and outputs; return whether it feeds on a frame."""
     x: Any
+    input_dtypes: dict[str, str] = {}
     if pd is not None and isinstance(inputs, pd.DataFrame):
         input_order = list(inputs.columns)
         for col in input_order:
             dtype = _resolve_dtype(inputs[col].dtype)  # type: ignore
+            input_dtypes[col] = dtype
             builder.add_input(
                 NDJSON(
                     name=col,
@@ -95,7 +104,11 @@ def _add_io(
             input_order = ["input"]
         x = example
 
-    builder.set_extra_values({"input_order": input_order})
+    frame_inputs = bool(input_dtypes)
+    extra_values: dict[str, Any] = {"input_order": input_order}
+    if frame_inputs:
+        extra_values["input_dtypes"] = input_dtypes
+    builder.set_extra_values(extra_values)
 
     y_pred = estimator.predict(x)  # type: ignore
     y_array = np.asarray(y_pred)
@@ -110,13 +123,37 @@ def _add_io(
             shape=y_shape,  # type: ignore
         )
     )
+    from sklearn.base import is_classifier  # type: ignore[import-untyped]
+
+    if is_classifier(estimator) and hasattr(estimator, "predict_proba"):
+        builder.add_output(
+            NDJSON(
+                name="y_score",
+                content_type="NDJSON",
+                dtype="Array[float64]",
+                shape=["batch"],
+            )
+        )
+        # the full vector too: per-class probability drift needs more than the maximum
+        classes = getattr(estimator, "classes_", None)
+        n_classes = len(classes) if classes is not None else 0
+        builder.add_output(
+            NDJSON(
+                name="y_proba",
+                content_type="NDJSON",
+                dtype="Array[float64]",
+                shape=["batch", n_classes] if n_classes else ["batch"],
+            )
+        )
+    return frame_inputs
 
 
-def _add_dependencies(
+def _add_dependencies(  # noqa: C901
     builder: PyfuncBuilder,
     dependencies: Literal["default"] | Literal["all"] | list[str],
     extra_dependencies: list[str] | None,
     extra_code_modules: list[str] | Literal["auto"] | None,
+    frame_inputs: bool = False,
 ) -> None:
     if dependencies == "all" or extra_code_modules == "auto":
         auto_pip_dependencies, auto_local_dependencies = find_dependencies()
@@ -125,6 +162,9 @@ def _add_dependencies(
         dependencies = auto_pip_dependencies
     elif dependencies == "default":
         dependencies = _get_default_deps()
+        if frame_inputs:
+            # the runtime rebuilds the training frame, so pandas has to be there
+            dependencies = dependencies + ["pandas==" + get_version("pandas")]
         builder.add_fnnx_runtime_dependency()
 
     local_dependencies = []
@@ -153,6 +193,8 @@ def save_sklearn(  # noqa: C901
     manifest_model_version: str | None = None,
     manifest_model_description: str | None = None,
     manifest_extra_producer_tags: list[str] | None = None,
+    horizons: list[str] | None = None,
+    reference_data: Any = None,  # noqa: ANN401
 ) -> ModelReference:
     """
     Save scikit-learn model to LUML format for deployment.
@@ -178,6 +220,10 @@ def save_sklearn(  # noqa: C901
         manifest_model_version: Model version for metadata.
         manifest_model_description: Model description for metadata.
         manifest_extra_producer_tags: Additional tags for model metadata.
+        reference_data: Training features used to compute the monitoring reference
+            profile. When provided, a `reference_profile.json` is embedded and the
+            `luml.ai::tabular_monitoring:v1` producer tag is stamped on the manifest.
+            When omitted, packaging succeeds with no profile and no monitoring tag.
 
     Returns:
         ModelReference: Reference to the saved model package.
@@ -205,7 +251,10 @@ def save_sklearn(  # noqa: C901
     ```
     """
     import cloudpickle  # type: ignore[import-untyped]
-    from sklearn.base import BaseEstimator  # type: ignore[import-untyped]
+    from sklearn.base import (  # type: ignore[import-untyped]
+        BaseEstimator,
+        is_classifier,
+    )
 
     if not isinstance(estimator, BaseEstimator):
         raise TypeError(
@@ -236,14 +285,20 @@ def save_sklearn(  # noqa: C901
         model_description=manifest_model_description,
     )
 
+    tags = _get_default_tags() + (manifest_extra_producer_tags or [])
+    if reference_data is not None:
+        tags = tags + [TABULAR_MONITORING_TAG]
+
     builder.set_producer_info(
         name=FNNX_PRODUCER_NAME,
         version=get_version("luml"),
-        tags=_get_default_tags() + (manifest_extra_producer_tags or []),
+        tags=tags,
     )
 
-    _add_io(builder, estimator, inputs)
-    _add_dependencies(builder, dependencies, extra_dependencies, extra_code_modules)
+    frame_inputs = _add_io(builder, estimator, inputs)
+    _add_dependencies(
+        builder, dependencies, extra_dependencies, extra_code_modules, frame_inputs
+    )
 
     with tempfile.NamedTemporaryFile("wb", delete=False) as tmp:
         cloudpickle.dump(estimator, tmp)
@@ -253,4 +308,32 @@ def save_sklearn(  # noqa: C901
     builder.save(path)
 
     os.remove(estimator_path)
+
+    if reference_data is not None:
+        classifier = is_classifier(estimator)
+        task_type: TaskType
+        if horizons is not None:
+            task_type = "forecasting"
+        else:
+            task_type = "classification" if classifier else "regression"
+        predict_proba = (
+            estimator.predict_proba
+            if classifier and hasattr(estimator, "predict_proba")
+            else None
+        )
+        class_names = (
+            [str(name) for name in estimator.classes_]
+            if classifier and hasattr(estimator, "classes_")
+            else None
+        )
+        add_reference_profile(
+            path,
+            reference_data,
+            task_type,
+            estimator.predict,
+            predict_proba=predict_proba,
+            output_names=list(horizons) if horizons is not None else ["y"],
+            class_names=class_names,
+            horizons=list(horizons) if horizons is not None else None,
+        )
     return ModelReference(path)

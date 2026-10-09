@@ -1,8 +1,5 @@
 import { computed, ref, watch, type Ref } from 'vue'
-import type {
-  ForecastingAggregation,
-  ForecastingFrequency,
-} from '@/lib/data-processing/interfaces'
+import type { ForecastingAggregation, ForecastingFrequency } from '@/lib/data-processing/interfaces'
 import {
   detectDateColumns,
   isDateColumn,
@@ -15,10 +12,7 @@ import {
 
 export type ForecastColumnRole = 'date' | 'target' | 'aux' | 'known_future' | null
 
-export const useForecastSetup = (
-  columns: Ref<string[]>,
-  rows: Ref<Record<string, unknown>[]>,
-) => {
+export const useForecastSetup = (columns: Ref<string[]>, rows: Ref<Record<string, unknown>[]>) => {
   const dateCol = ref('')
   const targetCol = ref('')
   const auxCols = ref<string[]>([])
@@ -113,9 +107,7 @@ export const useForecastSetup = (
     )
   })
   watch(auxCols, () => {
-    knownFutureCols.value = knownFutureCols.value.filter((column) =>
-      auxCols.value.includes(column),
-    )
+    knownFutureCols.value = knownFutureCols.value.filter((column) => auxCols.value.includes(column))
   })
 
   // Re-detect roles only for columns that disappeared (e.g. hidden in the

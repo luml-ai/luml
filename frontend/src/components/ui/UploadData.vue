@@ -55,7 +55,7 @@
           <span>Sample Dataset</span>
         </div>
         <div class="sample-text">Use our sample dataset to explore how the model training.</div>
-        <d-button label="use sample" @click="selectSample" />
+        <d-button label="Use sample" @click="selectSample" />
       </div>
       <div class="info">
         <h3 class="info-title">Useful Resources:</h3>

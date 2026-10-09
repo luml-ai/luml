@@ -58,12 +58,16 @@ def test_abstract_base_methods_raise_not_implemented() -> None:
         lambda: obj._get_by_name(None, "n"),
         lambda: obj._get_by_id(None, "i"),
         lambda: obj.list(),
+        lambda: obj.get_lineage("a"),
+        lambda: obj.log_lineage("a", ["b"]),
+        lambda: obj.remove_lineage("a", "e"),
         lambda: obj.download_url("a"),
         lambda: obj.delete_url("a"),
         lambda: obj.upload("f"),
         lambda: obj.download("a"),
         lambda: obj.create(None, "f", {}, {}, "h", {}, 1, "n"),
         lambda: obj.update("a"),
+        lambda: obj.delete_batch(["a"]),
         lambda: obj.delete("a"),
     ]
     for call in calls:

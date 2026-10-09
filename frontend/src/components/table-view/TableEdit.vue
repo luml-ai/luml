@@ -3,7 +3,7 @@
     :target="target"
     :columns="columns"
     :selectedColumns="selectedColumns"
-    :roundedButton="true"
+    :roundedButton="false"
     :buttonIcon="PenLine"
     @edit="(data) => $emit('edit', data)"
   ></TableEditColumns>

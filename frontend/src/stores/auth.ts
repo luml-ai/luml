@@ -16,6 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
   const isAuth = ref(false)
   const isLoggingOut = ref(false)
+  let authCheck: Promise<void> | undefined
 
   const signUp = async (data: IPostSignupRequest) => {
     await api.signUp(data)
@@ -23,6 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const signIn = async (data: IPostSignInRequest) => {
     const response: IPostSignInResponse = await api.signIn(data)
+    authCheck = Promise.resolve()
     isAuth.value = true
     await usersStore.loadUser()
     AnalyticsService.identify(response.user_id, data.email)
@@ -30,6 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginWithGoogle = async (code: string) => {
     const response = await api.googleLogin({ code })
+    authCheck = Promise.resolve()
     isAuth.value = true
     await usersStore.loadUser()
 
@@ -48,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (e) {
       console.error('Logout error:', e)
     } finally {
+      authCheck = Promise.resolve()
       usersStore.resetUser()
       isAuth.value = false
       isLoggingOut.value = false
@@ -59,13 +63,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const checkIsLoggedIn = async () => {
-    try {
-      await usersStore.loadUser()
-      isAuth.value = true
-    } catch {
-      isAuth.value = false
+  const checkIsLoggedIn = () => {
+    if (!authCheck) {
+      const check = usersStore.loadUser().then(
+        () => {
+          if (authCheck === check) isAuth.value = true
+        },
+        () => {
+          if (authCheck === check) isAuth.value = false
+        },
+      )
+      authCheck = check
     }
+    return authCheck
   }
 
   const forgotPassword = async (email: string) => {
@@ -81,6 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const loginWithMicrosoft = async (code: string) => {
     const response = await api.microsoftLogin({ code })
+    authCheck = Promise.resolve()
     isAuth.value = true
     await usersStore.loadUser()
     if (usersStore.getUserEmail) {

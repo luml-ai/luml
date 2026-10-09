@@ -196,6 +196,10 @@ export function useUploadFlow() {
     }
 
     for (const upload of pending) {
+      if (!upload.manifest || !upload.file_index) {
+        api.dataAgent.dismissUpload(upload.run_id, upload.id).catch(() => {})
+        continue
+      }
       const event: UploadReadyEvent = {
         upload_id: upload.id,
         run_id: upload.run_id,
@@ -205,17 +209,8 @@ export function useUploadFlow() {
         collection_id: collectionId,
         organization_id: organizationId,
         orbit_id: orbitId,
-        manifest: {
-          variant: 'test',
-          producer_name: 'test',
-          producer_version: 'test',
-          producer_tags: [],
-          inputs: [],
-          outputs: [],
-          dynamic_attributes: [],
-          env_vars: [],
-        },
-        file_index: {},
+        manifest: upload.manifest,
+        file_index: upload.file_index,
       }
       handleUploadReady(event)
     }

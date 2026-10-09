@@ -119,7 +119,7 @@ async def _ensure_orbit(
 ) -> UUID:
     orbit_name = _env("DEV_ORBIT_NAME")
 
-    existing = await repo.get_organization_orbits(org_id)
+    existing = await repo.get_organization_orbits(org_id, user_id)
     for orbit in existing:
         if orbit.name == orbit_name:
             log.info("Orbit %s already exists", orbit_name)

@@ -8,8 +8,12 @@ from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.artifacts import (
     Artifact,
+    ArtifactCreateIn,
     ArtifactDetails,
-    ArtifactIn,
+    ArtifactsDeleteConfirmRequest,
+    ArtifactsDeleteRequest,
+    ArtifactsDeleteResponse,
+    ArtifactsDeleteURLsResponse,
     ArtifactsList,
     ArtifactType,
     ArtifactUpdateIn,
@@ -36,7 +40,7 @@ async def create_artifact(
     organization_id: UUID,
     orbit_id: UUID,
     collection_id: UUID,
-    artifact: ArtifactIn,
+    artifact: ArtifactCreateIn,
 ) -> CreateArtifactResponse:
     return await artifacts_handler.create_artifact(
         request.user.id,
@@ -44,6 +48,7 @@ async def create_artifact(
         orbit_id,
         collection_id,
         artifact,
+        request.auth.scopes,
     )
 
 
@@ -160,6 +165,49 @@ async def get_artifact_delete_url(
         artifact_id,
     )
     return {"url": url}
+
+
+@artifacts_router.post(
+    "/collections/{collection_id}/artifacts/delete-urls",
+    responses=endpoint_responses,
+    response_model=ArtifactsDeleteURLsResponse,
+)
+async def get_artifact_delete_urls(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    collection_id: UUID,
+    deletion: ArtifactsDeleteRequest,
+) -> ArtifactsDeleteURLsResponse:
+    return await artifacts_handler.request_delete_urls(
+        request.user.id,
+        organization_id,
+        orbit_id,
+        collection_id,
+        deletion.artifact_ids,
+    )
+
+
+@artifacts_router.delete(
+    "/collections/{collection_id}/artifacts",
+    responses=endpoint_responses,
+    response_model=ArtifactsDeleteResponse,
+)
+async def confirm_artifacts_delete(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    collection_id: UUID,
+    deletion: ArtifactsDeleteConfirmRequest,
+) -> ArtifactsDeleteResponse:
+    return await artifacts_handler.confirm_deletions(
+        request.user.id,
+        organization_id,
+        orbit_id,
+        collection_id,
+        deletion.artifact_ids,
+        force=deletion.force,
+    )
 
 
 @artifacts_router.delete(

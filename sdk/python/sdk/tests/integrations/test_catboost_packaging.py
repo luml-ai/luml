@@ -5,6 +5,16 @@ def test_classifier_df_unified(ctb_classifier_df_unified: PackagingFixture) -> N
     assert ctb_classifier_df_unified["ref"].validate()
 
 
+def test_manifest_tags(ctb_classifier_df_unified: PackagingFixture) -> None:
+    tags = ctb_classifier_df_unified["ref"].get_manifest()["producer_tags"]
+
+    assert "luml.ai::kind_tabular:v1" in tags
+    assert not any(
+        tag.startswith(("luml.ai::tabular_monitoring:", "luml.ai::llm_monitoring:"))
+        for tag in tags
+    )
+
+
 def test_classifier_ndarray_unified(
     ctb_classifier_ndarray_unified: PackagingFixture,
 ) -> None:

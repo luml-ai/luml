@@ -4,6 +4,7 @@
       v-if="collectionsStore.currentCollection"
       :id="collectionsStore.currentCollection.id"
       :title="collectionsStore.currentCollection.name"
+      :description="collectionsStore.currentCollection.description"
       :add-available="
         !!orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.create)
       "

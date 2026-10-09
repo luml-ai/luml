@@ -5,7 +5,7 @@
     :disabled="disabled"
     @click="promptFusionService.changeOptimizationState(true)"
   >
-    <span>optimization</span>
+    <span>Optimization</span>
     <sliders-horizontal :size="14" />
   </d-button>
   <Transition>
@@ -67,7 +67,7 @@
             <div class="footer">
               <d-button as="a" label="Need help?" :href="helpLink" target="_blank" variant="text" />
               <d-button
-                label="run optimization"
+                label="Run optimization"
                 severity="secondary"
                 @click="onRunOptimizationClick"
               />

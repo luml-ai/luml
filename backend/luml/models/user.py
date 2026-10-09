@@ -1,11 +1,11 @@
 import uuid
 
 from pydantic import EmailStr, HttpUrl
-from sqlalchemy import UUID, Boolean, String, case
+from sqlalchemy import UUID, Boolean, Integer, String, case
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from luml.models.base import Base, TimestampMixin
-from luml.schemas.user import CreateUser, User, UserOut
+from luml.schemas.user import CreateUser, CurrentUserOut, User, UserOut
 
 
 class UserOrm(TimestampMixin, Base):
@@ -22,6 +22,9 @@ class UserOrm(TimestampMixin, Base):
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
     hashed_api_key: Mapped[str] = mapped_column(String, nullable=True)
+    organizations_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="5"
+    )
 
     memberships: Mapped[list[OrganizationMemberOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrganizationMemberOrm",
@@ -49,6 +52,9 @@ class UserOrm(TimestampMixin, Base):
 
     def to_public_user(self) -> UserOut:
         return UserOut.model_validate(self)
+
+    def to_current_user(self) -> CurrentUserOut:
+        return CurrentUserOut.model_validate(self)
 
     @classmethod
     def from_user(cls, user: CreateUser) -> UserOrm:

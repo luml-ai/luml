@@ -98,7 +98,7 @@ const loading = ref(false)
 
 const existingTags = computed(() => {
   const tagsSet = collectionsStore.collectionsList.reduce((acc: Set<string>, item) => {
-    item.tags.map((tag) => {
+    item.tags?.forEach((tag) => {
       acc.add(tag)
     })
     return acc

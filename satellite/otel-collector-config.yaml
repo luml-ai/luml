@@ -21,13 +21,6 @@ exporters:
       x-greptime-db-name: public
       x-greptime-trace-table-name: inference_events
 
-  otlphttp/metrics:
-    endpoint: "http://greptimedb:4000/v1/otlp"
-    tls:
-      insecure: true
-    headers:
-      x-greptime-db-name: public
-
 processors:
   filter/traces_main:
     error_mode: ignore
@@ -50,6 +43,3 @@ service:
       receivers: [otlp]
       processors: [filter/traces_events]
       exporters: [otlphttp/events]
-    metrics:
-      receivers: [otlp]
-      exporters: [otlphttp/metrics]

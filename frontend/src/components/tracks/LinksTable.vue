@@ -24,7 +24,7 @@
             name: 'artifact',
             params: {
               organizationId: route.params.organizationId,
-              orbitId: route.params.id,
+              id: route.params.id,
               collectionId: data.artifact_collection_id,
               artifactId: data.artifact_id,
             },

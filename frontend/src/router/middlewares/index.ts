@@ -2,8 +2,10 @@ import type { Router } from 'vue-router'
 import { loadLayoutMiddleware } from './LoadLayoutMiddleware'
 import { authMiddleware } from './AuthMiddleware'
 import { orbitMiddleware, setupGuard } from './OrbitMiddleware'
+import { routeIdsMiddleware } from './RouteIdsMiddleware'
 
 export const installMiddlewares = (router: Router) => {
+  router.beforeEach(routeIdsMiddleware)
   router.beforeEach(loadLayoutMiddleware)
   router.beforeEach(authMiddleware)
   router.beforeEach((to, from, next) => {

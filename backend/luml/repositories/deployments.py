@@ -1,9 +1,17 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from luml.models import DeploymentOrm, SatelliteQueueOrm
+from luml.infra.exceptions import (
+    ArtifactNotFoundError,
+    ArtifactStatusMismatchError,
+    InvalidStatusTransitionError,
+    NotFoundError,
+)
+from luml.models import ArtifactOrm, DeploymentOrm, OrbitSecretOrm, SatelliteQueueOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.schemas.artifacts import ArtifactStatus
 from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
@@ -19,10 +27,49 @@ from luml.schemas.satellite import (
 
 
 class DeploymentRepository(RepositoryBase, CrudMixin):
+    @staticmethod
+    async def _lock_referenced_secrets(
+        session: AsyncSession, orbit_id: UUID, *bindings: dict[str, str] | None
+    ) -> bool:
+        secret_ids = {
+            UUID(secret_id)
+            for binding in bindings
+            for secret_id in (binding or {}).values()
+        }
+        if not secret_ids:
+            return True
+        result = await session.execute(
+            select(OrbitSecretOrm.id)
+            .where(
+                OrbitSecretOrm.id.in_(secret_ids),
+                OrbitSecretOrm.orbit_id == orbit_id,
+            )
+            .with_for_update(read=True, key_share=True)
+        )
+        return set(result.scalars().all()) == secret_ids
+
     async def create_deployment(
         self, deployment: DeploymentCreate
     ) -> tuple[Deployment, SatelliteQueueTask]:
         async with self._get_session() as session:
+            artifact_result = await session.execute(
+                select(ArtifactOrm)
+                .where(ArtifactOrm.id == deployment.artifact_id)
+                .with_for_update()
+            )
+            artifact = artifact_result.scalar_one_or_none()
+            if artifact is None:
+                raise ArtifactNotFoundError()
+            if artifact.status != ArtifactStatus.UPLOADED:
+                raise ArtifactStatusMismatchError(artifact.status)
+            if not await self._lock_referenced_secrets(
+                session,
+                deployment.orbit_id,
+                deployment.dynamic_attributes_secrets,
+                deployment.env_variables_secrets,
+            ):
+                raise NotFoundError("Orbit secret not found")
+
             db_dep = DeploymentOrm(**deployment.model_dump())
             session.add(db_dep)
             await session.flush()
@@ -49,13 +96,15 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             return [d.to_deployment() for d in deployments]
 
     async def get_deployment(
-        self, deployment_id: UUID, orbit_id: UUID | None = None
+        self, deployment_id: UUID, orbit_id: UUID
     ) -> Deployment | None:
         async with self._get_session() as session:
-            query = select(DeploymentOrm).where(DeploymentOrm.id == deployment_id)
-            if orbit_id is not None:
-                query = query.where(DeploymentOrm.orbit_id == orbit_id)
-            result = await session.execute(query)
+            result = await session.execute(
+                select(DeploymentOrm).where(
+                    DeploymentOrm.id == deployment_id,
+                    DeploymentOrm.orbit_id == orbit_id,
+                )
+            )
             dep = result.scalar_one_or_none()
             return dep.to_deployment() if dep else None
 
@@ -80,6 +129,10 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             dep = result.scalar_one_or_none()
             return dep.to_deployment() if dep else None
 
+    _DELETION_STATUSES = frozenset(
+        {DeploymentStatus.DELETION_PENDING, DeploymentStatus.DELETION_FAILED}
+    )
+
     async def update_deployment(
         self,
         deployment_id: UUID,
@@ -88,15 +141,31 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
     ) -> Deployment | None:
         async with self._get_session() as session:
             result = await session.execute(
-                select(DeploymentOrm).where(
+                select(DeploymentOrm)
+                .where(
                     DeploymentOrm.id == deployment_id,
                     DeploymentOrm.satellite_id == satellite_id,
                 )
+                .with_for_update()
             )
             dep = result.scalar_one_or_none()
             if not dep:
                 return None
-            for field, value in update.model_dump(exclude_unset=True).items():
+
+            update_fields = update.model_dump(exclude_unset=True, exclude={"id"})
+            new_status = update_fields.get("status")
+            if "status" in update_fields and new_status is None:
+                raise InvalidStatusTransitionError("Deployment status cannot be null")
+            if (
+                dep.status in self._DELETION_STATUSES
+                and new_status is not None
+                and new_status not in self._DELETION_STATUSES
+            ):
+                raise InvalidStatusTransitionError(
+                    f"Deployment is being deleted; refusing status '{new_status}'"
+                )
+
+            for field, value in update_fields.items():
                 setattr(dep, field, value)
             await session.commit()
             await session.refresh(dep)
@@ -135,15 +204,81 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             await session.refresh(task)
             return dep.to_deployment(), task.to_queue_task()
 
-    async def delete_deployment(self, deployment_id: UUID) -> None:
+    async def delete_deployment(self, deployment_id: UUID, orbit_id: UUID) -> None:
         async with self._get_session() as session:
-            await self.delete_model(session, DeploymentOrm, deployment_id)
-
-    async def delete_deployments_by_artifact_id(self, artifact_id: UUID) -> None:
-        async with self._get_session() as session:
-            await self.delete_models_where(
-                session, DeploymentOrm, DeploymentOrm.artifact_id == artifact_id
+            await self.delete_model_where(
+                session,
+                DeploymentOrm,
+                DeploymentOrm.id == deployment_id,
+                DeploymentOrm.orbit_id == orbit_id,
             )
+
+    async def force_delete_inactive_deployment(
+        self, deployment_id: UUID, orbit_id: UUID
+    ) -> Deployment | None:
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(DeploymentOrm)
+                .where(
+                    DeploymentOrm.id == deployment_id,
+                    DeploymentOrm.orbit_id == orbit_id,
+                )
+                .with_for_update()
+            )
+            dep = result.scalar_one_or_none()
+            if not dep:
+                return None
+            if dep.status == DeploymentStatus.ACTIVE:
+                raise InvalidStatusTransitionError("Stop active deployments first")
+            deployment = dep.to_deployment()
+            await session.delete(dep)
+            await session.commit()
+            return deployment
+
+    async def delete_satellite_deployment(
+        self, deployment_id: UUID, satellite_id: UUID
+    ) -> None:
+        async with self._get_session() as session:
+            await self.delete_model_where(
+                session,
+                DeploymentOrm,
+                DeploymentOrm.id == deployment_id,
+                DeploymentOrm.satellite_id == satellite_id,
+            )
+
+    async def deployment_exists(self, deployment_id: UUID) -> bool:
+        async with self._get_session() as session:
+            found = await session.scalar(
+                select(DeploymentOrm.id).where(DeploymentOrm.id == deployment_id)
+            )
+            return found is not None
+
+    @staticmethod
+    async def undeploy_artifact_deployments(
+        artifact_id: UUID, session: AsyncSession
+    ) -> None:
+        result = await session.execute(
+            select(DeploymentOrm)
+            .where(DeploymentOrm.artifact_id == artifact_id)
+            .with_for_update()
+        )
+        deployments = list(result.scalars().all())
+
+        session.add_all(
+            [
+                SatelliteQueueOrm(
+                    satellite_id=deployment.satellite_id,
+                    orbit_id=deployment.orbit_id,
+                    type=SatelliteTaskType.UNDEPLOY,
+                    payload={"deployment_id": str(deployment.id)},
+                )
+                for deployment in deployments
+            ]
+        )
+
+        for deployment in deployments:
+            await session.delete(deployment)
+        await session.flush()
 
     async def update_deployment_details(
         self,
@@ -152,14 +287,42 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
         update: DeploymentDetailsUpdate,
     ) -> Deployment | None:
         async with self._get_session() as session:
-            db_dep = await self.update_model_where(
-                session,
-                DeploymentOrm,
-                update,
-                DeploymentOrm.id == deployment_id,
-                DeploymentOrm.orbit_id == orbit_id,
+            result = await session.execute(
+                select(DeploymentOrm).where(
+                    DeploymentOrm.id == deployment_id,
+                    DeploymentOrm.orbit_id == orbit_id,
+                )
             )
-            return db_dep.to_deployment() if db_dep else None
+            db_dep = result.scalar_one_or_none()
+            if not db_dep:
+                return None
+
+            fields_to_update = update.model_dump(exclude_unset=True, exclude={"id"})
+            await self._lock_referenced_secrets(
+                session, orbit_id, fields_to_update.get("dynamic_attributes_secrets")
+            )
+            monitoring_changed = (
+                "monitoring_mode" in fields_to_update
+                and fields_to_update["monitoring_mode"] is not None
+                and fields_to_update["monitoring_mode"] != db_dep.monitoring_mode
+            )
+
+            for field, value in fields_to_update.items():
+                setattr(db_dep, field, value)
+
+            if monitoring_changed:
+                session.add(
+                    SatelliteQueueOrm(
+                        satellite_id=db_dep.satellite_id,
+                        orbit_id=db_dep.orbit_id,
+                        type=SatelliteTaskType.RECONCILE,
+                        payload={"deployment_id": str(db_dep.id)},
+                    )
+                )
+
+            await session.commit()
+            await session.refresh(db_dep)
+            return db_dep.to_deployment()
 
     async def enqueue_undeploy_task(
         self, deployment_id: UUID

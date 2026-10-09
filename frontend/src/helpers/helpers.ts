@@ -29,9 +29,11 @@ export const getMetrics = (
 }
 
 export const getFormattedMetric = (num: number | null | undefined) => {
-  if (!num) return '0'
-  if (Math.log10(Math.abs(num)) > 5) return formatNumberScientific(num)
-  else if (Math.log10(Math.abs(num)) > 2) return num.toFixed()
+  if (num === null || num === undefined || Number.isNaN(num)) return '—'
+  if (num === 0) return '0'
+  const orderOfMagnitude = Math.log10(Math.abs(num))
+  if (orderOfMagnitude > 5 || orderOfMagnitude < -2) return formatNumberScientific(num)
+  else if (orderOfMagnitude > 2) return num.toFixed()
   return num.toFixed(2)
 }
 
@@ -56,8 +58,10 @@ export const getMetricsCards = (
 
 export const toPercent = (float: number) => Number((float * 100).toFixed())
 
-export const fixNumber = (float: number | null | undefined, decimals: number) =>
-  float ? float.toFixed(decimals) : '0'
+export const fixNumber = (float: number | null | undefined, decimals: number) => {
+  if (float === null || float === undefined || Number.isNaN(float)) return '—'
+  return float === 0 ? '0' : float.toFixed(decimals)
+}
 
 export const convertObjectToCsvBlob = (data: object) => {
   const headers = Object.keys(data)
@@ -67,13 +71,20 @@ export const convertObjectToCsvBlob = (data: object) => {
     const row = headers.map((header) => data[header as keyof typeof data][i] ?? '')
     rows.push(row)
   }
-  const csvContent = [
-    headers.join(','),
-    ...rows.map((row) => {
-      return row.map((item) => (typeof item === 'object' ? JSON.stringify(item) : item))
-    }),
-  ].join('\n')
-  return new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  return new Blob([rowsToCsv([headers, ...rows])], { type: 'text/csv;charset=utf-8;' })
+}
+
+export const rowsToCsv = (rows: unknown[][]) => {
+  return rows
+    .map((row) =>
+      row
+        .map((item) => {
+          const value = typeof item === 'object' ? JSON.stringify(item) : String(item)
+          return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
+        })
+        .join(','),
+    )
+    .join('\n')
 }
 
 export const formatNumberScientific = (num: number, significantDigits = 3) => {
@@ -105,10 +116,16 @@ export const getSha256 = async (buffer: ArrayBuffer): Promise<string> => {
   return [...new Uint8Array(hashBuffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+const SIZE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
+
 export const getSizeText = (size: number) => {
-  const value = size < 1000 ? size : size < 1000000 ? size / 1000 : size / 1000000
-  const symbol = size < 1000 ? 'B' : size < 1000000 ? 'KB' : 'MB'
-  return value.toFixed(2) + ' ' + symbol
+  let value = size
+  let unitIndex = 0
+  while (unitIndex < SIZE_UNITS.length - 1 && Number(value.toFixed(2)) >= 1000) {
+    value /= 1000
+    unitIndex++
+  }
+  return value.toFixed(2) + ' ' + SIZE_UNITS[unitIndex]
 }
 
 export const downloadFileFromBlob = (blob: Blob, fileName: string) => {
@@ -167,15 +184,48 @@ export interface ApiError {
     status?: number
     detail?: { message?: string }
     data?: {
-      detail?: string
+      detail?: unknown
       conflicting_files?: string[]
     }
   }
 }
 
+const REQUEST_PARTS = ['body', 'query', 'path', 'header', 'cookie']
+
+const VALIDATION_SUBJECT =
+  /^(String|Input|Value|List|Dictionary|Tuple|Set|Number|Decimal|Date|Datetime|Time|UUID|URL)(?= should )/
+
+const getValidationErrorText = (item: unknown) => {
+  if (typeof item === 'string') return item
+  const { loc, msg } = (item ?? {}) as { loc?: unknown; msg?: unknown }
+  if (typeof msg !== 'string' || !msg) return undefined
+  const path = Array.isArray(loc) ? loc : []
+  const field = (REQUEST_PARTS.includes(String(path[0])) ? path.slice(1) : path).join('.')
+  const text = msg.replace(/^Value error, /, '')
+  if (!field) return text
+  if (text === 'Field required') return `${field} is required`
+  if (VALIDATION_SUBJECT.test(text)) return text.replace(VALIDATION_SUBJECT, field)
+  return text.startsWith(`${field} `) ? text : `${field}: ${text}`
+}
+
+export const getErrorDetail = (detail: unknown): string | undefined => {
+  if (typeof detail === 'string') return detail || undefined
+  if (Array.isArray(detail)) {
+    const messages = detail.map(getValidationErrorText).filter((text) => !!text)
+    return messages.length ? messages.join('; ') : undefined
+  }
+  const message = (detail as { message?: unknown } | null)?.message
+  return typeof message === 'string' && message ? message : undefined
+}
+
 export const getErrorMessage = (error: unknown, message = 'Something went wrong') => {
   const err = error as ApiError
-  return err?.response?.detail?.message || err?.response?.data?.detail || err?.message || message
+  return (
+    getErrorDetail(err?.response?.detail) ||
+    getErrorDetail(err?.response?.data?.detail) ||
+    err?.message ||
+    message
+  )
 }
 
 export const getNumberOrString = (string: string | number) => {
@@ -208,39 +258,44 @@ export function tryParseJson(text: string) {
 }
 
 export function getSatelliteValidator(config: Validator) {
+  const message = config.message ? { message: config.message } : undefined
+
   switch (config.type) {
     case 'min':
-      return z.number().min(config.value as number)
+      return z.number().min(config.value as number, message)
 
     case 'max':
-      return z.number().max(config.value as number)
+      return z.number().max(config.value as number, message)
 
     case 'regex':
-      return z.string().regex(config.value as RegExp)
+      return z.string().regex(new RegExp(String(config.value)), message)
 
     case 'equal':
-      return z.any().refine((val) => val === config.value)
+      return z.any().refine((val) => val === config.value, message)
 
     case 'notEqual':
-      return z.any().refine((val) => val !== config.value)
+      return z.any().refine((val) => val !== config.value, message)
 
     case 'in':
-      return z.any().refine((val) => (config.value as string[]).includes(val))
+      return z.any().refine((val) => (config.value as unknown[]).includes(val), message)
   }
 }
 
 export function combineValidators(validators: z.ZodTypeAny[], required: boolean) {
-  let schema: z.ZodTypeAny = z.any()
+  let schema: z.ZodTypeAny = required
+    ? z.any().refine((value) => value !== null && value !== undefined && value !== '')
+    : z.any()
 
   for (const v of validators) {
     schema = schema.pipe(v)
   }
 
-  if (!required) {
-    schema = schema.optional()
-  }
-
-  return schema
+  return required
+    ? schema
+    : z.preprocess(
+        (value) => (value === null || value === '' ? undefined : value),
+        schema.optional(),
+      )
 }
 
 export const getArtifactColorByIndex = (index: number) => {

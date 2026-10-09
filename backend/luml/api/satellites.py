@@ -1,10 +1,13 @@
+from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from fastapi.openapi.utils import get_openapi
 
 from luml.handlers.artifacts import ArtifactHandler
 from luml.handlers.deployments import DeploymentHandler
+from luml.handlers.monitoring import MonitoringHandler
 from luml.handlers.orbit_secrets import OrbitSecretHandler
 from luml.handlers.satellites import SatelliteHandler
 from luml.infra.dependencies import UserAuthentication
@@ -20,25 +23,34 @@ from luml.schemas.deployment import (
     InferenceAccessIn,
     InferenceAccessOut,
 )
+from luml.schemas.monitoring import (
+    MonitoringTokenIntrospectIn,
+    MonitoringTokenIntrospectOut,
+)
 from luml.schemas.orbit_secret import OrbitSecret
 from luml.schemas.satellite import (
+    SATELLITE_API_VERSION,
     Satellite,
+    SatelliteContract,
     SatellitePairIn,
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskUpdateIn,
 )
+from luml.settings import config
 
 satellite_worker_router = APIRouter(
     prefix="/satellites/v1",
     dependencies=[Depends(UserAuthentication(["satellite"]))],
     tags=["satellites-worker"],
 )
+satellite_contract_router = APIRouter(prefix="/satellites/v1")
 
 satellite_handler = SatelliteHandler()
 deployment_handler = DeploymentHandler()
 orbit_secret_handler = OrbitSecretHandler()
 artifacts_handler = ArtifactHandler()
+monitoring_handler = MonitoringHandler(secret_key=config.AUTH_SECRET_KEY)
 
 
 @satellite_worker_router.post(
@@ -146,19 +158,6 @@ async def update_deployment_status(
     )
 
 
-@satellite_worker_router.get(
-    "/deployments/{deployment_id}",
-    responses=endpoint_responses,
-    response_model=Deployment,
-)
-async def get_satellite_deployment(request: Request, deployment_id: UUID) -> Deployment:
-    await satellite_handler.touch_last_seen(request.user.id)
-    return await deployment_handler.get_worker_deployment(
-        request.user.id,
-        deployment_id,
-    )
-
-
 @satellite_worker_router.delete(
     "/deployments/{deployment_id}",
     responses=endpoint_responses,
@@ -166,7 +165,7 @@ async def get_satellite_deployment(request: Request, deployment_id: UUID) -> Dep
 )
 async def delete_deployment(request: Request, deployment_id: UUID) -> None:
     await satellite_handler.touch_last_seen(request.user.id)
-    await deployment_handler.delete_worker_deployment(deployment_id)
+    await deployment_handler.delete_worker_deployment(request.user.id, deployment_id)
 
 
 @satellite_worker_router.post(
@@ -182,6 +181,18 @@ async def authorize_inference_access(
         request.user.orbit_id, data.api_key
     )
     return InferenceAccessOut(authorized=authorized)
+
+
+@satellite_worker_router.post(
+    "/monitoring/introspect",
+    responses=endpoint_responses,
+    response_model=MonitoringTokenIntrospectOut,
+)
+async def introspect_monitoring_token(
+    request: Request, data: MonitoringTokenIntrospectIn
+) -> MonitoringTokenIntrospectOut:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await monitoring_handler.introspect_token(request.user.id, data.token)
 
 
 @satellite_worker_router.get(
@@ -239,3 +250,17 @@ async def get_model_artifact(
         request.user.orbit_id, model_artifact_id
     )
     return SatelliteModelArtifactResponse(artifact=result.artifact, url=result.url)
+
+
+@lru_cache(maxsize=1)
+def _contract_openapi() -> dict[str, Any]:
+    return get_openapi(
+        title="LUML Satellite API",
+        version=str(SATELLITE_API_VERSION),
+        routes=[*satellite_worker_router.routes, *satellite_contract_router.routes],
+    )
+
+
+@satellite_contract_router.get("/contract", response_model=SatelliteContract)
+async def get_satellite_contract() -> SatelliteContract:
+    return SatelliteContract(openapi=_contract_openapi())

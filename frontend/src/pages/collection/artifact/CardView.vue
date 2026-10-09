@@ -65,8 +65,7 @@ const isPromptOptimization = computed(
 )
 const isForecasting = computed(
   () =>
-    artifactsStore.currentModelTag &&
-    FnnxService.isForecastingTag(artifactsStore.currentModelTag),
+    artifactsStore.currentModelTag && FnnxService.isForecastingTag(artifactsStore.currentModelTag),
 )
 
 function setTabularMetadata(file: MetaEntry[]) {

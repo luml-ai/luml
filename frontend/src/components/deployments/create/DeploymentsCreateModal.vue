@@ -46,6 +46,7 @@
           :selected-model="selectedModel"
           v-model:satellite-id="initialValues.satelliteId"
           v-model:fields="initialValues.satelliteFields"
+          v-model:monitoring-enabled="initialValues.monitoringEnabled"
         ></DeploymentsFormSatelliteSettings>
       </Form>
     </template>
@@ -57,10 +58,11 @@ import type { CreateDeploymentForm, FieldInfo } from '../deployments.interfaces'
 import type { CreateDeploymentPayload } from '@/lib/api/deployments/interfaces'
 import type { FormInstance, FormSubmitEvent } from '@primevue/forms'
 import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
+import { MonitoringMode } from '@/lib/api/deployments/interfaces'
 import { Dialog, Button, useToast } from 'primevue'
 import { Form } from '@primevue/forms'
 import { dialogPt, getInitialFormData } from '../deployments.const'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { createDeploymentResolver } from '@/utils/forms/resolvers'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useCollectionsStore } from '@/stores/collections'
@@ -89,16 +91,32 @@ const selectedModel = ref<ModelArtifact | null>(null)
 const initialValues = ref(getInitialFormData(props.initialCollectionId, props.initialModelId))
 const resolver = ref(createDeploymentResolver(initialValues))
 
+const hasValidSelection = computed(
+  () =>
+    !!initialValues.value.satelliteId && selectedModel.value?.id === initialValues.value.modelId,
+)
+
 const isFormValid = computed(() => {
-  return !!formRef.value?.valid
+  return !!formRef.value?.valid && hasValidSelection.value
 })
+
+watch(
+  () => initialValues.value.modelId,
+  (modelId, previousModelId) => {
+    if (modelId === previousModelId) return
+    selectedModel.value = null
+    initialValues.value.satelliteId = ''
+    initialValues.value.satelliteFields = []
+    initialValues.value.monitoringEnabled = false
+  },
+)
 
 function onCancel() {
   visible.value = false
 }
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid) {
+  if (!valid || !hasValidSelection.value) {
     return
   }
   const formData = initialValues.value as unknown as CreateDeploymentForm
@@ -130,6 +148,7 @@ function getPayload(form: CreateDeploymentForm): CreateDeploymentPayload {
     description: form.description,
     satellite_id: form.satelliteId,
     artifact_id: form.modelId,
+    monitoring_mode: form.monitoringEnabled ? MonitoringMode.full : MonitoringMode.off,
     satellite_parameters: fieldsToRecord<string | number | boolean>(form.satelliteFields, (v) => v),
     dynamic_attributes_secrets: fieldsToRecord(
       form.secretDynamicAttributes,

@@ -254,16 +254,18 @@
       </Column>
       <Column v-if="selectedColumns.includes('evals')" field="evals" header="evals">
         <template #body="slotProps">
-          <div v-if="slotProps.data.evals?.length === 0">-</div>
-          <button
-            v-else
-            v-for="item in slotProps.data.evals"
-            :key="item"
-            class="link cell"
-            @click="showEval(item)"
-          >
-            {{ item }}
-          </button>
+          <div v-if="slotProps.data.evals?.length" class="evals-container">
+            <button
+              class="link cell evals-item"
+              @click="showEval(slotProps.data.evals[0], slotProps.data.evals)"
+            >
+              {{ slotProps.data.evals[0] }}
+            </button>
+            <span v-if="slotProps.data.evals.length > 1" class="evals-count">
+              +{{ slotProps.data.evals.length - 1 }}
+            </span>
+          </div>
+          <div v-else>-</div>
         </template>
       </Column>
       <Column
@@ -384,9 +386,10 @@ function onSort(event: DataTableSortEvent) {
   })
 }
 
-async function showEval(evalId: string) {
+async function showEval(evalId: string, evalsIds: string[]) {
   try {
     const evalData = await evalsStore.getProvider.getEvalById(props.artifactId, evalId)
+    evalsStore.setEvalsIdsList(evalsIds)
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
     toast.add(simpleErrorToast(getErrorMessage(error)))
@@ -491,6 +494,28 @@ button.header-cell-content {
 
 .header-cell-title {
   flex: 1 1 auto;
+}
+
+.evals-container {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.evals-item {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  text-align: left;
+}
+
+.evals-count {
+  flex: 0 0 auto;
+  font-size: 14px;
+  color: var(--p-text-link-color);
+  font-weight: 500;
 }
 
 :deep(td) {

@@ -190,17 +190,17 @@ After training and saving the model, use `link_to_model()` to embed experiment d
 
 ```python
 from pathlib import Path
-from luml import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 from luml.integrations.sklearn import save_sklearn
 
 tracker = ExperimentTracker(f"sqlite://{Path.home()}/.luml/experiments")
 exp_id = tracker.start_experiment(name="my-experiment")
 # ... training ...
-tracker.log_metrics({"accuracy": 0.92}, step=0)
+tracker.log_dynamic("accuracy", 0.92, step=0)
 
 model_ref = save_sklearn(model, X_train, path=".prisma/artifact.luml")
 tracker.link_to_model(model_ref)
-tracker.set_status("completed")
+tracker.end_experiment()
 ```
 
 The upload is triggered automatically when:
@@ -240,7 +240,7 @@ Each element in the array:
 
 ## ExperimentTracker Convention
 
-**PyPI package:** `luml-sdk` (import as `from luml import ExperimentTracker`)
+**PyPI package:** `luml-sdk` (import as `from luml.experiments.tracker import ExperimentTracker`)
 
 All experiments are stored in a shared global database at:
 
@@ -258,17 +258,19 @@ f"sqlite://{Path.home()}/.luml/experiments"
 
 ```python
 from pathlib import Path
-from luml import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 
 tracker = ExperimentTracker(f"sqlite://{Path.home()}/.luml/experiments")
-exp = tracker.create_experiment(name="my-experiment")
-exp.log_params({"learning_rate": 0.01, "batch_size": 32})
+exp_id = tracker.start_experiment(name="my-experiment")
+tracker.log_static("learning_rate", 0.01)
+tracker.log_static("batch_size", 32)
 
 for step in range(num_steps):
     # ... training ...
-    exp.log_metrics({"loss": loss_val, "accuracy": acc_val}, step=step)
+    tracker.log_dynamic("loss", loss_val, step=step)
+    tracker.log_dynamic("accuracy", acc_val, step=step)
 
-exp.set_status("completed")
+tracker.end_experiment()
 ```
 
 ### Database Structure

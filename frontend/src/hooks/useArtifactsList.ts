@@ -5,7 +5,7 @@ import type {
 } from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, type ComputedRef } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useDebounceFn } from '@vueuse/core'
 
@@ -15,7 +15,12 @@ interface RequestInfo {
   collectionIds: string[]
 }
 
-export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactTypeEnum[]) => {
+export const useArtifactsList = (
+  limit = 20,
+  syncStore = true,
+  types?: ArtifactTypeEnum[],
+  excludedArtifactIds?: ComputedRef<string[]>,
+) => {
   const artifactsStore = useArtifactsStore()
   const abortController = ref<AbortController | null>(null)
 
@@ -41,6 +46,12 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
 
   const list = ref<Artifact[]>([])
 
+  function isVisible(artifact: Artifact): boolean {
+    return !excludedArtifactIds?.value?.includes(artifact.id)
+  }
+
+  const filteredList = computed(() => list.value.filter(isVisible))
+
   const pageIndex = computed(() => {
     return savedCursors.value.length
   })
@@ -49,23 +60,44 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     requestInfo.value = info
   }
 
-  async function getInitialPage() {
+  let loadId = 0
+
+  async function trackLoading(load: () => Promise<void>) {
+    const id = ++loadId
     isLoading.value = true
-    const cursor = null
-    const response = await getData(cursor)
-    addItemsToList(response.items, true)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    try {
+      await load()
+    } finally {
+      if (id === loadId) isLoading.value = false
+    }
+  }
+
+  async function getInitialPage() {
+    await trackLoading(async () => {
+      const response = await getData(null)
+      addItemsToList(response.items, true)
+      savedCursors.value = [response.cursor]
+      if (!response.items.some(isVisible)) await loadUntilVisible()
+    })
   }
 
   async function getNextPage() {
-    const cursor = getNextPageCursor()
-    if (!cursor) return
-    isLoading.value = true
-    const response = await getData(cursor)
-    addItemsToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    if (!getNextPageCursor()) return
+    await trackLoading(loadUntilVisible)
+  }
+
+  // Excluded artifacts are filtered on the client. A page made only of them
+  // adds nothing visible, and the list cannot ask for more until it shows
+  // something: keep loading until a page has a visible item or the list ends.
+  async function loadUntilVisible() {
+    let cursor = getNextPageCursor()
+    while (cursor) {
+      const response = await getData(cursor)
+      addItemsToList(response.items)
+      savedCursors.value.push(response.cursor)
+      if (response.items.some(isVisible)) return
+      cursor = response.cursor
+    }
   }
 
   async function getData(cursor: string | null) {
@@ -92,6 +124,8 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     return savedCursors.value[savedCursors.value.length - 1] ?? null
   }
 
+  const hasNextPage = computed(() => Boolean(getNextPageCursor()))
+
   function reset() {
     setList([])
     savedCursors.value = []
@@ -117,7 +151,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
   async function onLazyLoad(event: VirtualScrollerLazyEvent) {
     if (isLoading.value) return
     const { last } = event
-    if (last === pageIndex.value * limit) {
+    if (last === filteredList.value.length) {
       await getNextPage()
     }
   }
@@ -158,13 +192,15 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     )
   }
 
-  watch([sortData, typesQuery], debouncedOnSortDataChange)
+  watch([sortData, typesQuery, searchQuery], debouncedOnSortDataChange)
 
   return {
+    requestInfo,
     setRequestInfo,
     getInitialPage,
     list,
     getNextPage,
+    hasNextPage,
     isLoading,
     pageIndex,
     reset,
@@ -176,5 +212,6 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     typesQuery,
     setSearchQuery,
     setExcludedTracksQuery,
+    filteredList,
   }
 }

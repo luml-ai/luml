@@ -1,7 +1,7 @@
 <template>
   <VirtualScroller
     :items="list"
-    :itemSize="171"
+    :itemSize="160"
     lazy
     @lazy-load="$emit('lazy-load', $event)"
     class="border border-surface-200 dark:border-surface-700 rounded"

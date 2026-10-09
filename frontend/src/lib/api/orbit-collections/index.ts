@@ -65,4 +65,11 @@ export class OrbitCollectionsApi {
     )
     return responseData
   }
+
+  async getCollectionsTags(organizationId: string, orbitId: string) {
+    const { data: responseData } = await this.api.get<string[]>(
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/tags`,
+    )
+    return responseData
+  }
 }

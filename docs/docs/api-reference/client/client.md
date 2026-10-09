@@ -15,22 +15,21 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
 #### setup_config
 
 ```python
-async def setup_config(*,
-                       organization: str | None = None,
-                       orbit: str | None = None,
-                       collection: str | None = None) -> None
+async def setup_config(
+        *,
+        organization: str | None = None,
+        orbit: str | None = None,
+        collection: str | None = None
+) -> None
 ```
 
 Method for setting default values for AsyncLumlClient
 
 **Arguments**:
 
-- `organization` - Default organization to use for operations.
-  Can be set by organization ID or name.
-- `orbit` - Default orbit to use for operations.
-  Can be set by organization ID or name.
-- `collection` - Default collection to use for operations.
-  Can be set by organization ID or name.
+- `organization` - Default organization to use for operations. Can be set by organization ID or name.
+- `orbit` - Default orbit to use for operations. Can be set by organization ID or name.
+- `collection` - Default collection to use for operations. Can be set by organization ID or name.
   
 
 **Example**:
@@ -100,6 +99,39 @@ def artifacts() -> "AsyncArtifactResource"
 
 Artifacts interface.
 
+<a id="luml_api._client.AsyncLumlClient.tracks"></a>
+
+#### tracks
+
+```python
+@cached_property
+def tracks() -> "AsyncTrackResource"
+```
+
+Tracks interface.
+
+<a id="luml_api._client.AsyncLumlClient.deployments"></a>
+
+#### deployments
+
+```python
+@cached_property
+def deployments() -> "AsyncDeploymentResource"
+```
+
+Deployments and their monitoring.
+
+<a id="luml_api._client.AsyncLumlClient.satellites"></a>
+
+#### satellites
+
+```python
+@cached_property
+def satellites() -> "AsyncSatelliteResource"
+```
+
+Satellites and their advertised operations.
+
 <a id="luml_api._client.LumlClient"></a>
 
 ## LumlClient Objects
@@ -162,4 +194,37 @@ def artifacts() -> "ArtifactResource"
 ```
 
 Artifacts interface.
+
+<a id="luml_api._client.LumlClient.tracks"></a>
+
+#### tracks
+
+```python
+@cached_property
+def tracks() -> "TrackResource"
+```
+
+Tracks interface.
+
+<a id="luml_api._client.LumlClient.deployments"></a>
+
+#### deployments
+
+```python
+@cached_property
+def deployments() -> "DeploymentResource"
+```
+
+Deployments and their monitoring.
+
+<a id="luml_api._client.LumlClient.satellites"></a>
+
+#### satellites
+
+```python
+@cached_property
+def satellites() -> "SatelliteResource"
+```
+
+Satellites and their advertised operations.
 

@@ -1526,6 +1526,24 @@ class ExperimentTracker:
         """Set the experiment's ``upload_status`` column."""
         self.backend.set_experiment_upload_status(experiment_id, status)
 
+    def set_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str, artifact_id: str
+    ) -> None:
+        """Remember the platform artifact for a local object in an orbit."""
+        self.backend.set_remote_artifact(local_type, local_id, orbit_id, artifact_id)
+
+    def get_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str
+    ) -> str | None:
+        """Return the remembered platform artifact for a local object and orbit."""
+        return self.backend.get_remote_artifact(local_type, local_id, orbit_id)
+
+    def delete_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str
+    ) -> None:
+        """Forget the platform artifact for a local object in an orbit."""
+        self.backend.delete_remote_artifact(local_type, local_id, orbit_id)
+
     def get_eval_annotations(
         self, experiment_id: str, dataset_id: str, eval_id: str
     ) -> list[AnnotationRecord]:

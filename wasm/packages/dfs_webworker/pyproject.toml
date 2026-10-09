@@ -30,3 +30,10 @@ filterwarnings = [
     "ignore::RuntimeWarning",
 ]
 
+[dependency-groups]
+dev = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "pytest>=8.0",
+    "scikit-learn>=1.4",
+]

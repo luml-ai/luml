@@ -1,0 +1,64 @@
+suite: long release resource names
+templates:
+  - templates/deployment-collector.yaml
+  - templates/deployment-dashboard.yaml
+  - templates/deployment-satellite.yaml
+  - templates/deployment-worker.yaml
+  - templates/secret-derivation.yaml
+  - templates/secret-token.yaml
+  - templates/statefulset-store.yaml
+release:
+  name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  namespace: models
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: preserves the collector suffix
+    template: templates/deployment-collector.yaml
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^[a-z0-9-]{1,53}-collector$
+
+  - it: preserves the dashboard suffix
+    template: templates/deployment-dashboard.yaml
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^[a-z0-9-]{1,53}-dashboard$
+
+  - it: preserves the satellite suffix
+    template: templates/deployment-satellite.yaml
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^[a-z0-9-]{1,53}-satellite$
+
+  - it: preserves the worker suffix
+    template: templates/deployment-worker.yaml
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^[a-z0-9-]{1,56}-worker$
+
+  - it: preserves the store suffix
+    template: templates/statefulset-store.yaml
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^[a-z0-9-]{1,57}-store$
+
+  - it: preserves the derivation key suffix
+    template: templates/secret-derivation.yaml
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^[a-z0-9-]{1,48}-derivation-key$
+
+  - it: preserves the token suffix
+    template: templates/secret-token.yaml
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^[a-z0-9-]{1,57}-token$

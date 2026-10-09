@@ -203,6 +203,11 @@ const router = createRouter({
               name: 'attachments',
               component: () => import('../pages/collection/artifact/AttachmentsView.vue'),
             },
+            {
+              path: 'lineage',
+              name: 'lineage',
+              component: () => import('../pages/collection/artifact/LineageView.vue'),
+            },
           ],
         },
         {
@@ -216,6 +221,15 @@ const router = createRouter({
       path: '/organization/:organizationId/orbit/:id/deployments/:deploymentId/schema',
       name: 'deployment-schema',
       component: () => import('../pages/DeploymentSchemaPage.vue'),
+      meta: {
+        requireAuth: true,
+        orbitMiddleware: true,
+      },
+    },
+    {
+      path: '/organization/:organizationId/orbit/:id/deployments/:deploymentId/monitoring',
+      name: 'deployment-monitoring',
+      component: () => import('../pages/DeploymentMonitoringPage.vue'),
       meta: {
         requireAuth: true,
         orbitMiddleware: true,
@@ -285,6 +299,15 @@ const router = createRouter({
           component: () => import('../components/organizations/registry/OrganizationRegistry.vue'),
         },
       ],
+    },
+    {
+      path: '/invitations',
+      name: 'invitations',
+      component: HomePage,
+      meta: {
+        requireAuth: true,
+        redirectToSignIn: true,
+      },
     },
     {
       path: '/:pathMatch(.*)*',

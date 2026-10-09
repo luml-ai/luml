@@ -7,11 +7,11 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic==1.17.1",
     "asyncpg==0.30.0",
-    "cryptography==46.0.7",
+    "cryptography==50.0.0",
     "fastapi[all]==0.121.2",
     "httpx==0.27.2",
     "minio==7.2.18",
-    "pyjwt==2.10.1",
+    "pyjwt==2.15.0",
     "sendgrid==6.11.0",
     "sqlalchemy[asyncio]==2.0.44",
     "uvicorn==0.38.0",
@@ -47,6 +47,10 @@ dev = [
     "ruff==0.14.5",
     "types-passlib==1.7.7.20250602",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [tool.ruff]
 # Target Python 3.14
@@ -97,6 +101,6 @@ known-first-party = ["dataforce_studio"]
 split-on-trailing-comma = true
 
 [tool.mypy]
-files = ["dataforce_studio", "utils", "tests"]
+files = ["luml", "utils", "tests"]
 python_version = "3.14"
 strict = true

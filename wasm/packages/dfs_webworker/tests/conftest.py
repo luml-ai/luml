@@ -1,11 +1,16 @@
 """Test bootstrap for the dfs_webworker package.
 
 `dfs_webworker/__init__.py` imports the tabular route, which pulls in `falcon`
-(a WASM-only ML stack that is not installable on a plain CPython runner). The
-forecasting engine never touches `falcon`, so we stub it out here to let the
+(a WASM-only ML stack that is usually not installable on a plain CPython runner).
+The forecasting engine never touches `falcon`, so we stub it out here to let the
 package import cleanly during local unit testing.
+
+The stub is only installed when the real stack is unavailable: tests that need
+falcon for real guard themselves with `pytest.importorskip("falcon")`, and a stub
+sitting in `sys.modules` would defeat that guard.
 """
 
+import importlib
 import sys
 import types
 
@@ -13,6 +18,17 @@ import types
 def _stub_falcon() -> None:
     if "falcon" in sys.modules:
         return
+    try:
+        importlib.import_module("falcon.tabular.tabular_manager")
+        importlib.import_module("falcon.task_configurations")
+    except ImportError:
+        pass
+    else:
+        return
+
+    for name in [n for n in sys.modules if n == "falcon" or n.startswith("falcon.")]:
+        del sys.modules[name]
+
     falcon = types.ModuleType("falcon")
     falcon.AutoML = object
 

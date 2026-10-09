@@ -69,6 +69,7 @@ async def list_tracks(
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
     search: str | None = None,
     types: Annotated[list[str] | None, Query()] = None,
+    tags: Annotated[list[str] | None, Query()] = None,
 ) -> TracksList:
     return await tracks_handler.list_tracks(
         request.user.id,
@@ -80,6 +81,22 @@ async def list_tracks(
         order,
         search,
         types,
+        tags,
+    )
+
+
+@tracks_router.get(
+    "/tags",
+    responses=endpoint_responses,
+    response_model=list[str],
+)
+async def list_tracks_tags(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+) -> list[str]:
+    return await tracks_handler.list_tracks_tags(
+        request.user.id, organization_id, orbit_id
     )
 
 
@@ -179,7 +196,7 @@ async def get_entry_by_stage(
     orbit_id: UUID,
     track_id: UUID,
     stage_id: UUID,
-) -> TrackEntry | None:
+) -> TrackEntry:
     return await tracks_handler.get_entry_by_stage(
         request.user.id, organization_id, orbit_id, track_id, stage_id
     )
@@ -196,7 +213,7 @@ async def get_entry(
     orbit_id: UUID,
     track_id: UUID,
     entry_id: UUID,
-) -> TrackEntry | None:
+) -> TrackEntry:
     return await tracks_handler.get_entry(
         request.user.id, organization_id, orbit_id, track_id, entry_id
     )

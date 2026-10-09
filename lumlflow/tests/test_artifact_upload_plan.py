@@ -55,6 +55,8 @@ def test_upload_plan(
 
 
 class _Uploaded:
+    id = "uploaded"
+
     def model_dump(self) -> dict[str, Any]:
         return {}
 
@@ -82,7 +84,7 @@ def test_without_model_files_the_experiments_linked_models_go(
     handler.tracker = SimpleNamespace(get_models=lambda experiment_id: linked)
     calls: list[tuple[Any, ...]] = []
 
-    def upload_model(data, model, embed, on_progress):
+    def upload_model(data, model, embed, on_progress, uploaded_experiment_id):
         calls.append(("model", model.name, embed, data.artifact.name))
         return _Uploaded()
 
@@ -97,9 +99,9 @@ def test_without_model_files_the_experiments_linked_models_go(
     handler.upload_model_files(_form(UploadType.AUTO), "job", [])
 
     assert calls == [
+        ("experiment", "run"),
         ("model", "forest", True, "run_1"),
         ("model", "boost", True, "run_2"),
-        ("experiment", "run"),
     ]
 
 
@@ -110,9 +112,9 @@ def test_without_model_files_the_experiments_linked_models_go(
         (
             ["forest", "boost"],
             [
+                ("experiment", "run"),
                 ("model", "forest", True, "run_1"),
                 ("model", "boost", True, "run_2"),
-                ("experiment", "run"),
             ],
         ),
     ],
@@ -125,7 +127,7 @@ def test_model_files_follow_the_auto_plan(
     handler.progress_store = store
     calls: list[tuple[Any, ...]] = []
 
-    def upload_model_file(data, path, name, embed, on_progress):
+    def upload_model_file(data, path, name, embed, on_progress, uploaded_experiment_id):
         calls.append(("model", name, embed, data.artifact.name))
         return _Uploaded()
 

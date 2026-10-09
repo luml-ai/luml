@@ -5,10 +5,12 @@ on:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
 
 jobs:
   lint:
@@ -48,6 +50,11 @@ jobs:
 
       - name: Install Linux Rollup binding
         run: npm install @rollup/rollup-linux-x64-gnu --workspace=frontend
+
+      - name: Build workspace packages
+        run: |
+          npm run build-only --workspace=@luml/attachments
+          npm run build-only --workspace=@luml/experiments
 
       - name: Run unit tests
         working-directory: frontend

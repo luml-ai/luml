@@ -1,9 +1,11 @@
 import importlib.resources
 import os
+import re
 import subprocess
 from pathlib import Path
 
 import pytest
+from luml.experiments.tracker import ExperimentTracker
 
 from luml_prisma.services.orchestrator.utils import (
     ensure_global_luml_dir,
@@ -129,6 +131,23 @@ def test_guide_md_contains_required_sections(tmp_path: Path) -> None:
     assert ".luml/experiments" in content
 
     assert "Metric" in content
+
+
+def test_guide_md_tracker_methods_exist() -> None:
+    source = importlib.resources.files("luml_prisma.data").joinpath("guide.md")
+    content = source.read_text(encoding="utf-8")
+    python_blocks = re.findall(r"^```python\s*\n(.*?)^```\s*$", content, re.M | re.S)
+    methods = {
+        method
+        for block in python_blocks
+        for method in re.findall(r"\b(?:tracker|exp)\.(\w+)\s*\(", block)
+    }
+
+    assert methods, "No ExperimentTracker calls found in guide.md Python blocks"
+    missing = sorted(
+        method for method in methods if not hasattr(ExperimentTracker, method)
+    )
+    assert not missing, f"Unknown ExperimentTracker methods in guide.md: {missing}"
 
 
 @pytest.fixture

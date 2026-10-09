@@ -167,6 +167,59 @@ def test_download_file_with_progress_error(
         handler.download_file_with_progress(url, str(target), "out.bin")
 
 
+@pytest.mark.respx
+@pytest.mark.parametrize(
+    ("status_code", "expected"),
+    [(204, True), (404, True), (403, False)],
+)
+def test_delete_file(respx_mock: MockRouter, status_code: int, expected: bool) -> None:
+    url = "https://storage.example.com/delete"
+    respx_mock.delete(url).mock(return_value=httpx.Response(status_code))
+
+    assert _ConcreteFileHandler.delete_file(url) is expected
+
+
+@pytest.mark.respx
+def test_delete_file_transport_error(respx_mock: MockRouter) -> None:
+    url = "https://storage.example.com/delete"
+    respx_mock.delete(url).mock(side_effect=httpx.ConnectError("unavailable"))
+
+    assert _ConcreteFileHandler.delete_file(url) is False
+
+
+def test_delete_file_invalid_url_is_storage_failure() -> None:
+    assert _ConcreteFileHandler.delete_file("not a URL") is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.respx
+@pytest.mark.parametrize(
+    ("status_code", "expected"),
+    [(204, True), (404, True), (500, False)],
+)
+async def test_delete_file_async(
+    respx_mock: MockRouter, status_code: int, expected: bool
+) -> None:
+    url = "https://storage.example.com/delete"
+    respx_mock.delete(url).mock(return_value=httpx.Response(status_code))
+
+    assert await _ConcreteFileHandler.delete_file_async(url) is expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.respx
+async def test_delete_file_async_transport_error(respx_mock: MockRouter) -> None:
+    url = "https://storage.example.com/delete"
+    respx_mock.delete(url).mock(side_effect=httpx.ConnectError("unavailable"))
+
+    assert await _ConcreteFileHandler.delete_file_async(url) is False
+
+
+@pytest.mark.asyncio
+async def test_delete_file_async_invalid_url_is_storage_failure() -> None:
+    assert await _ConcreteFileHandler.delete_file_async("not a URL") is False
+
+
 def test_initiate_multipart_upload_base_returns_none() -> None:
     handler = _ConcreteFileHandler()
     assert handler.initiate_multipart_upload("https://example.com") is None

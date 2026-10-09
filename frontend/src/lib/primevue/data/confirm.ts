@@ -4,11 +4,11 @@ export const dashboardFinishConfirmOptions = (accept: () => void): ConfirmationO
   message: "Before exiting, please ensure you've downloaded your predictions.",
   header: 'Are you sure?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
     outlined: true,
   },
   acceptProps: {
-    label: 'exit',
+    label: 'Exit',
   },
   accept,
 })
@@ -17,10 +17,10 @@ export const deleteAccountConfirmOptions = (accept: () => void): ConfirmationOpt
   message: 'Deleting your account is permanent and irreversible. ',
   header: 'Are you sure?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete account',
+    label: 'Delete account',
     severity: 'warn',
     outlined: true,
   },
@@ -31,11 +31,11 @@ export const runOptimizationConfirmOptions = (accept: () => void): ConfirmationO
   message: "Please confirm that you've reviewed all settings before proceeding.",
   header: 'Ready to start optimization?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
     severity: 'secondary',
   },
   acceptProps: {
-    label: 'confirm and run',
+    label: 'Confirm and run',
   },
   accept,
 })
@@ -45,10 +45,10 @@ export const leaveOrganizationConfirmOptions = (accept: () => void): Confirmatio
     'You’ll lose access to all workspaces and data within this organization. This action can’t be undone.',
   header: 'Leave this organization?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'leave',
+    label: 'Leave',
     severity: 'warn',
     outlined: true,
   },
@@ -62,10 +62,10 @@ export const deleteUserConfirmOptions = (
   message: message || 'Deleting this account is a permanent action and cannot be reversed.',
   header: 'Delete this user?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -76,10 +76,10 @@ export const removeOrganizationUserConfirmOptions = (accept: () => void): Confir
   message: 'The user will lose access to all resources and data associated with your organization.',
   header: 'Remove user from organization?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -90,10 +90,10 @@ export const deleteOrbitConfirmOptions = (accept: () => void): ConfirmationOptio
   message: 'Deleting this orbit is a permanent action and cannot be reversed.',
   header: 'Delete orbit?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -104,10 +104,10 @@ export const deleteCollectionConfirmOptions = (accept: () => void): Confirmation
   message: 'This action is permanent and cannot be undone.',
   header: 'Delete collection?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -119,12 +119,32 @@ export const deleteArtifactConfirmOptions = (
   count: number,
 ): ConfirmationOptions => ({
   message: 'This action is permanent and cannot be undone.',
-  header: count > 1 ? `Delete ${count}  artifacts?` : 'Delete artifact?',
+  header: count > 1 ? `Delete ${count} artifacts?` : 'Delete artifact?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: count > 1 ? 'delete artifacts' : 'delete artifact',
+    label: count > 1 ? 'Delete artifacts' : 'Delete artifact',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const stopDeploymentsConfirmOptions = (
+  accept: () => void,
+  count: number,
+): ConfirmationOptions => ({
+  message:
+    count > 1
+      ? 'This action will schedule a task for your satellites to shut down these deployments.'
+      : 'This action will schedule a task for your satellite to shut down this deployment.',
+  header: count > 1 ? `Stop ${count} deployments?` : 'Stop this deployment?',
+  rejectProps: {
+    label: 'Cancel',
+  },
+  acceptProps: {
+    label: 'Stop',
     severity: 'warn',
     outlined: true,
   },
@@ -136,10 +156,10 @@ export const deleteBucketConfirmOptions = (accept: () => void): ConfirmationOpti
     'This bucket and all its contents will be deleted. It will also be removed from all Orbits where it is used.',
   header: 'Delete bucket?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -151,10 +171,10 @@ export const deleteAPIKeyConfirmOptions = (accept: () => void): ConfirmationOpti
     'This key will be permanently deleted. You’ll still be able to generate a new one at any time.',
   header: 'Delete API key?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -162,10 +182,10 @@ export const deleteAPIKeyConfirmOptions = (accept: () => void): ConfirmationOpti
 })
 
 export const deleteSecretConfirmation: ConfirmationOptions = {
-  message: 'Ensure no active deployments are using this key, otherwise deletion will fail.',
+  message: 'A key that deployments use cannot be deleted.',
   header: 'Delete key?',
-  acceptLabel: 'delete key',
-  rejectLabel: 'cancel',
+  acceptLabel: 'Delete key',
+  rejectLabel: 'Cancel',
   acceptProps: {
     severity: 'warn',
     variant: 'outlined',
@@ -179,10 +199,10 @@ export const deleteRepositoryConfirmOptions = (
   message: `This will permanently delete "${name}" and all its tasks and workflows.`,
   header: 'Delete repository?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -193,11 +213,11 @@ export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions
   message: 'Are you sure you want to exit this page?',
   header: 'Are you sure?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
     outlined: true,
   },
   acceptProps: {
-    label: 'exit',
+    label: 'Exit',
   },
   accept,
 })
@@ -206,24 +226,10 @@ export const deleteTrackConfirmOptions = (accept: () => void): ConfirmationOptio
   message: 'This action is permanent and cannot be undone.',
   header: 'Delete track?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'delete',
-    severity: 'warn',
-    outlined: true,
-  },
-  accept,
-})
-
-export const unlinkArtifactConfirmOptions = (accept: () => void): ConfirmationOptions => ({
-  message: 'This will remove the artifact from the track.',
-  header: 'Unlink artifact?',
-  rejectProps: {
-    label: 'cancel',
-  },
-  acceptProps: {
-    label: 'unlink',
+    label: 'Delete',
     severity: 'warn',
     outlined: true,
   },
@@ -237,10 +243,10 @@ export const forceStageReassignConfirmOptions = (
   message,
   header: 'Reassign stage?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: 'confirm',
+    label: 'Confirm',
   },
   accept,
 })
@@ -253,10 +259,10 @@ export const deleteTrackEntryConfirmOptions = (
     'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.',
   header: count > 1 ? `Unlink ${count} artifacts?` : 'Unlink artifact?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
   },
   acceptProps: {
-    label: count > 1 ? 'unlink artifacts' : 'unlink artifact',
+    label: count > 1 ? 'Unlink artifacts' : 'Unlink artifact',
     severity: 'warn',
     outlined: true,
   },
@@ -267,11 +273,46 @@ export const patchTrackEntryConfirmOptions = (accept: () => void): ConfirmationO
   message: 'This action will unlink the stage from the artifact it was previously attached to',
   header: 'Save changes?',
   rejectProps: {
-    label: 'cancel',
+    label: 'Cancel',
     outlined: true,
   },
   acceptProps: {
-    label: 'save changes',
+    label: 'Save changes',
+  },
+  accept,
+})
+
+export const discardLineageChangesConfirmOptions = (
+  accept: () => void,
+  reject: () => void,
+  onHide: () => void,
+): ConfirmationOptions => ({
+  message: 'If you exit without saving, your changes will be lost.',
+  header: 'Discard lineage changes?',
+  rejectProps: {
+    label: 'Keep editing',
+    severity: 'secondary',
+  },
+  acceptProps: {
+    label: 'Discard changes',
+    severity: 'warn',
+  },
+  accept,
+  reject,
+  onHide,
+})
+
+export const unlinkArtifactConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message:
+    'This artifact will be unlinked from other artifacts in its lineage. It will not be deleted and will remain accessible in its collection.',
+  header: 'Unlink artifact?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'unlink artifact',
+    severity: 'warn',
+    outlined: true,
   },
   accept,
 })

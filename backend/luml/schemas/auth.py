@@ -13,6 +13,8 @@ class UserInfo(BaseModel):
     email: EmailStr | None = None
     full_name: str
     photo_url: str | None = None
+    email_verified: bool | None = None
+    hosted_domain: str | None = None
 
 
 class OAuthLogin(BaseModel):

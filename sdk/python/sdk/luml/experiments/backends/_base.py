@@ -172,6 +172,24 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def set_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str, artifact_id: str
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def get_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str
+    ) -> str | None:
+        pass
+
+    @abstractmethod
+    def delete_remote_artifact(
+        self, local_type: str, local_id: str, orbit_id: str
+    ) -> None:
+        pass
+
+    @abstractmethod
     def create_group(
         self,
         name: str,

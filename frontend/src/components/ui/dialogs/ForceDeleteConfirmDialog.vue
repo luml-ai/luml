@@ -12,6 +12,9 @@
     </div>
     <template #footer>
       <Button @click="visible = false" :disabled="loading">cancel</Button>
+      <Button v-if="secondaryActionLabel" :disabled="loading" @click="$emit('secondaryAction')">
+        {{ secondaryActionLabel }}
+      </Button>
       <Button
         severity="warn"
         outlined
@@ -33,10 +36,12 @@ type Props = {
   title: string
   text: string
   loading: boolean
+  secondaryActionLabel?: string
 }
 
 type Emits = {
   confirm: []
+  secondaryAction: []
 }
 
 defineProps<Props>()

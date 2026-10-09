@@ -1,0 +1,76 @@
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--luml-bg);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.dashboard {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--luml-space-8) var(--luml-space-6) var(--luml-space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--luml-space-5);
+}
+
+.card {
+  background: var(--luml-bg-card);
+  border: 1px solid var(--luml-border);
+  border-radius: var(--luml-radius-lg);
+  box-shadow: var(--luml-shadow-card);
+  padding: var(--luml-space-5);
+}
+
+.section-title {
+  font-size: var(--luml-text-lg);
+  font-weight: 600;
+  color: var(--luml-fg-strong);
+  margin: 0;
+}
+
+.section-subtitle {
+  font-size: var(--luml-caption-size);
+  color: var(--luml-fg-muted);
+  margin: 2px 0 0;
+}
+
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--luml-fg-muted);
+}
+
+.mono {
+  font-family: var(--luml-font-mono);
+}
+
+.grid {
+  display: grid;
+  gap: var(--luml-space-4);
+}
+
+/* One viewport for every long table (Traces, Alerts, Data quality): the tab scrolls
+   inside the card past this height instead of growing without bound. The cap follows
+   the viewport height, which inside the Platform's iframe is the iframe itself — the
+   Platform has already taken its own chrome out of it. The 380px reserve is measured,
+   not guessed: the deepest table top across the tabs (Traces, ~305px of header,
+   controls, tabs and card chrome) plus the pager and paddings under it (~75px), so
+   the table's bottom edge lands inside the frame instead of forcing a second scroll.
+   The floor keeps a cramped window at a usable page height. */
+.table-viewport {
+  max-height: max(640px, calc(100vh - 380px));
+  overflow-y: auto;
+}

@@ -10,6 +10,7 @@ vi.mock('@/lib/api', () => ({
     dataAgent: {
       postUploadUrl: vi.fn(),
       getPendingUploads: vi.fn(),
+      dismissUpload: vi.fn(),
     },
   },
 }))
@@ -19,6 +20,7 @@ import { api } from '@/lib/api'
 const mockArtifactsCreate = vi.mocked(api.artifacts.create)
 const mockPostUploadUrl = vi.mocked(api.dataAgent.postUploadUrl)
 const mockGetPendingUploads = vi.mocked(api.dataAgent.getPendingUploads)
+const mockDismissUpload = vi.mocked(api.dataAgent.dismissUpload)
 
 function makeUploadReadyEvent(overrides: Partial<UploadReadyEvent> = {}): UploadReadyEvent {
   return {
@@ -246,22 +248,46 @@ describe('useUploadFlow', () => {
   })
 
   describe('resumePendingUploads', () => {
-    it('fetches pending uploads and triggers upload flow for each', async () => {
+    const resumableUpload = {
+      id: 'upload-a',
+      run_id: 'run-1',
+      node_id: 'node-1',
+      model_path: '/tmp/model.luml',
+      experiment_ids: ['exp-1'],
+      file_size: 2048,
+      status: 'pending',
+      error: null,
+      retry_count: 0,
+      created_at: '2025-01-01T00:00:00Z',
+      updated_at: '2025-01-01T00:00:00Z',
+      manifest: {
+        variant: 'pyfunc',
+        producer_name: 'luml.ai',
+        producer_version: '0.3.0',
+        producer_tags: [],
+        inputs: [],
+        outputs: [],
+        dynamic_attributes: [],
+        env_vars: [],
+      },
+      file_index: { 'manifest.json': [0, 128] as [number, number] },
+    }
+
+    it('dismisses pending uploads the engine reports without their archive metadata', async () => {
       mockGetPendingUploads.mockResolvedValue([
-        {
-          id: 'upload-a',
-          run_id: 'run-1',
-          node_id: 'node-1',
-          model_path: '/tmp/model.luml',
-          experiment_ids: ['exp-1'],
-          file_size: 2048,
-          status: 'pending',
-          error: null,
-          retry_count: 0,
-          created_at: '2025-01-01T00:00:00Z',
-          updated_at: '2025-01-01T00:00:00Z',
-        },
+        { ...resumableUpload, manifest: null, file_index: null },
       ])
+      mockDismissUpload.mockResolvedValue()
+
+      await flow.resumePendingUploads('run-1', 'col-1', 'org-1', 'orb-1')
+
+      expect(mockArtifactsCreate).not.toHaveBeenCalled()
+      expect(mockDismissUpload).toHaveBeenCalledWith('run-1', 'upload-a')
+      expect(flow.activeUploads.value).toHaveLength(0)
+    })
+
+    it('fetches pending uploads and triggers upload flow for each', async () => {
+      mockGetPendingUploads.mockResolvedValue([resumableUpload])
       mockArtifactsCreate.mockResolvedValue({
         artifact: {} as unknown,
         upload_details: {

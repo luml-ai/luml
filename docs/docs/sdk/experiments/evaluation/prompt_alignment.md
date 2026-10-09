@@ -24,4 +24,3 @@ scorer = PromptAlignment()
 scorer = PromptAlignment(input_key="system_prompt")
 ```
 
-

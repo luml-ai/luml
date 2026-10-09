@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
@@ -60,6 +61,22 @@ async def get_satellite(
     satellite_id: UUID,
 ) -> Satellite:
     return await satellite_handler.get_satellite(
+        request.user.id, organization_id, orbit_id, satellite_id
+    )
+
+
+@organization_orbit_satellites_router.get(
+    "/{satellite_id}/openapi",
+    responses=endpoint_responses,
+    response_model=dict[str, Any] | None,
+)
+async def get_satellite_openapi(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    satellite_id: UUID,
+) -> dict[str, Any] | None:
+    return await satellite_handler.get_satellite_openapi(
         request.user.id, organization_id, orbit_id, satellite_id
     )
 

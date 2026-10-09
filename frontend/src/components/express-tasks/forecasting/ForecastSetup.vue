@@ -3,8 +3,8 @@
     <div class="headings">
       <h1 class="main-title">Configure your forecast</h1>
       <p class="sub-title">
-        Assign the date, target and auxiliary roles from the table column menus below. Model
-        orders and seasonality are detected automatically.
+        Assign the date, target and auxiliary roles from the table column menus below. Model orders
+        and seasonality are detected automatically.
       </p>
     </div>
 
@@ -32,8 +32,8 @@
           fluid
         />
         <small class="hint">
-          Combines rows that fall in the same {{ frequency }} — sum for totals (sales,
-          counts), average for levels (price, rate).
+          Combines rows that fall in the same {{ frequency }} — sum for totals (sales, counts),
+          average for levels (price, rate).
         </small>
       </label>
 
@@ -70,10 +70,7 @@
 
 <script setup lang="ts">
 import DatePicker from 'primevue/datepicker'
-import type {
-  ForecastingAggregation,
-  ForecastingFrequency,
-} from '@/lib/data-processing/interfaces'
+import type { ForecastingAggregation, ForecastingFrequency } from '@/lib/data-processing/interfaces'
 
 type Props = {
   hasKnownFuture: boolean

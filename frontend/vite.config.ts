@@ -18,8 +18,16 @@ export default defineConfig(({ mode }) => ({
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
+    // Lets the dev server be reached through an ngrok tunnel.
+    allowedHosts: ['.ngrok-free.app'],
     ...(mode === 'development' && {
       proxy: {
+        // Same-origin API when VITE_API_URL is empty: one tunnel serves both
+        // the app and the backend, no CORS and no ngrok interstitial on XHR.
+        '/v1': {
+          target: 'http://127.0.0.1:8000',
+          changeOrigin: true,
+        },
         '/jupyter': {
           target: 'http://localhost:8000',
           changeOrigin: true,

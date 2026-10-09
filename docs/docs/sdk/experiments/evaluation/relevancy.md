@@ -23,4 +23,3 @@ scorer = Relevancy()
 scorer = Relevancy(input_key="prompt")
 ```
 
-

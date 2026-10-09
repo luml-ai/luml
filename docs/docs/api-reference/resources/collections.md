@@ -77,6 +77,7 @@ def list_all(
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None
 ) -> Iterator[Collection]
 ```
@@ -90,6 +91,7 @@ List all orbit collections with auto-paging.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
 - `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `tags` - Filter by tags. Returns collections that have at least one of the specified tags (exact match).
 - `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
   
 
@@ -125,6 +127,10 @@ for collection in luml.collections.list_all(
     types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
 ):
     print(collection.name)
+
+# Filter by tags
+for collection in luml.collections.list_all(tags=["production"]):
+    print(collection.name)
 ```
 
 <a id="luml_api.resources.collections.CollectionResource.list"></a>
@@ -140,6 +146,7 @@ def list(
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None
 ) -> CollectionsList
 ```
@@ -154,6 +161,7 @@ List all collections in the default orbit.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
 - `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `tags` - Filter by tags. Returns collections that have at least one of the specified tags (exact match).
 - `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
   
 
@@ -188,6 +196,9 @@ result = luml.collections.list(search="model")
 result = luml.collections.list(
     types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
 )
+
+# Filter by tags
+result = luml.collections.list(tags=["production", "ml"])
 ```
   
 **Example response**:
@@ -207,6 +218,47 @@ CollectionsList(
     ],
     cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTwM="
 )
+```
+
+<a id="luml_api.resources.collections.CollectionResource.list_tags"></a>
+
+#### list_tags
+
+```python
+def list_tags(*, orbit_id: str | None = None) -> builtins.list[str]
+```
+
+List all tags used by collections in the orbit.
+
+Collects unique tags across all collections in the orbit
+and returns them as a sorted list. Useful for building
+tag filters (see the `tags` argument of `list` / `list_all`).
+
+**Arguments**:
+
+- `orbit_id` - Orbit ID to collect tags from. If not provided, uses the default orbit set in the client.
+  
+
+**Returns**:
+
+  Sorted list of unique tags. Empty list if no collection has tags.
+  
+
+**Example**:
+
+```python
+luml = LumlClient(api_key="luml_your_key")
+tags = luml.collections.list_tags()
+
+# Tags from a specific orbit
+tags = luml.collections.list_tags(
+    orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+)
+```
+  
+**Example response**:
+```python
+["ml", "production", "staging"]
 ```
 
 <a id="luml_api.resources.collections.CollectionResource.create"></a>
@@ -464,6 +516,7 @@ def list_all(
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None
 ) -> AsyncIterator[Collection]
 ```
@@ -477,6 +530,7 @@ List all orbit collections with auto-paging.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
 - `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `tags` - Filter by tags. Returns collections that have at least one of the specified tags (exact match).
 - `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
   
 
@@ -516,6 +570,12 @@ async def main():
         types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
     ):
         print(collection.name)
+
+    # Filter by tags
+    async for collection in luml.collections.list_all(
+        tags=["production"]
+    ):
+        print(collection.name)
 ```
 
 <a id="luml_api.resources.collections.AsyncCollectionResource.list"></a>
@@ -531,6 +591,7 @@ async def list(
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None
 ) -> CollectionsList
 ```
@@ -545,6 +606,7 @@ List all collections in the default orbit.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
 - `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `tags` - Filter by tags. Returns collections that have at least one of the specified tags (exact match).
 - `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
   
 
@@ -584,6 +646,9 @@ async def main():
     result = await luml.collections.list(
         types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
     )
+
+    # Filter by tags
+    result = await luml.collections.list(tags=["production", "ml"])
 ```
   
 **Example response**:
@@ -603,6 +668,52 @@ CollectionsList(
     ],
     cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTI="
 )
+```
+
+<a id="luml_api.resources.collections.AsyncCollectionResource.list_tags"></a>
+
+#### list_tags
+
+```python
+async def list_tags(*, orbit_id: str | None = None) -> builtins.list[str]
+```
+
+List all tags used by collections in the orbit.
+
+Collects unique tags across all collections in the orbit
+and returns them as a sorted list. Useful for building
+tag filters (see the `tags` argument of `list` / `list_all`).
+
+**Arguments**:
+
+- `orbit_id` - Orbit ID to collect tags from. If not provided, uses the default orbit set in the client.
+  
+
+**Returns**:
+
+  Sorted list of unique tags. Empty list if no collection has tags.
+  
+
+**Example**:
+
+```python
+luml = AsyncLumlClient(api_key="luml_your_key")
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    )
+    tags = await luml.collections.list_tags()
+
+    # Tags from a specific orbit
+    tags = await luml.collections.list_tags(
+        orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+    )
+```
+  
+**Example response**:
+```python
+["ml", "production", "staging"]
 ```
 
 <a id="luml_api.resources.collections.AsyncCollectionResource.create"></a>
@@ -682,7 +793,9 @@ async def update(
 
 Update collection by ID or use default collection if collection_id not provided.
 
-Updates the collection's data. Only provided parameters will be updated, others remain unchanged. If collection_id is None, the default collection from client will be used.
+Updates the collection's data. Only provided parameters will be
+updated, others remain unchanged. If collection_id is None,
+the default collection from client will be used.
 
 **Arguments**:
 

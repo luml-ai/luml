@@ -1,32 +1,327 @@
+import re
+from collections.abc import Mapping
+from typing import Never
 from uuid import UUID
+
+from fastapi import status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from luml.handlers.api_keys import APIKeyHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
     ApplicationError,
+    ArtifactStatusMismatchError,
     InsufficientPermissionsError,
+    InvalidStatusTransitionError,
     NotFoundError,
 )
 from luml.repositories.artifacts import ArtifactRepository
+from luml.repositories.base import is_foreign_key_violation
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.users import UserRepository
+from luml.schemas.artifacts import Artifact
 from luml.schemas.deployment import (
     Deployment,
+    DeploymentBatchAction,
+    DeploymentBatchFailure,
     DeploymentCreate,
     DeploymentCreateIn,
     DeploymentDetailsUpdate,
     DeploymentDetailsUpdateIn,
+    DeploymentsBatchRequest,
+    DeploymentsBatchResponse,
     DeploymentStatus,
     DeploymentUpdate,
     DeploymentUpdateIn,
+    MonitoringMode,
 )
 from luml.schemas.permissions import Action, Resource
-from luml.schemas.satellite import SatelliteQueueTask
+from luml.schemas.satellite import (
+    DEPLOY_CAPABILITY,
+    MONITORING_CAPABILITY,
+    DeployCapabilityV1,
+    Satellite,
+    SatelliteQueueTask,
+)
+
+_MISSING = object()
+_KNOWN_VALIDATORS = frozenset({"min", "max", "regex", "equal", "in", "notEqual"})
+
+
+def _strict_equal(left: object, right: object) -> bool:
+    if (
+        isinstance(left, int | float)
+        and not isinstance(left, bool)
+        and isinstance(right, int | float)
+        and not isinstance(right, bool)
+    ):
+        return left == right
+    return type(left) is type(right) and left == right
+
+
+def _field_condition_holds(
+    body: Mapping[str, object], current_values: Mapping[str, object]
+) -> bool:
+    field = body.get("field")
+    operator = body.get("operator")
+    if not isinstance(field, str) or not isinstance(operator, str):
+        return False
+
+    if operator == "includes":
+        return field in current_values
+    if operator == "notIncludes":
+        return field not in current_values
+
+    current = current_values.get(field, _MISSING)
+    expected = body.get("value")
+    if operator == "equal":
+        return _strict_equal(current, expected)
+    if operator == "notEqual":
+        return not _strict_equal(current, expected)
+    if not (
+        isinstance(current, int | float)
+        and not isinstance(current, bool)
+        and isinstance(expected, int | float)
+        and not isinstance(expected, bool)
+    ):
+        return False
+    comparisons = {
+        "gt": current > expected,
+        "gte": current >= expected,
+        "lt": current < expected,
+        "lte": current <= expected,
+    }
+    return comparisons.get(operator, False)
+
+
+def _tag_condition_holds(
+    operator: str, expected: object, producer_tags: list[str]
+) -> bool:
+    if not isinstance(expected, list):
+        return True
+    combinations = [
+        (
+            isinstance(combination, list),
+            isinstance(combination, list)
+            and all(tag in producer_tags for tag in combination),
+        )
+        for combination in expected
+    ]
+    if operator == "includes":
+        return any(valid and matches for valid, matches in combinations)
+    if operator == "notIncludes":
+        return all(valid and not matches for valid, matches in combinations)
+    return False
+
+
+def _variant_condition_holds(operator: str, expected: object, variant: str) -> bool:
+    if operator == "eq":
+        return _strict_equal(variant, expected)
+    if operator == "neq":
+        return not _strict_equal(variant, expected)
+    if operator == "includes":
+        return isinstance(expected, str) and variant in expected
+    if operator == "notIncludes":
+        return isinstance(expected, str) and variant not in expected
+    return False
+
+
+def _model_condition_holds(
+    body: Mapping[str, object],
+    producer_tags: list[str],
+    version: str,
+    variant: str,
+) -> bool:
+    field = body.get("field")
+    operator = body.get("operator")
+    expected = body.get("value")
+    if not isinstance(field, str) or not isinstance(operator, str):
+        return False
+
+    if field == "tags":
+        return _tag_condition_holds(operator, expected, producer_tags)
+    if field == "version":
+        if operator == "eq":
+            return _strict_equal(version, expected)
+        if operator == "neq":
+            return not _strict_equal(version, expected)
+        return False
+    if field == "variant":
+        return _variant_condition_holds(operator, expected, variant)
+    return False
+
+
+def _condition_holds(
+    condition: object,
+    current_values: Mapping[str, object],
+    producer_tags: list[str],
+    version: str,
+    variant: str,
+) -> bool:
+    if not isinstance(condition, Mapping):
+        return True
+    body = condition.get("body")
+    if isinstance(body, list):
+        return satellite_field_conditions_hold(
+            body,
+            current_values,
+            producer_tags=producer_tags,
+            version=version,
+            variant=variant,
+        )
+
+    condition_type = condition.get("type")
+    if not isinstance(condition_type, str) or condition_type not in {
+        "field",
+        "model",
+    }:
+        return True
+    if not isinstance(body, Mapping):
+        return False
+    if condition_type == "field":
+        return _field_condition_holds(body, current_values)
+    return _model_condition_holds(body, producer_tags, version, variant)
+
+
+def satellite_field_conditions_hold(
+    conditions: object,
+    current_values: Mapping[str, object],
+    *,
+    producer_tags: list[str],
+    version: str | None,
+    variant: str | None,
+) -> bool:
+    if not isinstance(conditions, list):
+        return True
+    return all(
+        _condition_holds(
+            condition,
+            current_values,
+            producer_tags,
+            version or "",
+            variant or "",
+        )
+        for condition in conditions
+    )
+
+
+def _field_type_accepts(field: Mapping[str, object], value: object) -> bool | None:
+    field_type = field.get("type")
+    if field_type == "boolean":
+        return type(value) is bool
+    if field_type == "number":
+        return type(value) is int
+    if field_type == "text":
+        return type(value) is str
+    if field_type != "dropdown":
+        return None
+
+    options = field.get("values")
+    if not isinstance(options, list):
+        return False
+    return any(
+        isinstance(option, Mapping)
+        and _strict_equal(value, option.get("value", _MISSING))
+        for option in options
+    )
+
+
+def _validator_accepts(value: object, validator: object) -> bool | None:
+    if not isinstance(validator, Mapping):
+        return None
+    validator_type = validator.get("type")
+    if not isinstance(validator_type, str) or validator_type not in _KNOWN_VALIDATORS:
+        return None
+    expected = validator.get("value")
+    try:
+        if validator_type == "min":
+            return (
+                isinstance(value, int | float)
+                and not isinstance(value, bool)
+                and isinstance(expected, int | float)
+                and not isinstance(expected, bool)
+                and value >= expected
+            )
+        if validator_type == "max":
+            return (
+                isinstance(value, int | float)
+                and not isinstance(value, bool)
+                and isinstance(expected, int | float)
+                and not isinstance(expected, bool)
+                and value <= expected
+            )
+        if validator_type == "regex":
+            return (
+                isinstance(value, str)
+                and isinstance(expected, str)
+                and re.search(expected, value) is not None
+            )
+        if validator_type == "equal":
+            return _strict_equal(value, expected)
+        if validator_type == "notEqual":
+            return not _strict_equal(value, expected)
+        if validator_type == "in":
+            return isinstance(expected, list) and any(
+                _strict_equal(value, item) for item in expected
+            )
+    except re.error:
+        return False
+    return False
+
+
+def _parameter_error(field: str, rule: str) -> Never:
+    raise ApplicationError(
+        f"Invalid satellite parameter '{field}': failed {rule}",
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+    )
+
+
+def validate_satellite_parameters(
+    deploy: DeployCapabilityV1,
+    parameters: Mapping[str, object],
+    artifact: Artifact,
+) -> None:
+    for field in deploy.extra_fields_form_spec:
+        name = field.get("name")
+        if not isinstance(name, str):
+            continue
+        offered = satellite_field_conditions_hold(
+            field.get("conditions", []),
+            parameters,
+            producer_tags=artifact.manifest.producer_tags,
+            version=artifact.manifest.version,
+            variant=artifact.manifest.variant,
+        )
+        present = name in parameters
+        if present and not offered:
+            _parameter_error(name, "condition")
+        if field.get("required") is True and offered and not present:
+            _parameter_error(name, "required rule")
+        if not present:
+            continue
+
+        value = parameters[name]
+        type_result = _field_type_accepts(field, value)
+        if type_result is False:
+            _parameter_error(name, f"type '{field.get('type')}'")
+
+        validators = field.get("validators", [])
+        if not isinstance(validators, list):
+            continue
+        for validator in validators:
+            result = _validator_accepts(value, validator)
+            if result is False:
+                validator_type = (
+                    validator.get("type")
+                    if isinstance(validator, Mapping)
+                    else "validator"
+                )
+                _parameter_error(name, f"validator '{validator_type}'")
 
 
 class DeploymentHandler:
@@ -45,6 +340,53 @@ class DeploymentHandler:
         dynamic_attributes: dict[str, UUID],
     ) -> dict[str, str]:
         return {k: str(v) for k, v in (dynamic_attributes or {}).items()}
+
+    @staticmethod
+    def _require_present_capability(
+        satellite: Satellite,
+        capability: str,
+    ) -> None:
+        if capability not in satellite.present_capabilities:
+            raise ApplicationError(
+                f"Satellite does not have a present '{capability}' capability",
+                status.HTTP_409_CONFLICT,
+            )
+
+    @classmethod
+    def _validate_create_capabilities(
+        cls,
+        satellite: Satellite,
+        artifact: Artifact,
+        monitoring_mode: MonitoringMode,
+        satellite_parameters: Mapping[str, object],
+    ) -> None:
+        cls._require_present_capability(satellite, DEPLOY_CAPABILITY)
+        deploy = DeployCapabilityV1.model_validate(
+            satellite.capabilities[DEPLOY_CAPABILITY]
+        )
+        if artifact.manifest.variant not in deploy.supported_variants:
+            raise ApplicationError(
+                f"Artifact variant '{artifact.manifest.variant}' is not in deploy "
+                "supported_variants",
+                status.HTTP_409_CONFLICT,
+            )
+
+        tag_combinations = deploy.supported_tags_combinations
+        producer_tags = set(artifact.manifest.producer_tags)
+        if tag_combinations is not None and not any(
+            all(tag in producer_tags for tag in combination)
+            for combination in tag_combinations
+        ):
+            raise ApplicationError(
+                "Artifact producer tags do not satisfy deploy "
+                "supported_tags_combinations",
+                status.HTTP_409_CONFLICT,
+            )
+
+        validate_satellite_parameters(deploy, satellite_parameters, artifact)
+
+        if monitoring_mode != MonitoringMode.OFF:
+            cls._require_present_capability(satellite, MONITORING_CAPABILITY)
 
     async def create_deployment(
         self,
@@ -81,25 +423,36 @@ class DeploymentHandler:
         if not user:
             raise NotFoundError("User not found")
 
-        deployment, _ = await self.__repo.create_deployment(
-            DeploymentCreate(
-                orbit_id=orbit_id,
-                satellite_id=data.satellite_id,
-                artifact_id=data.artifact_id,
-                name=data.name,
-                satellite_parameters=data.satellite_parameters,
-                description=data.description,
-                dynamic_attributes_secrets=self._convert_dynamic_attributes_secrets(
-                    data.dynamic_attributes_secrets
-                ),
-                env_variables_secrets=self._convert_dynamic_attributes_secrets(
-                    data.env_variables_secrets
-                ),
-                env_variables=data.env_variables,
-                created_by_user=user.full_name,
-                tags=data.tags,
-            )
+        self._validate_create_capabilities(
+            satellite,
+            artifact,
+            data.monitoring_mode,
+            data.satellite_parameters,
         )
+
+        try:
+            deployment, _ = await self.__repo.create_deployment(
+                DeploymentCreate(
+                    orbit_id=orbit_id,
+                    satellite_id=data.satellite_id,
+                    artifact_id=data.artifact_id,
+                    name=data.name,
+                    monitoring_mode=data.monitoring_mode,
+                    satellite_parameters=data.satellite_parameters,
+                    description=data.description,
+                    dynamic_attributes_secrets=self._convert_dynamic_attributes_secrets(
+                        data.dynamic_attributes_secrets
+                    ),
+                    env_variables_secrets=self._convert_dynamic_attributes_secrets(
+                        data.env_variables_secrets
+                    ),
+                    env_variables=data.env_variables,
+                    created_by_user=user.full_name,
+                    tags=data.tags,
+                )
+            )
+        except ArtifactStatusMismatchError as error:
+            raise ApplicationError(error.message, status.HTTP_409_CONFLICT) from error
         return deployment
 
     async def list_deployments(
@@ -168,12 +521,74 @@ class DeploymentHandler:
             Action.DELETE,
             orbit_id,
         )
-        dep = await self.__repo.get_deployment(deployment_id)
+        dep = await self.__repo.get_deployment(deployment_id, orbit_id)
 
         if not dep:
             raise NotFoundError("Deployment not found")
 
-        return await self.__repo.delete_deployment(deployment_id)
+        return await self.__repo.delete_deployment(deployment_id, orbit_id)
+
+    async def batch_action(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        data: DeploymentsBatchRequest,
+    ) -> DeploymentsBatchResponse:
+        await self.__permissions_handler.check_permissions(
+            organization_id, user_id, Resource.DEPLOYMENT, Action.DELETE, orbit_id
+        )
+        response = DeploymentsBatchResponse()
+        for deployment_id in data.deployment_ids:
+            name = None
+            try:
+                deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
+                if not deployment:
+                    raise NotFoundError("Deployment not found")
+                name = deployment.name
+                if data.action == DeploymentBatchAction.UNDEPLOY:
+                    result = await self.__repo.request_deployment_deletion(
+                        orbit_id, deployment_id
+                    )
+                    if result is None:
+                        raise NotFoundError("Deployment not found")
+                    if result[1] is None:
+                        raise ApplicationError(
+                            "Deployment deletion already pending", 409
+                        )
+                else:
+                    deleted = await self.__repo.force_delete_inactive_deployment(
+                        deployment_id, orbit_id
+                    )
+                    if deleted is None:
+                        raise NotFoundError("Deployment not found")
+                response.succeeded.append(deployment_id)
+                continue
+            except ApplicationError as error:
+                reason = {
+                    NotFoundError: "not_found",
+                    InvalidStatusTransitionError: "active",
+                }.get(type(error), "already_pending")
+                message = error.message
+            except SQLAlchemyError as error:
+                reason, message = (
+                    ("references", "Other records depend on this deployment")
+                    if isinstance(error, IntegrityError)
+                    and is_foreign_key_violation(error)
+                    else (
+                        "database_error",
+                        "Could not act on this deployment. Try again.",
+                    )
+                )
+            response.failed.append(
+                DeploymentBatchFailure(
+                    deployment_id=deployment_id,
+                    name=name,
+                    reason=reason,
+                    message=message,
+                )
+            )
+        return response
 
     async def list_worker_deployments(self, satellite_id: UUID) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
@@ -194,13 +609,8 @@ class DeploymentHandler:
         deployment_id: UUID,
         data: DeploymentUpdateIn,
     ) -> Deployment:
-        update_data = DeploymentUpdate(
-            id=deployment_id,
-            inference_url=data.inference_url,
-            status=data.status,
-            schemas=data.schemas,
-            error_message=data.error_message,
-            tags=data.tags,
+        update_data = DeploymentUpdate.model_validate(
+            {"id": deployment_id, **data.model_dump(exclude_unset=True)}
         )
         deployment = await self.__repo.update_deployment(
             deployment_id,
@@ -211,16 +621,24 @@ class DeploymentHandler:
             raise NotFoundError("Deployment not found")
         return deployment
 
-    async def delete_worker_deployment(self, deployment_id: UUID) -> None:
-        deployment = await self.__repo.get_deployment(deployment_id)
+    async def delete_worker_deployment(
+        self, satellite_id: UUID, deployment_id: UUID
+    ) -> None:
+        deployment = await self.__repo.get_satellite_deployment(
+            deployment_id, satellite_id
+        )
         if not deployment:
-            raise NotFoundError("Deployment not found")
+            if await self.__repo.deployment_exists(deployment_id):
+                raise NotFoundError("Deployment not found")
+            return None
         if deployment.status != DeploymentStatus.DELETION_PENDING:
             raise ApplicationError(
                 "Incorrect deployment status. Request deployment deletion first.",
                 409,
             )
-        return await self.__repo.delete_deployment(deployment_id)
+        return await self.__repo.delete_satellite_deployment(
+            deployment_id, satellite_id
+        )
 
     async def update_deployment_details(
         self,
@@ -237,10 +655,28 @@ class DeploymentHandler:
             Action.UPDATE,
             orbit_id,
         )
+        if (
+            data.monitoring_mode is not None
+            and data.monitoring_mode != MonitoringMode.OFF
+        ):
+            deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
+            if not deployment:
+                raise NotFoundError("Deployment not found")
+            if data.monitoring_mode != deployment.monitoring_mode:
+                satellite = await self.__sat_repo.get_satellite(deployment.satellite_id)
+                if not satellite:
+                    raise NotFoundError("Satellite not found")
+                self._require_present_capability(
+                    satellite,
+                    MONITORING_CAPABILITY,
+                )
+
         updated = await self.__repo.update_deployment_details(
             orbit_id,
             deployment_id,
-            DeploymentDetailsUpdate.model_validate(data.model_dump(mode="json")),
+            DeploymentDetailsUpdate.model_validate(
+                data.model_dump(mode="json", exclude_unset=True)
+            ),
         )
         if not updated:
             raise NotFoundError("Deployment not found")

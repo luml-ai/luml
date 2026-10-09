@@ -17,7 +17,9 @@ def save_sklearn(
         manifest_model_name: str | None = None,
         manifest_model_version: str | None = None,
         manifest_model_description: str | None = None,
-        manifest_extra_producer_tags: list[str] | None = None
+        manifest_extra_producer_tags: list[str] | None = None,
+        horizons: list[str] | None = None,
+        reference_data: Any = None
 ) -> ModelReference
 ```
 
@@ -29,8 +31,7 @@ schema for production deployment or model registry.
 **Arguments**:
 
 - `estimator` - Trained scikit-learn estimator (must implement .predict()).
-- `inputs` - Example input data for schema inference.
-  Can be numpy array or pandas DataFrame.
+- `inputs` - Example input data for schema inference. Can be numpy array or pandas DataFrame.
 - `path` - Output file path. Auto-generated if not provided.
 - `dependencies` - Dependency management strategy:
   - "default": Include scikit-learn, numpy, scipy, cloudpickle
@@ -45,6 +46,7 @@ schema for production deployment or model registry.
 - `manifest_model_version` - Model version for metadata.
 - `manifest_model_description` - Model description for metadata.
 - `manifest_extra_producer_tags` - Additional tags for model metadata.
+- `reference_data` - Training features used to compute the monitoring reference profile. When provided, a `reference_profile.json` is embedded and the `luml.ai::tabular_monitoring:v1` producer tag is stamped on the manifest. When omitted, packaging succeeds with no profile and no monitoring tag.
   
 
 **Returns**:

@@ -10,7 +10,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-from alembic.ddl import postgresql
+from sqlalchemy.dialects import postgresql
 
 revision: str = "016"
 down_revision: str | None = "015"

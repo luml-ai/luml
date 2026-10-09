@@ -1,12 +1,9 @@
 from collections.abc import Callable
-from typing import TypeVar
 
 from luml_api._exceptions import MultipleResourcesFoundError
 
-T = TypeVar("T")
 
-
-def find_by_value(
+def find_by_value[T](
     items: list[T], value: str, condition: Callable[[T], bool] | None = None
 ) -> T | None:
     condition = condition or (lambda item: getattr(item, "name", None) == value)

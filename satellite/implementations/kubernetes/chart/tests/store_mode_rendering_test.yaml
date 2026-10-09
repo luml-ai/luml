@@ -1,0 +1,31 @@
+suite: monitoring store rendering boundary
+templates:
+  - templates/configmap-collector.yaml
+  - templates/deployment-collector.yaml
+  - templates/deployment-dashboard.yaml
+  - templates/deployment-worker.yaml
+  - templates/networkpolicy.yaml
+  - templates/secret-store.yaml
+  - templates/service-store.yaml
+  - templates/statefulset-store.yaml
+release:
+  name: store-mode
+  namespace: models
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: matches the standalone store rendering
+    asserts:
+      - matchSnapshot: {}
+
+  - it: changes only the external store boundary
+    set:
+      monitoring.store.mode: external
+      monitoring.store.host: greptime.example.test
+      monitoring.store.port: 4444
+      monitoring.store.database: luml
+      monitoring.store.username: collector
+      monitoring.store.password: secret
+    asserts:
+      - matchSnapshot: {}

@@ -1,0 +1,254 @@
+[
+  {
+    "name": "no conditions",
+    "conditions": [],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field equal matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "equal", "value": 2}}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field equal does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "equal", "value": 2}}],
+    "current_values": {"source": 3},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "field notEqual matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "notEqual", "value": 2}}],
+    "current_values": {"source": 3},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field notEqual does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "notEqual", "value": 2}}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "field gt matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "gt", "value": 2}}],
+    "current_values": {"source": 3},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field gt does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "gt", "value": 2}}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "field gte matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "gte", "value": 2}}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field gte does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "gte", "value": 2}}],
+    "current_values": {"source": 1},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "field lt matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "lt", "value": 2}}],
+    "current_values": {"source": 1},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field lt does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "lt", "value": 2}}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "field lte matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "lte", "value": 2}}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field lte does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "lte", "value": 2}}],
+    "current_values": {"source": 3},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "field includes matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "includes", "value": null}}],
+    "current_values": {"source": false},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field includes does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "includes", "value": null}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "field notIncludes matches",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "notIncludes", "value": null}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "field notIncludes does not match",
+    "conditions": [{"type": "field", "body": {"field": "source", "operator": "notIncludes", "value": null}}],
+    "current_values": {"source": false},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model tags includes matches",
+    "conditions": [{"type": "model", "body": {"field": "tags", "operator": "includes", "value": [["vision"], ["tabular", "classification"]]}}],
+    "current_values": {},
+    "manifest": {"producer_tags": ["tabular", "classification"], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model tags includes does not match",
+    "conditions": [{"type": "model", "body": {"field": "tags", "operator": "includes", "value": [["vision"], ["tabular", "regression"]]}}],
+    "current_values": {},
+    "manifest": {"producer_tags": ["tabular", "classification"], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model tags notIncludes matches",
+    "conditions": [{"type": "model", "body": {"field": "tags", "operator": "notIncludes", "value": [["vision"], ["tabular", "regression"]]}}],
+    "current_values": {},
+    "manifest": {"producer_tags": ["tabular", "classification"], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model tags notIncludes does not match",
+    "conditions": [{"type": "model", "body": {"field": "tags", "operator": "notIncludes", "value": [["vision"], ["tabular", "classification"]]}}],
+    "current_values": {},
+    "manifest": {"producer_tags": ["tabular", "classification"], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model version eq matches",
+    "conditions": [{"type": "model", "body": {"field": "version", "operator": "eq", "value": "1.0"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model version eq does not match",
+    "conditions": [{"type": "model", "body": {"field": "version", "operator": "eq", "value": "2.0"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model version neq matches",
+    "conditions": [{"type": "model", "body": {"field": "version", "operator": "neq", "value": "2.0"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model version neq does not match",
+    "conditions": [{"type": "model", "body": {"field": "version", "operator": "neq", "value": "1.0"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model variant eq matches",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "eq", "value": "pyfunc"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model variant eq does not match",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "eq", "value": "onnx"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model variant neq matches",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "neq", "value": "onnx"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model variant neq does not match",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "neq", "value": "pyfunc"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model variant includes matches",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "includes", "value": "pyfunc,pipeline"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model variant includes does not match",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "includes", "value": "onnx,pipeline"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "model variant notIncludes matches",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "notIncludes", "value": "onnx,pipeline"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "model variant notIncludes does not match",
+    "conditions": [{"type": "model", "body": {"field": "variant", "operator": "notIncludes", "value": "pyfunc,pipeline"}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "nested group matches",
+    "conditions": [{"type": "field", "body": [{"type": "field", "body": {"field": "source", "operator": "equal", "value": 2}}, {"type": "model", "body": {"field": "variant", "operator": "eq", "value": "pyfunc"}}]}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  },
+  {
+    "name": "nested group does not match",
+    "conditions": [{"type": "field", "body": [{"type": "field", "body": {"field": "source", "operator": "equal", "value": 2}}, {"type": "model", "body": {"field": "variant", "operator": "eq", "value": "onnx"}}]}],
+    "current_values": {"source": 2},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": false
+  },
+  {
+    "name": "unknown condition type is skipped",
+    "conditions": [{"type": "future", "body": {"field": "source", "operator": "new", "value": 2}}],
+    "current_values": {},
+    "manifest": {"producer_tags": [], "version": "1.0", "variant": "pyfunc"},
+    "expected": true
+  }
+]

@@ -24,3 +24,16 @@
 .simple-table__placeholder {
   padding: 10px 0;
 }
+.table-with-external-border thead tr:first-child th {
+  border-top: none;
+}
+
+.table-with-external-border tr th:first-child,
+.table-with-external-border tr td:first-child {
+  border-left: none;
+}
+
+.table-with-external-border tr th:last-child,
+.table-with-external-border tr td:last-child {
+  border-right: none;
+}

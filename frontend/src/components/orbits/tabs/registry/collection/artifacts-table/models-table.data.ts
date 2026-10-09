@@ -15,7 +15,7 @@ export const TABLE_PT: DataTablePassThroughOptions = {
   },
 }
 
-export const ARTIFACTS_DEPLOYMENTS_MODAL_PT: DialogPassThroughOptions = {
+export const ARTIFACTS_DELETION_RESULT_DIALOG_PT: DialogPassThroughOptions = {
   root: {
     style: 'width: 450px;',
   },

@@ -11,7 +11,6 @@ from sqlalchemy.sql.expression import text
 from luml.models.base import Base, TimestampMixin
 from luml.schemas.satellite import (
     Satellite,
-    SatelliteCapability,
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskType,
@@ -41,10 +40,14 @@ class SatelliteOrm(TimestampMixin, Base):
     paired: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    capabilities: Mapped[dict[SatelliteCapability, dict[str, str | int] | None]] = (
-        mapped_column(
-            postgresql.JSONB, nullable=False, default=dict, server_default="{}"
-        )
+    capabilities: Mapped[dict[str, dict[str, Any]]] = mapped_column(
+        postgresql.JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    openapi: Mapped[dict[str, Any] | None] = mapped_column(
+        postgresql.JSONB, nullable=True, default=None
+    )
+    kit_info: Mapped[dict[str, Any] | None] = mapped_column(
+        postgresql.JSONB, nullable=True, default=None
     )
     slug: Mapped[str] = mapped_column(String, nullable=True)
     name: Mapped[str] = mapped_column(String, nullable=False)

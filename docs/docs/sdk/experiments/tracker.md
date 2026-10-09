@@ -370,6 +370,10 @@ Retrieves annotation summaries for a batch of evaluations within an experiment.
 tracker = ExperimentTracker()
 tracker.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
 ```
+```
+  {
+```
+- `"eval-xyz"` - AnnotationSummary( feedback=[FeedbackSummaryItem(name="quality", total=2, counts=&#123;"true": 1, "false": 1&#125;)], expectations=[], ), &#125;
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_attachment"></a>
 
@@ -1047,7 +1051,7 @@ Retrieve paginated traces for an experiment.
 tracker = ExperimentTracker()
 page = tracker.get_experiment_traces("exp-1", limit=10)
 for trace in page.items:
-    print(trace.trace_id, trace.execution_time_ms)
+    print(trace.trace_id, trace.execution_time)
 ```
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_metric_history"></a>
@@ -1320,6 +1324,112 @@ tracker.update_experiment(
     tags=["production", "v2"],
 )
 ```
+
+<a id="luml.experiments.tracker.ExperimentTracker.get_experiment_metadata"></a>
+
+#### get_experiment_metadata
+
+```python
+def get_experiment_metadata(experiment_id: str) -> dict[str, Any]
+```
+
+Return the free-form ``metadata`` JSON map for an experiment.
+
+Returns an empty dict if no metadata has been set.
+
+<a id="luml.experiments.tracker.ExperimentTracker.set_experiment_metadata"></a>
+
+#### set_experiment_metadata
+
+```python
+def set_experiment_metadata(
+        experiment_id: str,
+        metadata: dict[str, Any]
+) -> None
+```
+
+Replace the experiment's ``metadata`` map wholesale.
+
+<a id="luml.experiments.tracker.ExperimentTracker.update_experiment_metadata"></a>
+
+#### update_experiment_metadata
+
+```python
+def update_experiment_metadata(
+        experiment_id: str,
+        updates: dict[str, Any]
+) -> dict[str, Any]
+```
+
+Merge ``updates`` into the experiment's ``metadata`` map.
+
+Keys mapped to ``None`` are removed. Returns the updated metadata dict.
+
+<a id="luml.experiments.tracker.ExperimentTracker.get_experiment_upload_status"></a>
+
+#### get_experiment_upload_status
+
+```python
+def get_experiment_upload_status(experiment_id: str) -> str
+```
+
+Return the experiment's ``upload_status`` column.
+
+Values: ``unknown`` / ``not_uploaded`` / ``uploading`` / ``uploaded`` /
+``failed``. ``unknown`` is the backfilled legacy value.
+
+<a id="luml.experiments.tracker.ExperimentTracker.set_experiment_upload_status"></a>
+
+#### set_experiment_upload_status
+
+```python
+def set_experiment_upload_status(experiment_id: str, status: str) -> None
+```
+
+Set the experiment's ``upload_status`` column.
+
+<a id="luml.experiments.tracker.ExperimentTracker.set_remote_artifact"></a>
+
+#### set_remote_artifact
+
+```python
+def set_remote_artifact(
+        local_type: str,
+        local_id: str,
+        orbit_id: str,
+        artifact_id: str
+) -> None
+```
+
+Remember the platform artifact for a local object in an orbit.
+
+<a id="luml.experiments.tracker.ExperimentTracker.get_remote_artifact"></a>
+
+#### get_remote_artifact
+
+```python
+def get_remote_artifact(
+        local_type: str,
+        local_id: str,
+        orbit_id: str
+) -> str | None
+```
+
+Return the remembered platform artifact for a local object and orbit.
+
+<a id="luml.experiments.tracker.ExperimentTracker.delete_remote_artifact"></a>
+
+#### delete_remote_artifact
+
+```python
+def delete_remote_artifact(
+        local_type: str,
+        local_id: str,
+        orbit_id: str
+) -> None
+```
+
+Forget the platform artifact for a local object in an orbit.
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_eval_annotations"></a>
 
@@ -2001,8 +2111,9 @@ Export the entire experiment tracking data and save as an artifact.
 
 **Arguments**:
 
+  experiment_id:
 - `output_path` - Path to save the exported artifact.
-- `experiment_id` - Experiment ID to export. Uses the current experiment if not specified.
+  
 
 **Example**:
 

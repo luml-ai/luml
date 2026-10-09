@@ -1,0 +1,13 @@
+satellite:
+  token: ci-satellite-token
+  host: vanilla.satellite.example.test
+  derivationKey: ci-derivation-key
+
+sharedCache:
+  enabled: true
+  size: 1Gi
+
+monitoring:
+  store:
+    persistence:
+      enabled: false

@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from luml.handlers.emails import EmailHandler
@@ -32,6 +33,8 @@ from luml.schemas.organization import OrgRole
 from luml.schemas.permissions import Action, Resource
 from luml.settings import config
 
+logger = logging.getLogger(__name__)
+
 
 class OrbitHandler:
     __email_handler = EmailHandler()
@@ -54,7 +57,9 @@ class OrbitHandler:
     ) -> list[Orbit]:
         for orbit in orbits:
             orbit.permissions = (
-                self.__permissions_handler.get_orbit_permissions_by_role(org_role)
+                self.__permissions_handler.get_orbit_permissions_by_role(
+                    org_role, orbit.role
+                )
             )
         return orbits
 
@@ -69,6 +74,19 @@ class OrbitHandler:
             raise OrganizationLimitReachedError(
                 "Organization reached maximum number of orbits"
             )
+
+    async def _validate_bucket_secret(
+        self, bucket_secret_id: UUID | None, organization_id: UUID
+    ) -> None:
+        secret = (
+            await self.__secret_repository.get_bucket_secret(
+                bucket_secret_id, organization_id
+            )
+            if bucket_secret_id
+            else None
+        )
+        if not secret:
+            raise NotFoundError("Bucket secret not found")
 
     async def _validate_orbit_members(
         self,
@@ -126,11 +144,7 @@ class OrbitHandler:
         )
 
         await self._check_organization_orbits_limit(organization_id)
-        secret = await self.__secret_repository.get_bucket_secret(
-            orbit.bucket_secret_id
-        )
-        if not secret or secret.organization_id != organization_id:
-            raise NotFoundError("Bucket secret not found")
+        await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
 
         if orbit.members:
             await self._validate_orbit_members(user_id, organization_id, orbit.members)
@@ -150,7 +164,9 @@ class OrbitHandler:
             raise OrbitError("Some errors occurred when creating the orbit.")
 
         created_orbit.permissions = (
-            self.__permissions_handler.get_orbit_permissions_by_role(org_role, None)
+            self.__permissions_handler.get_orbit_permissions_by_role(
+                org_role, OrbitRole.ADMIN
+            )
         )
 
         return created_orbit
@@ -170,7 +186,7 @@ class OrbitHandler:
 
         if org_role in (OrgRole.OWNER, OrgRole.ADMIN):
             orbits = await self.__orbits_repository.get_organization_orbits(
-                organization_id
+                organization_id, user_id
             )
             return self._set_orbits_permissions(orbits, org_role)
 
@@ -221,7 +237,12 @@ class OrbitHandler:
             orbit_id,
         )
 
-        orbit_obj = await self.__orbits_repository.update_orbit(orbit_id, orbit)
+        if "bucket_secret_id" in orbit.model_fields_set:
+            await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
+
+        orbit_obj = await self.__orbits_repository.update_orbit(
+            orbit_id, organization_id, orbit
+        )
 
         if not orbit_obj:
             raise OrbitNotFoundError()
@@ -239,7 +260,8 @@ class OrbitHandler:
             orbit_id,
         )
 
-        return await self.__orbits_repository.delete_orbit(orbit_id)
+        if not await self.__orbits_repository.delete_orbit(orbit_id, organization_id):
+            raise OrbitNotFoundError()
 
     async def get_orbit_members(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
@@ -284,16 +306,21 @@ class OrbitHandler:
             member.orbit_id, organization_id
         )
 
-        self.__email_handler.send_added_to_orbit_email(
-            created_member.user.full_name
-            if created_member.user and created_member.user.full_name
-            else "",
-            created_member.user.email
-            if created_member.user and created_member.user.email
-            else "",
-            orbit.name if orbit else "",
-            config.APP_EMAIL_URL,
-        )
+        try:
+            self.__email_handler.send_added_to_orbit_email(
+                created_member.user.full_name
+                if created_member.user and created_member.user.full_name
+                else "",
+                created_member.user.email
+                if created_member.user and created_member.user.email
+                else "",
+                orbit.name if orbit else "",
+                config.APP_EMAIL_URL,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send added-to-orbit email for orbit %s", member.orbit_id
+            )
 
         return created_member
 

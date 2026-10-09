@@ -101,11 +101,19 @@ export const useDataTable = (validator: ValidatorFunction) => {
     dataTable.clearTable()
     resetState()
   }
-  function setColumnTypes(row: object) {
-    for (const key in row) {
-      if (Number(row[key as keyof typeof row])) columnTypes.value[key] = 'number'
-      else columnTypes.value[key] = 'string'
+  function getColumnType(value: unknown): ColumnType {
+    if (typeof value === 'number') return 'number'
+    if (value instanceof Date) return 'date'
+    return 'string'
+  }
+  function setColumnTypes(columnNames: string[], rows: object[]) {
+    const types: Record<string, ColumnType> = {}
+    for (const column of columnNames) {
+      const valueOf = (row: object) => (row as Record<string, unknown>)[column]
+      const row = rows.find((row) => valueOf(row) !== null && valueOf(row) !== undefined)
+      types[column] = getColumnType(row && valueOf(row))
     }
+    columnTypes.value = types
   }
   function onSelectTable(event: SelectTableEvent) {
     resetState()
@@ -119,7 +127,7 @@ export const useDataTable = (validator: ValidatorFunction) => {
       viewValues.value = dataTable.getObjects()
 
       target.value = columnNames[columnNames.length - 1]
-      setColumnTypes(values[0])
+      setColumnTypes(columnNames, values)
       inputsOutputsColumns.value = columnNames.map((column, index, self) => {
         if (index === self.length - 1) {
           return { name: column, variant: 'output' }

@@ -57,6 +57,7 @@ async def get_orbit_collections(
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
     search: str | None = None,
     types: Annotated[list[CollectionTypeFilter] | None, Query()] = None,
+    tags: Annotated[list[str] | None, Query()] = None,
 ) -> CollectionsList:
     return await collection_handler.get_orbit_collections(
         request.user.id,
@@ -68,6 +69,22 @@ async def get_orbit_collections(
         order,
         search,
         types,
+        tags,
+    )
+
+
+@collections_router.get(
+    "/tags",
+    responses=endpoint_responses,
+    response_model=list[str],
+)
+async def get_orbit_collections_tags(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+) -> list[str]:
+    return await collection_handler.get_orbit_collections_tags(
+        request.user.id, organization_id, orbit_id
     )
 
 

@@ -3,14 +3,19 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, status
 
 from luml.handlers.deployments import DeploymentHandler
+from luml.handlers.monitoring import MonitoringHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.deployment import (
     Deployment,
     DeploymentCreateIn,
     DeploymentDetailsUpdateIn,
+    DeploymentsBatchRequest,
+    DeploymentsBatchResponse,
 )
+from luml.schemas.monitoring import MonitoringEligibility, MonitoringLaunchToken
 from luml.schemas.satellite import SatelliteQueueTask
+from luml.settings import config
 
 deployments_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/deployments",
@@ -19,6 +24,7 @@ deployments_router = APIRouter(
 )
 
 handler = DeploymentHandler()
+monitoring_handler = MonitoringHandler(secret_key=config.AUTH_SECRET_KEY)
 
 
 @deployments_router.post("", responses=endpoint_responses, response_model=Deployment)
@@ -40,6 +46,18 @@ async def list_deployments(
     request: Request, organization_id: UUID, orbit_id: UUID
 ) -> list[Deployment]:
     return await handler.list_deployments(request.user.id, organization_id, orbit_id)
+
+
+@deployments_router.post(
+    "/batch", responses=endpoint_responses, response_model=DeploymentsBatchResponse
+)
+async def batch_deployment_action(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    data: DeploymentsBatchRequest,
+) -> DeploymentsBatchResponse:
+    return await handler.batch_action(request.user.id, organization_id, orbit_id, data)
 
 
 @deployments_router.get(
@@ -68,6 +86,38 @@ async def update_deployment_details(
 ) -> Deployment:
     return await handler.update_deployment_details(
         request.user.id, organization_id, orbit_id, deployment_id, data
+    )
+
+
+@deployments_router.get(
+    "/{deployment_id}/monitoring/eligibility",
+    responses=endpoint_responses,
+    response_model=MonitoringEligibility,
+)
+async def get_monitoring_eligibility(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    deployment_id: UUID,
+) -> MonitoringEligibility:
+    return await monitoring_handler.get_eligibility(
+        request.user.id, organization_id, orbit_id, deployment_id
+    )
+
+
+@deployments_router.post(
+    "/{deployment_id}/monitoring/launch-token",
+    responses=endpoint_responses,
+    response_model=MonitoringLaunchToken,
+)
+async def mint_monitoring_launch_token(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    deployment_id: UUID,
+) -> MonitoringLaunchToken:
+    return await monitoring_handler.mint_launch_token(
+        request.user.id, organization_id, orbit_id, deployment_id
     )
 
 

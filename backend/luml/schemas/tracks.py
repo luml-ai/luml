@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import AliasPath, BaseModel, Field
+from pydantic import AliasPath, BaseModel, Field, model_validator
 
 from luml.schemas.artifacts import ArtifactType
 from luml.schemas.base import BaseOrmConfig
@@ -81,6 +81,13 @@ class TrackUpdateIn(BaseModel):
     description: str | None = None
     tags: list[str] | None = None
     stages: list[StageUpsertIn] | None = None
+    expected_stage_ids: list[UUID] | None = None
+
+    @model_validator(mode="after")
+    def check_expected_stage_ids(self) -> TrackUpdateIn:
+        if self.expected_stage_ids is not None and self.stages is None:
+            raise ValueError("expected_stage_ids requires stages")
+        return self
 
 
 class TrackUpdate(TrackUpdateIn):
@@ -90,7 +97,7 @@ class TrackUpdate(TrackUpdateIn):
 class TrackEntryCreate(BaseModel):
     track_id: UUID
     artifact_id: UUID
-    added_by: UUID
+    added_by: str
     stage_id: UUID | None = None
 
 
@@ -109,7 +116,7 @@ class TrackEntry(BaseModel, BaseOrmConfig):
     artifact_id: UUID
     version: int
     stage_id: UUID | None = None
-    added_by: UUID
+    added_by: str
     created_at: datetime
     updated_at: datetime | None = None
     artifact_collection_id: UUID | None = Field(

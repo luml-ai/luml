@@ -53,8 +53,15 @@ class CollectionResourceBase(ABC):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None,
     ) -> CollectionsList | Coroutine[Any, Any, CollectionsList]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def list_tags(
+        self, *, orbit_id: str | None = None
+    ) -> builtins.list[str] | Coroutine[Any, Any, builtins.list[str]]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -163,6 +170,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None,
     ) -> Iterator[Collection]:
         """
@@ -175,6 +183,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            tags: Filter by tags. Returns collections that have
+                at least one of the specified tags (exact match).
             orbit_id: Orbit ID to list collections from. If not provided,
                 uses the default orbit set in the client.
 
@@ -207,6 +217,10 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
         ):
             print(collection.name)
+
+        # Filter by tags
+        for collection in luml.collections.list_all(tags=["production"]):
+            print(collection.name)
         ```
         """
         return self._auto_paginate(
@@ -216,6 +230,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             order=order,
             search=search,
             types=types,
+            tags=tags,
             orbit_id=orbit_id,
         )
 
@@ -228,6 +243,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None,
     ) -> CollectionsList:
         """
@@ -242,6 +258,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            tags: Filter by tags. Returns collections that have
+                at least one of the specified tags (exact match).
             orbit_id: Orbit ID to list collections from. If not provided,
                 uses the default orbit set in the client.
 
@@ -273,6 +291,9 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         result = luml.collections.list(
             types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
         )
+
+        # Filter by tags
+        result = luml.collections.list(tags=["production", "ml"])
         ```
 
         Example response:
@@ -311,6 +332,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             params["types"] = [
                 t.value if isinstance(t, CollectionTypeFilter) else t for t in types
             ]
+        if tags:
+            params["tags"] = tags
         response = self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{orbit}/collections",
             params=params,
@@ -319,6 +342,45 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             return CollectionsList(items=[])
 
         return CollectionsList.model_validate(response)
+
+    def list_tags(self, *, orbit_id: str | None = None) -> builtins.list[str]:
+        """
+        List all tags used by collections in the orbit.
+
+        Collects unique tags across all collections in the orbit
+        and returns them as a sorted list. Useful for building
+        tag filters (see the `tags` argument of `list` / `list_all`).
+
+        Args:
+            orbit_id: Orbit ID to collect tags from. If not provided,
+                uses the default orbit set in the client.
+
+        Returns:
+            Sorted list of unique tags. Empty list if no collection has tags.
+
+        Example:
+        ```python
+        luml = LumlClient(api_key="luml_your_key")
+        tags = luml.collections.list_tags()
+
+        # Tags from a specific orbit
+        tags = luml.collections.list_tags(
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+        )
+        ```
+
+        Example response:
+        ```python
+        ["ml", "production", "staging"]
+        ```
+        """
+        orbit = orbit_id or self._client.orbit
+        response = self._client.get(
+            f"/v1/organizations/{self._client.organization}/orbits/{orbit}/collections/tags"
+        )
+        if response is None:
+            return []
+        return [str(tag) for tag in response]
 
     def create(
         self,
@@ -580,6 +642,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None,
     ) -> AsyncIterator[Collection]:
         """
@@ -592,6 +655,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            tags: Filter by tags. Returns collections that have
+                at least one of the specified tags (exact match).
             orbit_id: Orbit ID to list collections from. If not provided,
                 uses the default orbit set in the client.
 
@@ -628,6 +693,12 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
                 types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
             ):
                 print(collection.name)
+
+            # Filter by tags
+            async for collection in luml.collections.list_all(
+                tags=["production"]
+            ):
+                print(collection.name)
         ```
         """
         return self._auto_paginate_async(
@@ -637,6 +708,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             order=order,
             search=search,
             types=types,
+            tags=tags,
             orbit_id=orbit_id,
         )
 
@@ -649,6 +721,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        tags: builtins.list[str] | None = None,
         orbit_id: str | None = None,
     ) -> CollectionsList:
         """
@@ -663,6 +736,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            tags: Filter by tags. Returns collections that have
+                at least one of the specified tags (exact match).
             orbit_id: Orbit ID to list collections from. If not provided,
                 uses the default orbit set in the client.
 
@@ -699,6 +774,9 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             result = await luml.collections.list(
                 types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
             )
+
+            # Filter by tags
+            result = await luml.collections.list(tags=["production", "ml"])
         ```
 
         Example response:
@@ -737,6 +815,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             params["types"] = [
                 t.value if isinstance(t, CollectionTypeFilter) else t for t in types
             ]
+        if tags:
+            params["tags"] = tags
 
         response = await self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{orbit}/collections",
@@ -746,6 +826,50 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             return CollectionsList(items=[])
 
         return CollectionsList.model_validate(response)
+
+    async def list_tags(self, *, orbit_id: str | None = None) -> builtins.list[str]:
+        """
+        List all tags used by collections in the orbit.
+
+        Collects unique tags across all collections in the orbit
+        and returns them as a sorted list. Useful for building
+        tag filters (see the `tags` argument of `list` / `list_all`).
+
+        Args:
+            orbit_id: Orbit ID to collect tags from. If not provided,
+                uses the default orbit set in the client.
+
+        Returns:
+            Sorted list of unique tags. Empty list if no collection has tags.
+
+        Example:
+        ```python
+        luml = AsyncLumlClient(api_key="luml_your_key")
+        async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
+            tags = await luml.collections.list_tags()
+
+            # Tags from a specific orbit
+            tags = await luml.collections.list_tags(
+                orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+            )
+        ```
+
+        Example response:
+        ```python
+        ["ml", "production", "staging"]
+        ```
+        """
+        orbit = orbit_id or self._client.orbit
+        response = await self._client.get(
+            f"/v1/organizations/{self._client.organization}/orbits/{orbit}/collections/tags"
+        )
+        if response is None:
+            return []
+        return [str(tag) for tag in response]
 
     async def create(
         self,
