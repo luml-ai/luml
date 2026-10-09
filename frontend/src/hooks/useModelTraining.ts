@@ -120,14 +120,16 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
 
   async function deleteModels() {
     const route =
-      service === 'prompt_optimization'
+      service === 'tabular'
         ? WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE
         : WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE
     await DataProcessingWorker.deallocateModels(modelsIdList.value, route)
   }
 
   onBeforeUnmount(() => {
-    deleteModels()
+    deleteModels().catch((error) => {
+      toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
+    })
   })
 
   return {

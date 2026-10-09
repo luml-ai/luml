@@ -125,9 +125,21 @@ class DataProcessingWorkerClass {
       | WEBWORKER_ROUTES_ENUM.FORECASTING_DEALLOCATE,
   ) {
     if (!models.length) return []
-    const promises = models.map((model_id) =>
-      this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, { model_id }),
-    )
+    const promises = models.map(async (model_id) => {
+      const data =
+        route === WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE ? { key: model_id } : { model_id }
+      const result = await this.sendMessage<{ status: string; error_message?: string } | null>(
+        WebworkerMessage.INVOKE_ROUTE,
+        route,
+        data,
+      )
+      // store deletion returns none on success
+      if (route === WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE && result === null) return result
+      if (result?.status !== 'success') {
+        throw new Error(result?.error_message || 'Failed to deallocate model')
+      }
+      return result
+    })
     return Promise.all(promises)
   }
 
@@ -163,10 +175,16 @@ class DataProcessingWorkerClass {
     )
   }
 
-  deinitPythonModel(modelId: string) {
-    return this.sendMessage(WebworkerMessage.INVOKE_ROUTE, WEBWORKER_ROUTES_ENUM.PYFUNC_DEINIT, {
-      modelId,
-    })
+  async deinitPythonModel(modelId: string) {
+    const result = await this.sendMessage<{ status: string; error_message?: string }>(
+      WebworkerMessage.INVOKE_ROUTE,
+      WEBWORKER_ROUTES_ENUM.PYFUNC_DEINIT,
+      { model_id: modelId },
+    )
+    if (result?.status !== 'success') {
+      throw new Error(result?.error_message || 'Failed to deinitialize model')
+    }
+    return result
   }
 }
 

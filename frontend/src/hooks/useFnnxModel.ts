@@ -8,6 +8,8 @@ export const useFnnxModel = () => {
   const model = ref<Model | null>(null)
   const currentTag = ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>(null)
   const modelId = ref<string | null>(null)
+  let deinitialization: Promise<void> | null = null
+  let cleanupRequested = false
 
   const getModel = computed(() => model.value)
 
@@ -17,6 +19,8 @@ export const useFnnxModel = () => {
       file.name.endsWith(extension),
     )
     if (!isCorrectExtension) throw new Error('Incorrect file format')
+    await removeModel()
+    cleanupRequested = false
     buffer.value = await file.arrayBuffer()
     model.value = await Model.fromBuffer(buffer.value)
     currentTag.value = FnnxService.getTypeTag(model.value.getManifest())
@@ -28,11 +32,11 @@ export const useFnnxModel = () => {
     }
   }
 
-  function removeModel() {
+  async function removeModel() {
+    await deinit()
     buffer.value = null
     model.value = null
     currentTag.value = null
-    deinit()
   }
 
   async function initPythonModel() {
@@ -40,14 +44,24 @@ export const useFnnxModel = () => {
     const result = await DataProcessingWorker.initPythonModel(buffer.value)
     if (result.status === 'success') {
       modelId.value = result.model_id
+      if (cleanupRequested) await deinit()
     } else {
       throw new Error(result.error_message)
     }
   }
 
   async function deinit() {
+    cleanupRequested = true
+    if (deinitialization) return deinitialization
     if (!modelId.value) return
-    return DataProcessingWorker.deinitPythonModel(modelId.value)
+    deinitialization = DataProcessingWorker.deinitPythonModel(modelId.value)
+      .then(() => {
+        modelId.value = null
+      })
+      .finally(() => {
+        deinitialization = null
+      })
+    return deinitialization
   }
 
   return { currentTag, getModel, modelId, createModelFromFile, removeModel, deinit }
