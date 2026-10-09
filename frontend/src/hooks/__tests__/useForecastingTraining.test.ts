@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import type { ForecastingTrainingData } from '@/lib/data-processing/interfaces'
 
 const { toastAddMock, downloadMock } = vi.hoisted(() => ({
@@ -221,4 +221,14 @@ describe('useForecastingTraining model download & cleanup', () => {
     await hook.deleteModels()
     expect(deallocateMock).not.toHaveBeenCalled()
   })
+})
+
+it('reports forecasting cleanup errors on unmount', async () => {
+  startTrainingMock.mockResolvedValue({ ...trainingData, model: {} })
+  const { hook, wrapper } = setupHook()
+  await hook.startTraining(trainPayload)
+  deallocateMock.mockRejectedValueOnce(new Error('Cleanup failed'))
+  wrapper.unmount()
+  await flushPromises()
+  expect(toastAddMock).toHaveBeenCalledWith(expect.objectContaining({ detail: 'Cleanup failed' }))
 })

@@ -31,6 +31,9 @@
 </template>
 
 <script setup lang="ts">
+import { useToast } from 'primevue/usetoast'
+import { trainingErrorToast } from '@/lib/primevue/data/toasts'
+
 import type { BaseProviderInfo, ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import type { LocalStorageProviderSettings } from '@/utils/services/LocalStorageService.interfaces'
 import { Button } from 'primevue'
@@ -50,6 +53,7 @@ type Emits = {
   finish: []
 }
 
+const toast = useToast()
 const props = defineProps<Props>()
 defineEmits<Emits>()
 
@@ -112,7 +116,9 @@ onBeforeMount(() => {
 })
 
 onUnmounted(() => {
-  promptFusionService.resetState()
+  promptFusionService.resetState().catch((error) => {
+    toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
+  })
 })
 </script>
 
