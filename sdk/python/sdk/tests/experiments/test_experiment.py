@@ -51,6 +51,57 @@ class TestLogExperiment:
         exp = tracker.get_experiment_record(experiment_id)
         assert exp is not None
 
+    @pytest.mark.parametrize("status", ["active", "completed", "error"])
+    @pytest.mark.parametrize("replace_metadata", [False, True])
+    def test_start_with_existing_id_preserves_experiment(
+        self,
+        tracker: ExperimentTracker,
+        dummy_model_file: Path,
+        status: str,
+        replace_metadata: bool,
+    ) -> None:
+        exp_id = tracker.start_experiment(
+            experiment_id="exp-1", name="original", group="training", tags=["v1"]
+        )
+        tracker.update_experiment(exp_id, description="original description")
+        tracker.set_experiment_metadata(exp_id, {"revision": "original"})
+        tracker.set_experiment_upload_status(exp_id, "uploaded")
+        tracker.log_static("lr", 0.01)
+        tracker.log_dynamic("loss", 0.5, step=0)
+        _, model_path = tracker.backend.log_model(
+            exp_id, str(dummy_model_file), name="baseline"
+        )
+        if status == "completed":
+            tracker.end_experiment()
+        elif status == "error":
+            tracker.fail_experiment()
+
+        before = tracker.get_experiment_record(exp_id)
+        data_before = tracker.get_experiment(exp_id)
+        models_before = tracker.get_models(exp_id)
+        assert before is not None
+        assert before.status == status
+        assert len(models_before) == 1
+        if status != "active":
+            tracker.start_experiment(name="current")
+        current_id = tracker.current_experiment_id
+        groups_before = tracker.list_groups()
+
+        with pytest.raises(ValueError, match="Experiment 'exp-1' already exists"):
+            tracker.start_experiment(
+                experiment_id=exp_id,
+                name="replacement" if replace_metadata else None,
+                group="replacement group" if replace_metadata else "default",
+                tags=["replacement"] if replace_metadata else None,
+            )
+
+        assert tracker.current_experiment_id == current_id
+        assert tracker.get_experiment_record(exp_id) == before
+        assert tracker.get_experiment(exp_id) == data_before
+        assert tracker.get_models(exp_id) == models_before
+        assert tracker.list_groups() == groups_before
+        assert Path(model_path).read_bytes() == dummy_model_file.read_bytes()
+
     def test_start_with_tags_persists(self, tracker: ExperimentTracker) -> None:
         exp_id = tracker.start_experiment(name="tagged", tags=["v1", "prod"])
 
