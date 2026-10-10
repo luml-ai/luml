@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from luml_mlflow.artifact_repo import LumlArtifactRepository
+from luml_mlflow.config import Settings
 from luml_mlflow.meta import (
     LUML_ARTIFACT_IDS,
     LUML_ARTIFACT_URLS,
@@ -29,6 +30,7 @@ from luml_mlflow.meta import (
     UPLOAD_STATUS_UPLOADED,
 )
 from luml_mlflow.store import LumlTrackingStore
+from luml_mlflow.uri import parse_tracking_uri
 
 # ``luml_mlflow.sync`` is also a public re-exported function, so resolve the
 # submodule explicitly to avoid shadowing.
@@ -188,6 +190,55 @@ def _log_model(
     model_dir = _make_mlflow_model_dir(tmp_path, name=name)
     repo = LumlArtifactRepository(store._artifact_uri_for_run(run_id))
     repo.log_artifacts(str(model_dir), artifact_path=name)
+
+
+@pytest.mark.parametrize(
+    ("web_url", "expected"),
+    [
+        (
+            None,
+            "https://app.luml.ai/organization/org1/orbit/orbit1"
+            "/collection/col-1/artifacts/art-1",
+        ),
+        (
+            "https://web.example.com",
+            "https://web.example.com/organization/org1/orbit/orbit1"
+            "/collection/col-1/artifacts/art-1",
+        ),
+        (
+            "https://web.example.com/",
+            "https://web.example.com/organization/org1/orbit/orbit1"
+            "/collection/col-1/artifacts/art-1",
+        ),
+    ],
+)
+def test_artifact_url_matches_web_route(
+    monkeypatch: pytest.MonkeyPatch, web_url: str | None, expected: str
+) -> None:
+    monkeypatch.delenv("LUML_ARTIFACT_URL_TEMPLATE", raising=False)
+    monkeypatch.delenv("LUML_WEB_URL", raising=False)
+    settings = Settings(_env_file=None)
+    if web_url is not None:
+        settings.LUML_WEB_URL = web_url
+
+    assert (
+        sync_mod._artifact_url(
+            settings, parse_tracking_uri("luml://org1/orbit1"), "col-1", "art-1"
+        )
+        == expected
+    )
+
+
+def test_artifact_url_uses_custom_template(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "LUML_ARTIFACT_URL_TEMPLATE",
+        "{web}/custom/{artifact_id}?org={org}&orbit={orbit}&collection={collection}",
+    )
+    settings = Settings(_env_file=None, LUML_WEB_URL="https://web.example.com/")
+
+    assert sync_mod._artifact_url(
+        settings, parse_tracking_uri("luml://org1/orbit1"), "col-1", "art-1"
+    ) == ("https://web.example.com/custom/art-1?org=org1&orbit=orbit1&collection=col-1")
 
 
 # ---------------------------------------------------------------- single-model
