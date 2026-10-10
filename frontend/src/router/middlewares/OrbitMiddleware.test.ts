@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
@@ -9,8 +9,10 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
 import { orbitMiddleware } from './OrbitMiddleware'
 
+const authStore = vi.hoisted(() => ({ isAuth: true }))
+
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ isAuth: true }),
+  useAuthStore: () => authStore,
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -187,5 +189,25 @@ describe('orbitMiddleware URL selection', () => {
 
     expect(useOrbitsStore().currentOrbit).toBeNull()
     expect(next).toHaveBeenCalledWith({ name: 'setup', query: { tab: 'registry' } })
+  })
+})
+
+describe('orbitMiddleware for a user who is not signed in', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    authStore.isAuth = false
+  })
+
+  afterEach(() => {
+    authStore.isAuth = true
+  })
+
+  it('sends the user from the Flow page to the Flow tab of the setup page', async () => {
+    const next = vi.fn() as NavigationGuardNext
+    const flowRoute = { name: 'orbit-flow', params: {} } as unknown as RouteLocationNormalized
+
+    await orbitMiddleware(flowRoute, from, next)
+
+    expect(next).toHaveBeenCalledWith({ name: 'setup', query: { tab: 'flow' } })
   })
 })

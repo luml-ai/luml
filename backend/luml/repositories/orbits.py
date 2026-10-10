@@ -64,6 +64,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                     name=orbit.name,
                     organization_id=orbit.organization_id,
                     bucket_secret_id=orbit.bucket_secret_id,
+                    relay_id=orbit.relay_id,
                     total_members=orbit.total_members,
                     total_collections=orbit.total_collections,
                     role=role,
@@ -141,6 +142,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                 OrbitCreate(
                     name=orbit.name,
                     bucket_secret_id=orbit.bucket_secret_id,
+                    relay_id=orbit.relay_id,
                     organization_id=organization_id,
                 ),
             )

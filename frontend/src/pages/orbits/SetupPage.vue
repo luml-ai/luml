@@ -48,6 +48,15 @@
             <div class="title">{{ card.title }}</div>
             <p class="text">{{ card.description }}</p>
           </div>
+          <div v-if="card.commands" class="commands">
+            <div v-for="command in card.commands" :key="command.label" class="command">
+              <span class="command-label">{{ command.label }}</span>
+              <code class="command-code">{{ command.code }}</code>
+            </div>
+          </div>
+          <a v-if="card.link" :href="card.link.href" target="_blank" class="link">
+            {{ card.link.label }}
+          </a>
         </div>
       </div>
 
@@ -64,7 +73,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Folders, Rocket, Satellite } from 'lucide-vue-next'
+import { ChartSpline, Folders, Rocket, Satellite } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useOrganizationStore } from '@/stores/organization'
 import { useOrbitsStore } from '@/stores/orbits'
@@ -72,6 +81,11 @@ import OrbitCreator from '@/components/orbits/creator/OrbitCreator.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import type { Orbit } from '@/lib/api/api.interfaces'
 import { TAB_TO_ROUTE } from '@/constants/orbit-navigation'
+import {
+  LOCAL_FLOW_COMMANDS,
+  RELAYED_FLOWS_DOCS_URL,
+  type FlowCommand,
+} from '@/components/flow/flow-commands'
 
 const route = useRoute()
 const router = useRouter()
@@ -120,7 +134,16 @@ watch(
 
 const TABS: Record<
   string,
-  { title: string; icon: unknown; cards: { title: string; description: string }[] }
+  {
+    title: string
+    icon: unknown
+    cards: {
+      title: string
+      description: string
+      commands?: FlowCommand[]
+      link?: { label: string; href: string }
+    }[]
+  }
 > = {
   registry: {
     title: 'Registry',
@@ -167,6 +190,22 @@ const TABS: Record<
         title: 'How it works',
         description:
           'The platform queues tasks, and the Satellite pulls and executes them within your own infrastructure, remaining fully under your control.',
+      },
+    ],
+  },
+  flow: {
+    title: 'Flow',
+    icon: ChartSpline,
+    cards: [
+      {
+        title: 'Local flow',
+        description: 'Run Flow on this computer.',
+        commands: LOCAL_FLOW_COMMANDS,
+      },
+      {
+        title: 'Relayed flow',
+        description: 'Open a Flow that runs on a remote machine. Expose it with the LUML SDK.',
+        link: { label: 'How to expose a flow', href: RELAYED_FLOWS_DOCS_URL },
       },
     ],
   },
@@ -240,6 +279,38 @@ function onOrbitCreated(orbit: Orbit) {
   gap: 16px;
 }
 
+.commands {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.command {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.command-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--p-text-muted-color);
+}
+
+.command-code {
+  font-family: var(--p-font-family-mono, ui-monospace, monospace);
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--p-content-hover-background);
+  border: 1px solid var(--p-divider-border-color);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
 .title {
   font-size: 20px;
   font-weight: 500;
@@ -253,6 +324,11 @@ function onOrbitCreated(orbit: Orbit) {
   font-size: 14px;
   font-weight: 400;
   line-height: 20px;
+}
+
+.link {
+  font-size: 14px;
+  color: var(--p-primary-color);
 }
 
 .actions {

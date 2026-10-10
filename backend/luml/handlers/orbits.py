@@ -17,6 +17,7 @@ from luml.infra.exceptions import (
 )
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.relays import RelayRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.orbit import (
     Orbit,
@@ -42,6 +43,7 @@ class OrbitHandler:
     __orbits_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
     __secret_repository = BucketSecretRepository(engine)
+    __relay_repository = RelayRepository(engine)
 
     def _set_user_orbits_permissions(self, orbits: list[Orbit]) -> list[Orbit]:
         for orbit in orbits:
@@ -87,6 +89,10 @@ class OrbitHandler:
         )
         if not secret:
             raise NotFoundError("Bucket secret not found")
+
+    async def _validate_relay(self, relay_id: UUID, organization_id: UUID) -> None:
+        if not await self.__relay_repository.get_relay(relay_id, organization_id):
+            raise NotFoundError("Relay not found")
 
     async def _validate_orbit_members(
         self,
@@ -145,6 +151,8 @@ class OrbitHandler:
 
         await self._check_organization_orbits_limit(organization_id)
         await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
+        if orbit.relay_id:
+            await self._validate_relay(orbit.relay_id, organization_id)
 
         if orbit.members:
             await self._validate_orbit_members(user_id, organization_id, orbit.members)
@@ -239,6 +247,8 @@ class OrbitHandler:
 
         if "bucket_secret_id" in orbit.model_fields_set:
             await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
+        if orbit.relay_id:
+            await self._validate_relay(orbit.relay_id, organization_id)
 
         orbit_obj = await self.__orbits_repository.update_orbit(
             orbit_id, organization_id, orbit

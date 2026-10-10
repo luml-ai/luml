@@ -317,3 +317,61 @@ class TestPermissionsHandler:
         )
 
         mocks.orbits_repository.get_orbit_simple.assert_not_awaited()
+
+
+LIVE_SESSION_ACTIONS = {
+    Action.LIST,
+    Action.READ,
+    Action.CREATE,
+    Action.UPDATE,
+    Action.DELETE,
+}
+
+
+@pytest.mark.parametrize("org_role", [OrgRole.OWNER, OrgRole.ADMIN])
+def test_org_roles_that_work_in_orbits_have_live_sessions(
+    mocks: CollaboratorMocks[PermissionsHandler], org_role: OrgRole
+) -> None:
+    for action in LIVE_SESSION_ACTIONS:
+        assert mocks.handler.has_organization_permission(
+            org_role, Resource.LIVE_SESSION, action
+        )
+
+
+@pytest.mark.parametrize("orbit_role", [OrbitRole.ADMIN, OrbitRole.MEMBER])
+def test_every_orbit_role_has_live_sessions(
+    mocks: CollaboratorMocks[PermissionsHandler], orbit_role: OrbitRole
+) -> None:
+    for action in LIVE_SESSION_ACTIONS:
+        assert mocks.handler.has_orbit_permission(
+            orbit_role, Resource.LIVE_SESSION, action
+        )
+
+
+def test_org_member_role_alone_has_no_live_sessions(
+    mocks: CollaboratorMocks[PermissionsHandler],
+) -> None:
+    assert not mocks.handler.has_organization_permission(
+        OrgRole.MEMBER, Resource.LIVE_SESSION, Action.CREATE
+    )
+
+
+@pytest.mark.parametrize(
+    ("org_role", "orbit_role"),
+    [
+        (OrgRole.OWNER, None),
+        (OrgRole.ADMIN, None),
+        (None, OrbitRole.ADMIN),
+        (OrgRole.MEMBER, OrbitRole.MEMBER),
+    ],
+)
+def test_orbit_permissions_list_live_sessions(
+    mocks: CollaboratorMocks[PermissionsHandler],
+    org_role: OrgRole | None,
+    orbit_role: OrbitRole | None,
+) -> None:
+    permissions = mocks.handler.get_orbit_permissions_by_role(org_role, orbit_role)
+
+    assert set(permissions[Resource.LIVE_SESSION.value]) == {
+        action.value for action in LIVE_SESSION_ACTIONS
+    }

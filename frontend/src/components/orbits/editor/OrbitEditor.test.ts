@@ -4,6 +4,37 @@ import { createPinia } from 'pinia'
 import OrbitSettingsDialog from './OrbitEditor.vue'
 import { OrbitRoleEnum } from '../orbits.interfaces'
 import { PermissionEnum, type Orbit } from '@/lib/api/api.interfaces'
+import { RelayKindEnum, RelayStatusEnum, type Relay } from '@/lib/api/relays/interfaces'
+
+const ORGANIZATION_ID = 'org-1111-aaaa-bbbb-cccc-000000000001'
+
+function makeRelay(id: string, kind: RelayKindEnum, status: RelayStatusEnum): Relay {
+  return {
+    id,
+    organization_id: kind === RelayKindEnum.own ? ORGANIZATION_ID : null,
+    label: id,
+    base_domain: `${id}.example.com`,
+    agent_url: `wss://agents.${id}.example.com`,
+    status,
+    kind,
+    online: true,
+    last_seen_at: null,
+    connected_agents: 0,
+    capabilities: {},
+    present_capabilities: [],
+    created_at: '2026-10-01T00:00:00Z',
+    updated_at: null,
+  }
+}
+
+const relaysStore = vi.hoisted(() => ({
+  relays: [] as Relay[],
+  getRelays: vi.fn(),
+}))
+
+vi.mock('@/stores/relays', () => ({
+  useRelaysStore: () => relaysStore,
+}))
 
 const updateOrbitMock = vi.fn().mockResolvedValue({})
 const deleteOrbitMock = vi.fn().mockResolvedValue({})
@@ -53,6 +84,7 @@ vi.mock('lucide-vue-next', () => ({
     template:
       '<svg data-testid="orbit-icon" :style="{ width: size + \'px\', height: size + \'px\', color }"><circle /></svg>',
   },
+  Plus: { template: '<span>+</span>' },
 }))
 
 describe('OrbitSettingsDialog', () => {
@@ -63,11 +95,12 @@ describe('OrbitSettingsDialog', () => {
   const orbit: Orbit = {
     id: 'orbit-aaaa-bbbb-cccc-dddd-000000000001',
     name: 'Test Orbit',
-    organization_id: 'org-1111-aaaa-bbbb-cccc-000000000001',
+    organization_id: ORGANIZATION_ID,
     total_members: 10,
     created_at: new Date(),
     updated_at: null,
     bucket_secret_id: 'bucket-1111-aaaa-bbbb-cccc-000000000001',
+    relay_id: 'old',
     total_collections: 5,
     role: OrbitRoleEnum.member,
     total_artifacts: 0,
@@ -80,10 +113,8 @@ describe('OrbitSettingsDialog', () => {
     },
   }
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-
-    wrapper = mount(OrbitSettingsDialog, {
+  function mountEditor() {
+    return mount(OrbitSettingsDialog, {
       global: {
         plugins: [pinia],
 
@@ -137,9 +168,10 @@ describe('OrbitSettingsDialog', () => {
           },
           Select: {
             template:
-              '<select :id="id" :name="name" :disabled="disabled" :value="localValue">' +
+              '<div><select :id="id" :name="name" :disabled="disabled" :value="localValue" @change="onChange">' +
+              '<option value=""></option>' +
               '<option v-for="opt in options" :key="opt[optionValue]" :value="opt[optionValue]">{{ opt[optionLabel] }}</option>' +
-              '</select>',
+              '</select><slot name="footer"></slot></div>',
             props: [
               'options',
               'optionLabel',
@@ -151,12 +183,25 @@ describe('OrbitSettingsDialog', () => {
             ],
             inject: {
               formValues: { default: () => ({}) },
+              setFormValue: { default: () => () => {} },
             },
             computed: {
               localValue(): string {
                 return this.formValues?.[this.name] ?? this.defaultValue ?? ''
               },
             },
+            methods: {
+              onChange(e: Event) {
+                this.setFormValue(this.name, (e.target as HTMLSelectElement).value || null)
+              },
+            },
+          },
+          RouterLink: {
+            template: '<a :data-route="to.name"><slot></slot></a>',
+            props: ['to'],
+          },
+          'd-button': {
+            template: '<span><slot :class="\'\'"></slot></span>',
           },
           Button: {
             template:
@@ -172,6 +217,16 @@ describe('OrbitSettingsDialog', () => {
         visible: true,
       },
     })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    relaysStore.relays = [
+      makeRelay('lab', RelayKindEnum.own, RelayStatusEnum.enabled),
+      makeRelay('old', RelayKindEnum.own, RelayStatusEnum.draining),
+      makeRelay('eu', RelayKindEnum.managed, RelayStatusEnum.enabled),
+    ]
+    wrapper = mountEditor()
   })
 
   afterEach(() => {
@@ -255,5 +310,68 @@ describe('OrbitSettingsDialog', () => {
 
     expect(updateOrbitMock).toHaveBeenCalled()
     expect(toastAddMock).toHaveBeenCalled()
+  })
+
+  it('shows the assigned draining relay as the current value marked as draining', async () => {
+    await flushPromises()
+    const relaySelect = wrapper.find('select#relay')
+    const options = relaySelect.findAll('option').map((option) => option.text())
+    expect(options).toEqual(['', 'lab', 'old (draining)', 'eu (managed)'])
+    expect((relaySelect.element as HTMLSelectElement).value).toBe('old')
+    expect(relaySelect.attributes('disabled')).toBeUndefined()
+  })
+
+  it('hides draining relays that are not assigned', async () => {
+    await wrapper.setProps({ orbit: { ...orbit, relay_id: null } })
+    await flushPromises()
+    const options = wrapper.findAll('select#relay option').map((option) => option.text())
+    expect(options).toEqual(['', 'lab', 'eu (managed)'])
+  })
+
+  it('saves a changed relay', async () => {
+    await flushPromises()
+    await wrapper.find('select#relay').setValue('eu')
+    await wrapper.find('form#orbit-edit-form').trigger('submit')
+    await flushPromises()
+    expect(updateOrbitMock).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      expect.objectContaining({ id: orbit.id, relay_id: 'eu' }),
+    )
+  })
+
+  it('clears the relay', async () => {
+    await flushPromises()
+    await wrapper.find('select#relay').setValue('')
+    await wrapper.find('form#orbit-edit-form').trigger('submit')
+    await flushPromises()
+    expect(updateOrbitMock).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      expect.objectContaining({ id: orbit.id, relay_id: null }),
+    )
+  })
+
+  it('loads relays when mounted already open on an empty store', () => {
+    wrapper.unmount()
+    vi.clearAllMocks()
+    relaysStore.relays = []
+    wrapper = mountEditor()
+    expect(relaysStore.getRelays).toHaveBeenCalledOnce()
+    expect(relaysStore.getRelays).toHaveBeenCalledWith(ORGANIZATION_ID)
+  })
+
+  it('loads relays when reopened', async () => {
+    await wrapper.setProps({ visible: false })
+    vi.clearAllMocks()
+    await wrapper.setProps({ visible: true })
+    expect(relaysStore.getRelays).toHaveBeenCalledWith(ORGANIZATION_ID)
+  })
+
+  it('points to the relays tab when no relay can be used', async () => {
+    wrapper.unmount()
+    relaysStore.relays = []
+    wrapper = mountEditor()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Add a relay')
+    expect(wrapper.find('a[data-route="organization-relays"]').exists()).toBe(true)
   })
 })

@@ -118,6 +118,7 @@ class PermissionsHandler:
                 Resource.ORGANIZATION_INVITE,
                 Resource.BILLING,
                 Resource.ORBIT,
+                Resource.RELAY,
             ],
         )
         if Action.CREATE in permissions.get(Resource.ORBIT, []):
@@ -143,6 +144,7 @@ class PermissionsHandler:
                     Resource.SATELLITE,
                     Resource.ORBIT_SECRET,
                     Resource.DEPLOYMENT,
+                    Resource.LIVE_SESSION,
                 ],
             )
 
@@ -158,6 +160,7 @@ class PermissionsHandler:
                     Resource.SATELLITE,
                     Resource.ORBIT_SECRET,
                     Resource.DEPLOYMENT,
+                    Resource.LIVE_SESSION,
                 ],
             )
             for resource, actions in orbit_role_permissions.items():

@@ -150,6 +150,11 @@ const router = createRouter({
           name: 'orbit-secrets',
           component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
         },
+        {
+          path: 'flow',
+          name: 'orbit-flow',
+          component: () => import('../pages/orbits/OrbitFlowView.vue'),
+        },
       ],
     },
     {
@@ -241,11 +246,6 @@ const router = createRouter({
       component: () => import('../pages/NotebooksPage.vue'),
     },
     {
-      path: '/flow',
-      name: 'flow',
-      component: () => import('../pages/FlowPage.vue'),
-    },
-    {
       path: '/prisma',
       component: () => import('../pages/PrismaPage.vue'),
       meta: {
@@ -297,6 +297,11 @@ const router = createRouter({
           path: 'buckets',
           name: 'organization-buckets',
           component: () => import('../components/organizations/registry/OrganizationRegistry.vue'),
+        },
+        {
+          path: 'relays',
+          name: 'organization-relays',
+          component: () => import('../components/organizations/relays/OrganizationRelays.vue'),
         },
       ],
     },
