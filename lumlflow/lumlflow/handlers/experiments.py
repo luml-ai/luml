@@ -477,6 +477,8 @@ class ExperimentsHandler:
             result = self.tracker.list_attachments_tree(
                 experiment_id, parent_path=parent_path
             )
+        except ValueError as e:
+            raise NotFound(str(e)) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
         return [FileNode.model_validate(n) for n in result]

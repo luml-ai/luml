@@ -1,3 +1,4 @@
+import secrets
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -26,11 +27,28 @@ class AppService(FastAPI):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
+        self.state.session_token = secrets.token_urlsafe(32)
+
+        @self.middleware("http")
+        async def require_session(request: Request, call_next):
+            if request.url.path.startswith("/api/") and request.method != "OPTIONS":
+                authorization = request.headers.get("Authorization", "")
+                expected = f"Bearer {self.state.session_token}"
+                if not secrets.compare_digest(
+                    authorization.encode(), expected.encode()
+                ):
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Invalid or missing Flow session token"},
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+            return await call_next(request)
+
         self.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
-            allow_methods=["*"],
-            allow_headers=["*"],
+            allow_origins=["http://localhost:5173"],
+            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type"],
         )
 
         self.include_router(router=auth_router)
@@ -70,7 +88,7 @@ class AppService(FastAPI):
         if "components" not in openapi_schema:
             openapi_schema["components"] = {}
         openapi_schema["components"]["securitySchemes"] = {
-            "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+            "BearerAuth": {"type": "http", "scheme": "bearer"}
         }
         openapi_schema["security"] = [{"BearerAuth": []}]
         self.openapi_schema = openapi_schema

@@ -21,7 +21,9 @@ def client(tracker: ExperimentTracker) -> TestClient:
     from lumlflow.api.experiments import experiments_handler
 
     experiments_handler.tracker = tracker
-    return TestClient(app)
+    return TestClient(
+        app, headers={"Authorization": f"Bearer {app.state.session_token}"}
+    )
 
 
 class TestMetricKeyWithSlash:
