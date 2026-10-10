@@ -680,11 +680,11 @@ wheels = [
 
 [[package]]
 name = "fnnx"
-version = "0.0.11"
+version = "0.0.13"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c1/a2/f009a5c95b6097626b73dcca6fa74efbeea321c30cbb2e0af57bdf96257f/fnnx-0.0.11.tar.gz", hash = "sha256:380fd0d8223e8d12eaf771d3da1e4ca59481c1194153a372d7e9b777e4ffaf0f", size = 36982, upload-time = "2026-01-06T20:05:33.404Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/79/cbe579a3ae3fa80ca6bc198fea47250d7808f79c7653e9d321bdae4e708f/fnnx-0.0.13.tar.gz", hash = "sha256:eff5bddabe029c15784755b86b2c7b226413a072b56769c9347346a8f6753286", size = 492377, upload-time = "2026-08-19T11:36:46.743Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b4/68/cb644a7160e74868a2d307978ff2ce2e697c97cb51e902495fcde21346f9/fnnx-0.0.11-py3-none-any.whl", hash = "sha256:d348e6ad6c26b9415c05c0b9a27f5feac2115bce3a2ccda94b71a526f4c23070", size = 40030, upload-time = "2026-01-06T20:05:32.314Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/a1/b1b3a7e3b03235237c4a8289678ccfa65f0aee8afec611b4f984333783e8/fnnx-0.0.13-py3-none-any.whl", hash = "sha256:e2f781161bb8cf174cab434998495c2bef22e047dcf6636e7cafc3bd57ce4bf5", size = 319516, upload-time = "2026-08-19T11:36:45.31Z" },
 ]
 
 [[package]]
@@ -1268,7 +1268,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fnnx", specifier = ">=0.0.11" },
+    { name = "fnnx", specifier = ">=0.0.12" },
     { name = "luml-api", editable = "../../../sdk/python/api" },
     { name = "luml-sdk", editable = "../../../sdk/python/sdk" },
     { name = "mlflow", specifier = ">=3.1,<4" },
