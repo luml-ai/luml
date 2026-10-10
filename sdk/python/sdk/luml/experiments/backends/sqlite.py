@@ -341,9 +341,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             tags: Optional list of tags associated with the experiment.
             description: Optional description of the experiment.
             source: Path of the script or file that created the experiment.
+
+        Raises:
+            ValueError: If an experiment with the given ID already exists.
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+        if cursor.fetchone() is not None:
+            raise ValueError(f"Experiment '{experiment_id}' already exists")
 
         cursor.execute("SELECT id FROM experiment_groups WHERE name = ?", (group,))
 
@@ -356,7 +363,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         tags_str = json.dumps(tags) if tags else None
         cursor.execute(
             """
-            INSERT OR REPLACE INTO experiments (id, name, group_id, tags, description, source, upload_status)
+            INSERT INTO experiments (id, name, group_id, tags, description, source, upload_status)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             (
