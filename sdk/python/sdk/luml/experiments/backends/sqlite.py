@@ -443,24 +443,26 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             None
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
-        if step is None:
+        write_lock = self._get_experiment_write_lock(experiment_id)
+        with write_lock:
+            conn = self._get_experiment_connection(experiment_id)
+            cursor = conn.cursor()
+            if step is None:
+                cursor.execute(
+                    "SELECT MAX(step) FROM dynamic_metrics WHERE key = ?", (key,)
+                )
+                result = cursor.fetchone()
+                step = 0 if result[0] is None else result[0] + 1
+
             cursor.execute(
-                "SELECT MAX(step) FROM dynamic_metrics WHERE key = ?", (key,)
+                """
+                INSERT OR REPLACE INTO dynamic_metrics (key, value, step)
+                VALUES (?, ?, ?)
+            """,
+                (key, float(value), step),
             )
-            result = cursor.fetchone()
-            step = (result[0] or -1) + 1
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO dynamic_metrics (key, value, step)
-            VALUES (?, ?, ?)
-        """,
-            (key, float(value), step),
-        )
-
-        conn.commit()
+            conn.commit()
 
     def log_attachment(
         self, experiment_id: str, name: str, data: bytes | str, binary: bool = False
