@@ -1,0 +1,256 @@
+<template>
+  <div
+    class="wrapper"
+    :class="{ 'full-screen': isFullScreen }"
+    :style="isFullScreen ? undefined : { height: wrapperHeight }"
+  >
+    <VueFlow
+      :nodes="nodes"
+      :edges="edges"
+      :default-viewport="{ zoom: 1 }"
+      :min-zoom="0.2"
+      :max-zoom="4"
+      class="w-full h-full"
+      @node-click="onNodeClick"
+      @pane-click="flowStore.selectCell(null)"
+    >
+      <template #node-cell="{ data }">
+        <NotebookCellNode
+          :asset="data.asset"
+          :cell="data.cell"
+          :is-selected="data.cell.slug === flowStore.selectedCellId"
+        />
+      </template>
+      <Background pattern-color="var(--p-content-border-color)" />
+    </VueFlow>
+    <Button class="zoom-button" severity="secondary" variant="text" @click="toggleFullScreen()">
+      <template #icon>
+        <Maximize2 :size="14" />
+      </template>
+    </Button>
+    <NotebooksCanvasToolbar
+      v-model:zoom="zoomValue"
+      @zoom-in="zoomIn()"
+      @zoom-out="zoomOut()"
+      @zoom-change="onZoomChange"
+    />
+  </div>
+  <div
+    class="overlay"
+    :class="{ 'opacity-100': isFullScreen, 'opacity-0 pointer-events-none': !isFullScreen }"
+    @click="closeFullScreen()"
+  ></div>
+</template>
+
+<script setup lang="ts">
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
+import '@vue-flow/controls/dist/style.css'
+import { computed, nextTick, ref, watch } from 'vue'
+import { onKeyStroke } from '@vueuse/core'
+import { Background } from '@vue-flow/background'
+import {
+  MarkerType,
+  Position,
+  useVueFlow,
+  VueFlow,
+  type Edge,
+  type Node,
+  type NodeMouseEvent,
+} from '@vue-flow/core'
+import { Button } from 'primevue'
+import { Maximize2 } from 'lucide-vue-next'
+import type { CellSummary } from '@/api/slices/workspace/workspace.interface'
+import type {
+  CellEdge,
+  CellNodeData,
+  NotebookAssetInterface,
+} from '@/components/notebooks/notebooks.interface'
+import { useFlowStore } from '@/store/flow'
+import { buildEdges, edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
+import NotebookCellNode from '@/components/notebooks/cell/NotebookCellNode.vue'
+import NotebooksCanvasToolbar from '@/components/notebooks/NotebooksCanvasToolbar.vue'
+import {
+  NOTEBOOK_CANVAS_LEVEL_HEIGHT,
+  NOTEBOOK_CANVAS_NODE_WIDTH,
+} from '@/components/notebooks/notebooks.const'
+
+function buildLevels(cells: CellSummary[], edges: CellEdge[]): Map<string, number> {
+  const parents = new Map<string, string[]>(cells.map((cell) => [cell.slug, []]))
+  for (const edge of edges) parents.get(edge.to)?.push(edge.from)
+
+  const levels = new Map<string, number>()
+  function levelOf(slug: string, guard: Set<string>): number {
+    if (levels.has(slug)) return levels.get(slug) as number
+    if (guard.has(slug)) return 0
+    guard.add(slug)
+    const cellParents = parents.get(slug) ?? []
+    const level =
+      cellParents.length === 0
+        ? 0
+        : 1 + Math.max(...cellParents.map((parent) => levelOf(parent, guard)))
+    levels.set(slug, level)
+    return level
+  }
+  for (const cell of cells) levelOf(cell.slug, new Set())
+  return levels
+}
+
+function buildCanvas(
+  cells: CellSummary[],
+  assets: NotebookAssetInterface[],
+  selected: string | null,
+): { nodes: Node<CellNodeData>[]; edges: Edge[] } {
+  const cellEdges = buildEdges(cells)
+  const levels = buildLevels(cells, cellEdges)
+  const hasIncoming = new Set(cellEdges.map((edge) => edge.to))
+  const hasOutgoing = new Set(cellEdges.map((edge) => edge.from))
+  const assetBySlug = new Map(assets.map((asset) => [asset.id, asset]))
+
+  const layers = new Map<number, string[]>()
+  for (const cell of cells) {
+    const level = levels.get(cell.slug) ?? 0
+    const bucket = layers.get(level) ?? []
+    bucket.push(cell.slug)
+    layers.set(level, bucket)
+  }
+
+  const nodes: Node<CellNodeData>[] = []
+  for (const [level, slugs] of layers) {
+    const width = slugs.length * NOTEBOOK_CANVAS_NODE_WIDTH
+    slugs.forEach((slug, index) => {
+      const asset = assetBySlug.get(slug)
+      const cell = cells.find((candidate) => candidate.slug === slug)
+      if (!asset || !cell) return
+      nodes.push({
+        id: slug,
+        type: 'cell',
+        position: {
+          x: index * NOTEBOOK_CANVAS_NODE_WIDTH - width / 2 + NOTEBOOK_CANVAS_NODE_WIDTH / 2,
+          y: level * NOTEBOOK_CANVAS_LEVEL_HEIGHT,
+        },
+        sourcePosition: hasOutgoing.has(slug) ? Position.Bottom : undefined,
+        targetPosition: hasIncoming.has(slug) ? Position.Top : undefined,
+        data: { asset, cell },
+      })
+    })
+  }
+
+  // The path the selected cell's result was computed along lights up with
+  // it: every edge into it, and into what those came from. Lit edges go
+  // last so they paint over the unlit ones they cross — SVG paints in order
+  // — while every edge stays in the layer beneath the cards. A z-index
+  // would lift them above the cards instead.
+  const lit = edgesLeadingTo(cellEdges, selected)
+  const edges: Edge[] = cellEdges.map((edge) => {
+    const id = edgeId(edge)
+    const isLit = lit.has(id)
+    return {
+      id,
+      source: edge.from,
+      target: edge.to,
+      type: 'smoothstep',
+      pathOptions: { borderRadius: 20 },
+      class: isLit ? 'edge--lit' : undefined,
+      markerEnd: isLit
+        ? { type: MarkerType.ArrowClosed, color: 'var(--p-primary-color)' }
+        : MarkerType.ArrowClosed,
+    }
+  })
+  edges.sort((left, right) => Number(lit.has(left.id)) - Number(lit.has(right.id)))
+
+  return { nodes, edges }
+}
+
+const flowStore = useFlowStore()
+
+const canvas = computed(() =>
+  buildCanvas(flowStore.cells, flowStore.notebookCells, flowStore.selectedCellId),
+)
+const nodes = computed(() => canvas.value.nodes)
+const edges = computed(() => canvas.value.edges)
+
+const { zoomIn, zoomOut, zoomTo, viewport, setCenter, findNode } = useVueFlow()
+
+function onNodeClick({ node }: NodeMouseEvent) {
+  flowStore.selectCell(node.id)
+}
+
+const zoomValue = ref((viewport.value.zoom * 100).toFixed())
+
+const isFullScreen = ref(false)
+
+const wrapperHeight = 'calc(100vh - 211px)'
+
+function toggleFullScreen() {
+  isFullScreen.value = !isFullScreen.value
+}
+
+function closeFullScreen() {
+  isFullScreen.value = false
+}
+
+onKeyStroke('Escape', () => {
+  if (isFullScreen.value) {
+    closeFullScreen()
+  }
+})
+
+function onZoomChange(value: number) {
+  zoomTo(value)
+}
+
+watch(
+  () => viewport.value.zoom,
+  (value) => {
+    zoomValue.value = (value * 100).toFixed()
+  },
+)
+
+watch(
+  () => flowStore.selectedCellId,
+  async (id) => {
+    if (!id) return
+    await nextTick()
+    const node = findNode(id)
+    if (!node) return
+    const xPosition = node.computedPosition.x + node.dimensions.width / 2
+    const yPosition = node.computedPosition.y + node.dimensions.height / 2
+    setCenter(xPosition, yPosition, { zoom: 1, duration: 300 })
+  },
+  { immediate: true },
+)
+</script>
+
+<style scoped>
+@reference "@/assets/css/index.css";
+
+.wrapper {
+  @apply p-4 border border-surface rounded-lg relative bg-(--p-content-background) transition-all duration-300;
+}
+
+.overlay {
+  @apply fixed top-0 left-0 w-full h-full bg-black/30 pointer-events-none transition-opacity duration-300;
+}
+
+.zoom-button {
+  @apply absolute top-5 right-5 z-1000 p-0 w-10 h-10 bg-(--p-card-background)! shadow-(--p-card-shadow);
+}
+
+.full-screen {
+  @apply fixed top-4 right-4 bottom-4 left-4 z-1000 h-auto;
+}
+</style>
+
+<style>
+/* Vue Flow renders edges outside this component's scope. */
+.vue-flow__edge .vue-flow__edge-path {
+  transition:
+    stroke 0.2s ease,
+    stroke-width 0.2s ease;
+}
+.vue-flow__edge.edge--lit .vue-flow__edge-path {
+  stroke: var(--p-primary-color);
+  stroke-width: 2;
+}
+</style>

@@ -13,6 +13,8 @@ fast — no network, no real filesystem store, no wall-clock waits.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
@@ -34,6 +36,12 @@ from lumlflow.tui.widgets.dialogs import (
     SortChooserResult,
 )
 from textual.widgets import DataTable, Input, Static
+
+from tests.tui_helpers import settle_workers
+
+
+def _header_selected(event: SimpleNamespace) -> DataTable.HeaderSelected:
+    return cast(DataTable.HeaderSelected, event)
 
 
 @pytest.fixture
@@ -57,9 +65,7 @@ def _seed_experiments(
 
     ids: list[str] = []
     for i in range(count):
-        exp_id = tracker.start_experiment(
-            name=f"exp-{i:03d}", group=group_name
-        )
+        exp_id = tracker.start_experiment(name=f"exp-{i:03d}", group=group_name)
         ids.append(exp_id)
     return ids
 
@@ -219,6 +225,36 @@ class TestListing:
             assert "status-active" in str(status_cell.style)
 
 
+class TestRefreshBeforeMount:
+    async def test_live_refresh_landing_before_on_mount_fills_table(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        group = tracker.create_group("g")
+        ids = _seed_experiments(tracker, group.name, 2)
+        original_on_mount = ExperimentsScreen.on_mount
+
+        # A live-refresh tick can target the pushed screen once it is
+        # composed but before its `on_mount` has run.
+        def refresh_then_mount(self: ExperimentsScreen) -> None:
+            self._on_refresh_result(facade.list_group_experiments(group.id))
+            original_on_mount(self)
+
+        monkeypatch.setattr(ExperimentsScreen, "on_mount", refresh_then_mount)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = _push_experiments_screen(
+                app, facade, group_id=group.id, group_name=group.name
+            )
+            await settle_workers(pilot)
+            table = screen.query_one("#experiments-table", DataTable)
+            assert len(table.columns) == 7
+            assert set(_row_keys(table)) == set(ids)
+
+
 class TestAllExperimentsMode:
     async def test_aggregates_across_groups(
         self, facade: DataFacade, tracker: ExperimentTracker
@@ -230,9 +266,7 @@ class TestAllExperimentsMode:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             await pilot.pause()
             keys = {r.key for r in screen._rows}
@@ -479,9 +513,7 @@ class TestSort:
             )
             await pilot.pause()
             await pilot.pause()
-            screen._apply_sort_result(
-                SortChooserResult(field="name", order="asc")
-            )
+            screen._apply_sort_result(SortChooserResult(field="name", order="asc"))
             await pilot.pause()
             await pilot.pause()
             assert screen._sort_by == "name"
@@ -553,13 +585,9 @@ class TestEdit:
             screen = _push_experiments_screen(
                 app, facade, group_id=group.id, group_name=group.name
             )
-            await pilot.pause()
-            await pilot.pause()
-            screen._on_edit_submitted(
-                exp_id, EntityEditResult(name="renamed")
-            )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
+            screen._on_edit_submitted(exp_id, EntityEditResult(name="renamed"))
+            await settle_workers(pilot)
             renamed = next(r for r in screen._rows if r.key == exp_id)
             assert renamed.name == "renamed"
 
@@ -581,11 +609,9 @@ class TestDelete:
             screen = _push_experiments_screen(
                 app, facade, group_id=group.id, group_name=group.name
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_delete_confirmed(exp_id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             assert all(r.key != exp_id for r in screen._rows)
 
     async def test_delete_blocked_by_linked_model(
@@ -595,9 +621,7 @@ class TestDelete:
         tmp_path: Path,
     ) -> None:
         group = tracker.create_group("g")
-        exp_id = tracker.start_experiment(
-            name="exp-with-model", group=group.name
-        )
+        exp_id = tracker.start_experiment(name="exp-with-model", group=group.name)
         # The deletion constraint applies when an experiment has a linked
         # model. We seed one via the SDK backend (a fake .luml blob is
         # enough — the handler only checks linkage, not model contents).
@@ -610,11 +634,9 @@ class TestDelete:
             screen = _push_experiments_screen(
                 app, facade, group_id=group.id, group_name=group.name
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_delete_confirmed(exp_id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             # 409 constraint failure — experiment remains visible in the
             # screen's rows and the screen stays usable.
             assert any(r.key == exp_id for r in screen._rows)
@@ -750,15 +772,11 @@ class TestBreadcrumb:
             segs = screen.breadcrumb_segments()
             assert tuple(s.label for s in segs) == ("Groups", "alpha-grp")
 
-    async def test_all_experiments_breadcrumb(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_all_experiments_breadcrumb(self, facade: DataFacade) -> None:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             segs = screen.breadcrumb_segments()
             assert tuple(s.label for s in segs) == (
@@ -836,9 +854,7 @@ class TestPanelFrameReskin:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             await pilot.pause()
             panel = screen.query_one("#experiments-panel", PanelFrame)
@@ -926,7 +942,6 @@ class TestHeaderClickSort:
     async def test_header_click_sorts_and_toggles(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        from types import SimpleNamespace
 
         from rich.text import Text
 
@@ -935,24 +950,22 @@ class TestHeaderClickSort:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             await pilot.pause()
             table = screen.query_one("#experiments-table", DataTable)
             event = SimpleNamespace(data_table=table, label=Text("Duration"))
-            screen.on_data_table_header_selected(event)
+            screen.on_data_table_header_selected(_header_selected(event))
             await pilot.pause()
             assert screen._sort_by == "duration"
             assert screen._order == "desc"
-            screen.on_data_table_header_selected(event)
+            screen.on_data_table_header_selected(_header_selected(event))
             await pilot.pause()
             assert screen._order == "asc"
             # Unmapped columns (Sel / Tags / Group) are ignored.
             before = (screen._sort_by, screen._order)
             screen.on_data_table_header_selected(
-                SimpleNamespace(data_table=table, label=Text("Sel"))
+                _header_selected(SimpleNamespace(data_table=table, label=Text("Sel")))
             )
             await pilot.pause()
             assert (screen._sort_by, screen._order) == before

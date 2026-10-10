@@ -1,0 +1,773 @@
+from __future__ import annotations
+
+import builtins
+import contextlib
+import importlib
+import json
+import os
+import platform
+import socket
+import subprocess
+import sys
+import textwrap
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from lumlflow_kernel import PROTOCOL_VERSION
+from lumlflow_kernel.executor import CellError
+from tests.kernel.helpers import make_kernel, run, stored_value
+
+_TIMEOUT_S = 10.0
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+_WORKSPACE_KIND = '''
+    """A workspace kind, found by the registry's parse-then-import scan."""
+
+
+    class TokenKind:
+        kind = "token"
+        priority = 5
+        python_types = ("project.Token",)
+
+        def matches(self, value):
+            return False
+
+        def serialize(self, value):
+            return b""
+
+        def deserialize(self, source):
+            return None
+
+        def preview(self, value):
+            return []
+
+
+    LUMLFLOW_KINDS = [TokenKind]
+'''
+
+
+@pytest.fixture
+def import_state(tmp_path: Path) -> Iterator[None]:
+    saved = list(sys.path)
+    try:
+        yield
+    finally:
+        sys.path[:] = saved
+        for name, module in list(sys.modules.items()):
+            filename = getattr(module, "__file__", None)
+            if isinstance(filename, str) and Path(filename).is_relative_to(tmp_path):
+                del sys.modules[name]
+
+
+def test_the_handshake_reports_the_protocol_the_interpreter_and_the_verbs(
+    tmp_path: Path,
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+
+    reported = kernel.handshake({})
+
+    assert reported["protocol"] == PROTOCOL_VERSION
+    assert reported["python"] == platform.python_version()
+    assert reported["implementation"] == platform.python_implementation()
+    assert reported["pid"] == os.getpid()
+    assert reported["capabilities"] == [
+        "cancel",
+        "evict_workspace_modules",
+        "export_model",
+        "handshake",
+        "loaded_packages",
+        "page",
+        "run",
+        "shutdown",
+    ]
+    assert reported["flow_dir"] == str(kernel.flow_dir)
+    assert reported["workspace_dir"] == str(kernel.workspace_dir)
+
+
+def test_the_handshake_reports_the_flows_kinds_with_priority_and_provenance(
+    tmp_path: Path, import_state: None
+) -> None:
+    kernel, _ = make_kernel(tmp_path, files={"project_kinds.py": _WORKSPACE_KIND})
+
+    kinds = {entry["kind"]: entry for entry in kernel.handshake({})["kinds"]}
+
+    assert kinds["frame"] == {
+        "kind": "frame",
+        "priority": 40,
+        "provenance": "builtin",
+        "python_types": ["pandas.DataFrame", "polars.DataFrame"],
+    }
+    assert kinds["token"]["provenance"] == "`project_kinds.py`"
+    # Priority is the order the daemon has to record inference under: the
+    # workspace's own kind outranks the builtins, and pickle claims last.
+    priorities = [entry["priority"] for entry in kernel.handshake({})["kinds"]]
+    assert priorities == sorted(priorities)
+    assert priorities[0] == kinds["token"]["priority"]
+    assert priorities[-1] == kinds["pickle"]["priority"]
+
+
+def test_evicting_workspace_modules_forgets_the_workspace_and_nothing_else(
+    tmp_path: Path, import_state: None
+) -> None:
+    kernel, _ = make_kernel(
+        tmp_path,
+        files={
+            "helpers_mod.py": "VALUE = 1\n",
+            ".venv/lib/site-packages/installed_mod.py": "VALUE = 2\n",
+        },
+    )
+    sys.path.insert(0, str(kernel.workspace_dir))
+    sys.path.insert(0, str(kernel.workspace_dir / ".venv" / "lib" / "site-packages"))
+    importlib.invalidate_caches()
+    importlib.import_module("helpers_mod")
+    importlib.import_module("installed_mod")
+
+    evicted = kernel.evict_workspace_modules({})["evicted"]
+
+    assert "helpers_mod" in evicted
+    assert "helpers_mod" not in sys.modules
+    # The workspace's venv lives inside the workspace; its packages are not the
+    # user's code and re-importing them on every edit would be pure cost.
+    assert "installed_mod" not in evicted
+    assert "installed_mod" in sys.modules
+    assert "lumlflow_kernel.kernel" in sys.modules
+    assert "json" in sys.modules
+
+
+def test_evicting_keeps_the_kernels_own_packages_inside_the_workspace(
+    tmp_path: Path, import_state: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import types
+
+    kernel, _ = make_kernel(tmp_path, files={"helpers_mod.py": "VALUE = 1\n"})
+    sys.path.insert(0, str(kernel.workspace_dir))
+    importlib.invalidate_caches()
+    importlib.import_module("helpers_mod")
+    # An editable lumlflow whose sources sit under the workspace, as when a
+    # flow lives inside the lumlflow checkout.
+    own = types.ModuleType("lumlflow_kernel.vendored_here")
+    own.__file__ = str(kernel.workspace_dir / "lumlflow_kernel" / "vendored_here.py")
+    monkeypatch.setitem(sys.modules, own.__name__, own)
+
+    evicted = kernel.evict_workspace_modules({})["evicted"]
+
+    assert "helpers_mod" in evicted
+    assert own.__name__ not in evicted
+    assert sys.modules[own.__name__] is own
+
+
+def test_an_evicted_workspace_module_is_imported_again_on_the_next_run(
+    tmp_path: Path, import_state: None
+) -> None:
+    kernel, _ = make_kernel(tmp_path, files={"helpers_mod.py": "GREETING = 'old'\n"})
+    sys.path.insert(0, str(kernel.workspace_dir))
+    importlib.invalidate_caches()
+    body = """
+        def materialize(self, ctx):
+            import helpers_mod
+
+            return {"note": helpers_mod.GREETING}
+    """
+    first = run(kernel, body, produces={"note": {"kind": "note"}})
+    _edit_in_place(kernel.workspace_dir / "helpers_mod.py", "GREETING = 'new'\n")
+
+    kernel.evict_workspace_modules({})
+    second = run(kernel, body, run_id="run2", produces={"note": {"kind": "note"}})
+
+    assert stored_value(kernel, first, "note") == b"old"
+    assert stored_value(kernel, second, "note") == b"new"
+
+
+def test_an_input_of_a_workspace_class_uses_the_edited_class_after_eviction(
+    tmp_path: Path, import_state: None
+) -> None:
+    kernel, _ = make_kernel(
+        tmp_path,
+        files={
+            "model_mod.py": """
+                class Model:
+                    def predict(self):
+                        return 1
+            """
+        },
+    )
+    sys.path.insert(0, str(kernel.workspace_dir))
+    importlib.invalidate_caches()
+    producer = """
+        def materialize(self, ctx):
+            import model_mod
+
+            return {"model": model_mod.Model()}
+    """
+    consumer = """
+        def materialize(self, ctx, model):
+            return {"note": str(model.predict())}
+    """
+
+    def run_pair(suffix: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        produced = run(
+            kernel,
+            producer,
+            run_id=f"producer{suffix}",
+            produces={"model": {"kind": "pickle"}},
+        )
+        model = produced["outputs"]["model"]
+        consumed = run(
+            kernel,
+            consumer,
+            run_id=f"consumer{suffix}",
+            produces={"note": {"kind": "note"}},
+            inputs={"model": {"value_ref": model["value_ref"], "kind": "pickle"}},
+        )
+        return produced, consumed
+
+    first_model, first_note = run_pair("1")
+    module_path = kernel.workspace_dir / "model_mod.py"
+    _edit_in_place(
+        module_path,
+        module_path.read_text(encoding="utf-8").replace("return 1", "return 2"),
+    )
+    kernel.evict_workspace_modules({})
+    second_model, second_note = run_pair("2")
+
+    assert (
+        first_model["outputs"]["model"]["value_ref"]
+        == second_model["outputs"]["model"]["value_ref"]
+    )
+    assert stored_value(kernel, first_note, "note") == b"1"
+    assert stored_value(kernel, second_note, "note") == b"2"
+
+
+def test_a_workspace_kind_uses_the_edited_plugin_after_eviction(
+    tmp_path: Path, import_state: None
+) -> None:
+    kernel, _ = make_kernel(
+        tmp_path,
+        files={
+            "token_kinds.py": """
+                from pathlib import Path
+
+
+                class Token:
+                    def __init__(self, text):
+                        self.text = text
+
+
+                class TokenKind:
+                    kind = "token"
+                    priority = 5
+
+                    def matches(self, value):
+                        return isinstance(value, Token)
+
+                    def serialize(self, value):
+                        return value.text.encode()
+
+                    def deserialize(self, source):
+                        return "v1:" + Path(source).read_text()
+
+                    def preview(self, value):
+                        return []
+
+
+                LUMLFLOW_KINDS = [TokenKind]
+            """
+        },
+    )
+    producer = """
+        def materialize(self, ctx):
+            import token_kinds
+
+            return {"token": token_kinds.Token("x")}
+    """
+    consumer = """
+        def materialize(self, ctx, token):
+            return {"note": token}
+    """
+
+    def run_pair(suffix: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        produced = run(
+            kernel, producer, run_id=f"producer{suffix}", produces={"token": {}}
+        )
+        token = produced["outputs"]["token"]
+        consumed = run(
+            kernel,
+            consumer,
+            run_id=f"consumer{suffix}",
+            produces={"note": {"kind": "note"}},
+            inputs={"token": {"value_ref": token["value_ref"], "kind": token["kind"]}},
+        )
+        return produced, consumed
+
+    first_token, first_note = run_pair("1")
+    module_path = kernel.workspace_dir / "token_kinds.py"
+    _edit_in_place(
+        module_path, module_path.read_text(encoding="utf-8").replace("v1:", "v2:")
+    )
+    kernel.evict_workspace_modules({})
+    second_token, second_note = run_pair("2")
+
+    assert first_token["outputs"]["token"]["kind"] == "token"
+    assert second_token["outputs"]["token"]["kind"] == "token"
+    assert stored_value(kernel, first_note, "note") == b"v1:x"
+    assert stored_value(kernel, second_note, "note") == b"v2:x"
+
+
+def test_paging_a_stored_frame_returns_the_window_and_the_true_total(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame({"n": list(range(50))})}
+        """,
+        produces={"rows": {"kind": "frame"}},
+    )
+
+    page = kernel.page(
+        {
+            "value_ref": record["outputs"]["rows"]["value_ref"],
+            "kind": "frame",
+            "query": {"offset": 10, "limit": 5},
+        }
+    )
+
+    assert page["columns"] == ["n"]
+    assert page["rows"] == [[10], [11], [12], [13], [14]]
+    assert page["offset"] == 10
+    assert page["total_rows"] == 50
+
+
+def test_a_frame_without_pyarrow_names_the_package_to_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("pandas")
+    kernel, _ = make_kernel(tmp_path)
+    real_import = builtins.__import__
+
+    def import_without_pyarrow(
+        name: str,
+        globals: dict[str, Any] | None = None,
+        locals: dict[str, Any] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> Any:
+        if name == "pyarrow" or name.startswith("pyarrow."):
+            raise ModuleNotFoundError("No module named 'pyarrow'", name="pyarrow")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_pyarrow)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame({"n": [1, 2]})}
+        """,
+        produces={"rows": {"kind": "frame"}},
+    )
+
+    assert record["state"] == "failed"
+    assert "install `pyarrow`" in record["error"]["message"]
+    assert "workspace environment" in record["error"]["message"]
+
+
+@pytest.fixture
+def fake_flavor(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+    pytest.importorskip("luml")
+    import types
+
+    from luml.experiments import tracker
+
+    seen: list[dict[str, Any]] = []
+
+    def save_fake(model: Any, inputs: Any = None, path: str | None = None) -> Any:
+        assert path is not None
+        seen.append({"model": model, "inputs": inputs, "path": path})
+        Path(path).write_bytes(b"bundle")
+        return types.SimpleNamespace(path=path)
+
+    module = types.ModuleType("fake_flavor")
+    module.save_fake = save_fake  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "fake_flavor", module)
+    monkeypatch.setitem(tracker._FLAVOR_REGISTRY, "fake", ("fake_flavor", "save_fake"))
+    return seen
+
+
+def test_exporting_a_model_packages_it_with_luml_at_the_named_path(
+    tmp_path: Path, fake_flavor: list[dict[str, Any]]
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"model": {"weights": [1, 2, 3]}}
+        """,
+        produces={"model": {"type": "model"}},
+    )
+    destination = tmp_path / "train.model.luml"
+
+    exported = kernel.export_model(
+        {
+            "value_ref": record["outputs"]["model"]["value_ref"],
+            "kind": record["outputs"]["model"]["kind"],
+            "destination": str(destination),
+            "flavor": "fake",
+        }
+    )
+
+    assert exported == {"path": str(destination), "flavor": "fake", "size": 6}
+    assert destination.read_bytes() == b"bundle"
+    assert fake_flavor[0]["model"] == {"weights": [1, 2, 3]}
+    assert fake_flavor[0]["inputs"] is None
+
+
+def test_exporting_a_model_hands_the_flavor_the_columns_it_trained_on(
+    tmp_path: Path, fake_flavor: list[dict[str, Any]]
+) -> None:
+    pass
+    pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    kernel, _ = make_kernel(tmp_path)
+    frame = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame(
+                {"age": range(20), "tenure": range(20), "target": [0, 1] * 10}
+            )}
+        """,
+        slug="rows",
+        produces={"rows": {"kind": "frame"}},
+    )
+    model = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            class Fitted:
+                feature_names_in_ = ["age", "tenure"]
+
+            return {"model": Fitted()}
+        """,
+        slug="train",
+        run_id="run2",
+        produces={"model": {"type": "model"}},
+    )
+
+    kernel.export_model(
+        {
+            "value_ref": model["outputs"]["model"]["value_ref"],
+            "kind": model["outputs"]["model"]["kind"],
+            "destination": str(tmp_path / "bundle.luml"),
+            "flavor": "fake",
+            "sample": {
+                "value_ref": frame["outputs"]["rows"]["value_ref"],
+                "kind": "frame",
+            },
+        }
+    )
+
+    inputs = fake_flavor[0]["inputs"]
+    assert list(inputs.columns) == ["age", "tenure"]
+    assert len(inputs) == 5
+
+
+def test_exporting_a_model_picks_the_frame_that_carries_its_features(
+    tmp_path: Path, fake_flavor: list[dict[str, Any]]
+) -> None:
+    pytest.importorskip("pandas")
+    pytest.importorskip("pyarrow")
+    kernel, _ = make_kernel(tmp_path)
+    labels = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame({"target": [0, 1] * 10})}
+        """,
+        slug="labels",
+        produces={"rows": {"kind": "frame"}},
+    )
+    features = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            import pandas
+
+            return {"rows": pandas.DataFrame(
+                {"age": range(20), "tenure": range(20)}
+            )}
+        """,
+        slug="features",
+        run_id="run2",
+        produces={"rows": {"kind": "frame"}},
+    )
+    model = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            class Fitted:
+                feature_names_in_ = ["age", "tenure"]
+
+            return {"model": Fitted()}
+        """,
+        slug="train",
+        run_id="run3",
+        produces={"model": {"type": "model"}},
+    )
+
+    kernel.export_model(
+        {
+            "value_ref": model["outputs"]["model"]["value_ref"],
+            "kind": model["outputs"]["model"]["kind"],
+            "destination": str(tmp_path / "bundle.luml"),
+            "flavor": "fake",
+            "samples": [
+                {"value_ref": labels["outputs"]["rows"]["value_ref"], "kind": "frame"},
+                {
+                    "value_ref": features["outputs"]["rows"]["value_ref"],
+                    "kind": "frame",
+                },
+            ],
+        }
+    )
+
+    assert list(fake_flavor[0]["inputs"].columns) == ["age", "tenure"]
+
+
+def test_exporting_without_a_sample_to_a_flavor_that_needs_one_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("luml")
+    import types
+
+    from luml.experiments import tracker
+
+    def save_strict(model: Any, inputs: Any, path: str | None = None) -> Any:
+        raise AssertionError("must not be called without a sample")
+
+    module = types.ModuleType("strict_flavor")
+    module.save_strict = save_strict  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "strict_flavor", module)
+    monkeypatch.setitem(
+        tracker._FLAVOR_REGISTRY, "strict", ("strict_flavor", "save_strict")
+    )
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"model": "WEIGHTS"}
+        """,
+        produces={"model": {"type": "model"}},
+    )
+
+    with pytest.raises(CellError, match="needs a sample of its inputs"):
+        kernel.export_model(
+            {
+                "value_ref": record["outputs"]["model"]["value_ref"],
+                "kind": record["outputs"]["model"]["kind"],
+                "destination": str(tmp_path / "bundle.luml"),
+                "flavor": "strict",
+            }
+        )
+
+
+def test_exporting_a_model_of_no_known_flavor_names_the_supported_ones(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("luml")
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"model": "WEIGHTS"}
+        """,
+        produces={"model": {"type": "model"}},
+    )
+
+    with pytest.raises(CellError, match="Cannot auto-detect flavor.*sklearn"):
+        kernel.export_model(
+            {
+                "value_ref": record["outputs"]["model"]["value_ref"],
+                "kind": record["outputs"]["model"]["kind"],
+                "destination": str(tmp_path / "bundle.luml"),
+            }
+        )
+
+
+def test_paging_a_kind_that_has_no_pager_is_refused(tmp_path: Path) -> None:
+    kernel, _ = make_kernel(tmp_path)
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            return {"note": "nothing to page"}
+        """,
+        produces={"note": {"kind": "note"}},
+    )
+
+    with pytest.raises(CellError, match="`note` values are not paged"):
+        kernel.page(
+            {
+                "value_ref": record["outputs"]["note"]["value_ref"],
+                "kind": "note",
+                "query": {},
+            }
+        )
+
+
+def test_shutdown_stops_the_link_and_marks_the_kernel_stopped(tmp_path: Path) -> None:
+    kernel, link = make_kernel(tmp_path)
+
+    assert kernel.shutdown({}) == {"ok": True}
+    assert kernel.stopped.is_set()
+    assert link.stopped
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="unix sockets only")
+def test_a_spawned_kernel_handshakes_runs_a_cell_and_shuts_down(
+    tmp_path: Path,
+) -> None:
+    address = tmp_path / "kernel.sock"
+    flow_dir = tmp_path / "project" / "churn.flow"
+    (flow_dir / "cells").mkdir(parents=True)
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.settimeout(_TIMEOUT_S)
+    listener.bind(str(address))
+    listener.listen(1)
+    kernel = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "lumlflow_kernel",
+            "--socket",
+            str(address),
+            "--flow-dir",
+            str(flow_dir),
+        ],
+        cwd=_REPO_ROOT,
+        env={**os.environ, "PYTHONPATH": str(_REPO_ROOT)},
+    )
+    daemon: _Daemon | None = None
+    try:
+        accepted, _ = listener.accept()
+        daemon = _Daemon(accepted)
+
+        greeting = daemon.call(1, "handshake", {})
+        record = daemon.call(2, "run", _run_request())
+
+        assert greeting["protocol"] == PROTOCOL_VERSION
+        assert greeting["pid"] == kernel.pid
+        assert "run" in greeting["capabilities"]
+        assert record["state"] == "succeeded"
+        assert record["outputs"]["note"]["kind"] == "note"
+        assert daemon.named("started") == [{"run_id": "run1", "slug": "greet"}]
+        assert _logged(daemon) == "hello from the cell\n"
+        assert [event["run_id"] for event in daemon.named("materialized")] == ["run1"]
+
+        assert daemon.call(3, "shutdown", {}) == {"ok": True}
+        assert kernel.wait(timeout=_TIMEOUT_S) == 0
+    finally:
+        if kernel.poll() is None:
+            kernel.kill()
+            kernel.wait(timeout=_TIMEOUT_S)
+        if daemon is not None:
+            daemon.close()
+        listener.close()
+
+
+class _Daemon:
+    def __init__(self, sock: socket.socket) -> None:
+        sock.settimeout(_TIMEOUT_S)
+        self._sock = sock
+        self._reader = sock.makefile("rb")
+        self._writer = sock.makefile("wb")
+        self.events: list[tuple[str, dict[str, Any]]] = []
+
+    def call(self, request_id: int, method: str, params: dict[str, Any]) -> Any:
+        self._writer.write(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "method": method,
+                    "params": params,
+                }
+            ).encode("utf-8")
+            + b"\n"
+        )
+        self._writer.flush()
+        while True:
+            line = self._reader.readline()
+            assert line, f"the kernel closed the link without answering `{method}`"
+            message = json.loads(line)
+            if message.get("id") == request_id:
+                assert "error" not in message, message["error"]
+                return message["result"]
+            self.events.append((message["method"], message.get("params") or {}))
+
+    def named(self, event: str) -> list[dict[str, Any]]:
+        return [params for name, params in self.events if name == event]
+
+    def close(self) -> None:
+        for stream in (self._writer, self._reader):
+            with contextlib.suppress(OSError):
+                stream.close()
+        self._sock.close()
+
+
+def _edit_in_place(path: Path, source: str) -> None:
+    """Rewrite a module the way an agent does: same byte length, same second.
+
+    Those two are the whole of a `.pyc` header's staleness check, and holding
+    the mtime fixed is what keeps the test from passing by luck when the write
+    lands in the next second.
+    """
+    before = path.stat()
+    path.write_text(source, encoding="utf-8")
+    os.utime(path, (before.st_atime, before.st_mtime))
+
+
+def _run_request() -> dict[str, Any]:
+    source = textwrap.dedent(
+        """
+        class Greet:
+            def materialize(self, ctx):
+                print("hello from the cell")
+                return {"note": "greetings"}
+        """
+    ).strip()
+    return {
+        "run_id": "run1",
+        "version": {
+            "slug": "greet",
+            "source": source,
+            "produces": {"note": {"kind": "note"}},
+        },
+        "inputs": {},
+        "params": {},
+        "ctx_info": {"branch": "main", "step": 1},
+    }
+
+
+def _logged(daemon: _Daemon) -> str:
+    from base64 import b64decode
+
+    chunks = sorted(daemon.named("log"), key=lambda event: event["seq"])
+    return b"".join(b64decode(chunk["bytes"]) for chunk in chunks).decode("utf-8")

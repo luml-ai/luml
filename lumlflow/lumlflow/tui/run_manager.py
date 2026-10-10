@@ -137,9 +137,7 @@ class RunManager:
         self.state.experiment_snapshot = snapshot
         return snapshot
 
-    def detect_new_experiments(
-        self, *, require_active: bool = True
-    ) -> list[str]:
+    def detect_new_experiments(self, *, require_active: bool = True) -> list[str]:
         """Return experiment ids that appeared since the snapshot.
 
         When `require_active=True` (the SPEC contract — "watches for a
@@ -242,9 +240,7 @@ class RunManager:
         )
         asyncio.create_task(self._await_exit(), name="run-manager-wait")
 
-    async def _read_stream(
-        self, stream: asyncio.StreamReader, name: str
-    ) -> None:
+    async def _read_stream(self, stream: asyncio.StreamReader, name: str) -> None:
         while True:
             try:
                 raw = await stream.readline()

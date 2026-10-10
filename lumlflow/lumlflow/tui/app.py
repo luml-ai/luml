@@ -87,9 +87,7 @@ class LumlflowApp(App[None]):
         self.live_refresh_on = auto_refresh
         self._home_screen_factory = home_screen_factory
         self._open_dialog_count = 0
-        self._refresh_scheduler = LiveRefreshScheduler(
-            self, interval=refresh_interval
-        )
+        self._refresh_scheduler = LiveRefreshScheduler(self, interval=refresh_interval)
         # Run-and-attach state. `run_spec` is set when `lumlflow tui <script>`
         # was invoked; on boot the app pushes a `RunAttachScreen` so the
         # script runs as a child and the TUI watches for its experiment.
@@ -314,10 +312,7 @@ class LumlflowApp(App[None]):
         # branch you've navigated away from. Overlays such as the help
         # sheet, command palette, and dialogs are not `BaseScreen`s, so
         # opening them leaves the history intact.
-        if (
-            isinstance(screen, BaseScreen)
-            and not self._navigating_forward
-        ):
+        if isinstance(screen, BaseScreen) and not self._navigating_forward:
             self._clear_forward_history()
         result = super().push_screen(
             screen,
@@ -351,9 +346,7 @@ class LumlflowApp(App[None]):
                 header.set_store_label(self._store_uri)
             header.selection_count = len(self._selected_experiments)
             header.loading = self._loading_state
-            header.auto_refresh_on = (
-                self.live_refresh_on and not self.is_refresh_paused
-            )
+            header.auto_refresh_on = self.live_refresh_on and not self.is_refresh_paused
         footer = self._footer
         if footer is not None:
             footer.set_scopes(screen.footer_scopes())
@@ -425,9 +418,7 @@ class LumlflowApp(App[None]):
         )
         toast_host = self._toast_host
         if toast_host is not None:
-            toast_host.push_toast(
-                message, severity=severity, duration=duration
-            )
+            toast_host.push_toast(message, severity=severity, duration=duration)
 
     def action_messages(self) -> None:
         """Open the rolling log of recent toasts (palette entry)."""
@@ -473,11 +464,7 @@ class LumlflowApp(App[None]):
 
         result = osc52_copy(value)
         if result.ok:
-            shown = (
-                f"Copied {label} to clipboard."
-                if label
-                else "Copied to clipboard."
-            )
+            shown = f"Copied {label} to clipboard." if label else "Copied to clipboard."
             self.show_toast(
                 f"{shown}  {value}",
                 severity="success",
@@ -506,9 +493,7 @@ class LumlflowApp(App[None]):
 
     # ----- Cross-screen experiment selection -----
 
-    def toggle_experiment_selection(
-        self, experiment: ExperimentDetails
-    ) -> bool:
+    def toggle_experiment_selection(self, experiment: ExperimentDetails) -> bool:
         """Toggle an experiment's membership in the comparison selection.
 
         Returns the new membership state (`True` if the experiment is
@@ -554,9 +539,7 @@ class LumlflowApp(App[None]):
             return
         screen = self.screen
         scopes = (
-            screen.footer_scopes()
-            if isinstance(screen, BaseScreen)
-            else ("global",)
+            screen.footer_scopes() if isinstance(screen, BaseScreen) else ("global",)
         )
         self.push_screen(HelpCheatsheet(self.keymap, active_scopes=scopes))
 
@@ -655,9 +638,7 @@ class LumlflowApp(App[None]):
                 )
             return
         if command.id.startswith("refresh.interval_"):
-            self.set_refresh_interval(
-                float(command.id.rsplit("_", 1)[1])
-            )
+            self.set_refresh_interval(float(command.id.rsplit("_", 1)[1]))
             return
 
         # For every other command we hand off to the action method on
@@ -736,9 +717,7 @@ class LumlflowApp(App[None]):
         try:
             fn()
         except Exception as exc:  # pragma: no cover - defensive
-            self.show_toast(
-                f"Could not run: {exc}", severity="error"
-            )
+            self.show_toast(f"Could not run: {exc}", severity="error")
 
     def _go_back(self) -> bool:
         """Pop one screen, recording it so `Ctrl+→` can return to it.
@@ -802,9 +781,7 @@ class LumlflowApp(App[None]):
             self.call_later(self.action_quit)
             return
         self._quit_armed = True
-        self.show_toast(
-            "Press q again to quit.", severity="info", duration=2.0
-        )
+        self.show_toast("Press q again to quit.", severity="info", duration=2.0)
         self.set_timer(2.0, self._disarm_quit)
 
     def _disarm_quit(self) -> None:
@@ -847,9 +824,7 @@ class LumlflowApp(App[None]):
 
         self._go_back()
 
-    def on_breadcrumb_segment_clicked(
-        self, event: Breadcrumb.SegmentClicked
-    ) -> None:
+    def on_breadcrumb_segment_clicked(self, event: Breadcrumb.SegmentClicked) -> None:
         """Navigate to the clicked breadcrumb segment.
 
         The breadcrumb encodes the parent chain leaf-last. Clicking a
@@ -902,9 +877,7 @@ class LumlflowApp(App[None]):
         self.live_refresh_on = not self.live_refresh_on
         header = self._header
         if header is not None:
-            header.auto_refresh_on = (
-                self.live_refresh_on and not self.is_refresh_paused
-            )
+            header.auto_refresh_on = self.live_refresh_on and not self.is_refresh_paused
         self.show_toast(
             f"Auto-refresh {'on' if self.live_refresh_on else 'off'}.",
             severity="info",
@@ -930,17 +903,13 @@ class LumlflowApp(App[None]):
         """
 
         screen = self.screen
-        if isinstance(screen, BaseScreen) and screen.cycle_focus_pane(
-            reverse=False
-        ):
+        if isinstance(screen, BaseScreen) and screen.cycle_focus_pane(reverse=False):
             return
         self.action_focus_next()
 
     def action_cycle_focus_back(self) -> None:
         screen = self.screen
-        if isinstance(screen, BaseScreen) and screen.cycle_focus_pane(
-            reverse=True
-        ):
+        if isinstance(screen, BaseScreen) and screen.cycle_focus_pane(reverse=True):
             return
         self.action_focus_previous()
 

@@ -1,0 +1,412 @@
+import ipaddress
+import json
+import os
+import platform
+import re
+import sys
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
+
+from lumlflow import __version__
+from lumlflow.flow.atomic import atomic_write_bytes
+from lumlflow.flow.dsl.tree import EXCLUDED_DIRS
+from lumlflow.flow.errors import FlowAmbiguous, FlowError, FlowNotFound
+from lumlflow.flow.store.flowstore import FLOW_SUFFIX, store_dir
+
+STATE_DIR_ENV = "LUMLFLOW_STATE_DIR"
+LOGS_DIRNAME = "logs"
+RECORD_NAME = "daemon.json"
+LOCK_NAME = "daemon.lock"
+LOG_NAME = "daemon.log"
+NON_LOOPBACK_WARNING = (
+    "The tracker API on this port is unauthenticated on a non-loopback bind."
+)
+
+_NETWORK_FILESYSTEMS = frozenset(
+    {
+        "9p",
+        "afs",
+        "cifs",
+        "fuse.sshfs",
+        "ncpfs",
+        "nfs",
+        "nfs4",
+        "smbfs",
+    }
+)
+_MOUNT_ESCAPE = re.compile(r"\\([0-7]{3})")
+
+
+@dataclass(frozen=True)
+class FlowRef:
+    name: str
+    path: Path
+    relpath: str
+
+    @property
+    def address(self) -> str:
+        return str(self.path)
+
+    @property
+    def has_store(self) -> bool:
+        return store_dir(self.path).is_dir()
+
+
+@dataclass(frozen=True)
+class DaemonRecord:
+    pid: int
+    instance_id: str
+    port: int
+    token: str
+    web_host: str
+    web_port: int
+    tracker_store: str
+    version: str
+
+    def to_json(self) -> bytes:
+        return json.dumps(self.__dict__, sort_keys=True).encode("utf-8")
+
+
+@dataclass(frozen=True)
+class DirectoryListing:
+    flows: list[FlowRef]
+    folders: list[Path]
+
+
+def list_directory(root: Path) -> DirectoryListing:
+    root = root.resolve()
+    if root.name.endswith(FLOW_SUFFIX) and root.is_dir():
+        return DirectoryListing(
+            flows=[
+                FlowRef(name=root.name[: -len(FLOW_SUFFIX)], path=root, relpath=".")
+            ],
+            folders=[],
+        )
+    try:
+        entries = sorted(os.scandir(root), key=lambda entry: entry.name)
+    except (FileNotFoundError, NotADirectoryError):
+        raise FlowError(f"there is no directory `{root}`") from None
+    except OSError:
+        raise FlowError(f"cannot read `{root}`") from None
+    flows: list[FlowRef] = []
+    folders: list[Path] = []
+    for entry in entries:
+        # One level, never descended: a linked directory cannot loop.
+        try:
+            if not entry.is_dir():
+                continue
+        except OSError:
+            continue
+        if entry.name.endswith(FLOW_SUFFIX):
+            path = Path(entry.path)
+            flows.append(
+                FlowRef(
+                    name=entry.name[: -len(FLOW_SUFFIX)],
+                    path=path.resolve() if entry.is_symlink() else path,
+                    relpath=entry.name,
+                )
+            )
+        elif entry.name not in EXCLUDED_DIRS and not entry.name.startswith("."):
+            folders.append(root / entry.name)
+    return DirectoryListing(flows=flows, folders=folders)
+
+
+Lister = Callable[[Path], DirectoryListing]
+
+
+def select_flow(
+    root: Path,
+    *,
+    name: str | None = None,
+    cwd: Path | None = None,
+    lister: Lister | None = None,
+) -> FlowRef:
+    root = root.resolve()
+    lister = lister or list_directory
+    if name is not None:
+        return _addressed(root, name, lister)
+    standing = _standing_flow(cwd or root)
+    if standing is not None:
+        return standing
+    flows = lister(root).flows
+    if not flows:
+        raise FlowNotFound(f"no flow in {root}. create one with `lumlflow init`")
+    if len(flows) > 1:
+        raise FlowAmbiguous(f"which flow? {_candidates(flows)}. name one with `--flow`")
+    return flows[0]
+
+
+class WorkspaceLock:
+    def __init__(self) -> None:
+        self.path = lock_path()
+        self._handle: int | None = None
+
+    def acquire(self) -> bool:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        handle = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.set_inheritable(handle, False)
+        if not _lock(handle):
+            os.close(handle)
+            return False
+        self._handle = handle
+        return True
+
+    def release(self) -> None:
+        handle, self._handle = self._handle, None
+        if handle is None:
+            return
+        _unlock(handle)
+        os.close(handle)
+
+
+def state_dir() -> Path:
+    override = os.environ.get(STATE_DIR_ENV)
+    if override:
+        return Path(override).expanduser()
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or "~/AppData/Local"
+        return Path(base).expanduser() / "lumlflow"
+    if platform.system() == "Darwin":
+        return Path("~/Library/Application Support/lumlflow").expanduser()
+    base = os.environ.get("XDG_STATE_HOME") or "~/.local/state"
+    return Path(base).expanduser() / "lumlflow"
+
+
+def record_path() -> Path:
+    return state_dir() / RECORD_NAME
+
+
+def lock_path() -> Path:
+    return state_dir() / LOCK_NAME
+
+
+def log_path() -> Path:
+    return state_dir() / LOGS_DIRNAME / LOG_NAME
+
+
+def read_record() -> DaemonRecord | None:
+    path = record_path()
+    try:
+        body = json.loads(path.read_bytes())
+        return DaemonRecord(**body)
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def write_record(record: DaemonRecord) -> None:
+    atomic_write_bytes(record_path(), record.to_json())
+    record_path().chmod(0o600)
+
+
+def clear_record(*, instance_id: str | None = None) -> None:
+    record = read_record()
+    if record is None or instance_id is None or record.instance_id == instance_id:
+        record_path().unlink(missing_ok=True)
+
+
+def new_record(
+    *,
+    instance_id: str,
+    port: int,
+    token: str,
+    web_host: str,
+    web_port: int,
+    tracker_store: str,
+) -> DaemonRecord:
+    return DaemonRecord(
+        pid=os.getpid(),
+        instance_id=instance_id,
+        port=port,
+        token=token,
+        web_host=web_host,
+        web_port=web_port,
+        tracker_store=tracker_store,
+        version=__version__,
+    )
+
+
+def lock_held() -> bool:
+    probe = WorkspaceLock()
+    if not probe.acquire():
+        return True
+    probe.release()
+    return False
+
+
+def state_dir_is_local(directory: Path | None = None) -> bool:
+    path = (directory or state_dir()).expanduser()
+    path.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32" and str(path.resolve()).startswith("\\\\"):
+        return False
+    filesystem = _filesystem_type(path.resolve())
+    return filesystem is None or filesystem.casefold() not in _NETWORK_FILESYSTEMS
+
+
+def network_filesystem_warning(directory: Path | None = None) -> str | None:
+    path = (directory or state_dir()).expanduser().resolve()
+    if state_dir_is_local(path):
+        return None
+    return (
+        f"warning: {path} is on a network filesystem; file locks are unreliable there"
+    )
+
+
+def is_loopback_host(host: str) -> bool:
+    if host.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _filesystem_type(path: Path) -> str | None:
+    mountinfo = Path("/proc/self/mountinfo")
+    try:
+        lines = mountinfo.read_text("utf-8").splitlines()
+    except OSError:
+        return None
+    matches: list[tuple[int, str]] = []
+    for line in lines:
+        before, separator, after = line.partition(" - ")
+        if not separator:
+            continue
+        fields = before.split()
+        trailing = after.split()
+        if len(fields) < 5 or not trailing:
+            continue
+        mount = Path(_unescape_mount(fields[4]))
+        if path == mount or path.is_relative_to(mount):
+            matches.append((len(mount.parts), trailing[0]))
+    return max(matches, default=(0, None))[1]
+
+
+def _unescape_mount(value: str) -> str:
+    return _MOUNT_ESCAPE.sub(lambda match: chr(int(match.group(1), 8)), value)
+
+
+def _lock(handle: int) -> bool:
+    try:
+        if sys.platform == "win32":
+            msvcrt.locking(handle, msvcrt.LK_NBLCK, 1)
+        else:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock(handle: int) -> None:
+    try:
+        if sys.platform == "win32":
+            os.lseek(handle, 0, os.SEEK_SET)
+            msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
+        else:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+def _addressed(root: Path, name: str, lister: Lister) -> FlowRef:
+    if Path(name).is_absolute():
+        return _at_path(root, Path(name).resolve())
+    wanted = name.strip("/")
+    if ".." in Path(wanted).parts:
+        raise FlowError(f"`{name}` is not a path a flow can be named by")
+    if len(Path(wanted).parts) > 1:
+        if not wanted.endswith(FLOW_SUFFIX):
+            wanted += FLOW_SUFFIX
+        return _at_path(root, (root / wanted).resolve())
+    bare = wanted.removesuffix(FLOW_SUFFIX)
+    standing = _standing_flow(root)
+    if standing is not None and bare == standing.name:
+        return standing
+    path = root / f"{bare}{FLOW_SUFFIX}"
+    if bare and path.is_dir():
+        return FlowRef(name=bare, path=path, relpath=path.name)
+    raise _missing(root, name, lister)
+
+
+def _missing(root: Path, name: str, lister: Lister) -> FlowNotFound:
+    listing = lister(root)
+    has = (
+        f"this directory has {', '.join(f'`{flow.name}`' for flow in listing.flows)}"
+        if listing.flows
+        else "this directory has no flows"
+    )
+    if listing.folders:
+        bare = name.strip("/").removesuffix(FLOW_SUFFIX)
+        hint = (
+            f". name a nested flow by its path, like `{listing.folders[0].name}/{bare}`"
+        )
+    else:
+        hint = ""
+    return FlowNotFound(f"no flow called `{name}` in `{root}`. {has}{hint}")
+
+
+def _at_path(root: Path, path: Path) -> FlowRef:
+    if path == root and path.name.endswith(FLOW_SUFFIX):
+        if not path.is_dir():
+            raise FlowNotFound(f"there is no flow at `{path}`")
+        return FlowRef(
+            name=path.name[: -len(FLOW_SUFFIX)],
+            path=path,
+            relpath=path.name,
+        )
+    if path.is_relative_to(root):
+        relpath = path.relative_to(root)
+        if path.is_dir() and _discoverable(relpath):
+            return FlowRef(
+                name=path.name[: -len(FLOW_SUFFIX)],
+                path=path,
+                relpath=relpath.as_posix(),
+            )
+        raise FlowNotFound(f"there is no flow at `{path}`")
+    return _outside_flow(path)
+
+
+def _discoverable(relpath: Path) -> bool:
+    """Whether `relpath` names a `.flow` directory with no `.flow` directory
+    above it. A folder a listing hides is still reached by its path."""
+
+    *above, name = relpath.parts or ("",)
+    return name.endswith(FLOW_SUFFIX) and not any(
+        part.endswith(FLOW_SUFFIX) for part in above
+    )
+
+
+def _outside_flow(path: Path) -> FlowRef:
+    if not (path.is_dir() and path.name.endswith(FLOW_SUFFIX)):
+        raise FlowNotFound(f"there is no flow at `{path}`")
+    return FlowRef(
+        name=path.name[: -len(FLOW_SUFFIX)], path=path, relpath=path.as_posix()
+    )
+
+
+def _standing_flow(directory: Path) -> FlowRef | None:
+    here = directory.resolve()
+    path = next(
+        (
+            candidate
+            for candidate in (here, *here.parents)
+            if candidate.name.endswith(FLOW_SUFFIX) and candidate.is_dir()
+        ),
+        None,
+    )
+    if path is None:
+        return None
+    return FlowRef(
+        name=path.name[: -len(FLOW_SUFFIX)],
+        path=path,
+        relpath=path.name,
+    )
+
+
+def _candidates(flows: list[FlowRef]) -> str:
+    return ", ".join(f"`{flow.name}` (`{flow.address}`)" for flow in flows)

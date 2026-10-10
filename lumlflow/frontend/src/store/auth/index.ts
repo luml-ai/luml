@@ -12,6 +12,12 @@ export const useAuthStore = defineStore('auth', () => {
     return isAuthenticated.value
   }
 
+  async function ensureAuth() {
+    const isAuthenticated = await checkAuth()
+    if (!isAuthenticated) showApiKeyModal()
+    return isAuthenticated
+  }
+
   async function setApiKey(apiKey: string) {
     await apiService.setApiKey(apiKey)
     isAuthenticated.value = true
@@ -28,6 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     isAuthenticated,
     checkAuth,
+    ensureAuth,
     setApiKey,
     showApiKeyModal,
     apiKeyModalVisible,

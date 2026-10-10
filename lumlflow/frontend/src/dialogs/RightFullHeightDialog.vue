@@ -2,7 +2,9 @@
   <Dialog v-model:visible="visible" :pt="dialogPt" position="right" :draggable="false">
     <template #header>
       <div class="flex items-center gap-2">
-        <props.icon :size="20" color="var(--p-primary-color)" />
+        <template v-if="props.icon">
+          <props.icon :size="20" color="var(--p-primary-color)" />
+        </template>
         <h3 class="">{{ props.title }}</h3>
       </div>
     </template>
@@ -25,7 +27,7 @@ import { X } from 'lucide-vue-next'
 
 interface Props {
   title: string
-  icon: LucideIcon
+  icon?: LucideIcon
 }
 
 const dialogPt: DialogPassThroughOptions = {

@@ -1,9 +1,4 @@
 <template>
-  <Button label="Upload to LUML" severity="secondary" @click="uploadClick" :loading="loading">
-    <template #icon>
-      <CloudUploadIcon :size="14" />
-    </template>
-  </Button>
   <Dialog v-model:visible="visible" header="upload to LUML" modal :pt="DIALOG_PT">
     <Form
       id="upload-form"
@@ -14,7 +9,9 @@
       class="flex flex-col gap-3"
       @submit="handleSubmit"
     >
+      <!-- Hidden, not unmounted: the form validates every field it registers, so `type` must stay one. -->
       <SelectButton
+        v-show="!publish"
         name="type"
         :options="selectTypeOptions"
         option-label="label"
@@ -57,6 +54,7 @@
         :organization-id="$form['organization']?.value"
         :orbit-id="$form['orbit']?.value"
         :form-ref="formRef"
+        :required-kinds="requiredKinds"
         @change-collection="handleChangeCollection"
       />
       <FormField name="name" class="flex flex-col gap-2">
@@ -72,7 +70,7 @@
         <UiTagsSelect id="tags" :items="existingTags" placeholder="Type to add tags" />
       </FormField>
       <FormField
-        v-show="$form['type']?.value === UploadTypeEnum.MODEL"
+        v-show="!publish && $form['type']?.value === UploadTypeEnum.MODEL"
         name="embedExperiment"
         class="flex items-center gap-2"
       >
@@ -106,6 +104,7 @@ import {
   type CollectionInfo,
   type OrbitInfo,
   type OrganizationInfo,
+  type PublishTarget,
   type UploadArtifactPayload,
   type UploadModalProps,
 } from './upload.interface'
@@ -120,30 +119,28 @@ import {
   useToast,
   ProgressBar,
 } from 'primevue'
-import { CloudUploadIcon } from 'lucide-vue-next'
-import { reactive, watch } from 'vue'
-import { ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { FormField, Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import { DIALOG_PT, resolver, selectTypeOptions } from './data'
-import { useAuthStore } from '@/store/auth'
 import { errorToast, successToast } from '@/toasts'
 import { apiService } from '@/api/api.service'
 import { useUpload } from '@/hooks/useUpload'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 import CollectionField from './CollectionField.vue'
+import { requiredArtifactKinds } from './collectionTypes'
+import type { Model } from '@/store/experiments/experiments.interface'
 
 const props = defineProps<UploadModalProps>()
 
-const authStore = useAuthStore()
 const toast = useToast()
-const { progress, loading: uploadLoading, error, complete, upload } = useUpload()
+const { progress, loading: uploadLoading, error, complete, upload, follow } = useUpload()
 
 const initialValues = reactive({
-  type: 'auto',
+  type: props.publish ? UploadTypeEnum.MODEL : UploadTypeEnum.AUTO,
   organization: null,
   orbit: null,
   collection: null,
-  name: '',
+  name: props.defaultName ?? '',
   description: '',
   tags: [],
   embedExperiment: true,
@@ -152,7 +149,6 @@ const initialValues = reactive({
 const formRef = ref<FormInstance>()
 
 const visible = defineModel<boolean>('visible')
-const loading = ref<boolean>(false)
 
 const organizations = ref<OrganizationInfo[]>([])
 const organizationsLoading = ref<boolean>(false)
@@ -162,24 +158,24 @@ const orbitsLoading = ref<boolean>(false)
 
 const existingTags = ref<string[]>([])
 
+const models = ref<Model[]>(props.models ?? [])
+watch(
+  () => props.models,
+  (value) => {
+    if (value) models.value = value
+  },
+)
+
+const requiredKinds = computed(() =>
+  props.publish
+    ? requiredArtifactKinds(UploadTypeEnum.MODEL, 1)
+    : requiredArtifactKinds(
+        (formRef.value?.states['type']?.value as UploadTypeEnum | undefined) ?? UploadTypeEnum.AUTO,
+        models.value.length || (props.modelCount ?? 0),
+      ),
+)
+
 const lmlUrl = import.meta.env.VITE_LUML_URL
-
-function openModal() {
-  visible.value = true
-}
-
-async function uploadClick() {
-  loading.value = true
-  try {
-    const isAuthenticated = await authStore.checkAuth()
-    if (isAuthenticated) openModal()
-    else authStore.showApiKeyModal()
-  } catch (error) {
-    toast.add(errorToast(error))
-  } finally {
-    loading.value = false
-  }
-}
 
 async function getOrganizations() {
   try {
@@ -207,12 +203,42 @@ function handleChangeCollection(collection: CollectionInfo | undefined) {
   existingTags.value = collection?.tags || []
 }
 
+function publishTarget(event: FormSubmitEvent): PublishTarget {
+  return {
+    organization_id: event.values.organization,
+    orbit_id: event.values.orbit,
+    collection_id: event.values.collection,
+    artifact: {
+      name: event.values.name,
+      description: event.values.description,
+      tags: event.values.tags,
+    },
+  }
+}
+
 function handleSubmit(event: FormSubmitEvent) {
   if (!event.valid) return
+  if (props.publish) {
+    const publish = props.publish
+    follow(() => publish(publishTarget(event)))
+    return
+  }
+  if (props.publishExperiment) {
+    const publishExperiment = props.publishExperiment
+    follow(() =>
+      publishExperiment(publishTarget(event), {
+        upload_type: event.values.type,
+        embed_experiment: event.values.embedExperiment,
+      }),
+    )
+    return
+  }
+  const experimentId = props.experimentId
+  if (!experimentId) return
   const payload: UploadArtifactPayload = {
     upload_type: event.values.type,
     embed_experiment: event.values.embedExperiment,
-    experiment_id: props.experimentId,
+    experiment_id: experimentId,
     organization_id: event.values.organization,
     orbit_id: event.values.orbit,
     collection_id: event.values.collection,
@@ -241,6 +267,15 @@ watch(
 
 watch(visible, async (value) => {
   if (value) {
+    const experimentId = props.experimentId
+    if (!props.models && experimentId) {
+      try {
+        models.value = await apiService.getExperimentModels(experimentId)
+      } catch (error) {
+        toast.add(errorToast(error))
+      }
+    }
+    if (props.defaultName) formRef.value?.setFieldValue('name', props.defaultName)
     await getOrganizations()
   } else {
     organizations.value = []
@@ -269,6 +304,7 @@ watch(error, (value) => {
 watch(complete, (value) => {
   if (value) {
     toast.add(successToast('Successfully uploaded to LUML'))
+    visible.value = false
   }
 })
 </script>

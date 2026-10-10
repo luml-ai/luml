@@ -18,10 +18,40 @@ def client(tracker: ExperimentTracker) -> TestClient:
     with patch(init_patch, lambda self: None):
         app = AppService()
 
+    from lumlflow.api.experiment_groups import groups_handler
     from lumlflow.api.experiments import experiments_handler
 
     experiments_handler.tracker = tracker
+    groups_handler.tracker = tracker
     return TestClient(app)
+
+
+def test_lumlflow_metadata_is_served_on_experiment_payloads(
+    tracker: ExperimentTracker, client: TestClient
+) -> None:
+    group = tracker.create_group("churn")
+    experiment_id = tracker.start_experiment(name="evaluate", group=group.name)
+    identity = {
+        "flow": "churn",
+        "flow_id": "flow-1",
+        "path": "/workspace/churn.flow",
+        "slug": "evaluate",
+        "uid": "cell-1",
+        "lane": "main",
+        "version_id": "version-1",
+        "run_id": "run-1",
+    }
+    tracker.set_experiment_metadata(experiment_id, {"lumlflow": identity})
+
+    list_response = client.get(
+        "/api/groups/experiments", params={"group_ids": group.id}
+    )
+    detail_response = client.get(f"/api/experiments/{experiment_id}")
+
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["metadata"] == {"lumlflow": identity}
+    assert detail_response.status_code == 200
+    assert detail_response.json()["metadata"] == {"lumlflow": identity}
 
 
 class TestMetricKeyWithSlash:

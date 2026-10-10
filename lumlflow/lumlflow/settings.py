@@ -1,10 +1,16 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEFAULT_STORE_PATH = "~/.luml/experiments"
+
+if TYPE_CHECKING:
+    from lumlflow.tracker import TrackerProvider
+
+_tracker_provider: "TrackerProvider | None" = None
 
 
 class Settings(BaseSettings):
@@ -35,11 +41,16 @@ def get_config() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
 
-@lru_cache
-def get_tracker() -> "ThreadSafeTracker":  # type: ignore[name-defined]  # noqa: F821
-    from lumlflow.tracker import ThreadSafeTracker
+def get_tracker() -> "TrackerProvider":
+    global _tracker_provider
 
-    return ThreadSafeTracker(f"sqlite://{get_config().BACKEND_STORE_URI}")
+    if _tracker_provider is None:
+        from lumlflow.tracker import TrackerProvider
+
+        _tracker_provider = TrackerProvider(
+            lambda: Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
+        )
+    return _tracker_provider
 
 
 config = get_config()

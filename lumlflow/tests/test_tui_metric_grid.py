@@ -510,6 +510,7 @@ class TestZoomMetricStepping:
             await pilot.pause()
             assert received == [1, -1, 1, -1]
 
+
 # ---------------------------------------------------------------------------
 # Smoke: the screen-style focus contract works through PanelFrame.
 # ---------------------------------------------------------------------------

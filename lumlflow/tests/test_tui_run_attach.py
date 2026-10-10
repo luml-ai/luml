@@ -347,6 +347,13 @@ class TestRunAttachSuccess:
                 pilot=pilot,
                 timeout=10.0,
             )
+            await _wait_until(
+                lambda: isinstance(app.screen, ExperimentDetailScreen),
+                pilot=pilot,
+                timeout=10.0,
+            )
+            for _ in range(8):
+                await pilot.pause()
 
     async def test_status_indicator_shows_attached_id(
         self,
@@ -608,3 +615,6 @@ class TestMultipleNewExperiments:
             assert attached is not None
             ids = {e.id for e in tracker.list_experiments()}
             assert attached in ids
+            # Let the child exit before teardown closes the loop, or its
+            # subprocess transport is collected on a closed loop.
+            await _wait_until(lambda: run_screen._exited, pilot=pilot, timeout=10.0)

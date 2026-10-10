@@ -72,3 +72,7 @@ frontend/dist/
 frontend/coverage/
 
 uv.lock
+
+/testbed
+# A flow's runtime store: local state, never shared through Git
+.lumlflow/

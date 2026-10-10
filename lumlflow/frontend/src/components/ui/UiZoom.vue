@@ -1,6 +1,6 @@
 <template>
-  <div class="zoom">
-    <Button variant="text" severity="secondary" size="small" @click="emit('zoomOut')">
+  <div class="zoom" :class="`zoom-${align}`">
+    <Button variant="text" severity="secondary" size="small" class="p-0!" @click="emit('zoomOut')">
       <template #icon>
         <ZoomOut :size="14" />
       </template>
@@ -9,7 +9,7 @@
       <input v-model="modelValue" type="number" class="zoom-input" @input="changeZoom" />
       <span>%</span>
     </div>
-    <Button variant="text" severity="secondary" size="small" @click="emit('zoomIn')">
+    <Button variant="text" severity="secondary" size="small" class="p-0!" @click="emit('zoomIn')">
       <template #icon>
         <ZoomIn :size="14" />
       </template>
@@ -26,6 +26,14 @@ interface Emits {
   zoomIn: []
   zoomChange: [value: number]
 }
+
+interface Props {
+  align?: 'horizontal' | 'vertical'
+}
+
+withDefaults(defineProps<Props>(), {
+  align: 'horizontal',
+})
 
 const emit = defineEmits<Emits>()
 
@@ -49,8 +57,19 @@ function changeZoom(e: Event) {
   gap: 8px;
   padding: 6px 8px;
 }
+.zoom-vertical {
+  flex-direction: column;
+  align-items: center;
+}
 .zoom-value {
   font-size: 12px;
+}
+.zoom-vertical .zoom-value {
+  font-size: 10px;
+}
+.zoom-vertical .zoom-value input {
+  font-size: inherit;
+  text-align: right;
 }
 .zoom-input {
   min-width: 0;

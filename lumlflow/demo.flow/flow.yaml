@@ -1,0 +1,13 @@
+flow_id: 01M28EC6X1NZV4BAVCG8NN5S4R
+name: demo
+language: python
+cells:
+  coefficients: 01M28ECKB9FNB48AB3BMZF3CRW
+  evaluate: 01M28ECKBB4EHZMKCMY8GZQRDA
+  load_data: 01M28ECKBXG5HWC1BNH79ZVEV7
+  split: 01M28ECKBZGF6543H8J7DABP66
+  train_model: 01M28ECKC1265EJ1EAE0B46S8E
+settings:
+  eager_cost_threshold_s: 5.0
+  reactivity: auto
+  eager: []
