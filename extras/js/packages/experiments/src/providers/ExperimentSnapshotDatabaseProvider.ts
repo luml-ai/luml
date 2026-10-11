@@ -1100,7 +1100,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       name: this.parseValue(name, 'string'),
       annotation_kind: this.parseValue(annotation_kind, 'string'),
       value_type: this.parseValue(value_type, 'string') as AnnotationValueType,
-      value: value as number | boolean | string,
+      value: this.formattedAnnotationValue(value, value_type as AnnotationValueType),
       user: this.parseValue(user, 'string'),
       created_at: this.parseValue(created_at, 'string'),
       rationale: this.parseValue(rationale, 'string'),
