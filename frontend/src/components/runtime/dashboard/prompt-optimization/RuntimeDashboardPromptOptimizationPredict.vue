@@ -139,25 +139,27 @@ async function onManualSubmit() {
 async function onFileSubmit() {
   loading.value = true
   filePredictWithError.value = false
+  downloadPredictBlob.value = null
   try {
     sendAnalytics()
     const data = getDataForTraining()
-    const formattedData = Object.fromEntries(
-      Object.entries(data).map(([key, value]) => {
-        return [key, value[0]]
-      }),
-    )
-    const payload = getPredictPayload(formattedData)
-    const result = await DataProcessingWorker.computePythonModel(payload)
-    if (result?.status === 'success') {
-      const object: Record<string, string | number | object> = {
-        inputs: [formattedData],
-        prediction: [result.predictions?.out],
-      }
-      downloadPredictBlob.value = convertObjectToCsvBlob(object)
-    } else if (result.status === 'error') {
-      throw new Error(result.error_message)
+    const columns = Object.entries(data)
+    const rowCount = columns[0]?.[1].length ?? 0
+    if (!rowCount) {
+      throw new Error('The CSV file has no rows to predict.')
     }
+    const inputs: Record<string, string | number>[] = []
+    const predictions: unknown[] = []
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+      const row = Object.fromEntries(columns.map(([key, values]) => [key, values[rowIndex]]))
+      const result = await DataProcessingWorker.computePythonModel(getPredictPayload(row))
+      if (result.status === 'error') {
+        throw new Error(result.error_message)
+      }
+      inputs.push(row)
+      predictions.push(result.predictions?.out)
+    }
+    downloadPredictBlob.value = convertObjectToCsvBlob({ inputs, prediction: predictions })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown Error'
     toast.add(simpleErrorToast(message))
