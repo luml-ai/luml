@@ -10,9 +10,8 @@ export async function processImageContent(blob: Blob): ProcessorResult {
 }
 
 export async function processSvgContent(blob: Blob): ProcessorResult {
-  const svgText = await blob.text()
-  const sanitizedSvg = svgText.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-  const svgBlob = new Blob([sanitizedSvg], { type: 'image/svg+xml' })
+  // svg previews use an image context that disables scripting.
+  const svgBlob = new Blob([blob], { type: 'image/svg+xml' })
   return {
     contentUrl: URL.createObjectURL(svgBlob),
   }

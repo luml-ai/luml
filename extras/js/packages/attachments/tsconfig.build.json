@@ -16,5 +16,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "src/types"]
+  "include": ["src", "src/types"],
+  "exclude": ["src/**/__tests__/**"]
 }
