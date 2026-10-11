@@ -31,7 +31,7 @@
     "jiti": "^2.6.1",
     "npm-run-all2": "^8.0.4",
     "prettier": "3.7.4",
-    "style-dictionary": "^4.3.0",
+    "style-dictionary": "^5.4.4",
     "typescript": "~5.9.3",
     "vue-tsc": "^3.2.2"
   },
@@ -52,7 +52,7 @@
   "peerDependencies": {
     "@primevue/themes": "^4.3.9",
     "arquero": "^7.2.0",
-    "dompurify": "^3.2.7",
+    "dompurify": "^3.4.16",
     "github-markdown-css": "^5.8.1",
     "lucide-vue-next": "^0.460.0",
     "marked": "^16.2.0",
