@@ -111,6 +111,13 @@ def test_search_experiments_returns_groups(store: LumlTrackingStore) -> None:
     assert {DEFAULT_EXPERIMENT_NAME, "a", "b"}.issubset(names)
 
 
+def test_search_experiments_applies_filter_string(store: LumlTrackingStore) -> None:
+    store.create_experiment("a")
+    store.create_experiment("b")
+    page = store.search_experiments(filter_string="name = 'b'")
+    assert [e.name for e in page] == ["b"]
+
+
 def test_set_experiment_tag_round_trips(store: LumlTrackingStore) -> None:
     from mlflow.entities import ExperimentTag
 
