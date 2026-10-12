@@ -25,6 +25,7 @@ from tests.support import (
     OTHER_SATELLITE_ID,
     SATELLITE_ID,
     FakeDocker,
+    agent_container,
     close_runtime,
     configuration,
     deployment_record,
@@ -60,7 +61,7 @@ async def test_scripted_deploy_reaches_the_same_status_sequence() -> None:
     container = fake_docker.containers.containers[f"sat-{case.deployment_id}"]
     labels = cast(dict[str, str], container.config["Labels"])
     assert labels[DOCKER_SATELLITE_LABEL] == fake_platform.satellite_id
-    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "4"
+    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "5"
     assert fake_platform.deployments[case.deployment_id]["inference_url"] == (
         f"/deployments/{case.deployment_id}"
     )
@@ -102,18 +103,25 @@ async def test_failed_container_logs_are_recorded_before_it_is_removed() -> None
 
 
 @pytest.mark.asyncio
-async def test_old_agent_container_is_relaunched_once_then_plainly_adopted() -> None:
+@pytest.mark.parametrize("old_protocol", ["3", "4"])
+async def test_old_agent_container_is_relaunched_once_then_plainly_adopted(
+    monkeypatch: pytest.MonkeyPatch,
+    old_protocol: str,
+) -> None:
     fake_platform = FakePlatform()
     fake_platform.add_deployment(deployment_record(status="active"))
     fake_docker = FakeDocker()
-    fake_docker.containers.add(
+    old_model = fake_docker.containers.add(
         f"sat-{DEPLOYMENT_ID}",
         labels={
             DOCKER_DEPLOYMENT_LABEL: DEPLOYMENT_ID,
             DOCKER_ARTIFACT_LABEL: ARTIFACT_ID,
-            DOCKER_LAUNCHER_PROTOCOL_LABEL: "3",
+            DOCKER_LAUNCHER_PROTOCOL_LABEL: old_protocol,
         },
     )
+    old_model.networks["stack_store"] = []
+    agent_container(fake_docker, monkeypatch, networks={"stack_store": ["agent"]})
+    await fake_docker.networks.create({"Name": "stack_store"})
     config = configuration()
 
     async with PlatformClient(
@@ -162,7 +170,8 @@ async def test_old_agent_container_is_relaunched_once_then_plainly_adopted() -> 
         fake_docker.containers.containers[f"sat-{DEPLOYMENT_ID}"].config["Labels"],
     )
     assert labels[DOCKER_SATELLITE_LABEL] == SATELLITE_ID
-    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "4"
+    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "5"
+    assert "stack_store" not in fake_docker.containers.containers[f"sat-{DEPLOYMENT_ID}"].networks
     assert fake_platform.deployment_updates[updates_before_restart:] == [
         (DEPLOYMENT_ID, {"monitoring_url": None})
     ]
@@ -550,7 +559,7 @@ def _labels(
         DOCKER_DEPLOYMENT_LABEL: deployment_id,
         DOCKER_ARTIFACT_LABEL: artifact_id,
         DOCKER_SATELLITE_LABEL: satellite_id,
-        DOCKER_LAUNCHER_PROTOCOL_LABEL: "4",
+        DOCKER_LAUNCHER_PROTOCOL_LABEL: "5",
     }
 
 

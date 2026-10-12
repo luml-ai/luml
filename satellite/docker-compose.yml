@@ -1,6 +1,11 @@
 networks:
   satellite-network:
     driver: bridge
+    labels:
+      df.model-access: "true"
+  store-network:
+    driver: bridge
+    internal: true
 
 volumes:
   greptimedb-data:
@@ -8,13 +13,16 @@ volumes:
 services:
   greptimedb:
     image: greptime/greptimedb:v0.13.1
-    command: standalone start --http-addr=0.0.0.0:4000 --rpc-addr=0.0.0.0:4001
+    command:
+      - standalone
+      - start
+      - --http-addr=0.0.0.0:4000
+      - --rpc-addr=0.0.0.0:4001
+      - "--user-provider=static_user_provider:cmd:${GREPTIMEDB_USERNAME:?Set GREPTIMEDB_USERNAME in .env}=${GREPTIMEDB_PASSWORD:?Set GREPTIMEDB_PASSWORD in .env}"
     networks:
-      - satellite-network
+      - store-network
     volumes:
       - greptimedb-data:/tmp/greptimedb
-    ports:
-      - "4000:4000"
     restart: unless-stopped
 
   otel-collector:
@@ -22,6 +30,10 @@ services:
     command: ["--config=/etc/otel/config.yaml"]
     networks:
       - satellite-network
+      - store-network
+    environment:
+      GREPTIMEDB_USERNAME: ${GREPTIMEDB_USERNAME:?Set GREPTIMEDB_USERNAME in .env}
+      GREPTIMEDB_PASSWORD: ${GREPTIMEDB_PASSWORD:?Set GREPTIMEDB_PASSWORD in .env}
     volumes:
       - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
     depends_on:
@@ -48,6 +60,7 @@ services:
         # "agent" and "satellite-agent-1" resolve, and the URL they are given does not.
         aliases:
           - satellite-agent
+      store-network:
     environment:
       SATELLITE_TOKEN: ${SATELLITE_TOKEN:?Set SATELLITE_TOKEN in .env}
       PLATFORM_URL: ${PLATFORM_URL:-http://localhost:8000}
@@ -57,6 +70,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       MONITORING_ENABLED: "true"
       GREPTIMEDB_HOST: greptimedb
+      GREPTIMEDB_USERNAME: ${GREPTIMEDB_USERNAME:?Set GREPTIMEDB_USERNAME in .env}
+      GREPTIMEDB_PASSWORD: ${GREPTIMEDB_PASSWORD:?Set GREPTIMEDB_PASSWORD in .env}
       MONITORING_FRAME_ANCESTORS: ${MONITORING_FRAME_ANCESTORS:-http://localhost:5173}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
