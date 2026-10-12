@@ -6,10 +6,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from luml.infra.encryption import decrypt, encrypt
 from luml.models.base import Base, TimestampMixin
 from luml.schemas.bucket_secrets import (
+    AzureBucketSecret,
+    AzureBucketSecretCreate,
     BucketSecret,
     BucketSecretCreate,
     S3BucketSecret,
     S3BucketSecretCreate,
+    azure_public_endpoint,
     validate_bucket_secret,
 )
 
@@ -31,6 +34,7 @@ class BucketSecretOrm(TimestampMixin, Base):
         nullable=False,
     )
     endpoint: Mapped[str] = mapped_column(String, nullable=False)
+    connection_string: Mapped[str | None] = mapped_column(String, nullable=True)
     bucket_name: Mapped[str] = mapped_column(String, nullable=False)
     access_key: Mapped[str | None] = mapped_column(String, nullable=True)
     secret_key: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -64,6 +68,10 @@ class BucketSecretOrm(TimestampMixin, Base):
                 secret.secret_key = decrypt(secret.secret_key)
             if secret.session_token:
                 secret.session_token = decrypt(secret.session_token)
+        elif isinstance(secret, AzureBucketSecret):
+            if self.connection_string is None:
+                raise ValueError("Azure connection string is missing")
+            secret.endpoint = decrypt(self.connection_string)
         return secret
 
     @classmethod
@@ -76,4 +84,7 @@ class BucketSecretOrm(TimestampMixin, Base):
                 data["secret_key"] = encrypt(secret.secret_key)
             if secret.session_token:
                 data["session_token"] = encrypt(secret.session_token)
+        elif isinstance(secret, AzureBucketSecretCreate):
+            data["connection_string"] = encrypt(secret.endpoint)
+            data["endpoint"] = azure_public_endpoint(secret.endpoint)
         return cls(**data)

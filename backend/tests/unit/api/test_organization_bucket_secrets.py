@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from luml.schemas.bucket_secrets import (
 )
 
 from tests.support.auth import ANONYMOUS
+from tests.support.bucket_secrets import CONNECTION_STRING, PUBLIC_ENDPOINT
 from tests.support.ids import ORGANIZATION_ID, USER_ID
 
 SECRET_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
@@ -18,6 +20,83 @@ URLS_PATH = f"/v1/organizations/{ORGANIZATION_ID}/bucket-secrets/{SECRET_ID}/url
 
 
 class TestOrganizationBucketSecrets:
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"type": "azure", "endpoint": CONNECTION_STRING},
+            {
+                "type": "invalid",
+                "endpoint": CONNECTION_STRING,
+                "bucket_name": "container",
+            },
+            {
+                "type": CONNECTION_STRING,
+                "endpoint": CONNECTION_STRING,
+                "bucket_name": "container",
+            },
+            {
+                "type": "azure",
+                "endpoint": f"{CONNECTION_STRING};invalid",
+                "bucket_name": "container",
+            },
+        ],
+    )
+    def test_azure_validation_errors_do_not_echo_connection_string(
+        self, client: TestClient, payload: dict[str, str]
+    ) -> None:
+        response = client.post(
+            f"/v1/organizations/{ORGANIZATION_ID}/bucket-secrets", json=payload
+        )
+
+        assert response.status_code == 422
+        assert "AccountKey" not in response.text
+        assert "dGVzdC1vbmx5LWtleQ==" not in response.text
+
+    @pytest.mark.parametrize(
+        ("method", "suffix", "handler_method"),
+        [
+            ("post", "", "create_bucket_secret"),
+            ("get", f"/{SECRET_ID}", "get_bucket_secret"),
+            ("get", "", "get_organization_bucket_secrets"),
+            ("patch", f"/{SECRET_ID}", "update_bucket_secret"),
+        ],
+    )
+    def test_azure_responses_do_not_expose_credentials(
+        self, client: TestClient, method: str, suffix: str, handler_method: str
+    ) -> None:
+        secret = {
+            "id": str(SECRET_ID),
+            "organization_id": str(ORGANIZATION_ID),
+            "type": "azure",
+            "endpoint": CONNECTION_STRING,
+            "bucket_name": "container",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        result = (
+            [secret] if handler_method == "get_organization_bucket_secrets" else secret
+        )
+        with patch(
+            f"luml.handlers.bucket_secrets.BucketSecretHandler.{handler_method}",
+            new=AsyncMock(return_value=result),
+        ):
+            response = client.request(
+                method,
+                f"/v1/organizations/{ORGANIZATION_ID}/bucket-secrets{suffix}",
+                json={
+                    "type": "azure",
+                    "endpoint": CONNECTION_STRING,
+                    "bucket_name": "container",
+                },
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        if isinstance(body, list):
+            body = body[0]
+        assert body["endpoint"] == PUBLIC_ENDPOINT
+        assert "AccountKey" not in response.text
+        assert "connection_string" not in body
+
     @pytest.mark.parametrize("principal", [ANONYMOUS], indirect=True)
     @patch(
         "luml.handlers.bucket_secrets.BucketSecretHandler.get_existing_bucket_urls",
