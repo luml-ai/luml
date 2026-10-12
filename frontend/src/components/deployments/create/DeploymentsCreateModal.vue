@@ -155,7 +155,14 @@ function getPayload(form: CreateDeploymentForm): CreateDeploymentPayload {
       (v) => v,
     ) as unknown as Record<string, string>,
     env_variables_secrets: fieldsToRecord<string>(form.secretEnvs, (v) => String(v)),
-    env_variables: fieldsToRecord(form.notSecretEnvs, (v) => String(v)),
+    env_variables: {
+      ...fieldsToRecord(form.notSecretEnvs, (v) => String(v)),
+      ...Object.fromEntries(
+        form.customVariables
+          .filter(({ key, value }) => key && value)
+          .map(({ key, value }) => [key, String(value)]),
+      ),
+    },
     tags: form.tags,
   }
 }

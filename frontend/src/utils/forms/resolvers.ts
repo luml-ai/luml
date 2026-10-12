@@ -165,8 +165,8 @@ export const updateSecretResolver: Resolver = zodResolver(
 )
 
 const keyValueSchema = z.object({
-  key: z.string().min(1),
-  value: z.string().min(1),
+  key: z.string().min(1, 'Key is required'),
+  value: z.string().min(1, 'Value is required'),
 })
 
 const valueSchema = z.object({
