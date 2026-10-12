@@ -290,13 +290,16 @@ class AuthHandler:
             raise AuthError("OAuth provider is not configured for this handler", 500)
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            access_token = await self.oauth_provider.exchange_code_for_token(
+            oauth_token = await self.oauth_provider.exchange_code_for_token(
                 client, code
             )
-            userinfo = await self.oauth_provider.get_user_info(client, access_token)
+            userinfo = await self.oauth_provider.get_user_info(client, oauth_token)
 
         if not userinfo.email:
             raise AuthError("Failed to retrieve user email", 400)
+
+        if userinfo.email_verified is not True:
+            raise AuthError("OAuth account email is not verified", 403)
 
         user = await self.__user_repository.get_user(userinfo.email)
 
