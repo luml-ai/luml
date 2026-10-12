@@ -212,9 +212,10 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   resetState() {
-    if (this.modelId) {
-      DataProcessingWorker.deallocateModels([this.modelId], WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE)
-    }
+    const cleanup = DataProcessingWorker.deallocateModels(
+      this.modelId ? [this.modelId] : [],
+      WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE,
+    )
     this.providers = getProviders()
     this.availableModels = initialState.availableModels
     this.isSettingsOpened = initialState.isSettingsOpened
@@ -232,6 +233,7 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.taskDescription = initialState.taskDescription
     this.trainingData = initialState.trainingData
     this.predictionFields = initialState.predictionFields
+    return cleanup
   }
 
   getConnectedProviders() {

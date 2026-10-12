@@ -168,3 +168,72 @@ describe('lazy Pyodide initialization', () => {
     expect((await pending).every((result) => result.status === 'rejected')).toBe(true)
   })
 })
+
+describe('model cleanup contracts', () => {
+  it.each([
+    [WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE, { key: 'model' }, null],
+    [WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE, { model_id: 'model' }, { status: 'success' }],
+    [WEBWORKER_ROUTES_ENUM.FORECASTING_DEALLOCATE, { model_id: 'model' }, { status: 'success' }],
+  ])('uses the Python keyword argument for %s', async (route, data, response) => {
+    const pending = service.deallocateModels(['model'], route)
+    await flushPromises()
+    workers[0].respond(true)
+    await flushPromises()
+    expect(workers[0].postMessage.mock.calls.at(-1)![0].payload).toEqual({ route, data })
+    workers[0].respond(response)
+    await expect(pending).resolves.toEqual([response])
+  })
+
+  it('sends the Python model ID keyword when deinitializing', async () => {
+    const pending = service.deinitPythonModel('model')
+    await flushPromises()
+    workers[0].respond(true)
+    await flushPromises()
+    expect(workers[0].postMessage.mock.calls.at(-1)![0].payload).toEqual({
+      route: WEBWORKER_ROUTES_ENUM.PYFUNC_DEINIT,
+      data: { model_id: 'model' },
+    })
+    workers[0].respond({ status: 'success' })
+    await pending
+  })
+
+  it.each([
+    ['store', () => service.deallocateModels(['model'], WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE)],
+    [
+      'tabular',
+      () => service.deallocateModels(['model'], WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE),
+    ],
+    [
+      'forecasting',
+      () => service.deallocateModels(['model'], WEBWORKER_ROUTES_ENUM.FORECASTING_DEALLOCATE),
+    ],
+    ['pyfunc', () => service.deinitPythonModel('model')],
+  ])('rejects Python error responses for %s cleanup', async (_name, invoke) => {
+    const pending = invoke()
+    const rejected = expect(pending).rejects.toThrow('Model not found')
+    await flushPromises()
+    workers[0].respond(true)
+    await flushPromises()
+    workers[0].respond({ status: 'error', error_message: 'Model not found' })
+    await rejected
+  })
+
+  it('attempts every model in a batch even if one fails', async () => {
+    const pending = service.deallocateModels(
+      ['first', 'second'],
+      WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE,
+    )
+    const rejected = expect(pending).rejects.toThrow('Cleanup failed')
+    await flushPromises()
+    workers[0].respond(true)
+    await flushPromises()
+    const requests = workers[0].postMessage.mock.calls.slice(1).map(([request]) => request)
+    expect(requests.map((request) => request.payload.data)).toEqual([
+      { model_id: 'first' },
+      { model_id: 'second' },
+    ])
+    workers[0].respond({ status: 'error', error_message: 'Cleanup failed' }, requests[0])
+    workers[0].respond({ status: 'success' }, requests[1])
+    await rejected
+  })
+})

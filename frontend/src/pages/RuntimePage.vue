@@ -24,22 +24,32 @@ import RuntimeDashboard from '@/components/runtime/dashboard/RuntimeDashboard.vu
 import { useFnnxModel } from '@/hooks/useFnnxModel'
 import { leavePageConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useConfirm } from 'primevue/useconfirm'
+import { useToast } from 'primevue/usetoast'
+import { predictErrorToast } from '@/lib/primevue/data/toasts'
 
 const confirm = useConfirm()
+const toast = useToast()
 const { currentTag, getModel, modelId, createModelFromFile, removeModel, deinit } = useFnnxModel()
 
 const currentStep = ref(1)
 
 function exit() {
   confirm.require(
-    leavePageConfirmOptions(() => {
-      currentStep.value = 1
+    leavePageConfirmOptions(async () => {
+      try {
+        await removeModel()
+        currentStep.value = 1
+      } catch (error) {
+        toast.add(predictErrorToast(error instanceof Error ? error.message : String(error)))
+      }
     }),
   )
 }
 
 onUnmounted(() => {
-  deinit()
+  deinit().catch((error) => {
+    toast.add(predictErrorToast(error instanceof Error ? error.message : String(error)))
+  })
 })
 </script>
 

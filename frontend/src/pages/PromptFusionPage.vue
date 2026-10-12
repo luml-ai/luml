@@ -39,6 +39,9 @@
 </template>
 
 <script setup lang="ts">
+import { useToast } from 'primevue/usetoast'
+import { trainingErrorToast } from '@/lib/primevue/data/toasts'
+
 import type { PromptNode } from '@/components/express-tasks/prompt-fusion/interfaces'
 import { nextTick, onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -53,6 +56,7 @@ import StepEdit from '@/components/express-tasks/prompt-fusion/step-edit/StepEdi
 import StepMain from '@/components/express-tasks/prompt-fusion/step-main/index.vue'
 import UploadData from '@/components/ui/UploadData.vue'
 
+const toast = useToast()
 const { $reset, addEdges, addNodes } = useVueFlow()
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
@@ -126,7 +130,9 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   $reset()
-  promptFusionService.resetState()
+  promptFusionService.resetState().catch((error) => {
+    toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
+  })
 })
 </script>
 

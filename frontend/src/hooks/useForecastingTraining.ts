@@ -119,7 +119,9 @@ export const useForecastingTraining = () => {
   }
 
   onBeforeUnmount(() => {
-    deleteModels()
+    deleteModels().catch((error) => {
+      toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
+    })
   })
 
   return {
