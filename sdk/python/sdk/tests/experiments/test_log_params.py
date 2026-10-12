@@ -1,3 +1,6 @@
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from luml.experiments.tracker import ExperimentTracker
@@ -133,6 +136,96 @@ class TestLogStatic:
 
 
 class TestLogDynamic:
+    def test_automatic_steps_preserve_all_values(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        for value in [1.0, 0.8, 0.5, 0.4]:
+            tracker.log_dynamic("loss", value)
+
+        data = tracker.get_experiment(exp_id)
+
+        assert data.dynamic_metrics["loss"] == [
+            {"value": 1.0, "step": 0},
+            {"value": 0.8, "step": 1},
+            {"value": 0.5, "step": 2},
+            {"value": 0.4, "step": 3},
+        ]
+
+    @pytest.mark.parametrize("step", [0, 5])
+    def test_automatic_step_follows_maximum_explicit_step(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+        step: int,
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_dynamic("loss", 1.0, step=step)
+        tracker.log_dynamic("loss", 0.8, step=0)
+        tracker.log_dynamic("loss", 0.5)
+
+        data = tracker.get_experiment(exp_id)
+
+        assert data.dynamic_metrics["loss"][-1] == {"value": 0.5, "step": step + 1}
+
+    def test_automatic_steps_are_independent_for_each_metric(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_dynamic("loss", 1.0)
+        tracker.log_dynamic("loss", 0.5)
+        tracker.log_dynamic("accuracy", 0.8)
+        tracker.log_dynamic("accuracy", 0.9)
+
+        data = tracker.get_experiment(exp_id)
+
+        assert data.dynamic_metrics["loss"] == [
+            {"value": 1.0, "step": 0},
+            {"value": 0.5, "step": 1},
+        ]
+        assert data.dynamic_metrics["accuracy"] == [
+            {"value": 0.8, "step": 0},
+            {"value": 0.9, "step": 1},
+        ]
+
+    def test_automatic_steps_are_independent_for_each_experiment(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        first_id = tracker.start_experiment(name="first")
+        second_id = tracker.start_experiment(name="second")
+        tracker.log_dynamic("loss", 1.0, experiment_id=first_id)
+        tracker.log_dynamic("loss", 0.5, experiment_id=first_id)
+        tracker.log_dynamic("loss", 0.8, experiment_id=second_id)
+
+        assert tracker.get_experiment(first_id).dynamic_metrics["loss"] == [
+            {"value": 1.0, "step": 0},
+            {"value": 0.5, "step": 1},
+        ]
+        assert tracker.get_experiment(second_id).dynamic_metrics["loss"] == [
+            {"value": 0.8, "step": 0},
+        ]
+
+    def test_concurrent_automatic_steps_preserve_all_values(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        barrier = threading.Barrier(8)
+
+        def log_metrics(thread_id: int) -> None:
+            barrier.wait(timeout=5)
+            for i in range(20):
+                tracker.log_dynamic("loss", thread_id * 20 + i)
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            list(executor.map(log_metrics, range(8)))
+
+        metrics = tracker.get_experiment(exp_id).dynamic_metrics["loss"]
+
+        assert [metric["step"] for metric in metrics] == list(range(160))
+        assert sorted(metric["value"] for metric in metrics) == list(range(160))
+
     def test_value_and_step_persisted(
         self,
         tracker_with_experiment: tuple[ExperimentTracker, str],
