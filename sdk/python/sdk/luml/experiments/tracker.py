@@ -146,6 +146,9 @@ class ExperimentTracker:
         Returns:
             str: The experiment ID.
 
+        Raises:
+            ValueError: If an experiment with the given ID already exists.
+
         Example:
         ```python
         tracker = ExperimentTracker()
