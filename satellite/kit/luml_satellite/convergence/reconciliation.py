@@ -1,6 +1,6 @@
 import logging
 import random
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from luml_satellite.workload import Clock, SystemClock
@@ -40,16 +40,16 @@ class Reconciliation:
         self.logger = logger or logging.getLogger("luml_satellite.reconciliation")
 
     async def run(self) -> None:
-        deployments = await self._list_deployments()
+        deployments = await self._retry(self.platform.list_deployments, "list deployments")
         await self.convergence.reconcile_deployments(deployments)
-        await self.polling.resume_running()
+        await self._retry(self.polling.resume_running, "resume running tasks")
         await self.convergence.cleanup_orphans(deployments)
 
-    async def _list_deployments(self) -> list[dict[str, Any]]:
+    async def _retry[T](self, operation: Callable[[], Awaitable[T]], description: str) -> T:
         failures = 0
         while True:
             try:
-                return await self.platform.list_deployments()
+                return await operation()
             except Exception as error:
                 failures += 1
                 exponent = min(failures - 1, 62)
@@ -59,7 +59,8 @@ class Reconciliation:
                 )
                 delay = max(0.0, min(ceiling, self.jitter(ceiling)))
                 self.logger.warning(
-                    "could not list deployments during reconciliation; retrying in %.3fs: %s",
+                    "could not %s during reconciliation; retrying in %.3fs: %s",
+                    description,
                     delay,
                     error,
                 )
