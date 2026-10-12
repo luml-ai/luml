@@ -4,11 +4,19 @@ receivers:
       grpc:
         endpoint: "0.0.0.0:4317"
 
+extensions:
+  basicauth/client:
+    client_auth:
+      username: ${env:GREPTIMEDB_USERNAME}
+      password: ${env:GREPTIMEDB_PASSWORD}
+
 exporters:
   otlphttp/traces:
     endpoint: "http://greptimedb:4000/v1/otlp"
     tls:
       insecure: true
+    auth:
+      authenticator: basicauth/client
     headers:
       x-greptime-db-name: public
       x-greptime-trace-table-name: otel_traces
@@ -17,6 +25,8 @@ exporters:
     endpoint: "http://greptimedb:4000/v1/otlp"
     tls:
       insecure: true
+    auth:
+      authenticator: basicauth/client
     headers:
       x-greptime-db-name: public
       x-greptime-trace-table-name: inference_events
@@ -34,6 +44,7 @@ processors:
         - 'resource.attributes["service.name"] != "satellite-agent.events"'
 
 service:
+  extensions: [basicauth/client]
   pipelines:
     traces/main:
       receivers: [otlp]

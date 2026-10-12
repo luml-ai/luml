@@ -15,8 +15,16 @@ The satellite creates its own Docker network on the first deployment. It names t
 The satellite creates model containers in that network. It tells each model to reach it by the
 second, satellite-specific name.
 
-The satellite also connects each model container to the networks it belongs to itself. The
-telemetry collector of its stack therefore stays reachable by name.
+The satellite also connects each model container to its own networks that carry the Docker
+network label `df.model-access=true`. Compose labels `satellite-network` this way so the
+telemetry collector stays reachable by name. Unlabelled networks stay private to the agent.
+
+GreptimeDB joins only the internal `store-network`, shared with the agent and collector.
+Model containers cannot resolve or connect directly to the store, and the store publishes no
+host ports. Set `GREPTIMEDB_USERNAME` and `GREPTIMEDB_PASSWORD` in `satellite/.env` before
+starting Compose; both are required. Use a username without `,`, `=` or `:` and a generated
+hexadecimal password, for example with `openssl rand -hex 32`. The store, agent and collector
+use these credentials for Basic authentication.
 
 ### Use an existing network instead
 
@@ -25,7 +33,9 @@ Set `DOCKER_NETWORK_NAME` to the name of an existing network. In this mode:
 1. The satellite creates no network.
 2. The satellite refuses to start a deployment when the named network does not exist. It does
    not build a new bridge under a misspelled name.
-3. If Compose already attached the satellite to that network without the satellite-specific
+3. Keep stores and other private services off this network. To let models reach an additional
+   agent network (for example one with a collector), create it with `--label df.model-access=true`.
+4. If Compose already attached the satellite to that network without the satellite-specific
    alias, models get its container name instead. That name resolves there in the same way.
 
 ## Model containers belong to their stack
@@ -48,9 +58,9 @@ such container as an orphan would remove them. In both cases, follow this order:
 1. Undeploy through the Platform. This removes the model containers.
 2. Run `docker compose down`.
 
-A satellite that upgrades onto this behaviour relaunches every model container of the previous
-launcher protocol once. Each container then moves to the satellite's network and takes its
-address.
+A satellite that upgrades onto launcher protocol 5 relaunches every model container of an older
+launcher protocol once. This removes previously inherited private network attachments. Each
+container then moves to the satellite's network and takes its address.
 
 ## Several satellites on one host
 
