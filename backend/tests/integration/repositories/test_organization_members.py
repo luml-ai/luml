@@ -3,6 +3,7 @@ import uuid
 import pytest
 from luml.repositories.users import UserRepository
 from luml.schemas.organization import (
+    OrganizationCreateIn,
     OrganizationMemberCreate,
     OrgRole,
     UpdateOrganizationMember,
@@ -49,6 +50,7 @@ class TestOrganizationMemberRepository:
         seeded_organization: OrganizationFixtureData,
     ) -> None:
         updated_member = await repository.update_organization_member(
+            seeded_organization.organization.id,
             seeded_organization.member.id,
             UpdateOrganizationMember(role=OrgRole.ADMIN),
         )
@@ -62,12 +64,45 @@ class TestOrganizationMemberRepository:
         repository: UserRepository,
         seeded_organization: OrganizationFixtureData,
     ) -> None:
-        await repository.delete_organization_member(seeded_organization.member.id)
+        await repository.delete_organization_member(
+            seeded_organization.organization.id, seeded_organization.member.id
+        )
         fetched_member = await repository.get_organization_member_by_id(
-            seeded_organization.member.id
+            seeded_organization.organization.id, seeded_organization.member.id
         )
 
         assert fetched_member is None
+
+    async def test_foreign_organization_cannot_read_update_or_delete_member(
+        self,
+        repository: UserRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        data = seeded_organization
+        other_org = await repository.create_organization(
+            data.user.id, OrganizationCreateIn(name="other organization")
+        )
+
+        assert (
+            await repository.get_organization_member_by_id(other_org.id, data.member.id)
+            is None
+        )
+        assert (
+            await repository.update_organization_member(
+                other_org.id,
+                data.member.id,
+                UpdateOrganizationMember(role=OrgRole.MEMBER),
+            )
+            is None
+        )
+        await repository.delete_organization_member(other_org.id, data.member.id)
+
+        unchanged = await repository.get_organization_member_by_id(
+            data.organization.id, data.member.id
+        )
+        assert unchanged is not None
+        assert unchanged.id == data.member.id
+        assert unchanged.role == OrgRole.OWNER
 
     async def test_get_organization_members_count_returns_number_of_members(
         self,
@@ -86,15 +121,18 @@ class TestOrganizationMemberRepository:
         seeded_organization_with_members: OrganizationWithMembersFixtureData,
     ) -> None:
         await repository.update_organization_member(
+            seeded_organization_with_members.organization.id,
             seeded_organization_with_members.member.id,
             UpdateOrganizationMember(role=OrgRole.MEMBER),
         )
         await repository.update_organization_member(
+            seeded_organization_with_members.organization.id,
             seeded_organization_with_members.members[-2].id,
             UpdateOrganizationMember(role=OrgRole.ADMIN),
         )
         await repository.delete_organization_member(
-            seeded_organization_with_members.members[-1].id
+            seeded_organization_with_members.organization.id,
+            seeded_organization_with_members.members[-1].id,
         )
         await repository.create_owner(
             seeded_organization_with_members.members[-1].user.id,

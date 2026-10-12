@@ -62,7 +62,12 @@ class TestOrganizationMembers:
         )
 
         assert actual == organization_member
-        mocks.user_repository.update_organization_member.assert_awaited_once()
+        mocks.user_repository.get_organization_member_by_id.assert_awaited_once_with(
+            member_to_update.organization_id, member_to_update.id
+        )
+        mocks.user_repository.update_organization_member.assert_awaited_once_with(
+            member_to_update.organization_id, member_to_update.id, update_member
+        )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             member_to_update.organization_id,
             USER_ID,
@@ -90,7 +95,10 @@ class TestOrganizationMembers:
             USER_ID, organization_id, member_to_delete.id
         )
         mocks.user_repository.delete_organization_member.assert_awaited_once_with(
-            member_to_delete.id
+            organization_id, member_to_delete.id
+        )
+        mocks.user_repository.get_organization_member_by_id.assert_awaited_once_with(
+            organization_id, member_to_delete.id
         )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             organization_id, USER_ID, Resource.ORGANIZATION_USER, Action.DELETE
@@ -268,5 +276,5 @@ class TestOrganizationMembers:
         )
 
         mocks.user_repository.delete_organization_member.assert_awaited_once_with(
-            member_to_delete.id
+            member_to_delete.organization_id, member_to_delete.id
         )

@@ -330,7 +330,7 @@ class OrganizationHandler:
         )
 
         member_to_update = await self.__user_repository.get_organization_member_by_id(
-            member_id
+            organization_id, member_id
         )
 
         if not member_to_update:
@@ -355,7 +355,7 @@ class OrganizationHandler:
             )
 
         return await self.__user_repository.update_organization_member(
-            member_id, member
+            organization_id, member_id, member
         )
 
     async def delete_organization_member_by_id(
@@ -372,7 +372,7 @@ class OrganizationHandler:
         )
 
         member_to_delete = await self.__user_repository.get_organization_member_by_id(
-            member_id
+            organization_id, member_id
         )
 
         if not member_to_delete:
@@ -391,7 +391,9 @@ class OrganizationHandler:
                 "Only Organization Owner can remove admins."
             )
 
-        return await self.__user_repository.delete_organization_member(member_id)
+        return await self.__user_repository.delete_organization_member(
+            organization_id, member_id
+        )
 
     async def add_organization_member(
         self,
