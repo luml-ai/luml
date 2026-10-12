@@ -31,6 +31,7 @@ from mlflow.entities import (
 )
 from mlflow.store.entities import PagedList
 from mlflow.store.tracking.abstract_store import AbstractStore
+from mlflow.utils.search_utils import SearchExperimentsUtils, SearchUtils
 
 from luml_mlflow import tracing as _tracing
 from luml_mlflow._tracker import get_tracker
@@ -174,13 +175,15 @@ class LumlTrackingStore(AbstractStore):
         order_by: list[str] | None = None,
         page_token: str | None = None,
     ) -> PagedList[Experiment]:
-        groups = self._tracker.list_groups()
-        if order_by:
-            groups = _apply_order_by(groups, order_by)
-        else:
-            groups = sorted(groups, key=lambda g: g.created_at, reverse=True)
-        experiments = [self._group_to_experiment(g) for g in groups]
-        return PagedList(experiments[:max_results], token=None)
+        experiments = [
+            self._group_to_experiment(g) for g in self._tracker.list_groups()
+        ]
+        filtered = SearchExperimentsUtils.filter(experiments, filter_string)
+        ordered = SearchExperimentsUtils.sort(
+            filtered, order_by or ["creation_time DESC", "experiment_id ASC"]
+        )
+        page, next_token = SearchUtils.paginate(ordered, page_token, max_results)
+        return PagedList(page, token=next_token)
 
     def delete_experiment(self, experiment_id: str) -> None:
         unsupported(
@@ -382,16 +385,14 @@ class LumlTrackingStore(AbstractStore):
     ) -> tuple[list[Run], str | None]:
         ids = set(experiment_ids or [])
         records = [r for r in self._tracker.list_experiments() if r.group_id in ids]
-        if order_by:
-            records = _apply_order_by(records, order_by)
-        else:
-            records = sorted(records, key=lambda r: r.created_at, reverse=True)
         runs: list[Run] = []
-        for record in records[:max_results]:
+        for record in records:
             run = reconstruct_run(self._tracker, record.id, self._artifact_uri_for_run)
             if run is not None:
                 runs.append(run)
-        return runs, None
+        filtered = SearchUtils.filter(runs, filter_string)
+        ordered = SearchUtils.sort(filtered, order_by)
+        return SearchUtils.paginate(ordered, page_token, max_results)
 
     # ----------------------------------------------------------------- traces
 
@@ -605,49 +606,6 @@ def _decode_group_tags(raw_tags: list[str]) -> dict[str, str]:
         key, sep, value = raw.partition("=")
         out[key] = value if sep else ""
     return out
-
-
-def _apply_order_by(items: list[Any], order_by: list[str]) -> list[Any]:
-    """Apply a minimal ``order_by`` clause list.
-
-    Supports the small set of keys real MLflow callers exercise on a tracking
-    store with no SQL filter engine: ``created_at`` / ``start_time`` /
-    ``last_modified`` / ``name`` with an optional ``ASC``/``DESC`` direction.
-    Unknown keys silently fall back to ``created_at`` order.
-    """
-    if not order_by:
-        return items
-
-    def parse(clause: str) -> tuple[str, bool]:
-        parts = clause.strip().split()
-        key = parts[0].lower()
-        direction = parts[1].upper() if len(parts) > 1 else "ASC"
-        return key, direction == "DESC"
-
-    sorted_items = items
-    for clause in reversed(order_by):
-        key, reverse = parse(clause)
-        if key in {"created_at", "creation_time", "start_time"}:
-            sorted_items = sorted(
-                sorted_items,
-                key=lambda item: item.created_at,
-                reverse=reverse,
-            )
-        elif key == "name":
-            sorted_items = sorted(
-                sorted_items,
-                key=lambda item: (item.name or "").lower(),
-                reverse=reverse,
-            )
-        elif key in {"last_modified", "last_update_time"}:
-            sorted_items = sorted(
-                sorted_items,
-                key=lambda item: (
-                    getattr(item, "last_modified", None) or item.created_at
-                ),
-                reverse=reverse,
-            )
-    return sorted_items
 
 
 __all__ = ["DEFAULT_EXPERIMENT_NAME", "LumlTrackingStore"]
