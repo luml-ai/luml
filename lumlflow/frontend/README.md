@@ -78,6 +78,11 @@ npm run dev
 
 Vite starts on `http://localhost:5173` and proxies all `/api/*` requests to the backend at `http://localhost:5000`.
 
+Copy the `#session-token=…` fragment from the backend CLI's launch URL onto
+`http://localhost:5173/` when opening the dev UI. The app removes the fragment
+from the address bar and sends the session token with API requests, including
+upload progress. Repeat this after restarting the backend.
+
 ---
 
 ## Backend Setup

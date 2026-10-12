@@ -8,7 +8,7 @@ import threading
 import uuid
 import weakref
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Literal
 
 from luml.artifacts._base import DiskFile, _BaseFile
@@ -271,6 +271,26 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def _get_attachments_dir(self, experiment_id: str) -> Path:
         return self._get_experiment_dir(experiment_id) / "attachments"
 
+    def _get_attachment_path(self, experiment_id: str, name: str) -> Path:
+        path = Path(name)
+        windows_path = PureWindowsPath(name)
+        if (
+            path.is_absolute()
+            or windows_path.drive
+            or windows_path.root
+            or ".." in path.parts
+            or ".." in windows_path.parts
+        ):
+            raise ValueError("Attachment path must stay within its experiment")
+        try:
+            attachments_dir = self._get_attachments_dir(experiment_id).resolve()
+            file_path = (attachments_dir / path).resolve()
+        except (OSError, RuntimeError) as e:
+            raise ValueError("Invalid attachment path") from e
+        if not file_path.is_relative_to(attachments_dir):
+            raise ValueError("Attachment path must stay within its experiment")
+        return file_path
+
     @staticmethod
     def _convert_static_param_value(
         value: str, value_type: str
@@ -483,12 +503,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._ensure_experiment_initialized(experiment_id)
 
-        attachments_dir = self._get_attachments_dir(experiment_id)
-
         if not isinstance(data, bytes | str):
             raise ValueError("Attachment data must be bytes or str")
 
-        file_path = attachments_dir / name
+        file_path = self._get_attachment_path(experiment_id, name)
+        if file_path == self._get_attachments_dir(experiment_id).resolve():
+            raise ValueError("Attachment path must name a file")
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         with file_path.open("wb+" if binary else "w+") as f:
@@ -499,7 +519,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
 
         relative_path = str(
-            file_path.relative_to(self._get_attachments_dir(experiment_id))
+            file_path.relative_to(self._get_attachments_dir(experiment_id).resolve())
         )
         cursor.execute("SELECT id FROM attachments WHERE name = ?", (name,))
         existing = cursor.fetchone()
@@ -814,10 +834,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._ensure_experiment_initialized(experiment_id)
 
-        attachments_dir = self._get_attachments_dir(experiment_id)
-        file_path = attachments_dir / name
+        file_path = self._get_attachment_path(experiment_id, name)
 
-        if not file_path.exists():
+        if not file_path.is_file():
             raise ValueError(
                 f"Attachment {name} not found in experiment {experiment_id}"
             )
@@ -863,6 +882,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             folder sizes are aggregated based on their contents.
         """
         self._ensure_experiment_initialized(experiment_id)
+        self._get_attachment_path(experiment_id, parent_path or "")
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
 
@@ -880,6 +900,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         folder_sizes: dict[str, int] = {}
 
         for name, size in cursor.fetchall():
+            try:
+                self._get_attachment_path(experiment_id, name)
+            except ValueError:
+                continue
             relative = name[len(prefix) :]
             parts = relative.split("/")
 
