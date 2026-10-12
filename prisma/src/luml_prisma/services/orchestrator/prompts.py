@@ -1,10 +1,5 @@
 from typing import Any
 
-
-def _esc(s: str) -> str:
-    return s.replace("{", "{{").replace("}", "}}")
-
-
 _GUIDE_REF = (
     "Refer to `.prisma/guide.md` in the worktree root "
     "for tooling, CLI usage, and output conventions."
@@ -263,19 +258,19 @@ def build_implement_prompt(
         )
 
         return _IMPLEMENT_FORK_CHILD.format(
-            proposal=_esc(prompt_text),
-            objective=_esc(objective),
+            proposal=prompt_text,
+            objective=objective,
             environment=environment,
             guide_ref=_GUIDE_REF,
-            metric_keys=_esc(metric_keys_str),
-            experiment_ids=_esc(exp_ids_str),
+            metric_keys=metric_keys_str,
+            experiment_ids=exp_ids_str,
         ) + _maybe_unattended(run_config)
 
     objective = payload.get("prompt", "")
     return _IMPLEMENT_ROOT.format(
-        objective=_esc(objective),
+        objective=objective,
         environment=environment,
-        run_command=_esc(run_command or "(not configured)"),
+        run_command=run_command or "(not configured)",
         guide_ref=_GUIDE_REF,
     ) + _maybe_unattended(run_config)
 
@@ -298,9 +293,9 @@ def build_debug_prompt(
 
     return _DEBUG.format(
         exit_code=exit_code,
-        objective=_esc(objective),
-        git_diff=_esc(git_diff),
-        log_tail=_esc(log_tail),
+        objective=objective,
+        git_diff=git_diff,
+        log_tail=log_tail,
         max_log_tail=max_log_tail,
         guide_ref=_GUIDE_REF,
     ) + _maybe_unattended(run_config)
@@ -324,7 +319,7 @@ def build_fork_prompt(
 
     return _FORK.format(
         max_children=max_children,
-        objective=_esc(objective),
-        experiment_ids=_esc(exp_ids_str),
-        metric_keys=_esc(metric_keys_str),
+        objective=objective,
+        experiment_ids=exp_ids_str,
+        metric_keys=metric_keys_str,
     ) + _maybe_unattended(run_config)
