@@ -6,7 +6,9 @@ import pytest
 from luml.handlers.orbits import OrbitHandler
 from luml.infra.exceptions import (
     DatabaseConstraintError,
+    InsufficientPermissionsError,
     OrbitMemberAlreadyExistsError,
+    OrbitMemberNotAllowedError,
     OrbitMemberNotFoundError,
 )
 from luml.models import OrganizationMemberOrm
@@ -131,12 +133,15 @@ class TestOrbitMembers:
         mocks.orbits_repository.update_orbit_member.return_value = expected
 
         result = await mocks.handler.update_orbit_member(
-            USER_ID, ORGANIZATION_ID, expected.orbit_id, update_member
+            USER_ID, ORGANIZATION_ID, expected.orbit_id, expected.id, update_member
         )
 
         assert result == expected
         mocks.orbits_repository.update_orbit_member.assert_awaited_once_with(
-            update_member
+            expected.id, expected.orbit_id, update_member
+        )
+        mocks.orbits_repository.get_orbit_member.assert_awaited_once_with(
+            expected.id, expected.orbit_id
         )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID,
@@ -157,7 +162,7 @@ class TestOrbitMembers:
             OrbitMemberNotFoundError, match="Orbit member not found"
         ) as error:
             await mocks.handler.update_orbit_member(
-                USER_ID, ORGANIZATION_ID, ORBIT_ID, update_member
+                USER_ID, ORGANIZATION_ID, ORBIT_ID, update_member.id, update_member
             )
 
         assert error.value.status_code == 404
@@ -173,7 +178,10 @@ class TestOrbitMembers:
             USER_ID, ORGANIZATION_ID, orbit_member.orbit_id, orbit_member.id
         )
         mocks.orbits_repository.delete_orbit_member.assert_awaited_once_with(
-            orbit_member.id
+            orbit_member.id, orbit_member.orbit_id
+        )
+        mocks.orbits_repository.get_orbit_member.assert_awaited_once_with(
+            orbit_member.id, orbit_member.orbit_id
         )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID,
@@ -182,3 +190,84 @@ class TestOrbitMembers:
             Action.DELETE,
             orbit_member.orbit_id,
         )
+
+    async def test_delete_orbit_member_raises_not_found_when_member_missing(
+        self, mocks: CollaboratorMocks[OrbitHandler]
+    ) -> None:
+        member_id = uuid7()
+        mocks.orbits_repository.get_orbit_member.return_value = None
+
+        with pytest.raises(OrbitMemberNotFoundError) as error:
+            await mocks.handler.delete_orbit_member(
+                USER_ID, ORGANIZATION_ID, ORBIT_ID, member_id
+            )
+
+        assert error.value.status_code == 404
+        mocks.orbits_repository.get_orbit_member.assert_awaited_once_with(
+            member_id, ORBIT_ID
+        )
+        mocks.orbits_repository.delete_orbit_member.assert_not_awaited()
+
+    @pytest.mark.parametrize("action", ["update", "delete"])
+    async def test_mutation_rejects_own_membership(
+        self,
+        mocks: CollaboratorMocks[OrbitHandler],
+        orbit_member: OrbitMember,
+        action: str,
+    ) -> None:
+        mocks.orbits_repository.get_orbit_member.return_value = orbit_member
+
+        mutation = (
+            mocks.handler.update_orbit_member(
+                orbit_member.user.id,
+                ORGANIZATION_ID,
+                orbit_member.orbit_id,
+                orbit_member.id,
+                UpdateOrbitMember(id=uuid7(), role=OrbitRole.ADMIN),
+            )
+            if action == "update"
+            else mocks.handler.delete_orbit_member(
+                orbit_member.user.id,
+                ORGANIZATION_ID,
+                orbit_member.orbit_id,
+                orbit_member.id,
+            )
+        )
+
+        with pytest.raises(OrbitMemberNotAllowedError):
+            await mutation
+
+        mocks.orbits_repository.update_orbit_member.assert_not_awaited()
+        mocks.orbits_repository.delete_orbit_member.assert_not_awaited()
+
+    @pytest.mark.parametrize("action", ["update", "delete"])
+    async def test_mutation_requires_permissions(
+        self,
+        mocks: CollaboratorMocks[OrbitHandler],
+        orbit_member: OrbitMember,
+        action: str,
+    ) -> None:
+        mocks.orbits_repository.get_orbit_member.return_value = orbit_member
+        mocks.permissions_handler.check_permissions.side_effect = (
+            InsufficientPermissionsError()
+        )
+
+        mutation = (
+            mocks.handler.update_orbit_member(
+                USER_ID,
+                ORGANIZATION_ID,
+                orbit_member.orbit_id,
+                orbit_member.id,
+                UpdateOrbitMember(id=orbit_member.id, role=OrbitRole.ADMIN),
+            )
+            if action == "update"
+            else mocks.handler.delete_orbit_member(
+                USER_ID, ORGANIZATION_ID, orbit_member.orbit_id, orbit_member.id
+            )
+        )
+
+        with pytest.raises(InsufficientPermissionsError):
+            await mutation
+
+        mocks.orbits_repository.update_orbit_member.assert_not_awaited()
+        mocks.orbits_repository.delete_orbit_member.assert_not_awaited()
