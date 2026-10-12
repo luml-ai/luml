@@ -2,6 +2,7 @@
 import atexit
 import contextlib
 import json
+import re
 import sqlite3
 import tarfile
 import threading
@@ -263,7 +264,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return self.pool.get_write_lock(db_path)
 
     def _get_experiment_dir(self, experiment_id: str) -> Path:
-        return self.base_path / experiment_id
+        if not isinstance(experiment_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9_-]{1,128}", experiment_id
+        ):
+            raise ValueError(
+                "Invalid experiment ID: expected 1-128 ASCII letters, digits, "
+                "underscores or hyphens"
+            )
+        exp_dir = self.base_path / experiment_id
+        base_path = self.base_path.resolve()
+        resolved_dir = exp_dir.resolve()
+        if resolved_dir == base_path or not resolved_dir.is_relative_to(base_path):
+            raise ValueError(
+                "Experiment directory must be strictly inside the experiment store"
+            )
+        return exp_dir
 
     def _get_experiment_db_path(self, experiment_id: str) -> Path:
         return self._get_experiment_dir(experiment_id) / "exp.db"
@@ -342,6 +357,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             description: Optional description of the experiment.
             source: Path of the script or file that created the experiment.
         """
+        self._get_experiment_dir(experiment_id)
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
