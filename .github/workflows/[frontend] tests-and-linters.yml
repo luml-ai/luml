@@ -5,11 +5,13 @@ on:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'extras/js/packages/attachments/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'extras/js/packages/attachments/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
 
 jobs:
@@ -100,6 +102,9 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit == 'true'
         working-directory: frontend
         run: npx playwright install-deps chromium
+
+      - name: Run attachment preview security tests
+        run: npm test --workspace=@luml/attachments
 
       - name: Build workspace packages
         run: |

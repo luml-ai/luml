@@ -1,20 +1,10 @@
 <template>
-  <div class="svg-preview">
-    <div class="svg-container">
-      <object
-        :data="props.contentUrl"
-        type="image/svg+xml"
-        class="svg-object"
-        :aria-label="props.fileName"
-      >
-        <img :src="props.contentUrl" :alt="props.fileName" class="svg-fallback" />
-      </object>
-    </div>
-  </div>
+  <ImagePreview :content-url="props.contentUrl" :file-name="props.fileName" />
 </template>
 
 <script setup lang="ts">
 import type { SvgPreviewProps } from '../../interfaces/interfaces'
+import ImagePreview from './ImagePreview.vue'
 
 const props = defineProps<SvgPreviewProps>()
 </script>
