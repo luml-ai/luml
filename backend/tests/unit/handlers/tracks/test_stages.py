@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import pytest
 from luml.handlers.tracks import TracksHandler
 from luml.infra.exceptions import ApplicationError, NotFoundError
@@ -7,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from tests.support.ids import (
     ORBIT_ID,
     ORGANIZATION_ID,
+    OTHER_ORBIT_ID,
     STAGE_ID,
     TRACK_ID,
     USER_ID,
@@ -86,6 +89,7 @@ class TestTrackStages:
         self, mocks: CollaboratorMocks[TracksHandler]
     ) -> None:
         mocks.track_repository.get_track.return_value = _make_track()
+        mocks.stage_repository.get_stage.return_value = _make_stage()
         expected = _make_stage(name="Renamed")
         mocks.stage_repository.update_stage.return_value = expected
 
@@ -104,6 +108,7 @@ class TestTrackStages:
         self, mocks: CollaboratorMocks[TracksHandler]
     ) -> None:
         mocks.track_repository.get_track.return_value = _make_track()
+        mocks.stage_repository.get_stage.return_value = _make_stage()
         mocks.stage_repository.update_stage.return_value = None
 
         with pytest.raises(NotFoundError, match="Stage not found"):
@@ -134,6 +139,7 @@ class TestTrackStages:
         self, mocks: CollaboratorMocks[TracksHandler]
     ) -> None:
         mocks.track_repository.get_track.return_value = _make_track()
+        mocks.stage_repository.get_stage.return_value = _make_stage()
         mocks.stage_repository.update_stage.side_effect = IntegrityError(
             "", {}, Exception()
         )
@@ -152,6 +158,7 @@ class TestTrackStages:
         self, mocks: CollaboratorMocks[TracksHandler]
     ) -> None:
         mocks.track_repository.get_track.return_value = _make_track()
+        mocks.stage_repository.get_stage.return_value = _make_stage()
         mocks.stage_repository.is_stage_in_use.return_value = False
 
         await mocks.handler.delete_stage(
@@ -166,6 +173,7 @@ class TestTrackStages:
         self, mocks: CollaboratorMocks[TracksHandler]
     ) -> None:
         mocks.track_repository.get_track.return_value = _make_track()
+        mocks.stage_repository.get_stage.return_value = _make_stage()
         mocks.stage_repository.is_stage_in_use.return_value = True
 
         with pytest.raises(ApplicationError, match="currently assigned") as exc:
@@ -178,6 +186,7 @@ class TestTrackStages:
         self, mocks: CollaboratorMocks[TracksHandler]
     ) -> None:
         mocks.track_repository.get_track.return_value = _make_track()
+        mocks.stage_repository.get_stage.return_value = _make_stage()
         mocks.stage_repository.is_stage_in_use.return_value = True
 
         await mocks.handler.delete_stage(
@@ -196,3 +205,66 @@ class TestTrackStages:
             await mocks.handler.delete_stage(
                 USER_ID, ORGANIZATION_ID, ORBIT_ID, TRACK_ID, STAGE_ID
             )
+
+
+@pytest.mark.parametrize("operation", ["update", "delete"])
+@pytest.mark.parametrize("missing", [False, True])
+async def test_stage_mutations_reject_stage_outside_track(
+    mocks: CollaboratorMocks[TracksHandler], operation: str, missing: bool
+) -> None:
+    mocks.track_repository.get_track.return_value = _make_track()
+    mocks.stage_repository.get_stage.return_value = (
+        None if missing else _make_stage(track_id=uuid4())
+    )
+    if operation == "update":
+        with pytest.raises(NotFoundError, match="Stage not found"):
+            await mocks.handler.update_stage(
+                USER_ID,
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                TRACK_ID,
+                STAGE_ID,
+                StageUpdateIn(name="pwned"),
+            )
+    else:
+        with pytest.raises(NotFoundError, match="Stage not found"):
+            await mocks.handler.delete_stage(
+                USER_ID,
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                TRACK_ID,
+                STAGE_ID,
+                force=True,
+            )
+    mocks.stage_repository.update_stage.assert_not_awaited()
+    mocks.stage_repository.delete_stage.assert_not_awaited()
+    mocks.stage_repository.is_stage_in_use.assert_not_awaited()
+
+
+@pytest.mark.parametrize("operation", ["update", "delete"])
+async def test_stage_mutations_reject_foreign_orbit(
+    mocks: CollaboratorMocks[TracksHandler], operation: str
+) -> None:
+    mocks.track_repository.get_track.return_value = _make_track(orbit_id=OTHER_ORBIT_ID)
+    if operation == "update":
+        with pytest.raises(NotFoundError, match="Track not found"):
+            await mocks.handler.update_stage(
+                USER_ID,
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                TRACK_ID,
+                STAGE_ID,
+                StageUpdateIn(name="pwned"),
+            )
+    else:
+        with pytest.raises(NotFoundError, match="Track not found"):
+            await mocks.handler.delete_stage(
+                USER_ID,
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                TRACK_ID,
+                STAGE_ID,
+                force=True,
+            )
+    mocks.stage_repository.update_stage.assert_not_awaited()
+    mocks.stage_repository.delete_stage.assert_not_awaited()

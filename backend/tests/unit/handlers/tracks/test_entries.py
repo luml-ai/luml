@@ -565,12 +565,21 @@ class TestTrackEntries:
     ) -> None:
         entries = [_make_entry()]
         mocks.entry_repository.list_entries_for_artifact.return_value = entries
+        mocks.artifact_repository.get_artifact.return_value = Mock(
+            collection_id=COLLECTION_ID
+        )
+        mocks.collection_repository.get_collection.return_value = Mock(
+            orbit_id=ORBIT_ID
+        )
 
         result = await mocks.handler.list_entries_for_artifact(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, ARTIFACT_ID
         )
 
         assert result == entries
+        mocks.entry_repository.list_entries_for_artifact.assert_awaited_once_with(
+            ARTIFACT_ID, orbit_id=ORBIT_ID
+        )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID, USER_ID, Resource.TRACK, Action.READ, ORBIT_ID
         )
@@ -798,3 +807,20 @@ class TestTrackEntries:
                 USER_ID, ORGANIZATION_ID, ORBIT_ID, TRACK_ID, [ENTRY_ID]
             )
         mocks.entry_repository.delete_entries.assert_not_awaited()
+
+
+@pytest.mark.parametrize("missing", [None, "artifact", "collection"])
+async def test_artifact_entries_reject_foreign_or_missing_artifact(
+    mocks: CollaboratorMocks[TracksHandler], missing: str | None
+) -> None:
+    mocks.artifact_repository.get_artifact.return_value = (
+        None if missing == "artifact" else Mock(collection_id=COLLECTION_ID)
+    )
+    mocks.collection_repository.get_collection.return_value = (
+        None if missing == "collection" else Mock(orbit_id=OTHER_ORBIT_ID)
+    )
+    with pytest.raises(NotFoundError, match="Artifact not found"):
+        await mocks.handler.list_entries_for_artifact(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, ARTIFACT_ID
+        )
+    mocks.entry_repository.list_entries_for_artifact.assert_not_awaited()
