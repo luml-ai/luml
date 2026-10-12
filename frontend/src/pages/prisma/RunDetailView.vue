@@ -8,7 +8,6 @@ import { usePrismaStore } from '@/stores/prisma'
 import { useUploadFlow } from '@/hooks/useUploadFlow'
 import { useAgentWebSocket } from '@/hooks/useAgentWebSocket'
 import { statusSeverity } from '@/components/prisma/board/board.types'
-import type { UploadReadyEvent } from '@/lib/api/prisma/prisma.interfaces'
 import RunGraph from '@/components/prisma/RunGraph.vue'
 import NodeDetail from '@/components/prisma/NodeDetail.vue'
 import TerminalPanel from '@/components/prisma/TerminalPanel.vue'
@@ -83,32 +82,7 @@ async function loadInitialData() {
 }
 
 function onRetryUpload(uploadId: string) {
-  const run = store.selectedRun
-  if (!run?.config.luml_collection_id) return
-  const entry = uploadFlow.uploads.value.get(uploadId)
-  if (!entry) return
-  const event: UploadReadyEvent = {
-    upload_id: uploadId,
-    run_id: entry.runId,
-    node_id: entry.nodeId,
-    file_size: 0,
-    experiment_ids: [],
-    collection_id: run.config.luml_collection_id,
-    organization_id: run.config.luml_organization_id as string,
-    orbit_id: run.config.luml_orbit_id as string,
-    manifest: {
-      variant: 'test',
-      producer_name: 'test',
-      producer_version: 'test',
-      producer_tags: [],
-      inputs: [],
-      outputs: [],
-      dynamic_attributes: [],
-      env_vars: [],
-    },
-    file_index: {},
-  }
-  uploadFlow.retryUpload(uploadId, event)
+  uploadFlow.retryUpload(uploadId)
 }
 
 async function onStartRun() {
