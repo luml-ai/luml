@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     LUML_BASE_URL: str = "https://api.luml.ai"
     LUML_WEB_URL: str = "https://app.luml.ai"
     LUML_ARTIFACT_URL_TEMPLATE: str = (
-        "{web}/{org}/{orbit}/collections/{collection}/artifacts/{artifact_id}"
+        "{web}/organization/{org}/orbit/{orbit}"
+        "/collection/{collection}/artifacts/{artifact_id}"
     )
 
     @field_validator("LUML_BACKEND_STORE_URI", mode="after")
