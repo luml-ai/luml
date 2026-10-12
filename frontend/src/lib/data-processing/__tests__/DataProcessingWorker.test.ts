@@ -11,6 +11,7 @@ type Request = {
 class FakeWorker {
   onmessage: ((event: MessageEvent) => void) | null = null
   onerror: ((event: ErrorEvent) => void) | null = null
+  onmessageerror: ((event: MessageEvent) => void) | null = null
   postMessage = vi.fn<(request: Request) => void>()
   terminate = vi.fn()
 
@@ -35,7 +36,10 @@ beforeEach(async () => {
   service = (await import('../DataProcessingWorker')).DataProcessingWorker
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 const entries = [
   [
@@ -166,5 +170,79 @@ describe('lazy Pyodide initialization', () => {
     await flushPromises()
     workers[0].onerror?.({ message: 'Worker crashed' } as ErrorEvent)
     expect((await pending).every((result) => result.status === 'rejected')).toBe(true)
+  })
+
+  it('times out a stalled initialization, rejects all callers, and allows retry', async () => {
+    vi.useFakeTimers()
+    const pending = Promise.allSettled([service.checkPyodideReady(), entries[0][1]()])
+    await vi.advanceTimersByTimeAsync(120_000)
+    const results = await pending
+    for (const result of results) {
+      expect(result.status).toBe('rejected')
+      if (result.status === 'rejected') expect(result.reason.message).toMatch(/timed out/i)
+    }
+    expect(workers[0].terminate).toHaveBeenCalledTimes(1)
+    expect((service as unknown as { callbacks: Map<number, unknown> }).callbacks.size).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+    const retry = service.checkPyodideReady()
+    workers[1].respond(true)
+    await retry
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(['error envelope', 'route error', 'empty error envelope'])(
+    'rejects an operation after an %s and discards its callback',
+    async (failure) => {
+      const ready = service.initPyodide()
+      workers[0].respond(true)
+      await ready
+      const pending = entries[0][1]()
+      const assertion = expect(pending).rejects.toThrow(/Python failed|Webworker request failed/)
+      await flushPromises()
+      const worker = workers[0]
+      const request = worker.postMessage.mock.calls.at(-1)![0]
+      const payload =
+        failure === 'route error' ? { status: 'error', error_message: 'Python failed' } : undefined
+      worker.respond(
+        payload,
+        request,
+        failure === 'route error' ? undefined : failure === 'error envelope' ? 'Python failed' : '',
+      )
+      await assertion
+      expect((service as unknown as { callbacks: Map<number, unknown> }).callbacks.size).toBe(0)
+      worker.respond('late duplicate reply', request)
+      expect(worker.terminate).not.toHaveBeenCalled()
+      const next = entries[1][1]()
+      await flushPromises()
+      worker.respond('prediction')
+      await expect(next).resolves.toBe('prediction')
+    },
+  )
+
+  it('rejects all operations on a message decoding failure and allows retry', async () => {
+    const ready = service.initPyodide()
+    workers[0].respond(true)
+    await ready
+    const pending = Promise.allSettled([entries[0][1](), entries[1][1]()])
+    await flushPromises()
+    workers[0].onmessageerror?.({} as MessageEvent)
+    const results = await pending
+    expect(results.every((result) => result.status === 'rejected')).toBe(true)
+    expect((service as unknown as { callbacks: Map<number, unknown> }).callbacks.size).toBe(0)
+    expect(workers[0].terminate).toHaveBeenCalledTimes(1)
+    const retry = service.checkPyodideReady()
+    workers[1].respond(true)
+    await retry
+  })
+
+  it('discards the callback when posting a request fails', async () => {
+    const ready = service.initPyodide()
+    workers[0].respond(true)
+    await ready
+    workers[0].postMessage.mockImplementationOnce(() => {
+      throw new DOMException('Cannot clone request', 'DataCloneError')
+    })
+    await expect(entries[0][1]()).rejects.toThrow('Cannot clone request')
+    expect((service as unknown as { callbacks: Map<number, unknown> }).callbacks.size).toBe(0)
   })
 })

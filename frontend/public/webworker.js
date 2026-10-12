@@ -2,7 +2,6 @@
 //for debug only
 // DRY_RUN = false;
 
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
 //import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.mjs";
 
 // let pyodide = null;
@@ -13,6 +12,7 @@ const MESSAGES = {
 };
 
 async function initPyWorker() {
+    importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
     // if (DRY_RUN) {
     //     return true;
     // }
@@ -113,38 +113,45 @@ async function tabularDeallocate(model_id) {
 
 self.onmessage = async (event) => {
     const m = event.data;
-    const pyodideReady = await self.pyodideReadyPromise;
-    if (pyodideReady.error) {
-        self.postMessage({ message: m.message, id: m.id, error: pyodideReady.error });
-        return;
-    }
-    switch (m.message) {
-        case MESSAGES.LOAD_PYODIDE:
-            if (pyodideReady) {
+    try {
+        const pyodideReady = await self.pyodideReadyPromise;
+        if (pyodideReady !== true) {
+            throw new Error(pyodideReady?.error || "Pyodide failed to initialize");
+        }
+        switch (m.message) {
+            case MESSAGES.LOAD_PYODIDE:
                 self.postMessage({ message: m.message, id: m.id, payload: true });
-            }
-            break;
-        case "tabular_train":
-            const tabularResult = await tabularTrain(m.payload.task, m.payload.data, m.payload.target, m.payload.groups);
-            self.postMessage({ message: m.message, id: m.id, payload: tabularResult });
-            break;
-        case "tabular_predict":
-            const tabularPredictResult = await tabularPredict(m.payload.model_id, m.payload.data);
-            self.postMessage({ message: m.message, id: m.id, payload: tabularPredictResult });
-            break;
-        case "tabular_deallocate":
-            const tabularDeallocateResult = await tabularDeallocate(m.payload.model_id);
-            self.postMessage({ message: m.message, id: m.id, payload: tabularDeallocateResult });
-            break;
-        case "invokeRoute":
-            const result = await invokeRoute(m.payload.route, m.payload.data);
-            self.postMessage({ message: m.message, id: m.id, payload: result });
-            break;
-        case "interrupt":
-            const interrupt = new Uint8Array(new SharedArrayBuffer(1));
-            interrupt[0] = 2;
-            self.pyodide.setInterruptBuffer(interrupt);
-            self.postMessage({ message: m.message, id: m.id, payload: true });
-            break;
+                break;
+            case "tabular_train":
+                const tabularResult = await tabularTrain(m.payload.task, m.payload.data, m.payload.target, m.payload.groups);
+                self.postMessage({ message: m.message, id: m.id, payload: tabularResult });
+                break;
+            case "tabular_predict":
+                const tabularPredictResult = await tabularPredict(m.payload.model_id, m.payload.data);
+                self.postMessage({ message: m.message, id: m.id, payload: tabularPredictResult });
+                break;
+            case "tabular_deallocate":
+                const tabularDeallocateResult = await tabularDeallocate(m.payload.model_id);
+                self.postMessage({ message: m.message, id: m.id, payload: tabularDeallocateResult });
+                break;
+            case "invokeRoute":
+                const result = await invokeRoute(m.payload.route, m.payload.data);
+                self.postMessage({ message: m.message, id: m.id, payload: result });
+                break;
+            case "interrupt":
+                const interrupt = new Uint8Array(new SharedArrayBuffer(1));
+                interrupt[0] = 2;
+                self.pyodide.setInterruptBuffer(interrupt);
+                self.postMessage({ message: m.message, id: m.id, payload: true });
+                break;
+            default:
+                throw new Error(`Unknown webworker message: ${m.message}`);
+        }
+    } catch (error) {
+        self.postMessage({
+            message: m.message,
+            id: m.id,
+            error: error instanceof Error ? error.message : String(error),
+        });
     }
 };
