@@ -29,7 +29,7 @@ from lumlflow.tui.widgets import (
     ToastHost,
 )
 from lumlflow.tui.widgets.breadcrumb import Breadcrumb
-from lumlflow.tui.widgets.dialogs import ConfirmDialog
+from lumlflow.tui.widgets.dialogs import RunQuitDialog
 from lumlflow.tui.widgets.modal import DialogClosed, DialogOpened
 from lumlflow.tui.widgets.toast import ToastSeverity
 
@@ -974,23 +974,29 @@ class LumlflowApp(App[None]):
             await super().action_quit()
             return
         self._quit_in_progress = True
-        dialog = ConfirmDialog(
+        run_screen = self._active_run_screen
+        assert run_screen is not None
+        run = run_screen._run
+        assert run is not None
+        dialog = RunQuitDialog(
             title="A run is still active",
             message=(
-                "The training script launched with this TUI is still "
-                "running. Quitting will leave it running in the "
-                "background; cancel to keep watching it, or stop it "
-                "explicitly with Ctrl-C / 's' on the run screen first."
+                "The training script is still running. Detach to leave it "
+                "running in the background, terminate it and quit, or "
+                f"cancel to keep watching. Logs: {run.state.log_dir}"
             ),
-            confirm_label="Quit (detach)",
-            cancel_label="Cancel",
         )
 
-        def _after(confirmed: bool | None) -> None:
-            self._quit_in_progress = False
-            if confirmed:
-                # Detach: leave the child alone and exit the TUI.
-                self.exit()
+        async def _after(choice: str | None) -> None:
+            try:
+                if choice == "detach":
+                    await run.detach()
+                    self.exit()
+                elif choice == "terminate":
+                    await run_screen.terminate_child()
+                    self.exit()
+            finally:
+                self._quit_in_progress = False
 
         self.push_screen(dialog, callback=_after)
 
