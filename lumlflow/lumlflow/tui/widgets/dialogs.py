@@ -212,6 +212,30 @@ class ConfirmDialog(BaseDialog[bool]):
                     )
 
 
+class RunQuitDialog(BaseDialog[str | None]):
+    """Choose whether quitting should detach or terminate the active run."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=False),
+        Binding("enter", "confirm", "Quit (detach)", show=False),
+        Binding("t", "terminate", "Terminate", show=False),
+    ]
+
+    confirm_label = "Quit (detach)"
+
+    def compose_body(self) -> Iterable:
+        yield Static("[t] Terminate and quit", markup=False)
+
+    def action_confirm(self) -> None:
+        self.dismiss("detach")
+
+    def action_terminate(self) -> None:
+        self.dismiss("terminate")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class SortChooserDialog(BaseDialog["SortChooserResult | None"]):
     """Tiny picker for sort field + order on list screens.
 
