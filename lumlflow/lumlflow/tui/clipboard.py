@@ -8,8 +8,8 @@ user); the helper degrades gracefully so the caller can show an
 explanatory toast instead of crashing.
 
 Implementation:
-- emit `ESC ] 52 ; c ; <base64-payload> BEL` on stdout when the active
-  output is a TTY.
+- emit `ESC ] 52 ; c ; <base64-payload> BEL` on the original stdout
+  when it is a TTY, bypassing Textual's print capture.
 - payload is base64-encoded UTF-8 of the string to copy.
 - the standard caps text length to a few KB; ids are short so we don't
   worry about chunking.
@@ -37,9 +37,11 @@ class ClipboardResult:
 def supports_osc52() -> bool:
     """Heuristic check for OSC52 support in the current terminal."""
 
-    # If stdout is not a TTY (test harness, piped output), OSC52 can't
-    # reach the terminal — there is no terminal to receive it.
-    if not sys.stdout.isatty():
+    # check the real terminal, since Textual's print capture reports a TTY
+    try:
+        if sys.__stdout__ is None or not sys.__stdout__.isatty():
+            return False
+    except (OSError, ValueError):
         return False
     # `TERM=dumb` and `TERM=unknown` short-circuit since they explicitly
     # disclaim terminal capabilities.
@@ -62,8 +64,8 @@ def osc52_copy(text: str, *, stream: IO[str] | None = None) -> ClipboardResult:
 
     if not text:
         return ClipboardResult(ok=False, reason="nothing to copy")
-    out: IO[str] = stream if stream is not None else sys.stdout
-    if not supports_osc52() and out is sys.stdout:
+    out = stream if stream is not None else sys.__stdout__
+    if out is None or (stream is None and not supports_osc52()):
         return ClipboardResult(
             ok=False,
             reason="terminal does not support OSC52",
