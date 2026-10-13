@@ -1,9 +1,12 @@
 <template>
-  <ExperimentGroups />
+  <div>
+    <HomeTabs class="mb-6" />
+    <router-view />
+  </div>
 </template>
 
 <script setup lang="ts">
-import ExperimentGroups from '@/components/experiments/groups/ExperimentGroups.vue'
+import HomeTabs from '@/components/tabs/HomeTabs.vue'
 </script>
 
 <style scoped></style>

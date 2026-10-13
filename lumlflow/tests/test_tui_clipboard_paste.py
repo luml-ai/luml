@@ -53,23 +53,15 @@ class TestReadSystemClipboard:
         assert read_system_clipboard() == "dfs_secret"
         assert calls == [("xclip", "-selection", "clipboard", "-o")]
 
-    def test_returns_none_without_tools(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            clipboard_module.shutil, "which", lambda name: None
-        )
+    def test_returns_none_without_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(clipboard_module.shutil, "which", lambda name: None)
         assert read_system_clipboard() is None
 
-    def test_skips_failing_tool(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_skips_failing_tool(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             clipboard_module.shutil,
             "which",
-            lambda name: f"/usr/bin/{name}"
-            if name in ("wl-paste", "xclip")
-            else None,
+            lambda name: f"/usr/bin/{name}" if name in ("wl-paste", "xclip") else None,
         )
 
         def fake_run(command: tuple[str, ...], **kwargs: Any) -> _Proc:
@@ -80,9 +72,7 @@ class TestReadSystemClipboard:
         monkeypatch.setattr(clipboard_module.subprocess, "run", fake_run)
         assert read_system_clipboard() == "from-xclip"
 
-    def test_empty_output_is_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_empty_output_is_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             clipboard_module.shutil,
             "which",
@@ -122,9 +112,7 @@ async def _publish_screen_with_key_input(app: LumlflowApp, pilot: Any) -> Input:
 
 
 class TestCtrlVPaste:
-    async def test_ctrl_v_pastes_system_clipboard(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_ctrl_v_pastes_system_clipboard(self, tmp_path: Path) -> None:
         app = _make_app(tmp_path)
         # has_api_key must be patched or a key stored on the dev machine
         # (keyring / ~/.luml.json) skips the auth step and its input.
@@ -142,9 +130,7 @@ class TestCtrlVPaste:
                 await pilot.pause()
                 assert key_input.value == "dfs_pasted_key"
 
-    async def test_internal_clipboard_wins_over_system(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_internal_clipboard_wins_over_system(self, tmp_path: Path) -> None:
         app = _make_app(tmp_path)
         with (
             patch.object(app.facade.auth, "has_api_key", return_value=False),
@@ -161,15 +147,11 @@ class TestCtrlVPaste:
                 await pilot.pause()
                 assert key_input.value == "from-app"
 
-    async def test_empty_everything_pastes_nothing(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_empty_everything_pastes_nothing(self, tmp_path: Path) -> None:
         app = _make_app(tmp_path)
         with (
             patch.object(app.facade.auth, "has_api_key", return_value=False),
-            patch(
-                "lumlflow.tui.app.read_system_clipboard", return_value=None
-            ),
+            patch("lumlflow.tui.app.read_system_clipboard", return_value=None),
         ):
             async with app.run_test() as pilot:
                 await pilot.pause()

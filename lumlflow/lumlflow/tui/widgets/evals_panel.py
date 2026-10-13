@@ -282,12 +282,8 @@ class EvalsPanel(Widget):
                         id="evals-search",
                     )
                     yield Static(self._format_sort_status(), id="evals-sort-status")
-                    yield Static(
-                        "", id="evals-filter-status", classes="-empty"
-                    )
-                    yield Static(
-                        "", id="evals-avg-scores", classes="-empty"
-                    )
+                    yield Static("", id="evals-filter-status", classes="-empty")
+                    yield Static("", id="evals-avg-scores", classes="-empty")
             with Vertical():
                 yield Static(self._empty_state_text(), id="evals-empty")
                 yield DataTable(
@@ -383,13 +379,9 @@ class EvalsPanel(Widget):
         except Exception:
             return
         view.clear()
-        view.append(
-            ListItem(Static("All datasets"), id=f"ds-item-{ALL_DATASETS}")
-        )
+        view.append(ListItem(Static("All datasets"), id=f"ds-item-{ALL_DATASETS}"))
         for ds in self._dataset_ids:
-            view.append(
-                ListItem(Static(ds), id=self._dataset_item_id(ds))
-            )
+            view.append(ListItem(Static(ds), id=self._dataset_item_id(ds)))
         # Keep the selected entry highlighted (default: all).
         view.index = self._selected_dataset_index()
 
@@ -433,9 +425,7 @@ class EvalsPanel(Widget):
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         # Enter on the list also confirms the dataset.
-        self.on_list_view_highlighted(
-            ListView.Highlighted(event.list_view, event.item)
-        )
+        self.on_list_view_highlighted(ListView.Highlighted(event.list_view, event.item))
 
     def action_next_dataset(self) -> None:
         self._step_dataset(1)
@@ -967,9 +957,7 @@ class EvalsPanel(Widget):
         label_by_id = {fid: label for fid, label in _SORT_FIELDS}
         field_label = label_by_id.get(self._sort_by, self._sort_by)
         arrow = "↓" if self._order == "desc" else "↑"
-        search_part = (
-            f" · search {self._search!r}" if self._search is not None else ""
-        )
+        search_part = f" · search {self._search!r}" if self._search is not None else ""
         ds_part = (
             f" · dataset {self._selected_dataset!r}"
             if self._selected_dataset is not None
@@ -997,9 +985,7 @@ class EvalsPanel(Widget):
             status.update("")
             status.add_class("-empty")
 
-    def on_data_table_row_selected(
-        self, event: DataTable.RowSelected
-    ) -> None:
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable consumes Enter via its own `select_cursor` binding,
         # so the panel-level `Binding("enter", "open_focused")` never
         # fires while the table is focused. Routing through `RowSelected`
@@ -1010,9 +996,7 @@ class EvalsPanel(Widget):
 
     # ----- lazy pagination -----
 
-    def on_data_table_row_highlighted(
-        self, event: DataTable.RowHighlighted
-    ) -> None:
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if not self._has_more or self._loading:
             return
         prefetch_threshold = 5
@@ -1112,9 +1096,7 @@ class EvalsPanel(Widget):
             or ae.metadata != be.metadata
         )
 
-    def _pulse_changed_rows(
-        self, table: DataTable, changed_keys: list[str]
-    ) -> None:
+    def _pulse_changed_rows(self, table: DataTable, changed_keys: list[str]) -> None:
         if not changed_keys:
             return
         pulse_style = "reverse"

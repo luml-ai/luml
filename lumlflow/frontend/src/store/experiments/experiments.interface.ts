@@ -21,6 +21,7 @@ export interface Experiment {
   source: string | null
   group_name: string | null
   group_id: string | null
+  metadata: Record<string, unknown>
 }
 
 export interface UpdateExperimentPayload {

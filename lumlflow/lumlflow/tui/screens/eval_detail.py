@@ -159,29 +159,21 @@ class EvalDetailScreen(BaseScreen):
                 yield Static("Loading eval…", id="eval-detail-header")
                 with VerticalScroll(id="eval-fields-scroll"):
                     yield Static("Inputs", classes="section-title")
-                    yield Static(
-                        "(loading)", id="eval-inputs", classes="field-content"
-                    )
+                    yield Static("(loading)", id="eval-inputs", classes="field-content")
                     yield Static("Outputs", classes="section-title")
                     yield Static(
                         "(loading)", id="eval-outputs", classes="field-content"
                     )
                     yield Static("References", classes="section-title")
-                    yield Static(
-                        "(loading)", id="eval-refs", classes="field-content"
-                    )
+                    yield Static("(loading)", id="eval-refs", classes="field-content")
                     yield Static("Scores", classes="section-title")
-                    yield Static(
-                        "(loading)", id="eval-scores", classes="field-content"
-                    )
+                    yield Static("(loading)", id="eval-scores", classes="field-content")
                     yield Static("Metadata", classes="section-title")
                     yield Static(
                         "(loading)", id="eval-metadata", classes="field-content"
                     )
                     yield Static("Linked traces", classes="section-title")
-                    yield Static(
-                        "(none)", id="eval-traces", classes="field-content"
-                    )
+                    yield Static("(none)", id="eval-traces", classes="field-content")
             with Vertical(id="eval-annotations-pane"):
                 yield Static("Annotations", classes="section-title")
                 yield DataTable(
@@ -310,9 +302,7 @@ class EvalDetailScreen(BaseScreen):
                 traces_text.append(tid, style="bold" if i == 0 else "dim")
             self.query_one("#eval-traces", Static).update(traces_text)
         else:
-            self.query_one("#eval-traces", Static).update(
-                Text("(none)", style="dim")
-            )
+            self.query_one("#eval-traces", Static).update(Text("(none)", style="dim"))
 
     # ----- annotation fetch + render -----
 
@@ -430,9 +420,7 @@ class EvalDetailScreen(BaseScreen):
             return
         dialog = ConfirmDialog(
             title="Delete annotation",
-            message=(
-                f"Delete annotation {ann.name!r}? This cannot be undone."
-            ),
+            message=(f"Delete annotation {ann.name!r}? This cannot be undone."),
             confirm_label="Delete",
             destructive=True,
         )
@@ -506,22 +494,16 @@ class EvalDetailScreen(BaseScreen):
         facade = self.facade
         if facade is None:
             return
-        result = facade.update_eval_annotation(
-            self._experiment_id, annotation_id, body
-        )
+        result = facade.update_eval_annotation(self._experiment_id, annotation_id, body)
         self.app.call_from_thread(
             self._on_annotation_mutation_result, result, "updated"
         )
 
-    def _on_annotation_mutation_result(
-        self, result: Result[Any], verb: str
-    ) -> None:
+    def _on_annotation_mutation_result(self, result: Result[Any], verb: str) -> None:
         if not result.ok:
             err = result.error
             msg = err.message if err else "annotation save failed"
-            self._lumlflow_app.show_toast(
-                f"Annotation {verb}: {msg}", severity="error"
-            )
+            self._lumlflow_app.show_toast(f"Annotation {verb}: {msg}", severity="error")
             return
         self._lumlflow_app.show_toast(
             f"Annotation {verb}.", severity="success", duration=2.0
@@ -540,9 +522,7 @@ class EvalDetailScreen(BaseScreen):
         facade = self.facade
         if facade is None:
             return
-        result = facade.delete_eval_annotation(
-            self._experiment_id, annotation_id
-        )
+        result = facade.delete_eval_annotation(self._experiment_id, annotation_id)
         self.app.call_from_thread(
             self._on_annotation_delete_result, result, annotation_id
         )
@@ -553,13 +533,9 @@ class EvalDetailScreen(BaseScreen):
         if not result.ok:
             err = result.error
             msg = err.message if err else "delete failed"
-            self._lumlflow_app.show_toast(
-                f"Delete failed: {msg}", severity="error"
-            )
+            self._lumlflow_app.show_toast(f"Delete failed: {msg}", severity="error")
             return
-        self._annotations = [
-            a for a in self._annotations if a.id != annotation_id
-        ]
+        self._annotations = [a for a in self._annotations if a.id != annotation_id]
         self._refresh_annotations_table()
         self._lumlflow_app.show_toast(
             "Annotation deleted.", severity="success", duration=2.0

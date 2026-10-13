@@ -3,6 +3,7 @@
   <router-view></router-view>
   <UiDeleteConfirmation></UiDeleteConfirmation>
   <ConfirmDialog></ConfirmDialog>
+  <ConfirmDialog group="delete-cell" class="w-full max-w-[400px]"></ConfirmDialog>
   <Toast></Toast>
   <ApiKeyModal />
 </template>

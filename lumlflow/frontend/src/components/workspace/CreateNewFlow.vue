@@ -1,0 +1,153 @@
+<template>
+  <div class="px-1">
+    <Button variant="text" @click="openDialog">
+      <Plus :size="16" />
+      <span> New notebook</span>
+    </Button>
+    <Dialog
+      v-model:visible="visible"
+      header="CREATE NEW NOTEBOOK"
+      modal
+      dismissable-mask
+      :draggable="false"
+      :pt="DIALOG_PT"
+      @update:visible="onVisibleChange"
+    >
+      <Form
+        id="create-flow-form"
+        :resolver="resolver"
+        :initial-values="initialValues"
+        :validate-on-value-update="false"
+        @submit="submit"
+      >
+        <FormField v-slot="$field" name="name">
+          <label for="name" class="inline-block mb-2 required">Name</label>
+          <InputGroup>
+            <InputText
+              v-model="initialValues.name"
+              id="name"
+              fluid
+              placeholder="Name your notebook"
+            />
+            <InputGroupAddon>{{ FLOW_FILE_EXTENSION }}</InputGroupAddon>
+          </InputGroup>
+          <Message v-if="$field?.invalid" severity="error" size="small" variant="simple">
+            {{ $field.error?.message }}
+          </Message>
+        </FormField>
+      </Form>
+      <template #footer>
+        <Button
+          type="submit"
+          label="Create notebook"
+          :loading="loading"
+          :disabled="!initialValues.name || loading"
+          form="create-flow-form"
+          fluid
+          rounded
+        />
+      </template>
+    </Dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import type { DialogPassThroughOptions } from 'primevue'
+import { Button, Dialog, InputGroup, InputGroupAddon, InputText, Message } from 'primevue'
+import { Plus } from 'lucide-vue-next'
+import { ref } from 'vue'
+import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
+import { zodResolver } from '@primevue/forms/resolvers/zod'
+import z from 'zod'
+import { useToast } from 'primevue/usetoast'
+import { errorToast, successToast } from '@/toasts'
+import { FLOW_FILE_EXTENSION } from '@/components/workspace/workspace.const'
+import { useWorkspaceStore } from '@/store/workspace'
+
+interface Props {
+  existingNames?: string[]
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  existingNames: () => [],
+})
+
+const DIALOG_PT: DialogPassThroughOptions = {
+  root: {
+    class: 'w-[600px] rounded-lg!',
+  },
+  header: {
+    class: 'text-xl uppercase',
+  },
+  content: {
+    class: 'pb-7',
+  },
+}
+
+const toast = useToast()
+
+const workspaceStore = useWorkspaceStore()
+
+const initialValues = ref({
+  name: '',
+})
+
+const resolver: ReturnType<typeof zodResolver> = zodResolver(
+  z.object({
+    name: z
+      .string()
+      .min(1)
+      .max(255 - FLOW_FILE_EXTENSION.length)
+      .superRefine((name, ctx) => {
+        if (props.existingNames.includes(`${name}${FLOW_FILE_EXTENSION}`)) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `"${name}${FLOW_FILE_EXTENSION}" already exists`,
+          })
+        }
+      }),
+  }) as never,
+)
+
+const visible = ref(false)
+
+const loading = ref(false)
+
+function openDialog() {
+  visible.value = true
+}
+
+function onVisibleChange(visible: boolean) {
+  if (visible) return
+  resetForm()
+}
+
+function resetForm() {
+  initialValues.value = {
+    name: '',
+  }
+}
+
+function submit(event: FormSubmitEvent) {
+  if (!event.valid) return
+
+  const values = event.values as typeof initialValues.value
+  createFlow(`${values.name}${FLOW_FILE_EXTENSION}`)
+}
+
+async function createFlow(name: string) {
+  loading.value = true
+  try {
+    await workspaceStore.createFlow(name)
+    resetForm()
+    visible.value = false
+    toast.add(successToast('Notebook created successfully'))
+  } catch (error) {
+    toast.add(errorToast(error))
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
+<style scoped></style>

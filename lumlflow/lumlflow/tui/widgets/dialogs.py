@@ -402,7 +402,7 @@ class FilterEditorDialog(BaseDialog["str | None"]):
         self._validator = validator
         self._help_text = (
             help_text
-            or "Filter DSL · e.g. status = \"completed\" AND metric.accuracy > 0.85"
+            or 'Filter DSL · e.g. status = "completed" AND metric.accuracy > 0.85'
         )
         self._last_validation: FilterValidation = FilterValidation(valid=True)
 

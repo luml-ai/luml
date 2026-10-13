@@ -1,5 +1,6 @@
 export const ROUTE_NAMES = {
   HOME: 'home',
+  EXPERIMENTS: 'experiments',
   EXPERIMENT: 'experiment',
   EXPERIMENT_DETAILS: 'experiment-details',
   EXPERIMENT_OVERVIEW: 'experiment-overview',
@@ -9,6 +10,9 @@ export const ROUTE_NAMES = {
   EXPERIMENT_ATTACHMENTS: 'experiment-attachments',
   EXPERIMENTS_COMPARISON: 'experiments-comparison',
   GROUPS_COMPARISON: 'groups-comparison',
+
+  WORKSPACES: 'workspaces',
+  WORKSPACE_FLOW: 'workspace-flow',
 }
 
 export const ROUTES = {
@@ -24,4 +28,8 @@ export const ROUTES = {
 
   [ROUTE_NAMES.EXPERIMENTS_COMPARISON]: 'experiments/comparison',
   [ROUTE_NAMES.GROUPS_COMPARISON]: 'groups/comparison',
+
+  [ROUTE_NAMES.EXPERIMENTS]: '',
+  [ROUTE_NAMES.WORKSPACES]: 'workspaces',
+  [ROUTE_NAMES.WORKSPACE_FLOW]: 'workspaces/flow',
 }

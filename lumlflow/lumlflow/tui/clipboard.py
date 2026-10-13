@@ -101,9 +101,7 @@ def read_system_clipboard(timeout: float = 0.5) -> str | None:
         if shutil.which(command[0]) is None:
             continue
         try:
-            proc = subprocess.run(
-                command, capture_output=True, timeout=timeout
-            )
+            proc = subprocess.run(command, capture_output=True, timeout=timeout)
         except (OSError, subprocess.SubprocessError):
             continue
         if proc.returncode != 0:

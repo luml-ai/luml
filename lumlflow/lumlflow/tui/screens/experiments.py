@@ -262,17 +262,20 @@ class ExperimentsScreen(BaseScreen):
                     self._empty_state_text(),
                     id="experiments-empty",
                 )
-                yield DataTable(
+                # Columns are added here, not in `on_mount`: a live-refresh
+                # tick can deliver rows to the pushed screen before
+                # `on_mount` runs.
+                table: DataTable[Any] = DataTable(
                     id="experiments-table",
                     cursor_type="row",
                     zebra_stripes=True,
                 )
+                table.add_columns(
+                    "Sel", "Name", "Status", "Duration", "Tags", "Group", "Created"
+                )
+                yield table
 
     def on_mount(self) -> None:
-        table = self.query_one("#experiments-table", DataTable)
-        table.add_columns(
-            "Sel", "Name", "Status", "Duration", "Tags", "Group", "Created"
-        )
         self._update_empty_state()
         self._update_panel_subtitle()
         # Sync the header to the cross-screen selection count so users
@@ -361,9 +364,7 @@ class ExperimentsScreen(BaseScreen):
                         if groups_res.error
                         else "could not list groups"
                     )
-                    self.app.call_from_thread(
-                        self._on_page_failure, message, reset
-                    )
+                    self.app.call_from_thread(self._on_page_failure, message, reset)
                     return
                 group_ids = [g.id for g in groups_res.unwrap().items]
                 self._all_group_ids_cache = group_ids
@@ -490,9 +491,7 @@ class ExperimentsScreen(BaseScreen):
             return "No experiments match the search/filter."
         if self._all_experiments:
             return "No experiments yet."
-        return (
-            f"No experiments in {self._group_name or self._group_id!r} yet."
-        )
+        return f"No experiments in {self._group_name or self._group_id!r} yet."
 
     # ----- row rendering -----
 
@@ -515,9 +514,7 @@ class ExperimentsScreen(BaseScreen):
     ) -> tuple[Text, Text, Text, Text, Text, Text, Text]:
         # Active experiments get extra visual emphasis since they're the
         # live ones (per SPEC's status color contract).
-        status_color = _STATUS_COLOR_VAR.get(
-            row.status, "$state-unspecified"
-        )
+        status_color = _STATUS_COLOR_VAR.get(row.status, "$state-unspecified")
         if row.status == ExperimentStatus.ACTIVE:
             name = Text(row.name, style=f"bold {status_color}")
             status = Text(
@@ -526,9 +523,7 @@ class ExperimentsScreen(BaseScreen):
             )
         else:
             name = Text(row.name)
-            status = Text(
-                f" {row.status.value} ", style=f"{status_color} on $panel"
-            )
+            status = Text(f" {row.status.value} ", style=f"{status_color} on $panel")
         duration = Text(_format_duration(row.duration), style="dim")
         tags = _render_tag_chips(row.tags)
         group = Text(row.group_name or "—", style="dim")
@@ -537,9 +532,7 @@ class ExperimentsScreen(BaseScreen):
         # ✓ marks a row queued for comparison; the marker survives
         # navigation since the selection lives on the app.
         sel_marker = (
-            Text("✓", style="bold $accent")
-            if selected
-            else Text(" ", style="dim")
+            Text("✓", style="bold $accent") if selected else Text(" ", style="dim")
         )
         return sel_marker, name, status, duration, tags, group, created
 
@@ -882,9 +875,7 @@ class ExperimentsScreen(BaseScreen):
         self._order = result.order
         self.load_first_page()
 
-    def on_data_table_header_selected(
-        self, event: DataTable.HeaderSelected
-    ) -> None:
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
         """Clicking a column header sorts by it (click again to flip)."""
 
         if event.data_table.id != "experiments-table":
@@ -902,9 +893,7 @@ class ExperimentsScreen(BaseScreen):
         label_by_id = {fid: label for fid, label in _SORT_FIELDS}
         field_label = label_by_id.get(self._sort_by, self._sort_by)
         arrow = "↓" if self._order == "desc" else "↑"
-        search_part = (
-            f" · search {self._search!r}" if self._search is not None else ""
-        )
+        search_part = f" · search {self._search!r}" if self._search is not None else ""
         return f"sort: {field_label} {arrow}{search_part}"
 
     def _panel_title(self) -> str:
@@ -959,11 +948,7 @@ class ExperimentsScreen(BaseScreen):
             description=result.description,
             tags=result.tags,
         )
-        if (
-            body.name is None
-            and body.description is None
-            and body.tags is None
-        ):
+        if body.name is None and body.description is None and body.tags is None:
             return
         self._run_update(experiment_id, body)
 
@@ -975,15 +960,11 @@ class ExperimentsScreen(BaseScreen):
         result = facade.update_experiment(experiment_id, body)
         self.app.call_from_thread(self._on_update_result, result, experiment_id)
 
-    def _on_update_result(
-        self, result: Result[Any], experiment_id: str
-    ) -> None:
+    def _on_update_result(self, result: Result[Any], experiment_id: str) -> None:
         if not result.ok:
             err = result.error
             msg = err.message if err else "update failed"
-            self._lumlflow_app.show_toast(
-                f"Edit failed: {msg}", severity="error"
-            )
+            self._lumlflow_app.show_toast(f"Edit failed: {msg}", severity="error")
             return
         # The mutate returns a bare `Experiment` (no models). Find the
         # current row and merge the updated fields so other fields
@@ -1018,10 +999,7 @@ class ExperimentsScreen(BaseScreen):
             return
         dialog = ConfirmDialog(
             title="Delete experiment",
-            message=(
-                f"Delete experiment {row.name!r}? This action cannot "
-                "be undone."
-            ),
+            message=(f"Delete experiment {row.name!r}? This action cannot be undone."),
             confirm_label="Delete",
             destructive=True,
         )
@@ -1033,9 +1011,7 @@ class ExperimentsScreen(BaseScreen):
             ),
         )
 
-    def _on_delete_confirmed(
-        self, experiment_id: str, confirmed: bool | None
-    ) -> None:
+    def _on_delete_confirmed(self, experiment_id: str, confirmed: bool | None) -> None:
         if not confirmed:
             return
         self._run_delete(experiment_id)
@@ -1046,13 +1022,9 @@ class ExperimentsScreen(BaseScreen):
         if facade is None:
             return
         result = facade.delete_experiment(experiment_id)
-        self.app.call_from_thread(
-            self._on_delete_result, result, experiment_id
-        )
+        self.app.call_from_thread(self._on_delete_result, result, experiment_id)
 
-    def _on_delete_result(
-        self, result: Result[Any], experiment_id: str
-    ) -> None:
+    def _on_delete_result(self, result: Result[Any], experiment_id: str) -> None:
         if not result.ok:
             err = result.error
             msg = err.message if err else "delete failed"
@@ -1079,9 +1051,7 @@ class ExperimentsScreen(BaseScreen):
             "Experiment deleted.", severity="success", duration=2.0
         )
 
-    def on_data_table_row_selected(
-        self, event: DataTable.RowSelected
-    ) -> None:
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable consumes Enter for its own `select_cursor` binding,
         # which prevents the screen-level `Binding("enter", "open_focused")`
         # from firing. Translate the bubbled `RowSelected` message into a
@@ -1092,9 +1062,7 @@ class ExperimentsScreen(BaseScreen):
 
     # ----- lazy pagination -----
 
-    def on_data_table_row_highlighted(
-        self, event: DataTable.RowHighlighted
-    ) -> None:
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         if not self._has_more or self._loading:
             return
         prefetch_threshold = 5
@@ -1224,9 +1192,7 @@ class ExperimentsScreen(BaseScreen):
             or a.created_at != b.created_at
         )
 
-    def _pulse_changed_rows(
-        self, table: DataTable, changed_keys: list[str]
-    ) -> None:
+    def _pulse_changed_rows(self, table: DataTable, changed_keys: list[str]) -> None:
         if not changed_keys:
             return
         pulse_style = "reverse"

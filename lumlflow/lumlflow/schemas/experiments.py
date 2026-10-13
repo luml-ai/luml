@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import IntEnum, StrEnum
 from typing import Any
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import BaseOrmConfig
@@ -25,6 +25,7 @@ class _ExperimentBase(BaseModel, BaseOrmConfig):
     tags: list[str] | None = None
     static_params: dict[str, Any] | None = None
     dynamic_params: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     group_name: str | None = None
     group_id: str | None = None

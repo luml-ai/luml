@@ -40,6 +40,8 @@ from lumlflow.tui.widgets.panel_frame import PanelFrame
 from textual.containers import Container
 from textual.widgets import DataTable, Static
 
+from tests.tui_helpers import settle_workers
+
 
 @pytest.fixture
 def tracker(tmp_path: Path) -> ExperimentTracker:
@@ -460,6 +462,34 @@ class TestOverview:
 # ---------------------------------------------------------------------------
 
 
+class TestRefreshBeforeMount:
+    async def test_live_refresh_landing_before_on_mount_fills_models_table(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        exp_id, model_id = _seed_experiment_with_model(tracker, tmp_path)
+        original_on_mount = ExperimentDetailScreen.on_mount
+
+        # A live-refresh tick can target the pushed screen once it is
+        # composed but before its `on_mount` has run.
+        def refresh_then_mount(self: ExperimentDetailScreen) -> None:
+            self._on_refresh_details_result(facade.get_experiment(exp_id))
+            original_on_mount(self)
+
+        monkeypatch.setattr(ExperimentDetailScreen, "on_mount", refresh_then_mount)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            table = screen.query_one("#overview-models-table", DataTable)
+            assert len(table.columns) == 4
+            assert [row.key.value for row in table.ordered_rows] == [model_id]
+
+
 class TestModelEdit:
     async def test_edit_model_dialog_opens(
         self,
@@ -540,13 +570,9 @@ class TestModelEdit:
             screen = _push_detail_screen(
                 app, facade, experiment_id=exp_id, experiment_name="exp"
             )
-            await pilot.pause()
-            await pilot.pause()
-            screen._on_model_edit_submitted(
-                model_id, EntityEditResult(name="renamed")
-            )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
+            screen._on_model_edit_submitted(model_id, EntityEditResult(name="renamed"))
+            await settle_workers(pilot)
             updated = next(r for r in screen._model_rows if r.key == model_id)
             assert updated.name == "renamed"
 
@@ -587,11 +613,9 @@ class TestModelDelete:
             screen = _push_detail_screen(
                 app, facade, experiment_id=exp_id, experiment_name="exp"
             )
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             screen._on_model_delete_confirmed(model_id, True)
-            await pilot.pause()
-            await pilot.pause()
+            await settle_workers(pilot)
             assert all(r.key != model_id for r in screen._model_rows)
 
 
@@ -604,9 +628,7 @@ class TestMetricsTab:
     async def test_metrics_listed_from_dynamic_params(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        exp_id = _seed_experiment_with_metrics(
-            tracker, metric_keys=("loss", "acc")
-        )
+        exp_id = _seed_experiment_with_metrics(tracker, metric_keys=("loss", "acc"))
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
@@ -1076,9 +1098,7 @@ class TestDrillInFromExperiments:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = ExperimentsScreen(
-                facade=facade, group_id=group.id, group_name="g"
-            )
+            screen = ExperimentsScreen(facade=facade, group_id=group.id, group_name="g")
             app.push_screen(screen)
             await pilot.pause()
             await pilot.pause()
@@ -1233,20 +1253,17 @@ class TestTabScopedFooter:
             )
             await pilot.pause()
             await pilot.pause()
-            assert screen.footer_scopes() == (
-                "global", "tabs", "models", "experiment"
-            )
+            assert screen.footer_scopes() == ("global", "tabs", "models", "experiment")
             screen.action_jump_tab("metrics")
-            assert screen.footer_scopes() == (
-                "global", "tabs", "metrics", "experiment"
-            )
+            assert screen.footer_scopes() == ("global", "tabs", "metrics", "experiment")
             screen.action_jump_tab("traces")
-            assert screen.footer_scopes() == (
-                "global", "tabs", "list", "experiment"
-            )
+            assert screen.footer_scopes() == ("global", "tabs", "list", "experiment")
             screen.action_jump_tab("attachments")
             assert screen.footer_scopes() == (
-                "global", "tabs", "attachments", "experiment"
+                "global",
+                "tabs",
+                "attachments",
+                "experiment",
             )
 
     async def test_footer_text_updates_on_tab_switch(

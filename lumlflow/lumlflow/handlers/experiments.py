@@ -60,6 +60,7 @@ class ExperimentsHandler:
             tags=experiment.tags,
             static_params=experiment.static_params,
             dynamic_params=experiment.dynamic_params,
+            metadata=experiment.metadata,
             group_name=experiment.group_name,
             source=experiment.source if hasattr(experiment, "source") else "",
             models=[Model.model_validate(m) for m in models],
