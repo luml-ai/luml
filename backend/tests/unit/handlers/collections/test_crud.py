@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from unittest.mock import Mock
 from uuid import UUID
 
@@ -174,9 +175,7 @@ class TestCollectionCrud:
         assert result == expected
         expected_update = CollectionUpdate(
             id=COLLECTION_ID,
-            description=data_in.description,
             name=data_in.name,
-            tags=data_in.tags,
         )
         mocks.repository.update_collection.assert_awaited_once_with(
             COLLECTION_ID, ORBIT_ID, expected_update
@@ -188,6 +187,45 @@ class TestCollectionCrud:
             Action.UPDATE,
             ORBIT_ID,
         )
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            pytest.param({"name": "renamed"}, id="name-only"),
+            pytest.param({"description": "updated"}, id="description-only"),
+            pytest.param(
+                {"name": "renamed", "description": "updated"},
+                id="name-and-description",
+            ),
+            pytest.param({"tags": ["updated"]}, id="tags-only"),
+            pytest.param({"tags": []}, id="empty-tags"),
+            pytest.param({"tags": None}, id="null-tags"),
+            pytest.param({}, id="empty-patch"),
+        ],
+    )
+    async def test_update_collection_forwards_only_supplied_fields(
+        self,
+        mocks: CollaboratorMocks[CollectionHandler],
+        payload: dict[str, Any],
+    ) -> None:
+        mocks.orbit_repository.get_orbit_simple.return_value = Mock(
+            organization_id=ORGANIZATION_ID
+        )
+
+        await mocks.handler.update_collection(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            COLLECTION_ID,
+            CollectionUpdateIn.model_validate(payload),
+        )
+
+        mocks.repository.update_collection.assert_awaited_once()
+        update = mocks.repository.update_collection.call_args.args[2]
+        assert update.model_dump(exclude_unset=True) == {
+            "id": COLLECTION_ID,
+            **payload,
+        }
 
     async def test_update_collection_raises_not_found_when_collection_is_missing(
         self, mocks: CollaboratorMocks[CollectionHandler]
@@ -206,9 +244,7 @@ class TestCollectionCrud:
 
         expected_update = CollectionUpdate(
             id=COLLECTION_ID,
-            description=data_in.description,
             name=data_in.name,
-            tags=data_in.tags,
         )
         mocks.repository.update_collection.assert_awaited_once_with(
             COLLECTION_ID, ORBIT_ID, expected_update
@@ -283,9 +319,7 @@ class TestCollectionCrud:
         mocks.repository.update_collection.assert_awaited_once_with(
             COLLECTION_ID,
             ORBIT_ID,
-            CollectionUpdate(
-                id=COLLECTION_ID, description=None, name="renamed", tags=None
-            ),
+            CollectionUpdate(id=COLLECTION_ID, name="renamed"),
         )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID,

@@ -193,10 +193,7 @@ class CollectionHandler:
             collection_id,
             orbit_id,
             CollectionUpdate(
-                id=collection_id,
-                description=collection.description,
-                name=collection.name,
-                tags=collection.tags,
+                id=collection_id, **collection.model_dump(exclude_unset=True)
             ),
         )
         if not updated:
