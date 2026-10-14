@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
+    "test": "vitest",
+    "test:ci": "vitest run",
     "type-check": "vue-tsc --build --force",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
