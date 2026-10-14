@@ -117,9 +117,13 @@ async function onExperimentChange(
   }
 }
 
-watch(experimentId, (experimentId) => fetchData(experimentId), {
-  immediate: true,
-})
+watch(
+  experimentId,
+  (experimentId) => {
+    if (experimentId) fetchData(experimentId)
+  },
+  { immediate: true },
+)
 
 watch(
   () => experimentStore.experiment,
