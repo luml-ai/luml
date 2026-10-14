@@ -1232,6 +1232,12 @@ class ExperimentDetailScreen(BaseScreen):
             table = self.query_one("#overview-models-table", DataTable)
         except Exception:
             return
+        saved_cursor = table.cursor_row
+        saved_key = (
+            table.ordered_rows[saved_cursor].key
+            if 0 <= saved_cursor < table.row_count
+            else None
+        )
         table.clear()
         if not self._model_rows:
             # No models: drop the row cursor so the placeholder doesn't
@@ -1266,6 +1272,13 @@ class ExperimentDetailScreen(BaseScreen):
                 size_text,
                 key=row.key,
             )
+        # Keep the same model selected even if rows were reordered.
+        cursor_row = (
+            table.get_row_index(saved_key)
+            if saved_key is not None and saved_key in table.rows
+            else min(saved_cursor, table.row_count - 1)
+        )
+        table.move_cursor(row=cursor_row, animate=False)
 
     def action_yank_focused_model(self) -> None:
         row = self._focused_model_row()
