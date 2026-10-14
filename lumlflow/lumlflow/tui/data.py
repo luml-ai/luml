@@ -25,6 +25,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
 
@@ -207,8 +208,9 @@ class DataFacade:
         # Serialize every tracker access. Screens fan reads out across
         # Textual worker threads (e.g. the metrics grid fetches one
         # history per chart concurrently); a shared SQLite tracker is not
-        # safe under truly concurrent access, so we funnel all handler
-        # calls through this lock. Held only around each call — never
+        # safe under truly concurrent access, so local handler calls
+        # use this lock. Cloud calls lock only their tracker phases.
+        # Held only around each call — never
         # across the retry backoff sleeps — so a slow read cannot starve
         # the others beyond its own duration.
         self._lock = threading.RLock()
@@ -219,21 +221,23 @@ class DataFacade:
         self.annotations = AnnotationsHandler(tracker=tracker)
         self.auth = AuthHandler()
         self.luml = LumlHandler(tracker=tracker)
-        self.artifacts = ArtifactHandler(progress_store=self.progress_store)
+        self.artifacts = ArtifactHandler(
+            progress_store=self.progress_store, tracker_lock=self._lock
+        )
         # ArtifactHandler accepts tracker only via its super; override it
         # so all handlers share the same tracker instance.
         self.artifacts.tracker = tracker
 
     # ----- core helpers -----
 
-    def _read[T](self, fn: Callable[[], T]) -> Result[T]:
+    def _read[T](self, fn: Callable[[], T], *, lock: bool = True) -> Result[T]:
         """Run a read with bounded retry on transient SQLite lock errors."""
 
         delay = self._retry_initial_delay
         last_exc: BaseException | None = None
         for attempt in range(self._retry_attempts):
             try:
-                with self._lock:
+                with self._lock if lock else nullcontext():
                     return Result.success(fn())
             except ApplicationError as exc:
                 # Handlers wrap underlying errors in ApplicationError(500). If
@@ -264,11 +268,11 @@ class DataFacade:
             else "database busy",
         )
 
-    def _mutate[T](self, fn: Callable[[], T]) -> Result[T]:
+    def _mutate[T](self, fn: Callable[[], T], *, lock: bool = True) -> Result[T]:
         """Run a mutation. No retry — the user sees the failure."""
 
         try:
-            with self._lock:
+            with self._lock if lock else nullcontext():
                 return Result.success(fn())
         except ApplicationError as exc:
             return _to_result(exc)
@@ -656,13 +660,17 @@ class DataFacade:
         return self._read(lambda: self.auth.has_api_key())
 
     def set_api_key(self, api_key: str) -> Result[None]:
-        return self._mutate(lambda: self.auth.set_api_key(SetApiKey(api_key=api_key)))
+        return self._mutate(
+            lambda: self.auth.set_api_key(SetApiKey(api_key=api_key)), lock=False
+        )
 
     def list_organizations(self) -> Result[list[Organization]]:
-        return self._read(lambda: self.luml.get_luml_organizations())
+        return self._read(lambda: self.luml.get_luml_organizations(), lock=False)
 
     def list_orbits(self, organization_id: str) -> Result[list[Orbit]]:
-        return self._read(lambda: self.luml.get_luml_orbits(organization_id))
+        return self._read(
+            lambda: self.luml.get_luml_orbits(organization_id), lock=False
+        )
 
     def list_collections(
         self,
@@ -680,32 +688,35 @@ class DataFacade:
                 start_after=start_after,
                 limit=limit,
                 search=search,
-            )
+            ),
+            lock=False,
         )
 
     def upload_artifact(self, data: UploadArtifactForm, job_id: str) -> Result[None]:
         """Run the upload synchronously. Progress is reported via the
         shared `ProgressStore` (`facade.progress_store`)."""
 
-        return self._mutate(lambda: self.artifacts.upload_artifact(data, job_id))
+        return self._mutate(
+            lambda: self.artifacts.upload_artifact(data, job_id), lock=False
+        )
 
-    def upload_model_artifact(
-        self, data: UploadModelForm, job_id: str
-    ) -> Result[None]:
+    def upload_model_artifact(self, data: UploadModelForm, job_id: str) -> Result[None]:
         """Upload one specific linked model as a cloud artifact."""
 
-        return self._mutate(lambda: self.artifacts.upload_model(data, job_id))
+        return self._mutate(
+            lambda: self.artifacts.upload_model(data, job_id), lock=False
+        )
 
-    def upload_file_artifact(
-        self, data: UploadFileForm, job_id: str
-    ) -> Result[None]:
+    def upload_file_artifact(self, data: UploadFileForm, job_id: str) -> Result[None]:
         """Upload an arbitrary file from disk as a cloud artifact.
 
         The manual counterpart of `upload_artifact` — nothing is derived
         from a tracked experiment. Progress flows through the same
         shared `ProgressStore`."""
 
-        return self._mutate(lambda: self.artifacts.upload_file(data, job_id))
+        return self._mutate(
+            lambda: self.artifacts.upload_file(data, job_id), lock=False
+        )
 
 
 # ----- async/worker offload helpers -----
