@@ -2,13 +2,14 @@ name: Backend Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'backend/**'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'backend/**'
+  workflow_call:
   workflow_dispatch:
 
 defaults:

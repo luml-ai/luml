@@ -20,6 +20,12 @@ env:
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-satellite-kubernetes
 
 jobs:
+  tests:
+    uses: "./.github/workflows/[satellite-kubernetes] tests-and-linters.yml"
+
+  kit-tests:
+    uses: "./.github/workflows/[satellite-kit] tests-and-linters.yml"
+
   resolve-image-tag:
     runs-on: ubuntu-latest
     outputs:
@@ -56,7 +62,7 @@ jobs:
           esac
 
   push-image:
-    needs: [resolve-image-tag]
+    needs: [resolve-image-tag, tests, kit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read

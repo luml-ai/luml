@@ -2,7 +2,7 @@ name: Kubernetes Satellite Tests and Linters
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging, production]
     paths:
       - 'satellite/implementations/kubernetes/**'
       - 'satellite/kit/**'
@@ -11,7 +11,7 @@ on:
       - '.github/workflows/publish-kubernetes-satellite-chart.yml'
       - '.github/workflows/*satellite-kubernetes*tests-and-linters.yml'
   pull_request:
-    branches: [main]
+    branches: [main, staging, production]
     paths:
       - 'satellite/implementations/kubernetes/**'
       - 'satellite/kit/**'
@@ -19,6 +19,7 @@ on:
       - '.github/workflows/publish-kubernetes-satellite-image.yml'
       - '.github/workflows/publish-kubernetes-satellite-chart.yml'
       - '.github/workflows/*satellite-kubernetes*tests-and-linters.yml'
+  workflow_call:
   workflow_dispatch:
 
 jobs:

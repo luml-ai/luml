@@ -2,15 +2,19 @@ name: Frontend Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'frontend/**'
+      - 'lumlflow/frontend/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'frontend/**'
+      - 'lumlflow/frontend/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -109,6 +113,10 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build-only
+
+      - name: Build lumlflow frontend
+        working-directory: lumlflow/frontend
+        run: npx vite build
 
       - name: Run integration tests
         working-directory: frontend
