@@ -32,12 +32,22 @@ export default defineConfigWithVueTs(
     },
   },
 
+  {
+    files: ['src/**/__tests__/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+      },
+    },
+  },
+
   globalIgnores([
     '**/dist/**',
     '**/dist-ssr/**',
     '**/coverage/**',
     'eslint.config.ts',
     'vite.config.*',
+    'vitest.config.*',
     'style-dictionary.config.*',
   ]),
 
