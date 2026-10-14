@@ -12,6 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tests:
+    uses: "./.github/workflows/[backend] tests-and-linters.yml"
+
   resolve-env:
     runs-on: ubuntu-latest
     outputs:
@@ -36,7 +39,7 @@ jobs:
           esac
 
   migrate:
-    needs: [resolve-env]
+    needs: [resolve-env, tests]
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.environment }}
     steps:
@@ -62,7 +65,7 @@ jobs:
           uv run alembic current
 
   deploy:
-    needs: [resolve-env, migrate]
+    needs: [resolve-env, migrate, tests]
     runs-on: ubuntu-latest
     environment:
       name: ${{ needs.resolve-env.outputs.environment }}

@@ -2,12 +2,12 @@ name: Api Client Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'sdk/python/api/**'
       - 'satellite/implementations/docker/tests/snapshots/static_openapi.json'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'sdk/python/api/**'
       - 'satellite/implementations/docker/tests/snapshots/static_openapi.json'
