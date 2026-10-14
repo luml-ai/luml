@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Mapping, Sequence, Set
@@ -119,6 +120,13 @@ class KubernetesDriver:
                 reason="Artifact unavailable",
                 error="presigned artifact delivery requires a download link",
             )
+        for name in sorted((deployment.env_variables or {}).keys() | context.secrets.keys()):
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+                return StartResult(
+                    StartStatus.FAILED,
+                    reason="Invalid environment variable name",
+                    error=f"Environment variable name {name!r} must match [A-Za-z_][A-Za-z0-9_]*",
+                )
 
         manifests = render_deployment_manifests(
             self.configuration,
@@ -126,11 +134,32 @@ class KubernetesDriver:
             context,
             self.tokens,
         )
-        for manifest in manifests.objects():
-            await self.api.apply(manifest)
-
         deployment_id = str(deployment.id)
         name = deployment_object_name(deployment_id)
+        new_objects: list[str] = []
+        try:
+            for manifest in manifests.objects():
+                kind = str(manifest["kind"])
+                if await self.api.get(kind, name) is None:
+                    # track before applying because a failed response may still create the object.
+                    new_objects.append(kind)
+                await self.api.apply(manifest)
+        except Exception:
+            cleanup_failures: list[str] = []
+            for new_kind in reversed(new_objects):
+                try:
+                    await self.api.delete(new_kind, name)
+                except Exception:
+                    cleanup_failures.append(new_kind)
+            error = f"Failed to apply Kubernetes {kind}"
+            if cleanup_failures:
+                error += f"; cleanup failed for {', '.join(cleanup_failures)}"
+            return StartResult(
+                StartStatus.FAILED,
+                reason="Kubernetes resource apply failed",
+                error=error,
+            )
+
         return StartResult(
             StartStatus.IN_PROGRESS,
             upstream_url=self._upstream_url(deployment_id),
