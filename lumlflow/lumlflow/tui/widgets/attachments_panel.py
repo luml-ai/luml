@@ -51,6 +51,7 @@ from textual.widgets.tree import TreeNode
 
 from lumlflow.schemas.experiments import FileNode, FileNodeType
 from lumlflow.tui.data import DataFacade, Result
+from lumlflow.tui.widgets.dialogs import ConfirmDialog
 from lumlflow.tui.widgets.save_file_dialog import SaveFileDialog
 
 if TYPE_CHECKING:
@@ -602,7 +603,9 @@ class AttachmentsPanel(Widget):
         self._save_to_disk(file_path, dest)
 
     @work(thread=True, group="attachments-save")
-    def _save_to_disk(self, file_path: str, dest: str) -> None:
+    def _save_to_disk(
+        self, file_path: str, dest: str, *, overwrite: bool = False
+    ) -> None:
         facade = self.facade
         if facade is None:
             return
@@ -619,7 +622,26 @@ class AttachmentsPanel(Widget):
         try:
             destination = Path(dest).expanduser()
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(data)
+            if destination.is_dir():
+                raise IsADirectoryError(f"Destination is a directory: {destination}")
+            try:
+                with destination.open("wb" if overwrite else "xb") as output:
+                    output.write(data)
+            except FileExistsError:
+                self.app.call_from_thread(
+                    self.app.push_screen,
+                    ConfirmDialog(
+                        title="Overwrite file?",
+                        message=f"{destination} already exists. Overwrite it?",
+                        confirm_label="Overwrite",
+                    ),
+                    lambda confirmed: (
+                        self._save_to_disk(file_path, dest, overwrite=True)
+                        if confirmed
+                        else None
+                    ),
+                )
+                return
         except OSError as exc:
             self.app.call_from_thread(
                 self._lumlflow_app.show_toast,

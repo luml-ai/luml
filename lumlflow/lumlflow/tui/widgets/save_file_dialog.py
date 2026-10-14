@@ -79,6 +79,9 @@ class SaveFileDialog(BaseDialog[str | None]):
             return
         self.dismiss(path_value)
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.action_confirm()
+
     def action_cancel(self) -> None:
         self.dismiss(None)
 
