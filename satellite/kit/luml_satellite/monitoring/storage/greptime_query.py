@@ -74,6 +74,7 @@ _HISTORY_LIMIT = 2000
 _ATTR_DEPLOYMENT = "inference.deployment_id"
 _ATTR_EVENT_ID = "inference.event_id"
 _ATTR_STATUS = "inference.status"
+_ATTR_STATUS_CODE = "inference.status_code"
 _ATTR_LATENCY = "inference.latency_ms"
 _ATTR_TRACE = "inference.trace_id"
 _ATTR_SPAN = "inference.span_id"
@@ -360,6 +361,9 @@ class GreptimeQueryStore:
         if ts is None:
             return None
         status = str(attrs.get(_ATTR_STATUS, "") or "")
+        status_code = _as_int(attrs.get(_ATTR_STATUS_CODE))
+        if status_code is None:
+            status_code = 200 if status == "success" else 500
         try:
             latency = float(attrs.get(_ATTR_LATENCY))  # type: ignore[arg-type]
         except TypeError, ValueError:
@@ -369,7 +373,7 @@ class GreptimeQueryStore:
             deployment_id=deployment_id,
             ts=ts,
             status=status,
-            status_code=200 if status == "success" else 500,
+            status_code=status_code,
             latency_ms=latency,
             trace_id=attrs.get(_ATTR_TRACE),
             span_id=attrs.get(_ATTR_SPAN),

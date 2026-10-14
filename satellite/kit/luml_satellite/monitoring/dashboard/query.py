@@ -18,6 +18,7 @@ from uuid import UUID
 from luml_satellite.monitoring.compute import thresholds
 from luml_satellite.monitoring.compute.health import HealthSnapshot
 from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
+from luml_satellite.monitoring.compute.models import InferenceEvent as WorkerInferenceEvent
 from luml_satellite.monitoring.dashboard.alerts import (
     COUNT,
     format_value,
@@ -75,7 +76,6 @@ from luml_satellite.monitoring.dashboard.schemas import (
     WorkerHealthResponse,
 )
 from luml_satellite.monitoring.storage.query_store import (
-    EventStatus,
     InferenceEvent,
     MonitoringStore,
     MonitoringStoreUnavailable,
@@ -194,14 +194,23 @@ def _percentile(values: list[float], pct: float) -> float | None:
 
 def _rollup(events: list[InferenceEvent]) -> _Rollup:
     total = len(events)
-    success = sum(1 for e in events if e.status == EventStatus.SUCCESS)
+    outcomes = [
+        WorkerInferenceEvent(
+            event_id=e.event_id,
+            deployment_id=str(e.deployment_id),
+            status=e.status,
+            status_code=e.status_code,
+        )
+        for e in events
+    ]
+    success = sum(1 for e in outcomes if e.is_success)
     latencies = [e.latency_ms for e in events]
     return _Rollup(
         request_count=total,
         success_count=success,
-        error_count=sum(1 for e in events if e.status == EventStatus.ERROR),
-        timeout_count=sum(1 for e in events if e.status == EventStatus.TIMEOUT),
-        failed_inference_count=sum(1 for e in events if e.status == EventStatus.FAILED_INFERENCE),
+        error_count=total - success,
+        timeout_count=sum(1 for e in outcomes if e.is_timeout),
+        failed_inference_count=sum(1 for e in outcomes if e.is_failed_inference),
         error_rate=(total - success) / total if total else 0.0,
         latency_p50_ms=_percentile(latencies, 50),
         latency_p95_ms=_percentile(latencies, 95),
@@ -312,13 +321,12 @@ def _runtime_series(
     stamps = [start + timedelta(seconds=i * bucket_seconds) for i in range(n_buckets)]
     requests, error_rate, latency = [], [], []
     for stamp, bucket in zip(stamps, buckets, strict=True):
-        count = len(bucket)
-        successes = sum(1 for e in bucket if e.status == EventStatus.SUCCESS)
-        requests.append(SeriesPoint(t=stamp, value=float(count)))
+        rollup = _rollup(bucket)
+        requests.append(SeriesPoint(t=stamp, value=float(rollup.request_count)))
         error_rate.append(
-            SeriesPoint(t=stamp, value=(count - successes) / count if count else None)
+            SeriesPoint(t=stamp, value=rollup.error_rate if rollup.request_count else None)
         )
-        latency.append(SeriesPoint(t=stamp, value=_percentile([e.latency_ms for e in bucket], 95)))
+        latency.append(SeriesPoint(t=stamp, value=rollup.latency_p95_ms))
     return [
         Series(key="requests", label="Requests", points=requests),
         Series(key="error_rate", label="Error rate", unit="ratio", points=error_rate),
