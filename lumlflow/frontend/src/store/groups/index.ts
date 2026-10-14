@@ -44,7 +44,14 @@ export const useGroupsStore = defineStore('groups', () => {
       .map((result) => result.value.id)
     setSelectedGroups([])
     setEditableGroup(null)
-    toast.add(successToast(`${deletedGroupIds.length} groups deleted successfully`))
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        toast.add(errorToast(result.reason))
+      }
+    }
+    if (deletedGroupIds.length) {
+      toast.add(successToast(`${deletedGroupIds.length} groups deleted successfully`))
+    }
     await getInitialPage()
   }
 

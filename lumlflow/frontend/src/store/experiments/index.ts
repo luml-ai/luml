@@ -55,7 +55,14 @@ export const useExperimentsStore = defineStore('experiments', () => {
       .map((result) => result.value.id)
     setSelectedExperiments([])
     setEditableExperiment(null)
-    toast.add(successToast(`${deletedExperimentIds.length} experiments deleted successfully`))
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        toast.add(errorToast(result.reason))
+      }
+    }
+    if (deletedExperimentIds.length) {
+      toast.add(successToast(`${deletedExperimentIds.length} experiments deleted successfully`))
+    }
     await getInitialPage()
   }
 
