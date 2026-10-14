@@ -284,7 +284,7 @@ class TestQueryAPI:
                     latency_ms=12.0,
                 )
             )
-        for seconds_back in (1000, 1100, 1200):  # the chosen comparison period
+        for seconds_back in (1001, 1100, 1200):  # the chosen comparison period
             e = _event(dep)
             store.add_event(
                 InferenceEvent(
