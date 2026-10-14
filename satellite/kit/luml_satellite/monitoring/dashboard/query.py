@@ -7,7 +7,6 @@ from client input.
 
 import json
 import math
-from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -18,7 +17,6 @@ from uuid import UUID
 from luml_satellite.monitoring.compute import thresholds
 from luml_satellite.monitoring.compute.health import HealthSnapshot
 from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
-from luml_satellite.monitoring.compute.models import InferenceEvent as WorkerInferenceEvent
 from luml_satellite.monitoring.dashboard.alerts import (
     COUNT,
     format_value,
@@ -64,7 +62,6 @@ from luml_satellite.monitoring.dashboard.schemas import (
     Severity,
     SeverityFilter,
     SortOrder,
-    StatusBreakdownRow,
     TraceDetail,
     TraceDetailResponse,
     TraceRow,
@@ -80,6 +77,8 @@ from luml_satellite.monitoring.storage.query_store import (
     MonitoringStore,
     MonitoringStoreUnavailable,
     ReferenceFeatureProfile,
+    RuntimeBucket,
+    RuntimeSummary,
     SpanRecord,
     StoredAlert,
     StoredMetricResult,
@@ -161,88 +160,6 @@ class QueryDimensions:
         return _WINDOW_SECONDS[self.window]
 
 
-@dataclass(frozen=True)
-class _Rollup:
-    request_count: int
-    success_count: int
-    error_count: int
-    timeout_count: int
-    failed_inference_count: int
-    error_rate: float
-    latency_p50_ms: float | None
-    latency_p95_ms: float | None
-    latency_max_ms: float | None
-    status_breakdown: tuple[StatusBreakdownRow, ...] = ()
-
-    @property
-    def success_rate(self) -> float:
-        """Kept beside ``error_rate`` rather than derived in the UI, which does no math.
-
-        An empty window is 0%, not 100%: nothing succeeded, and reading it as a perfect
-        window would be the wrong headline for a deployment nobody called.
-        """
-        return self.success_count / self.request_count if self.request_count else 0.0
-
-
-def _percentile(values: list[float], pct: float) -> float | None:
-    if not values:
-        return None
-    ordered = sorted(values)
-    rank = max(1, math.ceil(pct / 100 * len(ordered)))
-    return ordered[min(rank, len(ordered)) - 1]
-
-
-def _rollup(events: list[InferenceEvent]) -> _Rollup:
-    total = len(events)
-    outcomes = [
-        WorkerInferenceEvent(
-            event_id=e.event_id,
-            deployment_id=str(e.deployment_id),
-            status=e.status,
-            status_code=e.status_code,
-        )
-        for e in events
-    ]
-    success = sum(1 for e in outcomes if e.is_success)
-    latencies = [e.latency_ms for e in events]
-    return _Rollup(
-        request_count=total,
-        success_count=success,
-        error_count=total - success,
-        timeout_count=sum(1 for e in outcomes if e.is_timeout),
-        failed_inference_count=sum(1 for e in outcomes if e.is_failed_inference),
-        error_rate=(total - success) / total if total else 0.0,
-        latency_p50_ms=_percentile(latencies, 50),
-        latency_p95_ms=_percentile(latencies, 95),
-        latency_max_ms=max(latencies) if latencies else None,
-        status_breakdown=_status_breakdown(events),
-    )
-
-
-def _status_breakdown(events: list[InferenceEvent]) -> tuple[StatusBreakdownRow, ...]:
-    """Group the window's calls by outcome and HTTP code, busiest row first.
-
-    Outcome and code are kept as separate columns rather than one label: the same code
-    carries different meaning per outcome (a 504 is a timeout, a 500 a failed inference),
-    and a reader scanning for what broke wants both.
-    """
-    counts: dict[tuple[str, int | None], int] = defaultdict(int)
-    for event in events:
-        counts[(str(event.status), event.status_code)] += 1
-    total = len(events)
-    rows = [
-        StatusBreakdownRow(
-            status=status,
-            status_code=code,
-            count=count,
-            share=count / total if total else 0.0,
-        )
-        for (status, code), count in counts.items()
-    ]
-    rows.sort(key=lambda row: (-row.count, row.status, row.status_code or 0))
-    return tuple(rows)
-
-
 def _bucket_seconds(dims: QueryDimensions) -> int:
     span = dims.span_seconds()
     if dims.granularity is Granularity.HOUR:
@@ -257,7 +174,7 @@ def _bucket_seconds(dims: QueryDimensions) -> int:
 
 
 def _series_layout(
-    events: list[InferenceEvent],
+    summary: RuntimeSummary,
     window_start: datetime,
     dims: QueryDimensions,
 ) -> tuple[datetime, int, int]:
@@ -278,11 +195,11 @@ def _series_layout(
     if dims.granularity is not Granularity.AUTO:
         return full_window
 
-    stamps = sorted(event.ts for event in events if event.ts is not None)
-    if not stamps:
+    first, last = summary.first_ts, summary.last_ts
+    if first is None or last is None:
         return full_window
 
-    span = (stamps[-1] - stamps[0]).total_seconds()
+    span = (last - first).total_seconds()
     if span >= window_seconds * _ZOOM_SPAN_SHARE:
         return full_window
 
@@ -290,8 +207,8 @@ def _series_layout(
     if zoom >= bucket:
         return full_window
 
-    start = _floor_to(stamps[0], zoom)
-    n_buckets = math.floor((stamps[-1] - start).total_seconds() / zoom) + 1
+    start = _floor_to(first, zoom)
+    n_buckets = math.floor((last - start).total_seconds() / zoom) + 1
     return start, zoom, n_buckets
 
 
@@ -311,22 +228,15 @@ def _floor_to(moment: datetime, bucket_seconds: int) -> datetime:
 
 
 def _runtime_series(
-    events: list[InferenceEvent], start: datetime, bucket_seconds: int, n_buckets: int
+    buckets: dict[int, RuntimeBucket], start: datetime, bucket_seconds: int, n_buckets: int
 ) -> list[Series]:
-    buckets: list[list[InferenceEvent]] = [[] for _ in range(n_buckets)]
-    for event in events:
-        index = int((event.ts - start).total_seconds() // bucket_seconds)
-        buckets[min(max(index, 0), n_buckets - 1)].append(event)
-
-    stamps = [start + timedelta(seconds=i * bucket_seconds) for i in range(n_buckets)]
     requests, error_rate, latency = [], [], []
-    for stamp, bucket in zip(stamps, buckets, strict=True):
-        rollup = _rollup(bucket)
-        requests.append(SeriesPoint(t=stamp, value=float(rollup.request_count)))
-        error_rate.append(
-            SeriesPoint(t=stamp, value=rollup.error_rate if rollup.request_count else None)
-        )
-        latency.append(SeriesPoint(t=stamp, value=rollup.latency_p95_ms))
+    for index in range(n_buckets):
+        stamp = start + timedelta(seconds=index * bucket_seconds)
+        bucket = buckets.get(index)
+        requests.append(SeriesPoint(t=stamp, value=float(bucket.request_count) if bucket else 0.0))
+        error_rate.append(SeriesPoint(t=stamp, value=bucket.error_rate if bucket else None))
+        latency.append(SeriesPoint(t=stamp, value=bucket.latency_p95_ms if bucket else None))
     return [
         Series(key="requests", label="Requests", points=requests),
         Series(key="error_rate", label="Error rate", unit="ratio", points=error_rate),
@@ -963,23 +873,19 @@ class MonitoringQueryService:
     ) -> TracesResponse:
         try:
             start, end = self._window_bounds(dims)
-            events = await self._store.fetch_events(deployment_id, start, end)
+            events = await self._store.fetch_events(
+                deployment_id, start, end, limit=limit, offset=offset, sort=sort, order=order
+            )
+            total = await self._store.count_events(deployment_id, start, end)
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
             return TracesResponse(state=SectionState.UNAVAILABLE, limit=limit, offset=offset)
 
-        keys = {
-            TraceSort.TS: lambda e: e.ts,
-            TraceSort.LATENCY: lambda e: e.latency_ms,
-            TraceSort.STATUS: lambda e: (e.status_code, e.ts),
-        }
-        ordered = sorted(events, key=keys[sort], reverse=order is SortOrder.DESC)
-        page = ordered[offset : offset + limit]
         return TracesResponse(
-            state=SectionState.OK if ordered else SectionState.EMPTY,
+            state=SectionState.OK if total else SectionState.EMPTY,
             profile_status=profile,
-            rows=[_trace_row(e) for e in page],
-            total=len(ordered),
+            rows=[_trace_row(e) for e in events],
+            total=total,
             limit=limit,
             offset=offset,
         )
@@ -994,11 +900,10 @@ class MonitoringQueryService:
         """
         try:
             start, end = self._window_bounds(dims)
-            events = await self._store.fetch_events(deployment_id, start, end)
+            event = await self._store.fetch_event(deployment_id, start, end, event_id)
             profile = await self._profile_status(deployment_id)
         except MonitoringStoreUnavailable:
             return TraceDetailResponse(state=SectionState.UNAVAILABLE)
-        event = next((e for e in events if e.event_id == event_id), None)
         if event is None:
             return TraceDetailResponse(state=SectionState.EMPTY, profile_status=profile)
 
@@ -1017,19 +922,25 @@ class MonitoringQueryService:
 
     async def _runtime(
         self, deployment_id: UUID, dims: QueryDimensions
-    ) -> tuple[_Rollup, list[Series]]:
+    ) -> tuple[RuntimeSummary, list[Series]]:
         start, end = self._window_bounds(dims)
-        events = await self._store.fetch_events(deployment_id, start, end)
+        summary = await self._store.fetch_runtime_summary(deployment_id, start, end)
         baseline_bounds = self._baseline_bounds(dims)
         if baseline_bounds is None:
-            series_start, bucket, n_buckets = _series_layout(events, start, dims)
-            return _rollup(events), _runtime_series(events, series_start, bucket, n_buckets)
-
-        bucket = _bucket_seconds(dims)
-        n_buckets = math.ceil(dims.span_seconds() / bucket)
-        series = _runtime_series(events, start, bucket, n_buckets)
-        base_events = await self._store.fetch_events(deployment_id, *baseline_bounds)
-        base_series = _runtime_series(base_events, baseline_bounds[0], bucket, n_buckets)
+            series_start, bucket, n_buckets = _series_layout(summary, start, dims)
+        else:
+            series_start, bucket = start, _bucket_seconds(dims)
+            n_buckets = math.ceil(dims.span_seconds() / bucket)
+        buckets = await self._store.fetch_runtime_buckets(
+            deployment_id, start, end, series_start, bucket, n_buckets
+        )
+        series = _runtime_series(buckets, series_start, bucket, n_buckets)
+        if baseline_bounds is None:
+            return summary, series
+        base_buckets = await self._store.fetch_runtime_buckets(
+            deployment_id, *baseline_bounds, baseline_bounds[0], bucket, n_buckets
+        )
+        base_series = _runtime_series(base_buckets, baseline_bounds[0], bucket, n_buckets)
 
         shift = start - baseline_bounds[0]
         base_by_key = {one.key: one for one in base_series}
@@ -1039,10 +950,10 @@ class MonitoringQueryService:
                 one.baseline = [
                     SeriesPoint(t=point.t + shift, value=point.value) for point in base.points
                 ]
-        return _rollup(events), series
+        return summary, series
 
     def _runtime_baseline(
-        self, rollup: _Rollup | None, dims: QueryDimensions
+        self, rollup: RuntimeSummary | None, dims: QueryDimensions
     ) -> RuntimeBaseline | None:
         bounds = self._baseline_bounds(dims)
         if rollup is None or bounds is None:
@@ -1074,11 +985,13 @@ class MonitoringQueryService:
         except MonitoringStoreUnavailable:
             return []
 
-    async def _previous_rollup(self, deployment_id: UUID, dims: QueryDimensions) -> _Rollup | None:
+    async def _previous_rollup(
+        self, deployment_id: UUID, dims: QueryDimensions
+    ) -> RuntimeSummary | None:
         bounds = self._baseline_bounds(dims)
         if bounds is None:
             return None
-        return _rollup(await self._store.fetch_events(deployment_id, bounds[0], bounds[1]))
+        return await self._store.fetch_runtime_summary(deployment_id, bounds[0], bounds[1])
 
     async def _banners(
         self,
@@ -1450,8 +1363,8 @@ def _data_quality_rows(values: dict[str, Any], feature: str | None) -> list[Data
 
 
 def _overview_cards(
-    rollup: _Rollup,
-    previous: _Rollup | None,
+    rollup: RuntimeSummary,
+    previous: RuntimeSummary | None,
     dims: QueryDimensions,
     alerts: list[StoredAlert],
     criticals: list[StoredAlert],
