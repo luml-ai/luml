@@ -220,7 +220,7 @@ class FakeVolumes:
 
 class FakeImages:
     def __init__(self) -> None:
-        self.available: set[str] = {"alpine:latest"}
+        self.available: set[str] = {"alpine:3.22.1"}
         self.pulled: list[str] = []
 
     async def get(self, name: str) -> dict[str, str]:
