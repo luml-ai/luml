@@ -1,5 +1,6 @@
 from typing import Any, cast
 
+import pytest
 from luml_satellite import TokenDeriver
 from luml_satellite.container import (
     DEPLOYMENT_ID as DEPLOYMENT_ID_ENV,
@@ -154,6 +155,49 @@ def test_gpu_shared_cache_and_replica_manifests_match_the_golden_projection() ->
     for container in [fetch, model, sidecar]:
         assert container["securityContext"]["capabilities"] == {"drop": ["ALL"]}
         assert container["securityContext"]["allowPrivilegeEscalation"] is False
+
+
+@pytest.mark.parametrize(
+    ("claim_name", "cache_mode"),
+    [
+        (None, "ephemeral"),
+        ("release-one-model-cache", "ephemeral"),
+        ("release-one-model-cache", "shared"),
+    ],
+)
+@pytest.mark.parametrize(
+    "artifact_id",
+    ["20000000-0000-0000-0000-000000000001", "20000000-0000-0000-0000-000000000002"],
+)
+def test_model_mount_is_read_only_and_isolated_to_its_artifact(
+    claim_name: str | None,
+    cache_mode: str,
+    artifact_id: str,
+) -> None:
+    config = configuration(SHARED_CACHE_CLAIM_NAME=claim_name)
+    manifests = render_deployment_manifests(
+        config,
+        deployment(artifact_id=artifact_id),
+        start_context(config, artifact_id=artifact_id, parameters={"artifact_cache": cache_mode}),
+        TokenDeriver(config.SATELLITE_TOKEN, config.DERIVATION_KEY),
+    )
+    workload = manifests.deployment
+    model = container_by_name(workload, "model")
+
+    assert model["volumeMounts"] == [
+        {
+            "name": "model-cache",
+            "mountPath": f"/app/models/{artifact_id}",
+            "subPath": artifact_id,
+            "readOnly": True,
+        }
+    ]
+    assert manifests.secret["stringData"]["model.MODEL_ARTIFACT_ID"] == artifact_id
+    assert init_container(workload)["volumeMounts"] == [
+        {"name": "model-cache", "mountPath": "/app/models"}
+    ]
+    assert env_by_name(init_container(workload))["MODEL_ARTIFACT_ID"]["value"] == artifact_id
+    assert not container_by_name(workload, "sidecar").get("volumeMounts")
 
 
 def test_secret_hash_ignores_fresh_links_and_reissued_satellite_tokens() -> None:
