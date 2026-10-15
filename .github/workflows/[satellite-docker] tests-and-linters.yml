@@ -8,6 +8,7 @@ on:
       - 'satellite/kit/**'
       - 'satellite/.env.example'
       - 'satellite/docker-compose.yml'
+      - 'satellite/nginx.conf'
       - '.github/workflows/publish-satellite-agent-image.yml'
       - '.github/workflows/*satellite-docker*tests-and-linters.yml'
   pull_request:
@@ -17,6 +18,7 @@ on:
       - 'satellite/kit/**'
       - 'satellite/.env.example'
       - 'satellite/docker-compose.yml'
+      - 'satellite/nginx.conf'
       - '.github/workflows/publish-satellite-agent-image.yml'
       - '.github/workflows/*satellite-docker*tests-and-linters.yml'
   workflow_dispatch:

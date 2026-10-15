@@ -4,6 +4,31 @@ This directory holds the Docker satellite. The satellite runs model deployments 
 on one Docker daemon. `satellite/docker-compose.yml` starts a stand with the agent, the
 telemetry collector and GreptimeDB.
 
+## Agent access
+
+The agent image runs as UID/GID `10001:10001`. Compose drops its Linux capabilities and
+disables privilege escalation. It has no Docker socket mount and publishes no host port.
+
+Only `docker-socket-proxy` mounts the Docker socket, read-only, and it publishes no host
+port. The proxy allows the Docker API sections needed for deployment and cache cleanup:
+containers, images, networks, volumes, ping and version. Writes are enabled for lifecycle
+operations; other API sections, including exec, builds, secrets and swarm, are denied by
+the proxy's defaults. The read-only mount does not make Docker API operations read-only.
+The agent remains trusted with container creation and therefore with host-level Docker
+capabilities; this proxy is not a sandbox for a compromised agent.
+
+The proxy and agent share an internal control network. Networks labeled
+`df.satellite.private=true` are excluded from model attachments and cannot be selected
+with `DOCKER_NETWORK_NAME`. Model containers continue to join the satellite's workload
+and telemetry networks.
+
+Nginx forwards HTTP requests to the agent, preserving authorization headers, paths and
+streaming responses. It listens on `127.0.0.1:80` on the host. Local access remains at
+`http://localhost`. For remote access, put a TLS reverse proxy on the host in front of
+`http://127.0.0.1:80` and set `BASE_URL` to that proxy's public HTTPS URL. Existing remote
+installations must configure this ingress when upgrading. Do not publish the agent's
+port or the Docker API proxy. The GreptimeDB port is independent of the agent ingress.
+
 ## One network per satellite
 
 The satellite creates its own Docker network on the first deployment. It names the network
@@ -15,8 +40,8 @@ The satellite creates its own Docker network on the first deployment. It names t
 The satellite creates model containers in that network. It tells each model to reach it by the
 second, satellite-specific name.
 
-The satellite also connects each model container to the networks it belongs to itself. The
-telemetry collector of its stack therefore stays reachable by name.
+The satellite also connects each model container to its non-private networks. The telemetry
+collector of its stack therefore stays reachable by name.
 
 ### Use an existing network instead
 
@@ -61,17 +86,23 @@ The ownership rules in the repository root's spec apply:
 2. A satellite counts only its own containers as owned.
 3. Orphan cleanup writes a log line for every foreign container and leaves it alone.
 
-Give each satellite its own published port and its own token:
+Give each satellite its own Compose project, reverse-proxy port and token. For example,
+create `satellite/compose.second.yml` to replace the second stack's HTTP port:
+
+```yaml
+services:
+  reverse-proxy:
+    ports: !override
+      - "127.0.0.1:8081:8080"
+  greptimedb:
+    ports: !override []
+```
+
+With Docker Compose 2.24.4 or newer, start that stack from `satellite/`:
 
 ```shell
-docker run -d --name agent-one \
-  --network my-stack_satellite-network \
-  --publish 8081:8000 \
-  --volume /var/run/docker.sock:/var/run/docker.sock \
-  --env SATELLITE_TOKEN="$FIRST_TOKEN" \
-  --env PLATFORM_URL=https://api.luml.ai \
-  --env BASE_URL=http://localhost:8081 \
-  luml-satellite-agent:latest
+SATELLITE_TOKEN="$SECOND_TOKEN" BASE_URL=http://localhost:8081 \
+  docker compose -p satellite-two -f docker-compose.yml -f compose.second.yml up -d
 ```
 
 The model containers of different satellites stay apart, because each satellite addresses its

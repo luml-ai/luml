@@ -14,4 +14,6 @@ WORKDIR /app/satellite/implementations/docker
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-CMD ["uv", "run", "--no-sync", "luml-satellite-docker"]
+USER 10001:10001
+
+CMD [".venv/bin/luml-satellite-docker"]
