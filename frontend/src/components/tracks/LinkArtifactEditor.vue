@@ -29,7 +29,7 @@
           disabled
         ></Textarea>
       </div>
-      <StageSelect :options="tracksStore.trackStages" />
+      <StageSelect :options="tracksStore.trackStages" show-clear />
       <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
     </Form>
   </UiDialogRight>
@@ -101,8 +101,8 @@ const footerActions = computed<FooterActions>(() => {
 const resolver = zodResolver(
   z.object({
     artifact_name: z.string().min(1).max(100),
-    artifact_description: z.string().max(255).optional(),
-    stage_id: z.string().min(1).max(100).optional(),
+    artifact_description: z.string().max(255).nullish(),
+    stage_id: z.string().min(1).max(100).nullish(),
   }),
 )
 
@@ -113,7 +113,7 @@ function onVisibleChange(visible: boolean) {
 
 async function onSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
-  const { stage_id } = values
+  const stage_id = values.stage_id ?? null
   if (artifactWithSelectedStage.value) {
     confirm.require(patchTrackEntryConfirmOptions(() => patchEntry(stage_id, true)))
   } else {
@@ -121,7 +121,7 @@ async function onSubmit({ values, valid }: FormSubmitEvent) {
   }
 }
 
-async function patchEntry(stageId: string, force: boolean) {
+async function patchEntry(stageId: string | null, force: boolean) {
   if (!artifactLinksStore.editableEntry) return
   try {
     saveLoading.value = true
@@ -171,11 +171,14 @@ async function getArtifactWithSelectedStage(trackId: string, stageId: string) {
   artifactWithSelectedStage.value = null
   try {
     const artifact = await artifactLinksStore.getEntryByStage(trackId, stageId)
+    if (formRef.value?.getFieldState('stage_id')?.value !== stageId) return
     if (artifact.id !== artifactLinksStore.editableEntry?.id) {
       artifactWithSelectedStage.value = artifact
     }
   } catch {
-    artifactWithSelectedStage.value = null
+    if (formRef.value?.getFieldState('stage_id')?.value === stageId) {
+      artifactWithSelectedStage.value = null
+    }
   }
 }
 
