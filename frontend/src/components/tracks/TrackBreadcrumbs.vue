@@ -24,6 +24,13 @@ const breadcrumbs = computed(() => [
   {
     label: 'Registry',
     route: {
+      name: 'orbit-collections',
+      params: { organizationId: route.params.organizationId, id: route.params.id },
+    },
+  },
+  {
+    label: 'Tracks',
+    route: {
       name: 'orbit-tracks',
       params: { organizationId: route.params.organizationId, id: route.params.id },
     },
