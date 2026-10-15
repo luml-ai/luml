@@ -78,7 +78,7 @@ const userStore = useUserStore()
 const toast = useToast()
 const router = useRouter()
 
-const initialValues = ref(resetPasswordInitialValues)
+const initialValues = ref({ ...resetPasswordInitialValues })
 const resolver = ref(resetPasswordResolver)
 const token = ref<string | null>(null)
 

@@ -43,12 +43,12 @@ export const useDataTable = (validator: ValidatorFunction) => {
   const columnsCount = ref<number | undefined>(initialState.columnsCount)
   const rowsCount = ref<number | undefined>(initialState.rowsCount)
   const target = ref(initialState.target)
-  const group = ref<string[]>(initialState.group)
-  const selectedColumns = ref<string[]>(initialState.selectedColumns)
-  const filters = ref<FilterItem[]>(initialState.filters)
+  const group = ref<string[]>([...initialState.group])
+  const selectedColumns = ref<string[]>([...initialState.selectedColumns])
+  const filters = ref<FilterItem[]>([...initialState.filters])
   const viewValues = ref<object[] | null>(initialState.viewValues)
-  const columnTypes = ref<Record<string, ColumnType>>(initialState.columnTypes)
-  const inputsOutputsColumns = ref<PromptFusionColumn[]>(initialState.inputsOutputsColumns)
+  const columnTypes = ref<Record<string, ColumnType>>({ ...initialState.columnTypes })
+  const inputsOutputsColumns = ref<PromptFusionColumn[]>([...initialState.inputsOutputsColumns])
 
   const isTableExist = computed(() => !!startedTableData.value)
   const fileData = computed(() => ({
@@ -187,11 +187,11 @@ export const useDataTable = (validator: ValidatorFunction) => {
     columnsCount.value = initialState.columnsCount
     rowsCount.value = initialState.rowsCount
     target.value = initialState.target
-    group.value = initialState.group
-    selectedColumns.value = initialState.selectedColumns
-    filters.value = initialState.filters
+    group.value = [...initialState.group]
+    selectedColumns.value = [...initialState.selectedColumns]
+    filters.value = [...initialState.filters]
     viewValues.value = initialState.viewValues
-    columnTypes.value = initialState.columnTypes
+    columnTypes.value = { ...initialState.columnTypes }
   }
 
   watch(startedTableData, (value) => {
