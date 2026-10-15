@@ -120,10 +120,9 @@ satellite-token
 {{- $current := lookup "v1" "Secret" .Release.Namespace (include "luml.derivationSecretName" .) -}}
 {{- if and $current $current.data (hasKey $current.data "derivation-key") -}}
 {{- $key = index $current.data "derivation-key" | b64dec -}}
-{{- else -}}
-{{- $key = randAlphaNum 64 -}}
 {{- end -}}
 {{- end -}}
+{{- $key = required "satellite.derivationKey is required when the existing derivation-key Secret cannot be read; set a persistent key for GitOps and offline rendering" $key -}}
 {{- $_ := set .Values "_lumlDerivationKey" $key -}}
 {{- $key -}}
 {{- end -}}
