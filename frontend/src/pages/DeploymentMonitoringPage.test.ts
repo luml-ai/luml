@@ -44,7 +44,7 @@ function mountPage() {
   return mount(DeploymentMonitoringPage, {
     global: {
       stubs: {
-        Breadcrumb: { template: '<nav><slot /></nav>' },
+        Breadcrumb: { name: 'Breadcrumb', template: '<nav><slot /></nav>', props: ['model'] },
         RouterLink: { template: '<a><slot /></a>', props: ['to'] },
         UiPageLoader: { template: '<div data-testid="loader" />' },
         Button: {
@@ -76,6 +76,21 @@ describe('DeploymentMonitoringPage', () => {
   it('launches monitoring for the routed deployment on mount', () => {
     mountPage()
     expect(store.launch).toHaveBeenCalledWith(ORG, ORBIT, DEPLOYMENT)
+  })
+
+  it('keeps the deployments list accessible from monitoring', () => {
+    const wrapper = mountPage()
+
+    expect(wrapper.findComponent({ name: 'Breadcrumb' }).props('model')).toEqual([
+      {
+        label: 'Deployments',
+        route: {
+          name: 'orbit-deployments',
+          params: { organizationId: ORG, id: ORBIT },
+        },
+      },
+      { label: 'Monitoring' },
+    ])
   })
 
   it('shows a loader while resolving', () => {

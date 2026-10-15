@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import PrimeVue from 'primevue/config'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Deployment } from '@/lib/api/deployments/interfaces'
 import DeploymentSchemaPage from './DeploymentSchemaPage.vue'
 
@@ -11,7 +13,8 @@ const satellitesStore = {
   getSatellite: vi.fn(),
 }
 
-vi.mock('vue-router', () => ({
+vi.mock('vue-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-router')>()),
   useRoute: () => ({
     params: { organizationId: 'org-1', id: 'orbit-1', deploymentId: 'deployment-1' },
   }),
@@ -42,8 +45,20 @@ function deployment(inferenceUrl: string): Deployment {
 }
 
 function mountPage() {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: { template: '<div />' } },
+      {
+        path: '/organization/:organizationId/orbit/:id/deployments',
+        name: 'orbit-deployments',
+        component: { template: '<div />' },
+      },
+    ],
+  })
   return mount(DeploymentSchemaPage, {
     global: {
+      plugins: [router, PrimeVue],
       stubs: {
         OpenApi: {
           props: ['content', 'serverUrl'],
@@ -60,6 +75,30 @@ describe('DeploymentSchemaPage', () => {
   beforeEach(() => {
     deploymentsStore.getDeployment.mockReset()
     satellitesStore.getSatellite.mockReset()
+  })
+
+  it('links back to the deployments list while the schema is loading', async () => {
+    deploymentsStore.getDeployment.mockReturnValue(new Promise(() => {}))
+    const wrapper = mountPage()
+    const link = wrapper.get('nav a')
+
+    expect(link.text()).toBe('Deployments')
+    expect(link.attributes('href')).toBe('/organization/org-1/orbit/orbit-1/deployments')
+    expect(wrapper.get('nav').text()).toContain('API schema')
+    await link.trigger('click')
+    await flushPromises()
+    expect(wrapper.vm.$router.currentRoute.value.name).toBe('orbit-deployments')
+  })
+
+  it('keeps the deployments link available when the schema cannot be loaded', async () => {
+    deploymentsStore.getDeployment.mockRejectedValue(new Error('Unavailable'))
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="not-found"]').exists()).toBe(true)
+    expect(wrapper.get('nav a').attributes('href')).toBe(
+      '/organization/org-1/orbit/orbit-1/deployments',
+    )
   })
 
   it('uses an absolute serving address without a Satellite address', async () => {
