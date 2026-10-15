@@ -121,7 +121,14 @@ def render_deployment_manifests(
             "failureThreshold": configuration.PROBE_FAILURE_THRESHOLD,
         },
         "resources": {"limits": _model_limits(settings)},
-        "volumeMounts": [{"name": "model-cache", "mountPath": MODEL_CACHE_PATH}],
+        "volumeMounts": [
+            {
+                "name": "model-cache",
+                "mountPath": f"{MODEL_CACHE_PATH}/{artifact_id}",
+                "subPath": artifact_id,
+                "readOnly": True,
+            }
+        ],
         "securityContext": configuration.container_security_context,
     }
     sidecar = {
