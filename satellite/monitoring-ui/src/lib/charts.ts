@@ -1,5 +1,15 @@
 import type { Series } from '@/api/types'
 
+// apexcharts inserts legend names and tooltip labels as HTML
+export function escapeChartLabel(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 export const CHART_PLOT_HEIGHT = 180
 export const CHART_LEGEND_HEIGHT = 40
 export const CHART_HEIGHT = CHART_PLOT_HEIGHT + CHART_LEGEND_HEIGHT
