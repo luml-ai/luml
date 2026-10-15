@@ -9,8 +9,8 @@ prove before a release.
 This stand starts one satellite in a kind cluster and pairs it with a Platform on the same
 machine. You can then drive deployments, inference and monitoring from the local UI.
 
-You need Docker, `kind`, `helm`, `kubectl` and `python3`. CI pins Helm 3.17.3. We did not test
-newer Helm against this chart.
+You need Docker, `kind`, `helm`, `kubectl`, `openssl` and `python3`. CI pins Helm 3.17.3. We did
+not test newer Helm against this chart.
 
 The stand takes about 15 minutes to start the first time. Later starts take about 5 minutes,
 because Docker keeps the images in its cache.
@@ -93,10 +93,20 @@ Nothing in the dialog selects Docker or Kubernetes. The satellite reports
 
 ### 5. Install the chart
 
+Generate a derivation key once and keep the file for future installs, renders and upgrades.
+Reuse this file; generating a new key invalidates existing companion and artifact tokens.
+Keep the file private and out of version control.
+
+```shell
+umask 077
+openssl rand -hex 32 | tr -d '\n' > satellite-derivation-key
+```
+
 ```shell
 helm upgrade --install local satellite/implementations/kubernetes/chart \
   --namespace luml --create-namespace \
   --set-string satellite.token="$SATELLITE_TOKEN" \
+  --set-file satellite.derivationKey=./satellite-derivation-key \
   --set satellite.platformUrl=http://host.docker.internal:8000 \
   --set satellite.host=localhost \
   --set satellite.baseUrl=http://localhost:18080 \
