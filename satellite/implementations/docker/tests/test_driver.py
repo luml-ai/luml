@@ -20,6 +20,7 @@ from luml_satellite.container import (
 )
 from luml_satellite.testing import DriverConformanceSuite
 
+import luml_satellite_docker.driver as driver_module
 from luml_satellite_docker import (
     DockerConfiguration,
     DockerDeploymentSettings,
@@ -564,7 +565,7 @@ async def test_release_and_sweep_preserve_referenced_or_mounted_cache_volumes() 
         config for name, config in fake.containers.created_configs if name.startswith("cache-")
     ]
     assert len(cache_containers) == 1
-    assert cache_containers[0]["Image"] == "alpine:latest"
+    assert cache_containers[0]["Image"] == "alpine:3.22.1"
     assert cache_containers[0]["Cmd"][:2] == ["sh", "-c"]
     assert cache_containers[0]["HostConfig"] == {
         "Binds": [
@@ -574,6 +575,94 @@ async def test_release_and_sweep_preserve_referenced_or_mounted_cache_volumes() 
     }
     sweep = fake.containers.containers.get("cache-1")
     assert sweep is None
+
+
+@pytest.mark.asyncio
+async def test_sweep_pulls_the_pinned_image_when_it_is_missing() -> None:
+    fake = FakeDocker()
+    fake.images.available.clear()
+    fake.volumes.add(model_cache_volume(ARTIFACT_ID))
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.sweep({ARTIFACT_ID})
+
+    assert fake.images.pulled == ["alpine:3.22.1"]
+    assert fake.containers.containers == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["start", "wait"])
+async def test_sweep_force_removes_the_container_after_a_docker_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    operation: str,
+) -> None:
+    fake = FakeDocker()
+    fake.volumes.add(model_cache_volume(ARTIFACT_ID))
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+    monkeypatch.setattr(FakeContainer, operation, AsyncMock(side_effect=DockerError(500, "failed")))
+    delete = AsyncMock()
+    monkeypatch.setattr(FakeContainer, "delete", delete)
+
+    await driver.sweep({ARTIFACT_ID})
+
+    delete.assert_awaited_once_with(force=True)
+    assert "could not clean stale staging directories" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_sweep_times_out_a_hanging_container_and_removes_it(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fake = FakeDocker()
+    fake.volumes.add(model_cache_volume(ARTIFACT_ID))
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+    wait_cancelled = asyncio.Event()
+
+    async def hanging_wait(self: FakeContainer) -> dict[str, int]:
+        try:
+            await asyncio.Event().wait()
+        finally:
+            wait_cancelled.set()
+        return {"StatusCode": 0}
+
+    monkeypatch.setattr(FakeContainer, "wait", hanging_wait)
+    monkeypatch.setattr(driver_module, "STAGING_SWEEP_TIMEOUT_SECONDS", 0.01, raising=False)
+
+    await asyncio.wait_for(driver.sweep({ARTIFACT_ID}), timeout=1)
+
+    assert wait_cancelled.is_set()
+    assert fake.containers.deleted_names == ["cache-1"]
+    assert fake.containers.containers == {}
+    assert "could not clean stale staging directories" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_sweep_cancellation_removes_the_container_and_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    fake.volumes.add(model_cache_volume(ARTIFACT_ID))
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+    waiting = asyncio.Event()
+
+    async def hanging_wait(self: FakeContainer) -> dict[str, int]:
+        waiting.set()
+        await asyncio.Event().wait()
+        return {"StatusCode": 0}
+
+    monkeypatch.setattr(FakeContainer, "wait", hanging_wait)
+    task = asyncio.create_task(driver.sweep({ARTIFACT_ID}))
+    try:
+        await asyncio.wait_for(waiting.wait(), timeout=1)
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert fake.containers.deleted_names == ["cache-1"]
+    assert fake.containers.containers == {}
 
 
 @pytest.mark.asyncio

@@ -43,6 +43,7 @@ AGENT_HOST = "satellite-agent"
 COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
 STALE_STAGING_MINUTES = 180
+STAGING_SWEEP_TIMEOUT_SECONDS = 60
 
 type Sleep = Callable[[float], Awaitable[None]]
 
@@ -327,12 +328,10 @@ class DockerDriver:
             "done"
         )
         try:
-            container = await self._run_cache_container(
+            await self._run_cache_container(
                 command=["sh", "-c", sweep_script],
                 binds=[f"{name}:/sweep/{name}" for name in volume_names],
             )
-            with suppress(DockerError):
-                await container.delete(force=True)
         except Exception as error:
             self._logger.error("could not clean stale staging directories: %s", error)
 
@@ -341,8 +340,8 @@ class DockerDriver:
         *,
         command: list[str],
         binds: list[str],
-    ) -> DockerContainer:
-        image = "alpine:latest"
+    ) -> None:
+        image = "alpine:3.22.1"
         try:
             await self.client.images.get(image)
         except DockerError:
@@ -354,9 +353,12 @@ class DockerDriver:
                 "HostConfig": {"Binds": binds},
             }
         )
-        await container.start()
-        await container.wait()
-        return container
+        try:
+            await container.start()
+            await asyncio.wait_for(container.wait(), timeout=STAGING_SWEEP_TIMEOUT_SECONDS)
+        finally:
+            with suppress(DockerError):
+                await container.delete(force=True)
 
     async def _recent_logs(self, container: DockerContainer) -> str:
         try:
