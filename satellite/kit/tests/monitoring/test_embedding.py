@@ -17,7 +17,7 @@ class TestEmbedding:
             )
 
         csp = resp.headers["content-security-policy"]
-        assert csp == "frame-ancestors https://app.luml.ai"
+        assert csp == "frame-ancestors https://app.luml.ai; script-src 'self'"
         assert "https://evil.example" not in csp
 
     async def test_csp_allows_multiple_platform_origins(self) -> None:
@@ -29,7 +29,7 @@ class TestEmbedding:
             )
 
         assert resp.headers["content-security-policy"] == (
-            "frame-ancestors https://app.luml.ai https://eu.luml.ai"
+            "frame-ancestors https://app.luml.ai https://eu.luml.ai; script-src 'self'"
         )
 
     async def test_csp_defaults_to_none_when_no_origins_configured(self) -> None:
@@ -40,7 +40,9 @@ class TestEmbedding:
                 "/monitoring/launch", params={"token": "x"}, follow_redirects=False
             )
 
-        assert resp.headers["content-security-policy"] == "frame-ancestors 'none'"
+        assert (
+            resp.headers["content-security-policy"] == "frame-ancestors 'none'; script-src 'self'"
+        )
 
     async def test_csp_present_on_denied_response(self) -> None:
         app = build_app(_INACTIVE, frame_ancestors=["https://app.luml.ai"])
@@ -51,7 +53,9 @@ class TestEmbedding:
             )
 
         assert resp.status_code == 403
-        assert resp.headers["content-security-policy"] == "frame-ancestors https://app.luml.ai"
+        assert resp.headers["content-security-policy"] == (
+            "frame-ancestors https://app.luml.ai; script-src 'self'"
+        )
 
     async def test_static_dashboard_bundle_served_with_csp(self) -> None:
         app = build_app(_INACTIVE, frame_ancestors=["https://app.luml.ai"])
@@ -61,4 +65,25 @@ class TestEmbedding:
 
         assert resp.status_code == 200
         assert '<div id="app">' in resp.text
-        assert resp.headers["content-security-policy"] == "frame-ancestors https://app.luml.ai"
+        assert resp.headers["content-security-policy"] == (
+            "frame-ancestors https://app.luml.ai; script-src 'self'"
+        )
+
+    async def test_csp_present_on_monitoring_api_errors(self) -> None:
+        app = build_app(_INACTIVE)
+
+        async with client_for(app) as client:
+            resp = await client.get("/monitoring/api/session")
+
+        assert resp.status_code == 401
+        assert resp.headers["content-security-policy"] == (
+            "frame-ancestors https://app.luml.ai; script-src 'self'"
+        )
+
+    async def test_csp_does_not_apply_outside_monitoring(self) -> None:
+        app = build_app(_INACTIVE)
+
+        async with client_for(app) as client:
+            resp = await client.get("/unrelated")
+
+        assert "content-security-policy" not in resp.headers
