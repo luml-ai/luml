@@ -222,6 +222,67 @@ async def test_models_are_also_attached_to_the_stack_network_of_their_satellite(
 
 
 @pytest.mark.asyncio
+async def test_models_cannot_join_private_agent_networks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(
+        fake,
+        monkeypatch,
+        networks={"stack_default": ["agent"], "stack_docker-control": ["agent"]},
+    )
+    await fake.networks.create({"Name": "stack_default"})
+    control = await fake.networks.create(
+        {"Name": "stack_docker-control", "Labels": {"df.satellite.private": "true"}}
+    )
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.start(deployment(), start_context())
+
+    model = fake.containers.containers[f"sat-{DEPLOYMENT_ID}"]
+    assert "stack_default" in model.networks
+    assert "stack_docker-control" not in model.networks
+    assert control.connected == []
+
+
+@pytest.mark.asyncio
+async def test_a_private_network_cannot_be_used_as_the_primary_model_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch)
+    await fake.networks.create({"Name": "control", "Labels": {"df.satellite.private": "true"}})
+    driver = DockerDriver(
+        configuration(DOCKER_NETWORK_NAME="control"),
+        client=fake.as_client(),
+        satellite_id=SATELLITE_ID,
+    )
+
+    with pytest.raises(DriverError, match="private"):
+        await driver.start(deployment(), start_context())
+
+    assert fake.containers.created_configs == []
+
+
+@pytest.mark.asyncio
+async def test_network_inspection_failure_prevents_starting_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch, networks={"stack_default": ["agent"]})
+    network = await fake.networks.create({"Name": "stack_default"})
+    monkeypatch.setattr(
+        network, "show", AsyncMock(side_effect=DockerError(500, "inspection failed"))
+    )
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    with pytest.raises(DockerError, match="inspection failed"):
+        await driver.start(deployment(), start_context())
+
+    assert fake.containers.containers[f"sat-{DEPLOYMENT_ID}"].start_count == 0
+
+
+@pytest.mark.asyncio
 async def test_a_failed_attachment_stops_the_deployment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

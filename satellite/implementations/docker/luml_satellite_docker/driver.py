@@ -42,6 +42,7 @@ LEGACY_MODEL_CACHE_VOLUME = "satellite-models-cache"
 AGENT_HOST = "satellite-agent"
 COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
+PRIVATE_NETWORK_LABEL = "df.satellite.private"
 STALE_STAGING_MINUTES = 180
 
 type Sleep = Callable[[float], Awaitable[None]]
@@ -388,7 +389,10 @@ class DockerDriver:
 
     async def _create_network(self, name: str, satellite_id: str) -> None:
         try:
-            await self.client.networks.get(name)
+            network = await self.client.networks.get(name)
+            information = await network.show()
+            if _string_mapping(information.get("Labels")).get(PRIVATE_NETWORK_LABEL) == "true":
+                raise DriverError(f"Network '{name}' is private and cannot host models.")
             return
         except DockerError as error:
             if error.status != 404:
@@ -464,6 +468,9 @@ class DockerDriver:
                 continue
             try:
                 network = await self.client.networks.get(name)
+                information = await network.show()
+                if _string_mapping(information.get("Labels")).get(PRIVATE_NETWORK_LABEL) == "true":
+                    continue
                 await network.connect({"Container": container_id})
             except DockerError as error:
                 if error.status not in (403, 409):
