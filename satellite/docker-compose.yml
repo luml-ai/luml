@@ -6,6 +6,9 @@ networks:
   store-network:
     driver: bridge
     internal: true
+  docker-control:
+    driver: bridge
+    internal: true
 
 volumes:
   greptimedb-data:
@@ -49,6 +52,35 @@ services:
     networks:
       - satellite-network
 
+  reverse-proxy:
+    image: nginx:1.28-alpine
+    networks:
+      - satellite-network
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:80:8080"
+    depends_on:
+      - agent
+    restart: unless-stopped
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    networks:
+      - docker-control
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: "1"
+      IMAGES: "1"
+      NETWORKS: "1"
+      VOLUMES: "1"
+      POST: "1"
+      PING: "1"
+      VERSION: "1"
+      EVENTS: "0"
+    restart: unless-stopped
+
   agent:
     image: luml-satellite-agent:latest
     build:
@@ -61,7 +93,9 @@ services:
         aliases:
           - satellite-agent
       store-network:
+      docker-control:
     environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
       SATELLITE_TOKEN: ${SATELLITE_TOKEN:?Set SATELLITE_TOKEN in .env}
       PLATFORM_URL: ${PLATFORM_URL:-http://localhost:8000}
       BASE_URL: ${BASE_URL:-http://localhost}
@@ -73,14 +107,15 @@ services:
       GREPTIMEDB_USERNAME: ${GREPTIMEDB_USERNAME:?Set GREPTIMEDB_USERNAME in .env}
       GREPTIMEDB_PASSWORD: ${GREPTIMEDB_PASSWORD:?Set GREPTIMEDB_PASSWORD in .env}
       MONITORING_FRAME_ANCESTORS: ${MONITORING_FRAME_ANCESTORS:-http://localhost:5173}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    user: "0:0"
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "80:8000"
     depends_on:
+      - docker-socket-proxy
       - model-image
       - otel-collector
     restart: unless-stopped
