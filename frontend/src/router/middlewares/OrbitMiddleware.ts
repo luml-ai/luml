@@ -65,7 +65,7 @@ export async function orbitMiddleware(
   const firstOrbit = orbitsStore.orbitsList[0]
   if (firstOrbit) {
     return next({
-      name: to.name as string,
+      name: TAB_TO_ROUTE[targetTab],
       params: { organizationId: urlOrgId, id: firstOrbit.id },
     })
   }
