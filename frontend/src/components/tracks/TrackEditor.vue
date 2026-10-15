@@ -165,7 +165,7 @@ function updateVisible(visible: boolean) {
 }
 
 function onDeleteClick() {
-  confirm.require(deleteTrackConfirmOptions(deleteTrack))
+  confirm.require(deleteTrackConfirmOptions(deleteTrack, lockedStages.value))
 }
 
 async function deleteTrack() {

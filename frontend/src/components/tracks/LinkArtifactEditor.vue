@@ -142,7 +142,8 @@ async function patchEntry(stageId: string, force: boolean) {
 }
 
 function onDeleteClick() {
-  confirm.require(deleteTrackEntryConfirmOptions(deleteEntry, 1))
+  if (!artifactLinksStore.editableEntry) return
+  confirm.require(deleteTrackEntryConfirmOptions(deleteEntry, [artifactLinksStore.editableEntry]))
 }
 
 async function deleteEntry() {
