@@ -140,6 +140,8 @@ export interface OrganizationDetails extends Omit<Organization, 'role'> {
   members_by_role: Record<OrganizationRoleEnum, number>
   satellites_limit: number
   artifacts_limit: number
+  managed_relay_sessions_limit: number
+  own_relay_sessions_limit: number
   total_satellites: number
   total_artifacts: number
 }
@@ -175,6 +177,7 @@ export interface Orbit {
   created_at: Date
   updated_at: Date | null
   bucket_secret_id: string
+  relay_id: string | null
   total_collections: number
   role: OrbitRoleEnum
   permissions: OrbitPermissions
@@ -184,6 +187,7 @@ export interface Orbit {
 export interface CreateOrbitPayload {
   name: string
   bucket_secret_id: string
+  relay_id?: string | null
   members: {
     user_id: string
     role: OrbitRoleEnum
@@ -195,6 +199,7 @@ export interface UpdateOrbitPayload {
   id: string
   name: string
   bucket_secret_id: string
+  relay_id?: string | null
 }
 
 export interface AddMemberToOrbitPayload {
@@ -222,7 +227,8 @@ export interface OrganizationPermissions {
   organization_user: Omit<PermissionEnum, PermissionEnum.deploy>
   organization_invite: Omit<PermissionEnum, PermissionEnum.update & PermissionEnum.deploy>
   billing: [PermissionEnum.read, PermissionEnum.update]
-  orbit: [PermissionEnum.create]
+  orbit: PermissionEnum[]
+  relay?: PermissionEnum[]
 }
 
 export interface OrbitPermissions {

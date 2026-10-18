@@ -67,6 +67,11 @@ class OrbitOrm(TimestampMixin, Base):
         ForeignKey("bucket_secrets.id", ondelete="CASCADE"),
         nullable=False,
     )
+    relay_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("relays.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     members: Mapped[list[OrbitMembersOrm]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"

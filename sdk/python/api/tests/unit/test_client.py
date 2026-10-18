@@ -102,6 +102,7 @@ def test_error_handling(client_with_mocks: LumlClient, respx_mock: MockRouter) -
         "artifacts",
         "tracks",
         "satellites",
+        "live_sessions",
     ],
 )
 @pytest.mark.respx(base_url=TEST_BASE_URL)

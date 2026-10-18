@@ -111,6 +111,10 @@ export const useOrbitsStore = defineStore('orbit', () => {
   async function deleteOrbit(organizationId: string, orbitId: string) {
     await api.deleteOrbit(organizationId, orbitId)
     orbitsList.value = orbitsList.value.filter((orbit) => orbit.id !== orbitId)
+    if (organizationStore.organizationDetails) {
+      organizationStore.organizationDetails.orbits =
+        organizationStore.organizationDetails.orbits.filter((orbit) => orbit.id !== orbitId)
+    }
 
     if (currentOrbitId.value === orbitId) {
       currentOrbitId.value = null

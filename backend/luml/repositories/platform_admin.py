@@ -32,11 +32,18 @@ from luml.schemas.platform_admin import (
     PlatformStats,
 )
 
+# Relay session usage depends on the time of the query, so it cannot be a column
+# built once here.
 _USAGE_COLUMNS = {
     resource: organization_usage_query(resource, OrganizationOrm.id)
     .scalar_subquery()
     .label(f"{resource.value}_usage")
-    for resource in OrganizationResource
+    for resource in (
+        OrganizationResource.MEMBERS,
+        OrganizationResource.ORBITS,
+        OrganizationResource.SATELLITES,
+        OrganizationResource.ARTIFACTS,
+    )
 }
 
 _ORGANIZATIONS_COUNT = (

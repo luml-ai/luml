@@ -34,9 +34,12 @@ from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.invites import InviteRepository
+from luml.repositories.limits import OrganizationResource
 from luml.repositories.lineage import LineageRepository
+from luml.repositories.live_sessions import LiveSessionRepository
 from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.relays import RelayRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.token_blacklist import TokenBlackListRepository
 from luml.repositories.tracks import (
@@ -52,6 +55,11 @@ from luml.schemas.artifacts import (
     ArtifactType,
 )
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
+from luml.schemas.live_session import (
+    LiveSession,
+    LiveSessionCreate,
+    LiveSessionVisibility,
+)
 from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 from luml.schemas.orbit_secret import OrbitSecretCreate
 from luml.schemas.organization import (
@@ -61,6 +69,7 @@ from luml.schemas.organization import (
     OrganizationMemberCreate,
     OrgRole,
 )
+from luml.schemas.relay import RelayCreate
 from luml.schemas.satellite import Satellite, SatelliteCreate
 from luml.schemas.tracks import (
     StageCreate,
@@ -80,6 +89,7 @@ from sqlalchemy.ext.asyncio import (
 from tests.support.builders import create_artifact
 from tests.support.seeds import (
     CollectionFixtureData,
+    OrbitFixtureData,
     OrganizationFixtureData,
     SatelliteFixtureData,
 )
@@ -555,6 +565,45 @@ class TestConcurrencyGuards:
         assert len(winners) == 1
         assert len(losers) == 1
         assert "maximum number of orbits" in str(losers[0])
+
+    async def test_start_session_enforces_own_relay_quota_when_starts_race(
+        self, engine: AsyncEngine, seeded_orbit: OrbitFixtureData
+    ) -> None:
+        session_repository = LiveSessionRepository(engine)
+        relay = await RelayRepository(engine).create_relay(
+            RelayCreate(
+                label="lab",
+                base_domain="sessions.example",
+                agent_url="wss://sessions.example/connect",
+                organization_id=seeded_orbit.organization.id,
+                token_hash="lab",
+            )
+        )
+        await _set_limit(
+            engine, seeded_orbit.organization.id, own_relay_sessions_limit=2
+        )
+
+        async def start() -> LiveSession:
+            return await session_repository.create_live_session(
+                LiveSessionCreate(
+                    orbit_id=seeded_orbit.orbit.id,
+                    user_id=seeded_orbit.user.id,
+                    label="run",
+                    visibility=LiveSessionVisibility.OWNER,
+                    relay_id=relay.id,
+                ),
+                seeded_orbit.organization.id,
+                OrganizationResource.OWN_RELAY_SESSIONS,
+            )
+
+        await start()
+        winners, losers = _split(
+            await _race(start(), start()), OrganizationLimitReachedError
+        )
+
+        assert len(winners) == 1
+        assert len(losers) == 1
+        assert "own relays" in str(losers[0])
 
     async def test_create_satellite_enforces_quota_when_creations_race(
         self, engine: AsyncEngine, seeded_collection: CollectionFixtureData

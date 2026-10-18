@@ -316,3 +316,45 @@ export const unlinkArtifactConfirmOptions = (accept: () => void): ConfirmationOp
   },
   accept,
 })
+
+export const deleteRelayConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This removes the relay from all orbits. Its token stops working.',
+  header: 'Remove relay?',
+  rejectProps: {
+    label: 'Cancel',
+  },
+  acceptProps: {
+    label: 'Remove',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const rotateRelayTokenConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'The old token stops working in a few minutes.',
+  header: 'Rotate token?',
+  rejectProps: {
+    label: 'Cancel',
+  },
+  acceptProps: {
+    label: 'Rotate',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const removeFlowConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This ends the flow.',
+  header: 'Remove flow?',
+  rejectProps: {
+    label: 'Cancel',
+  },
+  acceptProps: {
+    label: 'Remove',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})

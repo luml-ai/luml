@@ -37,6 +37,12 @@ class OrganizationOrm(TimestampMixin, Base):
     artifacts_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="50"
     )
+    managed_relay_sessions_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    own_relay_sessions_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="5"
+    )
 
     members: Mapped[list[OrganizationMemberOrm]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"

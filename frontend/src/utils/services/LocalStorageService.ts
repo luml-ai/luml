@@ -1,9 +1,10 @@
-import type { LocalStorageProviderSettings } from './LocalStorageService.interfaces'
+import type { LocalFlow, LocalStorageProviderSettings } from './LocalStorageService.interfaces'
 
 type StorageValueMap = {
   providersSettings: LocalStorageProviderSettings
   currentOrganizationId: string
   currentOrbitId: string
+  localFlows: LocalFlow[]
 }
 
 type StorageKey = keyof StorageValueMap

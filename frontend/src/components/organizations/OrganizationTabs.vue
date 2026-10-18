@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
 import { Tabs, TabList, Tab, type TabPassThroughOptions } from 'primevue'
-import { Users, Orbit, FolderDot } from 'lucide-vue-next'
+import { Users, Orbit, FolderDot, RadioTower } from 'lucide-vue-next'
 import { useRoute } from 'vue-router'
 
 const tabsListPT = {
@@ -42,6 +42,11 @@ const items = [
     label: 'Buckets',
     routeName: 'organization-buckets',
     icon: FolderDot,
+  },
+  {
+    label: 'Relays',
+    routeName: 'organization-relays',
+    icon: RadioTower,
   },
 ]
 

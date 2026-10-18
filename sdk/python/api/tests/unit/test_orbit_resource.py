@@ -231,3 +231,116 @@ async def test_async_orbit_delete(mock_async_client: AsyncMock) -> None:
         f"/v1/organizations/{organization_id}/orbits/{orbit_id}"
     )
     assert result is None
+
+
+RELAY_ID = "0199d001-0000-7000-8000-000000000001"
+
+
+def test_orbit_create_with_relay(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
+    organization_id = mock_sync_client.organization
+    mock_sync_client.post.return_value = sample_orbit.model_copy(
+        update={"relay_id": RELAY_ID}
+    )
+
+    orbit = OrbitResource(mock_sync_client).create(
+        sample_orbit.name, sample_orbit.bucket_secret_id, relay_id=RELAY_ID
+    )
+
+    mock_sync_client.post.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits",
+        json={
+            "name": sample_orbit.name,
+            "bucket_secret_id": sample_orbit.bucket_secret_id,
+            "relay_id": RELAY_ID,
+        },
+    )
+    assert orbit.relay_id == RELAY_ID
+
+
+def test_orbit_without_relay_has_none(sample_orbit: Orbit) -> None:
+    assert sample_orbit.relay_id is None
+
+
+def test_orbit_update_assigns_relay(
+    mock_sync_client: Mock, sample_orbit: Orbit
+) -> None:
+    organization_id = mock_sync_client.organization
+    orbit_id = mock_sync_client.orbit
+    mock_sync_client.patch.return_value = sample_orbit.model_copy(
+        update={"relay_id": RELAY_ID}
+    )
+
+    orbit = OrbitResource(mock_sync_client).update(relay_id=RELAY_ID)
+
+    mock_sync_client.patch.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}",
+        json={"relay_id": RELAY_ID},
+    )
+    assert orbit.relay_id == RELAY_ID
+
+
+def test_orbit_update_clears_relay(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
+    organization_id = mock_sync_client.organization
+    orbit_id = mock_sync_client.orbit
+    mock_sync_client.patch.return_value = sample_orbit
+
+    orbit = OrbitResource(mock_sync_client).update(name="Renamed", clear_relay=True)
+
+    mock_sync_client.patch.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}",
+        json={"name": "Renamed", "relay_id": None},
+    )
+    assert orbit.relay_id is None
+
+
+def test_orbit_update_refuses_relay_and_clear_together(mock_sync_client: Mock) -> None:
+    with pytest.raises(ValueError, match="relay_id or clear_relay"):
+        OrbitResource(mock_sync_client).update(relay_id=RELAY_ID, clear_relay=True)
+
+    mock_sync_client.patch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_orbit_create_with_relay(
+    mock_async_client: AsyncMock, sample_orbit: Orbit
+) -> None:
+    organization_id = mock_async_client.organization
+    mock_async_client.post.return_value = sample_orbit.model_copy(
+        update={"relay_id": RELAY_ID}
+    )
+
+    orbit = await AsyncOrbitResource(mock_async_client).create(
+        sample_orbit.name, sample_orbit.bucket_secret_id, relay_id=RELAY_ID
+    )
+
+    mock_async_client.post.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits",
+        json={
+            "name": sample_orbit.name,
+            "bucket_secret_id": sample_orbit.bucket_secret_id,
+            "relay_id": RELAY_ID,
+        },
+    )
+    assert orbit.relay_id == RELAY_ID
+
+
+@pytest.mark.asyncio
+async def test_async_orbit_update_assigns_and_clears_relay(
+    mock_async_client: AsyncMock, sample_orbit: Orbit
+) -> None:
+    organization_id = mock_async_client.organization
+    orbit_id = mock_async_client.orbit
+    path = f"/v1/organizations/{organization_id}/orbits/{orbit_id}"
+    mock_async_client.patch.return_value = sample_orbit
+    resource = AsyncOrbitResource(mock_async_client)
+
+    await resource.update(relay_id=RELAY_ID)
+    await resource.update(clear_relay=True)
+
+    assert mock_async_client.patch.call_args_list[0].args == (path,)
+    assert mock_async_client.patch.call_args_list[0].kwargs == {
+        "json": {"relay_id": RELAY_ID}
+    }
+    assert mock_async_client.patch.call_args_list[1].kwargs == {
+        "json": {"relay_id": None}
+    }

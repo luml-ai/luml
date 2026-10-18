@@ -17,6 +17,7 @@ from luml.api.platform_admin import (
     platform_admin_config,
     platform_admin_routers,
 )
+from luml.api.relays import relay_worker_router
 from luml.api.satellites import satellite_contract_router, satellite_worker_router
 from luml.api.user_routes import users_routers
 from luml.handlers.platform_admin import (
@@ -43,6 +44,7 @@ class AppService(FastAPI):
         self.include_router(router=api_key_validate_router, prefix="/v1")
         self.include_router(router=satellite_contract_router)
         self.include_router(router=satellite_worker_router)
+        self.include_router(router=relay_worker_router)
         self.include_router(router=bucket_secret_urls_router, prefix="/v1")
         if platform_admin_config.enabled:
             self.include_router(router=platform_admin_routers, prefix="/v1")

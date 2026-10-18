@@ -108,6 +108,26 @@ services:
     ports:
       - "8000:8000"
 
+  # Browsers resolve every name under localhost to this machine, so sessions
+  # are served at http://<session>.sessions.localhost:8080 without DNS. The seed
+  # registers this relay with DEV_RELAY_TOKEN from backend.env, which must
+  # match LUML_RELAY_TOKEN here.
+  relay:
+    build:
+      context: ../relay
+    image: dataforce-dev-relay:latest
+    environment:
+      LUML_BASE_URL: http://backend:8000
+      LUML_RELAY_TOKEN: dfsrelay_dev-relay-token
+      LUML_RELAY_COOKIE_SECRET: dev-relay-cookie-secret
+    ports:
+      - "8080:8080"
+    depends_on:
+      backend:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
+
   seed:
     <<: *backend-base
     depends_on:
@@ -178,7 +198,7 @@ services:
       NPM_CONFIG_FUND: "false"
       NPM_CONFIG_AUDIT: "false"
       VITE_API_URL: http://localhost:8000
-      VITE_DOCS_URL: http://localhost:5173
+      VITE_DOCS_URL: https://docs.luml.ai
     command:
       - sh
       - -c

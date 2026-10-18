@@ -21,6 +21,8 @@ class Resource(StrEnum):
     ORBIT_SECRET = "orbit_secret"
     DEPLOYMENT = "deployment"
     TRACK = "track"
+    LIVE_SESSION = "live_session"
+    RELAY = "relay"
 
 
 class Action(StrEnum):
@@ -130,6 +132,20 @@ organization_permissions = {
             Action.UPDATE,
             Action.DELETE,
         ],
+        Resource.LIVE_SESSION: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.RELAY: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
         Resource.BILLING: [Action.READ, Action.UPDATE],
     },
     OrgRole.ADMIN: {
@@ -208,10 +224,25 @@ organization_permissions = {
             Action.UPDATE,
             Action.DELETE,
         ],
+        Resource.LIVE_SESSION: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.RELAY: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
     },
     OrgRole.MEMBER: {
         Resource.ORGANIZATION: [Action.LEAVE],
         Resource.ORBIT: [Action.LIST, Action.READ],
+        Resource.RELAY: [Action.LIST, Action.READ],
     },
 }
 
@@ -247,6 +278,13 @@ orbit_permissions = {
             Action.DELETE,
         ],
         Resource.TRACK: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.LIVE_SESSION: [
             Action.LIST,
             Action.READ,
             Action.CREATE,
@@ -294,6 +332,13 @@ orbit_permissions = {
             Action.READ,
             Action.CREATE,
             Action.UPDATE,
+        ],
+        Resource.LIVE_SESSION: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
         ],
         Resource.DEPLOYMENT: [
             Action.LIST,
