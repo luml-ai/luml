@@ -271,10 +271,13 @@ export const deleteTrackEntryConfirmOptions = (
       : `Deleting these entries will free the following stages: ${stages.join(', ')}. `
     : ''
 
+  const unlinkNotice =
+    entries.length > 1
+      ? 'These artifacts will be unlinked from current track. This action will not delete the artifacts from the registry. You will be able to still access the artifacts in their collections.'
+      : 'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.'
+
   return {
-    message:
-      stageWarning +
-      'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.',
+    message: stageWarning + unlinkNotice,
     header: entries.length > 1 ? `Unlink ${entries.length} artifacts?` : 'Unlink artifact?',
     rejectProps: {
       label: 'Cancel',

@@ -190,6 +190,8 @@ describe('track deletion stage warnings', () => {
     expect(dialogText()).toContain('free')
     expect(dialogText()).toContain('Production')
     expect(dialogText()).toContain('Canary')
+    expect(dialogText()).toContain('These artifacts will be unlinked')
+    expect(dialogText()).toContain('access the artifacts in their collections')
     expect(mocks.deleteEntries).not.toHaveBeenCalled()
     await clickDialogButton('Unlink artifacts')
     expect(mocks.deleteEntries).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-1', 'track-1', [
