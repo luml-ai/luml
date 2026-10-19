@@ -161,7 +161,7 @@ describe('orbitMiddleware URL selection', () => {
     await orbitMiddleware(to, from, next)
 
     expect(next).toHaveBeenCalledWith({
-      name: 'orbit-collections',
+      name: 'orbit-tracks',
       params: { organizationId: 'organization-b', id: firstOrbit.id },
     })
   })
@@ -239,14 +239,14 @@ describe('orbitMiddleware deep-link navigation', () => {
     ['/collection/collection-missing', 'orbit-collections', ''],
     ['/collection/collection-missing/artifacts/artifact-missing', 'orbit-collections', ''],
     ['/collection/collection-missing/artifacts/artifact-missing/data', 'orbit-collections', ''],
-    ['/tracks/track-missing', 'orbit-collections', ''],
-    ['/deployments/deployment-missing/schema', 'orbit-collections', ''],
-    ['/deployments/deployment-missing/monitoring', 'orbit-collections', ''],
+    ['/tracks/track-missing', 'orbit-tracks', '/tracks'],
+    ['/deployments/deployment-missing/schema', 'orbit-deployments', '/deployments'],
+    ['/deployments/deployment-missing/monitoring', 'orbit-deployments', '/deployments'],
     ['', 'orbit-collections', ''],
-    ['/tracks', 'orbit-collections', ''],
+    ['/tracks', 'orbit-tracks', '/tracks'],
     ['/deployments', 'orbit-deployments', '/deployments'],
     ['/satellites', 'orbit-satellites', '/satellites'],
-    ['/secrets', 'orbit-deployments', '/deployments'],
+    ['/secrets', 'orbit-secrets', '/secrets'],
   ])('redirects a missing orbit at %s to %s', async (path, name, tabPath) => {
     const router = createTestRouter()
 
@@ -282,6 +282,8 @@ describe('orbitMiddleware deep-link navigation', () => {
 
   it.each([
     ['/collection/collection-missing/artifacts/artifact-missing', 'registry'],
+    ['/tracks/track-missing', 'registry'],
+    ['/deployments/deployment-missing/monitoring', 'deployments'],
     ['/deployments', 'deployments'],
     ['/satellites', 'satellites'],
   ])('redirects %s to setup when no orbit is available', async (path, tab) => {
