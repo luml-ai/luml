@@ -387,6 +387,50 @@ class TestTrackEntryRepository:
         assert updated is not None
         assert updated.stage_id == stage.id
 
+    async def test_update_entry_keeps_stage_when_stage_is_unset(
+        self,
+        repository: TrackRepository,
+        stage_repository: TrackStageRepository,
+        entry_repository: TrackEntryRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        artifact_template: ArtifactCreate,
+    ) -> None:
+        track = await repository.create_track(
+            TrackCreate(
+                orbit_id=seeded_collection.orbit.id,
+                name="unset-stage-entry-track",
+                artifact_type=ArtifactType.MODEL,
+            )
+        )
+        stage = await stage_repository.create_stage(
+            StageCreate(track_id=track.id, name="Production")
+        )
+        artifact = await create_artifact(
+            engine,
+            artifact_template,
+            seeded_collection.collection.id,
+            name=f"artifact-{uuid.uuid4().hex[:8]}",
+        )
+        entry = await entry_repository.create_entry(
+            TrackEntryCreate(
+                track_id=track.id,
+                artifact_id=artifact.id,
+                stage_id=stage.id,
+                added_by=seeded_collection.user.email,
+            )
+        )
+
+        untouched = await entry_repository.update_entry(entry.id, TrackEntryUpdate())
+        assert untouched is not None
+        assert untouched.stage_id == stage.id
+
+        cleared = await entry_repository.update_entry(
+            entry.id, TrackEntryUpdate(stage_id=None)
+        )
+        assert cleared is not None
+        assert cleared.stage_id is None
+
     async def test_delete_entry_removes_entry(
         self,
         repository: TrackRepository,

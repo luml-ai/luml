@@ -596,6 +596,48 @@ class TestTrackEntries:
         assert result == expected
         mocks.entry_repository.update_entry.assert_awaited_once()
 
+    async def test_update_entry_clears_stage_on_explicit_null(
+        self, mocks: CollaboratorMocks[TracksHandler]
+    ) -> None:
+        mocks.entry_repository.get_entry.return_value = _make_entry(stage_id=STAGE_ID)
+        expected = _make_entry()
+        mocks.entry_repository.update_entry.return_value = expected
+
+        result = await mocks.handler.update_entry(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            ENTRY_ID,
+            TrackEntryUpdateIn(stage_id=None),
+        )
+
+        assert result == expected
+        mocks.stage_repository.get_stage.assert_not_awaited()
+        update_data = mocks.entry_repository.update_entry.await_args.args[1]
+        assert update_data.stage_id is None
+        assert "stage_id" in update_data.model_fields_set
+
+    async def test_update_entry_keeps_stage_when_stage_is_not_provided(
+        self, mocks: CollaboratorMocks[TracksHandler]
+    ) -> None:
+        expected = _make_entry(stage_id=STAGE_ID)
+        mocks.entry_repository.get_entry.return_value = expected
+        mocks.entry_repository.update_entry.return_value = expected
+
+        result = await mocks.handler.update_entry(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            ENTRY_ID,
+            TrackEntryUpdateIn(),
+        )
+
+        assert result == expected
+        update_data = mocks.entry_repository.update_entry.await_args.args[1]
+        assert "stage_id" not in update_data.model_fields_set
+
     async def test_update_entry_raises_conflict_when_stage_is_held_and_not_forced(
         self, mocks: CollaboratorMocks[TracksHandler]
     ) -> None:

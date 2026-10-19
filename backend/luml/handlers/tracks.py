@@ -486,7 +486,7 @@ class TracksHandler:
                     409,
                 )
 
-        update_data = TrackEntryUpdate(stage_id=entry_in.stage_id)
+        update_data = TrackEntryUpdate(**entry_in.model_dump(exclude_unset=True))
         try:
             updated = await self.__entry_repository.update_entry(
                 entry_id, update_data, force=force
