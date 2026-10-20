@@ -21,6 +21,12 @@ from uuid import UUID
 import httpx
 
 from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
+from luml_satellite.monitoring.compute.models import (
+    ERROR_STATUSES,
+    FAILED_INFERENCE_STATUSES,
+    SUCCESS_STATUSES,
+    TIMEOUT_STATUSES,
+)
 from luml_satellite.monitoring.dashboard.alerts import parse_alert_key
 from luml_satellite.monitoring.dashboard.profile import build_reference_profile, profile_status
 from luml_satellite.monitoring.dashboard.schemas import (
@@ -115,7 +121,37 @@ def _json_path(key: str) -> str:
 
 
 _EVENT_STATUS_SQL = f"COALESCE(json_get_string(span_attributes, {_json_path(_ATTR_STATUS)}), '')"
+_EVENT_STATUS_CODE_SQL = (
+    f"COALESCE(json_get_int(span_attributes, {_json_path(_ATTR_STATUS_CODE)}), "
+    f"CASE WHEN {_EVENT_STATUS_SQL} = 'success' THEN 200 ELSE 500 END)"
+)
 _EVENT_LATENCY_SQL = f"COALESCE(json_get_float(span_attributes, {_json_path(_ATTR_LATENCY)}), 0.0)"
+
+
+def _sql_set(values: frozenset[str]) -> str:
+    return "(" + ", ".join(_sql_str(value) for value in sorted(values)) + ")"
+
+
+_NORMALIZED_STATUS_SQL = "LOWER(TRIM(status))"
+_IS_SUCCESS_SQL = (
+    f"CASE WHEN {_NORMALIZED_STATUS_SQL} IN {_sql_set(SUCCESS_STATUSES)} THEN 1 "
+    f"WHEN {_NORMALIZED_STATUS_SQL} IN {_sql_set(ERROR_STATUSES)} THEN 0 "
+    "WHEN status_code >= 200 AND status_code < 400 THEN 1 ELSE 0 END"
+)
+_IS_TIMEOUT_SQL = (
+    f"CASE WHEN {_NORMALIZED_STATUS_SQL} IN {_sql_set(TIMEOUT_STATUSES)} "
+    "OR status_code = 504 THEN 1 ELSE 0 END"
+)
+_IS_FAILED_INFERENCE_SQL = (
+    f"CASE WHEN {_IS_TIMEOUT_SQL} = 1 THEN 1 "
+    f"WHEN {_NORMALIZED_STATUS_SQL} IN {_sql_set(FAILED_INFERENCE_STATUSES)} THEN 1 "
+    f"WHEN {_NORMALIZED_STATUS_SQL} IN {_sql_set(SUCCESS_STATUSES)} THEN 0 "
+    "WHEN status_code >= 500 THEN 1 ELSE 0 END"
+)
+_CLASSIFIED_SQL = (
+    f"SELECT *, {_IS_SUCCESS_SQL} AS is_success, {_IS_TIMEOUT_SQL} AS is_timeout, "
+    f"{_IS_FAILED_INFERENCE_SQL} AS is_failed_inference FROM events"
+)
 
 
 def _event_filter(deployment_id: UUID, start: datetime, end: datetime) -> str:
@@ -331,7 +367,7 @@ class GreptimeQueryStore:
         sql = (
             f"SELECT timestamp, span_attributes, timestamp AS ts, "
             f"{_EVENT_LATENCY_SQL} AS latency, "
-            f"CASE WHEN {_EVENT_STATUS_SQL} = 'success' THEN 200 ELSE 500 END AS status, "
+            f"{_EVENT_STATUS_CODE_SQL} AS status, "
             f"json_get_string(span_attributes, {_json_path(_ATTR_EVENT_ID)}) AS event_id "
             f"FROM {INFERENCE_EVENTS_TABLE} WHERE {_event_filter(deployment_id, start, end)} "
             f"ORDER BY {ordering} LIMIT {limit} OFFSET {offset}"
@@ -383,18 +419,18 @@ class GreptimeQueryStore:
         self, deployment_id: UUID, start: datetime, end: datetime
     ) -> RuntimeSummary:
         source = (
-            f"SELECT timestamp, {_EVENT_STATUS_SQL} AS status, {_EVENT_LATENCY_SQL} AS latency "
+            f"SELECT timestamp, {_EVENT_STATUS_SQL} AS status, "
+            f"{_EVENT_STATUS_CODE_SQL} AS status_code, {_EVENT_LATENCY_SQL} AS latency "
             f"FROM {INFERENCE_EVENTS_TABLE} WHERE {_event_filter(deployment_id, start, end)}"
         )
         sql = (
-            f"WITH events AS ({source}), ranked AS ("
+            f"WITH events AS ({source}), classified AS ({_CLASSIFIED_SQL}), ranked AS ("
             f"SELECT *, ROW_NUMBER() OVER (ORDER BY latency) AS rank, COUNT(*) OVER () AS total "
-            f"FROM events) SELECT COUNT(*) AS request_count, "
-            f"SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success_count, "
-            f"SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS error_count, "
-            f"SUM(CASE WHEN status = 'timeout' THEN 1 ELSE 0 END) AS timeout_count, "
-            "SUM(CASE WHEN status = 'failed_inference' THEN 1 ELSE 0 END) "
-            "AS failed_inference_count, "
+            f"FROM classified) SELECT COUNT(*) AS request_count, "
+            "SUM(is_success) AS success_count, "
+            "COUNT(*) - SUM(is_success) AS error_count, "
+            "SUM(is_timeout) AS timeout_count, "
+            "SUM(is_failed_inference) AS failed_inference_count, "
             f"MAX(CASE WHEN rank = CEIL(total * 0.5) THEN latency END) AS latency_p50_ms, "
             f"MAX(CASE WHEN rank = CEIL(total * 0.95) THEN latency END) AS latency_p95_ms, "
             "MAX(latency) AS latency_max_ms, "
@@ -402,8 +438,9 @@ class GreptimeQueryStore:
             f"FROM ranked"
         )
         breakdown_sql = (
-            f"WITH events AS ({source}) SELECT status, COUNT(*) AS count FROM events "
-            f"GROUP BY status ORDER BY count DESC, status ASC"
+            f"WITH events AS ({source}) SELECT status, status_code, COUNT(*) AS count "
+            "FROM events GROUP BY status, status_code "
+            "ORDER BY count DESC, status ASC, status_code ASC"
         )
         try:
             columns, rows = await self._query(sql)
@@ -415,11 +452,11 @@ class GreptimeQueryStore:
         breakdown = tuple(
             StatusBreakdownRow(
                 status=str(status),
-                status_code=200 if status == "success" else 500,
+                status_code=_as_int(code),
                 count=int(count),
                 share=int(count) / total if total else 0.0,
             )
-            for status, count in breakdown_rows
+            for status, code, count in breakdown_rows
         )
         return RuntimeSummary(
             request_count=total,
@@ -450,16 +487,18 @@ class GreptimeQueryStore:
             "WITH source AS (SELECT "
             f"FLOOR((CAST(timestamp AS BIGINT) - {_to_ns(series_start)}) "
             f"/ {bucket_seconds * 1_000_000_000}) AS bucket_index, "
-            f"{_EVENT_STATUS_SQL} AS status, {_EVENT_LATENCY_SQL} AS latency "
+            f"{_EVENT_STATUS_SQL} AS status, {_EVENT_STATUS_CODE_SQL} AS status_code, "
+            f"{_EVENT_LATENCY_SQL} AS latency "
             f"FROM {INFERENCE_EVENTS_TABLE} WHERE {_event_filter(deployment_id, start, end)}), "
-            "events AS (SELECT status, latency, CASE WHEN bucket_index < 0 THEN 0 "
+            "events AS (SELECT status, status_code, latency, CASE WHEN bucket_index < 0 THEN 0 "
             f"WHEN bucket_index >= {n_buckets} THEN {n_buckets - 1} "
             "ELSE bucket_index END AS bucket FROM source), "
+            f"classified AS ({_CLASSIFIED_SQL}), "
             "ranked AS (SELECT *, "
             "ROW_NUMBER() OVER (PARTITION BY bucket ORDER BY latency) AS rank, "
-            f"COUNT(*) OVER (PARTITION BY bucket) AS total FROM events) "
+            f"COUNT(*) OVER (PARTITION BY bucket) AS total FROM classified) "
             f"SELECT bucket, COUNT(*) AS request_count, "
-            f"SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success_count, "
+            "SUM(is_success) AS success_count, "
             f"MAX(CASE WHEN rank = CEIL(total * 0.95) THEN latency END) AS latency_p95_ms "
             f"FROM ranked GROUP BY bucket ORDER BY bucket"
         )

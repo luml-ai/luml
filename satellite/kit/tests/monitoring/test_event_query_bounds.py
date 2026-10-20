@@ -122,7 +122,10 @@ async def test_runtime_queries_return_only_summaries_and_grouped_buckets() -> No
         queries.append(sql)
         if "GROUP BY status" in sql:
             return httpx.Response(
-                200, json=_records(["status", "count"], [["success", 2], ["timeout", 1]])
+                200,
+                json=_records(
+                    ["status", "status_code", "count"], [["success", 200, 2], ["error", 504, 1]]
+                ),
             )
         if "GROUP BY bucket" in sql:
             return httpx.Response(
@@ -175,6 +178,7 @@ async def test_runtime_queries_return_only_summaries_and_grouped_buckets() -> No
         assert summary.timeout_count == 1
         assert summary.first_ts == _START
         assert summary.status_breakdown[0].count == 2
+        assert summary.status_breakdown[1].status_code == 504
         buckets = await store.fetch_runtime_buckets(_DEP, _START, _END, _START, 60, 43200)
         assert buckets[0].request_count == 3
         assert buckets[0].latency_p95_ms == 90.0
@@ -187,6 +191,9 @@ async def test_runtime_queries_return_only_summaries_and_grouped_buckets() -> No
         assert any("WHEN bucket_index >= 43200 THEN 43199" in sql for sql in queries)
         assert any("rank = CEIL(total * 0.5)" in sql for sql in queries)
         assert any("rank = CEIL(total * 0.95)" in sql for sql in queries)
+        assert all('["inference.status_code"]' in sql for sql in queries)
+        assert all("status_code = 504" in sql for sql in queries if "is_timeout" in sql)
+        assert any("GROUP BY status, status_code" in sql for sql in queries)
     finally:
         await store.aclose()
 

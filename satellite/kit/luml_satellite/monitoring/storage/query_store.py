@@ -15,6 +15,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
+from luml_satellite.monitoring.compute.models import InferenceEvent as WorkerInferenceEvent
 from luml_satellite.monitoring.dashboard.schemas import (
     ProfileStatus,
     SortOrder,
@@ -107,16 +108,26 @@ def _percentile(values: list[float], pct: float) -> float | None:
     return ordered[min(rank, len(ordered)) - 1]
 
 
+def _outcome(event: InferenceEvent) -> WorkerInferenceEvent:
+    return WorkerInferenceEvent(
+        event_id=event.event_id,
+        deployment_id=str(event.deployment_id),
+        status=event.status,
+        status_code=event.status_code,
+    )
+
+
 def _rollup(events: list[InferenceEvent]) -> RuntimeSummary:
     total = len(events)
-    success = sum(1 for e in events if e.status == EventStatus.SUCCESS)
+    outcomes = [_outcome(e) for e in events]
+    success = sum(1 for o in outcomes if o.is_success)
     latencies = [e.latency_ms for e in events]
     return RuntimeSummary(
         request_count=total,
         success_count=success,
-        error_count=sum(1 for e in events if e.status == EventStatus.ERROR),
-        timeout_count=sum(1 for e in events if e.status == EventStatus.TIMEOUT),
-        failed_inference_count=sum(1 for e in events if e.status == EventStatus.FAILED_INFERENCE),
+        error_count=total - success,
+        timeout_count=sum(1 for o in outcomes if o.is_timeout),
+        failed_inference_count=sum(1 for o in outcomes if o.is_failed_inference),
         latency_p50_ms=_percentile(latencies, 50),
         latency_p95_ms=_percentile(latencies, 95),
         latency_max_ms=max(latencies) if latencies else None,
@@ -477,7 +488,7 @@ class InMemoryMonitoringStore:
         return {
             index: RuntimeBucket(
                 len(events),
-                sum(e.status == EventStatus.SUCCESS for e in events),
+                sum(1 for e in events if _outcome(e).is_success),
                 _percentile([e.latency_ms for e in events], 95),
             )
             for index, events in buckets.items()
