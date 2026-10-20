@@ -18,6 +18,10 @@
               Status
               <b :class="statusClass">{{ trace.status }}</b>
             </span>
+            <span v-if="trace" class="fact">
+              HTTP
+              <b :class="statusClass" data-testid="trace-detail-http-status">{{ trace.status_code }}</b>
+            </span>
             <span class="fact mono id">
               {{ eventId }}
               <CopyButton :value="eventId" label="event id" />
