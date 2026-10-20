@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -45,6 +46,11 @@ def test_compose_keeps_field_install_names_and_uses_the_moved_context(
         ],
         capture_output=True,
         check=False,
+        env={
+            **os.environ,
+            "GREPTIMEDB_USERNAME": "monitoring",
+            "GREPTIMEDB_PASSWORD": "wiring-test-password",
+        },
         text=True,
         timeout=30,
     )
