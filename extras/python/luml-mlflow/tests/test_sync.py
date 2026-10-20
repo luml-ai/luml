@@ -433,6 +433,18 @@ def test_already_uploaded_run_is_skipped(
     assert fake_client.artifacts.upload_calls == []
 
 
+def test_sync_skips_deleted_run(
+    store: LumlTrackingStore, fake_client: FakeLumlClient
+) -> None:
+    run_id = _start_run(store)
+    store.delete_run(run_id)
+
+    result = sync_mod.sync(run_id, client=fake_client)
+
+    assert result.skipped_reason == "run is deleted"
+    assert fake_client.artifacts.upload_calls == []
+
+
 def test_force_re_syncs(store: LumlTrackingStore, fake_client: FakeLumlClient) -> None:
     run_id = _start_run(store)
     sync_mod.sync(run_id, client=fake_client)

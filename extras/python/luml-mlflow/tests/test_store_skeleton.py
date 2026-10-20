@@ -100,8 +100,8 @@ def test_unsupported_raise(
 
     monkeypatch.setenv("LUML_MLFLOW_ON_UNSUPPORTED", "raise")
     config_mod.reset_settings_cache()
-    with pytest.raises(NotImplementedError, match="restore_run"):
-        store.restore_run("r1")
+    with pytest.raises(NotImplementedError, match="delete_experiment"):
+        store.delete_experiment("r1")
 
 
 def test_search_experiments_returns_groups(store: LumlTrackingStore) -> None:
