@@ -314,13 +314,30 @@ class LumlTrackingStore(AbstractStore):
             )
 
     def delete_run(self, run_id: str) -> None:
-        self._tracker.delete_experiment(run_id)
+        """Mark a run deleted without removing its data.
+
+        MLflow's ``delete_run`` is a soft delete: the run keeps its metadata,
+        metrics, and artifacts, but is hidden from default searches and can be
+        restored with :meth:`restore_run`. The lifecycle stage is stored in the
+        run's ``run_info`` metadata, which :func:`reconstruct_run` already reads.
+        """
+        self._require_run(run_id)
+        write_run_info_field(
+            self._tracker, run_id, RUN_LIFECYCLE_STAGE, LifecycleStage.DELETED
+        )
 
     def restore_run(self, run_id: str) -> None:
-        unsupported(
-            f"restore_run({run_id!r}) is not supported by the luml store",
-            exception_factory=NotImplementedError,
+        """Reverse :meth:`delete_run` by marking the run active again."""
+        self._require_run(run_id)
+        write_run_info_field(
+            self._tracker, run_id, RUN_LIFECYCLE_STAGE, LifecycleStage.ACTIVE
         )
+
+    def _require_run(self, run_id: str) -> None:
+        if self._tracker.get_experiment_record(run_id) is None:
+            from mlflow.exceptions import MlflowException
+
+            raise MlflowException(f"Run {run_id!r} not found")
 
     # ---------------------------------------------------------- params/metrics
 
@@ -390,6 +407,18 @@ class LumlTrackingStore(AbstractStore):
             run = reconstruct_run(self._tracker, record.id, self._artifact_uri_for_run)
             if run is not None:
                 runs.append(run)
+        if run_view_type == ViewType.ACTIVE_ONLY:
+            runs = [
+                run
+                for run in runs
+                if run.info.lifecycle_stage != LifecycleStage.DELETED
+            ]
+        elif run_view_type == ViewType.DELETED_ONLY:
+            runs = [
+                run
+                for run in runs
+                if run.info.lifecycle_stage == LifecycleStage.DELETED
+            ]
         filtered = SearchUtils.filter(runs, filter_string)
         ordered = SearchUtils.sort(filtered, order_by)
         return SearchUtils.paginate(ordered, page_token, max_results)
