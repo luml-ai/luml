@@ -80,3 +80,20 @@ this change; there is no fallback to an unverified email address.
 
 Microsoft documents `xms_edov` and its domain-verification rules in the
 [optional claims reference](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference).
+
+## Cookie session requests
+
+State-changing requests authenticated by `access_token` or `refresh_token` cookies
+must send an `Origin` header matching the API origin or an explicit origin in
+`CORS_ORIGINS`. This includes token refresh and logout. Missing, `null`, and
+untrusted origins return 403. Browsers send this header automatically; configure
+`CORS_ORIGINS` for the frontend origin in cross-origin deployments, including when
+`AUTH_COOKIE_SAMESITE=none`.
+
+Bearer JWT, API key, and satellite key requests use the `Authorization` header and
+do not require this check. Refresh and logout always use cookies and remain
+protected even if an `Authorization` header is supplied.
+
+Request a single artifact deletion URL with
+`POST /v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url`.
+GET requests to that path return 405 and do not change the artifact status.

@@ -146,7 +146,7 @@ async def get_artifact_download_url(
     return {"url": url}
 
 
-@artifacts_router.get(
+@artifacts_router.post(
     "/collections/{collection_id}/artifacts/{artifact_id}/delete-url",
     responses=endpoint_responses,
 )
