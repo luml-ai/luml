@@ -16,7 +16,7 @@ class OAuthProvider(ABC):
 
     @staticmethod
     @abstractmethod
-    def login_url() -> str:
+    def login_url(state: str) -> str:
         pass
 
     @staticmethod
@@ -34,7 +34,7 @@ class OAuthGoogleProvider(OAuthProvider):
     PROVIDER_TYPE = AuthProvider.GOOGLE
 
     @staticmethod
-    def login_url() -> str:
+    def login_url(state: str) -> str:
         params = {
             "client_id": config.GOOGLE_CLIENT_ID,
             "redirect_uri": config.GOOGLE_REDIRECT_URI,
@@ -42,7 +42,7 @@ class OAuthGoogleProvider(OAuthProvider):
             "scope": "openid email profile",
             "access_type": "offline",
             "prompt": "consent",
-            "state": "google",
+            "state": state,
         }
         return config.GOOGLE_AUTH_URL + "?" + urlencode(params)
 
@@ -100,7 +100,7 @@ class OAuthMicrosoftProvider(OAuthProvider):
     PROVIDER_TYPE = AuthProvider.MICROSOFT
 
     @staticmethod
-    def login_url() -> str:
+    def login_url(state: str) -> str:
         auth_url = (
             f"{config.MICROSOFT_AUTH_URL}/{config.MICROSOFT_TENANT}"
             f"/oauth2/v2.0/authorize"
@@ -110,7 +110,7 @@ class OAuthMicrosoftProvider(OAuthProvider):
             "redirect_uri": config.MICROSOFT_REDIRECT_URI,
             "response_type": "code",
             "scope": "openid email profile",
-            "state": "microsoft",
+            "state": state,
         }
         return auth_url + "?" + urlencode(params)
 

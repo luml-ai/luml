@@ -1,3 +1,4 @@
+import secrets
 from time import time
 from typing import Any
 
@@ -284,10 +285,53 @@ class AuthHandler:
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
 
-    def get_oauth_login_url(self) -> str:
+    def create_oauth_state(self) -> str:
         if not self.oauth_provider:
             raise AuthError("OAuth provider is not configured for this handler", 500)
-        return self.oauth_provider.login_url()
+        provider = self.oauth_provider.PROVIDER_TYPE.lower()
+        token = self._create_token(
+            data={
+                "type": "oauth_state",
+                "aud": "luml-user-oauth",
+                "iat": int(time()),
+                "provider": provider,
+                "nonce": secrets.token_urlsafe(32),
+            },
+            expires_delta=300,
+        )
+        return f"{provider}.{token}"
+
+    def validate_oauth_state(self, state: str | None, cookie: str | None) -> None:
+        if (
+            not state
+            or not cookie
+            or not secrets.compare_digest(state.encode(), cookie.encode())
+        ):
+            raise AuthError("Invalid or missing OAuth state", 400)
+        if not self.oauth_provider:
+            raise AuthError("OAuth provider is not configured for this handler", 500)
+        provider, _, token = state.partition(".")
+        try:
+            payload = jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=[self.algorithm],
+                audience="luml-user-oauth",
+                options={"require": ["exp", "iat", "aud", "nonce"]},
+            )
+        except InvalidTokenError as err:
+            raise AuthError("Invalid or expired OAuth state", 400) from err
+        if (
+            payload.get("type") != "oauth_state"
+            or provider != self.oauth_provider.PROVIDER_TYPE.lower()
+            or payload.get("provider") != provider
+        ):
+            raise AuthError("Invalid OAuth state", 400)
+
+    def get_oauth_login_url(self, state: str) -> str:
+        if not self.oauth_provider:
+            raise AuthError("OAuth provider is not configured for this handler", 500)
+        return self.oauth_provider.login_url(state)
 
     async def handle_oauth(self, code: str | None) -> OAuthLogin:
         if not code:

@@ -84,10 +84,12 @@ export interface IPostForgotPasswordResponse {
 
 export interface IGetGoogleLoginRequest {
   code: string
+  state: string
 }
 
 export interface IGetMicrosoftLoginRequest {
   code: string
+  state: string
 }
 
 export interface IResetPasswordRequest {
