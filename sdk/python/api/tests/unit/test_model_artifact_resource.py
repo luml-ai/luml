@@ -102,12 +102,12 @@ def test_artifact_delete_url(mock_sync_client: Mock) -> None:
     collection_id = mock_sync_client.collection
     artifact_id = "1236640f-fec6-478d-8772-90eb531cc727"
     expected = {"url": "https://example.com/delete"}
-    mock_sync_client.get.return_value = expected
+    mock_sync_client.post.return_value = expected
 
     resource = ArtifactResource(mock_sync_client)
     result = resource.delete_url(artifact_id=artifact_id)
 
-    mock_sync_client.get.assert_called_once_with(
+    mock_sync_client.post.assert_called_once_with(
         f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
     )
     assert result == expected
@@ -346,12 +346,12 @@ async def test_async_artifact_delete_url(mock_async_client: AsyncMock) -> None:
     collection_id = mock_async_client.collection
     artifact_id = "1236640f-fec6-478d-8772-90eb531cc727"
     expected = {"url": "https://example.com/delete"}
-    mock_async_client.get.return_value = expected
+    mock_async_client.post.return_value = expected
 
     resource = AsyncArtifactResource(mock_async_client)
     result = await resource.delete_url(artifact_id=artifact_id)
 
-    mock_async_client.get.assert_called_once_with(
+    mock_async_client.post.assert_called_once_with(
         f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
     )
     assert result == expected

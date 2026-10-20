@@ -25,7 +25,11 @@ from luml.handlers.platform_admin import (
 )
 from luml.infra.error_handlers import request_validation_error_handler
 from luml.infra.exceptions import ApplicationError
-from luml.infra.middleware import CrossOriginBlockMiddleware, SecurityHeadersMiddleware
+from luml.infra.middleware import (
+    CookieCSRFMiddleware,
+    CrossOriginBlockMiddleware,
+    SecurityHeadersMiddleware,
+)
 from luml.infra.security import JWTAuthenticationBackend
 from luml.settings import config
 
@@ -52,7 +56,8 @@ class AppService(FastAPI):
 
         self.add_middleware(SecurityHeadersMiddleware)
 
-        allowed_origins = config.CORS_ORIGINS.split(",")
+        allowed_origins = [origin.strip() for origin in config.CORS_ORIGINS.split(",")]
+        self.add_middleware(CookieCSRFMiddleware, allowed_origins=allowed_origins)
         self.add_middleware(
             CORSMiddleware,
             allow_origins=allowed_origins,

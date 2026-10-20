@@ -718,7 +718,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
         ```
         """
-        return self._client.get(
+        return self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
         )
 
@@ -1986,7 +1986,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
         ```
         """
-        return await self._client.get(
+        return await self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
         )
 
