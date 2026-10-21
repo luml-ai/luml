@@ -27,7 +27,6 @@ from luml.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
-    OrganizationMemberCreateIn,
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
@@ -394,38 +393,3 @@ class OrganizationHandler:
         return await self.__user_repository.delete_organization_member(
             organization_id, member_id
         )
-
-    async def add_organization_member(
-        self,
-        user_id: UUID,
-        organization_id: UUID,
-        member: OrganizationMemberCreateIn,
-    ) -> OrganizationMember:
-        await self.__permissions_handler.check_permissions(
-            organization_id,
-            user_id,
-            Resource.ORGANIZATION_USER,
-            Action.CREATE,
-        )
-        user_role = await self.__user_repository.get_organization_member_role(
-            organization_id, user_id
-        )
-
-        await self._check_org_members_limit(organization_id)
-
-        if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
-            raise InsufficientPermissionsError(
-                "Only Organization Owner can add new admins."
-            )
-        try:
-            created_member = await self.__user_repository.create_organization_member(
-                OrganizationMemberCreate(
-                    user_id=member.user_id,
-                    organization_id=organization_id,
-                    role=member.role,
-                )
-            )
-        except DatabaseConstraintError as error:
-            raise OrganizationMemberAlreadyExistsError() from error
-
-        return created_member

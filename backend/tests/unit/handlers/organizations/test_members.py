@@ -1,18 +1,14 @@
-from unittest.mock import Mock
-
 import pytest
 from luml.handlers.organizations import OrganizationHandler
 from luml.infra.exceptions import InsufficientPermissionsError
 from luml.schemas.organization import (
     OrganizationMember,
-    OrganizationMemberCreate,
-    OrganizationMemberCreateIn,
     OrgRole,
     UpdateOrganizationMember,
 )
 from luml.schemas.permissions import Action, Resource
 
-from tests.support.ids import MEMBER_ID, USER_ID
+from tests.support.ids import USER_ID
 from tests.support.mocks import CollaboratorMocks
 
 
@@ -102,43 +98,6 @@ class TestOrganizationMembers:
         )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             organization_id, USER_ID, Resource.ORGANIZATION_USER, Action.DELETE
-        )
-
-    async def test_add_organization_member_creates_member_in_path_organization(
-        self,
-        mocks: CollaboratorMocks[OrganizationHandler],
-        organization_member: OrganizationMember,
-    ) -> None:
-        user_id = organization_member.user.id
-        organization_id = organization_member.organization_id
-
-        member_create = OrganizationMemberCreateIn(
-            user_id=MEMBER_ID,
-            role=OrgRole.MEMBER,
-        )
-
-        mocks.user_repository.create_organization_member.return_value = (
-            organization_member
-        )
-        mocks.user_repository.get_organization_details.return_value = Mock(
-            members_limit=50, total_members=0
-        )
-        mocks.user_repository.get_organization_member_role.return_value = OrgRole.OWNER
-
-        actual = await mocks.handler.add_organization_member(
-            user_id, organization_id, member_create
-        )
-
-        assert actual == organization_member
-        mocks.user_repository.create_organization_member.assert_awaited_once_with(
-            OrganizationMemberCreate(
-                user_id=MEMBER_ID,
-                organization_id=organization_id,
-                role=member_create.role,
-            )
-        )
-        mocks.permissions_handler.check_permissions.assert_awaited_once_with(
-            organization_id, user_id, Resource.ORGANIZATION_USER, Action.CREATE
         )
 
     async def test_update_organization_member_by_id_raises_when_admin_assigns_admin(

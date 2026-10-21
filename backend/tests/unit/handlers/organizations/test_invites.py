@@ -3,7 +3,11 @@ from unittest.mock import Mock
 
 import pytest
 from luml.handlers.organizations import OrganizationHandler
-from luml.infra.exceptions import ApplicationError, InsufficientPermissionsError
+from luml.infra.exceptions import (
+    ApplicationError,
+    InsufficientPermissionsError,
+    OrganizationLimitReachedError,
+)
 from luml.models import OrganizationInviteOrm
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -185,6 +189,28 @@ class TestOrganizationInvites:
         mocks.invites_repository.delete_organization_invites_for_user.assert_awaited_once_with(
             stored_invite.organization_id, stored_invite.email
         )
+
+    @pytest.mark.parametrize("limit", ["user", "organization"])
+    async def test_accept_invite_at_capacity_preserves_invite_without_membership(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+        invite: OrganizationInvite,
+        limit: str,
+    ) -> None:
+        mocks.invites_repository.get_invite.return_value = invite
+        mocks.user_repository.get_user_organizations_limit.return_value = 2
+        mocks.user_repository.get_user_organizations_membership_count.return_value = (
+            2 if limit == "user" else 1
+        )
+        mocks.user_repository.get_organization_details.return_value = Mock(
+            members_limit=1, total_members=1
+        )
+
+        with pytest.raises(OrganizationLimitReachedError):
+            await mocks.handler.accept_invite(invite.id, USER_ID, invite.email)
+
+        mocks.user_repository.create_organization_member.assert_not_awaited()
+        mocks.invites_repository.delete_organization_invites_for_user.assert_not_awaited()
 
     async def test_reject_invite_deletes_invite(
         self, mocks: CollaboratorMocks[OrganizationHandler]
