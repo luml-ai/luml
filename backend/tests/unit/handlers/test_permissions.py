@@ -131,6 +131,40 @@ class TestPermissionsHandler:
             ORBIT_ID, USER_ID
         )
 
+    async def test_check_permissions_denies_orbit_read_without_orbit_membership(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.MEMBER.value
+        )
+        mocks.orbits_repository.get_orbit_simple.side_effect = _scoped_orbit_lookup(
+            ORBIT_ID, ORGANIZATION_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.return_value = None
+
+        with pytest.raises(InsufficientPermissionsError) as error:
+            await mocks.handler.check_permissions(
+                ORGANIZATION_ID, USER_ID, Resource.ORBIT, Action.READ, ORBIT_ID
+            )
+
+        assert error.value.status_code == 403
+        mocks.orbits_repository.get_orbit_member_role.assert_awaited_once_with(
+            ORBIT_ID, USER_ID
+        )
+
+    async def test_check_permissions_allows_org_member_to_list_orbits(
+        self, mocks: CollaboratorMocks[PermissionsHandler]
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = (
+            OrgRole.MEMBER.value
+        )
+
+        await mocks.handler.check_permissions(
+            ORGANIZATION_ID, USER_ID, Resource.ORBIT, Action.LIST
+        )
+
+        mocks.orbits_repository.get_orbit_member_role.assert_not_awaited()
+
     async def test_check_permissions_passes_when_orbit_role_allows_action(
         self, mocks: CollaboratorMocks[PermissionsHandler]
     ) -> None:

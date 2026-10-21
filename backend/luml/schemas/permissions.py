@@ -211,7 +211,7 @@ organization_permissions = {
     },
     OrgRole.MEMBER: {
         Resource.ORGANIZATION: [Action.LEAVE],
-        Resource.ORBIT: [Action.LIST, Action.READ],
+        Resource.ORBIT: [Action.LIST],
     },
 }
 
