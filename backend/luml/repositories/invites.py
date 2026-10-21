@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from pydantic import EmailStr
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
@@ -48,15 +49,17 @@ class InviteRepository(RepositoryBase, CrudMixin):
         self, organization_id: UUID, email: EmailStr
     ) -> OrganizationInvite | None:
         async with self._get_session() as session:
-            invite = await self.get_model_where(
-                session,
-                OrganizationInviteOrm,
-                OrganizationInviteOrm.organization_id == organization_id,
-                OrganizationInviteOrm.email == email,
-                options=[
+            invite = await session.scalar(
+                select(OrganizationInviteOrm)
+                .where(
+                    OrganizationInviteOrm.organization_id == organization_id,
+                    func.lower(OrganizationInviteOrm.email) == email.lower(),
+                )
+                .options(
                     joinedload(OrganizationInviteOrm.invited_by_user),
                     joinedload(OrganizationInviteOrm.organization),
-                ],
+                )
+                .limit(1)
             )
             return invite.to_organization_invite() if invite else None
 
@@ -80,7 +83,7 @@ class InviteRepository(RepositoryBase, CrudMixin):
             invites = await self.get_models_where(
                 session,
                 OrganizationInviteOrm,
-                OrganizationInviteOrm.email == email,
+                func.lower(OrganizationInviteOrm.email) == email.lower(),
                 options=[
                     joinedload(OrganizationInviteOrm.invited_by_user),
                     joinedload(OrganizationInviteOrm.organization),
@@ -109,7 +112,7 @@ class InviteRepository(RepositoryBase, CrudMixin):
                 session,
                 OrganizationInviteOrm,
                 OrganizationInviteOrm.organization_id == organization_id,
-                OrganizationInviteOrm.email == email,
+                func.lower(OrganizationInviteOrm.email) == email.lower(),
             )
 
     async def delete_all_organization_invites(self, organization_id: UUID) -> None:

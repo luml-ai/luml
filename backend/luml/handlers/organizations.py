@@ -251,7 +251,7 @@ class OrganizationHandler:
         if not invite:
             raise OrganizationInviteNotFoundError()
 
-        if invite.email != user_email:
+        if invite.email.lower() != user_email.lower():
             raise InsufficientPermissionsError("This invite is not for you")
 
         await self._organization_membership_limit_check(user_id)
@@ -278,7 +278,7 @@ class OrganizationHandler:
         if not invite:
             raise OrganizationInviteNotFoundError()
 
-        if invite.email != user_email:
+        if invite.email.lower() != user_email.lower():
             raise InsufficientPermissionsError("This invite is not for you")
 
         return await self.__invites_repository.delete_organization_invite(
