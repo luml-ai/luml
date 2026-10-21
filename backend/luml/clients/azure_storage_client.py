@@ -147,6 +147,8 @@ class AzureBlobClient(BaseStorageClient):
     async def create_multipart_upload(
         self, bucket_location: str, size: int, upload_id: str | None = None
     ) -> AzureMultiPartUploadDetails:
+        self.validate_size(size)
+
         parts_count, part_size = self._calculate_multipart_params(size)
 
         urls = await self._get_multipart_upload_urls(bucket_location, parts_count)

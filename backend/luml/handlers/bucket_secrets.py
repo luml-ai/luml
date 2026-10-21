@@ -9,6 +9,7 @@ from luml.infra.exceptions import (
     DatabaseConstraintError,
     NotFoundError,
 )
+from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.schemas.bucket_secrets import (
     AzureBucketSecretCreate,
@@ -33,6 +34,7 @@ from luml.schemas.storage import (
 
 class BucketSecretHandler:
     __secret_repository = BucketSecretRepository(engine)
+    __artifact_repository = ArtifactRepository(engine)
     __permissions_handler = PermissionsHandler()
 
     _AZURE_FORBIDDEN_FIELDS = {
@@ -222,6 +224,16 @@ class BucketSecretHandler:
 
         await self.__permissions_handler.check_permissions(
             secret.organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
+        )
+
+        orbit_id = await self.__artifact_repository.get_pending_upload_orbit(
+            data.bucket_id, secret.organization_id, data.bucket_location
+        )
+        if orbit_id is None:
+            raise NotFoundError("Pending upload artifact not found")
+
+        await self.__permissions_handler.check_permissions(
+            secret.organization_id, user_id, Resource.ARTIFACT, Action.CREATE, orbit_id
         )
 
         storage_service = create_storage_client(secret.type)(secret)  # type: ignore[arg-type]

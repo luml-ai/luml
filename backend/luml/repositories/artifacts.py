@@ -494,6 +494,24 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             db_artifact = await self.get_model(session, ArtifactOrm, artifact_id)
             return db_artifact.to_artifact() if db_artifact else None
 
+    async def get_pending_upload_orbit(
+        self, bucket_secret_id: UUID, organization_id: UUID, bucket_location: str
+    ) -> UUID | None:
+        async with self._get_session() as session:
+            orbit_id: UUID | None = await session.scalar(
+                select(CollectionOrm.orbit_id)
+                .join(ArtifactOrm, ArtifactOrm.collection_id == CollectionOrm.id)
+                .join(OrbitOrm, CollectionOrm.orbit_id == OrbitOrm.id)
+                .where(
+                    ArtifactOrm.bucket_location == bucket_location,
+                    ArtifactOrm.status == ArtifactStatus.PENDING_UPLOAD.value,
+                    OrbitOrm.bucket_secret_id == bucket_secret_id,
+                    OrbitOrm.organization_id == organization_id,
+                )
+                .limit(1)
+            )
+            return orbit_id
+
     async def get_artifacts_by_ids_in_orbit(
         self,
         orbit_id: UUID,

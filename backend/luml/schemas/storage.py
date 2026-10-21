@@ -1,7 +1,8 @@
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from luml.constants import MAX_FILE_SIZE_BYTES
 from luml.schemas.bucket_secrets import BucketType
 
 
@@ -51,5 +52,5 @@ class AzureMultiPartUploadDetails(BaseModel):
 class BucketMultipartUpload(BaseModel):
     bucket_id: uuid.UUID
     bucket_location: str
-    size: int
+    size: int = Field(gt=0, le=MAX_FILE_SIZE_BYTES)
     upload_id: str | None = None
