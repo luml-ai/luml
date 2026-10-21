@@ -43,6 +43,47 @@ ORBIT_ARTIFACTS_PATH = (
 
 
 class TestOrbitArtifacts:
+    @patch(
+        "luml.handlers.artifacts.ArtifactHandler.request_delete_url",
+        new_callable=AsyncMock,
+    )
+    def test_single_delete_url_requires_post(
+        self, mock_request_delete_url: AsyncMock, client: TestClient
+    ) -> None:
+        mock_request_delete_url.return_value = "https://bucket/delete"
+        path = f"{ARTIFACTS_PATH}/{ARTIFACT_ID}/delete-url"
+
+        response = client.get(path)
+
+        assert response.status_code == 405
+        mock_request_delete_url.assert_not_awaited()
+
+        response = client.post(path)
+
+        assert response.status_code == 200
+        assert response.json() == {"url": "https://bucket/delete"}
+        mock_request_delete_url.assert_awaited_once_with(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, COLLECTION_ID, ARTIFACT_ID
+        )
+
+    @patch(
+        "luml.handlers.artifacts.ArtifactHandler.request_delete_url",
+        new_callable=AsyncMock,
+    )
+    def test_cookie_delete_url_rejects_cross_site_requests(
+        self, mock_request_delete_url: AsyncMock, client: TestClient
+    ) -> None:
+        client.cookies.set("access_token", "access-cookie")
+        path = f"{ARTIFACTS_PATH}/{ARTIFACT_ID}/delete-url"
+        headers = {
+            "Origin": "https://evil.example",
+            "Referer": "https://evil.example/",
+        }
+
+        assert client.get(path, headers=headers).status_code == 405
+        assert client.post(path, headers=headers).status_code == 403
+        mock_request_delete_url.assert_not_awaited()
+
     @pytest.mark.parametrize(
         ("principal", "scope"),
         [(SIGNED_IN_USER, "jwt"), (API_KEY_USER, "api_key")],

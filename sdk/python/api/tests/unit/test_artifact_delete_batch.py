@@ -444,11 +444,10 @@ class TestArtifactDeleteBatch:
     ) -> None:
         artifact_id = "artifact-a"
         legacy_url = "https://storage.example.com/artifact-a"
-        mock_sync_client.get.return_value = {"url": legacy_url}
-        mock_sync_client.post.return_value = {
-            "urls": [_url_entry(artifact_id, "Artifact A")],
-            "failed": [],
-        }
+        mock_sync_client.post.side_effect = [
+            {"url": legacy_url},
+            {"urls": [_url_entry(artifact_id, "Artifact A")], "failed": []},
+        ]
         mock_sync_client.delete.return_value = _confirmation_response([artifact_id])
         resource = ArtifactResource(mock_sync_client)
 
