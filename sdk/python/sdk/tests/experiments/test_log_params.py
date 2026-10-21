@@ -1,5 +1,8 @@
+import subprocess
+import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -8,6 +11,28 @@ from luml.experiments.tracker import ExperimentTracker
 
 
 class TestLogStatic:
+    def test_log_static_without_numpy(self, tmp_path: Path) -> None:
+        script = """
+import sys
+
+sys.modules["numpy"] = None
+
+from luml.experiments.tracker import ExperimentTracker
+
+tracker = ExperimentTracker(f"sqlite://{sys.argv[1]}")
+experiment_id = tracker.start_experiment(name="without_numpy")
+tracker.log_static("count", 42)
+assert tracker.get_experiment(experiment_id).static_params["count"] == 42
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script, str(tmp_path / "experiments")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+
     @pytest.mark.parametrize(
         ("value", "expected"),
         [

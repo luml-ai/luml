@@ -12,8 +12,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-import numpy as np
-
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.backends._cursor import Cursor
@@ -57,6 +55,11 @@ from luml.experiments.backends.migration_runner import (
 )
 from luml.experiments.utils import guess_span_type
 from luml.utils.tar import create_and_index_tar
+
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore[assignment]
 
 
 def _parse_timestamp(s: bytes) -> datetime:
@@ -422,7 +425,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
 
-        if isinstance(value, np.generic):
+        if np is not None and isinstance(value, np.generic):
             value = float(value) if isinstance(value, np.floating) else value.item()
 
         if isinstance(value, str | int | float | bool):
