@@ -109,7 +109,8 @@ class TestLogModel:
 
         exp_models_dir = tmp_path / "experiments" / exp_id / "models"
         assert exp_models_dir.exists()
-        assert Path(result.path).parent == exp_models_dir
+        [model] = tracker.get_models(experiment_id=exp_id)
+        assert Path(result.path).parent == exp_models_dir / model.id
 
     def test_log_model_stored_in_meta_db(
         self,
@@ -228,7 +229,8 @@ class TestLogModel:
 
         models_dir = tmp_path / "experiments" / exp_id / "models"
         assert models_dir.exists()
-        assert Path(result.path).parent == models_dir
+        [model] = tracker.get_models(experiment_id=exp_id)
+        assert Path(result.path).parent == models_dir / model.id
 
         conn = _meta_db(tmp_path)
         row = conn.execute(
@@ -310,7 +312,10 @@ class TestLogModel:
 
         assert isinstance(result, ModelReference)
         assert Path(result.path).exists()
-        assert Path(result.path).parent == tmp_path / "experiments" / exp_id / "models"
+        [model] = tracker.get_models(experiment_id=exp_id)
+        assert Path(result.path).parent == (
+            tmp_path / "experiments" / exp_id / "models" / model.id
+        )
 
         conn = _meta_db(tmp_path)
         row = conn.execute(

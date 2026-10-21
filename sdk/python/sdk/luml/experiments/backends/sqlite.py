@@ -1543,25 +1543,25 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 name="resnet50_v1",
                 created_at=datetime(2024, 6, 1, 12, 0, 0),
                 tags=["production", "v1"],
-                path="/storage/exp-001/models/resnet50_v1.pt",
+                path="/storage/exp-001/models/model-abc/resnet50.pt",
                 experiment_id="exp-001",
             )
             >>> dest_path
-            "/storage/exp-001/models/resnet50_v1.pt"
+            "/storage/exp-001/models/model-abc/resnet50.pt"
         """
         self._ensure_experiment_initialized(experiment_id)
 
         import shutil
 
+        model_id = str(uuid.uuid4())
         exp_dir = self._get_experiment_dir(experiment_id)
-        models_dir = exp_dir / "models"
-        models_dir.mkdir(exist_ok=True)
+        models_dir = exp_dir / "models" / model_id
+        models_dir.mkdir(parents=True)
 
         model_src = Path(model_path)
         dest = models_dir / model_src.name
         shutil.copy2(model_src, dest)
 
-        model_id = str(uuid.uuid4())
         tags_json = json.dumps(tags) if tags else None
 
         rel_path = str(dest.relative_to(self.base_path))

@@ -66,7 +66,9 @@ def test_log_model_file_copied_to_exp_dir(
 
     exp_models_dir = tmp_path / "experiments" / exp_id / "models"
     assert exp_models_dir.exists()
-    assert Path(result.path).parent == exp_models_dir
+    [model] = tracker.get_models(experiment_id=exp_id)
+    assert Path(result.path).parent == exp_models_dir / model.id
+    assert Path(result.path).name == dummy_model_file.name
 
 
 def test_log_model_stored_in_meta_db(
@@ -92,6 +94,85 @@ def test_log_model_stored_in_meta_db(
     assert row is not None
     assert row[1] == "my_model"
     assert row[3] == exp_id
+
+
+@pytest.mark.parametrize("basename", ["model.bin", "m" * 240 + ".bin"])
+@pytest.mark.parametrize("same_source", [False, True])
+def test_log_models_with_same_basename_keep_independent_files(
+    tracker_with_experiment: tuple[ExperimentTracker, str],
+    tmp_path: Path,
+    same_source: bool,
+    basename: str,
+) -> None:
+    tracker, exp_id = tracker_with_experiment
+    first_src = tmp_path / "first" / basename
+    second_src = first_src if same_source else tmp_path / "second" / basename
+    first_src.parent.mkdir()
+    second_src.parent.mkdir(exist_ok=True)
+    first_src.write_bytes(b"FIRST")
+    first, first_dest = tracker.backend.log_model(exp_id, str(first_src), name="model")
+    second_src.write_bytes(b"SECOND")
+
+    second, second_dest = tracker.backend.log_model(
+        exp_id, str(second_src), name="model"
+    )
+
+    assert first.path != second.path
+    assert first_dest != second_dest
+    assert first.name == second.name == "model"
+    assert Path(first_dest).read_bytes() == b"FIRST"
+    assert Path(second_dest).read_bytes() == b"SECOND"
+    for model, expected in [(first, b"FIRST"), (second, b"SECOND")]:
+        stored = tracker.get_model(model.id)
+        assert stored.path == model.path
+        assert (tracker.backend.base_path / stored.path).read_bytes() == expected
+
+    tracker.backend.delete_model(first.id)
+    assert not Path(first_dest).exists()
+    assert Path(second_dest).read_bytes() == b"SECOND"
+
+
+def test_failed_model_copy_preserves_logged_model(
+    tracker_with_experiment: tuple[ExperimentTracker, str],
+    tmp_path: Path,
+) -> None:
+    tracker, exp_id = tracker_with_experiment
+    source = tmp_path / "model.bin"
+    source.write_bytes(b"FIRST")
+    first, dest = tracker.backend.log_model(exp_id, str(source))
+    source.unlink()
+
+    with pytest.raises(FileNotFoundError):
+        tracker.backend.log_model(exp_id, str(source))
+
+    assert Path(dest).read_bytes() == b"FIRST"
+    assert [model.id for model in tracker.get_models(experiment_id=exp_id)] == [
+        first.id
+    ]
+
+
+def test_logging_model_preserves_legacy_file(
+    tracker_with_experiment: tuple[ExperimentTracker, str],
+    tmp_path: Path,
+) -> None:
+    tracker, exp_id = tracker_with_experiment
+    source = tmp_path / "model.bin"
+    source.write_bytes(b"LEGACY")
+    model, dest = tracker.backend.log_model(exp_id, str(source))
+    legacy_path = tracker.backend.base_path / exp_id / "models" / source.name
+    Path(dest).rename(legacy_path)
+    with sqlite3.connect(tracker.backend.base_path / "meta.db") as conn:
+        conn.execute(
+            "UPDATE models SET path = ? WHERE id = ?",
+            (str(legacy_path.relative_to(tracker.backend.base_path)), model.id),
+        )
+    source.write_bytes(b"NEW")
+
+    _, new_dest = tracker.backend.log_model(exp_id, str(source))
+
+    stored = tracker.get_model(model.id)
+    assert (tracker.backend.base_path / stored.path).read_bytes() == b"LEGACY"
+    assert Path(new_dest).read_bytes() == b"NEW"
 
 
 def test_log_model_requires_experiment(
