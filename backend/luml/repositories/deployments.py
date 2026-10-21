@@ -298,9 +298,10 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
                 return None
 
             fields_to_update = update.model_dump(exclude_unset=True, exclude={"id"})
-            await self._lock_referenced_secrets(
+            if not await self._lock_referenced_secrets(
                 session, orbit_id, fields_to_update.get("dynamic_attributes_secrets")
-            )
+            ):
+                raise NotFoundError("Orbit secret not found")
             monitoring_changed = (
                 "monitoring_mode" in fields_to_update
                 and fields_to_update["monitoring_mode"] is not None
