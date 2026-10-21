@@ -166,6 +166,68 @@ class TestGetExperimentEvals:
         assert len(result.items) == 1
         assert result.items[0].id == "alpha_1"
 
+    @pytest.mark.parametrize("limit", [1, 2, 3])
+    @pytest.mark.parametrize("order", ["asc", "desc"])
+    @pytest.mark.parametrize(
+        ("scores", "ascending_ids"),
+        [
+            (
+                [
+                    {"acc": 0.9},
+                    None,
+                    {"other": 1.0},
+                    {"acc": None},
+                    {"acc": 0.7},
+                    {"acc": 0.0},
+                    {"acc": 0.7},
+                ],
+                ["e1", "e2", "e3", "e5", "e4", "e6", "e0"],
+            ),
+            ([None, {"other": 1.0}, {"acc": None}], ["e0", "e1", "e2"]),
+            ([{"acc": 0.9}, {"acc": 0.7}, {"acc": 0.7}], ["e1", "e2", "e0"]),
+        ],
+        ids=["mixed-scores", "all-null-scores", "non-null-scores"],
+    )
+    def test_score_cursor_pagination_returns_every_eval_once(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+        scores: list[dict[str, float | None] | None],
+        ascending_ids: list[str],
+        order: str,
+        limit: int,
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        for i, score in enumerate(scores):
+            tracker.log_eval_sample(
+                eval_id=f"e{i}", dataset_id="ds1", inputs={"x": i}, scores=score
+            )
+        for i, score in enumerate([None, {"acc": 0.8}]):
+            tracker.log_eval_sample(
+                eval_id=f"excluded{i}", dataset_id="ds2", inputs={}, scores=score
+            )
+
+        cursor = None
+        returned_ids = []
+        for _ in range(len(scores) + 1):
+            page = tracker.get_experiment_evals(
+                exp_id,
+                limit=limit,
+                cursor_str=cursor,
+                sort_by="acc",
+                json_sort_column="scores",
+                order=order,
+                dataset_id="ds1",
+            )
+            assert 0 < len(page.items) <= limit
+            returned_ids.extend(item.id for item in page.items)
+            cursor = page.cursor
+            if cursor is None:
+                break
+
+        expected_ids = ascending_ids if order == "asc" else ascending_ids[::-1]
+        assert returned_ids == expected_ids
+        assert cursor is None
+
     def test_empty_experiment_returns_empty_list(
         self, tracker_with_experiment: tuple[ExperimentTracker, str]
     ) -> None:
