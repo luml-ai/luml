@@ -127,10 +127,18 @@ describe('authentication session check', () => {
         await store.signIn({ email: 'user@example.com', password: 'password' })
       } else if (method === 'Google') {
         apiMocks.googleLogin.mockResolvedValue({ user_id: 1 })
-        await store.loginWithGoogle('code')
+        await store.loginWithGoogle('code', 'google.signed-state')
+        expect(apiMocks.googleLogin).toHaveBeenCalledWith({
+          code: 'code',
+          state: 'google.signed-state',
+        })
       } else {
         apiMocks.microsoftLogin.mockResolvedValue({ user_id: 1 })
-        await store.loginWithMicrosoft('code')
+        await store.loginWithMicrosoft('code', 'microsoft.signed-state')
+        expect(apiMocks.microsoftLogin).toHaveBeenCalledWith({
+          code: 'code',
+          state: 'microsoft.signed-state',
+        })
       }
       const next = await navigate('/dashboard', { requireAuth: true })
 

@@ -1,6 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from starlette.responses import RedirectResponse
 
 from luml.clients.oauth_providers import (
@@ -85,12 +94,38 @@ async def signin(user: SignInUser, response: Response) -> SignInAPIResponse:
 
 @auth_router.get("/google/login")
 async def google_login() -> RedirectResponse:
-    return RedirectResponse(google_auth_handler.get_oauth_login_url())
+    state = google_auth_handler.create_oauth_state()
+    response = RedirectResponse(google_auth_handler.get_oauth_login_url(state))
+    response.set_cookie(
+        key="__Host-oauth_google_state",
+        value=state,
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+        max_age=300,
+    )
+    return response
 
 
 @auth_router.get("/google/callback", response_model=SignInAPIResponse)
-async def google_callback(code: str | None, response: Response) -> SignInAPIResponse:
+async def google_callback(
+    request: Request,
+    response: Response,
+    state: Annotated[str | None, Query(max_length=4096)] = None,
+    code: Annotated[str | None, Query(max_length=4096)] = None,
+) -> SignInAPIResponse:
+    google_auth_handler.validate_oauth_state(
+        state, request.cookies.get("__Host-oauth_google_state")
+    )
     signin_response = await google_auth_handler.handle_oauth(code)
+    response.delete_cookie(
+        "__Host-oauth_google_state",
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+    )
     set_auth_cookies(response, signin_response.token)
     return SignInAPIResponse(
         detail="Successfully authenticated with Google", user_id=signin_response.user_id
@@ -194,12 +229,38 @@ async def reset_password(
 
 @auth_router.get("/microsoft/login")
 async def microsoft_login() -> RedirectResponse:
-    return RedirectResponse(microsoft_auth_handler.get_oauth_login_url())
+    state = microsoft_auth_handler.create_oauth_state()
+    response = RedirectResponse(microsoft_auth_handler.get_oauth_login_url(state))
+    response.set_cookie(
+        key="__Host-oauth_microsoft_state",
+        value=state,
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+        max_age=300,
+    )
+    return response
 
 
 @auth_router.get("/microsoft/callback")
-async def microsoft_callback(code: str | None, response: Response) -> SignInAPIResponse:
+async def microsoft_callback(
+    request: Request,
+    response: Response,
+    state: Annotated[str | None, Query(max_length=4096)] = None,
+    code: Annotated[str | None, Query(max_length=4096)] = None,
+) -> SignInAPIResponse:
+    microsoft_auth_handler.validate_oauth_state(
+        state, request.cookies.get("__Host-oauth_microsoft_state")
+    )
     signin_response = await microsoft_auth_handler.handle_oauth(code)
+    response.delete_cookie(
+        "__Host-oauth_microsoft_state",
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+    )
     set_auth_cookies(response, signin_response.token)
 
     return SignInAPIResponse(

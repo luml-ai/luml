@@ -93,13 +93,16 @@ const services: IAuthorizationService[] = [
 onBeforeMount(async () => {
   const urlParams = new URLSearchParams(window.location.search)
   const code = urlParams.get('code')
-  const provider = urlParams.get('state')
-  if (!code) return
+  const state = urlParams.get('state')
+  const provider = state?.split('.')[0]
+  if (!code || !state) return
   try {
     if (provider === 'google') {
-      await authStore.loginWithGoogle(code)
+      await authStore.loginWithGoogle(code, state)
     } else if (provider === 'microsoft') {
-      await authStore.loginWithMicrosoft(code)
+      await authStore.loginWithMicrosoft(code, state)
+    } else {
+      return
     }
     await userStore.loadUser()
     const redirect = getStoredAuthRedirect()
