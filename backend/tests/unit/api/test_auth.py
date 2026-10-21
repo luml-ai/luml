@@ -11,12 +11,17 @@ UPDATE_PROFILE_PATH = "/v1/auth/users/me"
 
 
 class TestAuth:
-    @pytest.mark.parametrize("field", ["disabled", "auth_method"])
+    @pytest.mark.parametrize("field", ["disabled", "auth_method", "password"])
     @patch("luml.api.auth.auth_handler.update_user", new_callable=AsyncMock)
     def test_update_profile_rejects_protected_fields(
         self, mock_update_user: AsyncMock, field: str, client: TestClient
     ) -> None:
-        value: bool | str = True if field == "disabled" else "GOOGLE"
+        values: dict[str, bool | str] = {
+            "disabled": True,
+            "auth_method": "GOOGLE",
+            "password": "new-password",
+        }
+        value = values[field]
 
         response = client.patch(UPDATE_PROFILE_PATH, json={field: value})
 

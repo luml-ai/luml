@@ -1,5 +1,5 @@
 from time import time
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import pytest
 from jwt.exceptions import InvalidTokenError
@@ -24,7 +24,7 @@ class TestAuthEmailFlows:
 
         assert actual == "test_token"
         create_token.assert_called_once_with(
-            data={"sub": user.email, "type": "password_reset"},
+            data={"sub": user.email, "type": "password_reset", "jti": ANY},
             expires_delta=3600,
         )
 
@@ -195,7 +195,6 @@ class TestAuthEmailFlows:
         user: User,
     ) -> None:
         new_password = "new_pass"
-        update_user = UpdateUser(email=user.email, hashed_password=user.hashed_password)
         get_password_hash = Mock(return_value=user.hashed_password)
         monkeypatch.setattr(mocks.handler, "_get_password_hash", get_password_hash)
         mocks.user_repository.get_user.return_value = user
@@ -212,7 +211,9 @@ class TestAuthEmailFlows:
         mock_jwt_decode.assert_called_once()
         mocks.user_repository.get_user.assert_awaited_once_with(user.email)
         get_password_hash.assert_called_once_with(new_password)
-        mocks.user_repository.update_user.assert_awaited_once_with(update_user)
+        mocks.user_repository.update_password.assert_awaited_once_with(
+            user.email, user.hashed_password, reset_token=("token", ANY)
+        )
 
     async def test_handle_reset_password_raises_when_token_expired(
         self, mocks: CollaboratorMocks[AuthHandler], new_user: CreateUser
@@ -310,6 +311,25 @@ class TestAuthEmailFlows:
             mocks.handler._generate_password_reset_token(user.email), "new_pass"
         )
 
-        mocks.user_repository.update_user.assert_awaited_once_with(
-            UpdateUser(email=user.email, hashed_password="argon_hash")
+        mocks.user_repository.update_password.assert_awaited_once_with(
+            user.email, "argon_hash", reset_token=(ANY, ANY)
         )
+
+    def test_password_reset_tokens_are_unique_even_within_same_second(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
+    ) -> None:
+        with patch("luml.handlers.auth.time", return_value=1_800_000_000):
+            first = mocks.handler._generate_password_reset_token(user.email)
+            second = mocks.handler._generate_password_reset_token(user.email)
+
+        assert first != second
+
+    async def test_used_reset_token_does_not_update_password(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
+    ) -> None:
+        mocks.user_repository.get_user.return_value = user
+        mocks.user_repository.update_password.return_value = False
+        token = mocks.handler._generate_password_reset_token(user.email)
+
+        with pytest.raises(AuthError, match="revoked"):
+            await mocks.handler.handle_reset_password(token, "new-password")
