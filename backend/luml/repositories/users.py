@@ -12,6 +12,8 @@ from luml.infra.exceptions import (
     OrganizationDeleteError,
 )
 from luml.models import (
+    OrbitMembersOrm,
+    OrbitOrm,
     OrganizationInviteOrm,
     OrganizationMemberOrm,
     OrganizationOrm,
@@ -362,6 +364,16 @@ class UserRepository(RepositoryBase, CrudMixin):
             member = result.scalar_one_or_none()
 
             if member:
+                await session.execute(
+                    delete(OrbitMembersOrm).where(
+                        OrbitMembersOrm.user_id == member.user_id,
+                        OrbitMembersOrm.orbit_id.in_(
+                            select(OrbitOrm.id).where(
+                                OrbitOrm.organization_id == member.organization_id
+                            )
+                        ),
+                    )
+                )
                 await session.delete(member)
                 await session.commit()
 

@@ -1,7 +1,11 @@
 import uuid
 
 import pytest
+from luml.repositories.bucket_secrets import BucketSecretRepository
+from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
+from luml.schemas.bucket_secrets import S3BucketSecretCreate
+from luml.schemas.orbit import OrbitMemberCreate, OrbitRole
 from luml.schemas.organization import (
     OrganizationCreateIn,
     OrganizationMemberCreate,
@@ -9,9 +13,11 @@ from luml.schemas.organization import (
     UpdateOrganizationMember,
 )
 from luml.schemas.user import CreateUser
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from tests.support.builders import create_sibling_orbit, create_sibling_organization
 from tests.support.seeds import (
+    OrbitFixtureData,
     OrganizationFixtureData,
     OrganizationWithMembersFixtureData,
 )
@@ -23,6 +29,102 @@ def repository(engine: AsyncEngine) -> UserRepository:
 
 
 class TestOrganizationMemberRepository:
+    async def test_delete_member_preserves_orbit_roles_in_other_organizations(
+        self,
+        repository: UserRepository,
+        seeded_orbit: OrbitFixtureData,
+    ) -> None:
+        data = seeded_orbit
+        orbit_repository = OrbitRepository(data.engine)
+        other_org = await create_sibling_organization(data.engine, data.user.id)
+        secret = await BucketSecretRepository(data.engine).create_bucket_secret(
+            S3BucketSecretCreate(
+                organization_id=other_org.id,
+                endpoint="s3",
+                bucket_name="other-bucket",
+                region="us-east-1",
+            )
+        )
+        other_orbit = await create_sibling_orbit(data.engine, other_org.id, secret.id)
+        for orbit in [data.orbit, other_orbit]:
+            await orbit_repository.create_orbit_member(
+                OrbitMemberCreate(
+                    user_id=data.user.id, orbit_id=orbit.id, role=OrbitRole.ADMIN
+                )
+            )
+        member = await repository.get_organization_member(
+            data.organization.id, data.user.id
+        )
+        assert member is not None
+
+        await repository.delete_organization_member(other_org.id, member.id)
+        await repository.delete_organization_member(data.organization.id, uuid.uuid4())
+        assert (
+            await orbit_repository.get_orbit_member_role(data.orbit.id, data.user.id)
+            == OrbitRole.ADMIN
+        )
+
+        await repository.delete_organization_member(data.organization.id, member.id)
+
+        assert (
+            await orbit_repository.get_orbit_member_role(data.orbit.id, data.user.id)
+            is None
+        )
+        assert (
+            await orbit_repository.get_orbit_member_role(other_orbit.id, data.user.id)
+            == OrbitRole.ADMIN
+        )
+        assert (
+            await repository.get_organization_member(other_org.id, data.user.id)
+            is not None
+        )
+
+    @pytest.mark.parametrize("leave", [False, True], ids=["remove", "leave"])
+    async def test_organization_exit_rolls_back_all_memberships_on_failure(
+        self,
+        repository: UserRepository,
+        seeded_orbit: OrbitFixtureData,
+        monkeypatch: pytest.MonkeyPatch,
+        leave: bool,
+    ) -> None:
+        data = seeded_orbit
+        orbit_repository = OrbitRepository(data.engine)
+        await orbit_repository.create_orbit_member(
+            OrbitMemberCreate(
+                user_id=data.user.id, orbit_id=data.orbit.id, role=OrbitRole.ADMIN
+            )
+        )
+        member = await repository.get_organization_member(
+            data.organization.id, data.user.id
+        )
+        assert member is not None
+
+        async def fail_commit(session: AsyncSession) -> None:
+            await session.flush()
+            raise RuntimeError("commit failed")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(AsyncSession, "commit", fail_commit)
+            if leave:
+                with pytest.raises(RuntimeError, match="commit failed"):
+                    await repository.delete_organization_member_by_user_id(
+                        data.user.id, data.organization.id
+                    )
+            else:
+                with pytest.raises(RuntimeError, match="commit failed"):
+                    await repository.delete_organization_member(
+                        data.organization.id, member.id
+                    )
+
+        assert (
+            await repository.get_organization_member(data.organization.id, data.user.id)
+            is not None
+        )
+        assert (
+            await orbit_repository.get_orbit_member_role(data.orbit.id, data.user.id)
+            == OrbitRole.ADMIN
+        )
+
     async def test_create_organization_member_returns_member_with_user(
         self,
         repository: UserRepository,

@@ -9,7 +9,9 @@ from luml.handlers.permissions import PermissionsHandler
 from luml.infra.security import JWTAuthenticationBackend
 from luml.models import AuthUser, UserOrm
 from luml.repositories.invites import InviteRepository
+from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
+from luml.schemas.orbit import OrbitMemberCreate, OrbitRole
 from luml.schemas.organization import (
     OrganizationCreateIn,
     OrganizationMemberCreate,
@@ -21,6 +23,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.authentication import AuthCredentials
 
+from tests.support.builders import create_sibling_orbit
 from tests.support.seeds import OrganizationFixtureData
 
 
@@ -178,6 +181,82 @@ class TestOrganizationMembershipConsent:
 
 
 class TestOrganizationMemberScope:
+    @pytest.mark.parametrize("leave", [False, True], ids=["remove", "leave"])
+    async def test_organization_exit_removes_all_orbit_roles(
+        self,
+        client: AsyncClient,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
+        monkeypatch: pytest.MonkeyPatch,
+        leave: bool,
+    ) -> None:
+        data = seeded_organization
+        repository = UserRepository(data.engine)
+        orbit_repository = OrbitRepository(data.engine)
+        target = await repository.create_user(
+            new_user.model_copy(update={"email": f"target-{uuid.uuid4()}@example.com"})
+        )
+        member_data = OrganizationMemberCreate(
+            organization_id=data.organization.id,
+            user_id=target.id,
+            role=OrgRole.MEMBER,
+        )
+        member = await repository.create_organization_member(member_data)
+        orbits = [
+            await create_sibling_orbit(
+                data.engine, data.organization.id, data.bucket_secret.id
+            )
+            for _ in range(2)
+        ]
+        for orbit, role in zip(
+            orbits, [OrbitRole.ADMIN, OrbitRole.MEMBER], strict=True
+        ):
+            await orbit_repository.create_orbit_members(
+                [
+                    OrbitMemberCreate(user_id=target.id, orbit_id=orbit.id, role=role),
+                    OrbitMemberCreate(
+                        user_id=data.user.id, orbit_id=orbit.id, role=OrbitRole.ADMIN
+                    ),
+                ]
+            )
+
+        if leave:
+            monkeypatch.setattr(
+                JWTAuthenticationBackend,
+                "authenticate",
+                AsyncMock(
+                    return_value=(
+                        AuthCredentials(["authenticated", "jwt"]),
+                        AuthUser(user_id=target.id, email=target.email),
+                    )
+                ),
+            )
+        path = "leave" if leave else f"members/{member.id}"
+        response = await client.delete(
+            f"/v1/organizations/{data.organization.id}/{path}"
+        )
+
+        assert response.status_code == 204
+        assert (
+            await repository.get_organization_member(data.organization.id, target.id)
+            is None
+        )
+        for orbit in orbits:
+            assert (
+                await orbit_repository.get_orbit_member_role(orbit.id, target.id)
+                is None
+            )
+            members = await orbit_repository.get_orbit_members(orbit.id)
+            assert [member.user.id for member in members] == [data.user.id]
+            assert members[0].role == OrbitRole.ADMIN
+
+        await repository.create_organization_member(member_data)
+        for orbit in orbits:
+            assert (
+                await orbit_repository.get_orbit_member_role(orbit.id, target.id)
+                is None
+            )
+
     @pytest.mark.parametrize("method", ["PATCH", "DELETE"])
     @pytest.mark.parametrize("role", [OrgRole.MEMBER, OrgRole.ADMIN, OrgRole.OWNER])
     async def test_foreign_member_returns_404_without_mutating_membership(
