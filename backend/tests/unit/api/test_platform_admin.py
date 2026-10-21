@@ -73,6 +73,11 @@ def client() -> Iterator[TestClient]:
         ENABLED_CONFIG, AuthHandler(secret_key=config.AUTH_SECRET_KEY)
     )
     with (
+        patch(
+            "luml.infra.auth_rate_limits.repository.consume",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
         patch("luml.service.platform_admin_config", ENABLED_CONFIG),
         patch("luml.service.configure_platform_admin_logging"),
         patch("luml.api.platform_admin.platform_admin_auth_handler", handler),

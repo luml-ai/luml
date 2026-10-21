@@ -17,6 +17,7 @@ from luml.clients.oauth_providers import (
     OAuthMicrosoftProvider,
 )
 from luml.handlers.auth import AuthHandler
+from luml.infra.auth_rate_limits import limit_auth_attempts
 from luml.infra.dependencies import UserAuthentication
 from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
@@ -79,12 +80,16 @@ def set_auth_cookies(response: Response, data: Token) -> None:
 
 
 @auth_router.post("/signup", response_model=DetailResponse)
-async def signup(create_user: CreateUserIn) -> dict[str, str]:
+async def signup(request: Request, create_user: CreateUserIn) -> dict[str, str]:
+    await limit_auth_attempts(request, create_user.email)
     return await auth_handler.handle_signup(create_user)
 
 
 @auth_router.post("/signin", response_model=SignInAPIResponse)
-async def signin(user: SignInUser, response: Response) -> SignInAPIResponse:
+async def signin(
+    request: Request, user: SignInUser, response: Response
+) -> SignInAPIResponse:
+    await limit_auth_attempts(request, user.email)
     signin_response = await auth_handler.handle_signin(user)
     set_auth_cookies(response, signin_response.token)
     return SignInAPIResponse(
@@ -144,7 +149,8 @@ async def refresh(request: Request, response: Response) -> dict[str, str]:
 
 
 @auth_router.post("/forgot-password", response_model=DetailResponse)
-async def forgot_password(data: ForgotPasswordIn) -> dict[str, str]:
+async def forgot_password(request: Request, data: ForgotPasswordIn) -> dict[str, str]:
+    await limit_auth_attempts(request, data.email)
     await auth_handler.send_password_reset_email(data.email)
     return {"detail": "Password reset email has been sent"}
 
@@ -222,9 +228,11 @@ async def confirm_email(
 
 @auth_router.post("/reset-password", response_model=DetailResponse)
 async def reset_password(
+    request: Request,
     reset_token: Annotated[str, Body()],
     new_password: Annotated[str, Body(min_length=8, max_length=128)],
 ) -> dict[str, str]:
+    await limit_auth_attempts(request, reset_token=reset_token)
     await auth_handler.handle_reset_password(reset_token, new_password)
     return {"detail": "Password reset successfully"}
 

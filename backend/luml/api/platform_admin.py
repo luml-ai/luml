@@ -10,11 +10,13 @@ from luml.handlers.platform_admin_auth import (
     PlatformAdminAuthHandler,
     PlatformAdminConfig,
 )
+from luml.infra.auth_rate_limits import limit_auth_attempts
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.infra.exceptions import AuthError
 from luml.schemas.platform_admin import (
     CODE_CHALLENGE_PATTERN,
     OrganizationLimitsUpdate,
+    PasswordGrant,
     PlatformAdmin,
     PlatformAdminOrganizationDetails,
     PlatformAdminOrganizationsPage,
@@ -89,7 +91,11 @@ async def google_callback(
 
 
 @platform_admin_auth_router.post("/token")
-async def issue_token(grant: PlatformAdminTokenRequest) -> PlatformAdminToken:
+async def issue_token(
+    request: Request, grant: PlatformAdminTokenRequest
+) -> PlatformAdminToken:
+    if isinstance(grant, PasswordGrant):
+        await limit_auth_attempts(request, grant.email)
     return await platform_admin_auth_handler.issue_token(grant)
 
 

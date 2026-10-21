@@ -1,5 +1,6 @@
 from luml.models.artifacts import ArtifactOrm
 from luml.models.auth import AuthRelay, AuthSatellite, AuthUser
+from luml.models.auth_rate_limit import AuthRateLimitOrm
 from luml.models.base import Base, TimestampMixin
 from luml.models.bucket_secrets import BucketSecretOrm
 from luml.models.collection import CollectionOrm
@@ -25,6 +26,7 @@ from luml.models.user import UserOrm
 
 __all__ = [
     "Base",
+    "AuthRateLimitOrm",
     "TimestampMixin",
     "UserOrm",
     "TokenBlackListOrm",
