@@ -20,7 +20,12 @@ class AwsSignatureValidator:
         debug: bool = False,
         algorithm: str = "AWS4-HMAC-SHA256",
     ) -> None:
-        self.credentials = credentials or {}
+        if not credentials or any(
+            not access_key.strip() or not secret_key.strip()
+            for access_key, secret_key in credentials.items()
+        ):
+            raise ValueError("Non-empty access and secret credentials are required")
+        self.credentials = credentials.copy()
         self._logger = logging.getLogger(__name__)
         self.algorithm = algorithm
         if debug:
@@ -44,7 +49,8 @@ class AwsSignatureValidator:
             request_time = request_time.replace(tzinfo=UTC)
             age_seconds = (datetime.now(UTC) - request_time).total_seconds()
 
-            if age_seconds > int(expires):
+            expiration = int(expires)
+            if not 1 <= expiration <= 604800 or not -900 <= age_seconds <= expiration:
                 self._logger.debug("Presigned URL expired")
                 return False
             return True
@@ -53,45 +59,43 @@ class AwsSignatureValidator:
             return False
 
     @staticmethod
-    def _build_presigned_canonical_querystring(
+    def _build_canonical_querystring(
         query_params: dict[str, list[str]],
     ) -> str:
-        canonical_params = []
-        for key in sorted(query_params.keys()):
-            if key != "X-Amz-Signature":
-                for value in query_params[key]:
-                    # URL-encode key and value per AWS Signature V4 spec
-                    encoded_key = quote(key, safe="~")
-                    encoded_value = quote(value, safe="~")
-                    canonical_params.append(f"{encoded_key}={encoded_value}")
-        return "&".join(canonical_params)
+        canonical_params = sorted(
+            (quote(key, safe="~"), quote(value, safe="~"))
+            for key, values in query_params.items()
+            for value in values
+        )
+        return "&".join(f"{key}={value}" for key, value in canonical_params)
 
     def _parse_credential(self, credential: str) -> AwsCredentials | None:
         cred_parts = credential.split("/")
         if len(cred_parts) != 5:
             self._logger.debug(f"Invalid credential format: {cred_parts}")
             return None
-        access_key, date_stamp, region, service, _ = cred_parts
+        access_key, date_stamp, region, service, terminator = cred_parts
+        if not all(cred_parts) or service != "s3" or terminator != "aws4_request":
+            return None
         return AwsCredentials(
             access_key=access_key, date_stamp=date_stamp, region=region, service=service
         )
 
     def _get_secret_key(self, access_key: str) -> str | None:
-        if not self.credentials:
-            return None
         if access_key not in self.credentials:
-            self._logger.debug(
-                f"Unknown access key. Configured keys: {list(self.credentials.keys())}"
-            )
+            self._logger.debug("Unknown access key")
             return None
         return self.credentials[access_key]
 
     @staticmethod
     def _build_canonical_headers(signed_headers: str, headers: dict[str, str]) -> str:
+        header_names = signed_headers.split(";")
+        if "host" not in header_names or header_names != sorted(set(header_names)):
+            raise ValueError("Invalid signed headers")
         canonical_headers = []
-        for header in signed_headers.split(";"):
-            value = headers.get(header, "") or headers.get(header.title(), "")
-            canonical_headers.append(f"{header}:{value.strip()}")
+        for header in header_names:
+            value = headers[header]
+            canonical_headers.append(f"{header}:{' '.join(value.split())}")
         return "\n".join(canonical_headers) + "\n"
 
     def _compute_signature_raw(
@@ -106,9 +110,7 @@ class AwsSignatureValidator:
         ).hexdigest()
 
     def _parse_auth_header(self, headers: dict[str, str]) -> AwsAuthInfo | None:
-        auth_header = headers.get("Authorization", "")
-
-        self._logger.debug(f"Authorization header: {auth_header[:100]}...")
+        auth_header = headers.get("authorization", "")
 
         if not auth_header.startswith(self.algorithm):
             self._logger.debug(
@@ -120,7 +122,7 @@ class AwsSignatureValidator:
             rf"{self.algorithm} Credential=([^,]+), "
             r"SignedHeaders=([^,]+), Signature=([a-f0-9]+)"
         )
-        match = re.match(pattern, auth_header)
+        match = re.fullmatch(pattern, auth_header)
         if not match:
             self._logger.debug("Could not parse authorization header")
             return None
@@ -154,19 +156,24 @@ class AwsSignatureValidator:
     ) -> str | None:
         x_amz_date = headers.get("x-amz-date", "")
 
-        if not x_amz_date and not headers.get("Date", ""):
-            self._logger.debug("Missing x-amz-date or Date header")
+        request_time = datetime.strptime(x_amz_date, "%Y%m%dT%H%M%SZ").replace(
+            tzinfo=UTC
+        )
+        if (
+            abs((datetime.now(UTC) - request_time).total_seconds()) > 900
+            or auth.date_stamp != x_amz_date[:8]
+        ):
+            self._logger.debug("Invalid request date")
             return None
 
         parsed_path = urlparse(path)
         canonical_uri = parsed_path.path
-        canonical_querystring = parsed_path.query or ""
-
-        canonical_headers = []
-        for header in auth.signed_headers.split(";"):
-            value = headers.get(header, "")
-            canonical_headers.append(f"{header}:{value.strip()}")
-        canonical_headers_str = "\n".join(canonical_headers) + "\n"
+        canonical_querystring = self._build_canonical_querystring(
+            parse_qs(parsed_path.query, keep_blank_values=True)
+        )
+        canonical_headers_str = self._build_canonical_headers(
+            auth.signed_headers, headers
+        )
 
         payload_hash = headers.get("x-amz-content-sha256", "UNSIGNED-PAYLOAD")
 
@@ -199,9 +206,7 @@ class AwsSignatureValidator:
         method: str,
         path: str,
     ) -> tuple[bool, str | None]:
-        if not self.credentials:
-            return self._validate_no_credentials(headers)
-
+        headers = {key.lower(): value for key, value in headers.items()}
         try:
             auth = self._parse_auth_header(headers)
             if auth is None:
@@ -214,7 +219,7 @@ class AwsSignatureValidator:
 
             signature = self._compute_signature(auth, string_to_sign)
 
-            if signature != auth.client_signature:
+            if not hmac.compare_digest(signature, auth.client_signature):
                 self._logger.debug(
                     f"Signature mismatch for access key: {auth.access_key}"
                 )
@@ -227,32 +232,13 @@ class AwsSignatureValidator:
             self._logger.debug(f"Signature validation error: {e}", exc_info=True)
             return False, None
 
-    def _validate_no_credentials(
-        self, headers: dict[str, str]
-    ) -> tuple[bool, str | None]:
-        auth_header = headers.get("Authorization", "")
-        self._logger.debug("No credentials configured - accepting any valid signature")
-
-        if not auth_header.startswith(self.algorithm):
-            self._logger.debug(
-                f"Authorization header does not start with {self.algorithm}"
-            )
-            return False, None
-
-        pattern = rf"{self.algorithm} Credential=([^/]+)/"
-        match = re.search(pattern, auth_header)
-        if match:
-            return True, match.group(1)
-
-        self._logger.debug("Could not extract access key from authorization header")
-        return len(auth_header) > 0, None
-
     def validate_presigned_url(
         self,
         headers: dict[str, str],
         method: str,
         path: str,
     ) -> tuple[bool, str | None]:
+        headers = {key.lower(): value for key, value in headers.items()}
         parsed = urlparse(path)
         query_params = parse_qs(parsed.query, keep_blank_values=True)
 
@@ -260,31 +246,43 @@ class AwsSignatureValidator:
             return False, None
 
         try:
-            credential = query_params.get("X-Amz-Credential", [""])[0]
-            x_amz_date = query_params.get("X-Amz-Date", [""])[0]
-            expires = query_params.get("X-Amz-Expires", ["3600"])[0]
-            signed_headers = query_params.get("X-Amz-SignedHeaders", ["host"])[0]
-            client_signature = query_params.get("X-Amz-Signature", [""])[0]
+            required = {
+                "X-Amz-Algorithm",
+                "X-Amz-Credential",
+                "X-Amz-Date",
+                "X-Amz-Expires",
+                "X-Amz-SignedHeaders",
+                "X-Amz-Signature",
+            }
+            if any(len(query_params.get(key, [])) != 1 for key in required):
+                return False, None
+            if query_params["X-Amz-Algorithm"][0] != self.algorithm:
+                return False, None
+            credential = query_params["X-Amz-Credential"][0]
+            x_amz_date = query_params["X-Amz-Date"][0]
+            expires = query_params["X-Amz-Expires"][0]
+            signed_headers = query_params["X-Amz-SignedHeaders"][0]
+            client_signature = query_params["X-Amz-Signature"][0]
 
             creds = self._parse_credential(credential)
             if creds is None:
                 return False, None
 
-            if not self.credentials:
-                self._logger.debug(
-                    "No credentials configured - accepting presigned URL"
-                )
-                return True, creds.access_key
-
             secret_key = self._get_secret_key(creds.access_key)
             if secret_key is None:
                 return False, creds.access_key
 
-            if not self._check_presigned_expiration(x_amz_date, expires):
+            if creds.date_stamp != x_amz_date[
+                :8
+            ] or not self._check_presigned_expiration(x_amz_date, expires):
                 return False, creds.access_key
 
-            canonical_querystring = self._build_presigned_canonical_querystring(
-                query_params
+            canonical_querystring = self._build_canonical_querystring(
+                {
+                    key: values
+                    for key, values in query_params.items()
+                    if key != "X-Amz-Signature"
+                }
             )
             canonical_headers_str = self._build_canonical_headers(
                 signed_headers, headers
@@ -310,7 +308,7 @@ class AwsSignatureValidator:
                 secret_key, creds, string_to_sign
             )
 
-            if computed_signature != client_signature:
+            if not hmac.compare_digest(computed_signature, client_signature):
                 self._logger.debug("Signature mismatch")
                 return False, creds.access_key
 
@@ -326,12 +324,13 @@ class AwsSignatureValidator:
         method: str,
         path: str,
     ) -> str | None:
+        headers = {key.lower(): value for key, value in headers.items()}
         is_presigned, access_key = self.validate_presigned_url(headers, method, path)
         if is_presigned:
             self._logger.debug("Authentication successful (presigned URL)")
             return access_key
 
-        if "Authorization" not in headers:
+        if "authorization" not in headers:
             self._logger.debug(
                 f"No Authorization header or presigned URL parameters\n"
                 f"Available headers: {list(headers.keys())}"

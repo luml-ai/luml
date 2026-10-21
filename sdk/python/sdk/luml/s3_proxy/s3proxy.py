@@ -32,14 +32,10 @@ class S3ProxyServer(HTTPServer):
         self.cors_enabled = cors_enabled
         self.debug = debug
         self.multipart_uploads: dict[str, MultipartUpload] = {}
-        self._auth: AwsSignatureValidator | None = None
+        self._auth = AwsSignatureValidator(credentials=credentials, debug=debug)
         super().__init__(server_address, handler_class)
 
     def get_auth(self) -> AwsSignatureValidator:
-        if self._auth is None:
-            self._auth = AwsSignatureValidator(
-                credentials=self.credentials, debug=self.debug
-            )
         return self._auth
 
 
@@ -502,12 +498,14 @@ def run_server(
     host: str = "127.0.0.1",
     port: int = 9000,
     storage_root: str = "./s3_storage",
-    # access_key: str | None = None,
-    # secret_key: str | None = None,
+    access_key: str | None = None,
+    secret_key: str | None = None,
     cors_enabled: bool = False,
     debug: bool = False,
 ) -> None:
-    credentials: dict[str, str] = {}
+    if not access_key or not secret_key:
+        raise ValueError("Non-empty access and secret credentials are required")
+    credentials = {access_key: secret_key}
 
     httpd = S3ProxyServer(
         (host, port),
