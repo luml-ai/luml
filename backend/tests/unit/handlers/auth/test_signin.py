@@ -16,6 +16,7 @@ from luml.schemas.user import (
     User,
 )
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from tests.support.mocks import CollaboratorMocks
 from tests.unit.handlers.auth.conftest import Passwords
@@ -212,7 +213,7 @@ class TestAuthSignIn:
         mocks.emails_handler.send_activation_email.assert_not_called()
         mocks.user_repository.delete_signup.assert_not_awaited()
 
-    async def test_handle_signup_raises_when_email_already_registered(
+    async def test_handle_signup_returns_uniform_response_when_email_already_registered(
         self,
         mocks: CollaboratorMocks[AuthHandler],
         new_user_in: CreateUserIn,
@@ -226,11 +227,39 @@ class TestAuthSignIn:
         )
         mocks.user_repository.get_user.return_value = new_user
 
-        with pytest.raises(AuthError, match="Email already registered") as error:
-            await mocks.handler.handle_signup(new_user_in)
+        result = await mocks.handler.handle_signup(new_user_in)
 
-        assert error.value.status_code == 400
+        assert result == {"detail": "Please confirm your email address"}
         mocks.user_repository.get_user.assert_awaited_once_with(create_user.email)
+        mocks.user_repository.create_user.assert_not_awaited()
+        mocks.emails_handler.send_activation_email.assert_not_called()
+
+    @pytest.mark.parametrize("constraint", ["users_email_key", "other_constraint"])
+    async def test_signup_handles_only_duplicate_email_conflicts(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        monkeypatch: pytest.MonkeyPatch,
+        new_user_in: CreateUserIn,
+        new_user: CreateUser,
+        constraint: str,
+    ) -> None:
+        monkeypatch.setattr(
+            mocks.handler,
+            "_get_password_hash",
+            Mock(return_value=new_user.hashed_password),
+        )
+        mocks.user_repository.get_user.return_value = None
+        mocks.user_repository.create_user.side_effect = IntegrityError(
+            "insert", {}, Exception(constraint)
+        )
+        if constraint == "users_email_key":
+            assert await mocks.handler.handle_signup(new_user_in) == {
+                "detail": "Please confirm your email address"
+            }
+        else:
+            with pytest.raises(IntegrityError):
+                await mocks.handler.handle_signup(new_user_in)
+        mocks.emails_handler.send_activation_email.assert_not_called()
 
     async def test_handle_signin_returns_tokens_and_user_id(
         self,

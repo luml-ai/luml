@@ -64,3 +64,17 @@ ruff check .              # Lint files in the current directory.
 ruff check . --fix        # Lint and fix any fixable errors.
 ruff check path/to/code/  # Lint files in `path/to/code`.
 ```
+
+## Authentication rate limits
+
+Sign-in, sign-up, forgot-password, reset-password, and the platform-admin password
+grant allow 20 requests per client IP and 5 requests per email per endpoint in each
+one-minute window. Reset-password uses the email from a verified reset token;
+invalid tokens count against the IP limit. Requests over either limit receive
+HTTP 429 with a `Retry-After` header in seconds. Counters are shared through
+PostgreSQL across API workers; apply migration 043 before deploying the backend.
+Expired counters are removed on subsequent authentication requests.
+
+The application uses the request client address, so configure Uvicorn's trusted
+proxy addresses for your ingress and restrict direct access to the API when
+running behind a proxy. Untrusted forwarding headers must not set the client IP.
