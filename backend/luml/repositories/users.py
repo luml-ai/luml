@@ -2,7 +2,8 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, delete, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -15,6 +16,7 @@ from luml.models import (
     OrganizationInviteOrm,
     OrganizationMemberOrm,
     OrganizationOrm,
+    TokenBlackListOrm,
     UserOrm,
 )
 from luml.repositories.base import (
@@ -145,6 +147,35 @@ class UserRepository(RepositoryBase, CrudMixin):
             if changed:
                 await session.commit()
         return changed
+
+    async def update_password(
+        self,
+        email: EmailStr,
+        hashed_password: str,
+        *,
+        reset_token: tuple[str, int] | None = None,
+    ) -> bool:
+        async with self._get_session() as session, session.begin():
+            if reset_token is not None:
+                token, expire_at = reset_token
+                consumed = await session.scalar(
+                    insert(TokenBlackListOrm)
+                    .values(token=token, expire_at=expire_at)
+                    .on_conflict_do_nothing(constraint="uq_token_black_list_token")
+                    .returning(TokenBlackListOrm.id)
+                )
+                if consumed is None:
+                    return False
+            user_id = await session.scalar(
+                update(UserOrm)
+                .where(UserOrm.email == email)
+                .values(
+                    hashed_password=hashed_password,
+                    token_version=UserOrm.token_version + 1,
+                )
+                .returning(UserOrm.id)
+            )
+            return user_id is not None
 
     async def create_organization(
         self,

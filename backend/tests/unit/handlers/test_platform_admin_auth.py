@@ -173,7 +173,7 @@ class TestPlatformAdminAuthHandler:
         )
 
         with pytest.raises(AuthError):
-            AuthHandler(secret_key=config.AUTH_SECRET_KEY)._verify_token(
+            await AuthHandler(secret_key=config.AUTH_SECRET_KEY)._verify_token(
                 token.access_token
             )
 
