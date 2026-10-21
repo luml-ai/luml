@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
+
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.backends._cursor import Cursor
@@ -419,6 +421,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
+
+        if isinstance(value, np.generic):
+            value = float(value) if isinstance(value, np.floating) else value.item()
 
         if isinstance(value, str | int | float | bool):
             value_str = str(value)

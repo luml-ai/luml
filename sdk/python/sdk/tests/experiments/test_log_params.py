@@ -1,12 +1,42 @@
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+import numpy as np
 import pytest
 
 from luml.experiments.tracker import ExperimentTracker
 
 
 class TestLogStatic:
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (np.float64(1.5), 1.5),
+            (np.float32(0.5), 0.5),
+            (np.float16(0.5), 0.5),
+            (np.longdouble(0.5), 0.5),
+            (np.int64(-42), -42),
+            (np.int32(32), 32),
+            (np.uint64(2**64 - 1), 2**64 - 1),
+            (np.bool_(True), True),
+            (np.bool_(False), False),
+            (np.str_("prod"), "prod"),
+        ],
+    )
+    def test_log_static_numpy_scalar(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+        value: np.generic,
+        expected: str | int | float | bool,
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_static("value", value)
+
+        actual = tracker.get_experiment(exp_id).static_params["value"]
+
+        assert type(actual) is type(expected)
+        assert actual == expected
+
     def test_log_static_float(
         self,
         tracker_with_experiment: tuple[ExperimentTracker, str],
