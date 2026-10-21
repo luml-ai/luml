@@ -24,10 +24,11 @@ def test_connection_pool_is_collectable() -> None:
 def test_backend_collection_closes_connections(tmp_path: Path) -> None:
     backend = SQLiteBackend(str(tmp_path))
     backend.initialize_experiment("exp")
-    connections = [
-        backend.pool.get_connection(backend.meta_db_path),
-        backend.pool.get_connection(tmp_path / "exp" / "exp.db"),
-    ]
+    with (
+        backend.pool.get_connection(backend.meta_db_path) as meta_connection,
+        backend.pool.get_connection(tmp_path / "exp" / "exp.db") as exp_connection,
+    ):
+        connections = [meta_connection, exp_connection]
     backend_ref = weakref.ref(backend)
     pool_ref = weakref.ref(backend.pool)
 

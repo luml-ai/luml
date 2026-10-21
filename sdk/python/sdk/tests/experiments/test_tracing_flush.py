@@ -138,6 +138,6 @@ class TestConcurrentWrites:
         for t in threads:
             t.join()
 
-        conn = tracker.backend._get_experiment_connection(exp_id)  # type: ignore[attr-defined]
-        count = conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0]
-        assert count == num_threads * spans_per_thread
+        with tracker.backend._get_experiment_connection(exp_id) as conn:
+            count = conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0]
+            assert count == num_threads * spans_per_thread

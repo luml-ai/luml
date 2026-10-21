@@ -73,11 +73,11 @@ class TestListGroupExperimentsPaginationFilterString:
         backend.log_dynamic("exp-3", "accuracy", 0.92)
         backend.end_experiment("exp-3")
 
-        conn = backend._get_meta_connection()
-        row = conn.execute(
-            "SELECT id FROM experiment_groups WHERE name = 'g1'"
-        ).fetchone()
-        return {"g1": row[0]}
+        with backend._get_meta_connection() as conn:
+            row = conn.execute(
+                "SELECT id FROM experiment_groups WHERE name = 'g1'"
+            ).fetchone()
+            return {"g1": row[0]}
 
     def test_no_filter_returns_all(
         self, backend: SQLiteBackend, group_ids: dict[str, str]

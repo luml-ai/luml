@@ -13,7 +13,8 @@ class TestConnectionPool:
     ) -> None:
         monkeypatch.chdir(tmp_path)
         pool = ConnectionPool()
-        pool.get_connection(WINDOWS_EXP_DB)
+        with pool.get_connection(WINDOWS_EXP_DB):
+            pass
 
         pool.mark_experiment_inactive("exp-1")
 
@@ -25,11 +26,14 @@ class TestConnectionPool:
         monkeypatch.chdir(tmp_path)
         pool = ConnectionPool(max_connections=2)
         pool.mark_experiment_active("exp-1")
-        pool.get_connection(WINDOWS_EXP_DB)
+        with pool.get_connection(WINDOWS_EXP_DB):
+            pass
         inactive_db = r"C:\store\experiments\exp-2\exp.db"
-        pool.get_connection(inactive_db)
+        with pool.get_connection(inactive_db):
+            pass
 
-        pool.get_connection(r"C:\store\experiments\exp-3\exp.db")
+        with pool.get_connection(r"C:\store\experiments\exp-3\exp.db"):
+            pass
 
         assert WINDOWS_EXP_DB in pool._connections
         assert inactive_db not in pool._connections

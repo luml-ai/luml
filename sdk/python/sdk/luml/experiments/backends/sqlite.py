@@ -8,6 +8,7 @@ import tarfile
 import threading
 import uuid
 import weakref
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -81,7 +82,9 @@ class ConnectionPool:
     def __init__(self, max_connections: int = 10) -> None:
         self.max_connections = max_connections
         self._connections: dict[str, sqlite3.Connection] = {}
-        self._write_locks: dict[str, threading.Lock] = {}
+        self._write_locks: dict[str, threading.RLock] = {}
+        self._checkouts: dict[str, int] = {}
+        self._pending_closes: set[str] = set()
         self._lock = threading.RLock()
         self._active_experiments: set[str] = set()
         atexit.register(ConnectionPool._close_on_exit, weakref.ref(self))
@@ -91,39 +94,50 @@ class ConnectionPool:
         if (pool := pool_ref()) is not None:
             pool.close_all()
 
-    def get_connection(self, db_path: str | Path) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def get_connection(
+        self, db_path: str | Path, *, write: bool = False
+    ) -> Iterator[sqlite3.Connection]:
         db_path = str(db_path)
 
         with self._lock:
-            if db_path in self._connections:
-                conn = self._connections[db_path]
+            if db_path not in self._connections:
+                if len(self._connections) >= self.max_connections:
+                    self._evict_inactive_connection()
+
+                conn = sqlite3.Connection(
+                    db_path,
+                    check_same_thread=False,
+                    detect_types=sqlite3.PARSE_DECLTYPES,
+                )
                 try:
-                    conn.execute("SELECT 1")
-                    return conn
-                except sqlite3.Error:
+                    conn.execute("PRAGMA foreign_keys = ON")
+                    conn.execute("PRAGMA journal_mode = WAL")
+                except BaseException:
+                    conn.close()
+                    raise
+
+                self._connections[db_path] = conn
+                self._write_locks[db_path] = threading.RLock()
+                self._checkouts[db_path] = 0
+
+            conn = self._connections[db_path]
+            write_lock = self._write_locks[db_path]
+            self._checkouts[db_path] += 1
+
+        try:
+            with write_lock if write else contextlib.nullcontext():
+                try:
+                    yield conn
+                except BaseException:
+                    if write:
+                        conn.rollback()
+                    raise
+        finally:
+            with self._lock:
+                self._checkouts[db_path] -= 1
+                if not self._checkouts[db_path] and db_path in self._pending_closes:
                     self._close_connection_unsafe(db_path)
-
-            if len(self._connections) >= self.max_connections:
-                self._evict_inactive_connection()
-
-            conn = sqlite3.Connection(
-                db_path,
-                check_same_thread=False,
-                detect_types=sqlite3.PARSE_DECLTYPES,
-            )
-            conn.execute("PRAGMA foreign_keys = ON")
-            conn.execute("PRAGMA journal_mode = WAL")
-
-            self._connections[db_path] = conn
-            self._write_locks[db_path] = threading.Lock()
-            return conn
-
-    def get_write_lock(self, db_path: str | Path) -> threading.Lock:
-        db_path = str(db_path)
-        with self._lock:
-            if db_path not in self._write_locks:
-                self._write_locks[db_path] = threading.Lock()
-            return self._write_locks[db_path]
 
     def mark_experiment_active(self, experiment_id: str) -> None:
         with self._lock:
@@ -144,23 +158,28 @@ class ConnectionPool:
 
         for db_path in list(self._connections.keys()):
             normalized_path = db_path.replace("\\", "/")
-            if not any(
-                f"{exp_id}/exp.db" in normalized_path
-                for exp_id in self._active_experiments
-            ) and not normalized_path.endswith("meta.db"):
+            if (
+                not self._checkouts[db_path]
+                and not any(
+                    f"{exp_id}/exp.db" in normalized_path
+                    for exp_id in self._active_experiments
+                )
+                and not normalized_path.endswith("meta.db")
+            ):
                 self._close_connection_unsafe(db_path)
                 return
 
-        inactive_paths = [p for p in self._connections if not p.endswith("meta.db")]
-        if inactive_paths:
-            self._close_connection_unsafe(inactive_paths[0])
-
     def _close_connection_unsafe(self, db_path: str) -> None:
         if db_path in self._connections:
+            if self._checkouts[db_path]:
+                self._pending_closes.add(db_path)
+                return
             with contextlib.suppress(sqlite3.Error):
                 self._connections[db_path].close()
             del self._connections[db_path]
             self._write_locks.pop(db_path, None)
+            del self._checkouts[db_path]
+            self._pending_closes.discard(db_path)
 
     def close_connection(self, db_path: str) -> None:
         with self._lock:
@@ -257,20 +276,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             raise ValueError(f"Experiment {experiment_id} not initialized")
 
         if experiment_id not in self._migrated_experiment_dbs:
-            conn = self._get_experiment_connection(experiment_id)
-            ExperimentMigrationRunner(conn).migrate()
-            self._migrated_experiment_dbs.add(experiment_id)
+            with self._get_experiment_connection(experiment_id, write=True) as conn:
+                if experiment_id not in self._migrated_experiment_dbs:
+                    ExperimentMigrationRunner(conn).migrate()
+                    self._migrated_experiment_dbs.add(experiment_id)
 
-    def _get_meta_connection(self) -> sqlite3.Connection:
-        return self.pool.get_connection(self.meta_db_path)
+    def _get_meta_connection(
+        self, *, write: bool = False
+    ) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+        return self.pool.get_connection(self.meta_db_path, write=write)
 
-    def _get_experiment_connection(self, experiment_id: str) -> sqlite3.Connection:
+    def _get_experiment_connection(
+        self, experiment_id: str, *, write: bool = False
+    ) -> contextlib.AbstractContextManager[sqlite3.Connection]:
         db_path = self._get_experiment_db_path(experiment_id)
-        return self.pool.get_connection(db_path)
-
-    def _get_experiment_write_lock(self, experiment_id: str) -> threading.Lock:
-        db_path = self._get_experiment_db_path(experiment_id)
-        return self.pool.get_write_lock(db_path)
+        return self.pool.get_connection(db_path, write=write)
 
     def _get_experiment_dir(self, experiment_id: str) -> Path:
         if not isinstance(experiment_id, str) or not re.fullmatch(
@@ -310,17 +330,19 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return value
 
     def _initialize_meta_db(self) -> None:
-        conn = self._get_meta_connection()
-        MetaDBMigrationRunner(conn).migrate()
+        with self._get_meta_connection(write=True) as conn:
+            MetaDBMigrationRunner(conn).migrate()
 
     def _initialize_experiment_db(self, experiment_id: str) -> None:
         exp_dir = self._get_experiment_dir(experiment_id)
         exp_dir.mkdir(exist_ok=True)
         self._get_attachments_dir(experiment_id).mkdir(exist_ok=True)
 
-        conn = self.pool.get_connection(self._get_experiment_db_path(experiment_id))
-        ExperimentMigrationRunner(conn).migrate()
-        self._migrated_experiment_dbs.add(experiment_id)
+        with self.pool.get_connection(
+            self._get_experiment_db_path(experiment_id), write=True
+        ) as conn:
+            ExperimentMigrationRunner(conn).migrate()
+            self._migrated_experiment_dbs.add(experiment_id)
 
     @staticmethod
     def _row_to_model(row: sqlite3.Row) -> Model:
@@ -370,39 +392,39 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If an experiment with the given ID already exists.
         """
         self._get_experiment_dir(experiment_id)
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
 
-        cursor.execute("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
-        if cursor.fetchone() is not None:
-            raise ValueError(f"Experiment '{experiment_id}' already exists")
+            cursor.execute("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+            if cursor.fetchone() is not None:
+                raise ValueError(f"Experiment '{experiment_id}' already exists")
 
-        cursor.execute("SELECT id FROM experiment_groups WHERE name = ?", (group,))
+            cursor.execute("SELECT id FROM experiment_groups WHERE name = ?", (group,))
 
-        if row := cursor.fetchone():
-            group_id = row[0]
-        else:
-            created_group = self.create_group(group)
-            group_id = created_group.id
+            if row := cursor.fetchone():
+                group_id = row[0]
+            else:
+                created_group = self.create_group(group)
+                group_id = created_group.id
 
-        tags_str = json.dumps(tags) if tags else None
-        cursor.execute(
-            """
-            INSERT INTO experiments (id, name, group_id, tags, description, source, upload_status)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                experiment_id,
-                name or experiment_id,
-                group_id,
-                tags_str,
-                description,
-                source,
-                "not_uploaded",
-            ),
-        )
+            tags_str = json.dumps(tags) if tags else None
+            cursor.execute(
+                """
+                INSERT INTO experiments (id, name, group_id, tags, description, source, upload_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    experiment_id,
+                    name or experiment_id,
+                    group_id,
+                    tags_str,
+                    description,
+                    source,
+                    "not_uploaded",
+                ),
+            )
 
-        conn.commit()
+            conn.commit()
 
         self._initialize_experiment_db(experiment_id)
         self.pool.mark_experiment_active(experiment_id)
@@ -433,28 +455,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._ensure_experiment_initialized(experiment_id)
 
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
+            cursor = conn.cursor()
 
-        if np is not None and isinstance(value, np.generic):
-            value = float(value) if isinstance(value, np.floating) else value.item()
+            if np is not None and isinstance(value, np.generic):
+                value = float(value) if isinstance(value, np.floating) else value.item()
 
-        if isinstance(value, str | int | float | bool):
-            value_str = str(value)
-            value_type = type(value).__name__
-        else:
-            value_str = json.dumps(value)
-            value_type = "json"
+            if isinstance(value, str | int | float | bool):
+                value_str = str(value)
+                value_type = type(value).__name__
+            else:
+                value_str = json.dumps(value)
+                value_type = "json"
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO static_params (key, value, value_type)
-            VALUES (?, ?, ?)
-        """,
-            (key, value_str, value_type),
-        )
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO static_params (key, value, value_type)
+                VALUES (?, ?, ?)
+            """,
+                (key, value_str, value_type),
+            )
 
-        conn.commit()
+            conn.commit()
 
     def log_dynamic(
         self, experiment_id: str, key: str, value: int | float, step: int | None = None
@@ -478,9 +500,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             None
         """
         self._ensure_experiment_initialized(experiment_id)
-        write_lock = self._get_experiment_write_lock(experiment_id)
-        with write_lock:
-            conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
             cursor = conn.cursor()
             if step is None:
                 cursor.execute(
@@ -532,31 +552,31 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             f.write(data)
         size = file_path.stat().st_size
 
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
+            cursor = conn.cursor()
 
-        relative_path = str(
-            file_path.relative_to(self._get_attachments_dir(experiment_id))
-        )
-        cursor.execute("SELECT id FROM attachments WHERE name = ?", (name,))
-        existing = cursor.fetchone()
-        if existing and existing[0] is not None:
-            cursor.execute(
-                "UPDATE attachments SET file_path = ?, size = ? WHERE name = ?",
-                (relative_path, size, name),
+            relative_path = str(
+                file_path.relative_to(self._get_attachments_dir(experiment_id))
             )
-        elif existing:
-            cursor.execute(
-                "UPDATE attachments SET id = ?, file_path = ?, size = ? WHERE name = ?",
-                (str(uuid.uuid4()), relative_path, size, name),
-            )
-        else:
-            cursor.execute(
-                "INSERT INTO attachments (id, name, file_path, size) VALUES (?, ?, ?, ?)",
-                (str(uuid.uuid4()), name, relative_path, size),
-            )
+            cursor.execute("SELECT id FROM attachments WHERE name = ?", (name,))
+            existing = cursor.fetchone()
+            if existing and existing[0] is not None:
+                cursor.execute(
+                    "UPDATE attachments SET file_path = ?, size = ? WHERE name = ?",
+                    (relative_path, size, name),
+                )
+            elif existing:
+                cursor.execute(
+                    "UPDATE attachments SET id = ?, file_path = ?, size = ? WHERE name = ?",
+                    (str(uuid.uuid4()), relative_path, size, name),
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO attachments (id, name, file_path, size) VALUES (?, ?, ?, ?)",
+                    (str(uuid.uuid4()), name, relative_path, size),
+                )
 
-        conn.commit()
+            conn.commit()
 
     def log_span(
         self,
@@ -609,9 +629,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         events_json = json.dumps(events) if events else None
         links_json = json.dumps(links) if links else None
 
-        write_lock = self._get_experiment_write_lock(experiment_id)
-        with write_lock:
-            conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -682,9 +700,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         scores_json = json.dumps(scores) if scores else None
         metadata_json = json.dumps(metadata) if metadata else None
 
-        write_lock = self._get_experiment_write_lock(experiment_id)
-        with write_lock:
-            conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -723,9 +739,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             trace_id: Identifier of the trace to be associated with the evaluation sample.
         """
         self._ensure_experiment_initialized(experiment_id)
-        write_lock = self._get_experiment_write_lock(experiment_id)
-        with write_lock:
-            conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
             cursor = conn.cursor()
 
             cursor.execute(
@@ -771,62 +785,62 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If the experiment with the given experiment ID is not found.
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
+        with self._get_experiment_connection(experiment_id) as conn:
+            cursor = conn.cursor()
 
-        cursor.execute("SELECT key, value, value_type FROM static_params")
-        static_params = {}
-        for key, value, value_type in cursor.fetchall():
-            static_params[key] = self._convert_static_param_value(value, value_type)
+            cursor.execute("SELECT key, value, value_type FROM static_params")
+            static_params = {}
+            for key, value, value_type in cursor.fetchall():
+                static_params[key] = self._convert_static_param_value(value, value_type)
 
-        cursor.execute(
-            "SELECT key, value, step FROM dynamic_metrics ORDER BY key, step"
-        )
-        dynamic_metrics: dict[str, list[dict[str, Any]]] = {}
-        for key, value, step in cursor.fetchall():
-            if key not in dynamic_metrics:
-                dynamic_metrics[key] = []
-            dynamic_metrics[key].append({"value": value, "step": step})
+            cursor.execute(
+                "SELECT key, value, step FROM dynamic_metrics ORDER BY key, step"
+            )
+            dynamic_metrics: dict[str, list[dict[str, Any]]] = {}
+            for key, value, step in cursor.fetchall():
+                if key not in dynamic_metrics:
+                    dynamic_metrics[key] = []
+                dynamic_metrics[key].append({"value": value, "step": step})
 
-        cursor.execute("SELECT name, file_path, created_at FROM attachments")
-        attachments = {}
-        for name, file_path, created_at in cursor.fetchall():
-            attachments[name] = {
-                "file_path": file_path,
-                "created_at": created_at,
-            }
+            cursor.execute("SELECT name, file_path, created_at FROM attachments")
+            attachments = {}
+            for name, file_path, created_at in cursor.fetchall():
+                attachments[name] = {
+                    "file_path": file_path,
+                    "created_at": created_at,
+                }
 
-        meta_conn = self._get_meta_connection()
-        meta_cursor = meta_conn.cursor()
-        meta_cursor.execute(
-            "SELECT name, created_at, status, group_id, tags, duration, description, "
-            "metadata, upload_status "
-            "FROM experiments WHERE id = ?",
-            (experiment_id,),
-        )
-        meta_row = meta_cursor.fetchone()
+            with self._get_meta_connection() as meta_conn:
+                meta_cursor = meta_conn.cursor()
+                meta_cursor.execute(
+                    "SELECT name, created_at, status, group_id, tags, duration, description, "
+                    "metadata, upload_status "
+                    "FROM experiments WHERE id = ?",
+                    (experiment_id,),
+                )
+                meta_row = meta_cursor.fetchone()
 
-        if not meta_row:
-            msg = f"Experiment {experiment_id} not found"
-            raise ValueError(msg)
+                if not meta_row:
+                    msg = f"Experiment {experiment_id} not found"
+                    raise ValueError(msg)
 
-        return ExperimentData(
-            experiment_id=experiment_id,
-            metadata=ExperimentMetaData(
-                name=meta_row[0],
-                created_at=meta_row[1],
-                status=meta_row[2],
-                group_id=meta_row[3],
-                tags=json.loads(meta_row[4]) if meta_row[4] else [],
-                duration=meta_row[5],
-                description=meta_row[6],
-                metadata=json.loads(meta_row[7]) if meta_row[7] else {},
-                upload_status=meta_row[8] or "unknown",
-            ),
-            static_params=static_params,
-            dynamic_metrics=dynamic_metrics,
-            attachments=attachments,
-        )
+                return ExperimentData(
+                    experiment_id=experiment_id,
+                    metadata=ExperimentMetaData(
+                        name=meta_row[0],
+                        created_at=meta_row[1],
+                        status=meta_row[2],
+                        group_id=meta_row[3],
+                        tags=json.loads(meta_row[4]) if meta_row[4] else [],
+                        duration=meta_row[5],
+                        description=meta_row[6],
+                        metadata=json.loads(meta_row[7]) if meta_row[7] else {},
+                        upload_status=meta_row[8] or "unknown",
+                    ),
+                    static_params=static_params,
+                    dynamic_metrics=dynamic_metrics,
+                    attachments=attachments,
+                )
 
     def get_attachment(self, experiment_id: str, name: str) -> bytes:
         """
@@ -864,21 +878,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
     def list_attachments(self, experiment_id: str) -> list[AttachmentRecord]:
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, name, file_path, size, created_at FROM attachments ORDER BY file_path"
-        )
-        return [
-            AttachmentRecord(
-                id=id_,
-                name=name,
-                file_path=file_path or "",
-                size=size,
-                created_at=created_at,
+        with self._get_experiment_connection(experiment_id) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, name, file_path, size, created_at FROM attachments ORDER BY file_path"
             )
-            for id_, name, file_path, size, created_at in cursor.fetchall()
-        ]
+            return [
+                AttachmentRecord(
+                    id=id_,
+                    name=name,
+                    file_path=file_path or "",
+                    size=size,
+                    created_at=created_at,
+                )
+                for id_, name, file_path, size, created_at in cursor.fetchall()
+            ]
 
     def list_attachments_tree(
         self, experiment_id: str, parent_path: str | None = None
@@ -900,46 +914,49 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             folder sizes are aggregated based on their contents.
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
+        with self._get_experiment_connection(experiment_id) as conn:
+            cursor = conn.cursor()
 
-        prefix = (parent_path.rstrip("/") + "/") if parent_path else ""
+            prefix = (parent_path.rstrip("/") + "/") if parent_path else ""
 
-        if prefix:
-            cursor.execute(
-                "SELECT name, size FROM attachments WHERE name LIKE ? ORDER BY name",
-                (prefix + "%",),
-            )
-        else:
-            cursor.execute("SELECT name, size FROM attachments ORDER BY name")
-
-        result: list[FileNode] = []
-        folder_sizes: dict[str, int] = {}
-
-        for name, size in cursor.fetchall():
-            relative = name[len(prefix) :]
-            parts = relative.split("/")
-
-            if len(parts) == 1:
-                result.append(
-                    FileNode(name=parts[0], type="file", size=size, path=name)
+            if prefix:
+                cursor.execute(
+                    "SELECT name, size FROM attachments WHERE name LIKE ? ORDER BY name",
+                    (prefix + "%",),
                 )
             else:
-                folder_name = parts[0]
-                folder_path = prefix + folder_name
-                folder_sizes[folder_path] = folder_sizes.get(folder_path, 0) + (
-                    size or 0
+                cursor.execute("SELECT name, size FROM attachments ORDER BY name")
+
+            result: list[FileNode] = []
+            folder_sizes: dict[str, int] = {}
+
+            for name, size in cursor.fetchall():
+                relative = name[len(prefix) :]
+                parts = relative.split("/")
+
+                if len(parts) == 1:
+                    result.append(
+                        FileNode(name=parts[0], type="file", size=size, path=name)
+                    )
+                else:
+                    folder_name = parts[0]
+                    folder_path = prefix + folder_name
+                    folder_sizes[folder_path] = folder_sizes.get(folder_path, 0) + (
+                        size or 0
+                    )
+
+            for folder_path, total_size in folder_sizes.items():
+                folder_name = folder_path[len(prefix) :]
+                result.append(
+                    FileNode(
+                        name=folder_name,
+                        type="folder",
+                        path=folder_path,
+                        size=total_size,
+                    )
                 )
 
-        for folder_path, total_size in folder_sizes.items():
-            folder_name = folder_path[len(prefix) :]
-            result.append(
-                FileNode(
-                    name=folder_name, type="folder", path=folder_path, size=total_size
-                )
-            )
-
-        return result
+            return result
 
     def list_experiments(self) -> list[Experiment]:  # noqa: ANN401
         """
@@ -954,68 +971,68 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             list[Experiment]: A list of `Experiment` objects containing information
             about each experiment retrieved from the database.
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description, source, metadata, upload_status
-            FROM experiments
-            """
-        )
-        experiments = []
-        for row in cursor.fetchall():
-            experiments.append(
-                Experiment(
-                    id=row[0],
-                    name=row[1],
-                    created_at=row[2],
-                    status=row[3],
-                    group_id=row[4],
-                    tags=json.loads(row[5]) if row[5] else [],
-                    static_params=json.loads(row[6]) if row[6] else {},
-                    dynamic_params=json.loads(row[7]) if row[7] else {},
-                    duration=row[8],
-                    description=row[9],
-                    source=row[10],
-                    metadata=json.loads(row[11]) if row[11] else {},
-                    upload_status=row[12] or "unknown",
-                )
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description, source, metadata, upload_status
+                FROM experiments
+                """
             )
-        return experiments
+            experiments = []
+            for row in cursor.fetchall():
+                experiments.append(
+                    Experiment(
+                        id=row[0],
+                        name=row[1],
+                        created_at=row[2],
+                        status=row[3],
+                        group_id=row[4],
+                        tags=json.loads(row[5]) if row[5] else [],
+                        static_params=json.loads(row[6]) if row[6] else {},
+                        dynamic_params=json.loads(row[7]) if row[7] else {},
+                        duration=row[8],
+                        description=row[9],
+                        source=row[10],
+                        metadata=json.loads(row[11]) if row[11] else {},
+                        upload_status=row[12] or "unknown",
+                    )
+                )
+            return experiments
 
     def get_group_experiments_static_params_keys(self, group_id: str) -> list[str]:
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
-        experiment_ids = [row[0] for row in cursor.fetchall()]
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
+            experiment_ids = [row[0] for row in cursor.fetchall()]
 
-        keys: set[str] = set()
-        for experiment_id in experiment_ids:
-            if not self._get_experiment_db_path(experiment_id).exists():
-                continue
-            exp_conn = self._get_experiment_connection(experiment_id)
-            exp_cursor = exp_conn.cursor()
-            exp_cursor.execute("SELECT DISTINCT key FROM static_params")
-            keys.update(row[0] for row in exp_cursor.fetchall())
+            keys: set[str] = set()
+            for experiment_id in experiment_ids:
+                if not self._get_experiment_db_path(experiment_id).exists():
+                    continue
+                with self._get_experiment_connection(experiment_id) as exp_conn:
+                    exp_cursor = exp_conn.cursor()
+                    exp_cursor.execute("SELECT DISTINCT key FROM static_params")
+                    keys.update(row[0] for row in exp_cursor.fetchall())
 
-        return sorted(keys)
+            return sorted(keys)
 
     def get_group_experiments_dynamic_metrics_keys(self, group_id: str) -> list[str]:
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
-        experiment_ids = [row[0] for row in cursor.fetchall()]
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
+            experiment_ids = [row[0] for row in cursor.fetchall()]
 
-        keys: set[str] = set()
-        for experiment_id in experiment_ids:
-            if not self._get_experiment_db_path(experiment_id).exists():
-                continue
-            exp_conn = self._get_experiment_connection(experiment_id)
-            exp_cursor = exp_conn.cursor()
-            exp_cursor.execute("SELECT DISTINCT key FROM dynamic_metrics")
-            keys.update(row[0] for row in exp_cursor.fetchall())
+            keys: set[str] = set()
+            for experiment_id in experiment_ids:
+                if not self._get_experiment_db_path(experiment_id).exists():
+                    continue
+                with self._get_experiment_connection(experiment_id) as exp_conn:
+                    exp_cursor = exp_conn.cursor()
+                    exp_cursor.execute("SELECT DISTINCT key FROM dynamic_metrics")
+                    keys.update(row[0] for row in exp_cursor.fetchall())
 
-        return sorted(keys)
+            return sorted(keys)
 
     def resolve_experiment_sort_column(self, group_id: str, sort_by: str) -> str | None:
         """
@@ -1078,36 +1095,36 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             Experiment | None: An instance of the `Experiment` class containing the details of
             the experiment if found, or None if no matching record exists.
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT e.id, e.name, e.created_at, e.status, e.tags, e.duration, e.description, "
-            "e.group_id, e.static_params, e.dynamic_params, eg.name AS group_name, e.source, "
-            "e.metadata, e.upload_status "
-            "FROM experiments e "
-            "LEFT JOIN experiment_groups eg ON e.group_id = eg.id "
-            "WHERE e.id = ?",
-            (experiment_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return None
-        return Experiment(
-            id=row[0],
-            name=row[1],
-            created_at=row[2],
-            status=row[3],
-            tags=json.loads(row[4]) if row[4] else [],
-            duration=row[5],
-            description=row[6],
-            group_id=row[7],
-            static_params=json.loads(row[8]) if row[8] else {},
-            dynamic_params=json.loads(row[9]) if row[9] else {},
-            group_name=row[10],
-            source=row[11],
-            metadata=json.loads(row[12]) if row[12] else {},
-            upload_status=row[13] or "unknown",
-        )
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT e.id, e.name, e.created_at, e.status, e.tags, e.duration, e.description, "
+                "e.group_id, e.static_params, e.dynamic_params, eg.name AS group_name, e.source, "
+                "e.metadata, e.upload_status "
+                "FROM experiments e "
+                "LEFT JOIN experiment_groups eg ON e.group_id = eg.id "
+                "WHERE e.id = ?",
+                (experiment_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return Experiment(
+                id=row[0],
+                name=row[1],
+                created_at=row[2],
+                status=row[3],
+                tags=json.loads(row[4]) if row[4] else [],
+                duration=row[5],
+                description=row[6],
+                group_id=row[7],
+                static_params=json.loads(row[8]) if row[8] else {},
+                dynamic_params=json.loads(row[9]) if row[9] else {},
+                group_name=row[10],
+                source=row[11],
+                metadata=json.loads(row[12]) if row[12] else {},
+                upload_status=row[13] or "unknown",
+            )
 
     def delete_experiment(self, experiment_id: str) -> None:
         """
@@ -1132,10 +1149,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
             shutil.rmtree(exp_dir)
 
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
-        conn.commit()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
+            conn.commit()
 
     def update_experiment(
         self,
@@ -1159,23 +1176,52 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             Experiment: Updated experiment object if the update is successful or the record is retrieved.
             None: If the experiment with the given ID does not exist.
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
 
-        fields: list[str] = []
-        values: list[Any] = []
+            fields: list[str] = []
+            values: list[Any] = []
 
-        if name is not None:
-            fields.append("name = ?")
-            values.append(name)
-        if description is not None:
-            fields.append("description = ?")
-            values.append(description)
-        if tags is not None:
-            fields.append("tags = ?")
-            values.append(json.dumps(tags))
+            if name is not None:
+                fields.append("name = ?")
+                values.append(name)
+            if description is not None:
+                fields.append("description = ?")
+                values.append(description)
+            if tags is not None:
+                fields.append("tags = ?")
+                values.append(json.dumps(tags))
 
-        if not fields:
+            if not fields:
+                cursor.execute(
+                    "SELECT id, name, created_at, status, tags, duration, description, group_id, source, metadata, upload_status "
+                    "FROM experiments WHERE id = ?",
+                    (experiment_id,),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return Experiment(
+                    id=row[0],
+                    name=row[1],
+                    created_at=row[2],
+                    status=row[3],
+                    tags=json.loads(row[4]) if row[4] else [],
+                    duration=row[5],
+                    description=row[6],
+                    group_id=row[7],
+                    source=row[8],
+                    metadata=json.loads(row[9]) if row[9] else {},
+                    upload_status=row[10] or "unknown",
+                )
+
+            values.append(experiment_id)
+            cursor.execute(
+                f"UPDATE experiments SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
+                values,
+            )
+            conn.commit()
+
             cursor.execute(
                 "SELECT id, name, created_at, status, tags, duration, description, group_id, source, metadata, upload_status "
                 "FROM experiments WHERE id = ?",
@@ -1198,59 +1244,30 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 upload_status=row[10] or "unknown",
             )
 
-        values.append(experiment_id)
-        cursor.execute(
-            f"UPDATE experiments SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
-            values,
-        )
-        conn.commit()
-
-        cursor.execute(
-            "SELECT id, name, created_at, status, tags, duration, description, group_id, source, metadata, upload_status "
-            "FROM experiments WHERE id = ?",
-            (experiment_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            return None
-        return Experiment(
-            id=row[0],
-            name=row[1],
-            created_at=row[2],
-            status=row[3],
-            tags=json.loads(row[4]) if row[4] else [],
-            duration=row[5],
-            description=row[6],
-            group_id=row[7],
-            source=row[8],
-            metadata=json.loads(row[9]) if row[9] else {},
-            upload_status=row[10] or "unknown",
-        )
-
     def get_experiment_metadata(self, experiment_id: str) -> dict[str, Any]:
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT metadata FROM experiments WHERE id = ?", (experiment_id,)
-        )
-        row = cursor.fetchone()
-        if row is None:
-            raise ValueError(f"Experiment {experiment_id} not found")
-        return json.loads(row[0]) if row[0] else {}
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT metadata FROM experiments WHERE id = ?", (experiment_id,)
+            )
+            row = cursor.fetchone()
+            if row is None:
+                raise ValueError(f"Experiment {experiment_id} not found")
+            return json.loads(row[0]) if row[0] else {}
 
     def set_experiment_metadata(
         self, experiment_id: str, metadata: dict[str, Any]
     ) -> None:
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
-        if cursor.fetchone() is None:
-            raise ValueError(f"Experiment {experiment_id} not found")
-        cursor.execute(
-            "UPDATE experiments SET metadata = ? WHERE id = ?",
-            (json.dumps(metadata) if metadata else None, experiment_id),
-        )
-        conn.commit()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
+            if cursor.fetchone() is None:
+                raise ValueError(f"Experiment {experiment_id} not found")
+            cursor.execute(
+                "UPDATE experiments SET metadata = ? WHERE id = ?",
+                (json.dumps(metadata) if metadata else None, experiment_id),
+            )
+            conn.commit()
 
     def update_experiment_metadata(
         self, experiment_id: str, updates: dict[str, Any]
@@ -1259,25 +1276,26 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         Keys mapped to `None` are removed. Returns the updated metadata dict.
         """
-        current = self.get_experiment_metadata(experiment_id)
-        for key, value in updates.items():
-            if value is None:
-                current.pop(key, None)
-            else:
-                current[key] = value
-        self.set_experiment_metadata(experiment_id, current)
-        return current
+        with self._get_meta_connection(write=True):
+            current = self.get_experiment_metadata(experiment_id)
+            for key, value in updates.items():
+                if value is None:
+                    current.pop(key, None)
+                else:
+                    current[key] = value
+            self.set_experiment_metadata(experiment_id, current)
+            return current
 
     def get_experiment_upload_status(self, experiment_id: str) -> str:
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT upload_status FROM experiments WHERE id = ?", (experiment_id,)
-        )
-        row = cursor.fetchone()
-        if row is None:
-            raise ValueError(f"Experiment {experiment_id} not found")
-        return row[0] or "unknown"
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT upload_status FROM experiments WHERE id = ?", (experiment_id,)
+            )
+            row = cursor.fetchone()
+            if row is None:
+                raise ValueError(f"Experiment {experiment_id} not found")
+            return row[0] or "unknown"
 
     def set_experiment_upload_status(self, experiment_id: str, status: str) -> None:
         allowed = {"unknown", "not_uploaded", "uploading", "uploaded", "failed"}
@@ -1285,59 +1303,59 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             raise ValueError(
                 f"Invalid upload_status '{status}'. Must be one of {sorted(allowed)}"
             )
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
-        if cursor.fetchone() is None:
-            raise ValueError(f"Experiment {experiment_id} not found")
-        cursor.execute(
-            "UPDATE experiments SET upload_status = ? WHERE id = ?",
-            (status, experiment_id),
-        )
-        conn.commit()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
+            if cursor.fetchone() is None:
+                raise ValueError(f"Experiment {experiment_id} not found")
+            cursor.execute(
+                "UPDATE experiments SET upload_status = ? WHERE id = ?",
+                (status, experiment_id),
+            )
+            conn.commit()
 
     def set_remote_artifact(
         self, local_type: str, local_id: str, orbit_id: str, artifact_id: str
     ) -> None:
-        conn = self._get_meta_connection()
-        conn.execute(
-            """
-            INSERT INTO remote_artifacts (
-                local_type, local_id, orbit_id, artifact_id
-            ) VALUES (?, ?, ?, ?)
-            ON CONFLICT (local_type, local_id, orbit_id)
-            DO UPDATE SET artifact_id = excluded.artifact_id
-            """,
-            (local_type, local_id, orbit_id, artifact_id),
-        )
-        conn.commit()
+        with self._get_meta_connection(write=True) as conn:
+            conn.execute(
+                """
+                INSERT INTO remote_artifacts (
+                    local_type, local_id, orbit_id, artifact_id
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT (local_type, local_id, orbit_id)
+                DO UPDATE SET artifact_id = excluded.artifact_id
+                """,
+                (local_type, local_id, orbit_id, artifact_id),
+            )
+            conn.commit()
 
     def get_remote_artifact(
         self, local_type: str, local_id: str, orbit_id: str
     ) -> str | None:
-        conn = self._get_meta_connection()
-        row = conn.execute(
-            """
-            SELECT artifact_id
-            FROM remote_artifacts
-            WHERE local_type = ? AND local_id = ? AND orbit_id = ?
-            """,
-            (local_type, local_id, orbit_id),
-        ).fetchone()
-        return row[0] if row is not None else None
+        with self._get_meta_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT artifact_id
+                FROM remote_artifacts
+                WHERE local_type = ? AND local_id = ? AND orbit_id = ?
+                """,
+                (local_type, local_id, orbit_id),
+            ).fetchone()
+            return row[0] if row is not None else None
 
     def delete_remote_artifact(
         self, local_type: str, local_id: str, orbit_id: str
     ) -> None:
-        conn = self._get_meta_connection()
-        conn.execute(
-            """
-            DELETE FROM remote_artifacts
-            WHERE local_type = ? AND local_id = ? AND orbit_id = ?
-            """,
-            (local_type, local_id, orbit_id),
-        )
-        conn.commit()
+        with self._get_meta_connection(write=True) as conn:
+            conn.execute(
+                """
+                DELETE FROM remote_artifacts
+                WHERE local_type = ? AND local_id = ? AND orbit_id = ?
+                """,
+                (local_type, local_id, orbit_id),
+            )
+            conn.commit()
 
     def create_group(
         self,
@@ -1360,40 +1378,40 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             Group: An instance of the Group class containing the data for the retrieved or newly created group.
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT id, name, description, created_at, tags, last_modified "
-            "FROM experiment_groups WHERE name = ?",
-            (name,),
-        )
-        existing = cursor.fetchone()
-        if existing:
-            return Group(
-                id=existing[0],
-                name=existing[1],
-                description=existing[2],
-                created_at=existing[3],
-                tags=json.loads(existing[4]) if existing[4] else [],
-                last_modified=existing[5],
+            cursor.execute(
+                "SELECT id, name, description, created_at, tags, last_modified "
+                "FROM experiment_groups WHERE name = ?",
+                (name,),
             )
+            existing = cursor.fetchone()
+            if existing:
+                return Group(
+                    id=existing[0],
+                    name=existing[1],
+                    description=existing[2],
+                    created_at=existing[3],
+                    tags=json.loads(existing[4]) if existing[4] else [],
+                    last_modified=existing[5],
+                )
 
-        group_id = str(uuid.uuid4())
-        tags_str = json.dumps(tags) if tags else None
-        cursor.execute(
-            "INSERT INTO experiment_groups (id, name, description, tags) VALUES (?, ?, ?, ?)",
-            (group_id, name, description, tags_str),
-        )
-        conn.commit()
-        return Group(
-            id=group_id,
-            name=name,
-            description=description,
-            created_at=datetime.now(UTC),
-            tags=tags or [],
-            last_modified=datetime.now(UTC),
-        )
+            group_id = str(uuid.uuid4())
+            tags_str = json.dumps(tags) if tags else None
+            cursor.execute(
+                "INSERT INTO experiment_groups (id, name, description, tags) VALUES (?, ?, ?, ?)",
+                (group_id, name, description, tags_str),
+            )
+            conn.commit()
+            return Group(
+                id=group_id,
+                name=name,
+                description=description,
+                created_at=datetime.now(UTC),
+                tags=tags or [],
+                last_modified=datetime.now(UTC),
+            )
 
     def update_group(
         self,
@@ -1418,35 +1436,35 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             An updated Group object if the update is successful. If there are no
             updates provided, or the group ID doesn't exist, returns None.
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
 
-        fields: list[str] = []
-        values: list[Any] = []
+            fields: list[str] = []
+            values: list[Any] = []
 
-        if name is not None:
-            fields.append("name = ?")
-            values.append(name)
-        if description is not None:
-            fields.append("description = ?")
-            values.append(description)
-        if tags is not None:
-            fields.append("tags = ?")
-            values.append(json.dumps(tags))
+            if name is not None:
+                fields.append("name = ?")
+                values.append(name)
+            if description is not None:
+                fields.append("description = ?")
+                values.append(description)
+            if tags is not None:
+                fields.append("tags = ?")
+                values.append(json.dumps(tags))
 
-        if not fields:
+            if not fields:
+                return self.get_group(group_id)
+
+            fields.append("last_modified = CURRENT_TIMESTAMP")
+            values.append(group_id)
+
+            cursor.execute(
+                f"UPDATE experiment_groups SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
+                values,
+            )
+            conn.commit()
+
             return self.get_group(group_id)
-
-        fields.append("last_modified = CURRENT_TIMESTAMP")
-        values.append(group_id)
-
-        cursor.execute(
-            f"UPDATE experiment_groups SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
-            values,
-        )
-        conn.commit()
-
-        return self.get_group(group_id)
 
     def delete_group(self, group_id: str) -> None:
         """
@@ -1459,16 +1477,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             None
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
-        experiment_ids = [row[0] for row in cursor.fetchall()]
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
+            experiment_ids = [row[0] for row in cursor.fetchall()]
 
-        for experiment_id in experiment_ids:
-            self.delete_experiment(experiment_id)
+            for experiment_id in experiment_ids:
+                self.delete_experiment(experiment_id)
 
-        cursor.execute("DELETE FROM experiment_groups WHERE id = ?", (group_id,))
-        conn.commit()
+            cursor.execute("DELETE FROM experiment_groups WHERE id = ?", (group_id,))
+            conn.commit()
 
     def list_groups(self) -> list[Group]:  # noqa: ANN401
         """
@@ -1502,24 +1520,24 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ),
             ]
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, name, description, created_at, tags, last_modified FROM experiment_groups"
-        )
-        groups = []
-        for row in cursor.fetchall():
-            groups.append(
-                Group(
-                    id=row[0],
-                    name=row[1],
-                    description=row[2],
-                    created_at=row[3],
-                    tags=json.loads(row[4]) if row[4] else [],
-                    last_modified=row[5],
-                )
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, name, description, created_at, tags, last_modified FROM experiment_groups"
             )
-        return groups
+            groups = []
+            for row in cursor.fetchall():
+                groups.append(
+                    Group(
+                        id=row[0],
+                        name=row[1],
+                        description=row[2],
+                        created_at=row[3],
+                        tags=json.loads(row[4]) if row[4] else [],
+                        last_modified=row[5],
+                    )
+                )
+            return groups
 
     def log_model(
         self,
@@ -1586,38 +1604,38 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         rel_path = str(dest.relative_to(self.base_path))
 
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        size = dest.stat().st_size
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
+            size = dest.stat().st_size
 
-        cursor.execute(
-            "INSERT INTO models (id, name, tags, path, size, experiment_id, source, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                model_id,
-                name or model_src.stem,
-                tags_json,
-                rel_path,
-                size,
-                experiment_id,
-                source,
-                description,
-            ),
-        )
-        conn.commit()
+            cursor.execute(
+                "INSERT INTO models (id, name, tags, path, size, experiment_id, source, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    model_id,
+                    name or model_src.stem,
+                    tags_json,
+                    rel_path,
+                    size,
+                    experiment_id,
+                    source,
+                    description,
+                ),
+            )
+            conn.commit()
 
-        now = datetime.now(UTC)
-        model = Model(
-            id=model_id,
-            name=name or model_src.stem,
-            created_at=now,
-            tags=tags or [],
-            path=rel_path,
-            size=size,
-            experiment_id=experiment_id,
-            source=source,
-            description=description,
-        )
-        return model, str(dest)
+            now = datetime.now(UTC)
+            model = Model(
+                id=model_id,
+                name=name or model_src.stem,
+                created_at=now,
+                tags=tags or [],
+                path=rel_path,
+                size=size,
+                experiment_id=experiment_id,
+                source=source,
+                description=description,
+            )
+            return model, str(dest)
 
     def get_models(self, experiment_id: str) -> list[Model]:
         """
@@ -1657,13 +1675,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ),
             ]
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id = ?",
-            (experiment_id,),
-        )
-        return [self._row_to_model(row) for row in cursor.fetchall()]
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id = ?",
+                (experiment_id,),
+            )
+            return [self._row_to_model(row) for row in cursor.fetchall()]
 
     def get_model(self, model_id: str) -> Model:
         """
@@ -1696,11 +1714,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             >>> backend.get_model("nonexistent-id")
             ValueError: Model nonexistent-id not found
         """
-        conn = self._get_meta_connection()
-        model = self._fetch_model(conn.cursor(), model_id)
-        if not model:
-            raise ValueError(f"Model {model_id} not found")
-        return model
+        with self._get_meta_connection() as conn:
+            model = self._fetch_model(conn.cursor(), model_id)
+            if not model:
+                raise ValueError(f"Model {model_id} not found")
+            return model
 
     def get_model_card(self, model_id: str) -> bytes:
         """
@@ -1727,27 +1745,27 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             >>> with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
             ...     html = zf.read("index.html")
         """
-        conn = self._get_meta_connection()
-        model = self._fetch_model(conn.cursor(), model_id)
+        with self._get_meta_connection() as conn:
+            model = self._fetch_model(conn.cursor(), model_id)
 
-        if not model or not model.path:
-            raise ValueError(f"Model {model_id} not found")
+            if not model or not model.path:
+                raise ValueError(f"Model {model_id} not found")
 
-        luml_path = self.base_path / model.path
-        if not luml_path.exists():
-            raise ValueError(f"Model file not found: {luml_path}")
+            luml_path = self.base_path / model.path
+            if not luml_path.exists():
+                raise ValueError(f"Model file not found: {luml_path}")
 
-        with tarfile.open(luml_path, "r") as tar:
-            card_member = next(
-                (m for m in tar.getmembers() if m.name.endswith("/model_card.zip")),
-                None,
-            )
-            if card_member is None:
-                raise ValueError(f"Model card not found in model {model_id}")
-            extracted = tar.extractfile(card_member)
-            if extracted is None:
-                raise ValueError(f"Model card not found in model {model_id}")
-            return extracted.read()
+            with tarfile.open(luml_path, "r") as tar:
+                card_member = next(
+                    (m for m in tar.getmembers() if m.name.endswith("/model_card.zip")),
+                    None,
+                )
+                if card_member is None:
+                    raise ValueError(f"Model card not found in model {model_id}")
+                extracted = tar.extractfile(card_member)
+                if extracted is None:
+                    raise ValueError(f"Model card not found in model {model_id}")
+                return extracted.read()
 
     def update_model(
         self,
@@ -1788,33 +1806,33 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             >>> backend.update_model("nonexistent-id")
             None
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
 
-        fields: list[str] = []
-        values: list[Any] = []
+            fields: list[str] = []
+            values: list[Any] = []
 
-        if name is not None:
-            fields.append("name = ?")
-            values.append(name)
-        if tags is not None:
-            fields.append("tags = ?")
-            values.append(json.dumps(tags))
-        if description is not None:
-            fields.append("description = ?")
-            values.append(description)
+            if name is not None:
+                fields.append("name = ?")
+                values.append(name)
+            if tags is not None:
+                fields.append("tags = ?")
+                values.append(json.dumps(tags))
+            if description is not None:
+                fields.append("description = ?")
+                values.append(description)
 
-        if not fields:
+            if not fields:
+                return self._fetch_model(cursor, model_id)
+
+            values.append(model_id)
+            cursor.execute(
+                f"UPDATE models SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
+                values,
+            )
+            conn.commit()
+
             return self._fetch_model(cursor, model_id)
-
-        values.append(model_id)
-        cursor.execute(
-            f"UPDATE models SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
-            values,
-        )
-        conn.commit()
-
-        return self._fetch_model(cursor, model_id)
 
     def delete_model(self, model_id: str) -> None:
         """
@@ -1826,17 +1844,17 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Args:
             model_id (str): The unique identifier of the model to be deleted.
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT path FROM models WHERE id = ?", (model_id,))
-        row = cursor.fetchone()
-        if row and row[0]:
-            model_file = self.base_path / row[0]
-            if model_file.exists():
-                model_file.unlink()
+        with self._get_meta_connection(write=True) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT path FROM models WHERE id = ?", (model_id,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                model_file = self.base_path / row[0]
+                if model_file.exists():
+                    model_file.unlink()
 
-        cursor.execute("DELETE FROM models WHERE id = ?", (model_id,))
-        conn.commit()
+            cursor.execute("DELETE FROM models WHERE id = ?", (model_id,))
+            conn.commit()
 
     def list_groups_pagination(
         self,
@@ -1898,46 +1916,58 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
 
-        conn = self._get_meta_connection()
-        columns = ["id", "name", "description", "created_at", "tags", "last_modified"]
-        where_conditions = []
+        with self._get_meta_connection() as conn:
+            columns = [
+                "id",
+                "name",
+                "description",
+                "created_at",
+                "tags",
+                "last_modified",
+            ]
+            where_conditions = []
 
-        if search:
-            where_conditions.append(
-                (
-                    "id LIKE ? OR name LIKE ? OR tags LIKE ?",
-                    [f"%{search}%"] * 3,
+            if search:
+                where_conditions.append(
+                    (
+                        "id LIKE ? OR name LIKE ? OR tags LIKE ?",
+                        [f"%{search}%"] * 3,
+                    )
                 )
+
+            rows = self._execute_paginated_query(
+                conn=conn,
+                table="experiment_groups",
+                columns=columns,
+                limit=limit,
+                sort_by=sort_by,
+                order=order,
+                cursor_id=use_cursor.id if use_cursor else None,
+                cursor_value=use_cursor.value if use_cursor else None,
+                where=where_conditions,
+                allowed_sort_columns={
+                    "created_at",
+                    "name",
+                    "description",
+                    "last_modified",
+                },
             )
 
-        rows = self._execute_paginated_query(
-            conn=conn,
-            table="experiment_groups",
-            columns=columns,
-            limit=limit,
-            sort_by=sort_by,
-            order=order,
-            cursor_id=use_cursor.id if use_cursor else None,
-            cursor_value=use_cursor.value if use_cursor else None,
-            where=where_conditions,
-            allowed_sort_columns={"created_at", "name", "description", "last_modified"},
-        )
-
-        items = [
-            Group(
-                id=d["id"],
-                name=d["name"],
-                description=d["description"],
-                created_at=d["created_at"],
-                tags=d["tags"] or [],
-                last_modified=d["last_modified"],
+            items = [
+                Group(
+                    id=d["id"],
+                    name=d["name"],
+                    description=d["description"],
+                    created_at=d["created_at"],
+                    tags=d["tags"] or [],
+                    last_modified=d["last_modified"],
+                )
+                for d in self._items_to_dict(columns, rows)
+            ]
+            return PaginatedResponse(
+                items=items[:limit],
+                cursor=Cursor.get_cursor(items, limit, sort_by, order),
             )
-            for d in self._items_to_dict(columns, rows)
-        ]
-        return PaginatedResponse(
-            items=items[:limit],
-            cursor=Cursor.get_cursor(items, limit, sort_by, order),
-        )
 
     def get_group(self, group_id: str) -> Group | None:  # noqa: ANN401
         """
@@ -1969,24 +1999,24 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             >>> backend.get_group("nonexistent-id")
             None
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, name, description, created_at, tags, last_modified "
-            "FROM experiment_groups WHERE id = ?",
-            (group_id,),
-        )
-
-        if row := cursor.fetchone():
-            return Group(
-                id=row[0],
-                name=row[1],
-                description=row[2],
-                created_at=row[3],
-                tags=json.loads(row[4]) if row[4] else [],
-                last_modified=row[5],
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, name, description, created_at, tags, last_modified "
+                "FROM experiment_groups WHERE id = ?",
+                (group_id,),
             )
-        return None
+
+            if row := cursor.fetchone():
+                return Group(
+                    id=row[0],
+                    name=row[1],
+                    description=row[2],
+                    created_at=row[3],
+                    tags=json.loads(row[4]) if row[4] else [],
+                    last_modified=row[5],
+                )
+            return None
 
     def list_batch_experiments_models(
         self, experiment_ids: list[str]
@@ -2029,23 +2059,23 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ],
             }
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
 
-        models_by_experiment: dict[str, list[Model]] = {}
-        if experiment_ids:
-            placeholders = ", ".join("?" for _ in experiment_ids)
+            models_by_experiment: dict[str, list[Model]] = {}
+            if experiment_ids:
+                placeholders = ", ".join("?" for _ in experiment_ids)
 
-            cursor.execute(
-                f"SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id IN ({placeholders})",
-                experiment_ids,
-            )
-            for row in cursor.fetchall():
-                models_by_experiment.setdefault(row[6], []).append(
-                    self._row_to_model(row)
+                cursor.execute(
+                    f"SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id IN ({placeholders})",
+                    experiment_ids,
                 )
+                for row in cursor.fetchall():
+                    models_by_experiment.setdefault(row[6], []).append(
+                        self._row_to_model(row)
+                    )
 
-        return models_by_experiment
+            return models_by_experiment
 
     def list_experiment_models(self, experiment_id: str) -> list[Model]:
         """
@@ -2086,15 +2116,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ),
             ]
         """
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
+        with self._get_meta_connection() as conn:
+            cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id = ?",
-            (experiment_id,),
-        )
+            cursor.execute(
+                "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id = ?",
+                (experiment_id,),
+            )
 
-        return [self._row_to_model(row) for row in cursor.fetchall()]
+            return [self._row_to_model(row) for row in cursor.fetchall()]
 
     def validate_experiments_search(self, search: str | None = None) -> None:
         return SearchExperimentsUtils.validate_filter_string(search)
@@ -2129,70 +2159,73 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
 
         use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
-        conn = self._get_meta_connection()
+        with self._get_meta_connection() as conn:
+            cursor_value = None
+            if use_cursor and use_cursor.value is not None:
+                val = use_cursor.value
+                if isinstance(val, datetime):
+                    cursor_value = val.astimezone(UTC).isoformat()
+                else:
+                    cursor_value = str(val)
 
-        cursor_value = None
-        if use_cursor and use_cursor.value is not None:
-            val = use_cursor.value
-            if isinstance(val, datetime):
-                cursor_value = val.astimezone(UTC).isoformat()
-            else:
-                cursor_value = str(val)
-
-        rows = self._execute_paginated_query(
-            conn=conn,
-            table="experiments",
-            columns=self._EXPERIMENT_COLUMNS,
-            limit=limit,
-            sort_by=sort_by,
-            order=order,
-            cursor_id=use_cursor.id if use_cursor else None,
-            cursor_value=cursor_value,
-            where=where_conditions,
-            json_sort_column=json_sort_column,
-            allowed_sort_columns=self._STANDARD_EXPERIMENT_SORT_COLUMNS,
-        )
-
-        experiments_dicts = self._items_to_dict(self._EXPERIMENT_COLUMNS, rows)
-        models_by_experiment = self.list_batch_experiments_models(
-            [e["id"] for e in experiments_dicts]
-        )
-
-        group_ids = list({e["group_id"] for e in experiments_dicts if e["group_id"]})
-        group_names: dict[str, str] = {}
-        if group_ids:
-            placeholders = ",".join("?" * len(group_ids))
-            cursor = conn.cursor()
-            cursor.execute(
-                f"SELECT id, name FROM experiment_groups WHERE id IN ({placeholders})",
-                group_ids,
+            rows = self._execute_paginated_query(
+                conn=conn,
+                table="experiments",
+                columns=self._EXPERIMENT_COLUMNS,
+                limit=limit,
+                sort_by=sort_by,
+                order=order,
+                cursor_id=use_cursor.id if use_cursor else None,
+                cursor_value=cursor_value,
+                where=where_conditions,
+                json_sort_column=json_sort_column,
+                allowed_sort_columns=self._STANDARD_EXPERIMENT_SORT_COLUMNS,
             )
-            group_names = {row[0]: row[1] for row in cursor.fetchall()}
 
-        items = [
-            Experiment(
-                id=e["id"],
-                group_id=e["group_id"],
-                group_name=group_names.get(e["group_id"]),
-                name=e["name"],
-                created_at=e["created_at"],
-                status=e["status"],
-                tags=e["tags"] if e["tags"] else [],
-                models=models_by_experiment.get(e["id"], []),
-                duration=e["duration"],
-                description=e["description"],
-                static_params=e["static_params"] or {},
-                dynamic_params=e["dynamic_params"] or {},
-                source=e.get("source"),
-                metadata=e.get("metadata") or {},
-                upload_status=e.get("upload_status") or "unknown",
+            experiments_dicts = self._items_to_dict(self._EXPERIMENT_COLUMNS, rows)
+            models_by_experiment = self.list_batch_experiments_models(
+                [e["id"] for e in experiments_dicts]
             )
-            for e in experiments_dicts
-        ]
-        return PaginatedResponse(
-            items=items[:limit],
-            cursor=Cursor.get_cursor(items, limit, sort_by, order, json_sort_column),
-        )
+
+            group_ids = list(
+                {e["group_id"] for e in experiments_dicts if e["group_id"]}
+            )
+            group_names: dict[str, str] = {}
+            if group_ids:
+                placeholders = ",".join("?" * len(group_ids))
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"SELECT id, name FROM experiment_groups WHERE id IN ({placeholders})",
+                    group_ids,
+                )
+                group_names = {row[0]: row[1] for row in cursor.fetchall()}
+
+            items = [
+                Experiment(
+                    id=e["id"],
+                    group_id=e["group_id"],
+                    group_name=group_names.get(e["group_id"]),
+                    name=e["name"],
+                    created_at=e["created_at"],
+                    status=e["status"],
+                    tags=e["tags"] if e["tags"] else [],
+                    models=models_by_experiment.get(e["id"], []),
+                    duration=e["duration"],
+                    description=e["description"],
+                    static_params=e["static_params"] or {},
+                    dynamic_params=e["dynamic_params"] or {},
+                    source=e.get("source"),
+                    metadata=e.get("metadata") or {},
+                    upload_status=e.get("upload_status") or "unknown",
+                )
+                for e in experiments_dicts
+            ]
+            return PaginatedResponse(
+                items=items[:limit],
+                cursor=Cursor.get_cursor(
+                    items, limit, sort_by, order, json_sort_column
+                ),
+            )
 
     def list_group_experiments_pagination(
         self,
@@ -2358,19 +2391,19 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
 
     def fail_experiment(self, experiment_id: str) -> None:
-        meta_conn = self._get_meta_connection()
-        meta_cursor = meta_conn.cursor()
-        meta_cursor.execute(
-            """
-            UPDATE experiments
-            SET status = 'error',
-                duration = (julianday('now') - julianday(created_at)) * 86400.0
-            WHERE id = ?
-            """,
-            (experiment_id,),
-        )
-        meta_conn.commit()
-        self.pool.mark_experiment_inactive(experiment_id)
+        with self._get_meta_connection(write=True) as meta_conn:
+            meta_cursor = meta_conn.cursor()
+            meta_cursor.execute(
+                """
+                UPDATE experiments
+                SET status = 'error',
+                    duration = (julianday('now') - julianday(created_at)) * 86400.0
+                WHERE id = ?
+                """,
+                (experiment_id,),
+            )
+            meta_conn.commit()
+            self.pool.mark_experiment_inactive(experiment_id)
 
     def end_experiment(self, experiment_id: str) -> None:
         """
@@ -2384,52 +2417,52 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Args:
             experiment_id (str): The unique identifier of the experiment to be finalized.
         """
-        exp_conn = self._get_experiment_connection(experiment_id)
-        exp_cursor = exp_conn.cursor()
+        with self._get_experiment_connection(experiment_id, write=True) as exp_conn:
+            exp_cursor = exp_conn.cursor()
 
-        exp_cursor.execute("SELECT key, value, value_type FROM static_params")
-        static_params = {}
-        for key, value, value_type in exp_cursor.fetchall():
-            static_params[key] = self._convert_static_param_value(value, value_type)
+            exp_cursor.execute("SELECT key, value, value_type FROM static_params")
+            static_params = {}
+            for key, value, value_type in exp_cursor.fetchall():
+                static_params[key] = self._convert_static_param_value(value, value_type)
 
-        exp_cursor.execute(
-            """
-            SELECT key, value FROM dynamic_metrics dm1
-            WHERE step = (SELECT MAX(step) FROM dynamic_metrics dm2 WHERE dm2.key = dm1.key)
-            """
-        )
-        dynamic_params = dict(exp_cursor.fetchall())
+            exp_cursor.execute(
+                """
+                SELECT key, value FROM dynamic_metrics dm1
+                WHERE step = (SELECT MAX(step) FROM dynamic_metrics dm2 WHERE dm2.key = dm1.key)
+                """
+            )
+            dynamic_params = dict(exp_cursor.fetchall())
 
-        meta_conn = self._get_meta_connection()
-        meta_cursor = meta_conn.cursor()
-        meta_cursor.execute(
-            """
-            UPDATE experiments
-            SET status = 'completed',
-                static_params = ?,
-                dynamic_params = ?,
-                duration = (julianday('now') - julianday(created_at)) * 86400.0
-            WHERE id = ?
-            """,
-            (
-                json.dumps(static_params) if static_params else None,
-                json.dumps(dynamic_params) if dynamic_params else None,
-                experiment_id,
-            ),
-        )
+        with self._get_meta_connection(write=True) as meta_conn:
+            meta_cursor = meta_conn.cursor()
+            meta_cursor.execute(
+                """
+                UPDATE experiments
+                SET status = 'completed',
+                    static_params = ?,
+                    dynamic_params = ?,
+                    duration = (julianday('now') - julianday(created_at)) * 86400.0
+                WHERE id = ?
+                """,
+                (
+                    json.dumps(static_params) if static_params else None,
+                    json.dumps(dynamic_params) if dynamic_params else None,
+                    experiment_id,
+                ),
+            )
 
-        meta_cursor.execute(
-            """
-            UPDATE experiment_groups
-            SET last_modified = CURRENT_TIMESTAMP
-            WHERE id = (SELECT group_id FROM experiments WHERE id = ?)
-            """,
-            (experiment_id,),
-        )
+            meta_cursor.execute(
+                """
+                UPDATE experiment_groups
+                SET last_modified = CURRENT_TIMESTAMP
+                WHERE id = (SELECT group_id FROM experiments WHERE id = ?)
+                """,
+                (experiment_id,),
+            )
 
-        meta_conn.commit()
+            meta_conn.commit()
 
-        self.pool.mark_experiment_inactive(experiment_id)
+            self.pool.mark_experiment_inactive(experiment_id)
 
     def export_experiment_db(self, experiment_id: str) -> DiskFile:
         """
@@ -2503,16 +2536,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._ensure_experiment_initialized(experiment_id)
 
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step",
-            (key,),
-        )
-        return [
-            {"value": value, "step": step, "logged_at": logged_at}
-            for value, step, logged_at in cursor.fetchall()
-        ]
+        with self._get_experiment_connection(experiment_id) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step",
+                (key,),
+            )
+            return [
+                {"value": value, "step": step, "logged_at": logged_at}
+                for value, step, logged_at in cursor.fetchall()
+            ]
 
     @staticmethod
     def _fetch_bridge_ids(
@@ -2610,103 +2643,108 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            subquery = """(
+                SELECT
+                    trace_id,
+                    (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
+                    COUNT(*) AS span_count,
+                    MIN(created_at) AS created_at,
+                    CASE
+                        WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) IS NULL THEN 3
+                        WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 2 THEN 2
+                        WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 1 THEN 1
+                        ELSE 0
+                    END AS state
+                FROM spans
+                GROUP BY trace_id
+            )"""
 
-        subquery = """(
-            SELECT
-                trace_id,
-                (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
-                COUNT(*) AS span_count,
-                MIN(created_at) AS created_at,
-                CASE
-                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) IS NULL THEN 3
-                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 2 THEN 2
-                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 1 THEN 1
-                    ELSE 0
-                END AS state
-            FROM spans
-            GROUP BY trace_id
-        )"""
+            where_conditions: list[tuple[str, list]] = []
 
-        where_conditions: list[tuple[str, list]] = []
-
-        if search:
-            where_conditions.append(
-                (
-                    """trace_id IN (
-                    SELECT DISTINCT trace_id FROM spans
-                    WHERE trace_id LIKE ?
-                       OR COALESCE(status_message, '') LIKE ?
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(attributes, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR COALESCE(events, '') LIKE ?
-                       OR COALESCE(links, '') LIKE ?
-                )""",
-                    [f"%{search}%"] * 5,
+            if search:
+                where_conditions.append(
+                    (
+                        """trace_id IN (
+                        SELECT DISTINCT trace_id FROM spans
+                        WHERE trace_id LIKE ?
+                           OR COALESCE(status_message, '') LIKE ?
+                           OR EXISTS (SELECT 1 FROM json_each(COALESCE(attributes, '{}')) WHERE type = 'text' AND value LIKE ?)
+                           OR COALESCE(events, '') LIKE ?
+                           OR COALESCE(links, '') LIKE ?
+                    )""",
+                        [f"%{search}%"] * 5,
+                    )
                 )
-            )
 
-        for f in filters or []:
-            filter_where, filter_params = SearchTracesUtils.to_sql(f)
-            if filter_where:
-                where_conditions.append((filter_where, filter_params))
+            for f in filters or []:
+                filter_where, filter_params = SearchTracesUtils.to_sql(f)
+                if filter_where:
+                    where_conditions.append((filter_where, filter_params))
 
-        if states:
-            where_conditions.append(
-                (
-                    f"state IN ({', '.join('?' for _ in states)})",
-                    [s.value for s in states],
+            if states:
+                where_conditions.append(
+                    (
+                        f"state IN ({', '.join('?' for _ in states)})",
+                        [s.value for s in states],
+                    )
                 )
-            )
-        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
+            use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
 
-        columns = ["trace_id", "execution_time", "span_count", "created_at", "state"]
-        rows = self._execute_paginated_query(
-            conn=conn,
-            table=subquery,
-            columns=columns,
-            limit=limit,
-            sort_by=sort_by,
-            order=order,
-            cursor_id=use_cursor.id if use_cursor else None,
-            cursor_value=use_cursor.value if use_cursor else None,
-            where=where_conditions or None,
-            allowed_sort_columns={"execution_time", "span_count", "created_at"},
-            id_column="trace_id",
-        )
-
-        has_more = len(rows) > limit
-        rows = rows[:limit]
-
-        if not rows:
-            return PaginatedResponse(items=[], cursor=None)
-
-        items = [
-            TraceRecord(
-                trace_id=row[0],
-                execution_time=row[1],
-                span_count=row[2],
-                created_at=row[3],
-                state=TraceState(row[4]),
-            )
-            for row in rows
-        ]
-
-        evals_by_trace = self._fetch_bridge_ids(
-            conn, "trace_id", "eval_id", [item.trace_id for item in items]
-        )
-        for item in items:
-            item.evals = evals_by_trace.get(item.trace_id, [])
-
-        cursor: str | None = None
-        if has_more:
-            cursor = Cursor(
-                id=items[-1].trace_id,
-                value=self._extract_cursor_value(rows[-1], columns, sort_by),
+            columns = [
+                "trace_id",
+                "execution_time",
+                "span_count",
+                "created_at",
+                "state",
+            ]
+            rows = self._execute_paginated_query(
+                conn=conn,
+                table=subquery,
+                columns=columns,
+                limit=limit,
                 sort_by=sort_by,
                 order=order,
-            ).encode()
+                cursor_id=use_cursor.id if use_cursor else None,
+                cursor_value=use_cursor.value if use_cursor else None,
+                where=where_conditions or None,
+                allowed_sort_columns={"execution_time", "span_count", "created_at"},
+                id_column="trace_id",
+            )
 
-        return PaginatedResponse(items=items, cursor=cursor)
+            has_more = len(rows) > limit
+            rows = rows[:limit]
+
+            if not rows:
+                return PaginatedResponse(items=[], cursor=None)
+
+            items = [
+                TraceRecord(
+                    trace_id=row[0],
+                    execution_time=row[1],
+                    span_count=row[2],
+                    created_at=row[3],
+                    state=TraceState(row[4]),
+                )
+                for row in rows
+            ]
+
+            evals_by_trace = self._fetch_bridge_ids(
+                conn, "trace_id", "eval_id", [item.trace_id for item in items]
+            )
+            for item in items:
+                item.evals = evals_by_trace.get(item.trace_id, [])
+
+            cursor: str | None = None
+            if has_more:
+                cursor = Cursor(
+                    id=items[-1].trace_id,
+                    value=self._extract_cursor_value(rows[-1], columns, sort_by),
+                    sort_by=sort_by,
+                    order=order,
+                ).encode()
+
+            return PaginatedResponse(items=items, cursor=cursor)
 
     def get_experiment_traces_all(
         self,
@@ -2771,87 +2809,86 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ]
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            subquery = """(
+                SELECT
+                    trace_id,
+                    (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
+                    COUNT(*) AS span_count,
+                    MIN(created_at) AS created_at,
+                    CASE
+                        WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) IS NULL THEN 3
+                        WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 2 THEN 2
+                        WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 1 THEN 1
+                        ELSE 0
+                    END AS state
+                FROM spans
+                GROUP BY trace_id
+            )"""
 
-        subquery = """(
-            SELECT
-                trace_id,
-                (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
-                COUNT(*) AS span_count,
-                MIN(created_at) AS created_at,
-                CASE
-                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) IS NULL THEN 3
-                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 2 THEN 2
-                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 1 THEN 1
-                    ELSE 0
-                END AS state
-            FROM spans
-            GROUP BY trace_id
-        )"""
+            where_clauses: list[str] = []
+            params: list[Any] = []
+            if search:
+                where_clauses.append("""trace_id IN (
+                    SELECT DISTINCT trace_id FROM spans
+                    WHERE trace_id LIKE ?
+                       OR COALESCE(status_message, '') LIKE ?
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(attributes, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR COALESCE(events, '') LIKE ?
+                       OR COALESCE(links, '') LIKE ?
+                )""")
+                params.extend([f"%{search}%"] * 5)
+            for f in filters or []:
+                filter_where, filter_params = SearchTracesUtils.to_sql(f)
+                if filter_where:
+                    where_clauses.append(filter_where)
+                    params.extend(filter_params)
+            if states:
+                where_clauses.append(f"state IN ({', '.join('?' for _ in states)})")
+                params.extend(s.value for s in states)
 
-        where_clauses: list[str] = []
-        params: list[Any] = []
-        if search:
-            where_clauses.append("""trace_id IN (
-                SELECT DISTINCT trace_id FROM spans
-                WHERE trace_id LIKE ?
-                   OR COALESCE(status_message, '') LIKE ?
-                   OR EXISTS (SELECT 1 FROM json_each(COALESCE(attributes, '{}')) WHERE type = 'text' AND value LIKE ?)
-                   OR COALESCE(events, '') LIKE ?
-                   OR COALESCE(links, '') LIKE ?
-            )""")
-            params.extend([f"%{search}%"] * 5)
-        for f in filters or []:
-            filter_where, filter_params = SearchTracesUtils.to_sql(f)
-            if filter_where:
-                where_clauses.append(filter_where)
-                params.extend(filter_params)
-        if states:
-            where_clauses.append(f"state IN ({', '.join('?' for _ in states)})")
-            params.extend(s.value for s in states)
-
-        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-        sort_expr = self._build_sort_expr(
-            sort_by, None, {"execution_time", "span_count", "created_at"}
-        )
-        null_order = "LAST" if order == "desc" else "FIRST"
-
-        rows = conn.execute(
-            f"""
-            SELECT trace_id, execution_time, span_count, created_at, state
-            FROM {subquery}
-            {where_sql}
-            ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, trace_id {order.upper()}
-            """,
-            params,
-        ).fetchall()
-
-        if not rows:
-            return []
-
-        items = [
-            TraceRecord(
-                trace_id=row[0],
-                execution_time=row[1],
-                span_count=row[2],
-                created_at=row[3],
-                state=TraceState(row[4]),
+            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            sort_expr = self._build_sort_expr(
+                sort_by, None, {"execution_time", "span_count", "created_at"}
             )
-            for row in rows
-        ]
+            null_order = "LAST" if order == "desc" else "FIRST"
 
-        evals_by_trace = self._fetch_bridge_ids(
-            conn, "trace_id", "eval_id", [item.trace_id for item in items]
-        )
-        for item in items:
-            item.evals = evals_by_trace.get(item.trace_id, [])
+            rows = conn.execute(
+                f"""
+                SELECT trace_id, execution_time, span_count, created_at, state
+                FROM {subquery}
+                {where_sql}
+                ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, trace_id {order.upper()}
+                """,
+                params,
+            ).fetchall()
 
-        trace_ids = [item.trace_id for item in items]
-        summaries = self.get_traces_annotation_summaries(experiment_id, trace_ids)
-        for item in items:
-            item.annotations = summaries.get(item.trace_id)
+            if not rows:
+                return []
 
-        return items
+            items = [
+                TraceRecord(
+                    trace_id=row[0],
+                    execution_time=row[1],
+                    span_count=row[2],
+                    created_at=row[3],
+                    state=TraceState(row[4]),
+                )
+                for row in rows
+            ]
+
+            evals_by_trace = self._fetch_bridge_ids(
+                conn, "trace_id", "eval_id", [item.trace_id for item in items]
+            )
+            for item in items:
+                item.evals = evals_by_trace.get(item.trace_id, [])
+
+            trace_ids = [item.trace_id for item in items]
+            summaries = self.get_traces_annotation_summaries(experiment_id, trace_ids)
+            for item in items:
+                item.annotations = summaries.get(item.trace_id)
+
+            return items
 
     def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
         """
@@ -2903,62 +2940,62 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._ensure_experiment_initialized(experiment_id)
         has_annotations = self._has_annotation_tables(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cur = conn.cursor()
-        if has_annotations:
-            cur.execute(
-                """
-                SELECT s.trace_id, s.span_id, s.parent_span_id, s.name, s.kind,
-                       s.dfs_span_type, s.start_time_unix_nano, s.end_time_unix_nano,
-                       s.status_code, s.status_message, s.attributes, s.events, s.links,
-                       s.trace_flags, COUNT(sa.id) AS annotation_count
-                FROM spans s
-                LEFT JOIN span_annotations sa
-                    ON s.trace_id = sa.trace_id AND s.span_id = sa.span_id
-                WHERE s.trace_id = ?
-                GROUP BY s.trace_id, s.span_id
-                ORDER BY s.start_time_unix_nano
-                """,
-                (trace_id,),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT trace_id, span_id, parent_span_id, name, kind,
-                       dfs_span_type, start_time_unix_nano, end_time_unix_nano,
-                       status_code, status_message, attributes, events, links,
-                       trace_flags, 0 AS annotation_count
-                FROM spans
-                WHERE trace_id = ?
-                ORDER BY start_time_unix_nano
-                """,
-                (trace_id,),
-            )
-        rows = cur.fetchall()
-        if not rows:
-            return None
+        with self._get_experiment_connection(experiment_id) as conn:
+            cur = conn.cursor()
+            if has_annotations:
+                cur.execute(
+                    """
+                    SELECT s.trace_id, s.span_id, s.parent_span_id, s.name, s.kind,
+                           s.dfs_span_type, s.start_time_unix_nano, s.end_time_unix_nano,
+                           s.status_code, s.status_message, s.attributes, s.events, s.links,
+                           s.trace_flags, COUNT(sa.id) AS annotation_count
+                    FROM spans s
+                    LEFT JOIN span_annotations sa
+                        ON s.trace_id = sa.trace_id AND s.span_id = sa.span_id
+                    WHERE s.trace_id = ?
+                    GROUP BY s.trace_id, s.span_id
+                    ORDER BY s.start_time_unix_nano
+                    """,
+                    (trace_id,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT trace_id, span_id, parent_span_id, name, kind,
+                           dfs_span_type, start_time_unix_nano, end_time_unix_nano,
+                           status_code, status_message, attributes, events, links,
+                           trace_flags, 0 AS annotation_count
+                    FROM spans
+                    WHERE trace_id = ?
+                    ORDER BY start_time_unix_nano
+                    """,
+                    (trace_id,),
+                )
+            rows = cur.fetchall()
+            if not rows:
+                return None
 
-        spans = [
-            SpanRecord(
-                trace_id=row[0],
-                span_id=row[1],
-                parent_span_id=row[2],
-                name=row[3],
-                kind=row[4],
-                dfs_span_type=row[5],
-                start_time_unix_nano=row[6],
-                end_time_unix_nano=row[7],
-                status_code=row[8],
-                status_message=row[9],
-                attributes=json.loads(row[10]) if row[10] else None,
-                events=json.loads(row[11]) if row[11] else None,
-                links=json.loads(row[12]) if row[12] else None,
-                trace_flags=row[13],
-                annotation_count=row[14],
-            )
-            for row in rows
-        ]
-        return TraceDetails(trace_id=trace_id, spans=spans)
+            spans = [
+                SpanRecord(
+                    trace_id=row[0],
+                    span_id=row[1],
+                    parent_span_id=row[2],
+                    name=row[3],
+                    kind=row[4],
+                    dfs_span_type=row[5],
+                    start_time_unix_nano=row[6],
+                    end_time_unix_nano=row[7],
+                    status_code=row[8],
+                    status_message=row[9],
+                    attributes=json.loads(row[10]) if row[10] else None,
+                    events=json.loads(row[11]) if row[11] else None,
+                    links=json.loads(row[12]) if row[12] else None,
+                    trace_flags=row[13],
+                    annotation_count=row[14],
+                )
+                for row in rows
+            ]
+            return TraceDetails(trace_id=trace_id, spans=spans)
 
     def _build_evals_where_conditions(
         self,
@@ -3064,75 +3101,74 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._check_exp_exists(experiment_id)
 
-        conn = self._get_experiment_connection(experiment_id)
-
-        where_conditions = self._build_evals_where_conditions(
-            dataset_id, search, filters
-        )
-        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
-
-        rows = self._execute_paginated_query(
-            conn=conn,
-            table="evals",
-            columns=self._EVALS_COLUMNS,
-            limit=limit,
-            sort_by=sort_by,
-            order=order,
-            cursor_id=use_cursor.id if use_cursor else None,
-            cursor_value=use_cursor.value if use_cursor else None,
-            where=where_conditions or None,
-            allowed_sort_columns=self._EVALS_STANDARD_SORT_COLUMNS,
-            json_sort_column=json_sort_column,
-            id_column="id",
-        )
-
-        has_more = len(rows) > limit
-        rows = rows[:limit]
-
-        if not rows:
-            return PaginatedResponse(items=[], cursor=None)
-
-        evals = [
-            EvalRecord(
-                id=row[0],
-                dataset_id=row[1],
-                inputs=json.loads(row[2]) if row[2] else {},
-                outputs=json.loads(row[3]) if row[3] else None,
-                refs=json.loads(row[4]) if row[4] else None,
-                scores=json.loads(row[5]) if row[5] else None,
-                metadata=json.loads(row[6]) if row[6] else None,
-                created_at=row[7],
-                updated_at=row[8],
+        with self._get_experiment_connection(experiment_id) as conn:
+            where_conditions = self._build_evals_where_conditions(
+                dataset_id, search, filters
             )
-            for row in rows
-        ]
-        eval_ids = [e.id for e in evals]
+            use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
 
-        traces_by_eval = self._fetch_bridge_ids(
-            conn, "eval_id", "trace_id", [e.id for e in evals]
-        )
-        for e in evals:
-            e.trace_ids = traces_by_eval.get(e.id, [])
-
-        summaries = self.get_evals_annotation_summaries(experiment_id, eval_ids)
-
-        for e in evals:
-            e.annotations = summaries.get(e.id)
-
-        cursor: str | None = None
-        if has_more:
-            last = evals[-1]
-            last_sort_val = self._extract_cursor_value(
-                rows[-1], self._EVALS_COLUMNS, sort_by, json_sort_column
-            )
-            cursor = Cursor(
-                id=last.id,
-                value=last_sort_val,
+            rows = self._execute_paginated_query(
+                conn=conn,
+                table="evals",
+                columns=self._EVALS_COLUMNS,
+                limit=limit,
                 sort_by=sort_by,
                 order=order,
-            ).encode()
+                cursor_id=use_cursor.id if use_cursor else None,
+                cursor_value=use_cursor.value if use_cursor else None,
+                where=where_conditions or None,
+                allowed_sort_columns=self._EVALS_STANDARD_SORT_COLUMNS,
+                json_sort_column=json_sort_column,
+                id_column="id",
+            )
 
-        return PaginatedResponse(items=evals, cursor=cursor)
+            has_more = len(rows) > limit
+            rows = rows[:limit]
+
+            if not rows:
+                return PaginatedResponse(items=[], cursor=None)
+
+            evals = [
+                EvalRecord(
+                    id=row[0],
+                    dataset_id=row[1],
+                    inputs=json.loads(row[2]) if row[2] else {},
+                    outputs=json.loads(row[3]) if row[3] else None,
+                    refs=json.loads(row[4]) if row[4] else None,
+                    scores=json.loads(row[5]) if row[5] else None,
+                    metadata=json.loads(row[6]) if row[6] else None,
+                    created_at=row[7],
+                    updated_at=row[8],
+                )
+                for row in rows
+            ]
+            eval_ids = [e.id for e in evals]
+
+            traces_by_eval = self._fetch_bridge_ids(
+                conn, "eval_id", "trace_id", [e.id for e in evals]
+            )
+            for e in evals:
+                e.trace_ids = traces_by_eval.get(e.id, [])
+
+            summaries = self.get_evals_annotation_summaries(experiment_id, eval_ids)
+
+            for e in evals:
+                e.annotations = summaries.get(e.id)
+
+            cursor: str | None = None
+            if has_more:
+                last = evals[-1]
+                last_sort_val = self._extract_cursor_value(
+                    rows[-1], self._EVALS_COLUMNS, sort_by, json_sort_column
+                )
+                cursor = Cursor(
+                    id=last.id,
+                    value=last_sort_val,
+                    sort_by=sort_by,
+                    order=order,
+                ).encode()
+
+            return PaginatedResponse(items=evals, cursor=cursor)
 
     def _get_evals_ids_for_experiments_batch_pagination(
         self,
@@ -3151,17 +3187,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         for exp_id in experiment_ids:
             self._check_exp_exists(exp_id)
 
-            conn = self._get_experiment_connection(exp_id)
+            with self._get_experiment_connection(exp_id) as conn:
+                where_sql, params = self._flatten_where_conditions(
+                    base_conditions, cursor_str
+                )
+                rows = conn.execute(
+                    f"SELECT id FROM evals {where_sql} ORDER BY id LIMIT ?",
+                    params + [limit + 1],
+                ).fetchall()
 
-            where_sql, params = self._flatten_where_conditions(
-                base_conditions, cursor_str
-            )
-            rows = conn.execute(
-                f"SELECT id FROM evals {where_sql} ORDER BY id LIMIT ?",
-                params + [limit + 1],
-            ).fetchall()
-
-            candidate_ids.update(row[0] for row in rows)
+                candidate_ids.update(row[0] for row in rows)
 
         sorted_ids = sorted(candidate_ids)
         has_more = len(sorted_ids) > limit
@@ -3198,38 +3233,37 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         for exp_id in experiment_ids:
             self._check_exp_exists(exp_id)
-            conn = self._get_experiment_connection(exp_id)
+            with self._get_experiment_connection(exp_id) as conn:
+                rows = conn.execute(
+                    f"SELECT {columns_sql} FROM evals WHERE id IN ({placeholders}) ORDER BY id",
+                    page_ids,
+                ).fetchall()
 
-            rows = conn.execute(
-                f"SELECT {columns_sql} FROM evals WHERE id IN ({placeholders}) ORDER BY id",
-                page_ids,
-            ).fetchall()
+                if not rows:
+                    continue
 
-            if not rows:
-                continue
-
-            eval_ids_in_exp = [row[0] for row in rows]
-            traces_by_eval = self._fetch_bridge_ids(
-                conn, "eval_id", "trace_id", eval_ids_in_exp
-            )
-            summaries = self.get_evals_annotation_summaries(exp_id, eval_ids_in_exp)
-
-            for row in rows:
-                record = BatchEvalRecord(
-                    experiment_id=exp_id,
-                    id=row[0],
-                    dataset_id=row[1],
-                    inputs=json.loads(row[2]) if row[2] else {},
-                    outputs=json.loads(row[3]) if row[3] else None,
-                    refs=json.loads(row[4]) if row[4] else None,
-                    scores=json.loads(row[5]) if row[5] else None,
-                    metadata=json.loads(row[6]) if row[6] else None,
-                    created_at=row[7],
-                    updated_at=row[8],
+                eval_ids_in_exp = [row[0] for row in rows]
+                traces_by_eval = self._fetch_bridge_ids(
+                    conn, "eval_id", "trace_id", eval_ids_in_exp
                 )
-                record.trace_ids = traces_by_eval.get(record.id, [])
-                record.annotations = summaries.get(record.id)
-                items.append(record)
+                summaries = self.get_evals_annotation_summaries(exp_id, eval_ids_in_exp)
+
+                for row in rows:
+                    record = BatchEvalRecord(
+                        experiment_id=exp_id,
+                        id=row[0],
+                        dataset_id=row[1],
+                        inputs=json.loads(row[2]) if row[2] else {},
+                        outputs=json.loads(row[3]) if row[3] else None,
+                        refs=json.loads(row[4]) if row[4] else None,
+                        scores=json.loads(row[5]) if row[5] else None,
+                        metadata=json.loads(row[6]) if row[6] else None,
+                        created_at=row[7],
+                        updated_at=row[8],
+                    )
+                    record.trace_ids = traces_by_eval.get(record.id, [])
+                    record.annotations = summaries.get(record.id)
+                    items.append(record)
 
         items.sort(key=lambda r: (r.id, r.experiment_id))
         next_cursor = page_ids[-1] if has_more else None
@@ -3301,68 +3335,69 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self._check_exp_exists(experiment_id)
 
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            where_clauses: list[str] = []
+            params: list[Any] = []
 
-        where_clauses: list[str] = []
-        params: list[Any] = []
+            if dataset_id:
+                where_clauses.append("dataset_id = ?")
+                params.append(dataset_id)
+            if search:
+                where_clauses.append(self._EVALS_SEARCH_QUERY)
+                params.extend([f"%{search}%"] * 6)
 
-        if dataset_id:
-            where_clauses.append("dataset_id = ?")
-            params.append(dataset_id)
-        if search:
-            where_clauses.append(self._EVALS_SEARCH_QUERY)
-            params.extend([f"%{search}%"] * 6)
+            for f in filters or []:
+                filter_where, filter_params = SearchEvalsUtils.to_sql(f)
+                if filter_where:
+                    where_clauses.append(filter_where)
+                    params.extend(filter_params)
 
-        for f in filters or []:
-            filter_where, filter_params = SearchEvalsUtils.to_sql(f)
-            if filter_where:
-                where_clauses.append(filter_where)
-                params.extend(filter_params)
-
-        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-        sort_expr = self._build_sort_expr(
-            sort_by, json_sort_column, self._EVALS_STANDARD_SORT_COLUMNS
-        )
-        null_order = "LAST" if order == "desc" else "FIRST"
-
-        rows = conn.execute(
-            f"""
-            SELECT {", ".join(self._EVALS_COLUMNS)}
-            FROM evals
-            {where_sql}
-            ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, id {order.upper()}
-            """,
-            params,
-        ).fetchall()
-
-        if not rows:
-            return []
-
-        evals = [
-            EvalRecord(
-                id=row[0],
-                dataset_id=row[1],
-                inputs=json.loads(row[2]) if row[2] else {},
-                outputs=json.loads(row[3]) if row[3] else None,
-                refs=json.loads(row[4]) if row[4] else None,
-                scores=json.loads(row[5]) if row[5] else None,
-                metadata=json.loads(row[6]) if row[6] else None,
-                created_at=row[7],
-                updated_at=row[8],
+            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            sort_expr = self._build_sort_expr(
+                sort_by, json_sort_column, self._EVALS_STANDARD_SORT_COLUMNS
             )
-            for row in rows
-        ]
-        eval_ids = [e.id for e in evals]
+            null_order = "LAST" if order == "desc" else "FIRST"
 
-        traces_by_eval = self._fetch_bridge_ids(conn, "eval_id", "trace_id", eval_ids)
-        for e in evals:
-            e.trace_ids = traces_by_eval.get(e.id, [])
+            rows = conn.execute(
+                f"""
+                SELECT {", ".join(self._EVALS_COLUMNS)}
+                FROM evals
+                {where_sql}
+                ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, id {order.upper()}
+                """,
+                params,
+            ).fetchall()
 
-        summaries = self.get_evals_annotation_summaries(experiment_id, eval_ids)
-        for e in evals:
-            e.annotations = summaries.get(e.id)
+            if not rows:
+                return []
 
-        return evals
+            evals = [
+                EvalRecord(
+                    id=row[0],
+                    dataset_id=row[1],
+                    inputs=json.loads(row[2]) if row[2] else {},
+                    outputs=json.loads(row[3]) if row[3] else None,
+                    refs=json.loads(row[4]) if row[4] else None,
+                    scores=json.loads(row[5]) if row[5] else None,
+                    metadata=json.loads(row[6]) if row[6] else None,
+                    created_at=row[7],
+                    updated_at=row[8],
+                )
+                for row in rows
+            ]
+            eval_ids = [e.id for e in evals]
+
+            traces_by_eval = self._fetch_bridge_ids(
+                conn, "eval_id", "trace_id", eval_ids
+            )
+            for e in evals:
+                e.trace_ids = traces_by_eval.get(e.id, [])
+
+            summaries = self.get_evals_annotation_summaries(experiment_id, eval_ids)
+            for e in evals:
+                e.annotations = summaries.get(e.id)
+
+            return evals
 
     def get_eval(self, experiment_id: str, eval_id: str) -> EvalRecord | None:
         """
@@ -3392,32 +3427,33 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            row = conn.execute(
+                f"""SELECT {", ".join(self._EVALS_COLUMNS)} FROM evals WHERE id = ?""",
+                (eval_id,),
+            ).fetchone()
 
-        row = conn.execute(
-            f"""SELECT {", ".join(self._EVALS_COLUMNS)} FROM evals WHERE id = ?""",
-            (eval_id,),
-        ).fetchone()
+            if not row:
+                return None
 
-        if not row:
-            return None
+            eval_item = EvalRecord(
+                id=row[0],
+                dataset_id=row[1],
+                inputs=json.loads(row[2]) if row[2] else {},
+                outputs=json.loads(row[3]) if row[3] else None,
+                refs=json.loads(row[4]) if row[4] else None,
+                scores=json.loads(row[5]) if row[5] else None,
+                metadata=json.loads(row[6]) if row[6] else None,
+                created_at=row[7],
+                updated_at=row[8],
+            )
 
-        eval_item = EvalRecord(
-            id=row[0],
-            dataset_id=row[1],
-            inputs=json.loads(row[2]) if row[2] else {},
-            outputs=json.loads(row[3]) if row[3] else None,
-            refs=json.loads(row[4]) if row[4] else None,
-            scores=json.loads(row[5]) if row[5] else None,
-            metadata=json.loads(row[6]) if row[6] else None,
-            created_at=row[7],
-            updated_at=row[8],
-        )
+            traces_by_eval = self._fetch_bridge_ids(
+                conn, "eval_id", "trace_id", [eval_id]
+            )
+            eval_item.trace_ids = traces_by_eval.get(eval_id, [])
 
-        traces_by_eval = self._fetch_bridge_ids(conn, "eval_id", "trace_id", [eval_id])
-        eval_item.trace_ids = traces_by_eval.get(eval_id, [])
-
-        return eval_item
+            return eval_item
 
     def get_experiment_eval_columns(
         self, experiment_id: str, dataset_id: str | None = None
@@ -3434,38 +3470,38 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
 
-        def _keys(col: str) -> list[str]:
-            cur = conn.cursor()
-            if dataset_id is not None:
-                cur.execute(
-                    f"""
-                    SELECT DISTINCT je.key
-                    FROM evals, json_each(evals.{col}) AS je
-                    WHERE evals.{col} IS NOT NULL AND evals.dataset_id = ?
-                    ORDER BY je.key
-                    """,
-                    (dataset_id,),
-                )
-            else:
-                cur.execute(
-                    f"""
-                    SELECT DISTINCT je.key
-                    FROM evals, json_each(evals.{col}) AS je
-                    WHERE evals.{col} IS NOT NULL
-                    ORDER BY je.key
-                    """
-                )
-            return [row[0] for row in cur.fetchall()]
+            def _keys(col: str) -> list[str]:
+                cur = conn.cursor()
+                if dataset_id is not None:
+                    cur.execute(
+                        f"""
+                        SELECT DISTINCT je.key
+                        FROM evals, json_each(evals.{col}) AS je
+                        WHERE evals.{col} IS NOT NULL AND evals.dataset_id = ?
+                        ORDER BY je.key
+                        """,
+                        (dataset_id,),
+                    )
+                else:
+                    cur.execute(
+                        f"""
+                        SELECT DISTINCT je.key
+                        FROM evals, json_each(evals.{col}) AS je
+                        WHERE evals.{col} IS NOT NULL
+                        ORDER BY je.key
+                        """
+                    )
+                return [row[0] for row in cur.fetchall()]
 
-        return EvalColumns(
-            inputs=_keys("inputs"),
-            outputs=_keys("outputs"),
-            refs=_keys("refs"),
-            scores=_keys("scores"),
-            metadata=_keys("metadata"),
-        )
+            return EvalColumns(
+                inputs=_keys("inputs"),
+                outputs=_keys("outputs"),
+                refs=_keys("refs"),
+                scores=_keys("scores"),
+                metadata=_keys("metadata"),
+            )
 
     _ANNOTATION_VALUE_TYPE_MAP: dict[str, ColumnType] = {
         "bool": ColumnType.BOOLEAN,
@@ -3478,32 +3514,115 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     ) -> EvalTypedColumns:
         """Like get_experiment_eval_columns but also returns the SQLite type for each key."""
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
 
-        def _fields(col: str) -> list[ColumnField]:
-            cur = conn.cursor()
-            if dataset_id is not None:
-                cur.execute(
-                    f"""
-                    SELECT je.key, je.type
-                    FROM evals, json_each(evals.{col}) AS je
-                    WHERE evals.{col} IS NOT NULL AND evals.dataset_id = ?
-                    GROUP BY je.key
-                    ORDER BY je.key
-                    """,
-                    (dataset_id,),
-                )
-            else:
-                cur.execute(
-                    f"""
-                    SELECT je.key, je.type
-                    FROM evals, json_each(evals.{col}) AS je
-                    WHERE evals.{col} IS NOT NULL
-                    GROUP BY je.key
-                    ORDER BY je.key
-                    """
-                )
-            return [
+            def _fields(col: str) -> list[ColumnField]:
+                cur = conn.cursor()
+                if dataset_id is not None:
+                    cur.execute(
+                        f"""
+                        SELECT je.key, je.type
+                        FROM evals, json_each(evals.{col}) AS je
+                        WHERE evals.{col} IS NOT NULL AND evals.dataset_id = ?
+                        GROUP BY je.key
+                        ORDER BY je.key
+                        """,
+                        (dataset_id,),
+                    )
+                else:
+                    cur.execute(
+                        f"""
+                        SELECT je.key, je.type
+                        FROM evals, json_each(evals.{col}) AS je
+                        WHERE evals.{col} IS NOT NULL
+                        GROUP BY je.key
+                        ORDER BY je.key
+                        """
+                    )
+                return [
+                    ColumnField(
+                        name=row[0],
+                        type=self._SQLITE_TYPE_MAP.get(row[1], ColumnType.UNKNOWN),
+                    )
+                    for row in cur.fetchall()
+                ]
+
+            def _annotation_fields(kind: str) -> list[ColumnField]:
+                if not self._has_annotation_tables(experiment_id):
+                    return []
+                cur = conn.cursor()
+                if dataset_id is not None:
+                    cur.execute(
+                        """
+                        SELECT name, value_type
+                        FROM eval_annotations
+                        WHERE annotation_kind = ? AND dataset_id = ?
+                        GROUP BY name
+                        ORDER BY name
+                        """,
+                        (kind, dataset_id),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT name, value_type
+                        FROM eval_annotations
+                        WHERE annotation_kind = ?
+                        GROUP BY name
+                        ORDER BY name
+                        """,
+                        (kind,),
+                    )
+                return [
+                    ColumnField(
+                        name=row[0],
+                        type=self._ANNOTATION_VALUE_TYPE_MAP.get(
+                            row[1], ColumnType.UNKNOWN
+                        ),
+                    )
+                    for row in cur.fetchall()
+                ]
+
+            return EvalTypedColumns(
+                inputs=_fields("inputs"),
+                outputs=_fields("outputs"),
+                refs=_fields("refs"),
+                scores=_fields("scores"),
+                metadata=_fields("metadata"),
+                annotations_feedback=_annotation_fields("feedback"),
+                annotations_expectations=_annotation_fields("expectation"),
+            )
+
+    def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
+        """Return distinct attribute keys from all spans in an experiment."""
+        self._ensure_experiment_initialized(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            cur = conn.execute(
+                """
+                SELECT DISTINCT je.key
+                FROM spans, json_each(spans.attributes) AS je
+                WHERE spans.attributes IS NOT NULL
+                ORDER BY je.key
+                """
+            )
+            return TraceColumns(attributes=[row[0] for row in cur.fetchall()])
+
+    def get_experiment_trace_typed_columns(
+        self, experiment_id: str
+    ) -> TraceTypedColumns:
+        """Like get_experiment_trace_columns but also returns the type for each key."""
+        self._ensure_experiment_initialized(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            cur = conn.execute(
+                """
+                SELECT je.key, je.type
+                FROM spans, json_each(spans.attributes) AS je
+                WHERE spans.attributes IS NOT NULL
+                GROUP BY je.key
+                ORDER BY je.key
+                """
+            )
+            attributes = [
                 ColumnField(
                     name=row[0],
                     type=self._SQLITE_TYPE_MAP.get(row[1], ColumnType.UNKNOWN),
@@ -3511,124 +3630,41 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 for row in cur.fetchall()
             ]
 
-        def _annotation_fields(kind: str) -> list[ColumnField]:
-            if not self._has_annotation_tables(experiment_id):
-                return []
-            cur = conn.cursor()
-            if dataset_id is not None:
-                cur.execute(
+            def _annotation_fields(kind: str) -> list[ColumnField]:
+                if not self._has_annotation_tables(experiment_id):
+                    return []
+                rows = conn.execute(
                     """
                     SELECT name, value_type
-                    FROM eval_annotations
-                    WHERE annotation_kind = ? AND dataset_id = ?
-                    GROUP BY name
-                    ORDER BY name
-                    """,
-                    (kind, dataset_id),
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT name, value_type
-                    FROM eval_annotations
+                    FROM span_annotations
                     WHERE annotation_kind = ?
                     GROUP BY name
                     ORDER BY name
                     """,
                     (kind,),
-                )
-            return [
-                ColumnField(
-                    name=row[0],
-                    type=self._ANNOTATION_VALUE_TYPE_MAP.get(
-                        row[1], ColumnType.UNKNOWN
-                    ),
-                )
-                for row in cur.fetchall()
-            ]
+                ).fetchall()
+                return [
+                    ColumnField(
+                        name=row[0],
+                        type=self._ANNOTATION_VALUE_TYPE_MAP.get(
+                            row[1], ColumnType.UNKNOWN
+                        ),
+                    )
+                    for row in rows
+                ]
 
-        return EvalTypedColumns(
-            inputs=_fields("inputs"),
-            outputs=_fields("outputs"),
-            refs=_fields("refs"),
-            scores=_fields("scores"),
-            metadata=_fields("metadata"),
-            annotations_feedback=_annotation_fields("feedback"),
-            annotations_expectations=_annotation_fields("expectation"),
-        )
-
-    def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
-        """Return distinct attribute keys from all spans in an experiment."""
-        self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cur = conn.execute(
-            """
-            SELECT DISTINCT je.key
-            FROM spans, json_each(spans.attributes) AS je
-            WHERE spans.attributes IS NOT NULL
-            ORDER BY je.key
-            """
-        )
-        return TraceColumns(attributes=[row[0] for row in cur.fetchall()])
-
-    def get_experiment_trace_typed_columns(
-        self, experiment_id: str
-    ) -> TraceTypedColumns:
-        """Like get_experiment_trace_columns but also returns the type for each key."""
-        self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cur = conn.execute(
-            """
-            SELECT je.key, je.type
-            FROM spans, json_each(spans.attributes) AS je
-            WHERE spans.attributes IS NOT NULL
-            GROUP BY je.key
-            ORDER BY je.key
-            """
-        )
-        attributes = [
-            ColumnField(
-                name=row[0],
-                type=self._SQLITE_TYPE_MAP.get(row[1], ColumnType.UNKNOWN),
+            return TraceTypedColumns(
+                attributes=attributes,
+                annotations_feedback=_annotation_fields("feedback"),
+                annotations_expectations=_annotation_fields("expectation"),
             )
-            for row in cur.fetchall()
-        ]
-
-        def _annotation_fields(kind: str) -> list[ColumnField]:
-            if not self._has_annotation_tables(experiment_id):
-                return []
-            rows = conn.execute(
-                """
-                SELECT name, value_type
-                FROM span_annotations
-                WHERE annotation_kind = ?
-                GROUP BY name
-                ORDER BY name
-                """,
-                (kind,),
-            ).fetchall()
-            return [
-                ColumnField(
-                    name=row[0],
-                    type=self._ANNOTATION_VALUE_TYPE_MAP.get(
-                        row[1], ColumnType.UNKNOWN
-                    ),
-                )
-                for row in rows
-            ]
-
-        return TraceTypedColumns(
-            attributes=attributes,
-            annotations_feedback=_annotation_fields("feedback"),
-            annotations_expectations=_annotation_fields("expectation"),
-        )
 
     def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT dataset_id FROM evals ORDER BY dataset_id")
-        return [row[0] for row in cur.fetchall()]
+        with self._get_experiment_connection(experiment_id) as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT DISTINCT dataset_id FROM evals ORDER BY dataset_id")
+            return [row[0] for row in cur.fetchall()]
 
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         """
@@ -3682,42 +3718,42 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 are their corresponding average scores.
         """
         self._ensure_experiment_initialized(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
-        cur = conn.cursor()
+        with self._get_experiment_connection(experiment_id) as conn:
+            cur = conn.cursor()
 
-        where_conditions: list[tuple[str, list]] = [("scores IS NOT NULL", [])]
+            where_conditions: list[tuple[str, list]] = [("scores IS NOT NULL", [])]
 
-        if dataset_id is not None:
-            where_conditions.append(("dataset_id = ?", [dataset_id]))
+            if dataset_id is not None:
+                where_conditions.append(("dataset_id = ?", [dataset_id]))
 
-        if search:
-            where_conditions.append((self._EVALS_SEARCH_QUERY, [f"%{search}%"] * 6))
+            if search:
+                where_conditions.append((self._EVALS_SEARCH_QUERY, [f"%{search}%"] * 6))
 
-        for f in filters or []:
-            filter_where, filter_params = SearchEvalsUtils.to_sql(f)
-            if filter_where:
-                where_conditions.append((filter_where, filter_params))
+            for f in filters or []:
+                filter_where, filter_params = SearchEvalsUtils.to_sql(f)
+                if filter_where:
+                    where_conditions.append((filter_where, filter_params))
 
-        where_sql = " AND ".join(clause for clause, _ in where_conditions)
-        params: list = [
-            p for _, clause_params in where_conditions for p in clause_params
-        ]
+            where_sql = " AND ".join(clause for clause, _ in where_conditions)
+            params: list = [
+                p for _, clause_params in where_conditions for p in clause_params
+            ]
 
-        cur.execute(
-            f"""
-            SELECT je.key, AVG(CAST(je.value AS REAL))
-            FROM (SELECT * FROM evals WHERE {where_sql}) AS evals,
-                 json_each(evals.scores) AS je
-            GROUP BY je.key
-            """,
-            params,
-        )
-        return {row[0]: row[1] for row in cur.fetchall()}
+            cur.execute(
+                f"""
+                SELECT je.key, AVG(CAST(je.value AS REAL))
+                FROM (SELECT * FROM evals WHERE {where_sql}) AS evals,
+                     json_each(evals.scores) AS je
+                GROUP BY je.key
+                """,
+                params,
+            )
+            return {row[0]: row[1] for row in cur.fetchall()}
 
     def _has_annotation_tables(self, experiment_id: str) -> bool:
-        conn = self._get_experiment_connection(experiment_id)
-        version = conn.execute("PRAGMA user_version").fetchone()[0]
-        return version >= 1
+        with self._get_experiment_connection(experiment_id) as conn:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+            return version >= 1
 
     def _require_annotation_tables(self, experiment_id: str) -> None:
         if not self._has_annotation_tables(experiment_id):
@@ -3827,9 +3863,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
         annotation_id = str(uuid.uuid4())
-        write_lock = self._get_experiment_write_lock(experiment_id)
-        with write_lock:
-            conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
             conn.execute(
                 """INSERT INTO eval_annotations
                    (id, dataset_id, eval_id, name, annotation_kind, value_type, value, user, rationale)
@@ -3852,7 +3886,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                    FROM eval_annotations WHERE id = ?""",
                 (annotation_id,),
             ).fetchone()
-        return self._row_to_annotation(row)
+            return self._row_to_annotation(row)
 
     def get_eval_annotations(
         self, experiment_id: str, dataset_id: str, eval_id: str
@@ -3890,15 +3924,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id):
             return []
-        conn = self._get_experiment_connection(experiment_id)
-        rows = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
-               FROM eval_annotations
-               WHERE dataset_id = ? AND eval_id = ?
-               ORDER BY created_at""",
-            (dataset_id, eval_id),
-        ).fetchall()
-        return [self._row_to_annotation(r) for r in rows]
+        with self._get_experiment_connection(experiment_id) as conn:
+            rows = conn.execute(
+                """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
+                   FROM eval_annotations
+                   WHERE dataset_id = ? AND eval_id = ?
+                   ORDER BY created_at""",
+                (dataset_id, eval_id),
+            ).fetchall()
+            return [self._row_to_annotation(r) for r in rows]
 
     def log_span_annotation(
         self,
@@ -3961,9 +3995,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
         annotation_id = str(uuid.uuid4())
-        write_lock = self._get_experiment_write_lock(experiment_id)
-        with write_lock:
-            conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
             conn.execute(
                 """INSERT INTO span_annotations
                    (id, trace_id, span_id, name, annotation_kind, value_type, value, user, rationale)
@@ -3986,7 +4018,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                    FROM span_annotations WHERE id = ?""",
                 (annotation_id,),
             ).fetchone()
-        return self._row_to_annotation(row)
+            return self._row_to_annotation(row)
 
     def get_span_annotations(
         self, experiment_id: str, trace_id: str, span_id: str
@@ -4030,15 +4062,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id):
             return []
-        conn = self._get_experiment_connection(experiment_id)
-        rows = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
-               FROM span_annotations
-               WHERE trace_id = ? AND span_id = ?
-               ORDER BY created_at""",
-            (trace_id, span_id),
-        ).fetchall()
-        return [self._row_to_annotation(r) for r in rows]
+        with self._get_experiment_connection(experiment_id) as conn:
+            rows = conn.execute(
+                """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
+                   FROM span_annotations
+                   WHERE trace_id = ? AND span_id = ?
+                   ORDER BY created_at""",
+                (trace_id, span_id),
+            ).fetchall()
+            return [self._row_to_annotation(r) for r in rows]
 
     def update_annotation(
         self,
@@ -4096,32 +4128,31 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._require_annotation_tables(experiment_id)
         table = "eval_annotations" if target == "eval" else "span_annotations"
-        conn = self._get_experiment_connection(experiment_id)
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
+            sets: list[str] = []
+            params: list[str] = []
+            if value is not None:
+                sets.append("value = ?")
+                params.append(self._serialize_annotation_value(value))
+            if rationale is not None:
+                sets.append("rationale = ?")
+                params.append(rationale)
+            if not sets:
+                raise ValueError("No fields to update")
 
-        sets: list[str] = []
-        params: list[str] = []
-        if value is not None:
-            sets.append("value = ?")
-            params.append(self._serialize_annotation_value(value))
-        if rationale is not None:
-            sets.append("rationale = ?")
-            params.append(rationale)
-        if not sets:
-            raise ValueError("No fields to update")
-
-        params.append(annotation_id)
-        conn.execute(
-            f"UPDATE {table} SET {', '.join(sets)} WHERE id = ?",  # noqa: S608
-            params,
-        )
-        conn.commit()
-        row = conn.execute(
-            f"SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale FROM {table} WHERE id = ?",  # noqa: S608
-            (annotation_id,),
-        ).fetchone()
-        if row is None:
-            raise ValueError(f"Annotation '{annotation_id}' not found")
-        return self._row_to_annotation(row)
+            params.append(annotation_id)
+            conn.execute(
+                f"UPDATE {table} SET {', '.join(sets)} WHERE id = ?",  # noqa: S608
+                params,
+            )
+            conn.commit()
+            row = conn.execute(
+                f"SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale FROM {table} WHERE id = ?",  # noqa: S608
+                (annotation_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"Annotation '{annotation_id}' not found")
+            return self._row_to_annotation(row)
 
     def delete_annotation(
         self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
@@ -4147,9 +4178,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not self._has_annotation_tables(experiment_id):
             return
         table = "eval_annotations" if target == "eval" else "span_annotations"
-        conn = self._get_experiment_connection(experiment_id)
-        conn.execute(f"DELETE FROM {table} WHERE id = ?", (annotation_id,))  # noqa: S608
-        conn.commit()
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
+            conn.execute(f"DELETE FROM {table} WHERE id = ?", (annotation_id,))  # noqa: S608
+            conn.commit()
 
     @staticmethod
     def _build_annotation_summary(
@@ -4233,42 +4264,42 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id) or not eval_ids:
             return {}
-        conn = self._get_experiment_connection(experiment_id)
-        feedback_by_eval: dict[str, list] = {}
-        expectation_by_eval: dict[str, list] = {}
-        for i in range(0, len(eval_ids), 900):
-            batch = eval_ids[i : i + 900]
-            placeholders = ",".join("?" * len(batch))
-            for row in conn.execute(
-                f"""SELECT eval_id, name, value, COUNT(*) AS cnt
-                   FROM eval_annotations
-                   WHERE eval_id IN ({placeholders}) AND annotation_kind = 'feedback'
-                   GROUP BY eval_id, name, value
-                   ORDER BY name, value""",
-                batch,
-            ).fetchall():
-                feedback_by_eval.setdefault(row[0], []).append(row[1:])
-            for row in conn.execute(
-                f"""SELECT eval_id, name, COUNT(*) AS total,
-                       SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
-                       SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
-                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
-                       MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
-                   FROM eval_annotations
-                   WHERE eval_id IN ({placeholders}) AND annotation_kind = 'expectation'
-                   GROUP BY eval_id, name
-                   ORDER BY name""",
-                batch,
-            ).fetchall():
-                expectation_by_eval.setdefault(row[0], []).append(row[1:])
-        return {
-            eval_id: self._build_annotation_summary(
-                feedback_by_eval.get(eval_id, []),
-                expectation_by_eval.get(eval_id, []),
-            )
-            for eval_id in eval_ids
-            if eval_id in feedback_by_eval or eval_id in expectation_by_eval
-        }
+        with self._get_experiment_connection(experiment_id) as conn:
+            feedback_by_eval: dict[str, list] = {}
+            expectation_by_eval: dict[str, list] = {}
+            for i in range(0, len(eval_ids), 900):
+                batch = eval_ids[i : i + 900]
+                placeholders = ",".join("?" * len(batch))
+                for row in conn.execute(
+                    f"""SELECT eval_id, name, value, COUNT(*) AS cnt
+                       FROM eval_annotations
+                       WHERE eval_id IN ({placeholders}) AND annotation_kind = 'feedback'
+                       GROUP BY eval_id, name, value
+                       ORDER BY name, value""",
+                    batch,
+                ).fetchall():
+                    feedback_by_eval.setdefault(row[0], []).append(row[1:])
+                for row in conn.execute(
+                    f"""SELECT eval_id, name, COUNT(*) AS total,
+                           SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                           SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                           MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                           MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
+                       FROM eval_annotations
+                       WHERE eval_id IN ({placeholders}) AND annotation_kind = 'expectation'
+                       GROUP BY eval_id, name
+                       ORDER BY name""",
+                    batch,
+                ).fetchall():
+                    expectation_by_eval.setdefault(row[0], []).append(row[1:])
+            return {
+                eval_id: self._build_annotation_summary(
+                    feedback_by_eval.get(eval_id, []),
+                    expectation_by_eval.get(eval_id, []),
+                )
+                for eval_id in eval_ids
+                if eval_id in feedback_by_eval or eval_id in expectation_by_eval
+            }
 
     def get_eval_annotation_summary(
         self, experiment_id: str, dataset_id: str
@@ -4303,28 +4334,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id):
             return AnnotationSummary(feedback=[], expectations=[])
-        conn = self._get_experiment_connection(experiment_id)
-        feedback_rows = conn.execute(
-            """SELECT name, value, COUNT(*) AS cnt
-               FROM eval_annotations
-               WHERE dataset_id = ? AND annotation_kind = 'feedback'
-               GROUP BY name, value
-               ORDER BY name, value""",
-            (dataset_id,),
-        ).fetchall()
-        expectation_rows = conn.execute(
-            """SELECT name, COUNT(*) AS total,
-                   SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
-                   SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
-                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
-                   MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
-               FROM eval_annotations
-               WHERE dataset_id = ? AND annotation_kind = 'expectation'
-               GROUP BY name
-               ORDER BY name""",
-            (dataset_id,),
-        ).fetchall()
-        return self._build_annotation_summary(feedback_rows, expectation_rows)
+        with self._get_experiment_connection(experiment_id) as conn:
+            feedback_rows = conn.execute(
+                """SELECT name, value, COUNT(*) AS cnt
+                   FROM eval_annotations
+                   WHERE dataset_id = ? AND annotation_kind = 'feedback'
+                   GROUP BY name, value
+                   ORDER BY name, value""",
+                (dataset_id,),
+            ).fetchall()
+            expectation_rows = conn.execute(
+                """SELECT name, COUNT(*) AS total,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                       MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
+                   FROM eval_annotations
+                   WHERE dataset_id = ? AND annotation_kind = 'expectation'
+                   GROUP BY name
+                   ORDER BY name""",
+                (dataset_id,),
+            ).fetchall()
+            return self._build_annotation_summary(feedback_rows, expectation_rows)
 
     def get_traces_annotation_summaries(
         self, experiment_id: str, trace_ids: list[str]
@@ -4358,42 +4389,42 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id) or not trace_ids:
             return {}
-        conn = self._get_experiment_connection(experiment_id)
-        feedback_by_trace: dict[str, list] = {}
-        expectation_by_trace: dict[str, list] = {}
-        for i in range(0, len(trace_ids), 900):
-            batch = trace_ids[i : i + 900]
-            placeholders = ",".join("?" * len(batch))
-            for row in conn.execute(
-                f"""SELECT trace_id, name, value, COUNT(*) AS cnt
-                   FROM span_annotations
-                   WHERE trace_id IN ({placeholders}) AND annotation_kind = 'feedback'
-                   GROUP BY trace_id, name, value
-                   ORDER BY name, value""",
-                batch,
-            ).fetchall():
-                feedback_by_trace.setdefault(row[0], []).append(row[1:])
-            for row in conn.execute(
-                f"""SELECT trace_id, name, COUNT(*) AS total,
-                       SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
-                       SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
-                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
-                       MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
-                   FROM span_annotations
-                   WHERE trace_id IN ({placeholders}) AND annotation_kind = 'expectation'
-                   GROUP BY trace_id, name
-                   ORDER BY name""",
-                batch,
-            ).fetchall():
-                expectation_by_trace.setdefault(row[0], []).append(row[1:])
-        return {
-            trace_id: self._build_annotation_summary(
-                feedback_by_trace.get(trace_id, []),
-                expectation_by_trace.get(trace_id, []),
-            )
-            for trace_id in trace_ids
-            if trace_id in feedback_by_trace or trace_id in expectation_by_trace
-        }
+        with self._get_experiment_connection(experiment_id) as conn:
+            feedback_by_trace: dict[str, list] = {}
+            expectation_by_trace: dict[str, list] = {}
+            for i in range(0, len(trace_ids), 900):
+                batch = trace_ids[i : i + 900]
+                placeholders = ",".join("?" * len(batch))
+                for row in conn.execute(
+                    f"""SELECT trace_id, name, value, COUNT(*) AS cnt
+                       FROM span_annotations
+                       WHERE trace_id IN ({placeholders}) AND annotation_kind = 'feedback'
+                       GROUP BY trace_id, name, value
+                       ORDER BY name, value""",
+                    batch,
+                ).fetchall():
+                    feedback_by_trace.setdefault(row[0], []).append(row[1:])
+                for row in conn.execute(
+                    f"""SELECT trace_id, name, COUNT(*) AS total,
+                           SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                           SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                           MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                           MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
+                       FROM span_annotations
+                       WHERE trace_id IN ({placeholders}) AND annotation_kind = 'expectation'
+                       GROUP BY trace_id, name
+                       ORDER BY name""",
+                    batch,
+                ).fetchall():
+                    expectation_by_trace.setdefault(row[0], []).append(row[1:])
+            return {
+                trace_id: self._build_annotation_summary(
+                    feedback_by_trace.get(trace_id, []),
+                    expectation_by_trace.get(trace_id, []),
+                )
+                for trace_id in trace_ids
+                if trace_id in feedback_by_trace or trace_id in expectation_by_trace
+            }
 
     def get_trace_annotation_summary(
         self, experiment_id: str, trace_id: str
@@ -4420,28 +4451,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id):
             return AnnotationSummary(feedback=[], expectations=[])
-        conn = self._get_experiment_connection(experiment_id)
-        feedback_rows = conn.execute(
-            """SELECT name, value, COUNT(*) AS cnt
-               FROM span_annotations
-               WHERE trace_id = ? AND annotation_kind = 'feedback'
-               GROUP BY name, value
-               ORDER BY name, value""",
-            (trace_id,),
-        ).fetchall()
-        expectation_rows = conn.execute(
-            """SELECT name, COUNT(*) AS total,
-                   SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
-                   SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
-                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
-                   MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
-               FROM span_annotations
-               WHERE trace_id = ? AND annotation_kind = 'expectation'
-               GROUP BY name
-               ORDER BY name""",
-            (trace_id,),
-        ).fetchall()
-        return self._build_annotation_summary(feedback_rows, expectation_rows)
+        with self._get_experiment_connection(experiment_id) as conn:
+            feedback_rows = conn.execute(
+                """SELECT name, value, COUNT(*) AS cnt
+                   FROM span_annotations
+                   WHERE trace_id = ? AND annotation_kind = 'feedback'
+                   GROUP BY name, value
+                   ORDER BY name, value""",
+                (trace_id,),
+            ).fetchall()
+            expectation_rows = conn.execute(
+                """SELECT name, COUNT(*) AS total,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                       MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
+                   FROM span_annotations
+                   WHERE trace_id = ? AND annotation_kind = 'expectation'
+                   GROUP BY name
+                   ORDER BY name""",
+                (trace_id,),
+            ).fetchall()
+            return self._build_annotation_summary(feedback_rows, expectation_rows)
 
     def get_all_traces_annotation_summary(
         self, experiment_id: str
@@ -4478,29 +4509,29 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id):
             return AnnotationSummary(feedback=[], expectations=[])
-        conn = self._get_experiment_connection(experiment_id)
-        feedback_rows = conn.execute(
-            """SELECT name, value, COUNT(*) AS cnt
-               FROM span_annotations
-               WHERE annotation_kind = 'feedback'
-               GROUP BY name, value
-               ORDER BY name, value""",
-        ).fetchall()
-        expectation_rows = conn.execute(
-            """SELECT name, COUNT(*) AS total,
-                   SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
-                   SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
-                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
-                   MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
-               FROM span_annotations
-               WHERE annotation_kind = 'expectation'
-               GROUP BY name
-               ORDER BY name""",
-        ).fetchall()
-        return self._build_annotation_summary(feedback_rows, expectation_rows)
+        with self._get_experiment_connection(experiment_id) as conn:
+            feedback_rows = conn.execute(
+                """SELECT name, value, COUNT(*) AS cnt
+                   FROM span_annotations
+                   WHERE annotation_kind = 'feedback'
+                   GROUP BY name, value
+                   ORDER BY name, value""",
+            ).fetchall()
+            expectation_rows = conn.execute(
+                """SELECT name, COUNT(*) AS total,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                       MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
+                   FROM span_annotations
+                   WHERE annotation_kind = 'expectation'
+                   GROUP BY name
+                   ORDER BY name""",
+            ).fetchall()
+            return self._build_annotation_summary(feedback_rows, expectation_rows)
 
     def get_experiment_ddl_version(self, experiment_id: str) -> int:
         db_path = self._get_experiment_db_path(experiment_id)
-        conn = self.pool.get_connection(db_path)
-        row = conn.execute("PRAGMA user_version").fetchone()
-        return row[0] if row else 0
+        with self.pool.get_connection(db_path) as conn:
+            row = conn.execute("PRAGMA user_version").fetchone()
+            return row[0] if row else 0
