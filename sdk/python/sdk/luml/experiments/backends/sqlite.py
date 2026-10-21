@@ -79,7 +79,12 @@ class ConnectionPool:
         self._write_locks: dict[str, threading.Lock] = {}
         self._lock = threading.RLock()
         self._active_experiments: set[str] = set()
-        atexit.register(self.close_all)
+        atexit.register(ConnectionPool._close_on_exit, weakref.ref(self))
+
+    @staticmethod
+    def _close_on_exit(pool_ref: weakref.ReferenceType["ConnectionPool"]) -> None:
+        if (pool := pool_ref()) is not None:
+            pool.close_all()
 
     def get_connection(self, db_path: str | Path) -> sqlite3.Connection:
         db_path = str(db_path)
@@ -235,11 +240,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self._migrated_experiment_dbs: set[str] = set()
 
         self._initialize_meta_db()
-        weakref.finalize(self, self._cleanup)
-
-    def _cleanup(self) -> None:
-        if hasattr(self, "pool"):
-            self.pool.close_all()
+        weakref.finalize(self, self.pool.close_all)
 
     def _ensure_experiment_initialized(self, experiment_id: str) -> None:
         db_path = self._get_experiment_db_path(experiment_id)

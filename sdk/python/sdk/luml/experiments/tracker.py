@@ -5,6 +5,7 @@ import importlib
 import os
 import sys
 import uuid
+import weakref
 import zipfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -83,12 +84,15 @@ class ExperimentTracker:
     def __init__(self, connection_string: str = "sqlite://./experiments") -> None:
         self.backend = self._parse_connection_string(connection_string)
         self.current_experiment_id: str | None = None
-        atexit.register(self._cleanup_on_exit)
+        atexit.register(ExperimentTracker._cleanup_on_exit, weakref.ref(self))
 
-    def _cleanup_on_exit(self) -> None:
-        if self.current_experiment_id:
+    @staticmethod
+    def _cleanup_on_exit(
+        tracker_ref: weakref.ReferenceType["ExperimentTracker"],
+    ) -> None:
+        if (tracker := tracker_ref()) is not None and tracker.current_experiment_id:
             with contextlib.suppress(Exception):
-                self.fail_experiment()
+                tracker.fail_experiment()
 
     def __enter__(self) -> "ExperimentTracker":
         return self
