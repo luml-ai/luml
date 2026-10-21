@@ -239,6 +239,18 @@ class OrbitHandler:
 
         if "bucket_secret_id" in orbit.model_fields_set:
             await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
+            current_orbit = await self.__orbits_repository.get_orbit_simple(
+                orbit_id, organization_id
+            )
+            if not current_orbit:
+                raise OrbitNotFoundError()
+            if (
+                orbit.bucket_secret_id != current_orbit.bucket_secret_id
+                and current_orbit.total_artifacts
+            ):
+                raise OrbitError(
+                    "Cannot change bucket secret while orbit contains artifacts"
+                )
 
         orbit_obj = await self.__orbits_repository.update_orbit(
             orbit_id, organization_id, orbit

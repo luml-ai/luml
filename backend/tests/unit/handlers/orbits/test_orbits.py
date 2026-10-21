@@ -4,7 +4,7 @@ from uuid import UUID, uuid7
 import pytest
 from luml.handlers.orbits import OrbitHandler
 from luml.handlers.permissions import PermissionsHandler
-from luml.infra.exceptions import NotFoundError, OrbitNotFoundError
+from luml.infra.exceptions import NotFoundError, OrbitError, OrbitNotFoundError
 from luml.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
@@ -396,6 +396,7 @@ class TestOrbits:
     async def test_update_orbit_skips_secret_validation_when_secret_not_sent(
         self, mocks: CollaboratorMocks[OrbitHandler], orbit: Orbit
     ) -> None:
+        orbit.total_artifacts = 1
         mocks.orbits_repository.update_orbit.return_value = orbit
 
         update_orbit = OrbitUpdate(name="new_name")
@@ -416,12 +417,14 @@ class TestOrbits:
     async def test_update_orbit_updates_bucket_secret_when_secret_in_own_organization(
         self, mocks: CollaboratorMocks[OrbitHandler], orbit: Orbit
     ) -> None:
+        orbit.total_artifacts = 0
         new_secret_id = uuid7()
         updated = orbit.model_copy(update={"bucket_secret_id": new_secret_id})
 
         mocks.secret_repository.get_bucket_secret.return_value = Mock(
             id=new_secret_id, organization_id=orbit.organization_id
         )
+        mocks.orbits_repository.get_orbit_simple.return_value = orbit
         mocks.orbits_repository.update_orbit.return_value = updated
 
         update_orbit = OrbitUpdate(bucket_secret_id=new_secret_id)
@@ -436,3 +439,75 @@ class TestOrbits:
         mocks.orbits_repository.update_orbit.assert_awaited_once_with(
             orbit.id, orbit.organization_id, update_orbit
         )
+
+    @pytest.mark.parametrize("total_artifacts", [1, 2])
+    async def test_update_orbit_rejects_bucket_change_when_artifacts_exist(
+        self,
+        mocks: CollaboratorMocks[OrbitHandler],
+        orbit: Orbit,
+        total_artifacts: int,
+    ) -> None:
+        orbit.total_artifacts = total_artifacts
+        new_secret_id = uuid7()
+        mocks.secret_repository.get_bucket_secret.return_value = Mock(
+            id=new_secret_id, organization_id=orbit.organization_id
+        )
+        mocks.orbits_repository.get_orbit_simple.return_value = orbit
+
+        with pytest.raises(
+            OrbitError,
+            match="Cannot change bucket secret while orbit contains artifacts",
+        ) as error:
+            await mocks.handler.update_orbit(
+                USER_ID,
+                orbit.organization_id,
+                orbit.id,
+                OrbitUpdate(name="renamed", bucket_secret_id=new_secret_id),
+            )
+
+        assert error.value.status_code == 409
+        mocks.orbits_repository.get_orbit_simple.assert_awaited_once_with(
+            orbit.id, orbit.organization_id
+        )
+        mocks.orbits_repository.update_orbit.assert_not_called()
+
+    async def test_update_orbit_allows_same_bucket_secret_when_artifacts_exist(
+        self, mocks: CollaboratorMocks[OrbitHandler], orbit: Orbit
+    ) -> None:
+        orbit.total_artifacts = 1
+        update = OrbitUpdate(name="renamed", bucket_secret_id=orbit.bucket_secret_id)
+        updated = orbit.model_copy(update={"name": "renamed"})
+        mocks.secret_repository.get_bucket_secret.return_value = Mock(
+            id=orbit.bucket_secret_id, organization_id=orbit.organization_id
+        )
+        mocks.orbits_repository.get_orbit_simple.return_value = orbit
+        mocks.orbits_repository.update_orbit.return_value = updated
+
+        result = await mocks.handler.update_orbit(
+            USER_ID, orbit.organization_id, orbit.id, update
+        )
+
+        assert result == updated
+        mocks.orbits_repository.update_orbit.assert_awaited_once_with(
+            orbit.id, orbit.organization_id, update
+        )
+
+    async def test_update_orbit_bucket_change_raises_not_found_when_orbit_missing(
+        self, mocks: CollaboratorMocks[OrbitHandler], orbit: Orbit
+    ) -> None:
+        new_secret_id = uuid7()
+        mocks.secret_repository.get_bucket_secret.return_value = Mock(
+            id=new_secret_id, organization_id=orbit.organization_id
+        )
+        mocks.orbits_repository.get_orbit_simple.return_value = None
+
+        with pytest.raises(OrbitNotFoundError, match="Orbit not found") as error:
+            await mocks.handler.update_orbit(
+                USER_ID,
+                orbit.organization_id,
+                orbit.id,
+                OrbitUpdate(bucket_secret_id=new_secret_id),
+            )
+
+        assert error.value.status_code == 404
+        mocks.orbits_repository.update_orbit.assert_not_called()
