@@ -1,4 +1,4 @@
-"""OSC52 clipboard writes must bypass Textual's stdout capture."""
+"""OSC52 clipboard writes must reach the terminal stream Textual renders to."""
 
 import io
 import sys
@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from lumlflow.tracker import ThreadSafeTracker
 from lumlflow.tui import LumlflowApp
-from lumlflow.tui.clipboard import osc52_copy, supports_osc52
+from lumlflow.tui.clipboard import osc52_copy, supports_osc52, terminal_stream
 from lumlflow.tui.data import DataFacade
 
 
@@ -36,8 +36,9 @@ async def test_yank_reaches_terminal_during_textual_capture(
     sequence: str,
 ) -> None:
     terminal = _Terminal()
-    monkeypatch.setattr(sys, "__stdout__", terminal)
+    monkeypatch.setattr(sys, "__stderr__", terminal)
     monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
     async with app.run_test():
         assert sys.stdout is not terminal
         assert sys.stdout.isatty()
@@ -55,8 +56,9 @@ async def test_yank_warns_without_real_terminal(
     monkeypatch: pytest.MonkeyPatch,
     terminal: io.StringIO | None,
 ) -> None:
-    monkeypatch.setattr(sys, "__stdout__", terminal)
+    monkeypatch.setattr(sys, "__stderr__", terminal)
     monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
     async with app.run_test():
         assert sys.stdout.isatty()
         assert supports_osc52() is False
@@ -78,8 +80,9 @@ async def test_yank_warns_on_terminal_io_failure(
     operation: str,
 ) -> None:
     terminal = _Terminal()
-    monkeypatch.setattr(sys, "__stdout__", terminal)
+    monkeypatch.setattr(sys, "__stderr__", terminal)
     monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
     async with app.run_test():
         with (
             patch.object(terminal, operation, side_effect=OSError("terminal closed")),
@@ -93,12 +96,17 @@ async def test_yank_warns_on_terminal_io_failure(
         )
 
 
+def test_terminal_stream_is_the_one_textual_renders_to() -> None:
+    expected = sys.__stdout__ if sys.platform == "win32" else sys.__stderr__
+    assert terminal_stream() is expected
+
+
 @pytest.mark.parametrize("term", ["", "dumb", "unknown"])
 def test_unsupported_terminal_does_not_emit_osc52(
     monkeypatch: pytest.MonkeyPatch, term: str
 ) -> None:
     terminal = _Terminal()
-    monkeypatch.setattr(sys, "__stdout__", terminal)
+    monkeypatch.setattr(sys, "__stderr__", terminal)
     monkeypatch.setenv("TERM", term)
     assert supports_osc52() is False
     assert osc52_copy("hello").ok is False
@@ -107,8 +115,9 @@ def test_unsupported_terminal_does_not_emit_osc52(
 
 def test_empty_yank_does_not_emit_osc52(monkeypatch: pytest.MonkeyPatch) -> None:
     terminal = _Terminal()
-    monkeypatch.setattr(sys, "__stdout__", terminal)
+    monkeypatch.setattr(sys, "__stderr__", terminal)
     monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
     assert osc52_copy("").ok is False
     assert terminal.getvalue() == ""
 
@@ -116,8 +125,9 @@ def test_empty_yank_does_not_emit_osc52(monkeypatch: pytest.MonkeyPatch) -> None
 def test_closed_terminal_is_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     terminal = _Terminal()
     terminal.close()
-    monkeypatch.setattr(sys, "__stdout__", terminal)
+    monkeypatch.setattr(sys, "__stderr__", terminal)
     monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.delenv("TERM_PROGRAM", raising=False)
     with patch.object(terminal, "isatty", side_effect=ValueError("terminal closed")):
         assert supports_osc52() is False
         assert osc52_copy("hello").ok is False

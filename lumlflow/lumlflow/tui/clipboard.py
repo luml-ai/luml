@@ -8,8 +8,8 @@ user); the helper degrades gracefully so the caller can show an
 explanatory toast instead of crashing.
 
 Implementation:
-- emit `ESC ] 52 ; c ; <base64-payload> BEL` on the original stdout
-  when it is a TTY, bypassing Textual's print capture.
+- emit `ESC ] 52 ; c ; <base64-payload> BEL` on the terminal stream
+  Textual renders to, bypassing its print capture.
 - payload is base64-encoded UTF-8 of the string to copy.
 - the standard caps text length to a few KB; ids are short so we don't
   worry about chunking.
@@ -34,12 +34,18 @@ class ClipboardResult:
     reason: str | None = None
 
 
+def terminal_stream() -> IO[str] | None:
+    """The terminal stream Textual renders to (stderr on POSIX, stdout on Windows)."""
+
+    return sys.__stdout__ if sys.platform == "win32" else sys.__stderr__
+
+
 def supports_osc52() -> bool:
     """Heuristic check for OSC52 support in the current terminal."""
 
-    # check the real terminal, since Textual's print capture reports a TTY
+    terminal = terminal_stream()
     try:
-        if sys.__stdout__ is None or not sys.__stdout__.isatty():
+        if terminal is None or not terminal.isatty():
             return False
     except (OSError, ValueError):
         return False
@@ -64,7 +70,7 @@ def osc52_copy(text: str, *, stream: IO[str] | None = None) -> ClipboardResult:
 
     if not text:
         return ClipboardResult(ok=False, reason="nothing to copy")
-    out = stream if stream is not None else sys.__stdout__
+    out = stream if stream is not None else terminal_stream()
     if out is None or (stream is None and not supports_osc52()):
         return ClipboardResult(
             ok=False,
@@ -124,4 +130,5 @@ __all__ = [
     "osc52_copy",
     "read_system_clipboard",
     "supports_osc52",
+    "terminal_stream",
 ]
