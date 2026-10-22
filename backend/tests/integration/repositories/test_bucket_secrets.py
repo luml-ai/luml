@@ -2,6 +2,7 @@ from uuid import uuid4
 
 import pytest
 from luml.infra.exceptions import DatabaseConstraintError
+from luml.models import BucketSecretOrm, CollectionOrm, OrbitOrm
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.schemas.bucket_secrets import (
@@ -11,10 +12,12 @@ from luml.schemas.bucket_secrets import (
     S3BucketSecretOut,
 )
 from luml.schemas.orbit import OrbitCreateIn
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.builders import create_sibling_organization
-from tests.support.seeds import OrganizationFixtureData
+from tests.support.seeds import CollectionFixtureData, OrganizationFixtureData
 
 
 @pytest.fixture
@@ -435,4 +438,59 @@ class TestBucketSecretRepository:
                 seeded_organization.organization.id,
             )
             is not None
+        )
+
+    @pytest.mark.parametrize("raw_sql", [False, True])
+    async def test_sql_delete_rejects_used_secret_and_preserves_dependents(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        raw_sql: bool,
+    ) -> None:
+        data = seeded_collection
+        statement = (
+            text("DELETE FROM bucket_secrets WHERE id = :secret_id").bindparams(
+                secret_id=data.bucket_secret.id
+            )
+            if raw_sql
+            else delete(BucketSecretOrm).where(
+                BucketSecretOrm.id == data.bucket_secret.id
+            )
+        )
+
+        with pytest.raises(IntegrityError):
+            async with engine.begin() as connection:
+                await connection.execute(statement)
+
+        async with engine.connect() as connection:
+            assert (
+                await connection.scalar(
+                    select(BucketSecretOrm.id).where(
+                        BucketSecretOrm.id == data.bucket_secret.id
+                    )
+                )
+                == data.bucket_secret.id
+            )
+            assert (
+                await connection.scalar(
+                    select(OrbitOrm.id).where(OrbitOrm.id == data.orbit.id)
+                )
+                == data.orbit.id
+            )
+            assert (
+                await connection.scalar(
+                    select(CollectionOrm.id).where(
+                        CollectionOrm.id == data.collection.id
+                    )
+                )
+                == data.collection.id
+            )
+
+    async def test_delete_bucket_secret_returns_false_when_missing(
+        self,
+        repository: BucketSecretRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        assert not await repository.delete_bucket_secret(
+            uuid4(), seeded_organization.organization.id
         )

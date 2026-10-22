@@ -109,6 +109,8 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             )
             if not db_secret:
                 return False
+            if db_secret.orbits:
+                raise DatabaseConstraintError()
             await session.delete(db_secret)
             try:
                 await session.commit()
