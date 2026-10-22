@@ -104,9 +104,14 @@ class OrbitSecretHandler:
             Action.UPDATE,
             orbit_id,
         )
-        updated = await self.__secret_repository.update_orbit_secret(
-            secret_id, orbit_id, secret
-        )
+        try:
+            updated = await self.__secret_repository.update_orbit_secret(
+                secret_id, orbit_id, secret
+            )
+        except DatabaseConstraintError as error:
+            raise ApplicationError(
+                "Secret update violates a database constraint.", 409
+            ) from error
         if not updated:
             raise NotFoundError("Orbit secret not found")
         return OrbitSecretOut.model_validate(updated)

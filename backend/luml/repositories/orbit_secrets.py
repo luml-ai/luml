@@ -97,6 +97,9 @@ class OrbitSecretRepository(RepositoryBase, CrudMixin):
                 update_data["value"] = encrypt(update_data["value"])
             for field, value in update_data.items():
                 setattr(db_secret, field, value)
-            await session.commit()
-            await session.refresh(db_secret)
+            try:
+                await session.commit()
+                await session.refresh(db_secret)
+            except IntegrityError as error:
+                raise DatabaseConstraintError() from error
             return db_secret.to_orbit_secret()

@@ -416,8 +416,17 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
     ) -> tuple[list[ArtifactListed], Cursor | None]:
         async with self._get_session() as session:
             sort_by = pagination.sort_by
+            sort_collection_ids = collection_ids or []
+            if not sort_collection_ids and sort_by not in ArtifactSortBy:
+                sort_collection_ids = list(
+                    await session.scalars(
+                        select(CollectionOrm.id).where(
+                            CollectionOrm.orbit_id == orbit_id
+                        )
+                    )
+                )
             is_extra_values = await self._is_extra_values_sort(
-                collection_ids or [], sort_by
+                sort_collection_ids, sort_by
             )
 
             if is_extra_values:

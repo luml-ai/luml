@@ -1,8 +1,9 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
-from pydantic import AliasPath, BaseModel, Field, model_validator
+from pydantic import AliasPath, BaseModel, Field, field_validator, model_validator
 
 from luml.schemas.artifacts import ArtifactType
 from luml.schemas.base import BaseOrmConfig
@@ -82,6 +83,13 @@ class TrackUpdateIn(BaseModel):
     tags: list[str] | None = None
     stages: list[StageUpsertIn] | None = None
     expected_stage_ids: list[UUID] | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def reject_null_name(cls, value: Any) -> Any:  # noqa: ANN401
+        if value is None:
+            raise ValueError("name cannot be null; omit it instead")
+        return value
 
     @model_validator(mode="after")
     def check_expected_stage_ids(self) -> TrackUpdateIn:
