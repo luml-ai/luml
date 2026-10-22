@@ -1,9 +1,11 @@
+import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 from luml.infra.exceptions import DatabaseConstraintError
+from luml.models import SatelliteOrm
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
@@ -15,7 +17,10 @@ from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteTaskType,
 )
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy import event, update
+from sqlalchemy.engine import Connection, ExecutionContext
+from sqlalchemy.engine.interfaces import DBAPICursor
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from tests.support.seeds import OrbitFixtureData, SatelliteFixtureData
 
@@ -135,7 +140,6 @@ class TestSatelliteRepository:
                 api_version=1,
             ),
             paired=True,
-            last_seen_at=datetime.now(UTC),
         )
 
         paired_satellite = await repository.pair_satellite(satellite_pair)
@@ -147,7 +151,7 @@ class TestSatelliteRepository:
         assert paired_satellite.capabilities == capabilities
         assert paired_satellite.kit_info is not None
         assert paired_satellite.kit_info.kind == "docker"
-        assert paired_satellite.last_seen_at is not None
+        assert paired_satellite.last_seen_at is None
         assert await repository.get_satellite_openapi(satellite.id) == openapi
         assert "openapi" not in paired_satellite.model_dump()
 
@@ -165,7 +169,6 @@ class TestSatelliteRepository:
                 capabilities=capabilities,
                 openapi=None,
                 paired=True,
-                last_seen_at=datetime.now(UTC),
             )
         )
 
@@ -189,12 +192,104 @@ class TestSatelliteRepository:
         original_last_seen = satellite.last_seen_at
         assert original_last_seen is None
 
-        await repository.touch_last_seen(satellite.id)
+        await repository.touch_last_seen(
+            satellite.id, seen_before=datetime.now(UTC) - timedelta(minutes=1)
+        )
         seen_satellite = await repository.get_satellite(satellite.id)
 
         assert seen_satellite
         assert seen_satellite.last_seen_at is not None
         assert seen_satellite.last_seen_at != original_last_seen
+
+    @pytest.mark.parametrize("seconds_since_seen", [0, 59, 60, 61])
+    async def test_touch_last_seen_only_updates_when_a_minute_has_elapsed(
+        self,
+        repository: SatelliteRepository,
+        seeded_orbit: OrbitFixtureData,
+        seconds_since_seen: int,
+    ) -> None:
+        satellite = await repository.create_satellite(
+            SatelliteCreate(
+                orbit_id=seeded_orbit.orbit.id,
+                api_key_hash=str(uuid.uuid4()),
+                name="heartbeat",
+            )
+        )
+        now = datetime.now(UTC)
+        last_seen = now - timedelta(seconds=seconds_since_seen)
+        async with AsyncSession(seeded_orbit.engine) as session:
+            await session.execute(
+                update(SatelliteOrm)
+                .where(SatelliteOrm.id == satellite.id)
+                .values(last_seen_at=last_seen)
+            )
+            await session.commit()
+        before = await repository.get_satellite(satellite.id)
+        assert before is not None
+
+        await repository.touch_last_seen(
+            satellite.id, seen_before=now - timedelta(minutes=1)
+        )
+
+        after = await repository.get_satellite(satellite.id)
+        assert after is not None
+        if seconds_since_seen >= 60:
+            assert after.last_seen_at is not None
+            assert after.last_seen_at >= now
+        else:
+            assert after.last_seen_at == last_seen
+            assert after.updated_at == before.updated_at
+
+    async def test_concurrent_heartbeats_update_the_satellite_once(
+        self,
+        repository: SatelliteRepository,
+        seeded_orbit: OrbitFixtureData,
+    ) -> None:
+        satellite = await repository.create_satellite(
+            SatelliteCreate(
+                orbit_id=seeded_orbit.orbit.id,
+                api_key_hash=str(uuid.uuid4()),
+                name="heartbeat",
+            )
+        )
+        rows_updated: list[int] = []
+
+        def record_update(
+            _conn: Connection,
+            cursor: DBAPICursor,
+            statement: str,
+            _parameters: object,
+            _context: ExecutionContext,
+            _executemany: bool,
+        ) -> None:
+            if statement.startswith("UPDATE satellites"):
+                rows_updated.append(int(cursor.rowcount))
+
+        event.listen(
+            seeded_orbit.engine.sync_engine, "after_cursor_execute", record_update
+        )
+        try:
+            cutoff = datetime.now(UTC) - timedelta(minutes=1)
+            await asyncio.gather(
+                *(
+                    repository.touch_last_seen(satellite.id, seen_before=cutoff)
+                    for _ in range(5)
+                )
+            )
+        finally:
+            event.remove(
+                seeded_orbit.engine.sync_engine, "after_cursor_execute", record_update
+            )
+        assert sum(rows_updated) == 1
+
+    async def test_touch_last_seen_ignores_missing_satellite(
+        self, repository: SatelliteRepository
+    ) -> None:
+        satellite_id = uuid.uuid7()
+        await repository.touch_last_seen(
+            satellite_id, seen_before=datetime.now(UTC) - timedelta(minutes=1)
+        )
+        assert await repository.get_satellite(satellite_id) is None
 
     async def test_list_satellites_filters_by_pairing(
         self, repository: SatelliteRepository, seeded_orbit: OrbitFixtureData
@@ -220,7 +315,6 @@ class TestSatelliteRepository:
                 capabilities={"deploy": {"version": 1}},
                 openapi=None,
                 paired=True,
-                last_seen_at=datetime.now(UTC),
             )
         )
 

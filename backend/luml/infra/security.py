@@ -38,7 +38,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
     ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         sat = await self.satellite_handler.authenticate_api_key(token)
         if sat:
-            await self.satellite_handler.touch_last_seen(sat.id)
+            await self.satellite_handler.touch_last_seen(sat)
             auth_sat = AuthSatellite(satellite_id=sat.id, orbit_id=sat.orbit_id)
             return AuthCredentials(["authenticated", "satellite"]), auth_sat
         return None
