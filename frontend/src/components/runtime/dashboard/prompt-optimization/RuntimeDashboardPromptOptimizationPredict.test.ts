@@ -179,7 +179,7 @@ describe('RuntimeDashboardPromptOptimizationPredict CSV predictions', () => {
   )
 
   it.each(['model error', 'rejected request'])(
-    'does not offer a partial download after a %s and allows retry',
+    'keeps the other rows after a %s and reports the failure in the file',
     async (failure) => {
       computePythonModel.mockResolvedValueOnce({
         status: 'success',
@@ -198,22 +198,53 @@ describe('RuntimeDashboardPromptOptimizationPredict CSV predictions', () => {
       await wrapper.get('.upload button').trigger('click')
       await flushPromises()
 
-      expect(computePythonModel).toHaveBeenCalledTimes(2)
+      expect(computePythonModel).toHaveBeenCalledTimes(3)
+      expect(addToast).toHaveBeenCalledTimes(1)
       expect(addToast).toHaveBeenCalledWith(
-        expect.objectContaining({ detail: 'Prediction failed' }),
+        expect.objectContaining({
+          severity: 'warn',
+          detail:
+            '1 of 3 rows failed. Their errors are in the prediction column of the downloaded file.',
+        }),
       )
-      expect(wrapper.get('.upload button').text()).toBe('Predict')
-      expect(wrapper.get('.upload button').attributes('data-loading')).toBe('false')
-      expect(wrapper.findComponent({ name: 'FileInput' }).props('error')).toBe(true)
-      expect(downloadFileFromBlob).not.toHaveBeenCalled()
-
-      await wrapper.get('.upload button').trigger('click')
-      await flushPromises()
-      expect(computePythonModel).toHaveBeenCalledTimes(5)
       expect(wrapper.findComponent({ name: 'FileInput' }).props('error')).toBe(false)
+      expect(wrapper.get('.upload button').text()).toBe('Download')
       await wrapper.get('.upload button').trigger('click')
-      expect(await readDownload()).toHaveLength(3)
+      expect(await readDownload()).toEqual([
+        { inputs: '{"text":"row one","lang":"en"}', prediction: 'first result' },
+        { inputs: '{"text":"row two","lang":"de"}', prediction: 'Error: Prediction failed' },
+        { inputs: '{"text":"row three","lang":"fr"}', prediction: 'prediction' },
+      ])
       wrapper.unmount()
     },
   )
+
+  it('does not offer a download when every row fails and allows retry', async () => {
+    computePythonModel
+      .mockResolvedValueOnce({ status: 'error', error_message: 'Provider is down' })
+      .mockRejectedValueOnce(new Error('Provider is down'))
+      .mockResolvedValueOnce({ status: 'error', error_message: 'Provider is down' })
+    const wrapper = await mountPredict()
+
+    await wrapper.get('.upload button').trigger('click')
+    await flushPromises()
+
+    expect(computePythonModel).toHaveBeenCalledTimes(3)
+    expect(addToast).toHaveBeenCalledTimes(1)
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: 'Provider is down' }),
+    )
+    expect(wrapper.get('.upload button').text()).toBe('Predict')
+    expect(wrapper.get('.upload button').attributes('data-loading')).toBe('false')
+    expect(wrapper.findComponent({ name: 'FileInput' }).props('error')).toBe(true)
+    expect(downloadFileFromBlob).not.toHaveBeenCalled()
+
+    await wrapper.get('.upload button').trigger('click')
+    await flushPromises()
+    expect(computePythonModel).toHaveBeenCalledTimes(6)
+    expect(wrapper.findComponent({ name: 'FileInput' }).props('error')).toBe(false)
+    await wrapper.get('.upload button').trigger('click')
+    expect(await readDownload()).toHaveLength(3)
+    wrapper.unmount()
+  })
 })
