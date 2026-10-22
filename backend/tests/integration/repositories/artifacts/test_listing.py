@@ -15,7 +15,7 @@ from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.orbit import OrbitCreateIn
 from luml.schemas.satellite import SatelliteCreate
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from tests.integration.repositories.artifacts.conftest import _add_artifact_to_track
 from tests.support.builders import (
@@ -696,6 +696,35 @@ class TestArtifactRepositoryListing:
             collection_ids=collection_ids,
         )
         assert [item.id for item in items] == expected[2:]
+        assert cursor is None
+
+    async def test_get_collection_artifacts_sorts_by_metric_with_one_connection(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+    ) -> None:
+        artifact = await create_artifact(
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
+            name="model",
+            extra_values={"accuracy": 0.9},
+        )
+        limited_engine = create_async_engine(
+            engine.url, pool_size=1, max_overflow=0, pool_timeout=0.1
+        )
+        try:
+            items, cursor = await ArtifactRepository(
+                limited_engine
+            ).get_collection_artifacts(
+                seeded_collection.orbit.id,
+                PaginationParams(sort_by="accuracy"),
+            )
+        finally:
+            await limited_engine.dispose()
+
+        assert [item.id for item in items] == [artifact.id]
         assert cursor is None
 
     async def test_get_collection_artifacts_rejects_metric_from_other_orbit(
