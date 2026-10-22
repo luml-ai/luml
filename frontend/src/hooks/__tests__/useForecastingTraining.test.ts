@@ -130,11 +130,8 @@ describe('useForecastingTraining startTraining', () => {
     expect(toastAddMock).not.toHaveBeenCalled()
   })
 
-  it('raises an error toast and stays unsuccessful on a worker error payload', async () => {
-    startTrainingMock.mockResolvedValue({
-      status: 'error',
-      error_message: 'Not enough data to train',
-    })
+  it('raises an error toast and stays unsuccessful when the worker rejects', async () => {
+    startTrainingMock.mockRejectedValue(new Error('Not enough data to train'))
     const { hook } = setupHook()
 
     await hook.startTraining(trainPayload)
@@ -166,7 +163,7 @@ describe('useForecastingTraining startPredict', () => {
   })
 
   it('swallows a worker error into a toast and resolves undefined', async () => {
-    startPredictMock.mockResolvedValue({ status: 'error', error_message: 'future is missing' })
+    startPredictMock.mockRejectedValue(new Error('future is missing'))
     const { hook } = setupHook()
 
     const result = await hook.startPredict(request)

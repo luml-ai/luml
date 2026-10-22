@@ -62,16 +62,12 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
         WEBWORKER_ROUTES_ENUM.TABULAR_TRAIN,
       )
 
-      if (result.status === 'success') {
-        trainingData.value = result
-        trainingModelId.value = result.model_id
-        modelsIdList.value.push(result.model_id)
-        saveModel(result.model)
-        isTrainingSuccess.value = true
-        currentTask.value = data.task
-      } else {
-        throw new Error(result?.error_message || 'Unknown error')
-      }
+      trainingData.value = result
+      trainingModelId.value = result.model_id
+      modelsIdList.value.push(result.model_id)
+      saveModel(result.model)
+      isTrainingSuccess.value = true
+      currentTask.value = data.task
     } catch (error) {
       isTrainingSuccess.value = false
       toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
@@ -87,16 +83,10 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
         ? WEBWORKER_ROUTES_ENUM.TABULAR_PREDICT
         : WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_PREDICT
     try {
-      const result = await DataProcessingWorker.startPredict<PredictResponse>(
+      return await DataProcessingWorker.startPredict<PredictResponse>(
         JSON.parse(JSON.stringify(request)),
         route,
       )
-
-      if (result.status === 'success') {
-        return result
-      } else {
-        throw new Error(result?.error_message || 'Unknown error')
-      }
     } catch (error) {
       toast.add(predictErrorToast(error instanceof Error ? error.message : String(error)))
     } finally {

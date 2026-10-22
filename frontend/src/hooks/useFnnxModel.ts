@@ -38,11 +38,7 @@ export const useFnnxModel = () => {
   async function initPythonModel() {
     if (!buffer.value) throw new Error('First create a model')
     const result = await DataProcessingWorker.initPythonModel(buffer.value)
-    if (result.status === 'success') {
-      modelId.value = result.model_id
-    } else {
-      throw new Error(result.error_message)
-    }
+    modelId.value = result.model_id
   }
 
   async function deinit() {

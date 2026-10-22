@@ -60,15 +60,11 @@ export const useForecastingTraining = () => {
         WEBWORKER_ROUTES_ENUM.FORECASTING_TRAIN,
       )
 
-      if (result.status === 'success') {
-        trainingData.value = result
-        trainingModelId.value = result.model_id
-        modelsIdList.value.push(result.model_id)
-        saveModel(result.model)
-        isTrainingSuccess.value = true
-      } else {
-        throw new Error(result?.error_message || 'Unknown error')
-      }
+      trainingData.value = result
+      trainingModelId.value = result.model_id
+      modelsIdList.value.push(result.model_id)
+      saveModel(result.model)
+      isTrainingSuccess.value = true
     } catch (error) {
       isTrainingSuccess.value = false
       toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
@@ -83,16 +79,10 @@ export const useForecastingTraining = () => {
     // Re-forecast is a fixed-parameter predict, not training — it must not raise
     // the shared `isLoading` training modal. Callers show their own light status.
     try {
-      const result = await DataProcessingWorker.startPredict<ForecastingPredictResponse>(
+      return await DataProcessingWorker.startPredict<ForecastingPredictResponse>(
         JSON.parse(JSON.stringify(request)),
         WEBWORKER_ROUTES_ENUM.FORECASTING_PREDICT,
       )
-
-      if (result.status === 'success') {
-        return result
-      } else {
-        throw new Error(result?.error_message || 'Unknown error')
-      }
     } catch (error) {
       toast.add(predictErrorToast(error instanceof Error ? error.message : String(error)))
     }

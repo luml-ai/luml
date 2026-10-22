@@ -150,14 +150,14 @@ class DataProcessingWorkerClass {
     await this.sendMessage(WebworkerMessage.INTERRUPT)
   }
 
-  async initPythonModel(
-    model: ArrayBuffer,
-  ): Promise<{ model_id: string; status: 'success' } | { status: 'error'; error_message: string }> {
-    return this.sendMessage<
-      { model_id: string; status: 'success' } | { status: 'error'; error_message: string }
-    >(WebworkerMessage.INVOKE_ROUTE, WEBWORKER_ROUTES_ENUM.PYFUNC_INIT, {
-      model,
-    })
+  async initPythonModel(model: ArrayBuffer): Promise<{ model_id: string; status: 'success' }> {
+    return this.sendMessage<{ model_id: string; status: 'success' }>(
+      WebworkerMessage.INVOKE_ROUTE,
+      WEBWORKER_ROUTES_ENUM.PYFUNC_INIT,
+      {
+        model,
+      },
+    )
   }
 
   async computePythonModel(payload: {

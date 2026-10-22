@@ -163,13 +163,9 @@ class PromptFusionServiceClass extends Observable<Events> {
         { task_spec: this.payload as PromptFusionPayload },
         WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
       )
-      if (result.status === 'success' && result.model_id) {
-        this.setModelId(result.model_id)
-        this.savePredictionFields()
-        this.saveModel(result.model)
-      } else {
-        throw new Error(result.error_message || 'Training failed')
-      }
+      this.setModelId(result.model_id)
+      this.savePredictionFields()
+      this.saveModel(result.model)
     } finally {
       this.endTraining()
     }
