@@ -84,3 +84,26 @@ def test_tracker_exit_cleanup_preserves_experiment_status(
         ).fetchone()[0]
 
     assert status == ("completed" if completed else "error")
+
+
+def test_dropped_tracker_fails_its_active_experiment(tmp_path: Path) -> None:
+    tracker = ExperimentTracker(f"sqlite://{tmp_path}")
+    tracker.start_experiment(experiment_id="exp")
+    backend = tracker.backend
+
+    del tracker
+    gc.collect()
+
+    assert backend.get_experiment("exp").status == "error"
+
+
+def test_dropped_tracker_leaves_finished_experiment_alone(tmp_path: Path) -> None:
+    tracker = ExperimentTracker(f"sqlite://{tmp_path}")
+    tracker.start_experiment(experiment_id="exp")
+    tracker.end_experiment()
+    backend = tracker.backend
+
+    del tracker
+    gc.collect()
+
+    assert backend.get_experiment("exp").status == "completed"

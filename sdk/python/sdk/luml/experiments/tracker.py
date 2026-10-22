@@ -1,5 +1,4 @@
 # flake8: noqa: E501
-import atexit
 import contextlib
 import importlib
 import os
@@ -58,6 +57,21 @@ _MODULE_PREFIX_TO_FLAVOR: dict[str, str] = {
 }
 
 
+class _ActiveExperiment:
+    __slots__ = ("id",)
+
+    def __init__(self) -> None:
+        self.id: str | None = None
+
+
+def _fail_active_experiment(backend: Backend, active: _ActiveExperiment) -> None:
+    if active.id is None:
+        return
+    with contextlib.suppress(Exception):
+        backend.fail_experiment(active.id)
+    active.id = None
+
+
 class ExperimentTracker:
     """
     Local experiment tracking for ML experiments.
@@ -83,16 +97,18 @@ class ExperimentTracker:
 
     def __init__(self, connection_string: str = "sqlite://./experiments") -> None:
         self.backend = self._parse_connection_string(connection_string)
-        self.current_experiment_id: str | None = None
-        atexit.register(ExperimentTracker._cleanup_on_exit, weakref.ref(self))
+        self._active_experiment = _ActiveExperiment()
+        weakref.finalize(
+            self, _fail_active_experiment, self.backend, self._active_experiment
+        )
 
-    @staticmethod
-    def _cleanup_on_exit(
-        tracker_ref: weakref.ReferenceType["ExperimentTracker"],
-    ) -> None:
-        if (tracker := tracker_ref()) is not None and tracker.current_experiment_id:
-            with contextlib.suppress(Exception):
-                tracker.fail_experiment()
+    @property
+    def current_experiment_id(self) -> str | None:
+        return self._active_experiment.id
+
+    @current_experiment_id.setter
+    def current_experiment_id(self, experiment_id: str | None) -> None:
+        self._active_experiment.id = experiment_id
 
     def __enter__(self) -> "ExperimentTracker":
         return self
