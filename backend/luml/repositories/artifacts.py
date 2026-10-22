@@ -448,7 +448,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 )
 
             if search:
-                conditions.append(ArtifactOrm.name.ilike(f"%{search}%"))
+                conditions.append(ArtifactOrm.name.icontains(search, autoescape=True))
 
             result = await self.get_models_with_pagination(
                 session,

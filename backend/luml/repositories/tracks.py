@@ -106,11 +106,10 @@ class TrackRepository(RepositoryBase, CrudMixin):
             conditions = [TrackOrm.orbit_id == orbit_id]
 
             if search:
-                search_pattern = f"%{search}%"
                 conditions.append(
                     or_(
-                        TrackOrm.name.ilike(search_pattern),
-                        cast(TrackOrm.tags, String).ilike(search_pattern),
+                        TrackOrm.name.icontains(search, autoescape=True),
+                        cast(TrackOrm.tags, String).icontains(search, autoescape=True),
                     )
                 )
 
