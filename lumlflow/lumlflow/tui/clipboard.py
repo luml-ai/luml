@@ -54,6 +54,8 @@ def supports_osc52() -> bool:
     term = os.environ.get("TERM", "").lower()
     if term in ("", "dumb", "unknown"):
         return False
+    if os.environ.get("TERM_PROGRAM") == "Apple_Terminal":
+        return False
     # Known terminals that ship with OSC52 enabled by default. This is
     # an allowlist; unknown terminals get an attempt + graceful fallback.
     return True

@@ -101,6 +101,16 @@ def test_terminal_stream_is_the_one_textual_renders_to() -> None:
     assert terminal_stream() is expected
 
 
+def test_apple_terminal_does_not_emit_osc52(monkeypatch: pytest.MonkeyPatch) -> None:
+    terminal = _Terminal()
+    monkeypatch.setattr(sys, "__stderr__", terminal)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setenv("TERM_PROGRAM", "Apple_Terminal")
+    assert supports_osc52() is False
+    assert osc52_copy("hello").ok is False
+    assert terminal.getvalue() == ""
+
+
 @pytest.mark.parametrize("term", ["", "dumb", "unknown"])
 def test_unsupported_terminal_does_not_emit_osc52(
     monkeypatch: pytest.MonkeyPatch, term: str
