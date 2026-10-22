@@ -128,14 +128,7 @@ class BucketSecretHandler:
         secret_update = BucketSecretUpdate(
             id=secret_id,
             type=existing.type,
-            endpoint=secret.endpoint,
-            bucket_name=secret.bucket_name,
-            access_key=secret.access_key,
-            secret_key=secret.secret_key,
-            session_token=secret.session_token,
-            secure=secret.secure,
-            region=secret.region,
-            cert_check=secret.cert_check,
+            **secret.model_dump(exclude_unset=True, exclude={"id", "type"}),
         )
         try:
             db_secret = await self.__secret_repository.update_bucket_secret(
