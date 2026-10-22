@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from rich.text import Text
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.events import Click
 from textual.widgets import Input, Label, Static
 
 from lumlflow.tui.widgets.modal import BaseDialog
@@ -222,9 +223,41 @@ class RunQuitDialog(BaseDialog[str | None]):
     ]
 
     confirm_label = "Quit (detach)"
+    terminate_label = "Terminate"
 
-    def compose_body(self) -> Iterable:
-        yield Static("[t] Terminate and quit", markup=False)
+    def compose(self) -> Iterable:  # type: ignore[override]
+        with Vertical():
+            yield Label(self.title_text, id="dialog-title")
+            if self.message is not None:
+                yield Static(self.message, id="dialog-message")
+            yield Static("", id="dialog-error")
+            with Horizontal(id="dialog-buttons"):
+                yield Static(
+                    f"[Esc] {self.cancel_label}",
+                    id="dialog-cancel-key",
+                    markup=False,
+                )
+                yield Static(
+                    f"[Enter] {self.confirm_label}",
+                    id="dialog-confirm-key",
+                    markup=False,
+                )
+                yield Static(
+                    f"[t] {self.terminate_label}",
+                    id="dialog-terminate-key",
+                    markup=False,
+                )
+
+    def on_click(self, event: Click) -> None:
+        actions = {
+            "dialog-cancel-key": self.action_cancel,
+            "dialog-confirm-key": self.action_confirm,
+            "dialog-terminate-key": self.action_terminate,
+        }
+        action = actions.get(event.widget.id or "") if event.widget else None
+        if action is not None:
+            event.stop()
+            action()
 
     def action_confirm(self) -> None:
         self.dismiss("detach")
