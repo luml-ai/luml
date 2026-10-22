@@ -9,11 +9,13 @@ from luml.infra.exceptions import DatabaseConstraintError
 from luml.models import BucketSecretOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.bucket_secrets import (
+    AzureBucketSecretCreateIn,
     BucketSecret,
     BucketSecretCreate,
     BucketSecretOut,
     BucketSecretUpdate,
     BucketType,
+    azure_public_endpoint,
     validate_bucket_secret_out,
 )
 
@@ -82,12 +84,19 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
 
             update_data = secret.model_dump(exclude_unset=True, exclude={"type"})
             if db_secret.type == BucketType.S3:
-                if secret.access_key is not None:
-                    update_data["access_key"] = encrypt(secret.access_key)
-                if secret.secret_key is not None:
-                    update_data["secret_key"] = encrypt(secret.secret_key)
-                if secret.session_token is not None:
-                    update_data["session_token"] = encrypt(secret.session_token)
+                for field in ("access_key", "secret_key", "session_token"):
+                    value = getattr(secret, field)
+                    if value is not None:
+                        update_data[field] = encrypt(value)
+            elif db_secret.type == BucketType.AZURE:
+                if secret.endpoint == db_secret.endpoint:
+                    update_data.pop("endpoint", None)
+                elif secret.endpoint is not None:
+                    AzureBucketSecretCreateIn(
+                        endpoint=secret.endpoint, bucket_name=db_secret.bucket_name
+                    )
+                    update_data["connection_string"] = encrypt(secret.endpoint)
+                    update_data["endpoint"] = azure_public_endpoint(secret.endpoint)
             for field, value in update_data.items():
                 setattr(db_secret, field, value)
             try:
