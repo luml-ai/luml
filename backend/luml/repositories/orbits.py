@@ -11,7 +11,6 @@ from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.orbit import (
     Orbit,
-    OrbitCreate,
     OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
@@ -131,27 +130,25 @@ class OrbitRepository(RepositoryBase, CrudMixin):
     async def create_orbit(
         self, organization_id: UUID, orbit: OrbitCreateIn
     ) -> OrbitDetails | None:
-        async with self._get_session() as session:
+        async with self._get_session() as session, session.begin():
             await reserve_organization_slot(
                 session, organization_id, OrganizationResource.ORBITS
             )
-            db_orbit = await self.create_model(
-                session,
-                OrbitOrm,
-                OrbitCreate(
-                    name=orbit.name,
-                    bucket_secret_id=orbit.bucket_secret_id,
-                    organization_id=organization_id,
-                ),
+            db_orbit = OrbitOrm(
+                name=orbit.name,
+                bucket_secret_id=orbit.bucket_secret_id,
+                organization_id=organization_id,
             )
+            session.add(db_orbit)
+            await session.flush()
+            orbit_id = db_orbit.id
             if orbit.members:
-                await self.create_models(
-                    session,
-                    OrbitMembersOrm,
-                    convert_orbit_simple_members(db_orbit.id, orbit.members),
+                session.add_all(
+                    OrbitMembersOrm(**member.model_dump())
+                    for member in convert_orbit_simple_members(orbit_id, orbit.members)
                 )
 
-            return await self.get_orbit(db_orbit.id, organization_id)
+        return await self.get_orbit(orbit_id, organization_id)
 
     async def update_orbit(
         self, orbit_id: UUID, organization_id: UUID, orbit: OrbitUpdate
