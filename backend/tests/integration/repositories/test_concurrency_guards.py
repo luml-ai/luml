@@ -28,6 +28,7 @@ from luml.models import (
     OrbitSecretOrm,
     OrganizationOrm,
     TokenBlackListOrm,
+    TrackArtifactOrm,
     TrackOrm,
 )
 from luml.repositories.artifacts import ArtifactRepository
@@ -320,10 +321,26 @@ class TestConcurrencyGuards:
         ]
         await entries.update_entry(holder.id, TrackEntryUpdate(stage_id=stage.id))
 
-        results = await _race(
-            entries.update_entry(b.id, TrackEntryUpdate(stage_id=stage.id), force=True),
-            entries.update_entry(c.id, TrackEntryUpdate(stage_id=stage.id), force=True),
-        )
+        async with AsyncSession(engine) as session:
+            await session.execute(
+                select(TrackArtifactOrm.id)
+                .where(TrackArtifactOrm.id == holder.id)
+                .with_for_update()
+            )
+            first = asyncio.create_task(
+                entries.update_entry(
+                    b.id, TrackEntryUpdate(stage_id=stage.id), force=True
+                )
+            )
+            second = asyncio.create_task(
+                entries.update_entry(
+                    c.id, TrackEntryUpdate(stage_id=stage.id), force=True
+                )
+            )
+            await _wait_for_lock_waiters(session, 2)
+            await session.commit()
+
+        results = await _race(first, second)
 
         winners, losers = _split(results, IntegrityError)
         assert len(winners) == 1
