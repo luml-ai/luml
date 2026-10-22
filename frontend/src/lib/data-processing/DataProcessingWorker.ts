@@ -164,14 +164,11 @@ class DataProcessingWorkerClass {
     model_id: string
     inputs: object
     dynamic_attributes: object
-  }): Promise<
-    | { status: 'success'; predictions: Record<string, Record<string, string>> }
-    | { status: 'error'; error_type: string; error_message: string }
-  > {
-    return this.sendMessage<
-      | { status: 'success'; predictions: Record<string, Record<string, string>> }
-      | { status: 'error'; error_type: string; error_message: string }
-    >(
+  }): Promise<{ status: 'success'; predictions: Record<string, Record<string, string>> }> {
+    return this.sendMessage<{
+      status: 'success'
+      predictions: Record<string, Record<string, string>>
+    }>(
       WebworkerMessage.INVOKE_ROUTE,
       WEBWORKER_ROUTES_ENUM.PYFUNC_COMPUTE,
       JSON.parse(JSON.stringify(payload)),

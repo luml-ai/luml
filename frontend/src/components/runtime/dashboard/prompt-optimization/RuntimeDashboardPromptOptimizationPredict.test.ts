@@ -178,52 +178,42 @@ describe('RuntimeDashboardPromptOptimizationPredict CSV predictions', () => {
     },
   )
 
-  it.each(['model error', 'rejected request'])(
-    'keeps the other rows after a %s and reports the failure in the file',
-    async (failure) => {
-      computePythonModel.mockResolvedValueOnce({
-        status: 'success',
-        predictions: { out: 'first result' },
-      })
-      if (failure === 'model error') {
-        computePythonModel.mockResolvedValueOnce({
-          status: 'error',
-          error_message: 'Prediction failed',
-        })
-      } else {
-        computePythonModel.mockRejectedValueOnce(new Error('Prediction failed'))
-      }
-      const wrapper = await mountPredict()
+  it('keeps the other rows after a rejected request and reports the failure in the file', async () => {
+    computePythonModel.mockResolvedValueOnce({
+      status: 'success',
+      predictions: { out: 'first result' },
+    })
+    computePythonModel.mockRejectedValueOnce(new Error('Prediction failed'))
+    const wrapper = await mountPredict()
 
-      await wrapper.get('.upload button').trigger('click')
-      await flushPromises()
+    await wrapper.get('.upload button').trigger('click')
+    await flushPromises()
 
-      expect(computePythonModel).toHaveBeenCalledTimes(3)
-      expect(addToast).toHaveBeenCalledTimes(1)
-      expect(addToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          severity: 'warn',
-          detail:
-            '1 of 3 rows failed. Their errors are in the prediction column of the downloaded file.',
-        }),
-      )
-      expect(wrapper.findComponent({ name: 'FileInput' }).props('error')).toBe(false)
-      expect(wrapper.get('.upload button').text()).toBe('Download')
-      await wrapper.get('.upload button').trigger('click')
-      expect(await readDownload()).toEqual([
-        { inputs: '{"text":"row one","lang":"en"}', prediction: 'first result' },
-        { inputs: '{"text":"row two","lang":"de"}', prediction: 'Error: Prediction failed' },
-        { inputs: '{"text":"row three","lang":"fr"}', prediction: 'prediction' },
-      ])
-      wrapper.unmount()
-    },
-  )
+    expect(computePythonModel).toHaveBeenCalledTimes(3)
+    expect(addToast).toHaveBeenCalledTimes(1)
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'warn',
+        detail:
+          '1 of 3 rows failed. Their errors are in the prediction column of the downloaded file.',
+      }),
+    )
+    expect(wrapper.findComponent({ name: 'FileInput' }).props('error')).toBe(false)
+    expect(wrapper.get('.upload button').text()).toBe('Download')
+    await wrapper.get('.upload button').trigger('click')
+    expect(await readDownload()).toEqual([
+      { inputs: '{"text":"row one","lang":"en"}', prediction: 'first result' },
+      { inputs: '{"text":"row two","lang":"de"}', prediction: 'Error: Prediction failed' },
+      { inputs: '{"text":"row three","lang":"fr"}', prediction: 'prediction' },
+    ])
+    wrapper.unmount()
+  })
 
   it('does not offer a download when every row fails and allows retry', async () => {
     computePythonModel
-      .mockResolvedValueOnce({ status: 'error', error_message: 'Provider is down' })
       .mockRejectedValueOnce(new Error('Provider is down'))
-      .mockResolvedValueOnce({ status: 'error', error_message: 'Provider is down' })
+      .mockRejectedValueOnce(new Error('Provider is down'))
+      .mockRejectedValueOnce(new Error('Provider is down'))
     const wrapper = await mountPredict()
 
     await wrapper.get('.upload button').trigger('click')

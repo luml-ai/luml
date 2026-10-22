@@ -123,11 +123,7 @@ async function onManualSubmit() {
     const data = prepareManualData()
     const payload = getPredictPayload(data)
     const result = await DataProcessingWorker.computePythonModel(payload)
-    if (result?.status === 'success') {
-      predictionText.value = JSON.stringify(result.predictions?.out)
-    } else if (result.status === 'error') {
-      throw new Error(result.error_message)
-    }
+    predictionText.value = JSON.stringify(result.predictions?.out)
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown Error'
     toast.add(simpleErrorToast(message))
@@ -179,9 +175,6 @@ async function onFileSubmit() {
 async function predictRow(row: Record<string, string | number>, failures: string[]) {
   try {
     const result = await DataProcessingWorker.computePythonModel(getPredictPayload(row))
-    if (result.status === 'error') {
-      throw new Error(result.error_message)
-    }
     return result.predictions?.out
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown Error'
