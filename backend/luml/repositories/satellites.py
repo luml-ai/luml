@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from luml.infra.exceptions import DatabaseConstraintError, NotFoundError
@@ -124,15 +124,22 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             await session.refresh(task)
             return task.to_queue_task()
 
-    async def touch_last_seen(self, satellite_id: UUID) -> None:
+    async def touch_last_seen(
+        self, satellite_id: UUID, *, seen_before: datetime
+    ) -> None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(SatelliteOrm).where(SatelliteOrm.id == satellite_id)
+            await session.execute(
+                update(SatelliteOrm)
+                .where(
+                    SatelliteOrm.id == satellite_id,
+                    or_(
+                        SatelliteOrm.last_seen_at.is_(None),
+                        SatelliteOrm.last_seen_at <= seen_before,
+                    ),
+                )
+                .values(last_seen_at=datetime.now(UTC))
             )
-            sat = result.scalar_one_or_none()
-            if sat:
-                sat.last_seen_at = datetime.now(UTC)
-                await session.commit()
+            await session.commit()
 
     async def delete_satellite(self, satellite_id: UUID) -> None:
         try:
