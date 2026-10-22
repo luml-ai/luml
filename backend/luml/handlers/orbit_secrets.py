@@ -57,18 +57,7 @@ class OrbitSecretHandler:
         )
         secrets = await self.__secret_repository.get_orbit_secrets(orbit_id)
 
-        return [
-            OrbitSecretOut(
-                id=s.id,
-                name=s.name,
-                value="",
-                tags=s.tags,
-                orbit_id=s.orbit_id,
-                created_at=s.created_at,
-                updated_at=s.updated_at,
-            )
-            for s in secrets
-        ]
+        return [OrbitSecretOut.model_validate(secret) for secret in secrets]
 
     async def get_orbit_secret(
         self,
