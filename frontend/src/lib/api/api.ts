@@ -21,7 +21,6 @@ import type {
   CreateOrganizationPayload,
   CreateOrganizationResponse,
   OrganizationDetails,
-  AddMemberPayload,
   Member,
   UpdateMemberPayload,
   BaseDetailResponse,
@@ -239,14 +238,6 @@ export class ApiClass {
   public async getOrganizationMembers(organizationId: string) {
     const { data: responseData } = await this.api.get<Member>(
       `/v1/organizations/${organizationId}/members`,
-    )
-    return responseData
-  }
-
-  public async addMemberToOrganization(organizationId: string, data: AddMemberPayload) {
-    const { data: responseData } = await this.api.post<Member>(
-      `/v1/organizations/${organizationId}/members`,
-      data,
     )
     return responseData
   }

@@ -153,11 +153,6 @@ export interface Member {
   updated_at: Date | null
 }
 
-export interface AddMemberPayload {
-  user_id: string
-  role: OrganizationRoleEnum
-}
-
 export interface UpdateMemberPayload {
   role: OrganizationRoleEnum
 }
