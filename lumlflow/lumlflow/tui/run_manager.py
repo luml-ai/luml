@@ -206,7 +206,6 @@ class RunManager:
             stdout_path = self.state.log_dir / "stdout.log"
             stderr_path = self.state.log_dir / "stderr.log"
             with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
-                # popen has no asyncio transport that kills the child on teardown.
                 self._process = subprocess.Popen(
                     self.spec.command,
                     cwd=self.spec.cwd,
@@ -242,7 +241,6 @@ class RunManager:
         try:
             with path.open("rb") as stream:
                 while True:
-                    # check exit before reading so the final read sees all writes.
                     running = self.is_running
                     raw = stream.readline()
                     if raw:
@@ -270,7 +268,6 @@ class RunManager:
             return
         while self.is_running:
             await asyncio.sleep(0.05)
-        # drain log readers so all output is dispatched before exit.
         await asyncio.gather(*self._reader_tasks)
         self.state.finished = True
         self.state.exit_code = self._process.returncode
