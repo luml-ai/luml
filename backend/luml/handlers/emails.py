@@ -1,3 +1,5 @@
+import asyncio
+
 from pydantic import EmailStr
 from sendgrid import SendGridAPIClient  # type: ignore
 from sendgrid.helpers.mail import Mail  # type: ignore
@@ -11,7 +13,7 @@ class EmailHandler:
     def __init__(self, sender_email: EmailStr = config.SENDER_EMAIL) -> None:
         self.sender_email = sender_email
 
-    def send_activation_email(
+    async def send_activation_email(
         self, email: EmailStr, activation_link: str, name: str | None
     ) -> None:
         message = Mail(
@@ -25,9 +27,9 @@ class EmailHandler:
             "confirm_email_link": activation_link,
         }
 
-        self._email_client.send(message)
+        await asyncio.to_thread(self._email_client.send, message)
 
-    def send_password_reset_email(
+    async def send_password_reset_email(
         self, email: EmailStr, reset_password_link: str, name: str | None
     ) -> None:
         message = Mail(
@@ -41,9 +43,9 @@ class EmailHandler:
             "name": name or "",
         }
 
-        self._email_client.send(message)
+        await asyncio.to_thread(self._email_client.send, message)
 
-    def send_organization_invite_email(
+    async def send_organization_invite_email(
         self, email: EmailStr, sender: str, organization: str, link: str
     ) -> None:
         message = Mail(
@@ -57,9 +59,9 @@ class EmailHandler:
             "open_platform_link": link,
         }
 
-        self._email_client.send(message)
+        await asyncio.to_thread(self._email_client.send, message)
 
-    def send_added_to_orbit_email(
+    async def send_added_to_orbit_email(
         self, name: str, email: EmailStr, orbit: str, link: str
     ) -> None:
         message = Mail(
@@ -73,4 +75,4 @@ class EmailHandler:
             "open_platform_link": link,
         }
 
-        self._email_client.send(message)
+        await asyncio.to_thread(self._email_client.send, message)

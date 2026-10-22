@@ -53,7 +53,7 @@ class TestAuthEmailFlows:
         mocks.user_repository.get_user.assert_awaited_once_with(user.email)
         generate_password_reset_token.assert_called_once_with(user.email)
         get_password_reset_link.assert_called_once_with(token)
-        mocks.emails_handler.send_password_reset_email.assert_called_once_with(
+        mocks.emails_handler.send_password_reset_email.assert_awaited_once_with(
             user.email, link, user.full_name
         )
 

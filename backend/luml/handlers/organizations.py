@@ -217,7 +217,7 @@ class OrganizationHandler:
             raise OrganizationInviteNotFoundError()
 
         try:
-            self.__email_handler.send_organization_invite_email(
+            await self.__email_handler.send_organization_invite_email(
                 invite.email if invite else "",
                 get_invited_by_name(invite),
                 get_organization_email_name(invite),

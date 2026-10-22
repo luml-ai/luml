@@ -67,7 +67,7 @@ class TestOrganizationInvites:
 
         assert result == created_invite
 
-        mocks.email_handler.send_organization_invite_email.assert_called_once_with(
+        mocks.email_handler.send_organization_invite_email.assert_awaited_once_with(
             created_invite.email,
             "",
             "",

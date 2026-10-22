@@ -164,6 +164,7 @@ class TestAuthSignIn:
             "create_user",
             "send_activation_email",
         ]
+        mocks.emails_handler.send_activation_email.assert_awaited_once()
         mocks.user_repository.delete_signup.assert_not_awaited()
 
     async def test_handle_signup_deletes_signup_when_activation_email_fails(

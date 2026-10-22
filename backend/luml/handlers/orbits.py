@@ -307,7 +307,7 @@ class OrbitHandler:
         )
 
         try:
-            self.__email_handler.send_added_to_orbit_email(
+            await self.__email_handler.send_added_to_orbit_email(
                 created_member.user.full_name
                 if created_member.user and created_member.user.full_name
                 else "",
