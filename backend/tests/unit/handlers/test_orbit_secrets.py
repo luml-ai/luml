@@ -12,7 +12,6 @@ from luml.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
     OrbitSecretCreateIn,
-    OrbitSecretOut,
     OrbitSecretUpdate,
 )
 from luml.schemas.permissions import Action, Resource
@@ -42,10 +41,10 @@ def _owner_orbit_secrets() -> dict[UUID, OrbitSecret]:
 
 
 class TestOrbitSecretHandler:
-    async def test_create_orbit_secret_returns_created_secret(
+    async def test_create_orbit_secret_returns_created_secret_without_value(
         self, mocks: CollaboratorMocks[OrbitSecretHandler]
     ) -> None:
-        expected = OrbitSecretOut(
+        expected = OrbitSecret(
             id=SECRET_ID,
             orbit_id=ORBIT_ID,
             name="test",
@@ -66,7 +65,8 @@ class TestOrbitSecretHandler:
             OrbitSecretCreateIn(name=expected.name, value=expected.value),
         )
 
-        assert created_secret == expected
+        assert created_secret.model_dump() == {**expected.model_dump(), "value": ""}
+        assert expected.value == "test-value"
         mocks.secret_repository.create_orbit_secret.assert_awaited_once_with(
             secret_create_obj
         )
@@ -78,11 +78,11 @@ class TestOrbitSecretHandler:
         self, mocks: CollaboratorMocks[OrbitSecretHandler]
     ) -> None:
         expected = [
-            OrbitSecretOut(
+            OrbitSecret(
                 id=SECRET_ID,
                 orbit_id=ORBIT_ID,
                 name="test",
-                value="",
+                value="test-value",
                 created_at=datetime.datetime.now(),
                 updated_at=None,
             )
@@ -93,16 +93,19 @@ class TestOrbitSecretHandler:
             USER_ID, ORGANIZATION_ID, ORBIT_ID
         )
 
-        assert secrets == expected
+        assert [secret.model_dump() for secret in secrets] == [
+            {**expected[0].model_dump(), "value": ""}
+        ]
+        assert expected[0].value == "test-value"
         mocks.secret_repository.get_orbit_secrets.assert_awaited_once_with(ORBIT_ID)
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID, USER_ID, Resource.ORBIT_SECRET, Action.LIST, ORBIT_ID
         )
 
-    async def test_get_orbit_secret_returns_secret(
+    async def test_get_orbit_secret_returns_secret_without_value(
         self, mocks: CollaboratorMocks[OrbitSecretHandler]
     ) -> None:
-        expected = OrbitSecretOut(
+        expected = OrbitSecret(
             id=SECRET_ID,
             orbit_id=ORBIT_ID,
             name="test",
@@ -117,7 +120,8 @@ class TestOrbitSecretHandler:
             USER_ID, ORGANIZATION_ID, ORBIT_ID, SECRET_ID
         )
 
-        assert secret == expected
+        assert secret.model_dump() == {**expected.model_dump(), "value": ""}
+        assert expected.value == "test-value"
         mocks.secret_repository.get_orbit_secret.assert_awaited_once_with(
             SECRET_ID, ORBIT_ID
         )
@@ -137,15 +141,24 @@ class TestOrbitSecretHandler:
 
         assert error.value.status_code == 404
 
-    async def test_update_orbit_secret_returns_updated_secret(
-        self, mocks: CollaboratorMocks[OrbitSecretHandler]
+    @pytest.mark.parametrize(
+        "secret_update",
+        [
+            OrbitSecretUpdate(name="updated-name", value="updated-value"),
+            OrbitSecretUpdate(tags=["tag"]),
+        ],
+    )
+    async def test_update_orbit_secret_returns_updated_secret_without_value(
+        self,
+        mocks: CollaboratorMocks[OrbitSecretHandler],
+        secret_update: OrbitSecretUpdate,
     ) -> None:
-        secret_update = OrbitSecretUpdate(name="updated-name", value="updated-value")
-        expected = OrbitSecretOut(
+        expected = OrbitSecret(
             id=SECRET_ID,
             orbit_id=ORBIT_ID,
-            name="updated-name",
-            value="updated-value",
+            name=secret_update.name or "test",
+            value=secret_update.value or "test-value",
+            tags=secret_update.tags,
             created_at=datetime.datetime.now(),
             updated_at=datetime.datetime.now(),
         )
@@ -156,7 +169,8 @@ class TestOrbitSecretHandler:
             USER_ID, ORGANIZATION_ID, ORBIT_ID, SECRET_ID, secret_update
         )
 
-        assert result == expected
+        assert result.model_dump() == {**expected.model_dump(), "value": ""}
+        assert expected.value == (secret_update.value or "test-value")
         mocks.secret_repository.update_orbit_secret.assert_awaited_once_with(
             SECRET_ID, ORBIT_ID, secret_update
         )

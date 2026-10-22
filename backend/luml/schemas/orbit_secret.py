@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from luml.schemas.base import BaseOrmConfig
 
@@ -35,11 +35,16 @@ class OrbitSecret(_OrbitSecretBase, BaseOrmConfig):
 class OrbitSecretOut(BaseModel, BaseOrmConfig):
     id: UUID
     name: str
-    value: str
+    value: str = Field(description="Always empty in user-facing responses.")
     orbit_id: UUID
     tags: list[str] | None = None
     created_at: datetime
     updated_at: datetime | None = None
+
+    @field_validator("value")
+    @classmethod
+    def mask_value(cls, value: str) -> str:
+        return ""
 
 
 class OrbitSecretUpdate(BaseModel):
