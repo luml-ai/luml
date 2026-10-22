@@ -158,7 +158,7 @@ class AuthHandler:
         confirmation_token = self._generate_email_confirmation_token(user.email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
         try:
-            self.__emails_handler.send_activation_email(
+            await self.__emails_handler.send_activation_email(
                 user.email, confirmation_link, user.full_name
             )
         except Exception as error:
@@ -331,7 +331,7 @@ class AuthHandler:
         token = self._generate_password_reset_token(service_user.email)
         link = self._get_password_reset_link(token)
         try:
-            self.__emails_handler.send_password_reset_email(
+            await self.__emails_handler.send_password_reset_email(
                 email, link, service_user.full_name
             )
         except Exception as error:

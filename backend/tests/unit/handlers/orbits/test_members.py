@@ -91,7 +91,7 @@ class TestOrbitMembers:
         mocks.orbits_repository.create_orbit_member.assert_awaited_once_with(
             create_member
         )
-        mocks.email_handler.send_added_to_orbit_email.assert_called_once()
+        mocks.email_handler.send_added_to_orbit_email.assert_awaited_once()
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID,
             expected.user.id,
