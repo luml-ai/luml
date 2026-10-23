@@ -1,5 +1,6 @@
 import type { Experiment, UpdateExperimentPayload } from './experiments.interface'
 import type { GetExperimentsParams } from '@/api/api.interface'
+import type { VirtualScrollerLazyEvent } from 'primevue'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useToast } from 'primevue'
@@ -13,9 +14,9 @@ export const useExperimentsStore = defineStore('experiments', () => {
   const {
     data,
     getInitialPage,
-    getNextPage,
+    getNextPage: loadNextPage,
     setParams,
-    onLazyLoad,
+    onLazyLoad: lazyLoadPage,
     getParams,
     isLoading,
     reset: resetList,
@@ -64,6 +65,22 @@ export const useExperimentsStore = defineStore('experiments', () => {
     setSelectedExperiments([])
     setEditableExperiment(null)
     toast.add(successToast('Experiment updated successfully'))
+  }
+
+  async function getNextPage() {
+    try {
+      await loadNextPage()
+    } catch (error) {
+      toast.add(errorToast(error))
+    }
+  }
+
+  async function onLazyLoad(event: VirtualScrollerLazyEvent) {
+    try {
+      await lazyLoadPage(event)
+    } catch (error) {
+      toast.add(errorToast(error))
+    }
   }
 
   function setQueryParams(params: Partial<GetExperimentsParams>) {
