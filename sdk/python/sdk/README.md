@@ -40,3 +40,15 @@ export LUML_API_KEY=your_api_key_here
 ## Documentation
 
 [https://docs.luml.ai/sdk/experiments/backends/sqlite](https://docs.luml.ai/sdk/experiments/backends/sqlite)
+
+## Local S3 proxy
+
+Start the proxy with both authentication credentials:
+
+```bash
+s3-proxy --access-key YOUR_ACCESS_KEY --secret-key YOUR_SECRET_KEY
+```
+
+Configure your S3 client with the same credentials and the endpoint
+`http://127.0.0.1:9000`. The proxy refuses to start without non-empty credentials
+and rejects unsigned, invalid, or expired requests.
