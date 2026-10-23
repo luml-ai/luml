@@ -9,6 +9,7 @@ from argon2 import (
 )
 from jwt.exceptions import InvalidTokenError
 from pydantic import EmailStr
+from sqlalchemy.exc import IntegrityError
 
 from luml.clients.oauth_providers import (
     OAuthProvider,
@@ -19,6 +20,7 @@ from luml.infra.exceptions import (
     AuthError,
     EmailDeliveryError,
 )
+from luml.repositories.base import violates
 from luml.repositories.token_blacklist import TokenBlackListRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.auth import OAuthLogin, Token
@@ -141,7 +143,7 @@ class AuthHandler:
 
     async def handle_signup(self, create_user_in: CreateUserIn) -> dict[str, str]:
         if await self.__user_repository.get_user(create_user_in.email):
-            raise AuthError("Email already registered", 400)
+            return {"detail": "Please confirm your email address"}
 
         hashed_password = self._get_password_hash(create_user_in.password)
 
@@ -153,7 +155,12 @@ class AuthHandler:
             auth_method=AuthProvider.EMAIL,
         )
 
-        user = await self.__user_repository.create_user(create_user=create_user)
+        try:
+            user = await self.__user_repository.create_user(create_user=create_user)
+        except IntegrityError as error:
+            if not violates(error, "users_email_key"):
+                raise
+            return {"detail": "Please confirm your email address"}
 
         confirmation_token = self._generate_email_confirmation_token(user.email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
