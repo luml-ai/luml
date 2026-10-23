@@ -36,3 +36,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify the committed bundle is up to date
+        run: git diff --exit-code -- ../kit/luml_satellite/monitoring/dashboard/static
