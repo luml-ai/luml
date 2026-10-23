@@ -1,0 +1,52 @@
+name: Extras JS Packages Tests and Linters
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'extras/js/packages/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'extras/js/packages/**'
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [attachments, experiments]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Install Linux Rollup binding
+        run: npm install @rollup/rollup-linux-x64-gnu --workspace=extras/js/packages/${{ matrix.package }}
+
+      - name: ESLint
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run lint
+
+      - name: Prettier check
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run format:check
+
+      - name: Type check
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run type-check
+
+      - name: Run unit tests
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run test:ci
+
+      - name: Build
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run build-only
