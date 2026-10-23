@@ -1,0 +1,67 @@
+name: Lumlflow Tests and Linters
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'lumlflow/frontend/**'
+      - 'extras/js/packages/attachments/**'
+      - 'extras/js/packages/experiments/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'lumlflow/frontend/**'
+      - 'extras/js/packages/attachments/**'
+      - 'extras/js/packages/experiments/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        working-directory: lumlflow/frontend
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Prettier check
+        working-directory: lumlflow/frontend
+        run: npm run format:check
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Install Linux Rollup binding
+        run: npm install @rollup/rollup-linux-x64-gnu --workspace=lumlflow/frontend
+
+      - name: Build workspace packages
+        run: |
+          npm run build-only --workspace=@luml/attachments
+          npm run build-only --workspace=@luml/experiments
+
+      - name: Type check
+        working-directory: lumlflow/frontend
+        run: npm run type-check
+
+      - name: Run unit tests
+        working-directory: lumlflow/frontend
+        run: npm run test:ci

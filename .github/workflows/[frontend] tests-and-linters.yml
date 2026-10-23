@@ -6,14 +6,12 @@ on:
     paths:
       - 'frontend/**'
       - 'extras/js/packages/attachments/**'
-      - 'lumlflow/frontend/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
     branches: [ main ]
     paths:
       - 'frontend/**'
       - 'extras/js/packages/attachments/**'
-      - 'lumlflow/frontend/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
 
 jobs:
@@ -62,10 +60,6 @@ jobs:
 
       - name: Run unit tests
         working-directory: frontend
-        run: npm run test:ci
-
-      - name: Run Flow unit tests
-        working-directory: lumlflow/frontend
         run: npm run test:ci
 
   integration:
