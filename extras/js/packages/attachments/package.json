@@ -11,9 +11,11 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "test": "vitest run --environment jsdom",
+    "test": "vitest --environment jsdom",
+    "test:ci": "vitest run --environment jsdom",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
+    "format:check": "prettier --check --experimental-cli src/",
     "style": "npx style-dictionary build --config style-dictionary.config.mjs"
   },
   "devDependencies": {

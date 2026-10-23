@@ -1,0 +1,41 @@
+name: Satellite Monitoring UI Tests and Linters
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'satellite/monitoring-ui/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'satellite/monitoring-ui/**'
+
+defaults:
+  run:
+    working-directory: satellite/monitoring-ui
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: satellite/monitoring-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify the committed bundle is up to date
+        run: git diff --exit-code -- ../kit/luml_satellite/monitoring/dashboard/static
