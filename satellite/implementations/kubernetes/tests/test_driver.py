@@ -1,5 +1,6 @@
 from dataclasses import replace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from luml_satellite import StartStatus, TokenDeriver, WorkloadState
@@ -381,6 +382,92 @@ async def test_sweep_name_is_valid_for_the_longest_helm_release_name() -> None:
     assert kind == "Job"
     assert len(name) == 63
     assert name.endswith("-cache-sweep")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("already_deleting", [False, True])
+async def test_sweep_waits_for_the_previous_job_to_disappear(
+    monkeypatch: pytest.MonkeyPatch,
+    already_deleting: bool,
+) -> None:
+    config = configuration(SHARED_CACHE_CLAIM_NAME="shared-cache", REMOVAL_TIMEOUT_SEC=10)
+    api = InMemoryKubernetesApi()
+    sleep = AsyncMock()
+    driver = KubernetesDriver(config, api, sleep=sleep)
+    await driver.sweep({ARTIFACT_ID})
+    name = "release-one-cache-sweep"
+    if already_deleting:
+        job = api.object("Job", name)
+        assert job is not None
+        job["metadata"]["deletionTimestamp"] = "2026-01-01T00:00:00Z"
+        api.put(job)
+    api.delete_delays[("Job", name)] = 5
+    original_apply = api.apply
+
+    async def apply_after_deletion(manifest: dict[str, Any]) -> None:
+        assert api.object("Job", name) is None
+        await original_apply(manifest)
+
+    monkeypatch.setattr(api, "apply", apply_after_deletion)
+
+    await driver.sweep({ARTIFACT_ID, "other"})
+
+    assert sleep.await_count > 0
+    assert api.apply_calls == [("Job", name), ("Job", name)]
+    replacement = await api.get("Job", name)
+    assert replacement is not None
+    assert replacement["spec"]["template"]["spec"]["containers"][0]["env"] == [
+        {"name": "MODEL_ARTIFACT_KEEP", "value": f"{ARTIFACT_ID},other"}
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [0, 2.5])
+async def test_sweep_does_not_apply_when_job_deletion_times_out(timeout: float) -> None:
+    config = configuration(
+        SHARED_CACHE_CLAIM_NAME="shared-cache",
+        REMOVAL_TIMEOUT_SEC=timeout,
+        REMOVAL_POLL_INTERVAL_SEC=1,
+    )
+    api = InMemoryKubernetesApi()
+    now = 0.0
+
+    async def sleep(seconds: float) -> None:
+        nonlocal now
+        assert seconds > 0
+        now += seconds
+
+    driver = KubernetesDriver(config, api, sleep=sleep, monotonic=lambda: now)
+    await driver.sweep({ARTIFACT_ID})
+    api.blocked_deletions.add(("Job", "release-one-cache-sweep"))
+
+    with pytest.raises(TimeoutError, match="release-one-cache-sweep"):
+        await driver.sweep({"other"})
+
+    assert now == timeout
+    assert api.apply_calls == [("Job", "release-one-cache-sweep")]
+    job = api.object("Job", "release-one-cache-sweep")
+    assert job is not None
+    assert job["spec"]["template"]["spec"]["containers"][0]["env"] == [
+        {"name": "MODEL_ARTIFACT_KEEP", "value": ARTIFACT_ID}
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["delete", "get"])
+async def test_sweep_does_not_apply_when_deletion_cannot_be_verified(
+    monkeypatch: pytest.MonkeyPatch,
+    method: str,
+) -> None:
+    config = configuration(SHARED_CACHE_CLAIM_NAME="shared-cache")
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    monkeypatch.setattr(api, method, AsyncMock(side_effect=RuntimeError("API unavailable")))
+
+    with pytest.raises(RuntimeError, match="API unavailable"):
+        await driver.sweep({ARTIFACT_ID})
+
+    assert api.apply_calls == []
 
 
 async def _started_driver(

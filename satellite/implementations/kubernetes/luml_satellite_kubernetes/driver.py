@@ -231,6 +231,16 @@ class KubernetesDriver:
         if name is None:
             raise ValueError("cache sweep Job has no name")
         await self.api.delete("Job", name)
+        deadline = self._monotonic() + self.configuration.REMOVAL_TIMEOUT_SEC
+        while await self.api.get("Job", name) is not None:
+            if self._monotonic() >= deadline:
+                raise TimeoutError(f"cache sweep Job {name} was not deleted before the timeout")
+            await self._sleep(
+                min(
+                    self.configuration.REMOVAL_POLL_INTERVAL_SEC,
+                    max(0.0, deadline - self._monotonic()),
+                )
+            )
         await self.api.apply(manifest)
 
     async def aclose(self) -> None:
