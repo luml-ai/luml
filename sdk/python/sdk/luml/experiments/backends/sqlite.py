@@ -134,7 +134,8 @@ class ConnectionPool:
             self._active_experiments.discard(experiment_id)
             exp_db_pattern = f"{experiment_id}/exp.db"
             for db_path in list(self._connections.keys()):
-                if db_path.endswith(exp_db_pattern):
+                normalized_path = db_path.replace("\\", "/")
+                if normalized_path.endswith(exp_db_pattern):
                     self._close_connection_unsafe(db_path)
 
     def _evict_inactive_connection(self) -> None:
@@ -142,9 +143,11 @@ class ConnectionPool:
             return
 
         for db_path in list(self._connections.keys()):
+            normalized_path = db_path.replace("\\", "/")
             if not any(
-                f"{exp_id}/exp.db" in db_path for exp_id in self._active_experiments
-            ) and not db_path.endswith("meta.db"):
+                f"{exp_id}/exp.db" in normalized_path
+                for exp_id in self._active_experiments
+            ) and not normalized_path.endswith("meta.db"):
                 self._close_connection_unsafe(db_path)
                 return
 
@@ -1120,6 +1123,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Args:
             experiment_id (str): The unique identifier of the experiment to delete.
         """
+        self.pool.mark_experiment_inactive(experiment_id)
+
         exp_dir = self._get_experiment_dir(experiment_id)
         if exp_dir.exists():
             import shutil
@@ -1130,8 +1135,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
         conn.commit()
-
-        self.pool.mark_experiment_inactive(experiment_id)
 
     def update_experiment(
         self,

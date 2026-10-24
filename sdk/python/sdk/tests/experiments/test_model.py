@@ -94,7 +94,7 @@ class TestLogModel:
 
         assert isinstance(result, ModelReference)
         assert Path(result.path).exists()
-        assert "/models/" in str(result.path)
+        assert "/models/" in Path(result.path).as_posix()
 
     def test_log_model_file_copied_to_exp_dir(
         self,
