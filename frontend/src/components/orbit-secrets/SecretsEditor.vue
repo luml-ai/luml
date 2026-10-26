@@ -28,6 +28,7 @@
           :feedback="false"
           toggleMask
           fluid
+          :placeholder="props.secret?.id ? SECRET_MASK : undefined"
           :key="props.secret?.id"
         />
       </div>
@@ -63,6 +64,7 @@ import type { OrbitSecret, UpdateSecretPayload } from '@/lib/api/orbit-secrets/i
 import type { AutoCompleteCompleteEvent } from 'primevue'
 import { deleteSecretConfirmation } from '@/lib/primevue/data/confirm'
 import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
+import { SECRET_MASK } from './secretMask'
 
 interface Props {
   visible: boolean

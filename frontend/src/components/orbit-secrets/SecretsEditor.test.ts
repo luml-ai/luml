@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SecretsEditor from './SecretsEditor.vue'
 import PrimeVue from 'primevue/config'
 import type { OrbitSecret } from '@/lib/api/orbit-secrets/interfaces'
+import { SECRET_MASK } from './secretMask'
 
 const mocks = vi.hoisted(() => ({
   deleteSecret: vi.fn(),
@@ -338,5 +339,19 @@ describe('SecretsEditor detail loading', () => {
     details.reject(new Error('load failed after unmount'))
     await flushPromises()
     expect(mocks.toastAdd).not.toHaveBeenCalled()
+  })
+})
+
+describe('SecretsEditor key field', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getSecretById.mockResolvedValue({ ...secret, value: '' })
+  })
+
+  it('shows a masked placeholder instead of an empty key when the backend returns no value', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    expect(wrapper.get('#value').attributes('placeholder')).toBe(SECRET_MASK)
   })
 })
