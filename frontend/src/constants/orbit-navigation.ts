@@ -20,6 +20,7 @@ export const ORBIT_TAB_ROUTES = [
   'orbit-deployments',
   'orbit-satellites',
   'orbit-secrets',
+  'orbit-flow',
 ]
 
 export const RESOURCE_ROUTE_TO_TAB_ROUTE: Record<string, string> = {
