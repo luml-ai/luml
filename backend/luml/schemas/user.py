@@ -43,6 +43,7 @@ class UserOut(BaseModel, BaseOrmConfig):
 
 class CurrentUserOut(UserOut):
     auth_method: AuthProvider
+    token_version: int = Field(default=0, exclude=True)
 
 
 class CreateUserIn(BaseModel):

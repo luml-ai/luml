@@ -7,7 +7,7 @@ from jwt.exceptions import InvalidTokenError
 from luml.handlers.auth import AuthHandler
 from luml.infra.exceptions import AuthError
 from luml.schemas.auth import Token
-from luml.schemas.user import CreateUser, SignInUser, User
+from luml.schemas.user import CreateUser, CurrentUserOut, SignInUser, User
 
 from tests.support.mocks import CollaboratorMocks
 from tests.unit.handlers.auth.conftest import Passwords
@@ -16,6 +16,19 @@ from tests.unit.handlers.auth.conftest import Passwords
 @pytest.fixture(autouse=True)
 def stored_user(mocks: CollaboratorMocks[AuthHandler], user: User) -> None:
     mocks.user_repository.get_user.return_value = user
+
+
+def _current_user(user: User, token_version: int) -> CurrentUserOut:
+    return CurrentUserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        disabled=user.disabled,
+        photo=user.photo,
+        has_api_key=False,
+        auth_method=user.auth_method,
+        token_version=token_version,
+    )
 
 
 class TestAuthTokens:
@@ -42,8 +55,17 @@ class TestAuthTokens:
 
         assert access_payload["type"] == "access"
         assert refresh_payload["type"] == "refresh"
+        assert access_payload["jti"] != refresh_payload["jti"]
+        assert (
+            access_payload["jti"]
+            != jwt.decode(
+                mocks.handler._create_tokens("test@example.com").access_token,
+                mocks.handler.secret_key,
+                algorithms=[mocks.handler.algorithm],
+            )["jti"]
+        )
 
-    async def test_verify_token_returns_email(
+    def test_verify_token_returns_email(
         self, mocks: CollaboratorMocks[AuthHandler]
     ) -> None:
         email = "test@example.com"
@@ -51,31 +73,31 @@ class TestAuthTokens:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {"sub": email, "type": "access"}
 
-            actual = await mocks.handler._verify_token("token")
+            actual = mocks.handler._verify_token("token")
 
-        assert actual == email
+        assert actual == (email, 0)
         mock_jwt_decode.assert_called_once()
 
-    async def test_verify_token_raises_when_email_missing(
+    def test_verify_token_raises_when_email_missing(
         self, mocks: CollaboratorMocks[AuthHandler]
     ) -> None:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {"sub": None, "type": "access"}
 
             with pytest.raises(AuthError, match="Invalid token") as exc_info:
-                await mocks.handler._verify_token("invalid_token")
+                mocks.handler._verify_token("invalid_token")
 
         assert exc_info.value.status_code == 401
         mock_jwt_decode.assert_called_once()
 
-    async def test_verify_token_raises_when_jwt_invalid(
+    def test_verify_token_raises_when_jwt_invalid(
         self, mocks: CollaboratorMocks[AuthHandler]
     ) -> None:
         with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.side_effect = InvalidTokenError()
 
             with pytest.raises(AuthError, match="Invalid token") as exc_info:
-                await mocks.handler._verify_token("invalid_token")
+                mocks.handler._verify_token("invalid_token")
 
         assert exc_info.value.status_code == 401
         mock_jwt_decode.assert_called_once()
@@ -84,25 +106,25 @@ class TestAuthTokens:
         "purpose",
         ["refresh", "email_confirmation", "password_reset", "legacy_typeless"],
     )
-    async def test_verify_token_rejects_tokens_not_minted_for_api_access(
+    def test_verify_token_rejects_tokens_not_minted_for_api_access(
         self,
         mocks: CollaboratorMocks[AuthHandler],
         purpose: str,
         tokens_by_purpose: dict[str, str],
     ) -> None:
         with pytest.raises(AuthError) as error:
-            await mocks.handler._verify_token(tokens_by_purpose[purpose])
+            mocks.handler._verify_token(tokens_by_purpose[purpose])
 
         assert error.value.status_code == 401
 
-    async def test_verify_token_accepts_access_token(
+    def test_verify_token_accepts_access_token(
         self, mocks: CollaboratorMocks[AuthHandler]
     ) -> None:
         email = "signed-in@example.com"
 
         signed_in_tokens = mocks.handler._create_tokens(email)
 
-        assert await mocks.handler._verify_token(signed_in_tokens.access_token) == email
+        assert mocks.handler._verify_token(signed_in_tokens.access_token) == (email, 0)
 
     async def test_handle_refresh_token_returns_new_tokens(
         self,
@@ -262,13 +284,17 @@ class TestAuthTokens:
             SignInUser(email=user.email, password=passwords.password)
         )
         assert signin.token.refresh_token
-        assert (
-            await mocks.handler._verify_token(signin.token.access_token) == user.email
+        assert mocks.handler._verify_token(signin.token.access_token) == (
+            user.email,
+            user.token_version,
         )
 
         refreshed = await mocks.handler.handle_refresh_token(signin.token.refresh_token)
         assert refreshed.refresh_token
-        assert await mocks.handler._verify_token(refreshed.access_token) == user.email
+        assert mocks.handler._verify_token(refreshed.access_token) == (
+            user.email,
+            user.token_version,
+        )
 
         await mocks.handler.handle_logout(
             refreshed.access_token, refreshed.refresh_token
@@ -294,20 +320,37 @@ class TestAuthTokens:
         )
 
     @pytest.mark.parametrize("version", [None, 0, 1])
-    async def test_access_token_with_previous_version_is_rejected(
-        self,
-        mocks: CollaboratorMocks[AuthHandler],
-        user: User,
-        version: int | None,
+    def test_verify_token_reports_legacy_tokens_as_version_zero(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User, version: int | None
     ) -> None:
-        user.token_version = 2
         payload: dict[str, object] = {"sub": user.email, "type": "access"}
         if version is not None:
             payload["ver"] = version
         token = mocks.handler._create_token(payload, 3600)
 
-        with pytest.raises(AuthError, match="revoked"):
-            await mocks.handler._verify_token(token)
+        assert mocks.handler._verify_token(token) == (user.email, version or 0)
+
+    @pytest.mark.parametrize("version", [0, 1])
+    async def test_current_user_rejects_previous_token_version(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User, version: int
+    ) -> None:
+        mocks.user_repository.get_current_user.return_value = _current_user(user, 2)
+
+        with pytest.raises(AuthError, match="revoked") as error:
+            await mocks.handler.handle_get_current_user(user.email, version)
+
+        assert error.value.status_code == 401
+
+    @pytest.mark.parametrize("version", [None, 2])
+    async def test_current_user_accepts_matching_or_unchecked_token_version(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User, version: int | None
+    ) -> None:
+        mocks.user_repository.get_current_user.return_value = _current_user(user, 2)
+
+        current = await mocks.handler.handle_get_current_user(user.email, version)
+
+        assert current.email == user.email
+        assert "token_version" not in current.model_dump()
 
     @pytest.mark.parametrize("version", [None, 0, 1])
     async def test_refresh_token_with_previous_version_is_rejected(
@@ -327,12 +370,12 @@ class TestAuthTokens:
 
         mocks.token_black_list_repository.add_token.assert_not_awaited()
 
-    async def test_legacy_access_token_works_before_first_password_change(
+    def test_legacy_access_token_works_before_first_password_change(
         self, mocks: CollaboratorMocks[AuthHandler], user: User
     ) -> None:
         token = mocks.handler._create_token({"sub": user.email, "type": "access"}, 3600)
 
-        assert await mocks.handler._verify_token(token) == user.email
+        assert mocks.handler._verify_token(token) == (user.email, 0)
 
     async def test_signin_issues_current_token_version(
         self,
@@ -345,9 +388,13 @@ class TestAuthTokens:
             SignInUser(email=user.email, password=passwords.password)
         )
 
-        assert (
-            await mocks.handler._verify_token(signin.token.access_token) == user.email
+        assert mocks.handler._verify_token(signin.token.access_token) == (
+            user.email,
+            user.token_version,
         )
         assert signin.token.refresh_token
         refreshed = await mocks.handler.handle_refresh_token(signin.token.refresh_token)
-        assert await mocks.handler._verify_token(refreshed.access_token) == user.email
+        assert mocks.handler._verify_token(refreshed.access_token) == (
+            user.email,
+            user.token_version,
+        )

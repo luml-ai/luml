@@ -44,8 +44,9 @@ class TestAuthPasswords:
         get_password_hash = Mock(return_value="new-password-hash")
         monkeypatch.setattr(mocks.handler, "_verify_password", verify_password)
         monkeypatch.setattr(mocks.handler, "_get_password_hash", get_password_hash)
+        mocks.user_repository.update_password.return_value = 4
 
-        await mocks.handler.handle_change_password(user.email, passwords)
+        tokens = await mocks.handler.handle_change_password(user.email, passwords)
 
         verify_password.assert_called_once_with(
             passwords.current_password, user.hashed_password
@@ -54,6 +55,7 @@ class TestAuthPasswords:
         mocks.user_repository.update_password.assert_awaited_once_with(
             user.email, "new-password-hash"
         )
+        assert mocks.handler._verify_token(tokens.access_token) == (user.email, 4)
 
     async def test_handle_change_password_raises_when_current_password_invalid(
         self,

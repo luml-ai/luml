@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from luml.schemas.auth import Token
 from luml.schemas.user import AuthProvider, ChangePasswordIn, CurrentUserOut
 
 from tests.support.auth import CALLER_EMAIL
@@ -50,6 +51,11 @@ class TestAuth:
     def test_change_password(
         self, mock_change_password: AsyncMock, client: TestClient
     ) -> None:
+        mock_change_password.return_value = Token(
+            access_token="fresh-access",
+            refresh_token="fresh-refresh",
+            token_type="bearer",
+        )
         response = client.post(
             "/v1/auth/change-password",
             json={
@@ -60,6 +66,9 @@ class TestAuth:
 
         assert response.status_code == 200
         assert response.json() == {"detail": "Password changed successfully"}
+        cookies = "\n".join(response.headers.get_list("set-cookie"))
+        assert "access_token=fresh-access" in cookies
+        assert "refresh_token=fresh-refresh" in cookies
         mock_change_password.assert_awaited_once_with(
             CALLER_EMAIL,
             ChangePasswordIn(

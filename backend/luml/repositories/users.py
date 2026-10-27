@@ -156,7 +156,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         hashed_password: str,
         *,
         reset_token: tuple[str, int] | None = None,
-    ) -> bool:
+    ) -> int | None:
         async with self._get_session() as session, session.begin():
             if reset_token is not None:
                 token, expire_at = reset_token
@@ -167,17 +167,16 @@ class UserRepository(RepositoryBase, CrudMixin):
                     .returning(TokenBlackListOrm.id)
                 )
                 if consumed is None:
-                    return False
-            user_id = await session.scalar(
+                    return None
+            return await session.scalar(
                 update(UserOrm)
                 .where(UserOrm.email == email)
                 .values(
                     hashed_password=hashed_password,
                     token_version=UserOrm.token_version + 1,
                 )
-                .returning(UserOrm.id)
+                .returning(UserOrm.token_version)
             )
-            return user_id is not None
 
     async def create_organization(
         self,

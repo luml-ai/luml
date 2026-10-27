@@ -169,10 +169,12 @@ async def delete_account(
 @auth_router.post("/change-password", response_model=DetailResponse)
 async def change_password(
     request: Request,
+    response: Response,
     passwords: ChangePasswordIn,
     _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
-    await auth_handler.handle_change_password(request.user.email, passwords)
+    tokens = await auth_handler.handle_change_password(request.user.email, passwords)
+    set_auth_cookies(response, tokens)
     return {"detail": "Password changed successfully"}
 
 
