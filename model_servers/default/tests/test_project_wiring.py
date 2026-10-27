@@ -66,8 +66,14 @@ def test_compose_keeps_field_install_names_and_uses_the_moved_context(
     assert Path(model_build["context"]).resolve() == REPOSITORY_ROOT / "model_servers/default"
     assert agent_service["image"] == "luml-satellite-agent:latest"
 
-    ports = cast(list[dict[str, object]], agent_service["ports"])
-    assert any(port["target"] == 8000 and str(port["published"]) == "80" for port in ports)
+    assert "ports" not in agent_service
+    proxy_ports = cast(list[dict[str, object]], services["reverse-proxy"]["ports"])
+    assert any(
+        port["target"] == 8080
+        and str(port["published"]) == "80"
+        and port.get("host_ip") == "127.0.0.1"
+        for port in proxy_ports
+    )
     networks = cast(dict[str, dict[str, object]], agent_service["networks"])
     assert "satellite-agent" in cast(list[str], networks["satellite-network"]["aliases"])
 
