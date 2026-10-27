@@ -31,6 +31,29 @@ jobs:
       - name: Install Linux Rollup binding
         run: npm install @rollup/rollup-linux-x64-gnu --workspace=extras/js/packages/${{ matrix.package }}
 
+      - name: Get Playwright version
+        if: matrix.package == 'attachments'
+        id: pw-version
+        run: |
+          VERSION=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        if: matrix.package == 'attachments'
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: matrix.package == 'attachments' && steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: matrix.package == 'attachments' && steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       - name: ESLint
         working-directory: extras/js/packages/${{ matrix.package }}
         run: npm run lint
