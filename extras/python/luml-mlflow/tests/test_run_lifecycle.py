@@ -8,9 +8,13 @@ store, including the ``run_view_type`` filtering that makes it observable.
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner
+from luml_mlflow.meta import RUN_DELETED_TIME, read_run_info_field, write_run_info_field
 from luml_mlflow.store import LumlTrackingStore
+from mlflow.cli import gc
 from mlflow.entities import LifecycleStage, ViewType
 from mlflow.exceptions import MlflowException
+from mlflow.utils.time import get_current_time_millis
 
 
 @pytest.fixture
@@ -113,3 +117,97 @@ def test_delete_run_missing_raises(store: LumlTrackingStore) -> None:
 def test_restore_run_missing_raises(store: LumlTrackingStore) -> None:
     with pytest.raises(MlflowException, match="not found"):
         store.restore_run("missing-run")
+
+
+def test_delete_run_records_deleted_time_and_restore_clears_it(
+    store: LumlTrackingStore,
+) -> None:
+    run_id, _ = _start_run(store)
+    before = get_current_time_millis()
+
+    store.delete_run(run_id)
+
+    deleted_time = read_run_info_field(store._tracker, run_id, RUN_DELETED_TIME)
+    assert before <= deleted_time <= get_current_time_millis()
+
+    store.restore_run(run_id)
+
+    assert read_run_info_field(store._tracker, run_id, RUN_DELETED_TIME) is None
+
+
+def test_get_deleted_runs_filters_by_age(store: LumlTrackingStore) -> None:
+    run_id, _ = _start_run(store)
+    _start_run(store, "active")
+    store.delete_run(run_id)
+
+    assert store._get_deleted_runs() == [run_id]
+    assert store._get_deleted_runs(older_than=60_000) == []
+
+    write_run_info_field(
+        store._tracker, run_id, RUN_DELETED_TIME, get_current_time_millis() - 120_000
+    )
+
+    assert store._get_deleted_runs(older_than=60_000) == [run_id]
+
+
+def test_hard_delete_run_removes_run_and_its_data(store: LumlTrackingStore) -> None:
+    run_id, exp_id = _start_run(store)
+    store._tracker.log_attachment(
+        "notes.txt", b"gone", binary=True, experiment_id=run_id
+    )
+    store.delete_run(run_id)
+
+    store._hard_delete_run(run_id)
+
+    assert store._tracker.get_experiment_record(run_id) is None
+    assert _search_ids(store, exp_id, ViewType.ALL) == set()
+    with pytest.raises(MlflowException, match="not found"):
+        store.get_run(run_id)
+
+
+def test_hard_delete_run_refuses_active_run(store: LumlTrackingStore) -> None:
+    run_id, _ = _start_run(store)
+
+    with pytest.raises(MlflowException, match="deleted lifecycle stage"):
+        store._hard_delete_run(run_id)
+
+    assert store.get_run(run_id).info.lifecycle_stage == LifecycleStage.ACTIVE
+
+
+def test_hard_delete_run_missing_raises(store: LumlTrackingStore) -> None:
+    with pytest.raises(MlflowException, match="not found"):
+        store._hard_delete_run("missing-run")
+
+
+def test_mlflow_gc_purges_only_deleted_runs(
+    store: LumlTrackingStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "luml://org1/orbit1")
+    deleted_id, exp_id = _start_run(store)
+    kept_id, _ = _start_run(store, "kept")
+    store.delete_run(deleted_id)
+
+    result = CliRunner().invoke(
+        gc, ["--backend-store-uri", "luml://org1/orbit1"], catch_exceptions=False
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"Run with ID {deleted_id} has been permanently deleted" in result.output
+    assert _search_ids(store, exp_id, ViewType.ALL) == {kept_id}
+
+
+def test_mlflow_gc_older_than_keeps_recent_deletions(
+    store: LumlTrackingStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "luml://org1/orbit1")
+    run_id, exp_id = _start_run(store)
+    store.delete_run(run_id)
+
+    result = CliRunner().invoke(
+        gc,
+        ["--backend-store-uri", "luml://org1/orbit1", "--older-than", "1d"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _search_ids(store, exp_id, ViewType.DELETED_ONLY) == {run_id}

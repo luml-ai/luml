@@ -154,7 +154,15 @@ The status is one of `not_uploaded`, `uploading`, `uploaded`, or `failed`, follo
 
 ## Deleting and restoring runs
 
-Deleting a run follows MLflow's soft-delete semantics. `MlflowClient.delete_run(run_id)` marks the run as deleted instead of removing its files: the run disappears from default searches, but its parameters, metrics, and artifacts stay on disk and remain readable. `MlflowClient.restore_run(run_id)` marks it active again. The plugin does not implement MLflow's garbage collection, so a deleted run continues to occupy local storage until the store is cleaned up manually.
+Deleting a run follows MLflow's soft-delete semantics. `MlflowClient.delete_run(run_id)` marks the run as deleted instead of removing its files: the run disappears from default searches, but its parameters, metrics, and artifacts stay on disk and remain readable. `MlflowClient.restore_run(run_id)` marks it active again. A deleted run keeps occupying local storage until it is garbage-collected with the standard MLflow command:
+
+```bash
+mlflow gc --backend-store-uri luml://my-org/my-orbit
+mlflow gc --backend-store-uri luml://my-org/my-orbit --older-than 30d
+mlflow gc --backend-store-uri luml://my-org/my-orbit --run-ids <run_id>
+```
+
+`mlflow gc` permanently removes the local record, parameters, metrics, attachments, and models of every run in the deleted stage, optionally only those deleted longer ago than `--older-than`. It needs `MLFLOW_TRACKING_URI` to be set (or `--tracking-uri`). Artifacts already published to LUML are not touched. The plugin does not hard-delete experiments or logged models, so `mlflow gc` prints a warning that it skips them.
 
 ## How MLflow concepts map to LUML
 

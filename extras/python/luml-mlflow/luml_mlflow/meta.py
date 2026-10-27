@@ -55,6 +55,7 @@ RUN_USER_ID = "user_id"
 RUN_LIFECYCLE_STAGE = "lifecycle_stage"
 RUN_ARTIFACT_URI = "artifact_uri"
 RUN_STATUS = "status"
+RUN_DELETED_TIME = "deleted_time"
 
 # ``upload_status`` column values.
 UPLOAD_STATUS_UNKNOWN = "unknown"
@@ -204,12 +205,19 @@ def write_run_info_field(
     tracker: ThreadSafeTracker, run_id: str, field: str, value: Any
 ) -> None:
     """Write a single ``run_info`` field to the experiment ``metadata`` column."""
+    write_run_info_fields(tracker, run_id, {field: value})
+
+
+def write_run_info_fields(
+    tracker: ThreadSafeTracker, run_id: str, updates: dict[str, Any]
+) -> None:
     meta = tracker.get_experiment_metadata(run_id)
     run_info = dict(meta.get(META_RUN_INFO) or {})
-    if value is None:
-        run_info.pop(field, None)
-    else:
-        run_info[field] = value
+    for field, value in updates.items():
+        if value is None:
+            run_info.pop(field, None)
+        else:
+            run_info[field] = value
     tracker.update_experiment_metadata(run_id, {META_RUN_INFO: run_info})
 
 
