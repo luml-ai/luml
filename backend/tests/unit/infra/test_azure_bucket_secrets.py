@@ -40,16 +40,14 @@ def test_azure_connection_string_is_encrypted_and_usable_by_storage_client() -> 
     stored.id = uuid7()
     stored.created_at = datetime.now(UTC)
 
-    assert stored.endpoint == PUBLIC_ENDPOINT
-    assert stored.connection_string != CONNECTION_STRING
-    assert stored.connection_string is not None
-    assert decrypt(stored.connection_string) == CONNECTION_STRING
+    assert stored.endpoint != CONNECTION_STRING
+    assert decrypt(stored.endpoint) == CONNECTION_STRING
     assert "AccountKey" not in repr(stored)
 
     internal = stored.to_bucket_secret()
     assert internal.endpoint == CONNECTION_STRING
     assert validate_bucket_secret_out(internal).endpoint == PUBLIC_ENDPOINT
-    assert validate_bucket_secret_out(stored).endpoint == PUBLIC_ENDPOINT
+    assert stored.to_bucket_secret_out().endpoint == PUBLIC_ENDPOINT
 
     with patch("luml.clients.azure_storage_client.BlobServiceClient") as service:
         AzureBlobClient(internal)  # type: ignore[arg-type]

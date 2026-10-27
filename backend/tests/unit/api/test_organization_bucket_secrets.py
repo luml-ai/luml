@@ -95,7 +95,6 @@ class TestOrganizationBucketSecrets:
             body = body[0]
         assert body["endpoint"] == PUBLIC_ENDPOINT
         assert "AccountKey" not in response.text
-        assert "connection_string" not in body
 
     @pytest.mark.parametrize("principal", [ANONYMOUS], indirect=True)
     @patch(

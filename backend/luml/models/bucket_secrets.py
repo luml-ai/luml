@@ -10,10 +10,11 @@ from luml.schemas.bucket_secrets import (
     AzureBucketSecretCreate,
     BucketSecret,
     BucketSecretCreate,
+    BucketSecretOut,
     S3BucketSecret,
     S3BucketSecretCreate,
-    azure_public_endpoint,
     validate_bucket_secret,
+    validate_bucket_secret_out,
 )
 
 
@@ -34,7 +35,6 @@ class BucketSecretOrm(TimestampMixin, Base):
         nullable=False,
     )
     endpoint: Mapped[str] = mapped_column(String, nullable=False)
-    connection_string: Mapped[str | None] = mapped_column(String, nullable=True)
     bucket_name: Mapped[str] = mapped_column(String, nullable=False)
     access_key: Mapped[str | None] = mapped_column(String, nullable=True)
     secret_key: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -69,10 +69,14 @@ class BucketSecretOrm(TimestampMixin, Base):
             if secret.session_token:
                 secret.session_token = decrypt(secret.session_token)
         elif isinstance(secret, AzureBucketSecret):
-            if self.connection_string is None:
-                raise ValueError("Azure connection string is missing")
-            secret.endpoint = decrypt(self.connection_string)
+            secret.endpoint = decrypt(self.endpoint)
         return secret
+
+    def to_bucket_secret_out(self) -> BucketSecretOut:
+        secret = self.to_bucket_secret()
+        return validate_bucket_secret_out(
+            {**secret.model_dump(), "orbits": self.orbits}
+        )
 
     @classmethod
     def from_bucket_secret(cls, secret: BucketSecretCreate) -> BucketSecretOrm:
@@ -85,6 +89,5 @@ class BucketSecretOrm(TimestampMixin, Base):
             if secret.session_token:
                 data["session_token"] = encrypt(secret.session_token)
         elif isinstance(secret, AzureBucketSecretCreate):
-            data["connection_string"] = encrypt(secret.endpoint)
-            data["endpoint"] = azure_public_endpoint(secret.endpoint)
+            data["endpoint"] = encrypt(secret.endpoint)
         return cls(**data)

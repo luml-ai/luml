@@ -68,18 +68,13 @@ class TestBucketSecretRepository:
             assert public.endpoint == PUBLIC_ENDPOINT
             assert "AccountKey" not in public.model_dump_json()
             async with engine.connect() as connection:
-                row = (
-                    await connection.execute(
-                        text(
-                            "SELECT endpoint, connection_string FROM bucket_secrets "
-                            "WHERE id = :id"
-                        ),
-                        {"id": created.id},
-                    )
-                ).one()
-            assert row.endpoint == PUBLIC_ENDPOINT
-            assert row.connection_string != endpoint
-            assert decrypt(row.connection_string) == endpoint
+                stored = await connection.scalar(
+                    text("SELECT endpoint FROM bucket_secrets WHERE id = :id"),
+                    {"id": created.id},
+                )
+            assert stored != endpoint
+            assert "AccountKey" not in stored
+            assert decrypt(stored) == endpoint
 
         renamed = await repository.update_bucket_secret(
             BucketSecretUpdate(
@@ -115,6 +110,40 @@ class TestBucketSecretRepository:
         )
         with pytest.raises(DatabaseConstraintError):
             await repository.create_bucket_secret(data)
+
+    async def test_azure_update_rejects_duplicate_and_allows_own_endpoint(
+        self,
+        repository: BucketSecretRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        organization_id = seeded_organization.organization.id
+        first = await repository.create_bucket_secret(
+            AzureBucketSecretCreate(
+                organization_id=organization_id,
+                endpoint=CONNECTION_STRING,
+                bucket_name="first-container",
+            )
+        )
+        second = await repository.create_bucket_secret(
+            AzureBucketSecretCreate(
+                organization_id=organization_id,
+                endpoint=CONNECTION_STRING,
+                bucket_name="second-container",
+            )
+        )
+
+        with pytest.raises(DatabaseConstraintError):
+            await repository.update_bucket_secret(
+                BucketSecretUpdate(id=second.id, bucket_name=first.bucket_name),
+                organization_id,
+            )
+
+        updated = await repository.update_bucket_secret(
+            BucketSecretUpdate(id=first.id, endpoint=CONNECTION_STRING),
+            organization_id,
+        )
+        assert updated is not None
+        assert updated.endpoint == CONNECTION_STRING
 
     async def test_create_bucket_secret_stores_endpoint_without_protocol(
         self,
