@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -53,7 +53,7 @@ async def client(
         InviteRepository(data.engine),
     )
     monkeypatch.setattr(
-        OrganizationHandler, "_OrganizationHandler__email_handler", Mock()
+        OrganizationHandler, "_OrganizationHandler__email_handler", AsyncMock()
     )
     monkeypatch.setattr(
         PermissionsHandler, "_PermissionsHandler__user_repository", repository

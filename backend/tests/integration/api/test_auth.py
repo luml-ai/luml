@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import Mock
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -30,7 +30,7 @@ async def test_concurrent_signup_with_same_email_returns_400(
 
     monkeypatch.setattr(repository, "get_user", check_email)
     monkeypatch.setattr(AuthHandler, "_AuthHandler__user_repository", repository)
-    send_email = Mock()
+    send_email = AsyncMock()
     monkeypatch.setattr(EmailHandler, "send_activation_email", send_email)
 
     async with AsyncClient(
@@ -52,7 +52,7 @@ async def test_concurrent_signup_with_same_email_returns_400(
     loser = next(response for response in responses if response.status_code == 400)
     assert winner.json() == {"detail": "Please confirm your email address"}
     assert loser.json() == {"detail": "Email already registered"}
-    send_email.assert_called_once()
+    send_email.assert_awaited_once()
     assert await get_user(new_user_in.email) is not None
     async with AsyncSession(engine) as session:
         for model in (UserOrm, OrganizationOrm, OrganizationMemberOrm):
