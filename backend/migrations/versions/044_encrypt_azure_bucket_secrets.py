@@ -1,7 +1,7 @@
 """Encrypt Azure bucket connection strings.
 
-Revision ID: 043
-Revises: 042
+Revision ID: 044
+Revises: 043
 Create Date: 2026-10-08 00:00:00.000000
 
 """
@@ -13,8 +13,8 @@ from alembic import op
 from luml.infra.encryption import decrypt, encrypt
 from luml.schemas.bucket_secrets import azure_public_endpoint
 
-revision: str = "043"
-down_revision: str | None = "042"
+revision: str = "044"
+down_revision: str | None = "043"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
