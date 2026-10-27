@@ -34,12 +34,18 @@
         </div>
         <p class="text">{{ updatedText }}</p>
         <div class="capabilities">
-          <Rocket v-if="data.capabilities.deploy" v-tooltip="'Deploy'" :size="16"></Rocket>
+          <Rocket
+            v-if="data.present_capabilities.includes('deploy')"
+            v-tooltip="'Deploy'"
+            :size="16"
+          ></Rocket>
+          <Activity
+            v-if="data.present_capabilities.includes('monitoring')"
+            v-tooltip="'Monitoring'"
+            :size="16"
+          ></Activity>
         </div>
-        <div v-if="data.kit_info?.kind" class="slug" data-testid="satellite-kind-slug">
-          {{ data.kit_info.kind }}<span v-if="data.slug"> · {{ data.slug }}</span>
-        </div>
-        <div v-else-if="data.slug" class="slug">{{ data.slug }}</div>
+        <div v-if="data.slug" class="slug">{{ data.slug }}</div>
       </div>
     </div>
   </div>
@@ -54,7 +60,7 @@
 <script setup lang="ts">
 import { SatelliteStatusEnum, type Satellite } from '@/lib/api/satellites/interfaces'
 import { getLastUpdateText } from '@/helpers/helpers'
-import { EllipsisVertical, Rocket } from 'lucide-vue-next'
+import { Activity, EllipsisVertical, Rocket } from 'lucide-vue-next'
 import { Button, Menu } from 'primevue'
 import { computed, ref } from 'vue'
 import SatellitesEditModal from './SatellitesEditModal.vue'

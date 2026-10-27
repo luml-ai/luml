@@ -1,7 +1,7 @@
 """Live sessions, relays, session tokens, flows and organization session limits
 
-Revision ID: 043
-Revises: 042
+Revision ID: 045
+Revises: 044
 Create Date: 2026-09-29 00:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "043"
-down_revision: str | None = "042"
+revision: str = "045"
+down_revision: str | None = "044"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -2,9 +2,19 @@
   <Dialog v-model:visible="visible" header="Key" :pt="dialogPt" modal :draggable="false">
     <div>
       <InputGroup>
-        <InputText :value="loading ? 'Loading...' : secretValue" :disabled="loading" readonly />
+        <InputText
+          :value="loading ? 'Loading...' : secretValue || SECRET_MASK"
+          :disabled="loading"
+          readonly
+        />
         <InputGroupAddon>
-          <Button variant="text" severity="secondary" style="height: 100%" @click="copySecret">
+          <Button
+            variant="text"
+            severity="secondary"
+            style="height: 100%"
+            :disabled="!secretValue"
+            @click="copySecret"
+          >
             <Copy :size="14" />
           </Button>
         </InputGroupAddon>
@@ -22,6 +32,7 @@ import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts
 import type { OrbitSecret } from '@/lib/api/orbit-secrets/interfaces'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { useOrbitsStore } from '@/stores/orbits'
+import { SECRET_MASK } from './secretMask'
 
 interface Props {
   secret: OrbitSecret | null

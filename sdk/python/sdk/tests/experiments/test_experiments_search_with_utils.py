@@ -73,11 +73,11 @@ class TestListGroupExperimentsPaginationFilterString:
         backend.log_dynamic("exp-3", "accuracy", 0.92)
         backend.end_experiment("exp-3")
 
-        conn = backend._get_meta_connection()
-        row = conn.execute(
-            "SELECT id FROM experiment_groups WHERE name = 'g1'"
-        ).fetchone()
-        return {"g1": row[0]}
+        with backend._get_meta_connection() as conn:
+            row = conn.execute(
+                "SELECT id FROM experiment_groups WHERE name = 'g1'"
+            ).fetchone()
+            return {"g1": row[0]}
 
     def test_no_filter_returns_all(
         self, backend: SQLiteBackend, group_ids: dict[str, str]
@@ -113,6 +113,45 @@ class TestListGroupExperimentsPaginationFilterString:
         )
         assert len(result.items) == 1
         assert result.items[0].name == "bert_large"
+
+    @pytest.mark.parametrize("field", ["tag", "tags"])
+    @pytest.mark.parametrize(
+        ("expression", "expected_ids"),
+        [
+            ('= "x"', {"exp-1"}),
+            ("= 'prod'", {"exp-1"}),
+            ('= "production"', {"exp-2"}),
+            ('= "missing"', set()),
+            ('= "PROD"', set()),
+            ('ILIKE "%X%"', {"exp-1"}),
+            ('= "%_"', {"exp-3"}),
+            ("= 'say \"hi\"'", {"exp-3"}),
+            ('!= "prod"', {"exp-2", "exp-3", "exp-4", "exp-5"}),
+        ],
+    )
+    def test_filter_by_exact_tag_membership(
+        self,
+        backend: SQLiteBackend,
+        field: str,
+        expression: str,
+        expected_ids: set[str],
+    ) -> None:
+        group = backend.create_group("tags")
+        for exp_id, tags in [
+            ("exp-1", ["prod", "x"]),
+            ("exp-2", ["production"]),
+            ("exp-3", ["%_", 'say "hi"']),
+            ("exp-4", []),
+            ("exp-5", None),
+        ]:
+            backend.initialize_experiment(exp_id, group=group.name, tags=tags)
+
+        result = backend.list_group_experiments_pagination(
+            group_id=group.id,
+            search=f"{field} {expression}",
+        )
+
+        assert {experiment.id for experiment in result.items} == expected_ids
 
     def test_filter_by_metric(
         self, backend: SQLiteBackend, group_ids: dict[str, str]

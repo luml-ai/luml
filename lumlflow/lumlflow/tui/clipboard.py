@@ -8,8 +8,8 @@ user); the helper degrades gracefully so the caller can show an
 explanatory toast instead of crashing.
 
 Implementation:
-- emit `ESC ] 52 ; c ; <base64-payload> BEL` on stdout when the active
-  output is a TTY.
+- emit `ESC ] 52 ; c ; <base64-payload> BEL` on the terminal stream
+  Textual renders to, bypassing its print capture.
 - payload is base64-encoded UTF-8 of the string to copy.
 - the standard caps text length to a few KB; ids are short so we don't
   worry about chunking.
@@ -34,17 +34,27 @@ class ClipboardResult:
     reason: str | None = None
 
 
+def terminal_stream() -> IO[str] | None:
+    """The terminal stream Textual renders to (stderr on POSIX, stdout on Windows)."""
+
+    return sys.__stdout__ if sys.platform == "win32" else sys.__stderr__
+
+
 def supports_osc52() -> bool:
     """Heuristic check for OSC52 support in the current terminal."""
 
-    # If stdout is not a TTY (test harness, piped output), OSC52 can't
-    # reach the terminal — there is no terminal to receive it.
-    if not sys.stdout.isatty():
+    terminal = terminal_stream()
+    try:
+        if terminal is None or not terminal.isatty():
+            return False
+    except (OSError, ValueError):
         return False
     # `TERM=dumb` and `TERM=unknown` short-circuit since they explicitly
     # disclaim terminal capabilities.
     term = os.environ.get("TERM", "").lower()
     if term in ("", "dumb", "unknown"):
+        return False
+    if os.environ.get("TERM_PROGRAM") == "Apple_Terminal":
         return False
     # Known terminals that ship with OSC52 enabled by default. This is
     # an allowlist; unknown terminals get an attempt + graceful fallback.
@@ -62,8 +72,8 @@ def osc52_copy(text: str, *, stream: IO[str] | None = None) -> ClipboardResult:
 
     if not text:
         return ClipboardResult(ok=False, reason="nothing to copy")
-    out: IO[str] = stream if stream is not None else sys.stdout
-    if not supports_osc52() and out is sys.stdout:
+    out = stream if stream is not None else terminal_stream()
+    if out is None or (stream is None and not supports_osc52()):
         return ClipboardResult(
             ok=False,
             reason="terminal does not support OSC52",
@@ -122,4 +132,5 @@ __all__ = [
     "osc52_copy",
     "read_system_clipboard",
     "supports_osc52",
+    "terminal_stream",
 ]

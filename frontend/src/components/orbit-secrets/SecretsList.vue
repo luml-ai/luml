@@ -68,6 +68,7 @@ import type { OrbitSecret } from '@/lib/api/orbit-secrets/interfaces'
 import SecretEditor from './SecretsEditor.vue'
 import SecretModal from './SecretModal.vue'
 import { Eye, Bolt } from 'lucide-vue-next'
+import { maskSecret } from './secretMask'
 
 const secretsStore = useSecretsStore()
 
@@ -102,11 +103,6 @@ function formatSecretDate(secret: OrbitSecret): string {
   if (!raw) return '—'
   const d = new Date(raw)
   return isNaN(d.getTime()) ? '—' : d.toLocaleString()
-}
-
-function maskSecret(value?: string): string {
-  if (!value) return '*'.repeat(15)
-  return value.length > 15 ? '*'.repeat(15) : '*'.repeat(value.length)
 }
 
 function normalizeTags(tags: unknown): string[] {

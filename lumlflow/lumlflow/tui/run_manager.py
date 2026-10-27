@@ -11,8 +11,8 @@ Key contracts (from SPEC.md):
 
 - The child inherits the store URI via environment so both processes
   point at the same SQLite file.
-- Child stdout/stderr is *piped*; nothing is ever written to the
-  terminal, which would corrupt rendering.
+- Child stdout/stderr is saved to persistent log files and tailed by
+  the TUI; detaching cannot break the child's output streams.
 - The TUI snapshots existing experiments at launch and watches for new
   ones; the first newly-appeared `active` experiment is the attach
   target. Multiple-new is supported (attach to the first, surface the
@@ -36,9 +36,12 @@ import asyncio
 import os
 import shlex
 import signal
+import subprocess
 import sys
+import tempfile
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -81,6 +84,7 @@ class RunState:
     exit_code: int | None = None
     detach_only: bool = False
     error_message: str | None = None
+    log_dir: Path | None = None
     # Snapshot of all experiment ids that existed BEFORE the run started.
     # Used to detect newly created experiments without false positives from
     # the existing store contents.
@@ -92,11 +96,10 @@ class RunManager:
 
     `RunManager` is intentionally framework-agnostic: it does not import
     Textual. The screen that hosts the run pushes line/exit callbacks
-    and the manager calls them on the event loop via
-    `loop.call_soon_threadsafe(...)` when output arrives.
+    and the manager calls them on the event loop when output arrives.
 
     The manager exposes a single `start()` coroutine that launches the
-    process and spins up two background tasks (stdout/stderr readers).
+    process and spins up two background tasks to tail its log files.
     Each completed read line is dispatched through `on_line`; when both
     streams close and the process exits, `on_exit` fires once with the
     final exit code.
@@ -118,8 +121,9 @@ class RunManager:
         self._on_line = on_line
         self._on_exit = on_exit
         self._env = env
-        self._process: asyncio.subprocess.Process | None = None
+        self._process: subprocess.Popen[bytes] | None = None
         self._reader_tasks: list[asyncio.Task[None]] = []
+        self._wait_task: asyncio.Task[None] | None = None
         self.state = RunState()
 
     # ----- snapshot -----
@@ -137,9 +141,7 @@ class RunManager:
         self.state.experiment_snapshot = snapshot
         return snapshot
 
-    def detect_new_experiments(
-        self, *, require_active: bool = True
-    ) -> list[str]:
+    def detect_new_experiments(self, *, require_active: bool = True) -> list[str]:
         """Return experiment ids that appeared since the snapshot.
 
         When `require_active=True` (the SPEC contract — "watches for a
@@ -175,7 +177,7 @@ class RunManager:
     def is_running(self) -> bool:
         if self._process is None:
             return False
-        return self._process.returncode is None
+        return self._process.poll() is None
 
     def build_environment(self) -> dict[str, str]:
         """Environment for the child process — shared store URI baked in."""
@@ -183,6 +185,7 @@ class RunManager:
         env = dict(os.environ if self._env is None else self._env)
         env["BACKEND_STORE_URI"] = self._store_uri
         env["LUML_BACKEND_STORE_URI"] = self._store_uri
+        env["PYTHONUNBUFFERED"] = "1"
         return env
 
     async def start(self) -> None:
@@ -197,84 +200,89 @@ class RunManager:
         self.snapshot_experiments()
         env = self.build_environment()
         try:
-            self._process = await asyncio.create_subprocess_exec(
-                *self.spec.command,
-                cwd=self.spec.cwd,
-                env=env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                stdin=asyncio.subprocess.DEVNULL,
-                # Place the child in its own process group so we can target
-                # it with SIGINT without taking down the TUI.
-                start_new_session=True,
-            )
-        except FileNotFoundError as exc:
+            log_root = Path.home() / ".luml" / "runs"
+            log_root.mkdir(parents=True, exist_ok=True)
+            self.state.log_dir = Path(tempfile.mkdtemp(prefix="run-", dir=log_root))
+            stdout_path = self.state.log_dir / "stdout.log"
+            stderr_path = self.state.log_dir / "stderr.log"
+            with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+                self._process = subprocess.Popen(
+                    self.spec.command,
+                    cwd=self.spec.cwd,
+                    env=env,
+                    stdout=stdout,
+                    stderr=stderr,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+        except OSError as exc:
+            code = 127 if isinstance(exc, FileNotFoundError) else 126
             self.state.started = True
             self.state.finished = True
-            self.state.exit_code = 127
+            self.state.exit_code = code
             self.state.error_message = str(exc)
             self._dispatch_line("stderr", f"failed to start: {exc}")
-            self._dispatch_exit(127)
-            return
-        except PermissionError as exc:  # pragma: no cover - environment dep
-            self.state.started = True
-            self.state.finished = True
-            self.state.exit_code = 126
-            self.state.error_message = str(exc)
-            self._dispatch_line("stderr", f"permission denied: {exc}")
-            self._dispatch_exit(126)
+            self._dispatch_exit(code)
             return
 
         self.state.started = True
-        assert self._process.stdout is not None
-        assert self._process.stderr is not None
-        self._reader_tasks.append(
-            asyncio.create_task(
-                self._read_stream(self._process.stdout, "stdout"),
-                name="run-manager-stdout",
+        for name, path in (("stdout", stdout_path), ("stderr", stderr_path)):
+            self._reader_tasks.append(
+                asyncio.create_task(
+                    self._read_stream(path, name), name=f"run-manager-{name}"
+                )
             )
+        self._wait_task = asyncio.create_task(
+            self._await_exit(), name="run-manager-wait"
         )
-        self._reader_tasks.append(
-            asyncio.create_task(
-                self._read_stream(self._process.stderr, "stderr"),
-                name="run-manager-stderr",
-            )
-        )
-        asyncio.create_task(self._await_exit(), name="run-manager-wait")
 
-    async def _read_stream(
-        self, stream: asyncio.StreamReader, name: str
-    ) -> None:
-        while True:
-            try:
-                raw = await stream.readline()
-            except Exception as exc:  # pragma: no cover - defensive
-                self._dispatch_line(name, f"<stream error: {exc}>")
-                return
-            if not raw:
-                return
-            try:
-                line = raw.decode("utf-8", errors="replace").rstrip("\n")
-            except Exception:  # pragma: no cover - defensive
-                line = repr(raw)
-            self._dispatch_line(name, line)
+    async def _read_stream(self, path: Path, name: str) -> None:
+        pending = b""
+        try:
+            with path.open("rb") as stream:
+                while True:
+                    running = self.is_running
+                    raw = stream.readline()
+                    if raw:
+                        pending += raw
+                        if pending.endswith(b"\n"):
+                            self._dispatch_line(
+                                name,
+                                pending.decode("utf-8", errors="replace").rstrip("\n"),
+                            )
+                            pending = b""
+                        await asyncio.sleep(0)
+                        continue
+                    if not running:
+                        if pending:
+                            self._dispatch_line(
+                                name, pending.decode("utf-8", errors="replace")
+                            )
+                        return
+                    await asyncio.sleep(0.05)
+        except OSError as exc:  # pragma: no cover - defensive
+            self._dispatch_line(name, f"<stream error: {exc}>")
 
     async def _await_exit(self) -> None:
         if self._process is None:
             return
-        try:
-            code = await self._process.wait()
-        except Exception:  # pragma: no cover - defensive
-            code = None
-        # Drain reader tasks so all output is dispatched before exit.
-        for task in self._reader_tasks:
-            try:
-                await task
-            except Exception:  # pragma: no cover - defensive
-                pass
+        while self.is_running:
+            await asyncio.sleep(0.05)
+        await asyncio.gather(*self._reader_tasks)
         self.state.finished = True
-        self.state.exit_code = code
-        self._dispatch_exit(code)
+        self.state.exit_code = self._process.returncode
+        self._dispatch_exit(self.state.exit_code)
+
+    async def detach(self) -> None:
+        """Stop TUI monitoring while the child keeps writing its log files."""
+
+        self.state.detach_only = True
+        tasks = [*self._reader_tasks]
+        if self._wait_task is not None:
+            tasks.append(self._wait_task)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     # ----- termination -----
 
@@ -290,7 +298,7 @@ class RunManager:
         never blocked waiting on a misbehaving script.
         """
 
-        if self._process is None or self._process.returncode is not None:
+        if self._process is None or not self.is_running:
             return
         pid = self._process.pid
         try:
@@ -301,17 +309,19 @@ class RunManager:
                 self._process.send_signal(sig)
             except Exception:  # pragma: no cover - defensive
                 return
-        # Schedule an escalation if the process does not exit in time.
         try:
-            await asyncio.wait_for(self._process.wait(), timeout=kill_after)
+            async with asyncio.timeout(kill_after):
+                while self.is_running:
+                    await asyncio.sleep(0.05)
         except TimeoutError:
             try:
                 os.killpg(pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError, OSError):
-                try:
-                    self._process.kill()
-                except Exception:  # pragma: no cover - defensive
-                    pass
+                self._process.kill()
+            while self.is_running:
+                await asyncio.sleep(0.05)
+        if self._wait_task is not None and not self._wait_task.cancelled():
+            await self._wait_task
 
     # ----- dispatch helpers -----
 

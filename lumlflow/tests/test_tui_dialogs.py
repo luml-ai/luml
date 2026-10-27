@@ -14,6 +14,7 @@ from lumlflow.tui.widgets.dialogs import (
     ConfirmDialog,
     EditEntityDialog,
     EntityEditResult,
+    RunQuitDialog,
     SortChooserDialog,
     SortChooserResult,
 )
@@ -198,3 +199,40 @@ async def test_sort_dialog_toggles_order() -> None:
         v: SortChooserResult | None = result.get("v")
         assert isinstance(v, SortChooserResult)
         assert v.order == "asc"
+
+
+async def test_run_quit_dialog_lists_cancel_detach_and_terminate() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        app.push(RunQuitDialog(title="A run is still active", message="m"))
+        await pilot.pause()
+        from textual.containers import Horizontal
+
+        buttons = app.screen.query_one("#dialog-buttons", Horizontal)
+        labels = [str(child.render()) for child in buttons.children]
+        assert labels == ["[Esc] Cancel", "[Enter] Quit (detach)", "[t] Terminate"]
+
+
+@pytest.mark.parametrize(
+    ("button", "expected"),
+    [
+        ("#dialog-cancel-key", None),
+        ("#dialog-confirm-key", "detach"),
+        ("#dialog-terminate-key", "terminate"),
+    ],
+)
+async def test_run_quit_dialog_buttons_are_clickable(
+    button: str, expected: str | None
+) -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        result: dict = {}
+        app.push(
+            RunQuitDialog(title="A run is still active", message="m"),
+            callback=lambda v: result.update(v=v),
+        )
+        await pilot.pause()
+        await pilot.click(button)
+        await pilot.pause()
+        assert not isinstance(app.screen, RunQuitDialog)
+        assert result == {"v": expected}

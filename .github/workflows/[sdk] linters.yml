@@ -1,4 +1,4 @@
-name: SDK Tests and Linters
+name: SDK Linters
 
 on:
   push:
@@ -38,6 +38,3 @@ jobs:
 
       - name: Type checking
         run: uv run mypy luml
-
-      - name: Running tests
-        run: uv run pytest

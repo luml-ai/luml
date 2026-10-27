@@ -15,7 +15,7 @@ from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.orbit import OrbitCreateIn
 from luml.schemas.satellite import SatelliteCreate
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from tests.integration.repositories.artifacts.conftest import _add_artifact_to_track
 from tests.support.builders import (
@@ -233,7 +233,8 @@ class TestArtifactRepositoryListing:
             )
 
     @pytest.mark.parametrize(
-        "sort_by", ["nonexistent_zzz", "collection_name", "metadata"]
+        "sort_by",
+        ["nonexistent_zzz", "collection_name", "metadata", "collection", "__class__"],
     )
     async def test_get_collection_artifacts_rejects_invalid_sort_within_collections(
         self,
@@ -631,38 +632,134 @@ class TestArtifactRepositoryListing:
         assert items == []
         assert cursor is None
 
-    async def test_get_collection_artifacts_rejects_metric_sort_across_whole_orbit(
+    @pytest.mark.parametrize("order", [SortOrder.ASC, SortOrder.DESC])
+    @pytest.mark.parametrize("collection_ids", [None, []])
+    async def test_get_collection_artifacts_pages_by_metric_across_whole_orbit(
+        self,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+        order: SortOrder,
+        collection_ids: list[uuid.UUID] | None,
+    ) -> None:
+        second_collection = await build_collection(
+            engine, seeded_collection.orbit.id, "second-collection"
+        )
+        low = await create_artifact(
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
+            name="low",
+            extra_values={"accuracy": 0.1},
+        )
+        high = await create_artifact(
+            engine,
+            new_artifact,
+            second_collection.id,
+            name="high",
+            extra_values={"accuracy": 0.9},
+        )
+        missing = await create_artifact(
+            engine,
+            new_artifact,
+            second_collection.id,
+            name="missing",
+            extra_values={},
+        )
+
+        items, cursor = await repository.get_collection_artifacts(
+            seeded_collection.orbit.id,
+            PaginationParams(limit=1, sort_by="accuracy", order=order),
+            collection_ids=collection_ids,
+        )
+        expected = (
+            [missing.id, low.id, high.id]
+            if order == SortOrder.ASC
+            else [high.id, low.id, missing.id]
+        )
+        assert [item.id for item in items] == expected[:1]
+        assert cursor is not None
+        assert cursor.sort_by == "accuracy"
+
+        items, cursor = await repository.get_collection_artifacts(
+            seeded_collection.orbit.id,
+            PaginationParams(limit=1, sort_by="accuracy", order=order, cursor=cursor),
+            collection_ids=collection_ids,
+        )
+        assert [item.id for item in items] == expected[1:2]
+        assert cursor is not None
+
+        items, cursor = await repository.get_collection_artifacts(
+            seeded_collection.orbit.id,
+            PaginationParams(limit=1, sort_by="accuracy", order=order, cursor=cursor),
+            collection_ids=collection_ids,
+        )
+        assert [item.id for item in items] == expected[2:]
+        assert cursor is None
+
+    async def test_get_collection_artifacts_sorts_by_metric_with_one_connection(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+    ) -> None:
+        artifact = await create_artifact(
+            engine,
+            new_artifact,
+            seeded_collection.collection.id,
+            name="model",
+            extra_values={"accuracy": 0.9},
+        )
+        limited_engine = create_async_engine(
+            engine.url, pool_size=1, max_overflow=0, pool_timeout=0.1
+        )
+        try:
+            items, cursor = await ArtifactRepository(
+                limited_engine
+            ).get_collection_artifacts(
+                seeded_collection.orbit.id,
+                PaginationParams(sort_by="accuracy"),
+            )
+        finally:
+            await limited_engine.dispose()
+
+        assert [item.id for item in items] == [artifact.id]
+        assert cursor is None
+
+    async def test_get_collection_artifacts_rejects_metric_from_other_orbit(
         self,
         repository: ArtifactRepository,
         engine: AsyncEngine,
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
     ) -> None:
-        await create_artifact(
-            engine,
-            new_artifact,
-            seeded_collection.collection.id,
-            name="first",
-            extra_values={"acc": 0.1},
-            status=new_artifact.status,
+        other_orbit = await OrbitRepository(engine).create_orbit(
+            seeded_collection.organization.id,
+            OrbitCreateIn(
+                name="other orbit",
+                bucket_secret_id=seeded_collection.bucket_secret.id,
+            ),
         )
+        assert other_orbit is not None
+        other_collection = await build_collection(engine, other_orbit.id, "other")
         await create_artifact(
             engine,
             new_artifact,
-            seeded_collection.collection.id,
-            name="second",
-            extra_values={"acc": 0.9},
-            status=new_artifact.status,
+            other_collection.id,
+            name="other",
+            extra_values={"private_metric": 0.5},
         )
 
         with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
             await repository.get_collection_artifacts(
                 seeded_collection.orbit.id,
-                PaginationParams(limit=100, sort_by="acc", order=SortOrder.DESC),
+                PaginationParams(sort_by="private_metric"),
             )
 
     @pytest.mark.parametrize(
-        "sort_by", ["nonexistent_zzz", "collection_name", "metadata"]
+        "sort_by",
+        ["nonexistent_zzz", "collection_name", "metadata", "collection", "__class__"],
     )
     async def test_get_collection_artifacts_rejects_invalid_sort_across_whole_orbit(
         self,

@@ -243,6 +243,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
   }
 
   function resetCurrentModelHtmlBlobUrl() {
+    if (currentModelHtmlBlobUrl.value) URL.revokeObjectURL(currentModelHtmlBlobUrl.value)
     currentModelHtmlBlobUrl.value = null
   }
 

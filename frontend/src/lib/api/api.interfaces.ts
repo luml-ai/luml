@@ -84,10 +84,12 @@ export interface IPostForgotPasswordResponse {
 
 export interface IGetGoogleLoginRequest {
   code: string
+  state: string
 }
 
 export interface IGetMicrosoftLoginRequest {
   code: string
+  state: string
 }
 
 export interface IResetPasswordRequest {
@@ -153,11 +155,6 @@ export interface Member {
   user: Omit<IGetUserResponse, 'auth_method'>
   created_at: Date
   updated_at: Date | null
-}
-
-export interface AddMemberPayload {
-  user_id: string
-  role: OrganizationRoleEnum
 }
 
 export interface UpdateMemberPayload {

@@ -4,6 +4,7 @@
     <Select
       labelId="stage_name"
       :name="props.name"
+      :show-clear="props.showClear"
       fluid
       placeholder="Select stage"
       :options="options"
@@ -31,6 +32,7 @@ import { getStageTagSeverity } from './tracks.const'
 interface Props {
   options: TrackStage[]
   name?: string
+  showClear?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {

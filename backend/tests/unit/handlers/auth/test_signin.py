@@ -16,6 +16,7 @@ from luml.schemas.user import (
     User,
 )
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from tests.support.mocks import CollaboratorMocks
 from tests.unit.handlers.auth.conftest import Passwords
@@ -164,6 +165,7 @@ class TestAuthSignIn:
             "create_user",
             "send_activation_email",
         ]
+        mocks.emails_handler.send_activation_email.assert_awaited_once()
         mocks.user_repository.delete_signup.assert_not_awaited()
 
     async def test_handle_signup_deletes_signup_when_activation_email_fails(
@@ -232,6 +234,39 @@ class TestAuthSignIn:
         assert error.value.status_code == 400
         mocks.user_repository.get_user.assert_awaited_once_with(create_user.email)
 
+    async def test_handle_signup_rejects_duplicate_email_race(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        new_user_in: CreateUserIn,
+    ) -> None:
+        mocks.user_repository.get_user.return_value = None
+        mocks.user_repository.create_user.side_effect = IntegrityError(
+            None, None, Exception('unique constraint "users_email_key"')
+        )
+
+        with pytest.raises(AuthError, match="Email already registered") as error:
+            await mocks.handler.handle_signup(new_user_in)
+
+        assert error.value.status_code == 400
+        mocks.emails_handler.send_activation_email.assert_not_called()
+        mocks.user_repository.delete_signup.assert_not_awaited()
+
+    async def test_handle_signup_propagates_unrelated_integrity_errors(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        new_user_in: CreateUserIn,
+    ) -> None:
+        mocks.user_repository.get_user.return_value = None
+        mocks.user_repository.create_user.side_effect = IntegrityError(
+            None, None, Exception('unique constraint "users_pkey"')
+        )
+
+        with pytest.raises(IntegrityError):
+            await mocks.handler.handle_signup(new_user_in)
+
+        mocks.emails_handler.send_activation_email.assert_not_called()
+        mocks.user_repository.delete_signup.assert_not_awaited()
+
     async def test_handle_signin_returns_tokens_and_user_id(
         self,
         mocks: CollaboratorMocks[AuthHandler],
@@ -255,7 +290,7 @@ class TestAuthSignIn:
         authenticate_user.assert_awaited_once_with(
             sign_in_user.email, sign_in_user.password
         )
-        create_tokens.assert_called_once_with(new_user_in.email)
+        create_tokens.assert_called_once_with(new_user_in.email, user.hashed_password)
 
     async def test_update_user_updates_profile(
         self, mocks: CollaboratorMocks[AuthHandler], user: User

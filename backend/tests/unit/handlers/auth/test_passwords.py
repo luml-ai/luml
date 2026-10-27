@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 from luml.handlers.auth import AuthHandler
 from luml.infra.exceptions import AuthError
-from luml.schemas.user import ChangePasswordIn, UpdateUser, User
+from luml.schemas.user import ChangePasswordIn, User
 
 from tests.support.mocks import CollaboratorMocks
 from tests.unit.handlers.auth.conftest import Passwords
@@ -44,15 +44,20 @@ class TestAuthPasswords:
         get_password_hash = Mock(return_value="new-password-hash")
         monkeypatch.setattr(mocks.handler, "_verify_password", verify_password)
         monkeypatch.setattr(mocks.handler, "_get_password_hash", get_password_hash)
+        mocks.user_repository.update_password.return_value = True
 
-        await mocks.handler.handle_change_password(user.email, passwords)
+        tokens = await mocks.handler.handle_change_password(user.email, passwords)
 
         verify_password.assert_called_once_with(
             passwords.current_password, user.hashed_password
         )
         get_password_hash.assert_called_once_with(passwords.new_password)
-        mocks.user_repository.update_user.assert_awaited_once_with(
-            UpdateUser(email=user.email, hashed_password="new-password-hash")
+        mocks.user_repository.update_password.assert_awaited_once_with(
+            user.email, "new-password-hash"
+        )
+        assert mocks.handler._verify_token(tokens.access_token) == (
+            user.email,
+            mocks.handler._password_fingerprint("new-password-hash"),
         )
 
     async def test_handle_change_password_raises_when_current_password_invalid(
@@ -71,4 +76,4 @@ class TestAuthPasswords:
             await mocks.handler.handle_change_password(user.email, passwords)
 
         assert exc.value.status_code == 400
-        mocks.user_repository.update_user.assert_not_awaited()
+        mocks.user_repository.update_password.assert_not_awaited()

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import axios, { type AxiosResponse } from 'axios'
 import { api } from '@/lib/api'
@@ -538,5 +538,38 @@ describe('artifacts store experiment snapshot provider', () => {
     store.resetExperimentSnapshotProvider()
 
     expect(release).toHaveBeenCalledOnce()
+  })
+})
+
+describe('artifacts store HTML card URL', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static revokeObjectURL = vi.fn()
+      },
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('revokes the current URL once when reset repeatedly', () => {
+    const store = useArtifactsStore()
+    store.setCurrentModelHtmlBlobUrl('blob:card')
+
+    store.resetCurrentModelHtmlBlobUrl()
+    store.resetCurrentModelHtmlBlobUrl()
+
+    expect(store.currentModelHtmlBlobUrl).toBeNull()
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:card')
+  })
+
+  it('does not revoke a URL when there is no HTML card', () => {
+    useArtifactsStore().resetCurrentModelHtmlBlobUrl()
+
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
   })
 })

@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from rich.text import Text
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.events import Click
 from textual.widgets import Input, Label, Static
 
 from lumlflow.tui.widgets.modal import BaseDialog
@@ -210,6 +211,62 @@ class ConfirmDialog(BaseDialog[bool]):
                         id="dialog-cancel-key",
                         markup=False,
                     )
+
+
+class RunQuitDialog(BaseDialog[str | None]):
+    """Choose whether quitting should detach or terminate the active run."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel", show=False),
+        Binding("enter", "confirm", "Quit (detach)", show=False),
+        Binding("t", "terminate", "Terminate", show=False),
+    ]
+
+    confirm_label = "Quit (detach)"
+    terminate_label = "Terminate"
+
+    def compose(self) -> Iterable:  # type: ignore[override]
+        with Vertical():
+            yield Label(self.title_text, id="dialog-title")
+            if self.message is not None:
+                yield Static(self.message, id="dialog-message")
+            yield Static("", id="dialog-error")
+            with Horizontal(id="dialog-buttons"):
+                yield Static(
+                    f"[Esc] {self.cancel_label}",
+                    id="dialog-cancel-key",
+                    markup=False,
+                )
+                yield Static(
+                    f"[Enter] {self.confirm_label}",
+                    id="dialog-confirm-key",
+                    markup=False,
+                )
+                yield Static(
+                    f"[t] {self.terminate_label}",
+                    id="dialog-terminate-key",
+                    markup=False,
+                )
+
+    def on_click(self, event: Click) -> None:
+        actions = {
+            "dialog-cancel-key": self.action_cancel,
+            "dialog-confirm-key": self.action_confirm,
+            "dialog-terminate-key": self.action_terminate,
+        }
+        action = actions.get(event.widget.id or "") if event.widget else None
+        if action is not None:
+            event.stop()
+            action()
+
+    def action_confirm(self) -> None:
+        self.dismiss("detach")
+
+    def action_terminate(self) -> None:
+        self.dismiss("terminate")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
 
 
 class SortChooserDialog(BaseDialog["SortChooserResult | None"]):

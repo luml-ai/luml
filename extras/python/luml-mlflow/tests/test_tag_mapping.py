@@ -390,3 +390,66 @@ def test_local_only_marker_round_trips_as_luml_tag(temp_store: Path) -> None:
     )
     fetched = local.get_run(run.info.run_id)
     assert fetched.data.tags.get("luml.local_only") == "true"
+
+
+def _runs_with_accuracy(store: LumlTrackingStore, exp_id: str) -> dict[float, str]:
+    out: dict[float, str] = {}
+    for acc in (0.5, 0.9, 0.7):
+        run = store.create_run(
+            experiment_id=exp_id,
+            user_id="alice",
+            start_time=0,
+            tags=[],
+            run_name=f"acc-{acc}",
+        )
+        store.log_metric(run.info.run_id, Metric("acc", acc, 0, 0))
+        out[acc] = run.info.run_id
+    return out
+
+
+def test_search_runs_applies_filter_string(store: LumlTrackingStore) -> None:
+    exp_id = store.create_experiment("fraud")
+    by_acc = _runs_with_accuracy(store, exp_id)
+    runs = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="metrics.acc > 0.6",
+        run_view_type=1,
+        max_results=100,
+    )
+    assert {r.info.run_id for r in runs} == {by_acc[0.9], by_acc[0.7]}
+
+
+def test_search_runs_applies_order_by(store: LumlTrackingStore) -> None:
+    exp_id = store.create_experiment("fraud")
+    by_acc = _runs_with_accuracy(store, exp_id)
+    runs = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="",
+        run_view_type=1,
+        max_results=100,
+        order_by=["metrics.acc DESC"],
+    )
+    assert [r.info.run_id for r in runs] == [by_acc[0.9], by_acc[0.7], by_acc[0.5]]
+
+
+def test_search_runs_paginates(store: LumlTrackingStore) -> None:
+    exp_id = store.create_experiment("fraud")
+    by_acc = _runs_with_accuracy(store, exp_id)
+    first = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="",
+        run_view_type=1,
+        max_results=2,
+        order_by=["metrics.acc DESC"],
+    )
+    assert [r.info.run_id for r in first] == [by_acc[0.9], by_acc[0.7]]
+    assert first.token is not None
+    second = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="",
+        run_view_type=1,
+        max_results=2,
+        order_by=["metrics.acc DESC"],
+        page_token=first.token,
+    )
+    assert [r.info.run_id for r in second] == [by_acc[0.5]]

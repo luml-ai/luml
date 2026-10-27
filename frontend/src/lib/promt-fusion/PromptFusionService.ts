@@ -163,13 +163,9 @@ class PromptFusionServiceClass extends Observable<Events> {
         { task_spec: this.payload as PromptFusionPayload },
         WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
       )
-      if (result.status === 'success' && result.model_id) {
-        this.setModelId(result.model_id)
-        this.savePredictionFields()
-        this.saveModel(result.model)
-      } else {
-        throw new Error(result.error_message || 'Training failed')
-      }
+      this.setModelId(result.model_id)
+      this.savePredictionFields()
+      this.saveModel(result.model)
     } finally {
       this.endTraining()
     }
@@ -212,9 +208,10 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   resetState() {
-    if (this.modelId) {
-      DataProcessingWorker.deallocateModels([this.modelId], WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE)
-    }
+    const cleanup = DataProcessingWorker.deallocateModels(
+      this.modelId ? [this.modelId] : [],
+      WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE,
+    )
     this.providers = getProviders()
     this.availableModels = initialState.availableModels
     this.isSettingsOpened = initialState.isSettingsOpened
@@ -232,6 +229,7 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.taskDescription = initialState.taskDescription
     this.trainingData = initialState.trainingData
     this.predictionFields = initialState.predictionFields
+    return cleanup
   }
 
   getConnectedProviders() {

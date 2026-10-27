@@ -1,6 +1,7 @@
 """Tests for the luml-backed MLflow ``ArtifactRepository``."""
 
 import hashlib
+import sqlite3
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -219,6 +220,82 @@ def test_log_artifacts_model_dir_cleans_up_temp(
         assert not path.exists(), f"temp dir {path} should have been cleaned up"
 
 
+@pytest.mark.parametrize("name_on_uri", [False, True])
+def test_repeated_model_names_keep_distinct_downloadable_files(
+    store: LumlTrackingStore,
+    run_id: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name_on_uri: bool,
+) -> None:
+    def convert(model_dir: Path, output_path: Path, *, name: str | None = None) -> Path:
+        output_path.write_bytes((model_dir / "weights.bin").read_bytes())
+        return output_path
+
+    monkeypatch.setattr(artifact_repo, "convert_mlflow_model_to_fnnx", convert)
+    repo = LumlArtifactRepository(
+        store._artifact_uri_for_run(run_id, model_name="model" if name_on_uri else None)
+    )
+    model_dir = _make_mlflow_model_dir(tmp_path)
+    for payload in [b"FIRST", b"SECOND"]:
+        (model_dir / "weights.bin").write_bytes(payload)
+        repo.log_artifacts(
+            str(model_dir), artifact_path=None if name_on_uri else "model"
+        )
+
+    models = store._tracker.get_models(experiment_id=run_id)
+    assert len(models) == 2
+    assert models[0].path != models[1].path
+    assert [model.name for model in models] == ["model", "model"]
+    listing = repo.list_artifacts()
+    assert len(listing) == 2
+    assert len({entry.path for entry in listing}) == 2
+    downloaded = set()
+    for index, entry in enumerate(listing):
+        assert entry.is_dir
+        [file_info] = repo.list_artifacts(entry.path)
+        assert not file_info.is_dir
+        assert file_info.path == f"{entry.path}/model.fnnx"
+        assert repo.list_artifacts(file_info.path) == []
+        destination = tmp_path / f"download-{index}"
+        destination.mkdir()
+        downloaded_path = repo.download_artifacts(file_info.path, str(destination))
+        downloaded.add(Path(downloaded_path).read_bytes())
+    assert downloaded == {b"FIRST", b"SECOND"}
+    root_destination = tmp_path / "download-all"
+    root_destination.mkdir()
+    root = Path(repo.download_artifacts("", str(root_destination)))
+    assert {path.read_bytes() for path in root.rglob("*.fnnx")} == {b"FIRST", b"SECOND"}
+
+
+def test_legacy_model_paths_remain_downloadable(
+    repo: LumlArtifactRepository,
+    store: LumlTrackingStore,
+    run_id: str,
+    tmp_path: Path,
+    fake_converter: bytes,
+) -> None:
+    model_dir = _make_mlflow_model_dir(tmp_path)
+    repo.log_artifacts(str(model_dir), artifact_path="model")
+    [model] = store._tracker.get_models(experiment_id=run_id)
+    base_path = store._tracker.backend.base_path
+    stored_path = base_path / model.path
+    legacy_path = base_path / run_id / "models" / "model.fnnx"
+    stored_path.rename(legacy_path)
+    with sqlite3.connect(base_path / "meta.db") as conn:
+        conn.execute(
+            "UPDATE models SET path = ? WHERE id = ?",
+            (str(legacy_path.relative_to(base_path)), model.id),
+        )
+
+    repo.log_artifacts(str(model_dir), artifact_path="model")
+
+    listing = repo.list_artifacts()
+    assert ("model.fnnx", False) in {(entry.path, entry.is_dir) for entry in listing}
+    downloaded = Path(repo.download_artifacts("model.fnnx", str(tmp_path)))
+    assert downloaded.read_bytes() == fake_converter
+
+
 def test_list_artifacts_returns_attachments_and_models(
     repo: LumlArtifactRepository,
     store: LumlTrackingStore,
@@ -234,9 +311,11 @@ def test_list_artifacts_returns_attachments_and_models(
     listing = repo.list_artifacts()
     paths = {fi.path for fi in listing}
     assert "loss.csv" in paths
-    assert any(p.endswith(FNNX_SUFFIX) for p in paths)
-    for fi in listing:
-        assert not fi.is_dir
+    [model] = store._tracker.get_models(experiment_id=run_id)
+    assert (model.id, True) in {(fi.path, fi.is_dir) for fi in listing}
+    [file_info] = repo.list_artifacts(model.id)
+    assert file_info.path == f"{model.id}/best-model{FNNX_SUFFIX}"
+    assert not file_info.is_dir
 
 
 def test_list_artifacts_buckets_subdirectories(
@@ -284,7 +363,7 @@ def test_download_model_round_trips(
 
     [model] = store._tracker.get_models(experiment_id=run_id)
     assert model.path is not None
-    remote = Path(model.path).name
+    remote = f"{model.id}/{Path(model.path).name}"
 
     dst = tmp_path / "downloaded.fnnx"
     repo._download_file(remote, str(dst))

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from luml.handlers.auth import AuthHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.security import JWTAuthenticationBackend
-from luml.schemas.user import AuthProvider, CurrentUserOut, UserOut
+from luml.schemas.user import AuthProvider, CurrentUserOut, User, UserOut
 from luml.settings import config
 from starlette.middleware.authentication import AuthenticationMiddleware
 
@@ -71,7 +71,7 @@ class TestJWTAuthenticationBackend:
         get_current_user.assert_not_awaited()
 
     def test_get_protected_returns_200_when_bearer_is_access_token(
-        self, bearer_tokens: dict[str, str]
+        self, bearer_tokens: dict[str, str], user: User
     ) -> None:
         current_user = CurrentUserOut(
             id=USER_ID,
@@ -93,6 +93,11 @@ class TestJWTAuthenticationBackend:
                 "luml.handlers.auth.UserRepository.get_current_user",
                 new_callable=AsyncMock,
                 return_value=current_user,
+            ),
+            patch(
+                "luml.handlers.auth.UserRepository.get_user",
+                new_callable=AsyncMock,
+                return_value=user,
             ),
         ):
             response = _client("jwt").get(
@@ -120,3 +125,37 @@ class TestJWTAuthenticationBackend:
             )
 
         assert response.status_code == expected_status
+
+    def test_get_protected_returns_401_when_password_fingerprint_is_stale(
+        self, bearer_tokens: dict[str, str]
+    ) -> None:
+        current_user = CurrentUserOut(
+            id=USER_ID,
+            email=EMAIL,
+            full_name="Caller",
+            disabled=False,
+            photo=None,
+            has_api_key=False,
+            auth_method=AuthProvider.EMAIL,
+            hashed_password="replacement-hash",
+        )
+
+        with (
+            patch(
+                "luml.handlers.auth.TokenBlackListRepository.is_token_blacklisted",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            patch(
+                "luml.handlers.auth.UserRepository.get_current_user",
+                new_callable=AsyncMock,
+                return_value=current_user,
+            ) as get_current_user,
+        ):
+            response = _client("jwt").get(
+                "/protected",
+                headers={"Authorization": f"Bearer {bearer_tokens['access']}"},
+            )
+
+        assert response.status_code == 401
+        get_current_user.assert_awaited_once()

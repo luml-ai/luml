@@ -1,4 +1,5 @@
 import type { ConfirmationOptions } from 'primevue/confirmationoptions'
+import type { TrackEntry } from '@/lib/api/orbit-tracks/interfaces'
 
 export const dashboardFinishConfirmOptions = (accept: () => void): ConfirmationOptions => ({
   message: "Before exiting, please ensure you've downloaded your predictions.",
@@ -222,8 +223,14 @@ export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions
   accept,
 })
 
-export const deleteTrackConfirmOptions = (accept: () => void): ConfirmationOptions => ({
-  message: 'This action is permanent and cannot be undone.',
+export const deleteTrackConfirmOptions = (
+  accept: () => void,
+  activeStages: string[] = [],
+): ConfirmationOptions => ({
+  message:
+    (activeStages.length
+      ? `Deleting this track will free the following active stages: ${activeStages.join(', ')}. Artifacts will remain in their collections. `
+      : '') + 'This action is permanent and cannot be undone.',
   header: 'Delete track?',
   rejectProps: {
     label: 'Cancel',
@@ -253,21 +260,36 @@ export const forceStageReassignConfirmOptions = (
 
 export const deleteTrackEntryConfirmOptions = (
   accept: () => void,
-  count: number,
-): ConfirmationOptions => ({
-  message:
-    'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.',
-  header: count > 1 ? `Unlink ${count} artifacts?` : 'Unlink artifact?',
-  rejectProps: {
-    label: 'Cancel',
-  },
-  acceptProps: {
-    label: count > 1 ? 'Unlink artifacts' : 'Unlink artifact',
-    severity: 'warn',
-    outlined: true,
-  },
-  accept,
-})
+  entries: TrackEntry[],
+): ConfirmationOptions => {
+  const stages = entries
+    .filter((entry) => entry.stage_id)
+    .map((entry) => entry.stage_name ?? 'Unnamed')
+  const stageWarning = stages.length
+    ? entries.length === 1
+      ? `This entry is the current ${stages[0]}. Deleting it will free the ${stages[0]} stage. `
+      : `Deleting these entries will free the following stages: ${stages.join(', ')}. `
+    : ''
+
+  const unlinkNotice =
+    entries.length > 1
+      ? 'These artifacts will be unlinked from current track. This action will not delete the artifacts from the registry. You will be able to still access the artifacts in their collections.'
+      : 'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.'
+
+  return {
+    message: stageWarning + unlinkNotice,
+    header: entries.length > 1 ? `Unlink ${entries.length} artifacts?` : 'Unlink artifact?',
+    rejectProps: {
+      label: 'Cancel',
+    },
+    acceptProps: {
+      label: entries.length > 1 ? 'Unlink artifacts' : 'Unlink artifact',
+      severity: 'warn',
+      outlined: true,
+    },
+    accept,
+  }
+}
 
 export const patchTrackEntryConfirmOptions = (accept: () => void): ConfirmationOptions => ({
   message: 'This action will unlink the stage from the artifact it was previously attached to',

@@ -6,9 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "mlflow>=3.1,<4",
-    "fnnx>=0.0.11",
-    "luml-sdk>=0.2.0,<0.3.0",
-    "luml-api>=0.2.0,<0.3.0",
+    "fnnx>=0.0.12",
+    "luml-sdk>=0.1.0,<0.3.0",
+    "luml-api>=0.1.0,<0.3.0",
     "typer>=0.15.0,<1.0.0",
     "pydantic-settings>=2.12.0",
 ]
@@ -83,7 +83,6 @@ filterwarnings = [
     # `luml_mlflow.store` before mlflow finishes initializing; subsequent
     # `mlflow.set_tracking_uri("luml://...")` calls still resolve correctly.
     "ignore:Failure attempting to register store for scheme \"luml\":UserWarning",
-    "ignore:Failure attempting to register artifact repository for scheme \"luml\":UserWarning",
 ]
 
 [tool.uv.sources]

@@ -240,6 +240,9 @@ class FakeNetwork:
         self.config = config
         self.connected: list[dict[str, Any]] = []
 
+    async def show(self) -> dict[str, Any]:
+        return dict(self.config)
+
     async def connect(self, config: dict[str, Any]) -> None:
         container = self.owner.containers.containers.get(str(config.get("Container") or ""))
         if container is not None and self.name in container.networks:

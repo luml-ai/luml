@@ -45,13 +45,10 @@ export interface TrainingData<T extends ClassificationMetrics | RegressionMetric
   predicted_data_type: PredictedDataType
   test_metrics: T
   train_metrics: T
-  status: TrainingStatus
-  error_message?: string
+  status: 'success'
 }
 
 type PredictedDataType = 'train' | 'test'
-
-type TrainingStatus = 'success' | 'error'
 
 export interface TrainingImportance {
   feature_name: string
@@ -80,8 +77,7 @@ export interface PredictRequestData {
 }
 
 export interface PredictResponse {
-  status: 'success' | 'error'
-  error_message?: string
+  status: 'success'
   predictions: (string | number | object)[]
 }
 
@@ -198,13 +194,6 @@ export interface ForecastingPredictRequest {
 
 export type ForecastPredictedRecord = Record<string, string | number>
 
-export interface WorkerErrorResponse {
-  status: 'error'
-  error_type?: string
-  error_message: string
-  traceback?: string
-}
-
 export interface ForecastingTrainingData {
   status: 'success'
   model_id: string
@@ -215,11 +204,11 @@ export interface ForecastingTrainingData {
   model: object
 }
 
-export type ForecastingTrainResponse = ForecastingTrainingData | WorkerErrorResponse
+export type ForecastingTrainResponse = ForecastingTrainingData
 
 export interface ForecastingPredictSuccess {
   status: 'success'
   forecast: ForecastPredictedRecord[]
 }
 
-export type ForecastingPredictResponse = ForecastingPredictSuccess | WorkerErrorResponse
+export type ForecastingPredictResponse = ForecastingPredictSuccess

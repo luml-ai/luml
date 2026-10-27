@@ -6,7 +6,7 @@
 import { computed } from 'vue'
 import { chartGridColor, chartTextColor, chartTooltipTheme, chartColor } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
-import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING } from '@/lib/charts'
+import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING, escapeChartLabel } from '@/lib/charts'
 import type { Series } from '@/api/types'
 
 const props = withDefaults(
@@ -18,7 +18,7 @@ const hasBaseline = computed(() => (props.series.baseline?.length ?? 0) > 0)
 
 const chartSeries = computed(() => {
   const main = {
-    name: props.series.label,
+    name: escapeChartLabel(props.series.label),
     data: props.series.points.map((point) => [new Date(point.t).getTime(), point.value]),
   }
   if (!hasBaseline.value) return [main]

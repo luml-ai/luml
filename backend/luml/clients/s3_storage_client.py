@@ -145,6 +145,8 @@ class S3Client(BaseStorageClient):
     async def create_multipart_upload(
         self, bucket_location: str, size: int, upload_id: str | None = None
     ) -> S3MultiPartUploadDetails:
+        self.validate_size(size)
+
         if upload_id is None:
             raise ValueError("upload_id is required for S3 multipart uploads")
 

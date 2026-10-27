@@ -42,6 +42,7 @@ class UserOut(BaseModel, BaseOrmConfig):
 
 class CurrentUserOut(UserOut):
     auth_method: AuthProvider
+    hashed_password: str | None = Field(default=None, exclude=True)
 
 
 class CreateUserIn(BaseModel):
@@ -108,21 +109,8 @@ class ChangePasswordIn(BaseModel):
 class UpdateUserIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    password: str | None = None
     full_name: str | None = Field(default=None, max_length=100)
     photo: str | None = Field(default=None, max_length=2048)
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-
-        if len(value) < 8 or len(value) > 128:
-            raise ValueError(
-                "Password must be at least 8 and maximum 128 characters long."
-            )
-        return value
 
     @field_validator("full_name")
     @classmethod

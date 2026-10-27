@@ -5,6 +5,41 @@ SATELLITE_ROOT = REPOSITORY_ROOT / "satellite"
 WORKFLOWS_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
 
 
+def test_compose_store_has_no_published_ports_and_an_isolated_network() -> None:
+    compose = (SATELLITE_ROOT / "docker-compose.yml").read_text()
+    store = compose.split("\n  greptimedb:\n", maxsplit=1)[1].split("\n  otel-collector:\n")[0]
+    collector = compose.split("\n  otel-collector:\n", maxsplit=1)[1].split("\n  model-image:\n")[0]
+    agent = compose.split("\n  agent:\n", maxsplit=1)[1]
+    model = compose.split("\n  model-image:\n", maxsplit=1)[1].split("\n  agent:\n")[0]
+
+    assert "    ports:" not in store
+    assert "      - store-network\n" in store
+    assert "      - satellite-network\n" not in store
+    assert "      - store-network\n" in collector
+    assert "      store-network:" in agent
+    assert "store-network" not in model
+    assert '      df.model-access: "true"\n' in compose.split("\nvolumes:", maxsplit=1)[0]
+
+
+def test_compose_store_requires_credentials_and_passes_them_to_consumers() -> None:
+    compose = (SATELLITE_ROOT / "docker-compose.yml").read_text()
+    store = compose.split("\n  greptimedb:\n", maxsplit=1)[1].split("\n  otel-collector:\n")[0]
+    assert "--user-provider=static_user_provider:cmd:" in store
+    for service in (
+        store,
+        compose.split("\n  otel-collector:\n")[1].split("\n  model-image:\n")[0],
+        compose.split("\n  agent:\n")[1],
+    ):
+        assert "${GREPTIMEDB_USERNAME:?" in service
+        assert "${GREPTIMEDB_PASSWORD:?" in service
+
+    collector = (SATELLITE_ROOT / "otel-collector-config.yaml").read_text()
+    assert "      username: ${env:GREPTIMEDB_USERNAME}\n" in collector
+    assert "      password: ${env:GREPTIMEDB_PASSWORD}\n" in collector
+    assert collector.count("      authenticator: basicauth/client\n") == 2
+    assert "  extensions: [basicauth/client]\n" in collector
+
+
 def test_compose_builds_the_kit_implementation_with_field_install_names() -> None:
     compose = (SATELLITE_ROOT / "docker-compose.yml").read_text()
     agent_service = compose.split("\n  agent:\n", maxsplit=1)[1]

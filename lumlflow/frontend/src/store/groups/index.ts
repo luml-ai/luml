@@ -1,4 +1,5 @@
 import type { GetGroupsParams } from '@/api/api.interface'
+import type { VirtualScrollerLazyEvent } from 'primevue'
 import type { DetailedGroup, Group, UpdateGroupPayload } from './groups.interface'
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
@@ -12,8 +13,15 @@ const DEFAULT_LIMIT = 20
 
 export const useGroupsStore = defineStore('groups', () => {
   const toast = useToast()
-  const { data, getInitialPage, getNextPage, setParams, onLazyLoad, getParams, isLoading } =
-    usePagination<Group, GetGroupsParams>(apiService.getGroups)
+  const {
+    data,
+    getInitialPage,
+    getNextPage: loadNextPage,
+    setParams,
+    onLazyLoad: lazyLoadPage,
+    getParams,
+    isLoading,
+  } = usePagination<Group, GetGroupsParams>(apiService.getGroups)
 
   const selectedGroups = ref<Group[]>([])
   const editableGroup = ref<Group | null>(null)
@@ -36,7 +44,14 @@ export const useGroupsStore = defineStore('groups', () => {
       .map((result) => result.value.id)
     setSelectedGroups([])
     setEditableGroup(null)
-    toast.add(successToast(`${deletedGroupIds.length} groups deleted successfully`))
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        toast.add(errorToast(result.reason))
+      }
+    }
+    if (deletedGroupIds.length) {
+      toast.add(successToast(`${deletedGroupIds.length} groups deleted successfully`))
+    }
     await getInitialPage()
   }
 
@@ -46,6 +61,22 @@ export const useGroupsStore = defineStore('groups', () => {
     setSelectedGroups([])
     setEditableGroup(null)
     toast.add(successToast('Group updated successfully'))
+  }
+
+  async function getNextPage() {
+    try {
+      await loadNextPage()
+    } catch (error) {
+      toast.add(errorToast(error))
+    }
+  }
+
+  async function onLazyLoad(event: VirtualScrollerLazyEvent) {
+    try {
+      await lazyLoadPage(event)
+    } catch (error) {
+      toast.add(errorToast(error))
+    }
   }
 
   function setQueryParams(params: Partial<GetGroupsParams>) {

@@ -1,9 +1,13 @@
 import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
 from luml.handlers.bucket_secrets import BucketSecretHandler
-from luml.infra.exceptions import ApplicationError, NotFoundError
+from luml.infra.exceptions import (
+    ApplicationError,
+    InsufficientPermissionsError,
+    NotFoundError,
+)
 from luml.schemas.bucket_secrets import (
     BucketSecretUpdate,
     BucketSecretUrls,
@@ -18,7 +22,7 @@ from luml.schemas.storage import (
     S3MultiPartUploadDetails,
 )
 
-from tests.support.ids import ORGANIZATION_ID, USER_ID
+from tests.support.ids import ORBIT_ID, ORGANIZATION_ID, USER_ID
 from tests.support.mocks import CollaboratorMocks
 from tests.unit.handlers.bucket_secrets.conftest import (
     FOREIGN_SECRET_ID,
@@ -263,6 +267,7 @@ class TestBucketSecretUrls:
         storage_instance.create_multipart_upload = AsyncMock(return_value=expected)
         service_class = Mock(return_value=storage_instance)
         mocks.secret_repository.get_bucket_secret.return_value = original_secret
+        mocks.artifact_repository.get_pending_upload_orbit.return_value = ORBIT_ID
 
         with patch(
             "luml.handlers.bucket_secrets.create_storage_client",
@@ -272,9 +277,13 @@ class TestBucketSecretUrls:
 
         assert result == expected
         mocks.secret_repository.get_bucket_secret.assert_awaited_once_with(SECRET_ID)
-        mocks.permissions_handler.check_permissions.assert_awaited_once_with(
-            ORGANIZATION_ID, USER_ID, Resource.BUCKET_SECRET, Action.READ
+        mocks.artifact_repository.get_pending_upload_orbit.assert_awaited_once_with(
+            SECRET_ID, ORGANIZATION_ID, bucket_location
         )
+        assert mocks.permissions_handler.check_permissions.await_args_list == [
+            call(ORGANIZATION_ID, USER_ID, Resource.BUCKET_SECRET, Action.READ),
+            call(ORGANIZATION_ID, USER_ID, Resource.ARTIFACT, Action.CREATE, ORBIT_ID),
+        ]
         create_storage_client.assert_called_once_with(original_secret.type)
         service_class.assert_called_once_with(original_secret)
         storage_instance.create_multipart_upload.assert_awaited_once_with(
@@ -303,6 +312,64 @@ class TestBucketSecretUrls:
 
         assert error.value.status_code == 404
         mocks.secret_repository.get_bucket_secret.assert_awaited_once_with(SECRET_ID)
+        create_storage_client.assert_not_called()
+
+    async def test_multipart_urls_reject_location_without_pending_artifact(
+        self, mocks: CollaboratorMocks[BucketSecretHandler]
+    ) -> None:
+        mocks.secret_repository.get_bucket_secret.side_effect = (
+            _scoped_get_bucket_secret
+        )
+        mocks.artifact_repository.get_pending_upload_orbit.return_value = None
+        data = BucketMultipartUpload(
+            bucket_id=SECRET_ID,
+            bucket_location="orbit-OTHER/collection-OTHER/anything.bin",
+            size=629145600,
+            upload_id="upload_id",
+        )
+
+        with (
+            patch(
+                "luml.handlers.bucket_secrets.create_storage_client"
+            ) as create_storage_client,
+            pytest.raises(NotFoundError),
+        ):
+            await mocks.handler.get_bucket_multipart_urls(USER_ID, data)
+
+        mocks.artifact_repository.get_pending_upload_orbit.assert_awaited_once_with(
+            SECRET_ID, ORGANIZATION_ID, data.bucket_location
+        )
+        create_storage_client.assert_not_called()
+
+    async def test_multipart_urls_require_create_access_to_artifact_orbit(
+        self, mocks: CollaboratorMocks[BucketSecretHandler]
+    ) -> None:
+        mocks.secret_repository.get_bucket_secret.side_effect = (
+            _scoped_get_bucket_secret
+        )
+        mocks.artifact_repository.get_pending_upload_orbit.return_value = ORBIT_ID
+        mocks.permissions_handler.check_permissions.side_effect = [
+            None,
+            InsufficientPermissionsError(),
+        ]
+        data = BucketMultipartUpload(
+            bucket_id=SECRET_ID,
+            bucket_location="orbit/collection/model.luml",
+            size=629145600,
+            upload_id="upload_id",
+        )
+
+        with (
+            patch(
+                "luml.handlers.bucket_secrets.create_storage_client"
+            ) as create_storage_client,
+            pytest.raises(InsufficientPermissionsError),
+        ):
+            await mocks.handler.get_bucket_multipart_urls(USER_ID, data)
+
+        mocks.permissions_handler.check_permissions.assert_awaited_with(
+            ORGANIZATION_ID, USER_ID, Resource.ARTIFACT, Action.CREATE, ORBIT_ID
+        )
         create_storage_client.assert_not_called()
 
     async def test_get_existing_bucket_urls_rejects_body_id_differing_from_path(

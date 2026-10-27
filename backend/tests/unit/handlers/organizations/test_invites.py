@@ -3,7 +3,11 @@ from unittest.mock import Mock
 
 import pytest
 from luml.handlers.organizations import OrganizationHandler
-from luml.infra.exceptions import ApplicationError, InsufficientPermissionsError
+from luml.infra.exceptions import (
+    ApplicationError,
+    InsufficientPermissionsError,
+    OrganizationLimitReachedError,
+)
 from luml.models import OrganizationInviteOrm
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -29,6 +33,7 @@ class TestOrganizationInvites:
             (OrgRole.ADMIN, OrgRole.MEMBER),
         ],
     )
+    @pytest.mark.parametrize("email", ["test@example.com", "Test@Example.com"])
     async def test_send_invite_creates_invite_and_sends_email(
         self,
         mocks: CollaboratorMocks[OrganizationHandler],
@@ -36,9 +41,10 @@ class TestOrganizationInvites:
         user_out: UserOut,
         inviter_role: OrgRole,
         invite_role: OrgRole,
+        email: str,
     ) -> None:
         invite_in = CreateOrganizationInviteIn(
-            email=new_invite.email,
+            email=email,
             role=invite_role,
         )
         created_invite = OrganizationInvite(
@@ -67,7 +73,7 @@ class TestOrganizationInvites:
 
         assert result == created_invite
 
-        mocks.email_handler.send_organization_invite_email.assert_called_once_with(
+        mocks.email_handler.send_organization_invite_email.assert_awaited_once_with(
             created_invite.email,
             "",
             "",
@@ -115,14 +121,16 @@ class TestOrganizationInvites:
             Action.CREATE,
         )
 
+    @pytest.mark.parametrize("uppercase", [False, True])
     async def test_send_invite_raises_when_user_invites_themselves(
         self,
         mocks: CollaboratorMocks[OrganizationHandler],
         new_invite: CreateOrganizationInvite,
         user_out: UserOut,
+        uppercase: bool,
     ) -> None:
         invite_in = CreateOrganizationInviteIn(
-            email=user_out.email,
+            email=user_out.email.upper() if uppercase else user_out.email,
             role=new_invite.role,
         )
 
@@ -154,12 +162,16 @@ class TestOrganizationInvites:
             ORGANIZATION_ID, USER_ID, Resource.ORGANIZATION_INVITE, Action.DELETE
         )
 
+    @pytest.mark.parametrize("email", ["test@example.com", "Test@Example.com"])
     async def test_accept_invite_creates_member_and_deletes_user_invites(
         self,
         mocks: CollaboratorMocks[OrganizationHandler],
         new_invite: CreateOrganizationInvite,
+        email: str,
     ) -> None:
-        stored_invite = OrganizationInviteOrm(**new_invite.model_dump())
+        stored_invite = OrganizationInviteOrm(
+            **new_invite.model_dump(exclude={"email"}), email=email
+        )
 
         mocks.invites_repository.get_invite.return_value = stored_invite
         mocks.user_repository.get_user_organizations_limit.return_value = 5
@@ -168,9 +180,7 @@ class TestOrganizationInvites:
             members_limit=50, total_members=0
         )
 
-        await mocks.handler.accept_invite(
-            stored_invite.id, USER_ID, stored_invite.email
-        )
+        await mocks.handler.accept_invite(stored_invite.id, USER_ID, "test@example.com")
         mocks.invites_repository.get_invite.assert_awaited_once_with(stored_invite.id)
         mocks.user_repository.get_organization_details.assert_awaited_once_with(
             stored_invite.organization_id
@@ -186,16 +196,38 @@ class TestOrganizationInvites:
             stored_invite.organization_id, stored_invite.email
         )
 
+    @pytest.mark.parametrize("limit", ["user", "organization"])
+    async def test_accept_invite_at_capacity_preserves_invite_without_membership(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+        invite: OrganizationInvite,
+        limit: str,
+    ) -> None:
+        mocks.invites_repository.get_invite.return_value = invite
+        mocks.user_repository.get_user_organizations_limit.return_value = 2
+        mocks.user_repository.get_user_organizations_membership_count.return_value = (
+            2 if limit == "user" else 1
+        )
+        mocks.user_repository.get_organization_details.return_value = Mock(
+            members_limit=1, total_members=1
+        )
+
+        with pytest.raises(OrganizationLimitReachedError):
+            await mocks.handler.accept_invite(invite.id, USER_ID, invite.email)
+
+        mocks.user_repository.create_organization_member.assert_not_awaited()
+        mocks.invites_repository.delete_organization_invites_for_user.assert_not_awaited()
+
+    @pytest.mark.parametrize("email", ["test@example.com", "Test@Example.com"])
     async def test_reject_invite_deletes_invite(
-        self, mocks: CollaboratorMocks[OrganizationHandler]
+        self, mocks: CollaboratorMocks[OrganizationHandler], email: str
     ) -> None:
         mocks.invites_repository.delete_organization_invite.return_value = None
-        email = "test@example.com"
         mocks.invites_repository.get_invite.return_value = Mock(
             email=email, organization_id=ORGANIZATION_ID
         )
 
-        await mocks.handler.reject_invite(INVITE_ID, email)
+        await mocks.handler.reject_invite(INVITE_ID, "test@example.com")
         mocks.invites_repository.delete_organization_invite.assert_awaited_once_with(
             ORGANIZATION_ID, INVITE_ID
         )

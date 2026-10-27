@@ -7,7 +7,6 @@ from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.organization import (
     OrganizationMember,
-    OrganizationMemberCreateIn,
     UpdateOrganizationMember,
 )
 
@@ -26,17 +25,6 @@ async def get_organization_members(
 ) -> list[OrganizationMember]:
     return await organization_handler.get_organization_members_data(
         request.user.id, organization_id
-    )
-
-
-@members_router.post("", responses=endpoint_responses)
-async def add_member_to_organization(
-    request: Request,
-    organization_id: UUID,
-    member: OrganizationMemberCreateIn,
-) -> OrganizationMember:
-    return await organization_handler.add_organization_member(
-        request.user.id, organization_id, member
     )
 
 

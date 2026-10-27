@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 from luml.schemas.organization import (
     CreateOrganizationInviteIn,
@@ -19,12 +20,13 @@ INVITEE_EMAIL = "invitee@example.com"
 
 
 class TestOrganizationInvites:
+    @pytest.mark.parametrize("email", [INVITEE_EMAIL, "Invitee@Example.com"])
     @patch(
         "luml.handlers.organizations.OrganizationHandler.send_invite",
         new_callable=AsyncMock,
     )
     def test_create_invite_ignores_body_organization_id(
-        self, mock_send_invite: AsyncMock, client: TestClient
+        self, mock_send_invite: AsyncMock, client: TestClient, email: str
     ) -> None:
         mock_send_invite.return_value = OrganizationInvite(
             id=INVITE_ID,
@@ -37,7 +39,7 @@ class TestOrganizationInvites:
         response = client.post(
             f"/v1/organizations/{ORGANIZATION_ID}/invitations",
             json={
-                "email": INVITEE_EMAIL,
+                "email": email,
                 "role": "member",
                 "organization_id": str(OTHER_ORGANIZATION_ID),
             },
@@ -49,3 +51,14 @@ class TestOrganizationInvites:
             ORGANIZATION_ID,
             CreateOrganizationInviteIn(email=INVITEE_EMAIL, role=OrgRole.MEMBER),
         )
+
+    @pytest.mark.parametrize("email", ["invalid", "", "a" * 255 + "@example.com"])
+    def test_create_invite_rejects_invalid_email(
+        self, client: TestClient, email: str
+    ) -> None:
+        response = client.post(
+            f"/v1/organizations/{ORGANIZATION_ID}/invitations",
+            json={"email": email, "role": "member"},
+        )
+
+        assert response.status_code == 422

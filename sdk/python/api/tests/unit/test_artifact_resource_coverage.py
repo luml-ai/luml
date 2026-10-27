@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from luml_api._exceptions import FileError, FileUploadError
+from luml_api._exceptions import FileError, FileUploadError, LumlAPIError
 from luml_api._types import (
     Artifact,
     ArtifactStatus,
@@ -79,10 +79,7 @@ def test_abstract_base_methods_raise_not_implemented() -> None:
 # get by id / _get_by_id
 # --------------------------------------------------------------------------- #
 def test_get_by_uuid(mock_sync_client: Mock, sample_artifact: Artifact) -> None:
-    mock_sync_client.get.return_value = {
-        "items": [sample_artifact.model_dump()],
-        "cursor": None,
-    }
+    mock_sync_client.get.return_value = sample_artifact.model_dump()
     resource = ArtifactResource(mock_sync_client)
 
     artifact = resource.get(VALID_UUID)
@@ -92,7 +89,7 @@ def test_get_by_uuid(mock_sync_client: Mock, sample_artifact: Artifact) -> None:
 
 
 def test_get_by_uuid_not_found(mock_sync_client: Mock) -> None:
-    mock_sync_client.get.return_value = {"items": [], "cursor": None}
+    mock_sync_client.get.return_value = None
     resource = ArtifactResource(mock_sync_client)
 
     assert resource.get("00000000-0000-0000-0000-000000000000") is None
@@ -102,10 +99,7 @@ def test_get_by_uuid_not_found(mock_sync_client: Mock) -> None:
 async def test_async_get_by_uuid(
     mock_async_client: AsyncMock, sample_artifact: Artifact
 ) -> None:
-    mock_async_client.get.return_value = {
-        "items": [sample_artifact.model_dump()],
-        "cursor": None,
-    }
+    mock_async_client.get.return_value = sample_artifact.model_dump()
     resource = AsyncArtifactResource(mock_async_client)
 
     artifact = await resource.get(VALID_UUID)
@@ -116,7 +110,7 @@ async def test_async_get_by_uuid(
 
 @pytest.mark.asyncio
 async def test_async_get_by_uuid_not_found(mock_async_client: AsyncMock) -> None:
-    mock_async_client.get.return_value = {"items": [], "cursor": None}
+    mock_async_client.get.return_value = None
     resource = AsyncArtifactResource(mock_async_client)
 
     assert await resource.get("00000000-0000-0000-0000-000000000000") is None
@@ -221,8 +215,9 @@ async def test_async_upload_invalid_format(mock_async_client: AsyncMock) -> None
 # --------------------------------------------------------------------------- #
 # upload: failure marks artifact UPLOAD_FAILED and re-raises
 # --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("error_type", [FileUploadError, LumlAPIError, ValueError])
 def test_upload_failure_marks_failed(
-    mock_sync_client: Mock, sample_artifact: Artifact
+    mock_sync_client: Mock, sample_artifact: Artifact, error_type: type[Exception]
 ) -> None:
     mock_sync_client.post.return_value = _created_artifact_payload(sample_artifact)
     mock_sync_client.patch.return_value = sample_artifact.model_dump()
@@ -235,18 +230,22 @@ def test_upload_failure_marks_failed(
         handler_cls.return_value.artifact_details.return_value = (
             _artifact_details_mock()
         )
-        service_cls.return_value.upload_file.side_effect = FileUploadError("boom")
+        error = error_type("boom")
+        service_cls.return_value.upload_file.side_effect = error
 
-        with pytest.raises(FileUploadError, match="boom"):
+        with pytest.raises(error_type, match="boom") as caught:
             resource.upload("model.fnnx")
 
+    assert caught.value is error
+    mock_sync_client.patch.assert_called_once()
     patch_json = mock_sync_client.patch.call_args.kwargs["json"]
     assert patch_json["status"] == ArtifactStatus.UPLOAD_FAILED.value
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("error_type", [FileUploadError, LumlAPIError, ValueError])
 async def test_async_upload_failure_marks_failed(
-    mock_async_client: AsyncMock, sample_artifact: Artifact
+    mock_async_client: AsyncMock, sample_artifact: Artifact, error_type: type[Exception]
 ) -> None:
     mock_async_client.post.return_value = _created_artifact_payload(sample_artifact)
     mock_async_client.patch.return_value = sample_artifact.model_dump()
@@ -259,13 +258,14 @@ async def test_async_upload_failure_marks_failed(
         handler_cls.return_value.artifact_details.return_value = (
             _artifact_details_mock()
         )
-        service_cls.return_value.upload_file = AsyncMock(
-            side_effect=FileUploadError("boom")
-        )
+        error = error_type("boom")
+        service_cls.return_value.upload_file = AsyncMock(side_effect=error)
 
-        with pytest.raises(FileUploadError, match="boom"):
+        with pytest.raises(error_type, match="boom") as caught:
             await resource.upload("model.fnnx")
 
+    assert caught.value is error
+    mock_async_client.patch.assert_awaited_once()
     patch_json = mock_async_client.patch.call_args.kwargs["json"]
     assert patch_json["status"] == ArtifactStatus.UPLOAD_FAILED.value
 
@@ -312,7 +312,7 @@ def test_download_resolves_filename_when_path_none(
     mock_sync_client: Mock, sample_artifact: Artifact
 ) -> None:
     mock_sync_client.get.side_effect = [
-        {"items": [sample_artifact.model_dump()], "cursor": None},
+        sample_artifact.model_dump(),
         {"url": "https://example.com/file"},
     ]
     resource = ArtifactResource(mock_sync_client)
@@ -325,7 +325,7 @@ def test_download_resolves_filename_when_path_none(
 
 
 def test_download_artifact_not_found(mock_sync_client: Mock) -> None:
-    mock_sync_client.get.return_value = {"items": [], "cursor": None}
+    mock_sync_client.get.return_value = None
     resource = ArtifactResource(mock_sync_client)
 
     with pytest.raises(ValueError, match="not found"):
@@ -351,7 +351,7 @@ async def test_async_download_resolves_filename_when_path_none(
     mock_async_client: AsyncMock, sample_artifact: Artifact
 ) -> None:
     mock_async_client.get.side_effect = [
-        {"items": [sample_artifact.model_dump()], "cursor": None},
+        sample_artifact.model_dump(),
         {"url": "https://example.com/file"},
     ]
     resource = AsyncArtifactResource(mock_async_client)
@@ -367,7 +367,7 @@ async def test_async_download_resolves_filename_when_path_none(
 async def test_async_download_artifact_not_found(
     mock_async_client: AsyncMock,
 ) -> None:
-    mock_async_client.get.return_value = {"items": [], "cursor": None}
+    mock_async_client.get.return_value = None
     resource = AsyncArtifactResource(mock_async_client)
 
     with pytest.raises(ValueError, match="not found"):

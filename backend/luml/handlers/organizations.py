@@ -27,7 +27,6 @@ from luml.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
-    OrganizationMemberCreateIn,
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
@@ -217,7 +216,7 @@ class OrganizationHandler:
             raise OrganizationInviteNotFoundError()
 
         try:
-            self.__email_handler.send_organization_invite_email(
+            await self.__email_handler.send_organization_invite_email(
                 invite.email if invite else "",
                 get_invited_by_name(invite),
                 get_organization_email_name(invite),
@@ -252,7 +251,7 @@ class OrganizationHandler:
         if not invite:
             raise OrganizationInviteNotFoundError()
 
-        if invite.email != user_email:
+        if invite.email.lower() != user_email.lower():
             raise InsufficientPermissionsError("This invite is not for you")
 
         await self._organization_membership_limit_check(user_id)
@@ -279,7 +278,7 @@ class OrganizationHandler:
         if not invite:
             raise OrganizationInviteNotFoundError()
 
-        if invite.email != user_email:
+        if invite.email.lower() != user_email.lower():
             raise InsufficientPermissionsError("This invite is not for you")
 
         return await self.__invites_repository.delete_organization_invite(
@@ -330,7 +329,7 @@ class OrganizationHandler:
         )
 
         member_to_update = await self.__user_repository.get_organization_member_by_id(
-            member_id
+            organization_id, member_id
         )
 
         if not member_to_update:
@@ -355,7 +354,7 @@ class OrganizationHandler:
             )
 
         return await self.__user_repository.update_organization_member(
-            member_id, member
+            organization_id, member_id, member
         )
 
     async def delete_organization_member_by_id(
@@ -372,7 +371,7 @@ class OrganizationHandler:
         )
 
         member_to_delete = await self.__user_repository.get_organization_member_by_id(
-            member_id
+            organization_id, member_id
         )
 
         if not member_to_delete:
@@ -391,39 +390,6 @@ class OrganizationHandler:
                 "Only Organization Owner can remove admins."
             )
 
-        return await self.__user_repository.delete_organization_member(member_id)
-
-    async def add_organization_member(
-        self,
-        user_id: UUID,
-        organization_id: UUID,
-        member: OrganizationMemberCreateIn,
-    ) -> OrganizationMember:
-        await self.__permissions_handler.check_permissions(
-            organization_id,
-            user_id,
-            Resource.ORGANIZATION_USER,
-            Action.CREATE,
+        return await self.__user_repository.delete_organization_member(
+            organization_id, member_id
         )
-        user_role = await self.__user_repository.get_organization_member_role(
-            organization_id, user_id
-        )
-
-        await self._check_org_members_limit(organization_id)
-
-        if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
-            raise InsufficientPermissionsError(
-                "Only Organization Owner can add new admins."
-            )
-        try:
-            created_member = await self.__user_repository.create_organization_member(
-                OrganizationMemberCreate(
-                    user_id=member.user_id,
-                    organization_id=organization_id,
-                    role=member.role,
-                )
-            )
-        except DatabaseConstraintError as error:
-            raise OrganizationMemberAlreadyExistsError() from error
-
-        return created_member

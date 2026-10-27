@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from luml.handlers.artifacts import ArtifactHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
+from luml.infra.exceptions import ApplicationError
 from luml.schemas.artifacts import (
     Artifact,
     ArtifactCreateIn,
@@ -149,6 +150,11 @@ async def get_artifact_download_url(
 @artifacts_router.get(
     "/collections/{collection_id}/artifacts/{artifact_id}/delete-url",
     responses=endpoint_responses,
+    deprecated=True,
+)
+@artifacts_router.post(
+    "/collections/{collection_id}/artifacts/{artifact_id}/delete-url",
+    responses=endpoint_responses,
 )
 async def get_artifact_delete_url(
     request: Request,
@@ -157,6 +163,11 @@ async def get_artifact_delete_url(
     collection_id: UUID,
     artifact_id: UUID,
 ) -> dict[str, Any]:
+    if request.method == "GET" and not request.headers.get("Authorization"):
+        raise ApplicationError(
+            "Cookie sessions must request delete URLs with POST",
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
     url = await artifacts_handler.request_delete_url(
         request.user.id,
         organization_id,

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import type { Orbit, Organization } from '@/lib/api/api.interfaces'
 import { useOrganizationStore } from '@/stores/organization'
@@ -162,7 +163,7 @@ describe('orbitMiddleware URL selection', () => {
     await orbitMiddleware(to, from, next)
 
     expect(next).toHaveBeenCalledWith({
-      name: 'track',
+      name: 'orbit-tracks',
       params: { organizationId: 'organization-b', id: firstOrbit.id },
     })
   })
@@ -209,5 +210,111 @@ describe('orbitMiddleware for a user who is not signed in', () => {
     await orbitMiddleware(flowRoute, from, next)
 
     expect(next).toHaveBeenCalledWith({ name: 'setup', query: { tab: 'flow' } })
+  })
+})
+
+describe('orbitMiddleware deep-link navigation', () => {
+  const routes = [
+    { name: 'orbit-collections', path: '' },
+    { name: 'orbit-tracks', path: '/tracks' },
+    { name: 'orbit-deployments', path: '/deployments' },
+    { name: 'orbit-satellites', path: '/satellites' },
+    { name: 'orbit-secrets', path: '/secrets' },
+    { name: 'track', path: '/tracks/:trackId' },
+    { name: 'collection', path: '/collection/:collectionId' },
+    { name: 'artifact', path: '/collection/:collectionId/artifacts/:artifactId' },
+    { name: 'dataset', path: '/collection/:collectionId/artifacts/:artifactId/data' },
+    { name: 'deployment-schema', path: '/deployments/:deploymentId/schema' },
+    { name: 'deployment-monitoring', path: '/deployments/:deploymentId/monitoring' },
+  ]
+
+  function createTestRouter() {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { name: 'setup', path: '/setup', component: {} },
+        ...routes.map(({ name, path }) => ({
+          name,
+          path: `/organization/:organizationId/orbit/:id${path}`,
+          component: {},
+        })),
+      ],
+    })
+    router.beforeEach((to, from, next) => {
+      if (to.name === 'setup') return next()
+      return orbitMiddleware(to, from, next)
+    })
+    return router
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.resetAllMocks()
+    useOrganizationStore().availableOrganizations = organizations
+    useOrganizationStore().setCurrentOrganizationId('organization-b')
+    useOrbitsStore().orbitsList = [firstOrbit, urlOrbit]
+    vi.mocked(api.getOrganizationOrbits).mockResolvedValue([])
+  })
+
+  it.each([
+    ['/collection/collection-missing', 'orbit-collections', ''],
+    ['/collection/collection-missing/artifacts/artifact-missing', 'orbit-collections', ''],
+    ['/collection/collection-missing/artifacts/artifact-missing/data', 'orbit-collections', ''],
+    ['/tracks/track-missing', 'orbit-tracks', '/tracks'],
+    ['/deployments/deployment-missing/schema', 'orbit-deployments', '/deployments'],
+    ['/deployments/deployment-missing/monitoring', 'orbit-deployments', '/deployments'],
+    ['', 'orbit-collections', ''],
+    ['/tracks', 'orbit-tracks', '/tracks'],
+    ['/deployments', 'orbit-deployments', '/deployments'],
+    ['/satellites', 'orbit-satellites', '/satellites'],
+    ['/secrets', 'orbit-secrets', '/secrets'],
+  ])('redirects a missing orbit at %s to %s', async (path, name, tabPath) => {
+    const router = createTestRouter()
+
+    await router.push(`/organization/organization-b/orbit/missing${path}`)
+
+    expect(router.currentRoute.value.name).toBe(name)
+    expect(router.currentRoute.value.path).toBe(
+      `/organization/organization-b/orbit/${firstOrbit.id}${tabPath}`,
+    )
+    expect(router.currentRoute.value.params).toEqual({
+      organizationId: 'organization-b',
+      id: firstOrbit.id,
+    })
+    expect(useOrbitsStore().currentOrbit).toEqual(firstOrbit)
+  })
+
+  it('preserves resource parameters when the URL orbit exists', async () => {
+    const router = createTestRouter()
+    const path = `/organization/organization-b/orbit/${urlOrbit.id}/collection/collection-b/artifacts/artifact-b`
+
+    await router.push(path)
+
+    expect(router.currentRoute.value.path).toBe(path)
+    expect(router.currentRoute.value.name).toBe('artifact')
+    expect(router.currentRoute.value.params).toEqual({
+      organizationId: 'organization-b',
+      id: urlOrbit.id,
+      collectionId: 'collection-b',
+      artifactId: 'artifact-b',
+    })
+    expect(useOrbitsStore().currentOrbit).toEqual(urlOrbit)
+  })
+
+  it.each([
+    ['/collection/collection-missing/artifacts/artifact-missing', 'registry'],
+    ['/tracks/track-missing', 'registry'],
+    ['/deployments/deployment-missing/monitoring', 'deployments'],
+    ['/deployments', 'deployments'],
+    ['/satellites', 'satellites'],
+  ])('redirects %s to setup when no orbit is available', async (path, tab) => {
+    useOrbitsStore().orbitsList = []
+    const router = createTestRouter()
+
+    await router.push(`/organization/organization-b/orbit/missing${path}`)
+
+    expect(router.currentRoute.value.name).toBe('setup')
+    expect(router.currentRoute.value.query).toEqual({ tab })
   })
 })

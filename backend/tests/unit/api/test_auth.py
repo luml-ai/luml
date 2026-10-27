@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from luml.schemas.auth import Token
 from luml.schemas.user import AuthProvider, ChangePasswordIn, CurrentUserOut
 
 from tests.support.auth import CALLER_EMAIL
@@ -11,12 +12,17 @@ UPDATE_PROFILE_PATH = "/v1/auth/users/me"
 
 
 class TestAuth:
-    @pytest.mark.parametrize("field", ["disabled", "auth_method"])
+    @pytest.mark.parametrize("field", ["disabled", "auth_method", "password"])
     @patch("luml.api.auth.auth_handler.update_user", new_callable=AsyncMock)
     def test_update_profile_rejects_protected_fields(
         self, mock_update_user: AsyncMock, field: str, client: TestClient
     ) -> None:
-        value: bool | str = True if field == "disabled" else "GOOGLE"
+        values: dict[str, bool | str] = {
+            "disabled": True,
+            "auth_method": "GOOGLE",
+            "password": "new-password",
+        }
+        value = values[field]
 
         response = client.patch(UPDATE_PROFILE_PATH, json={field: value})
 
@@ -45,6 +51,11 @@ class TestAuth:
     def test_change_password(
         self, mock_change_password: AsyncMock, client: TestClient
     ) -> None:
+        mock_change_password.return_value = Token(
+            access_token="fresh-access",
+            refresh_token="fresh-refresh",
+            token_type="bearer",
+        )
         response = client.post(
             "/v1/auth/change-password",
             json={
@@ -55,6 +66,9 @@ class TestAuth:
 
         assert response.status_code == 200
         assert response.json() == {"detail": "Password changed successfully"}
+        cookies = "\n".join(response.headers.get_list("set-cookie"))
+        assert "access_token=fresh-access" in cookies
+        assert "refresh_token=fresh-refresh" in cookies
         mock_change_password.assert_awaited_once_with(
             CALLER_EMAIL,
             ChangePasswordIn(
@@ -93,3 +107,48 @@ class TestAuth:
         assert response.status_code == 200
         assert response.json()["auth_method"] == "EMAIL"
         mock_get_current_user.assert_awaited_once_with(CALLER_EMAIL)
+
+
+@pytest.mark.parametrize("path", ["/v1/auth/refresh", "/v1/auth/logout"])
+@pytest.mark.parametrize("authorization", [None, "Bearer ignored-token"])
+@patch("luml.api.auth.auth_handler.handle_refresh_token", new_callable=AsyncMock)
+@patch("luml.api.auth.auth_handler.handle_logout", new_callable=AsyncMock)
+def test_refresh_and_logout_reject_cross_site_cookies(
+    mock_logout: AsyncMock,
+    mock_refresh: AsyncMock,
+    path: str,
+    authorization: str | None,
+    client: TestClient,
+) -> None:
+    client.cookies.set("refresh_token", "refresh-cookie")
+    headers = {"Origin": "https://evil.example"}
+    if authorization:
+        headers["Authorization"] = authorization
+
+    response = client.post(path, headers=headers)
+
+    assert response.status_code == 403
+    mock_logout.assert_not_awaited()
+    mock_refresh.assert_not_awaited()
+
+
+@patch("luml.api.auth.auth_handler.update_user", new_callable=AsyncMock)
+def test_cookie_profile_mutation_requires_trusted_origin(
+    mock_update: AsyncMock, client: TestClient
+) -> None:
+    client.cookies.set("access_token", "access-cookie")
+
+    response = client.patch(UPDATE_PROFILE_PATH, json={"full_name": "updated"})
+
+    assert response.status_code == 403
+    mock_update.assert_not_awaited()
+
+    mock_update.return_value = True
+    response = client.patch(
+        UPDATE_PROFILE_PATH,
+        json={"full_name": "updated"},
+        headers={"Origin": "https://app.luml.ai"},
+    )
+
+    assert response.status_code == 200
+    mock_update.assert_awaited_once()

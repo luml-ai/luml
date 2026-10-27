@@ -1,16 +1,30 @@
 import asyncio
 import uuid
+from unittest.mock import AsyncMock
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from luml.handlers.artifacts import ArtifactHandler
+from luml.handlers.permissions import PermissionsHandler
+from luml.infra.security import JWTAuthenticationBackend
+from luml.models import AuthUser
 from luml.repositories.artifacts import ArtifactRepository
+from luml.repositories.collections import CollectionRepository
 from luml.repositories.lineage import LineageRepository
+from luml.repositories.orbits import OrbitRepository
+from luml.repositories.users import UserRepository
 from luml.schemas.artifacts import (
     ArtifactCreate,
     ArtifactListed,
+    ArtifactStatus,
+    Manifest,
 )
 from luml.schemas.lineage import LineageVia
+from luml.schemas.storage import S3UploadDetails
+from luml.schemas.user import UpdateUser
+from luml.service import AppService
 from sqlalchemy.ext.asyncio import AsyncEngine
+from starlette.authentication import AuthCredentials
 
 from tests.support.builders import create_artifact
 from tests.support.seeds import CollectionFixtureData
@@ -25,6 +39,17 @@ def handler(engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch) -> ArtifactHan
         ArtifactHandler,
         "_ArtifactHandler__lineage_repository",
         LineageRepository(engine),
+    )
+    monkeypatch.setattr(
+        ArtifactHandler, "_ArtifactHandler__user_repository", UserRepository(engine)
+    )
+    monkeypatch.setattr(
+        ArtifactHandler, "_ArtifactHandler__orbit_repository", OrbitRepository(engine)
+    )
+    monkeypatch.setattr(
+        ArtifactHandler,
+        "_ArtifactHandler__collection_repository",
+        CollectionRepository(engine),
     )
     return ArtifactHandler()
 
@@ -41,6 +66,102 @@ async def _get_listed_artifacts(
 
 
 class TestArtifactHandler:
+    @pytest.mark.parametrize("full_name", ["Test User", None])
+    @pytest.mark.parametrize(
+        ("name_fields", "expected_name"),
+        [
+            ({"name": "Named Artifact"}, "Named Artifact"),
+            ({}, "model.luml"),
+            ({"name": None}, "model.luml"),
+            ({"name": ""}, "model.luml"),
+        ],
+        ids=["named", "omitted-name", "null-name", "empty-name"],
+    )
+    async def test_create_artifact_route_persists_optional_name_fallbacks(
+        self,
+        handler: ArtifactHandler,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        monkeypatch: pytest.MonkeyPatch,
+        manifest: Manifest,
+        full_name: str | None,
+        name_fields: dict[str, str | None],
+        expected_name: str,
+    ) -> None:
+        data = seeded_collection
+        await UserRepository(engine).update_user(
+            UpdateUser(email=data.user.email, full_name=full_name)
+        )
+        monkeypatch.setattr(PermissionsHandler, "check_permissions", AsyncMock())
+        monkeypatch.setattr(
+            JWTAuthenticationBackend,
+            "authenticate",
+            AsyncMock(
+                return_value=(
+                    AuthCredentials(["authenticated", "jwt"]),
+                    AuthUser(user_id=data.user.id, email=data.user.email),
+                )
+            ),
+        )
+        upload_details = S3UploadDetails(
+            url="https://storage.example/upload",
+            bucket_location="upload/location",
+            bucket_secret_id=data.bucket_secret.id,
+        )
+        monkeypatch.setattr(
+            ArtifactHandler,
+            "_get_storage_client",
+            AsyncMock(
+                return_value=AsyncMock(
+                    create_upload=AsyncMock(return_value=upload_details)
+                )
+            ),
+        )
+        payload = {
+            "file_name": "model.luml",
+            "extra_values": {},
+            "manifest": manifest.model_dump(mode="json"),
+            "file_hash": "hash",
+            "file_index": dict.fromkeys(
+                [
+                    "dtypes.json",
+                    "env.json",
+                    "manifest.json",
+                    "meta.json",
+                    "ops.json",
+                    "variant_config.json",
+                ],
+                [0, 1],
+            ),
+            "size": 10,
+            **name_fields,
+        }
+        async with AsyncClient(
+            transport=ASGITransport(app=AppService(), raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                f"/v1/organizations/{data.organization.id}/orbits/{data.orbit.id}"
+                f"/collections/{data.collection.id}/artifacts",
+                json=payload,
+            )
+
+        assert response.status_code == 200
+        created = response.json()["artifact"]
+        expected_creator = data.user.email if full_name is None else "Test User"
+        assert created["name"] == expected_name
+        assert created["created_by_user"] == expected_creator
+        assert created["status"] == ArtifactStatus.PENDING_UPLOAD
+        assert response.json()["upload_details"] == upload_details.model_dump(
+            mode="json"
+        )
+        persisted = await ArtifactRepository(engine).get_artifact(
+            uuid.UUID(created["id"])
+        )
+        assert persisted is not None
+        assert persisted.name == expected_name
+        assert persisted.created_by_user == expected_creator
+
     async def test_delete_artifact_removes_component_when_last_two_deleted_concurrently(
         self,
         handler: ArtifactHandler,

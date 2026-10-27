@@ -1,7 +1,10 @@
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
+from kubernetes_asyncio.client.exceptions import ApiException
 from luml_satellite import StartStatus, TokenDeriver, WorkloadState
 from luml_satellite.container import (
     KUBERNETES_DEPLOYMENT_LABEL,
@@ -72,6 +75,180 @@ async def test_shared_cache_without_a_claim_fails_before_applying_an_object() ->
     assert result.reason == "Shared cache unavailable"
     assert "shared cache claim" in (result.error or "")
     assert api.apply_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["plain", "secret"])
+@pytest.mark.parametrize(
+    "name",
+    ["", "1VAR", "MY-VAR", "MY.VAR", "MY VAR", "VAR\n", " VAR", "VAR=", "éVAR", "VARé"],
+)
+async def test_start_rejects_invalid_environment_names_before_applying(
+    source: str,
+    name: str,
+) -> None:
+    config = configuration()
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    variables = {"VALID": "value", name: "private-env-value"}
+
+    result = await driver.start(
+        deployment(env_variables=variables if source == "plain" else {}),
+        start_context(config, secrets=variables if source == "secret" else {}),
+    )
+
+    assert result.status is StartStatus.FAILED
+    assert result.reason == "Invalid environment variable name"
+    assert repr(name) in (result.error or "")
+    assert "[A-Za-z_][A-Za-z0-9_]*" in (result.error or "")
+    assert "private-env-value" not in (result.error or "")
+    assert api.apply_calls == []
+    assert api.delete_calls == []
+    assert api.objects == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["plain", "secret"])
+@pytest.mark.parametrize("name", ["_", "_1", "a", "Z", "lower_case", "UPPER_CASE", "Var123"])
+async def test_start_accepts_valid_environment_names(source: str, name: str) -> None:
+    config = configuration()
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    variables = {name: "value"}
+
+    result = await driver.start(
+        deployment(env_variables=variables if source == "plain" else {}),
+        start_context(config, secrets=variables if source == "secret" else {}),
+    )
+
+    assert result.status is StartStatus.IN_PROGRESS
+    workload = _workload(api)
+    model = next(
+        item
+        for item in workload["spec"]["template"]["spec"]["containers"]
+        if item["name"] == "model"
+    )
+    assert name in {item["name"] for item in model["env"]}
+    assert len(api.apply_calls) == 4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failed_kind", ["Secret", "Deployment", "Service", "Ingress"])
+@pytest.mark.parametrize("persist_failed_object", [False, True])
+async def test_start_cleans_up_new_objects_on_apply_failure(
+    failed_kind: str,
+    persist_failed_object: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = configuration()
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    original_apply = api.apply
+
+    async def apply(manifest: Mapping[str, Any]) -> None:
+        if manifest["kind"] == failed_kind:
+            if persist_failed_object:
+                await original_apply(manifest)
+            error = ApiException(status=422, reason="Invalid resource")
+            error.body = b'{"stringData": {"model.VAR": "private-env-value"}}'
+            raise error
+        await original_apply(manifest)
+
+    monkeypatch.setattr(api, "apply", apply)
+
+    result = await driver.start(deployment(), start_context(config))
+
+    assert result.status is StartStatus.FAILED
+    assert result.reason == "Kubernetes resource apply failed"
+    assert failed_kind in (result.error or "")
+    assert "private-env-value" not in (result.error or "")
+    assert api.objects == {}
+    order = ["Secret", "Deployment", "Service", "Ingress"]
+    attempted = order[: order.index(failed_kind) + 1]
+    name = deployment_object_name(DEPLOYMENT_ID)
+    assert api.delete_calls == [(kind, name) for kind in reversed(attempted)]
+
+
+@pytest.mark.asyncio
+async def test_failed_reapplication_keeps_existing_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    driver, api = await _started_driver(auto_ready=True)
+    original_apply = api.apply
+
+    async def apply(manifest: Mapping[str, Any]) -> None:
+        if manifest["kind"] == "Deployment":
+            raise RuntimeError("apply failed")
+        await original_apply(manifest)
+
+    monkeypatch.setattr(api, "apply", apply)
+
+    result = await driver.start(deployment(), start_context(driver.configuration))
+
+    assert result.status is StartStatus.FAILED
+    assert api.delete_calls == []
+    assert len(api.objects) == 4
+    assert (await driver.observe(DEPLOYMENT_ID)).state is WorkloadState.READY
+
+
+@pytest.mark.asyncio
+async def test_failed_start_cleans_up_new_objects_but_keeps_an_existing_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    driver, api = await _started_driver()
+    api.objects = {key: value for key, value in api.objects.items() if key[0] == "Secret"}
+    original_apply = api.apply
+
+    async def apply(manifest: Mapping[str, Any]) -> None:
+        if manifest["kind"] == "Service":
+            raise RuntimeError("apply failed")
+        await original_apply(manifest)
+
+    monkeypatch.setattr(api, "apply", apply)
+
+    result = await driver.start(deployment(), start_context(driver.configuration))
+
+    assert result.status is StartStatus.FAILED
+    assert [kind for kind, _ in api.objects] == ["Secret"]
+    assert [kind for kind, _ in api.delete_calls] == ["Service", "Deployment"]
+
+
+@pytest.mark.asyncio
+async def test_apply_cleanup_continues_after_a_delete_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    config = configuration()
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    original_apply = api.apply
+    original_delete = api.delete
+
+    async def apply(manifest: Mapping[str, Any]) -> None:
+        if manifest["kind"] == "Ingress":
+            raise RuntimeError("API response containing private-env-value")
+        await original_apply(manifest)
+
+    async def delete(kind: str, name: str) -> bool:
+        if kind == "Service":
+            raise RuntimeError("cleanup response containing private-env-value")
+        return await original_delete(kind, name)
+
+    monkeypatch.setattr(api, "apply", apply)
+    cleanup = AsyncMock(side_effect=delete)
+    monkeypatch.setattr(api, "delete", cleanup)
+
+    result = await driver.start(deployment(), start_context(config))
+
+    assert result.status is StartStatus.FAILED
+    assert result.reason == "Kubernetes resource apply failed"
+    assert "Ingress" in (result.error or "")
+    assert "cleanup failed" in (result.error or "")
+    assert "Service" in (result.error or "")
+    assert "private-env-value" not in (result.error or "")
+    assert "private-env-value" not in caplog.text
+    assert [kind for kind, _ in api.objects] == ["Service"]
+    assert cleanup.await_count == 4
 
 
 @pytest.mark.asyncio

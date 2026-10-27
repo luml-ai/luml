@@ -15,6 +15,11 @@ uses) or doesn't, depending on what the test wants to verify.
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -207,6 +212,180 @@ class TestRunManagerProcessLifecycle:
         joined = " ".join(line for _, line in lines)
         assert "hi out" in joined
         assert "hi err" in joined
+
+    async def test_streams_output_before_exit(
+        self, tmp_path: Path, tracker: ExperimentTracker
+    ) -> None:
+        release = tmp_path / "release"
+        script = _write_script(
+            tmp_path,
+            f"""
+import sys
+import time
+from pathlib import Path
+print("live stdout")
+print("live stderr", file=sys.stderr)
+while not Path({str(release)!r}).exists():
+    time.sleep(0.01)
+sys.stdout.write("final stdout")
+sys.stderr.write("final stderr")
+""",
+        )
+        lines: list[tuple[str, str]] = []
+        exit_codes: list[int | None] = []
+        manager = RunManager(
+            spec=RunSpec(script=str(script)),
+            tracker=tracker,
+            store_uri=_store_uri_for(tracker),
+            on_line=lambda stream, line: lines.append((stream, line)),
+            on_exit=lambda code: exit_codes.append(code),
+        )
+        try:
+            await manager.start()
+            async with asyncio.timeout(5):
+                while len(lines) < 2:
+                    await asyncio.sleep(0.01)
+            assert manager.is_running
+            assert ("stdout", "live stdout") in lines
+            assert ("stderr", "live stderr") in lines
+            release.touch()
+            async with asyncio.timeout(5):
+                while not exit_codes:
+                    await asyncio.sleep(0.01)
+            assert exit_codes == [0]
+            assert ("stdout", "final stdout") in lines
+            assert ("stderr", "final stderr") in lines
+        finally:
+            release.touch()
+            await manager.terminate(kill_after=0.1)
+
+    def test_child_survives_parent_exit(
+        self, tmp_path: Path, tracker: ExperimentTracker
+    ) -> None:
+        release = tmp_path / "release"
+        done = tmp_path / "done"
+        pid_file = tmp_path / "pid"
+        log_dir_file = tmp_path / "log-dir"
+        script = _write_script(
+            tmp_path,
+            f"""
+import os
+import sys
+import time
+from pathlib import Path
+Path({str(pid_file)!r}).write_text(str(os.getpid()))
+print("before detach", flush=True)
+while not Path({str(release)!r}).exists():
+    time.sleep(0.01)
+for i in range(100):
+    print("after detach stdout", i, flush=True)
+    print("after detach stderr", i, file=sys.stderr, flush=True)
+Path({str(done)!r}).touch()
+""",
+        )
+        parent = _write_script(
+            tmp_path,
+            textwrap.dedent(f"""
+                import asyncio
+                from pathlib import Path
+                from luml.experiments.tracker import ExperimentTracker
+                from lumlflow.tui.run_manager import RunManager, RunSpec
+
+                async def main():
+                    manager = RunManager(
+                        spec=RunSpec(script={str(script)!r}),
+                        tracker=ExperimentTracker({_store_uri_for(tracker)!r}),
+                        store_uri={_store_uri_for(tracker)!r},
+                        on_line=lambda *_: None,
+                        on_exit=lambda _: None,
+                    )
+                    await manager.start()
+                    while not Path({str(pid_file)!r}).exists():
+                        await asyncio.sleep(0.01)
+                    Path({str(log_dir_file)!r}).write_text(
+                        str(getattr(manager.state, "log_dir", None))
+                    )
+
+                asyncio.run(main())
+            """),
+            name="parent.py",
+        )
+        try:
+            result = subprocess.run(
+                [sys.executable, str(parent)], capture_output=True, timeout=10
+            )
+            assert result.returncode == 0, result.stderr.decode()
+            pid = int(pid_file.read_text())
+            os.kill(pid, 0)
+            release.touch()
+            import time
+
+            deadline = time.monotonic() + 5
+            while not done.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert done.exists(), "detached child failed to finish after parent exit"
+            log_dir = Path(log_dir_file.read_text())
+            assert "after detach stdout 99" in (log_dir / "stdout.log").read_text()
+            assert "after detach stderr 99" in (log_dir / "stderr.log").read_text()
+        finally:
+            if pid_file.exists():
+                try:
+                    os.killpg(int(pid_file.read_text()), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    async def test_unwritable_log_directory_reports_failure(
+        self, tmp_path: Path, tracker: ExperimentTracker, monkeypatch
+    ) -> None:
+        home_file = tmp_path / "not-a-directory"
+        home_file.touch()
+        monkeypatch.setattr(Path, "home", lambda: home_file)
+        exit_codes: list[int | None] = []
+        manager = RunManager(
+            spec=RunSpec(script="/dev/null"),
+            tracker=tracker,
+            store_uri=_store_uri_for(tracker),
+            on_line=lambda *_: None,
+            on_exit=exit_codes.append,
+        )
+        await manager.start()
+        assert not manager.is_running
+        assert manager.state.finished
+        assert manager.state.error_message
+        assert exit_codes and exit_codes[0] not in (0, None)
+
+    async def test_terminate_escalates_and_waits_for_exit(
+        self, tmp_path: Path, tracker: ExperimentTracker
+    ) -> None:
+        ready = tmp_path / "ready"
+        script = _write_script(
+            tmp_path,
+            f"""
+import signal
+import time
+from pathlib import Path
+signal.signal(signal.SIGINT, signal.SIG_IGN)
+Path({str(ready)!r}).touch()
+while True:
+    time.sleep(0.1)
+""",
+        )
+        manager = RunManager(
+            spec=RunSpec(script=str(script)),
+            tracker=tracker,
+            store_uri=_store_uri_for(tracker),
+            on_line=lambda *_: None,
+            on_exit=lambda _: None,
+        )
+        try:
+            await manager.start()
+            async with asyncio.timeout(5):
+                while not ready.exists():
+                    await asyncio.sleep(0.01)
+            await manager.terminate(kill_after=0.05)
+            assert not manager.is_running
+        finally:
+            await manager.terminate(kill_after=0.1)
 
     @pytest.mark.asyncio
     async def test_missing_script_reports_non_zero_exit(
@@ -491,6 +670,74 @@ class TestRunAttachFailure:
 
 
 class TestRunAttachLifecycle:
+    @pytest.mark.parametrize("choice", ["escape", "enter", "t"])
+    async def test_quit_prompt_cancel_detach_or_terminate(
+        self,
+        tmp_path: Path,
+        tracker: ExperimentTracker,
+        facade: DataFacade,
+        choice: str,
+    ) -> None:
+        release = tmp_path / "release"
+        script = _write_script(
+            tmp_path,
+            f"""
+import time
+from pathlib import Path
+print("ready", flush=True)
+while not Path({str(release)!r}).exists():
+    time.sleep(0.01)
+print("finished after detach", flush=True)
+""",
+        )
+        app = LumlflowApp(
+            facade=facade,
+            run_spec=RunSpec(script=str(script)),
+            store_uri=_store_uri_for(tracker),
+        )
+        manager = None
+        try:
+            async with app.run_test() as pilot:
+                await _wait_until(lambda: app.has_active_run, pilot=pilot)
+                assert app._active_run_screen is not None
+                manager = app._active_run_screen._run
+                assert manager is not None
+                await app.action_quit()
+                await pilot.pause()
+                labels = " ".join(
+                    str(node.render()) for node in app.screen.query("Static")
+                )
+                assert "Quit (detach)" in labels
+                assert "Terminate" in labels
+                assert "Cancel" in labels
+                assert str(manager.state.log_dir) in labels
+                await pilot.press(choice)
+                await pilot.pause()
+                if choice == "escape":
+                    assert isinstance(app.screen, RunAttachScreen)
+                    assert manager.is_running
+                    assert not app._quit_in_progress
+                elif choice == "enter":
+                    assert manager.is_running
+                    assert manager.state.detach_only
+                else:
+                    assert not manager.is_running
+            if choice == "enter":
+                assert manager.is_running
+                release.touch()
+                async with asyncio.timeout(5):
+                    while manager.is_running:
+                        await asyncio.sleep(0.01)
+                assert manager.state.log_dir is not None
+                assert (
+                    "finished after detach"
+                    in (manager.state.log_dir / "stdout.log").read_text()
+                )
+        finally:
+            release.touch()
+            if manager is not None:
+                await manager.terminate(kill_after=0.1)
+
     async def test_stop_run_terminates_process(
         self,
         tmp_path: Path,

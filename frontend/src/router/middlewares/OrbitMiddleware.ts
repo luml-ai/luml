@@ -2,10 +2,20 @@ import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'
-import { ROUTE_TO_TAB, TAB_TO_ROUTE } from '@/constants/orbit-navigation'
+import {
+  ORBIT_TAB_ROUTES,
+  RESOURCE_ROUTE_TO_TAB_ROUTE,
+  ROUTE_TO_TAB,
+  TAB_TO_ROUTE,
+} from '@/constants/orbit-navigation'
 
 function toSetup(next: NavigationGuardNext, tab: string) {
   return next({ name: 'setup', query: { tab } })
+}
+
+function orbitTabRoute(routeName: string) {
+  if (ORBIT_TAB_ROUTES.includes(routeName)) return routeName
+  return RESOURCE_ROUTE_TO_TAB_ROUTE[routeName] ?? TAB_TO_ROUTE.registry
 }
 
 export async function orbitMiddleware(
@@ -17,7 +27,8 @@ export async function orbitMiddleware(
   const orbitsStore = useOrbitsStore()
   const organizationStore = useOrganizationStore()
 
-  const targetTab = ROUTE_TO_TAB[to.name as string] ?? 'registry'
+  const tabRoute = orbitTabRoute(to.name as string)
+  const targetTab = ROUTE_TO_TAB[tabRoute] ?? 'registry'
 
   if (!authStore.isAuth) {
     return toSetup(next, targetTab)
@@ -65,7 +76,7 @@ export async function orbitMiddleware(
   const firstOrbit = orbitsStore.orbitsList[0]
   if (firstOrbit) {
     return next({
-      name: to.name as string,
+      name: tabRoute,
       params: { organizationId: urlOrgId, id: firstOrbit.id },
     })
   }

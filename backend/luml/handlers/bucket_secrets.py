@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from luml.clients.storage_factory import create_storage_client
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
@@ -9,9 +11,11 @@ from luml.infra.exceptions import (
     DatabaseConstraintError,
     NotFoundError,
 )
+from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.schemas.bucket_secrets import (
     AzureBucketSecretCreate,
+    AzureBucketSecretCreateIn,
     BucketSecret,
     BucketSecretCreateIn,
     BucketSecretOut,
@@ -21,6 +25,7 @@ from luml.schemas.bucket_secrets import (
     BucketType,
     S3BucketSecretCreate,
     S3BucketSecretCreateIn,
+    azure_public_endpoint,
     validate_bucket_secret_out,
 )
 from luml.schemas.permissions import Action, Resource
@@ -33,6 +38,7 @@ from luml.schemas.storage import (
 
 class BucketSecretHandler:
     __secret_repository = BucketSecretRepository(engine)
+    __artifact_repository = ArtifactRepository(engine)
     __permissions_handler = PermissionsHandler()
 
     _AZURE_FORBIDDEN_FIELDS = {
@@ -114,6 +120,7 @@ class BucketSecretHandler:
         if not existing:
             raise NotFoundError("Secret not found")
 
+        update_data = secret.model_dump(exclude_unset=True, exclude={"id", "type"})
         if existing.type == BucketType.AZURE:
             set_fields = secret.model_fields_set & self._AZURE_FORBIDDEN_FIELDS
             if set_fields:
@@ -122,18 +129,22 @@ class BucketSecretHandler:
                     f"for Azure bucket secrets",
                     400,
                 )
+            if secret.endpoint == azure_public_endpoint(existing.endpoint):
+                update_data.pop("endpoint", None)
+            elif secret.endpoint is not None:
+                try:
+                    AzureBucketSecretCreateIn(
+                        endpoint=secret.endpoint, bucket_name=existing.bucket_name
+                    )
+                except ValidationError as error:
+                    raise ApplicationError(
+                        "Invalid Azure connection string", 400
+                    ) from error
 
         secret_update = BucketSecretUpdate(
             id=secret_id,
             type=existing.type,
-            endpoint=secret.endpoint,
-            bucket_name=secret.bucket_name,
-            access_key=secret.access_key,
-            secret_key=secret.secret_key,
-            session_token=secret.session_token,
-            secure=secret.secure,
-            region=secret.region,
-            cert_check=secret.cert_check,
+            **update_data,
         )
         try:
             db_secret = await self.__secret_repository.update_bucket_secret(
@@ -206,9 +217,13 @@ class BucketSecretHandler:
         if secret.type is not None and original_secret.type != secret.type:
             raise ApplicationError("Bucket type cannot be changed", 400)
 
-        updated_secret = original_secret.model_copy(
-            update=secret.model_dump(exclude_unset=True, exclude={"id"})
-        )
+        update_data = secret.model_dump(exclude_unset=True, exclude={"id"})
+        if (
+            original_secret.type == BucketType.AZURE
+            and secret.endpoint == azure_public_endpoint(original_secret.endpoint)
+        ):
+            update_data.pop("endpoint", None)
+        updated_secret = original_secret.model_copy(update=update_data)
 
         return await self.generate_bucket_urls(updated_secret)
 
@@ -222,6 +237,16 @@ class BucketSecretHandler:
 
         await self.__permissions_handler.check_permissions(
             secret.organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
+        )
+
+        orbit_id = await self.__artifact_repository.get_pending_upload_orbit(
+            data.bucket_id, secret.organization_id, data.bucket_location
+        )
+        if orbit_id is None:
+            raise NotFoundError("Pending upload artifact not found")
+
+        await self.__permissions_handler.check_permissions(
+            secret.organization_id, user_id, Resource.ARTIFACT, Action.CREATE, orbit_id
         )
 
         storage_service = create_storage_client(secret.type)(secret)  # type: ignore[arg-type]

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import type { ForecastingTrainingData } from '@/lib/data-processing/interfaces'
 
 const { toastAddMock, downloadMock } = vi.hoisted(() => ({
@@ -130,11 +130,8 @@ describe('useForecastingTraining startTraining', () => {
     expect(toastAddMock).not.toHaveBeenCalled()
   })
 
-  it('raises an error toast and stays unsuccessful on a worker error payload', async () => {
-    startTrainingMock.mockResolvedValue({
-      status: 'error',
-      error_message: 'Not enough data to train',
-    })
+  it('raises an error toast and stays unsuccessful when the worker rejects', async () => {
+    startTrainingMock.mockRejectedValue(new Error('Not enough data to train'))
     const { hook } = setupHook()
 
     await hook.startTraining(trainPayload)
@@ -166,7 +163,7 @@ describe('useForecastingTraining startPredict', () => {
   })
 
   it('swallows a worker error into a toast and resolves undefined', async () => {
-    startPredictMock.mockResolvedValue({ status: 'error', error_message: 'future is missing' })
+    startPredictMock.mockRejectedValue(new Error('future is missing'))
     const { hook } = setupHook()
 
     const result = await hook.startPredict(request)
@@ -221,4 +218,14 @@ describe('useForecastingTraining model download & cleanup', () => {
     await hook.deleteModels()
     expect(deallocateMock).not.toHaveBeenCalled()
   })
+})
+
+it('reports forecasting cleanup errors on unmount', async () => {
+  startTrainingMock.mockResolvedValue({ ...trainingData, model: {} })
+  const { hook, wrapper } = setupHook()
+  await hook.startTraining(trainPayload)
+  deallocateMock.mockRejectedValueOnce(new Error('Cleanup failed'))
+  wrapper.unmount()
+  await flushPromises()
+  expect(toastAddMock).toHaveBeenCalledWith(expect.objectContaining({ detail: 'Cleanup failed' }))
 })

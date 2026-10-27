@@ -154,7 +154,14 @@ class TestPlatformAdmin:
             ADMIN_EMAIL
         )
 
-        response = client.get(STATS_PATH, headers=_bearer(user_token.access_token))
+        with patch(
+            "luml.handlers.auth.UserRepository.get_user",
+            new_callable=AsyncMock,
+            return_value=User(
+                id=USER_ID, email=ADMIN_EMAIL, auth_method=AuthProvider.EMAIL
+            ),
+        ):
+            response = client.get(STATS_PATH, headers=_bearer(user_token.access_token))
 
         assert response.status_code == 401
 

@@ -202,12 +202,17 @@ async def test_a_duplicate_connect_is_confirmed_by_inspecting_the_endpoint(
 
 
 @pytest.mark.asyncio
-async def test_models_are_also_attached_to_the_stack_network_of_their_satellite(
+async def test_models_can_reach_the_collector_but_do_not_join_the_store_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = FakeDocker()
-    agent_container(fake, monkeypatch, networks={"stack_default": ["agent"]})
-    await fake.networks.create({"Name": "stack_default"})
+    agent_container(
+        fake,
+        monkeypatch,
+        networks={"stack_default": ["agent"], "stack_store": ["agent"]},
+    )
+    await fake.networks.create({"Name": "stack_default", "Labels": {"df.model-access": "true"}})
+    await fake.networks.create({"Name": "stack_store"})
     driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
 
     await driver.start(deployment(), start_context())
@@ -219,6 +224,40 @@ async def test_models_are_also_attached_to_the_stack_network_of_their_satellite(
         model.name
     ]
     assert "stack_default" in model.networks
+    assert "stack_store" not in model.networks
+    assert fake.networks.networks["stack_store"].connected == []
+
+
+@pytest.mark.parametrize("access", [None, "false", "", "TRUE"])
+async def test_models_do_not_inherit_networks_without_explicit_access(
+    monkeypatch: pytest.MonkeyPatch,
+    access: str | None,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch, networks={"private": ["agent"]})
+    labels = {} if access is None else {"df.model-access": access}
+    await fake.networks.create({"Name": "private", "Labels": labels})
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.start(deployment(), start_context())
+
+    assert "private" not in fake.containers.containers[f"sat-{DEPLOYMENT_ID}"].networks
+    assert fake.networks.networks["private"].connected == []
+
+
+async def test_failure_to_inspect_network_access_does_not_start_the_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch, networks={"private": ["agent"]})
+    network = await fake.networks.create({"Name": "private"})
+    monkeypatch.setattr(network, "show", AsyncMock(side_effect=DockerError(500, "unavailable")))
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    with pytest.raises(DockerError):
+        await driver.start(deployment(), start_context())
+
+    assert fake.containers.containers[f"sat-{DEPLOYMENT_ID}"].start_count == 0
 
 
 @pytest.mark.asyncio
@@ -324,7 +363,7 @@ async def test_an_existing_network_is_reused_and_created_once(
 
 
 @pytest.mark.asyncio
-async def test_start_builds_the_protocol_four_container_on_the_configured_network(
+async def test_start_builds_the_protocol_five_container_on_the_configured_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = FakeDocker()
@@ -352,7 +391,7 @@ async def test_start_builds_the_protocol_four_container_on_the_configured_networ
         DOCKER_DEPLOYMENT_LABEL: DEPLOYMENT_ID,
         DOCKER_ARTIFACT_LABEL: ARTIFACT_ID,
         DOCKER_SATELLITE_LABEL: SATELLITE_ID,
-        DOCKER_LAUNCHER_PROTOCOL_LABEL: "4",
+        DOCKER_LAUNCHER_PROTOCOL_LABEL: "5",
     }
     environment = dict(entry.split("=", 1) for entry in container_config["Env"])
     assert environment == {

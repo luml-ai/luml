@@ -23,7 +23,10 @@ try:
 
     extracted_path = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8080
-    model_data = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
+    model_data = {}
+    if len(sys.argv) > 3:
+        with open(sys.argv[3], encoding="utf-8") as model_file:
+            model_data = json.load(model_file)
 
     try:
         import numpy as np

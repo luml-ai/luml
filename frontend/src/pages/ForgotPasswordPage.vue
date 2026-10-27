@@ -58,7 +58,7 @@ import { emailSentVerifyToast, unknownErrorToast } from '@/lib/primevue/data/toa
 const toast = useToast()
 const authStore = useAuthStore()
 
-const initialValues = ref(forgotPasswordInitialValues)
+const initialValues = ref({ ...forgotPasswordInitialValues })
 const resolver = ref(forgotPasswordResolver)
 
 const showSuccess = () => {

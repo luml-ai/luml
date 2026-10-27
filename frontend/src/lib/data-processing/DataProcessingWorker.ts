@@ -55,14 +55,29 @@ class DataProcessingWorkerClass {
           const message = event.data
           const callback = this.callbacks.get(message.id)
           this.callbacks.delete(message.id)
-          if (message.error) callback?.reject(new Error(message.error))
-          else callback?.resolve(message.payload)
+          if (message.error !== undefined || message.payload?.status === 'error') {
+            callback?.reject(
+              new Error(
+                message.error || message.payload?.error_message || 'Webworker request failed',
+              ),
+            )
+          } else callback?.resolve(message.payload)
         }
         worker.onerror = (event) => {
           this.resetWorker(new Error(event.message || 'Webworker failed'), worker)
         }
-        const ready = await this.postMessage<boolean>(WebworkerMessage.LOAD_PYODIDE)
-        if (!ready) throw new Error('Webworker is not ready')
+        worker.onmessageerror = () => {
+          this.resetWorker(new Error('Could not decode webworker response'), worker)
+        }
+        const timeout = setTimeout(() => {
+          this.resetWorker(new Error('Pyodide initialization timed out. Please try again.'), worker)
+        }, 120_000)
+        try {
+          const ready = await this.postMessage<boolean>(WebworkerMessage.LOAD_PYODIDE)
+          if (!ready) throw new Error('Webworker is not ready')
+        } finally {
+          clearTimeout(timeout)
+        }
       })().catch((error) => {
         this.resetWorker(error, worker)
         throw error
@@ -125,9 +140,21 @@ class DataProcessingWorkerClass {
       | WEBWORKER_ROUTES_ENUM.FORECASTING_DEALLOCATE,
   ) {
     if (!models.length) return []
-    const promises = models.map((model_id) =>
-      this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, { model_id }),
-    )
+    const promises = models.map(async (model_id) => {
+      const data =
+        route === WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE ? { key: model_id } : { model_id }
+      const result = await this.sendMessage<{ status: string; error_message?: string } | null>(
+        WebworkerMessage.INVOKE_ROUTE,
+        route,
+        data,
+      )
+      // store deletion returns none on success
+      if (route === WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE && result === null) return result
+      if (result?.status !== 'success') {
+        throw new Error(result?.error_message || 'Failed to deallocate model')
+      }
+      return result
+    })
     return Promise.all(promises)
   }
 
@@ -135,38 +162,41 @@ class DataProcessingWorkerClass {
     await this.sendMessage(WebworkerMessage.INTERRUPT)
   }
 
-  async initPythonModel(
-    model: ArrayBuffer,
-  ): Promise<{ model_id: string; status: 'success' } | { status: 'error'; error_message: string }> {
-    return this.sendMessage<
-      { model_id: string; status: 'success' } | { status: 'error'; error_message: string }
-    >(WebworkerMessage.INVOKE_ROUTE, WEBWORKER_ROUTES_ENUM.PYFUNC_INIT, {
-      model,
-    })
+  async initPythonModel(model: ArrayBuffer): Promise<{ model_id: string; status: 'success' }> {
+    return this.sendMessage<{ model_id: string; status: 'success' }>(
+      WebworkerMessage.INVOKE_ROUTE,
+      WEBWORKER_ROUTES_ENUM.PYFUNC_INIT,
+      {
+        model,
+      },
+    )
   }
 
   async computePythonModel(payload: {
     model_id: string
     inputs: object
     dynamic_attributes: object
-  }): Promise<
-    | { status: 'success'; predictions: Record<string, Record<string, string>> }
-    | { status: 'error'; error_type: string; error_message: string }
-  > {
-    return this.sendMessage<
-      | { status: 'success'; predictions: Record<string, Record<string, string>> }
-      | { status: 'error'; error_type: string; error_message: string }
-    >(
+  }): Promise<{ status: 'success'; predictions: Record<string, Record<string, string>> }> {
+    return this.sendMessage<{
+      status: 'success'
+      predictions: Record<string, Record<string, string>>
+    }>(
       WebworkerMessage.INVOKE_ROUTE,
       WEBWORKER_ROUTES_ENUM.PYFUNC_COMPUTE,
       JSON.parse(JSON.stringify(payload)),
     )
   }
 
-  deinitPythonModel(modelId: string) {
-    return this.sendMessage(WebworkerMessage.INVOKE_ROUTE, WEBWORKER_ROUTES_ENUM.PYFUNC_DEINIT, {
-      modelId,
-    })
+  async deinitPythonModel(modelId: string) {
+    const result = await this.sendMessage<{ status: string; error_message?: string }>(
+      WebworkerMessage.INVOKE_ROUTE,
+      WEBWORKER_ROUTES_ENUM.PYFUNC_DEINIT,
+      { model_id: modelId },
+    )
+    if (result?.status !== 'success') {
+      throw new Error(result?.error_message || 'Failed to deinitialize model')
+    }
+    return result
   }
 }
 

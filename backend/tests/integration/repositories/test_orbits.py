@@ -1,6 +1,9 @@
 import random
+from unittest.mock import Mock
+from uuid import uuid7
 
 import pytest
+from luml.models import OrbitMembersOrm, OrbitOrm
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbit_secrets import OrbitSecretRepository
@@ -19,9 +22,11 @@ from luml.schemas.orbit import (
     UpdateOrbitMember,
 )
 from luml.schemas.orbit_secret import OrbitSecretCreate
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy import event, func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from tests.support.builders import create_sibling_organization
+from tests.support.builders import create_sibling_orbit, create_sibling_organization
 from tests.support.seeds import (
     CollectionFixtureData,
     OrbitFixtureData,
@@ -36,6 +41,69 @@ def repository(engine: AsyncEngine) -> OrbitRepository:
 
 
 class TestOrbitRepository:
+    async def test_create_orbit_rolls_back_when_member_insert_fails(
+        self,
+        repository: OrbitRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        data = seeded_organization
+        fail_insert = Mock(side_effect=RuntimeError("member insert failed"))
+        event.listen(OrbitMembersOrm, "before_insert", fail_insert)
+        try:
+            with pytest.raises(RuntimeError, match="member insert failed"):
+                await repository.create_orbit(
+                    data.organization.id,
+                    OrbitCreateIn(
+                        name="half-made",
+                        bucket_secret_id=data.bucket_secret.id,
+                        members=[
+                            OrbitMemberCreateSimple(
+                                user_id=data.user.id, role=OrbitRole.ADMIN
+                            )
+                        ],
+                    ),
+                )
+        finally:
+            event.remove(OrbitMembersOrm, "before_insert", fail_insert)
+
+        assert (
+            await repository.get_organization_orbits(data.organization.id, data.user.id)
+            == []
+        )
+
+    @pytest.mark.parametrize("invalid_member", ["missing_user", "duplicate_user"])
+    async def test_create_orbit_rolls_back_on_member_constraint_violation(
+        self,
+        repository: OrbitRepository,
+        seeded_organization: OrganizationFixtureData,
+        invalid_member: str,
+    ) -> None:
+        data = seeded_organization
+        members = [OrbitMemberCreateSimple(user_id=data.user.id, role=OrbitRole.ADMIN)]
+        members.append(
+            OrbitMemberCreateSimple(
+                user_id=uuid7() if invalid_member == "missing_user" else data.user.id,
+                role=OrbitRole.MEMBER,
+            )
+        )
+
+        with pytest.raises(IntegrityError):
+            await repository.create_orbit(
+                data.organization.id,
+                OrbitCreateIn(
+                    name="half-made",
+                    bucket_secret_id=data.bucket_secret.id,
+                    members=members,
+                ),
+            )
+
+        async with AsyncSession(data.engine) as session:
+            assert await session.scalar(select(func.count()).select_from(OrbitOrm)) == 0
+            assert (
+                await session.scalar(select(func.count()).select_from(OrbitMembersOrm))
+                == 0
+            )
+
     async def test_create_orbit_returns_created_orbit(
         self,
         repository: OrbitRepository,
@@ -388,7 +456,9 @@ class TestOrbitRepository:
         assert created_member
 
         updated_member = await repository.update_orbit_member(
-            UpdateOrbitMember(id=created_member.id, role=OrbitRole.ADMIN)
+            created_member.id,
+            seeded_orbit.orbit.id,
+            UpdateOrbitMember(id=created_member.id, role=OrbitRole.ADMIN),
         )
 
         assert updated_member
@@ -406,8 +476,62 @@ class TestOrbitRepository:
         created_member = await repository.create_orbit_member(member)
         assert created_member
 
-        await repository.delete_orbit_member(created_member.id)
+        await repository.delete_orbit_member(created_member.id, seeded_orbit.orbit.id)
 
-        fetched_member = await repository.get_orbit_member(created_member.id)
+        fetched_member = await repository.get_orbit_member(
+            created_member.id, seeded_orbit.orbit.id
+        )
 
         assert fetched_member is None
+
+    @pytest.mark.parametrize("operation", ["get", "update", "delete"])
+    async def test_member_access_is_scoped_to_orbit(
+        self,
+        repository: OrbitRepository,
+        seeded_orbit_with_members: OrbitWithMembersFixtureData,
+        operation: str,
+    ) -> None:
+        data = seeded_orbit_with_members
+        member = data.members[1]
+        sibling = await create_sibling_orbit(
+            data.engine, data.organization.id, data.bucket_secret.id
+        )
+
+        if operation == "get":
+            assert await repository.get_orbit_member(member.id, sibling.id) is None
+        elif operation == "update":
+            assert (
+                await repository.update_orbit_member(
+                    member.id,
+                    sibling.id,
+                    UpdateOrbitMember(id=member.id, role=OrbitRole.ADMIN),
+                )
+                is None
+            )
+        else:
+            await repository.delete_orbit_member(member.id, sibling.id)
+
+        unchanged = await repository.get_orbit_member(member.id, data.orbit.id)
+        assert unchanged is not None
+        assert unchanged.role == member.role
+
+    async def test_update_member_uses_explicit_id_when_body_id_differs(
+        self,
+        repository: OrbitRepository,
+        seeded_orbit_with_members: OrbitWithMembersFixtureData,
+    ) -> None:
+        data = seeded_orbit_with_members
+        member, other_member = data.members[1], data.members[3]
+
+        updated = await repository.update_orbit_member(
+            member.id,
+            data.orbit.id,
+            UpdateOrbitMember(id=other_member.id, role=OrbitRole.ADMIN),
+        )
+
+        assert updated is not None
+        assert updated.id == member.id
+        assert updated.role == OrbitRole.ADMIN
+        unchanged = await repository.get_orbit_member(other_member.id, data.orbit.id)
+        assert unchanged is not None
+        assert unchanged.role == other_member.role

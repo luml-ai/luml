@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useUploadFlow } from '@/hooks/useUploadFlow'
+import type { CreateArtifactResponse } from '@/lib/api/artifacts/interfaces'
 import type { UploadReadyEvent } from '@/lib/api/prisma/prisma.interfaces'
 
 vi.mock('@/lib/api', () => ({
@@ -32,6 +33,17 @@ function makeUploadReadyEvent(overrides: Partial<UploadReadyEvent> = {}): Upload
     collection_id: 'col-1',
     organization_id: 'org-1',
     orbit_id: 'orb-1',
+    manifest: {
+      variant: 'pyfunc',
+      producer_name: 'luml.ai',
+      producer_version: '0.3.0',
+      producer_tags: ['training'],
+      inputs: [],
+      outputs: [],
+      dynamic_attributes: [],
+      env_vars: [],
+    },
+    file_index: { 'manifest.json': [0, 128], 'model.pkl': [128, 896] },
     ...overrides,
   }
 }
@@ -40,11 +52,31 @@ describe('useUploadFlow', () => {
   let flow: ReturnType<typeof useUploadFlow>
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+    mockArtifactsCreate.mockResolvedValue({
+      artifact: { id: 'artifact-1' },
+      upload_details: { url: 'https://presigned.example.com/upload' },
+    } as CreateArtifactResponse)
+    mockPostUploadUrl.mockResolvedValue(202)
     flow = useUploadFlow()
   })
 
   describe('handleUploadReady', () => {
+    it.each(['manifest', 'file_index'] as const)(
+      'refuses artifact creation when %s is missing',
+      async (field) => {
+        const event = makeUploadReadyEvent()
+        delete (event as Partial<UploadReadyEvent>)[field]
+
+        flow.handleUploadReady(event)
+        await flow.retryUpload(event.upload_id)
+
+        expect(mockArtifactsCreate).not.toHaveBeenCalled()
+        expect(mockPostUploadUrl).not.toHaveBeenCalled()
+        expect(flow.uploads.value.get(event.upload_id)?.status).toBe('failed')
+      },
+    )
+
     it('creates artifact and posts presigned URL to agent-backend', async () => {
       mockArtifactsCreate.mockResolvedValue({
         artifact: {} as unknown,
@@ -311,7 +343,12 @@ describe('useUploadFlow', () => {
         'org-1',
         'orb-1',
         'col-1',
-        expect.objectContaining({ size: 2048 }),
+        expect.objectContaining({
+          size: 2048,
+          manifest: resumableUpload.manifest,
+          file_index: resumableUpload.file_index,
+          extra_values: { experiment_ids: ['exp-1'] },
+        }),
       )
     })
 
@@ -325,28 +362,105 @@ describe('useUploadFlow', () => {
   })
 
   describe('retryUpload', () => {
-    it('re-triggers the presigned URL flow', async () => {
-      mockArtifactsCreate.mockResolvedValue({
-        artifact: {} as unknown,
-        upload_details: {
-          url: 'https://presigned.example.com/retry',
-          multipart: false,
-          bucket_location: 'bucket',
-          bucket_secret_id: 'secret',
-        },
-      })
-      mockPostUploadUrl.mockResolvedValue(202)
+    const artifactResponse = {
+      artifact: { id: 'artifact-1' },
+      upload_details: { url: 'https://presigned.example.com/retry' },
+    } as CreateArtifactResponse
 
-      const event = makeUploadReadyEvent()
-      await flow.retryUpload('upload-1', event)
+    it.each(['create', 'post', 'upload'])(
+      'preserves the original metadata after a %s failure',
+      async (stage) => {
+        mockArtifactsCreate.mockResolvedValue(artifactResponse)
+        mockPostUploadUrl.mockResolvedValue(202)
+        if (stage === 'create')
+          mockArtifactsCreate.mockRejectedValueOnce(new Error('Network error'))
+        if (stage === 'post')
+          mockPostUploadUrl.mockRejectedValueOnce(new Error('Connection refused'))
 
-      await vi.waitFor(() => {
-        expect(mockPostUploadUrl).toHaveBeenCalledWith(
+        const event = makeUploadReadyEvent()
+        flow.handleUploadReady(event)
+        await vi.waitFor(() => {
+          if (stage === 'upload') {
+            expect(mockPostUploadUrl).toHaveBeenCalledOnce()
+          } else {
+            expect(flow.uploads.value.get(event.upload_id)?.status).toBe('failed')
+          }
+        })
+        if (stage === 'upload') {
+          flow.handleUploadFailed({ ...event, status: 'pending', error: 'S3 upload failed' })
+        }
+
+        await flow.retryUpload(event.upload_id)
+
+        expect(mockArtifactsCreate).toHaveBeenLastCalledWith(
+          'org-1',
+          'orb-1',
+          'col-1',
+          expect.objectContaining({
+            size: event.file_size,
+            manifest: event.manifest,
+            file_index: event.file_index,
+            extra_values: { experiment_ids: event.experiment_ids },
+          }),
+        )
+        expect(mockArtifactsCreate).toHaveBeenCalledTimes(2)
+        expect(mockPostUploadUrl).toHaveBeenLastCalledWith(
           'run-1',
           'upload-1',
           'https://presigned.example.com/retry',
         )
+      },
+    )
+
+    it('refuses to create an artifact when no upload-ready event was received', async () => {
+      flow.handleUploadFailed({
+        upload_id: 'upload-1',
+        run_id: 'run-1',
+        node_id: 'node-1',
+        status: 'pending',
+        error: 'Upload failed',
       })
+
+      await flow.retryUpload('upload-1')
+      await flow.retryUpload('unknown-upload')
+
+      expect(mockArtifactsCreate).not.toHaveBeenCalled()
+      expect(mockPostUploadUrl).not.toHaveBeenCalled()
+      expect(flow.uploads.value.get('upload-1')?.status).toBe('failed')
+    })
+
+    it('preserves metadata when retrying a resumed upload', async () => {
+      const event = makeUploadReadyEvent()
+      mockGetPendingUploads.mockResolvedValue([
+        {
+          id: event.upload_id,
+          run_id: event.run_id,
+          node_id: event.node_id,
+          file_size: event.file_size,
+          experiment_ids: event.experiment_ids,
+          manifest: event.manifest,
+          file_index: event.file_index,
+        } as Awaited<ReturnType<typeof api.dataAgent.getPendingUploads>>[number],
+      ])
+      mockArtifactsCreate.mockRejectedValueOnce(new Error('Network error'))
+      await flow.resumePendingUploads('run-1', 'col-1', 'org-1', 'orb-1')
+      await vi.waitFor(() => expect(flow.uploads.value.get('upload-1')?.status).toBe('failed'))
+      mockArtifactsCreate.mockResolvedValue(artifactResponse)
+      mockPostUploadUrl.mockResolvedValue(202)
+
+      await flow.retryUpload('upload-1')
+
+      expect(mockArtifactsCreate).toHaveBeenLastCalledWith(
+        'org-1',
+        'orb-1',
+        'col-1',
+        expect.objectContaining({
+          size: event.file_size,
+          manifest: event.manifest,
+          file_index: event.file_index,
+          extra_values: { experiment_ids: event.experiment_ids },
+        }),
+      )
     })
   })
 })

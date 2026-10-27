@@ -1,5 +1,6 @@
 import uuid
 
+import pytest
 from luml.repositories.tracks import (
     TrackEntryRepository,
     TrackRepository,
@@ -7,7 +8,13 @@ from luml.repositories.tracks import (
 )
 from luml.schemas.artifacts import ArtifactCreate, ArtifactType
 from luml.schemas.general import PaginationParams
-from luml.schemas.tracks import Track, TrackCreate, TrackEntryCreate, TrackUpdate
+from luml.schemas.tracks import (
+    StageUpsertIn,
+    Track,
+    TrackCreate,
+    TrackEntryCreate,
+    TrackUpdate,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.support.builders import create_artifact
@@ -157,7 +164,7 @@ class TestTrackRepository:
         )
 
         updated = await repository.update_track(
-            track.id, TrackUpdate(name="updated-name")
+            track.id, TrackUpdate(name="updated-name"), orbit_id=track.orbit_id
         )
 
         assert updated is not None
@@ -178,7 +185,7 @@ class TestTrackRepository:
         fetched = await repository.get_track(track.id)
         assert fetched is not None
 
-        await repository.delete_track(track.id)
+        await repository.delete_track(track.id, orbit_id=track.orbit_id)
 
         fetched_after = await repository.get_track(track.id)
         assert fetched_after is None
@@ -234,7 +241,9 @@ class TestTrackRepository:
     async def test_update_track_returns_none_when_track_missing(
         self, repository: TrackRepository
     ) -> None:
-        result = await repository.update_track(uuid.uuid4(), TrackUpdate(name="x"))
+        result = await repository.update_track(
+            uuid.uuid4(), TrackUpdate(name="x"), orbit_id=uuid.uuid4()
+        )
         assert result is None
 
     async def test_get_tracks_for_artifact_returns_tracks_with_entries_for_artifact(
@@ -290,3 +299,33 @@ class TestTrackRepository:
         self, repository: TrackRepository
     ) -> None:
         assert await repository.get_tracks_for_artifact(uuid.uuid4()) == []
+
+
+@pytest.mark.parametrize("operation", ["update", "delete"])
+async def test_track_repository_cannot_mutate_track_outside_orbit(
+    operation: str,
+    repository: TrackRepository,
+    seeded_orbit: OrbitFixtureData,
+) -> None:
+    track = await repository.create_track(
+        TrackCreate(
+            orbit_id=seeded_orbit.orbit.id,
+            name="victim",
+            artifact_type=ArtifactType.MODEL,
+        ),
+        stage_names=["dev"],
+    )
+    if operation == "update":
+        result = await repository.update_track(
+            track.id,
+            TrackUpdate(name="pwned"),
+            orbit_id=uuid.uuid4(),
+            stages=[StageUpsertIn(name="replaced")],
+        )
+        assert result is None
+    else:
+        await repository.delete_track(track.id, orbit_id=uuid.uuid4())
+    after = await repository.get_track(track.id)
+    assert after is not None
+    assert after.name == "victim"
+    assert after.stages == track.stages

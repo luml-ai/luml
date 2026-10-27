@@ -79,7 +79,7 @@ import { convertObjectToCsvBlob, cutStringOnMiddle, downloadFileFromBlob } from 
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useDataTable } from '@/hooks/useDataTable'
 import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { simpleErrorToast, simpleWardToast } from '@/lib/primevue/data/toasts'
 
 type Props = {
   manualFields: string[]
@@ -123,11 +123,7 @@ async function onManualSubmit() {
     const data = prepareManualData()
     const payload = getPredictPayload(data)
     const result = await DataProcessingWorker.computePythonModel(payload)
-    if (result?.status === 'success') {
-      predictionText.value = JSON.stringify(result.predictions?.out)
-    } else if (result.status === 'error') {
-      throw new Error(result.error_message)
-    }
+    predictionText.value = JSON.stringify(result.predictions?.out)
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown Error'
     toast.add(simpleErrorToast(message))
@@ -139,24 +135,33 @@ async function onManualSubmit() {
 async function onFileSubmit() {
   loading.value = true
   filePredictWithError.value = false
+  downloadPredictBlob.value = null
   try {
     sendAnalytics()
     const data = getDataForTraining()
-    const formattedData = Object.fromEntries(
-      Object.entries(data).map(([key, value]) => {
-        return [key, value[0]]
-      }),
-    )
-    const payload = getPredictPayload(formattedData)
-    const result = await DataProcessingWorker.computePythonModel(payload)
-    if (result?.status === 'success') {
-      const object: Record<string, string | number | object> = {
-        inputs: [formattedData],
-        prediction: [result.predictions?.out],
-      }
-      downloadPredictBlob.value = convertObjectToCsvBlob(object)
-    } else if (result.status === 'error') {
-      throw new Error(result.error_message)
+    const columns = Object.entries(data)
+    const rowCount = columns[0]?.[1].length ?? 0
+    if (!rowCount) {
+      throw new Error('The CSV file has no rows to predict.')
+    }
+    const inputs: Record<string, string | number>[] = []
+    const predictions: unknown[] = []
+    const failures: string[] = []
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+      const row = Object.fromEntries(columns.map(([key, values]) => [key, values[rowIndex]]))
+      inputs.push(row)
+      predictions.push(await predictRow(row, failures))
+    }
+    if (failures.length === rowCount) {
+      throw new Error(failures[0])
+    }
+    downloadPredictBlob.value = convertObjectToCsvBlob({ inputs, prediction: predictions })
+    if (failures.length) {
+      toast.add(
+        simpleWardToast(
+          `${failures.length} of ${rowCount} rows failed. Their errors are in the prediction column of the downloaded file.`,
+        ),
+      )
     }
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Unknown Error'
@@ -164,6 +169,17 @@ async function onFileSubmit() {
     filePredictWithError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+async function predictRow(row: Record<string, string | number>, failures: string[]) {
+  try {
+    const result = await DataProcessingWorker.computePythonModel(getPredictPayload(row))
+    return result.predictions?.out
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown Error'
+    failures.push(message)
+    return `Error: ${message}`
   }
 }
 
