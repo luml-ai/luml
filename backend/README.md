@@ -96,4 +96,6 @@ protected even if an `Authorization` header is supplied.
 
 Request a single artifact deletion URL with
 `POST /v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url`.
-GET requests to that path return 405 and do not change the artifact status.
+GET on that path is deprecated and kept only for clients that authenticate with
+an `Authorization` header (API keys, older SDK releases); cookie sessions get 405
+from GET and the artifact status does not change.
