@@ -31,7 +31,6 @@ jobs:
       - name: ESLint
         working-directory: lumlflow/frontend
         run: npm run lint
-        continue-on-error: true
 
       - name: Prettier check
         working-directory: lumlflow/frontend
