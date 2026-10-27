@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { Blob as NodeBlob } from 'node:buffer'
 import { createServer } from 'node:http'
 import { chromium } from '@playwright/test'

@@ -24,7 +24,7 @@ import { useLineageStore } from '@/stores/lineage'
 
 const lineageStore = useLineageStore()
 
-const isMaximized = defineModel('isMaximized', { default: false })
+const isMaximized = defineModel<boolean>('isMaximized', { default: false })
 
 const scaleIcon = computed(() => {
   return isMaximized.value ? Minimize2 : Maximize2

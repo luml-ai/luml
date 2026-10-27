@@ -30,7 +30,7 @@ import { Search } from 'lucide-vue-next'
 import { TRACKS_TYPE_OPTIONS, TRACKS_TYPE_SELECT_PT } from './tracks.const'
 
 const search = defineModel<string>('search')
-const types = defineModel<ArtifactTypeEnum[]>('types', { default: [] })
+const types = defineModel<ArtifactTypeEnum[]>('types', { default: () => [] })
 
 function updateSearch(val: string | undefined) {
   search.value = val

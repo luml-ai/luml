@@ -35,7 +35,7 @@ type AutoCompleteInstance = InstanceType<typeof AutoComplete> & { show: () => vo
 
 const props = defineProps<Props>()
 
-const modelValue = defineModel<string[]>('modelValue', { default: [] })
+const modelValue = defineModel<string[]>('modelValue', { default: () => [] })
 
 const elementRef = useTemplateRef<AutoCompleteInstance>('elementRef')
 

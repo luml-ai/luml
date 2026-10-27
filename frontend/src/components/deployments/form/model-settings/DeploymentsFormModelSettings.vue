@@ -234,19 +234,19 @@ const envAccordion = ref<string[]>([])
 const collectionId = defineModel<string | null>('collectionId')
 const modelId = defineModel<string | null>('modelId')
 const secretDynamicAttributes = defineModel<FieldInfo<string>[]>('secretDynamicAttributes', {
-  default: [],
+  default: () => [],
 })
 const secretEnvs = defineModel<FieldInfo<string>[]>('secretEnvs', {
-  default: [],
+  default: () => [],
 })
 const dynamicAttributes = defineModel<FieldInfo[]>('dynamicAttributes', {
-  default: [],
+  default: () => [],
 })
 const notSecretEnvs = defineModel<FieldInfo<string>[]>('notSecretEnvs', {
-  default: [],
+  default: () => [],
 })
 const customVariables = defineModel<Omit<FieldInfo<string>, 'label'>[]>('customVariables', {
-  default: [],
+  default: () => [],
 })
 
 const selectedModel = ref<ModelArtifact | null>(null)

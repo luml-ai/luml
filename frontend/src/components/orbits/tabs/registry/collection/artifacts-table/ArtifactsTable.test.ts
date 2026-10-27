@@ -93,7 +93,7 @@ describe('ArtifactsTable Pick All', () => {
 
   async function mountTable() {
     wrapper = shallowMount(ArtifactsTable, {
-      global: { stubs: { DataTable: false }, directives: { tooltip: vi.fn() } },
+      global: { stubs: { DataTable: false }, directives: { tooltip: () => {} } },
     })
     await flushPromises()
     return wrapper.findComponent(DataTable)

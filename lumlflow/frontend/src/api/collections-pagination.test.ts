@@ -49,7 +49,7 @@ describe('collections pagination', () => {
     }))
     vi.mocked(api.get).mockImplementation(async (_url, config) => ({
       data:
-        config?.params.start_after === 'collection-20'
+        (config?.params as { start_after?: string } | undefined)?.start_after === 'collection-20'
           ? { items: collections.slice(20), cursor: null }
           : { items: collections.slice(0, 20), cursor: 'collection-20' },
     }))
