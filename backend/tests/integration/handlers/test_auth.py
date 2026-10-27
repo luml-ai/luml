@@ -32,7 +32,9 @@ async def client(
         TokenBlackListRepository(engine),
     )
     async with AsyncClient(
-        transport=ASGITransport(app=AppService()), base_url="https://testserver"
+        transport=ASGITransport(app=AppService()),
+        base_url="https://testserver",
+        headers={"Origin": "https://testserver"},
     ) as client:
         yield client
 
@@ -74,7 +76,13 @@ class TestPasswordSecurity:
             )
         assert response.status_code == 200
 
-        assert (await client.get("/v1/auth/users/me")).status_code == 401
+        if reset:
+            assert (await client.get("/v1/auth/users/me")).status_code == 401
+        else:
+            assert client.cookies["access_token"] != access
+            assert client.cookies["refresh_token"] != refresh
+            assert (await client.get("/v1/auth/users/me")).status_code == 200
+            assert (await client.post("/v1/auth/refresh")).status_code == 200
         for token in [access, other_sessions.access_token]:
             response = await client.get(
                 "/v1/auth/users/me", headers={"Authorization": f"Bearer {token}"}

@@ -301,7 +301,7 @@ async def test_microsoft_signed_claim_controls_existing_account_signin(
     if verified is True:
         result = await mocks.handler.handle_oauth("code")
         assert result.user_id == user.id
-        create_tokens.assert_called_once_with(user.email)
+        create_tokens.assert_called_once_with(user.email, user.token_version)
         update = mocks.user_repository.update_user.call_args.args[0]
         assert update.auth_method == AuthProvider.MICROSOFT
     else:
