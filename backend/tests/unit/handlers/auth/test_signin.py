@@ -290,7 +290,7 @@ class TestAuthSignIn:
         authenticate_user.assert_awaited_once_with(
             sign_in_user.email, sign_in_user.password
         )
-        create_tokens.assert_called_once_with(new_user_in.email, user.token_version)
+        create_tokens.assert_called_once_with(new_user_in.email, user.hashed_password)
 
     async def test_update_user_updates_profile(
         self, mocks: CollaboratorMocks[AuthHandler], user: User

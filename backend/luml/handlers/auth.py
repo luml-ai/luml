@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import secrets
 from time import time
 from typing import Any
@@ -102,12 +104,20 @@ class AuthHandler:
         to_encode.update({"exp": expire})
         return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
 
-    def _create_tokens(self, user_email: EmailStr, token_version: int = 0) -> Token:
+    def _password_fingerprint(self, hashed_password: str | None) -> str:
+        return hmac.new(
+            self.secret_key.encode(), (hashed_password or "").encode(), hashlib.sha256
+        ).hexdigest()[:32]
+
+    def _create_tokens(
+        self, user_email: EmailStr, hashed_password: str | None = None
+    ) -> Token:
+        fingerprint = self._password_fingerprint(hashed_password)
         access_token = self._create_token(
             data={
                 "sub": user_email,
                 "type": "access",
-                "ver": token_version,
+                "pwh": fingerprint,
                 "jti": str(uuid4()),
             },
             expires_delta=self.access_token_expire,
@@ -116,7 +126,7 @@ class AuthHandler:
             data={
                 "sub": user_email,
                 "type": "refresh",
-                "ver": token_version,
+                "pwh": fingerprint,
                 "jti": str(uuid4()),
             },
             expires_delta=self.refresh_token_expire,
@@ -127,7 +137,7 @@ class AuthHandler:
             token_type="bearer",
         )
 
-    def _verify_token(self, token: str) -> tuple[EmailStr, int]:
+    def _verify_token(self, token: str) -> tuple[EmailStr, str | None]:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             if payload.get("type") != "access":
@@ -135,10 +145,10 @@ class AuthHandler:
             email: EmailStr | None = payload.get("sub")
             if email is None:
                 raise AuthError("Invalid token", 401)
-            token_version = payload.get("ver", 0)
-            if not isinstance(token_version, int):
+            fingerprint = payload.get("pwh")
+            if fingerprint is not None and not isinstance(fingerprint, str):
                 raise AuthError("Invalid token", 401)
-            return email, token_version
+            return email, fingerprint
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 401) from err
 
@@ -192,7 +202,7 @@ class AuthHandler:
 
     async def handle_signin(self, user: SignInUser) -> SignInResponse:
         db_user = await self._authenticate_user(user.email, user.password)
-        tokens = self._create_tokens(db_user.email, db_user.token_version)
+        tokens = self._create_tokens(db_user.email, db_user.hashed_password)
         return SignInResponse(token=tokens, user_id=db_user.id)
 
     async def handle_refresh_token(self, refresh_token: str) -> Token:
@@ -212,7 +222,10 @@ class AuthHandler:
             if service_user is None:
                 raise AuthError("User not found", 404)
 
-            if payload.get("ver", 0) != service_user.token_version:
+            fingerprint = payload.get("pwh")
+            if fingerprint is not None and fingerprint != self._password_fingerprint(
+                service_user.hashed_password
+            ):
                 raise AuthError("Token has been revoked", 400)
 
             exp = int(payload["exp"])
@@ -222,7 +235,7 @@ class AuthHandler:
             ):
                 raise AuthError("Token has been revoked", 400)
 
-            return self._create_tokens(service_user.email, service_user.token_version)
+            return self._create_tokens(service_user.email, service_user.hashed_password)
 
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
@@ -250,23 +263,24 @@ class AuthHandler:
         if not self._verify_password(passwords.current_password, user.hashed_password):
             raise AuthError("Invalid current password", 400)
 
-        token_version = await self.__user_repository.update_password(
-            email, self._get_password_hash(passwords.new_password)
-        )
-        if token_version is None:
+        hashed_password = self._get_password_hash(passwords.new_password)
+        if not await self.__user_repository.update_password(email, hashed_password):
             raise AuthError("User not found", 404)
-        return self._create_tokens(email, token_version)
+        return self._create_tokens(email, hashed_password)
 
     async def handle_delete_account(self, email: EmailStr) -> None:
         await self.__user_repository.delete_user(email)
 
     async def handle_get_current_user(
-        self, email: EmailStr, token_version: int | None = None
+        self, email: EmailStr, password_fingerprint: str | None = None
     ) -> CurrentUserOut:
         user = await self.__user_repository.get_current_user(email)
         if user is None:
             raise AuthError("User not found", 404)
-        if token_version is not None and token_version != user.token_version:
+        if (
+            password_fingerprint is not None
+            and password_fingerprint != self._password_fingerprint(user.hashed_password)
+        ):
             raise AuthError("Token has been revoked", 401)
 
         if user.disabled:
@@ -392,7 +406,8 @@ class AuthHandler:
             )
 
         return OAuthLogin(
-            token=self._create_tokens(user.email, user.token_version), user_id=user.id
+            token=self._create_tokens(user.email, user.hashed_password),
+            user_id=user.id,
         )
 
     async def send_password_reset_email(self, email: EmailStr) -> None:
@@ -443,12 +458,11 @@ class AuthHandler:
             if (await self.__user_repository.get_user(email)) is None:
                 raise AuthError("User not found", 404)
 
-            token_version = await self.__user_repository.update_password(
+            if not await self.__user_repository.update_password(
                 email,
                 self._get_password_hash(new_password),
                 reset_token=(token, int(exp)),
-            )
-            if token_version is None:
+            ):
                 raise AuthError("Token has been revoked", 400)
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 400) from err

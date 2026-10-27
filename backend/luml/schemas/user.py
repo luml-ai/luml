@@ -29,7 +29,6 @@ class CreateUser(_UserBase): ...
 
 class User(_UserBase, BaseOrmConfig):
     id: UUID
-    token_version: int = 0
 
 
 class UserOut(BaseModel, BaseOrmConfig):
@@ -43,7 +42,7 @@ class UserOut(BaseModel, BaseOrmConfig):
 
 class CurrentUserOut(UserOut):
     auth_method: AuthProvider
-    token_version: int = Field(default=0, exclude=True)
+    hashed_password: str | None = Field(default=None, exclude=True)
 
 
 class CreateUserIn(BaseModel):

@@ -21,9 +21,6 @@ class UserOrm(TimestampMixin, Base):
     auth_method: Mapped[str] = mapped_column(String, nullable=False)
     photo: Mapped[HttpUrl | None] = mapped_column(String, nullable=True)
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
-    token_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
     hashed_api_key: Mapped[str] = mapped_column(String, nullable=True)
     organizations_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="5"

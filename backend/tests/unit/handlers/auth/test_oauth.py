@@ -63,7 +63,7 @@ class TestAuthOAuth:
         mock_get_user_info.assert_awaited_once()
         mocks.user_repository.create_user.assert_awaited_once()
         create_tokens.assert_called_once_with(
-            created_user.email, created_user.token_version
+            created_user.email, created_user.hashed_password
         )
 
     async def test_handle_oauth_updates_auth_method_for_existing_user(

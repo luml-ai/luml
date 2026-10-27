@@ -328,7 +328,7 @@ class TestAuthEmailFlows:
         self, mocks: CollaboratorMocks[AuthHandler], user: User
     ) -> None:
         mocks.user_repository.get_user.return_value = user
-        mocks.user_repository.update_password.return_value = None
+        mocks.user_repository.update_password.return_value = False
         token = mocks.handler._generate_password_reset_token(user.email)
 
         with pytest.raises(AuthError, match="revoked"):

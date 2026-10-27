@@ -126,7 +126,7 @@ class TestJWTAuthenticationBackend:
 
         assert response.status_code == expected_status
 
-    def test_get_protected_returns_401_when_token_version_is_stale(
+    def test_get_protected_returns_401_when_password_fingerprint_is_stale(
         self, bearer_tokens: dict[str, str]
     ) -> None:
         current_user = CurrentUserOut(
@@ -137,7 +137,7 @@ class TestJWTAuthenticationBackend:
             photo=None,
             has_api_key=False,
             auth_method=AuthProvider.EMAIL,
-            token_version=1,
+            hashed_password="replacement-hash",
         )
 
         with (
