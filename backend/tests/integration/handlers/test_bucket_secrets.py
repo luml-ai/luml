@@ -11,6 +11,7 @@ from luml.schemas.bucket_secrets import (
 )
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from tests.support.bucket_secrets import CONNECTION_STRING
 from tests.support.seeds import OrganizationFixtureData
 
 
@@ -88,7 +89,7 @@ class TestBucketSecretHandler:
         created = await repository.create_bucket_secret(
             AzureBucketSecretCreate(
                 organization_id=data.organization.id,
-                endpoint="test-account.blob.core.windows.net",
+                endpoint=CONNECTION_STRING,
                 bucket_name="original-container",
             )
         )
