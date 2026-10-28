@@ -10,7 +10,7 @@ dependencies = [
 
 [project.optional-dependencies]
 server = [
-    "starlette>=0.47.0,<1.0.0",
+    "starlette>=0.47.0,<2.0.0",
     "uvicorn>=0.38.0,<1.0.0",
 ]
 luml = [
