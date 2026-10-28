@@ -31,10 +31,14 @@
               class="point-icon"
             />
             <div class="step-info">
-              <div class="step-intent">
-                {{ flowStore.currentBranchPoints.get(step.step) ?? step.intent }}
+              <div class="step-intent" v-overflow-tooltip.top="stepTitle(step)">
+                {{ stepTitle(step) }}
               </div>
-              <div v-if="flowStore.currentBranchPoints.has(step.step)" class="step-point-intent">
+              <div
+                v-if="flowStore.currentBranchPoints.has(step.step)"
+                class="step-point-intent"
+                v-overflow-tooltip.top="step.intent"
+              >
                 {{ step.intent }}
               </div>
               <div class="step-meta">
@@ -54,6 +58,7 @@
 </template>
 
 <script setup lang="ts">
+import type { JournalTransaction } from '@/api/slices/workspace/workspace.interface'
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
 import { Flag, History } from 'lucide-vue-next'
 import { ref } from 'vue'
@@ -69,6 +74,10 @@ const toast = useToast()
 const flowStore = useFlowStore()
 
 const rewindingStep = ref<number | null>(null)
+
+function stepTitle(step: JournalTransaction): string {
+  return flowStore.currentBranchPoints.get(step.step) ?? step.intent
+}
 
 async function rewind(step: number) {
   if (step === flowStore.currentHeadStep || rewindingStep.value !== null) return

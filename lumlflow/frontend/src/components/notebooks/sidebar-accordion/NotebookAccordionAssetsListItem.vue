@@ -1,7 +1,7 @@
 <template>
   <div class="item" @click="onItemClick">
     <component v-if="showIcon && icon" :is="icon" :size="12" class="shrink-0" />
-    <span class="truncate overflow-hidden">{{ item.name }}</span>
+    <span class="truncate overflow-hidden" v-overflow-tooltip.top="item.name">{{ item.name }}</span>
     <span v-if="item.unmaterialized" class="text-xs text-(--p-badge-warn-background) shrink-0">
       unmaterialized
     </span>
