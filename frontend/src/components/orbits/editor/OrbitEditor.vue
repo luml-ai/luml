@@ -111,7 +111,7 @@ const confirm = useConfirm()
 const initialValues = computed(() => ({
   name: props.orbit.name,
   bucket_secret_id: props.orbit.bucket_secret_id,
-  relay_id: props.orbit.relay_id,
+  relay_id: props.orbit.relay_id ?? null,
 }))
 
 const relayOptions = computed(() => getRelayOptions(relaysStore.relays, props.orbit.relay_id))
