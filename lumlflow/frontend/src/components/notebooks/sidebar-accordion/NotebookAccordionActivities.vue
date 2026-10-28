@@ -9,7 +9,7 @@
         color="var(--p-text-muted-color)"
       />
       <div class="item-content">
-        <div class="item-title">{{ activity.intent }}</div>
+        <div class="item-title" v-overflow-tooltip.top="activity.intent">{{ activity.intent }}</div>
         <div class="item-description">
           <component :is="activityActorIcon(activity)" :size="12" />
           <span class="item-type-label">{{ activityActorLabel(activity) }}</span>
@@ -90,7 +90,7 @@ function activityTime(activity: JournalTransaction) {
   @apply shrink-0 mt-0.5;
 }
 .item-content {
-  @apply text-sm;
+  @apply min-w-0 flex-1 text-sm;
 }
 .item-title {
   @apply text-sm font-medium truncate;

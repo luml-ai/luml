@@ -6,14 +6,13 @@
         class="lane-select-button"
         :disabled="flowStore.isSwitchingBranch"
         @click="flowStore.switchBranch(lane.name)"
-      ></button>
-      <span class="lane-dot" :style="{ backgroundColor: dotColor }" />
-      <div class="lane-body">
-        <div class="lane-name">
-          {{ lane.name }}
-        </div>
-        <div class="lane-meta">{{ lane.steps }} steps · {{ lane.updatedAgo }}</div>
-      </div>
+      >
+        <span class="lane-dot" :style="{ backgroundColor: dotColor }" />
+        <span class="lane-body">
+          <span class="lane-name" v-overflow-tooltip.top="lane.name">{{ lane.name }}</span>
+          <span class="lane-meta">{{ lane.steps }} steps · {{ lane.updatedAgo }}</span>
+        </span>
+      </button>
     </div>
     <div
       v-if="lane.children.length"
@@ -84,11 +83,11 @@ const dotColor = computed(() => laneColor(containsCurrent(props.lane)))
 @reference "@/assets/css/index.css";
 
 .lane-row {
-  @apply relative flex items-center gap-3 -mx-4 p-2 rounded-sm hover:text-primary;
+  @apply -mx-4 rounded-sm hover:text-primary;
 }
 
 .lane-select-button {
-  @apply absolute left-0 top-0 w-full h-full cursor-pointer;
+  @apply flex items-center gap-3 w-full p-2 text-left cursor-pointer;
 }
 
 .lane-row--current {
@@ -100,15 +99,15 @@ const dotColor = computed(() => laneColor(containsCurrent(props.lane)))
 }
 
 .lane-body {
-  @apply min-w-0 flex-1;
+  @apply block min-w-0 flex-1;
 }
 
 .lane-name {
-  @apply text-sm truncate;
+  @apply block text-sm truncate;
 }
 
 .lane-meta {
-  @apply text-xs text-muted-color truncate;
+  @apply block text-xs text-muted-color truncate;
 }
 
 .lane-menu {

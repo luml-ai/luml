@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { PrimeVueProvider } from '@/app/providers/prime-vue'
 import { ConfirmationService, Tooltip, ToastService } from 'primevue'
 import App from '@/app/App.vue'
+import { overflowTooltip } from '@/directives/overflow-tooltip'
 import router from '@/router'
 import { browserToken } from '@/flow/api/token'
 import '@/assets/css/index.css'
@@ -26,5 +27,6 @@ app.use(ConfirmationService)
 app.use(ToastService)
 
 app.directive('tooltip', Tooltip)
+app.directive('overflow-tooltip', overflowTooltip)
 
 app.mount('#app')
