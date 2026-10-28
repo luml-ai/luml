@@ -16,7 +16,7 @@
       <Form
         :resolver="resolver"
         :initial-values="initialValues"
-        :validate-on-value-update="false"
+        :validate-on-value-update="submitAttempted"
         class="form"
         @submit="submit"
       >
@@ -55,6 +55,7 @@ import z from 'zod'
 import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
+import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
 import { POPOVER_WITHOUT_ARROW_PT } from '@/prime-vue/pass-through/popover.pt'
 
 const props = defineProps<{ step: number }>()
@@ -71,11 +72,13 @@ const initialValues = ref({
 
 const resolver: ReturnType<typeof zodResolver> = zodResolver(
   z.object({
-    name: z.string().trim().min(1).max(255),
+    name: z.string().trim().min(1, { message: NAME_REQUIRED_MESSAGE }).max(255),
   }) as never,
 )
 
 const loading = ref(false)
+
+const submitAttempted = ref(false)
 
 function toggle(event: Event) {
   popoverRef.value?.toggle(event)
@@ -85,9 +88,11 @@ function resetForm() {
   initialValues.value = {
     name: '',
   }
+  submitAttempted.value = false
 }
 
 function submit(event: FormSubmitEvent) {
+  submitAttempted.value = true
   if (!event.valid) return
 
   const values = event.values as typeof initialValues.value

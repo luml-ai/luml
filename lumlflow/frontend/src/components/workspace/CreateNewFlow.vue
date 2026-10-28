@@ -17,7 +17,7 @@
         id="create-flow-form"
         :resolver="resolver"
         :initial-values="initialValues"
-        :validate-on-value-update="false"
+        :validate-on-value-update="submitAttempted"
         @submit="submit"
       >
         <FormField v-slot="$field" name="name">
@@ -63,6 +63,7 @@ import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { FLOW_FILE_EXTENSION } from '@/components/workspace/workspace.const'
 import { useWorkspaceStore } from '@/store/workspace'
+import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
 
 interface Props {
   existingNames?: string[]
@@ -96,7 +97,7 @@ const resolver: ReturnType<typeof zodResolver> = zodResolver(
   z.object({
     name: z
       .string()
-      .min(1)
+      .min(1, { message: NAME_REQUIRED_MESSAGE })
       .max(255 - FLOW_FILE_EXTENSION.length)
       .superRefine((name, ctx) => {
         if (props.existingNames.includes(`${name}${FLOW_FILE_EXTENSION}`)) {
@@ -113,6 +114,8 @@ const visible = ref(false)
 
 const loading = ref(false)
 
+const submitAttempted = ref(false)
+
 function openDialog() {
   visible.value = true
 }
@@ -126,9 +129,11 @@ function resetForm() {
   initialValues.value = {
     name: '',
   }
+  submitAttempted.value = false
 }
 
 function submit(event: FormSubmitEvent) {
+  submitAttempted.value = true
   if (!event.valid) return
 
   const values = event.values as typeof initialValues.value

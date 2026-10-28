@@ -17,7 +17,7 @@
         id="create-cell-form"
         :resolver="resolver"
         :initial-values="initialValues"
-        :validate-on-value-update="false"
+        :validate-on-value-update="submitAttempted"
         @submit="submit"
       >
         <FormField v-slot="$field" name="name">
@@ -54,6 +54,7 @@ import z from 'zod'
 import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
+import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
 import { CELL_NAME_INVALID_MESSAGE, isValidCellName } from './cell.const'
 
 const DIALOG_PT: DialogPassThroughOptions = {
@@ -80,7 +81,7 @@ const resolver: ReturnType<typeof zodResolver> = zodResolver(
   z.object({
     name: z
       .string()
-      .min(1)
+      .min(1, { message: NAME_REQUIRED_MESSAGE })
       .max(255)
       .refine((name) => isValidCellName(name), {
         message: CELL_NAME_INVALID_MESSAGE,
@@ -100,6 +101,8 @@ const visible = ref(false)
 
 const loading = ref(false)
 
+const submitAttempted = ref(false)
+
 function openDialog() {
   if (!flowStore.ensureOnLaneHead()) return
   visible.value = true
@@ -114,9 +117,11 @@ function resetForm() {
   initialValues.value = {
     name: '',
   }
+  submitAttempted.value = false
 }
 
 function submit(event: FormSubmitEvent) {
+  submitAttempted.value = true
   if (!event.valid) return
 
   const values = event.values as typeof initialValues.value
