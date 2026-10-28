@@ -19,9 +19,12 @@ import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/la
 import type {
   NotebookAssetInterface,
   NotebookAssetType,
+  ViewMode,
 } from '@/components/notebooks/notebooks.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useLocalStorage } from '@vueuse/core'
 import { useToast } from 'primevue'
 import { errorToast } from '@/toasts'
 import { formatUpdatedAgo } from '@/helpers/date'
@@ -75,6 +78,10 @@ export const AGENT_COLORS = [
 export const DEFAULT_CLAIM_IDLE_MS = 180_000
 
 export const AGENT_ACTIVE_MS = 30_000
+
+const VIEW_MODE_QUERY_PARAM = 'view'
+
+const VIEW_MODES_STORAGE_KEY = 'lumlflow:flow-view-modes'
 
 export interface PairedAgent {
   actor: string
@@ -170,11 +177,23 @@ function buildLaneTree(records: BranchRecord[]): INotebookLaneNode[] {
   return roots
 }
 
+function isViewMode(value: unknown): value is ViewMode {
+  return value === 'canvas' || value === 'notebook'
+}
+
 export const useFlowStore = defineStore('flow', () => {
   const toast = useToast()
+  const router = useRouter()
 
   const isSidebarOpened = ref(true)
-  const viewMode = ref<'canvas' | 'notebook'>('canvas')
+
+  const storedViewModes = useLocalStorage<Record<string, ViewMode>>(VIEW_MODES_STORAGE_KEY, {})
+  const viewMode = computed<ViewMode>(() => {
+    const fromUrl = router.currentRoute.value.query[VIEW_MODE_QUERY_PARAM]
+    if (isViewMode(fromUrl)) return fromUrl
+    const stored = currentFlow.value ? storedViewModes.value[currentFlow.value] : undefined
+    return isViewMode(stored) ? stored : 'canvas'
+  })
 
   const reactivity = ref<'lazy' | 'auto'>('auto')
   const autoThresholdSeconds = ref(5)
@@ -400,8 +419,12 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchBranches()
   }
 
-  function setViewMode(mode: 'canvas' | 'notebook') {
-    viewMode.value = mode
+  function setViewMode(mode: ViewMode) {
+    if (currentFlow.value) {
+      storedViewModes.value = { ...storedViewModes.value, [currentFlow.value]: mode }
+    }
+    const route = router.currentRoute.value
+    void router.replace({ query: { ...route.query, [VIEW_MODE_QUERY_PARAM]: mode } })
   }
 
   function applySettings(settings: {
@@ -888,7 +911,6 @@ export const useFlowStore = defineStore('flow', () => {
   function reset() {
     disconnectCascadeStream()
     isSidebarOpened.value = true
-    viewMode.value = 'canvas'
     reactivity.value = 'auto'
     autoThresholdSeconds.value = 5
     branches.value = []

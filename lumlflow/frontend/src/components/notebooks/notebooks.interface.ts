@@ -23,9 +23,11 @@ export interface CellEdge {
   input: string
 }
 
+export type ViewMode = 'canvas' | 'notebook'
+
 export interface ViewModeOption {
   label: string
-  value: 'canvas' | 'notebook'
+  value: ViewMode
   icon: LucideIcon
 }
 
