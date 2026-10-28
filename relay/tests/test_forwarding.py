@@ -23,7 +23,7 @@ from tests.harness import (
     EchoService,
     FakeRelayApi,
     bound_socket,
-    port_of,
+    free_port,
     relay_url,
     running_agent,
     serve,
@@ -167,14 +167,14 @@ async def test_session_without_connected_agent(relay_port: int, view_token: str)
 async def test_service_that_does_not_answer(
     relay: Relay, relay_port: int, expose_token: str, view_token: str, echo: EchoService
 ) -> None:
-    service_socket = bound_socket()
+    service_port = free_port()
     async with (
-        running_agent(relay, relay_port, expose_token, port_of(service_socket)),
+        running_agent(relay, relay_port, expose_token, service_port),
         viewer(relay_port, view_token) as client,
     ):
         connection = relay.agents.get(SESSION)
         unanswered = await client.get("/")
-        async with serve(echo.app(), service_socket):
+        async with serve(echo.app(), bound_socket(service_port)):
             answered = await client.get("/")
         assert connection is not None and not connection.closed
         assert relay.agents.get(SESSION) is connection

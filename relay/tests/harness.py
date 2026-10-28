@@ -174,6 +174,11 @@ def port_of(sock: socket.socket) -> int:
     return int(sock.getsockname()[1])
 
 
+def free_port() -> int:
+    with bound_socket() as sock:
+        return port_of(sock)
+
+
 @asynccontextmanager
 async def serve(app: ASGIApp, sock: socket.socket | None = None) -> AsyncGenerator[int]:
     sock = sock or bound_socket()

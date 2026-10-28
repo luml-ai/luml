@@ -15,7 +15,7 @@ from tests.harness import (
     RELAY_TOKEN,
     FakeRelayApi,
     bound_socket,
-    port_of,
+    free_port,
     serve,
     until,
 )
@@ -152,16 +152,19 @@ async def test_relay_retries_until_luml_answers(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="luml_relay.relay")
-    luml_socket = bound_socket()
-    monkeypatch.setenv(BASE_URL_ENV, f"http://127.0.0.1:{port_of(luml_socket)}")
+    luml_port = free_port()
+    monkeypatch.setenv(BASE_URL_ENV, f"http://127.0.0.1:{luml_port}")
     monkeypatch.setenv(RELAY_TOKEN_ENV, RELAY_TOKEN)
 
     running = asyncio.create_task(run_relay())
-    await until(lambda: caplog.text.count("Could not fetch the relay's description") >= 3)
-    assert not running.done()
-    assert started == []
-    async with serve(luml.app(), luml_socket):
-        exit_code = await asyncio.wait_for(running, 5)
+    try:
+        await until(lambda: caplog.text.count("Could not fetch the relay's description") >= 3)
+        assert not running.done()
+        assert started == []
+        async with serve(luml.app(), bound_socket(luml_port)):
+            exit_code = await asyncio.wait_for(running, 5)
+    finally:
+        running.cancel()
 
     assert exit_code == 0
     assert served_relay(started).settings.base_domain == BASE_DOMAIN
