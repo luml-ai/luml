@@ -78,6 +78,7 @@ import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
 import { useAuthStore } from '@/store/auth'
 import { useDownload } from '@/hooks/useDownload'
+import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
 import { CELL_HEADER_MENU_PT, CELL_NAME_UNSAFE } from '@/components/notebooks/cell/cell.const'
 
 const props = defineProps<NotebookCellHeaderProps>()
@@ -97,7 +98,7 @@ const renameValue = ref('')
 const isSaving = ref(false)
 
 function validateCellName(name: string): string | null {
-  if (!name) return 'Name is required'
+  if (!name) return NAME_REQUIRED_MESSAGE
   if (name.startsWith('.')) return 'Name cannot start with a dot'
   if (name.includes('..')) return 'Name cannot contain ".."'
   if (CELL_NAME_UNSAFE.test(name)) return 'Name contains invalid characters'

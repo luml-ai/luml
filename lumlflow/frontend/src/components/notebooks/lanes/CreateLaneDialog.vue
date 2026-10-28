@@ -22,7 +22,7 @@
       :id="formId"
       :resolver="resolver"
       :initial-values="initialValues"
-      :validate-on-value-update="false"
+      :validate-on-value-update="submitAttempted"
       @submit="submit"
     >
       <FormField v-slot="$field" name="name">
@@ -57,6 +57,7 @@ import z from 'zod'
 import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
+import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
 import { isValidGitBranchName, LANE_NAME_INVALID_MESSAGE } from './lanes.const'
 
 const props = defineProps<{
@@ -97,7 +98,7 @@ const resolver: ReturnType<typeof zodResolver> = zodResolver(
   z.object({
     name: z
       .string()
-      .min(1)
+      .min(1, { message: NAME_REQUIRED_MESSAGE })
       .max(255)
       .refine((name) => isValidGitBranchName(name), {
         message: LANE_NAME_INVALID_MESSAGE,
@@ -115,6 +116,8 @@ const resolver: ReturnType<typeof zodResolver> = zodResolver(
 
 const loading = ref(false)
 
+const submitAttempted = ref(false)
+
 const isFromLaneOnScreen = computed(
   () => props.from === undefined || props.from === flowStore.currentBranch?.branch,
 )
@@ -130,9 +133,11 @@ function resetForm() {
   initialValues.value = {
     name: '',
   }
+  submitAttempted.value = false
 }
 
 function submit(event: FormSubmitEvent) {
+  submitAttempted.value = true
   if (!event.valid) return
 
   const values = event.values as typeof initialValues.value
