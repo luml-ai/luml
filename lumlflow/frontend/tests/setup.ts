@@ -62,5 +62,9 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {}
 }
 
+if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = () => {}
+}
+
 config.global.plugins = [PrimeVue]
 config.global.directives = { tooltip: Tooltip }

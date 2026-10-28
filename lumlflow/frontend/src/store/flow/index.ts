@@ -218,6 +218,7 @@ export const useFlowStore = defineStore('flow', () => {
   const isLaneForkPromptVisible = ref(false)
 
   const selectedCellId = ref<string | null>(null)
+  const revealedCell = ref<{ id: string } | null>(null)
   const expandedCellId = ref<string | null>(null)
   const uploadExperimentTarget = ref<ExperimentUploadTarget | null>(null)
   const uploadModelTarget = ref<{ slug: string; output: string } | null>(null)
@@ -372,8 +373,13 @@ export const useFlowStore = defineStore('flow', () => {
     isSidebarOpened.value = !isSidebarOpened.value
   }
 
-  function selectCell(id: string | null) {
+  function selectCell(id: string | null, { reveal = true }: { reveal?: boolean } = {}) {
     selectedCellId.value = id
+    if (id && reveal) revealedCell.value = { id }
+  }
+
+  function clearRevealedCell() {
+    revealedCell.value = null
   }
 
   function setExpandedCellId(id: string | null) {
@@ -929,6 +935,7 @@ export const useFlowStore = defineStore('flow', () => {
     journal.value = []
     isJournalLoading.value = false
     selectedCellId.value = null
+    revealedCell.value = null
     expandedCellId.value = null
     uploadExperimentTarget.value = null
     uploadModelTarget.value = null
@@ -992,7 +999,9 @@ export const useFlowStore = defineStore('flow', () => {
     isJournalLoading,
     fetchJournal,
     selectedCellId,
+    revealedCell,
     selectCell,
+    clearRevealedCell,
     expandedCellId,
     setExpandedCellId,
     uploadExperimentTarget,
