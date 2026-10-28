@@ -7,7 +7,6 @@ on:
       - 'frontend/**'
       - 'extras/js/packages/attachments/**'
       - 'extras/js/packages/experiments/**'
-      - 'lumlflow/frontend/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
     branches: [main, staging, production]
@@ -15,7 +14,6 @@ on:
       - 'frontend/**'
       - 'extras/js/packages/attachments/**'
       - 'extras/js/packages/experiments/**'
-      - 'lumlflow/frontend/**'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   workflow_call:
   workflow_dispatch:
@@ -117,10 +115,6 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build-only
-
-      - name: Build lumlflow frontend
-        working-directory: lumlflow/frontend
-        run: npx vite build
 
       - name: Run integration tests
         working-directory: frontend

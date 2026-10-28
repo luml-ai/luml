@@ -2,17 +2,18 @@ name: Relay Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'relay/**'
       - 'sdk/python/api/**'
       - '.github/workflows/*relay*tests-and-linters.yml'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'relay/**'
       - 'sdk/python/api/**'
       - '.github/workflows/*relay*tests-and-linters.yml'
+  workflow_call:
   workflow_dispatch:
 
 jobs:

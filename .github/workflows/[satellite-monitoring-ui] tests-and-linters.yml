@@ -2,13 +2,14 @@ name: Satellite Monitoring UI Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'satellite/monitoring-ui/**'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'satellite/monitoring-ui/**'
+  workflow_call:
 
 defaults:
   run:

@@ -16,7 +16,10 @@ WORKFLOWS = ROOT / ".github/workflows"
 BRANCHES = {"main", "staging", "production"}
 RELEASES = {
     "deploy-backend.yml": {"tests": "[backend] tests-and-linters.yml"},
-    "deploy-frontend.yml": {"tests": "[frontend] tests-and-linters.yml"},
+    "deploy-frontend.yml": {
+        "tests": "[frontend] tests-and-linters.yml",
+        "flow-tests": "[lumlflow] tests-and-linters.yml",
+    },
     "deploy-docs.yml": {"tests": None},
     "publish-satellite-agent-image.yml": {
         "tests": "[satellite-docker] tests-and-linters.yml",
@@ -27,7 +30,11 @@ RELEASES = {
         "kit-tests": "[satellite-kit] tests-and-linters.yml",
     },
     "publish-model-server-image.yml": {"tests": "[model-server] tests-and-linters.yml"},
-    "publish-monitoring-image.yml": {"tests": "[satellite-kit] tests-and-linters.yml"},
+    "publish-monitoring-image.yml": {
+        "tests": "[satellite-kit] tests-and-linters.yml",
+        "ui-tests": "[satellite-monitoring-ui] tests-and-linters.yml",
+    },
+    "publish-relay-image.yml": {"tests": "[relay] tests-and-linters.yml"},
     "publish-serving-image.yml": {"tests": "[satellite-kit] tests-and-linters.yml"},
 }
 IMAGE_TAGS = {
@@ -36,6 +43,16 @@ IMAGE_TAGS = {
     "publish-model-server-image.yml": "satellite/model-server/v*",
     "publish-monitoring-image.yml": "satellite/monitoring/v*",
     "publish-serving-image.yml": "satellite/serving/v*",
+    "publish-relay-image.yml": "luml-relay/image/v*",
+}
+SUITE_TESTS = {
+    "[backend] tests-and-linters.yml": (
+        "pytest tests/unit",
+        "pytest tests/integration",
+    ),
+    "[frontend] tests-and-linters.yml": ("npm run test:ci", "npm run test:integration"),
+    "[lumlflow] tests-and-linters.yml": ("npm run test:ci", "vite build"),
+    "[satellite-monitoring-ui] tests-and-linters.yml": ("npm test", "npm run build"),
 }
 
 
@@ -61,6 +78,8 @@ class ReleaseGateTests(unittest.TestCase):
     def test_checks_run_on_all_release_branches(self):
         paths = list(WORKFLOWS.glob("*tests-and-linters.yml"))
         paths.append(WORKFLOWS / "[satellite-kubernetes] end-to-end.yml")
+        paths.append(WORKFLOWS / "[sdk] tests.yml")
+        paths.append(WORKFLOWS / "[sdk] linters.yml")
         for path in paths:
             workflow = load(path.name)
             for event in ("push", "pull_request"):
@@ -85,14 +104,8 @@ class ReleaseGateTests(unittest.TestCase):
                             for check in load(suite)["jobs"].values()
                             for step in check["steps"]
                         )
-                        if suite == "[backend] tests-and-linters.yml":
-                            self.assertIn("pytest tests/unit", commands)
-                            self.assertIn("pytest tests/integration", commands)
-                        elif suite == "[frontend] tests-and-linters.yml":
-                            self.assertIn("npm run test:ci", commands)
-                            self.assertIn("npm run test:integration", commands)
-                        else:
-                            self.assertIn("uv run pytest", commands)
+                        for command in SUITE_TESTS.get(suite, ("uv run pytest",)):
+                            self.assertIn(command, commands)
                         for check in load(suite)["jobs"].values():
                             self.assertNotIn("if", check)
                             self.assertNotIn("continue-on-error", check)
@@ -214,16 +227,16 @@ class ReleaseGateTests(unittest.TestCase):
                                     output.read_text().strip(), f"image_tag={expected}"
                                 )
 
-    def test_frontend_gate_covers_both_frontend_workspaces(self):
-        workflow = load("[frontend] tests-and-linters.yml")
+    def test_flow_frontend_gate_builds_the_bundle(self):
+        workflow = load("[lumlflow] tests-and-linters.yml")
         for event in ("push", "pull_request"):
             self.assertIn("lumlflow/frontend/**", workflow["on"][event]["paths"])
-        integration = workflow["jobs"]["integration"]["steps"]
+        steps = workflow["jobs"]["unit"]["steps"]
         self.assertTrue(
             any(
                 step.get("working-directory") == "lumlflow/frontend"
                 and "vite build" in step.get("run", "")
-                for step in integration
+                for step in steps
             )
         )
 

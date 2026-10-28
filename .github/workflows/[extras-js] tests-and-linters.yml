@@ -2,11 +2,11 @@ name: Extras JS Packages Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'extras/js/packages/**'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'extras/js/packages/**'
 

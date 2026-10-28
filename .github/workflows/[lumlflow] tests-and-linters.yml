@@ -2,17 +2,18 @@ name: Lumlflow Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'lumlflow/frontend/**'
       - 'extras/js/packages/attachments/**'
       - 'extras/js/packages/experiments/**'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'lumlflow/frontend/**'
       - 'extras/js/packages/attachments/**'
       - 'extras/js/packages/experiments/**'
+  workflow_call:
 
 jobs:
   lint:
@@ -64,3 +65,7 @@ jobs:
       - name: Run unit tests
         working-directory: lumlflow/frontend
         run: npm run test:ci
+
+      - name: Build
+        working-directory: lumlflow/frontend
+        run: npx vite build
