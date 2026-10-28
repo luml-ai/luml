@@ -1,5 +1,5 @@
 <template>
-  <div class="wrapper" @click.self="flowStore.selectCell(null)">
+  <div ref="wrapperRef" class="wrapper" @click.self="flowStore.selectCell(null)">
     <NotebookCell
       v-for="cell in cells"
       :key="cell.asset.id"
@@ -13,13 +13,13 @@
       :causes="cell.causes"
       :reused="cell.reused"
       :cell="cell"
-      @click="flowStore.selectCell(cell.asset.id)"
+      @click="flowStore.selectCell(cell.asset.id, { reveal: false })"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   NOTEBOOK_ASSET_ICONS,
 } from '@/components/notebooks/notebooks.const'
@@ -38,6 +38,7 @@ const cells = computed(() => {
   })
 })
 
+const wrapperRef = ref<HTMLElement | null>(null)
 const cellRefs = new Map<string, HTMLElement>()
 
 function setCellRef(id: string, el: unknown) {
@@ -48,12 +49,28 @@ function setCellRef(id: string, el: unknown) {
   }
 }
 
+function revealCell(id: string) {
+  const wrapper = wrapperRef.value
+  const cellEl = cellRefs.get(id)
+  if (!wrapper || !cellEl) return
+  const offset = cellEl.getBoundingClientRect().top - wrapper.getBoundingClientRect().top
+  wrapper.scrollTo({ top: wrapper.scrollTop + offset, behavior: 'smooth' })
+  cellEl.animate?.(
+    [
+      { outline: '3px solid var(--p-primary-color)', outlineOffset: '-3px' },
+      { outline: '3px solid transparent', outlineOffset: '-3px' },
+    ],
+    { duration: 1200, easing: 'ease-out' },
+  )
+}
+
 watch(
-  () => flowStore.selectedCellId,
-  async (id) => {
-    if (!id) return
+  () => flowStore.revealedCell,
+  async (request) => {
+    if (!request) return
     await nextTick()
-    cellRefs.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    revealCell(request.id)
+    flowStore.clearRevealedCell()
   },
   { immediate: true },
 )
