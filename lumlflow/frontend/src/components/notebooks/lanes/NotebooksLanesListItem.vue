@@ -5,7 +5,7 @@
         type="button"
         class="lane-select-button"
         :disabled="flowStore.isSwitchingBranch"
-        @click="flowStore.switchBranch(lane.name)"
+        @click="onSelect"
       >
         <span class="lane-dot" :style="{ backgroundColor: dotColor }" />
         <span class="lane-body">
@@ -42,6 +42,7 @@
 import type { INotebookLaneNode } from './interface'
 import { computed } from 'vue'
 import { useFlowStore } from '@/store/flow'
+import { useDiscardConfirm } from '@/composables/useDiscardConfirm'
 import NotebooksLanesListItem from './NotebooksLanesListItem.vue'
 
 interface Props {
@@ -50,6 +51,13 @@ interface Props {
 
 const props = defineProps<Props>()
 const flowStore = useFlowStore()
+const { confirmLeave } = useDiscardConfirm()
+
+async function onSelect() {
+  if (props.lane.current) return
+  if (!(await confirmLeave())) return
+  void flowStore.switchBranch(props.lane.name)
+}
 
 function laneColor(isCurrentPath: boolean): string {
   return isCurrentPath ? 'var(--p-primary-color)' : 'var(--p-surface-300)'

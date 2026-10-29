@@ -174,14 +174,12 @@ async function onAddCellDownstream() {
   }
 }
 
-function onGoToNotebook() {
-  flowStore.setViewMode('notebook')
-  flowStore.selectCell(props.cell.slug)
+async function onGoToNotebook() {
+  if (await flowStore.setViewMode('notebook')) flowStore.selectCell(props.cell.slug)
 }
 
-function onGoToCanvas() {
-  flowStore.setViewMode('canvas')
-  flowStore.selectCell(props.cell.slug)
+async function onGoToCanvas() {
+  if (await flowStore.setViewMode('canvas')) flowStore.selectCell(props.cell.slug)
 }
 
 async function onDownload() {

@@ -99,6 +99,26 @@ export const moveLaneConfirmOptions = (
   }
 }
 
+export const discardChangesConfirmOptions = (
+  onAnswer: (discard: boolean) => void,
+): ConfirmationOptions => {
+  return {
+    message: 'You have unsaved code changes. They will be lost if you continue.',
+    header: 'Discard unsaved changes?',
+    acceptProps: {
+      label: 'Discard changes',
+      severity: 'warn',
+      variant: 'outlined',
+    },
+    rejectProps: {
+      label: 'Keep editing',
+    },
+    accept: () => onAnswer(true),
+    reject: () => onAnswer(false),
+    onHide: () => onAnswer(false),
+  }
+}
+
 function formatLumlflowOrigin(experiment: Experiment): string | null {
   const origin = experiment.metadata.lumlflow
   if (typeof origin !== 'object' || origin === null || Array.isArray(origin)) return null

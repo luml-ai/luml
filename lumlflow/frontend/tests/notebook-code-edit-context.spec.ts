@@ -4,6 +4,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 import type { BranchRecord } from '@/api/slices/workspace/workspace.interface'
+import type { ConfirmationOptions } from 'primevue/confirmationoptions'
 
 const toastAdd = vi.fn()
 
@@ -19,9 +20,11 @@ vi.mock('@/api/slices/workspace/workspace.api', async (importOriginal) => ({
     journalSince: vi.fn(async () => ({ transactions: [] })),
   },
 }))
+const confirmRequire = vi.hoisted(() => vi.fn())
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
   useToast: () => ({ add: toastAdd }),
+  useConfirm: () => ({ require: confirmRequire }),
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 
@@ -111,6 +114,7 @@ async function answerForkPrompt(name: string): Promise<void> {
 beforeEach(async () => {
   for (const fn of Object.values(mocked)) fn.mockClear()
   toastAdd.mockClear()
+  confirmRequire.mockClear()
   setActivePinia(createPinia())
   store = useFlowStore()
   lanes = [lane('main', true), lane('sweep', false)]
@@ -180,6 +184,83 @@ describe('the edit context a save carries', () => {
 
     expect(mocked.editCell.mock.calls[0]?.[3]).toBe('main')
     expect(shownSource()).toBe('source of train on sweep at h-sweep-1')
+  })
+})
+
+describe('cancelling an edit', () => {
+  it('closes the editor without asking when the draft matches the saved source', async () => {
+    await click('Edit')
+    await click('Cancel')
+
+    expect(confirmRequire).not.toHaveBeenCalled()
+    expect(isEditing()).toBe(false)
+  })
+
+  it('asks before dropping a changed draft and keeps it when the user stays', async () => {
+    await edit('my draft')
+    await click('Cancel')
+
+    expect(confirmRequire).toHaveBeenCalledOnce()
+    const options = confirmRequire.mock.calls[0]![0] as ConfirmationOptions
+    options.reject?.()
+    await settle()
+
+    expect(isEditing()).toBe(true)
+  })
+
+  it('drops a changed draft once the user confirms', async () => {
+    await edit('my draft')
+    await click('Cancel')
+    const options = confirmRequire.mock.calls[0]![0] as ConfirmationOptions
+    options.accept?.()
+    await settle()
+
+    expect(isEditing()).toBe(false)
+    expect(mocked.editCell).not.toHaveBeenCalled()
+  })
+})
+
+describe('unsaved changes in the store', () => {
+  it('reports a changed draft and not an untouched one', async () => {
+    await click('Edit')
+    expect(store.hasUnsavedChanges).toBe(false)
+
+    const editor = wrapper.findAllComponents(UiCodeEditor).find((found) => !found.props('readonly'))
+    editor?.vm.$emit('update:modelValue', 'my draft')
+    await settle()
+
+    expect(store.hasUnsavedChanges).toBe(true)
+  })
+
+  it('closes the editor when the store closes code editors', async () => {
+    await edit('my draft')
+    store.closeCodeEditors()
+    await settle()
+
+    expect(isEditing()).toBe(false)
+    expect(store.hasUnsavedChanges).toBe(false)
+  })
+
+  it('forgets the editor once it is unmounted', async () => {
+    await edit('my draft')
+    wrapper.unmount()
+    wrapper = mount(NotebookCode, { props: { slug: 'train' }, attachTo: document.body })
+    await settle()
+
+    expect(store.hasUnsavedChanges).toBe(false)
+  })
+
+  it('shares one open confirmation between concurrent callers', async () => {
+    let answer!: (discard: boolean) => void
+    const ask = vi.fn(() => new Promise<boolean>((resolve) => (answer = resolve)))
+
+    const first = store.shareDiscardConfirmation(ask)
+    const second = store.shareDiscardConfirmation(ask)
+    answer(true)
+
+    expect(ask).toHaveBeenCalledOnce()
+    expect(await first).toBe(true)
+    expect(await second).toBe(true)
   })
 })
 

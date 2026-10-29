@@ -80,6 +80,7 @@ import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
 import { moveLaneConfirmOptions } from '@/confirm/confirm'
+import { useDiscardConfirm } from '@/composables/useDiscardConfirm'
 import { formatUpdatedAgo } from '@/helpers/date'
 import { ACCORDION_CONTENT_PT, ACCORDION_HEADER_PT } from '@/prime-vue/pass-through/accordion.pt'
 import NotebookLanesCreatePoint from './NotebookLanesCreatePoint.vue'
@@ -87,6 +88,7 @@ import NotebookLanesBehindMessage from './NotebookLanesBehindMessage.vue'
 
 const toast = useToast()
 const confirm = useConfirm()
+const { confirmLeave } = useDiscardConfirm()
 
 const flowStore = useFlowStore()
 
@@ -96,9 +98,10 @@ function stepTitle(step: JournalTransaction): string {
   return flowStore.currentBranchPoints.get(step.step) ?? step.intent
 }
 
-function confirmRewind(step: number) {
+async function confirmRewind(step: number) {
   const lane = flowStore.currentBranch?.branch
   if (!lane || step === flowStore.currentHeadStep || rewindingStep.value !== null) return
+  if (!(await confirmLeave())) return
   const isLatest = step === flowStore.currentBranch?.newest_step
   confirm.require(
     moveLaneConfirmOptions(() => {

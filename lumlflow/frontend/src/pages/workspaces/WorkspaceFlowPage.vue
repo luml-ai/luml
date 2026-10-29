@@ -45,6 +45,7 @@ import { computed, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useFlowStore } from '@/store/flow'
 import { useDisableBrowserZoom } from '@/composables/useDisableBrowserZoom'
+import { useUnsavedChangesGuard } from '@/composables/useDiscardConfirm'
 import NotebookHeader from '@/components/notebooks/NotebookHeader.vue'
 import NotebooksSidebar from '@/components/notebooks/NotebooksSidebar.vue'
 import NotebookToolbar from '@/components/notebooks/NotebookToolbar.vue'
@@ -57,6 +58,7 @@ import CreateLaneDialog from '@/components/notebooks/lanes/CreateLaneDialog.vue'
 const route = useRoute()
 const flowStore = useFlowStore()
 useDisableBrowserZoom()
+useUnsavedChangesGuard()
 
 const directory = computed(() =>
   typeof route.query.directory === 'string' ? route.query.directory : null,
