@@ -14,7 +14,7 @@ import OllamaModel from '@/assets/img/providers/ollama-model.svg'
 
 export const getProviders = (): BaseProviderInfo[] => {
   const settings = LocalStorageService.get('providersSettings')
-  const savedOpenAiSettings = settings?.[ProvidersEnum.openAi]
+  const savedOpenAiSettings = settings?.saveApiKeys ? settings[ProvidersEnum.openAi] : undefined
   const savedOllamaSettings = settings?.[ProvidersEnum.ollama]
   const data = [
     {
