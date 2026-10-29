@@ -90,13 +90,13 @@ def test_tree_hides_legacy_unsafe_attachment_names(
     tmp_path: Path,
 ) -> None:
     backend, experiment_id = backend_with_experiment
-    connection = backend._get_experiment_connection(experiment_id)
-    connection.executemany(
-        "INSERT INTO attachments (id, name, file_path, size) VALUES (?, ?, ?, ?)",
-        [
-            ("absolute", str(tmp_path / "outside.txt"), "", 7),
-            ("parent", "../bad", "", 3),
-        ],
-    )
-    connection.commit()
+    with backend._get_experiment_connection(experiment_id, write=True) as connection:
+        connection.executemany(
+            "INSERT INTO attachments (id, name, file_path, size) VALUES (?, ?, ?, ?)",
+            [
+                ("absolute", str(tmp_path / "outside.txt"), "", 7),
+                ("parent", "../bad", "", 3),
+            ],
+        )
+        connection.commit()
     assert backend.list_attachments_tree(experiment_id) == []
