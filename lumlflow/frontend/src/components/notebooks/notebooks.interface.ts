@@ -48,4 +48,11 @@ export interface SidebarTooltipPlugProps {
   icon?: LucideIcon
 }
 
-export type NotebookHealthState = CellStaleState | 'empty'
+export type NotebookHealthState = CellStaleState | 'running' | 'empty'
+
+export interface NotebookHealthView {
+  severity: 'success' | 'warn' | 'info' | 'danger' | 'secondary'
+  label: string
+  tooltip: string
+  icon: LucideIcon
+}

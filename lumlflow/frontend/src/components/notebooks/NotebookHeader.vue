@@ -6,9 +6,10 @@
       </RouterLink>
       <div class="toolbar-title">
         <span
+          v-if="health"
           class="status-circle"
-          :class="`status-circle--${statusSeverity}`"
-          v-tooltip.bottom="statusTooltip"
+          :class="`status-circle--${health.severity}`"
+          v-tooltip.bottom="health.tooltip"
         ></span>
         <span>{{ flowName }}</span>
         <span>/</span>
@@ -46,7 +47,6 @@
 </template>
 
 <script setup lang="ts">
-import type { NotebookHealthState } from '@/components/notebooks/notebooks.interface'
 import { ChevronLeft, RotateCcw } from 'lucide-vue-next'
 import { Button, SelectButton, useToast } from 'primevue'
 import { computed } from 'vue'
@@ -54,11 +54,7 @@ import { RouterLink } from 'vue-router'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useFlowStore } from '@/store/flow'
 import { baseName, parentDirectory } from '@/helpers/path'
-import {
-  NOTEBOOK_HEALTH_LABELS,
-  NOTEBOOK_HEALTH_SEVERITY,
-  NOTEBOOK_VIEW_MODE_OPTIONS,
-} from '@/components/notebooks/notebooks.const'
+import { NOTEBOOK_HEALTH, NOTEBOOK_VIEW_MODE_OPTIONS } from '@/components/notebooks/notebooks.const'
 import NotebookPairAgent from '@/components/notebooks/NotebookPairAgent.vue'
 import NotebookSettings from '@/components/notebooks/NotebookSettings.vue'
 import { errorToast } from '@/toasts'
@@ -95,17 +91,7 @@ const flowName = computed(() => {
 
 const branchName = computed(() => flowStore.currentBranch?.branch ?? '')
 
-const notebookHealth = computed<NotebookHealthState>(() => {
-  const cells = flowStore.cells
-  if (cells.length === 0) return 'empty'
-  if (cells.some((cell) => cell.state === 'failed')) return 'failed'
-  if (cells.some((cell) => cell.state === 'unsynced')) return 'unsynced'
-  if (cells.some((cell) => cell.state === 'unmaterialized')) return 'unmaterialized'
-  return 'synced'
-})
-
-const statusSeverity = computed(() => NOTEBOOK_HEALTH_SEVERITY[notebookHealth.value])
-const statusTooltip = computed(() => NOTEBOOK_HEALTH_LABELS[notebookHealth.value])
+const health = computed(() => (flowStore.laneHealth ? NOTEBOOK_HEALTH[flowStore.laneHealth] : null))
 </script>
 
 <style scoped>

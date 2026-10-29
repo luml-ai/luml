@@ -19,6 +19,7 @@ import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/la
 import type {
   NotebookAssetInterface,
   NotebookAssetType,
+  NotebookHealthState,
   ViewMode,
 } from '@/components/notebooks/notebooks.interface'
 import { defineStore } from 'pinia'
@@ -224,6 +225,7 @@ export const useFlowStore = defineStore('flow', () => {
 
   const cells = ref<CellSummary[]>([])
   const isCellsLoading = ref(false)
+  const cellsLane = ref<string | null>(null)
 
   const kernelState = ref<KernelState | null>(null)
   const restartingFlow = ref<string | null>(null)
@@ -335,6 +337,20 @@ export const useFlowStore = defineStore('flow', () => {
     return states
   })
   const isAnythingRunning = computed(() => liveRuns.value.length > 0)
+  const laneHealth = computed<NotebookHealthState | null>((previous) => {
+    const lane = currentBranch.value?.branch
+    if (!lane) return null
+    if (isSwitchingBranch.value || cellsLane.value !== lane) return previous ?? null
+    if (cells.value.length === 0) return 'empty'
+    if (cells.value.some((cell) => cell.state === 'failed')) return 'failed'
+    const slugs = new Set(cells.value.map((cell) => cell.slug))
+    if (liveRuns.value.some((run) => run.phase === 'running' && slugs.has(run.slug))) {
+      return 'running'
+    }
+    if (cells.value.some((cell) => cell.state === 'unsynced')) return 'unsynced'
+    if (cells.value.some((cell) => cell.state === 'unmaterialized')) return 'unmaterialized'
+    return 'synced'
+  })
   const notebookCells = computed(() =>
     [...cells.value].sort((a, b) => compareOrder(a.order, b.order)).map(toNotebookCell),
   )
@@ -719,12 +735,11 @@ export const useFlowStore = defineStore('flow', () => {
 
   async function fetchCells() {
     isCellsLoading.value = true
+    const lane = currentBranch.value?.branch ?? null
     try {
-      const page = await workspaceApi.cellsList(
-        currentFlow.value ?? undefined,
-        currentBranch.value?.branch,
-      )
+      const page = await workspaceApi.cellsList(currentFlow.value ?? undefined, lane ?? undefined)
       cells.value = page.cells
+      cellsLane.value = lane
     } catch (error) {
       toast.add(errorToast(error, 'Failed to load cells'))
     } finally {
@@ -957,6 +972,7 @@ export const useFlowStore = defineStore('flow', () => {
     isSwitchingBranch.value = false
     isLaneForkPromptVisible.value = false
     cells.value = []
+    cellsLane.value = null
     isCellsLoading.value = false
     kernelState.value = null
     restartingFlow.value = null
@@ -1044,6 +1060,7 @@ export const useFlowStore = defineStore('flow', () => {
     pairedAgentLabel,
     endAgentSession,
     liveRuns,
+    laneHealth,
     agentClaims,
     claimIdleMinutes,
     pairedAgents,
