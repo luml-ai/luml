@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from luml.experiments.tracker import ExperimentTracker
 from lumlflow.api.experiments import experiments_handler
 from lumlflow.service import AppService
+from lumlflow.settings import get_config
 
 
 @pytest.fixture()
@@ -16,19 +17,52 @@ def client(tmp_path: Path) -> TestClient:
 
 
 def test_api_requires_session_token(client: TestClient) -> None:
-    assert client.get("/api/auth/status").status_code == 401
+    assert client.get("/api/groups").status_code == 401
     assert (
         client.get(
-            "/api/auth/status", headers={"Authorization": "Bearer invalid"}
+            "/api/groups", headers={"Authorization": "Bearer invalid"}
         ).status_code
         == 401
     )
     assert client.post("/api/auth/api-key", json={"api_key": "test"}).status_code == 401
     assert (
         client.get(
-            "/api/auth/status", params={"token": client.app.state.session_token}
+            "/api/groups", params={"token": client.app.state.session_token}
         ).status_code
         == 401
+    )
+
+
+def test_status_is_open_to_every_origin_without_a_token(client: TestClient) -> None:
+    response = client.get("/api/auth/status", headers={"Origin": "https://app.luml.ai"})
+    assert response.status_code == 200
+    assert isinstance(response.json()["has_key"], bool)
+    assert response.headers["access-control-allow-origin"] == "*"
+    response = client.get(
+        "/api/auth/status", headers={"Origin": "http://localhost:5173"}
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_session_token_comes_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LUMLFLOW_SESSION_TOKEN", "given-by-the-launcher")
+    get_config.cache_clear()
+    try:
+        app = AppService()
+    finally:
+        get_config.cache_clear()
+    assert app.state.session_token == "given-by-the-launcher"
+    client = TestClient(app)
+    progress = "/api/luml/artifact/missing/progress"
+    assert client.get(progress).status_code == 401
+    assert (
+        client.get(
+            progress, headers={"Authorization": "Bearer given-by-the-launcher"}
+        ).status_code
+        == 200
     )
 
 
@@ -56,9 +90,7 @@ def test_foreign_cors_origin_is_rejected(client: TestClient) -> None:
     response = client.options("/api/auth/status", headers=headers)
     assert response.status_code == 400
     assert "access-control-allow-origin" not in response.headers
-    response = client.get(
-        "/api/auth/status", headers={"Origin": "https://evil.example"}
-    )
+    response = client.get("/api/groups", headers={"Origin": "https://evil.example"})
     assert response.status_code == 401
     assert "access-control-allow-origin" not in response.headers
 
@@ -76,7 +108,7 @@ def test_vite_cors_origin_is_allowed_but_needs_token(client: TestClient) -> None
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
     assert (
         client.get(
-            "/api/auth/status", headers={"Origin": "http://localhost:5173"}
+            "/api/groups", headers={"Origin": "http://localhost:5173"}
         ).status_code
         == 401
     )

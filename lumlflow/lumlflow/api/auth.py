@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 
 from lumlflow.handlers.auth import AuthHandler
 from lumlflow.schemas.auth import HasApiKey, SetApiKey
@@ -9,7 +9,8 @@ auth_handler = AuthHandler()
 
 
 @auth_router.get("/status", response_model=HasApiKey)
-def auth_status() -> HasApiKey:
+def auth_status(response: Response) -> HasApiKey:
+    response.headers["Access-Control-Allow-Origin"] = "*"
     return HasApiKey(has_key=auth_handler.has_api_key())
 
 

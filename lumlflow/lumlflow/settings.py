@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     )
     LUML_API_KEY: str | None = None
     LUML_BASE_URL: str = "https://api.luml.ai"
+    LUMLFLOW_SESSION_TOKEN: str | None = None
 
     @field_validator("BACKEND_STORE_URI", mode="after")
     @classmethod

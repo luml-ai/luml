@@ -21,17 +21,26 @@ from lumlflow.api.experiments_traces import (
 from lumlflow.api.luml import luml_router
 from lumlflow.api.models import models_router
 from lumlflow.infra.exceptions import ApplicationError
+from lumlflow.settings import get_config
+
+OPEN_API_PATHS = frozenset({"/api/auth/status"})
 
 
 class AppService(FastAPI):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
-        self.state.session_token = secrets.token_urlsafe(32)
+        self.state.session_token = (
+            get_config().LUMLFLOW_SESSION_TOKEN or secrets.token_urlsafe(32)
+        )
 
         @self.middleware("http")
         async def require_session(request: Request, call_next):
-            if request.url.path.startswith("/api/") and request.method != "OPTIONS":
+            if (
+                request.url.path.startswith("/api/")
+                and request.url.path not in OPEN_API_PATHS
+                and request.method != "OPTIONS"
+            ):
                 authorization = request.headers.get("Authorization", "")
                 expected = f"Bearer {self.state.session_token}"
                 if not secrets.compare_digest(
