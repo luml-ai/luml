@@ -54,7 +54,7 @@ async function init() {
       await organizationStore.availableOrganizationsRequest
     }
     if (organizationStore.currentOrganization?.id === organizationId) {
-      organizationStore.getOrganizationDetails(organizationId)
+      await organizationStore.getOrganizationDetails(organizationId)
     } else {
       await organizationStore.switchOrganization(organizationId)
     }

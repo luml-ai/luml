@@ -141,6 +141,26 @@ describe('OrganizationPage', () => {
     expect(orbitsStore.orbitsList).toEqual(orbitsByOrganization[organizationB.id])
   })
 
+  it('shows an error when reloading the current organization details fails', async () => {
+    harness.route.params.id = organizationA.id
+    vi.mocked(api.getOrganizations).mockResolvedValue([organizationA, organizationB])
+    const organizationStore = useOrganizationStore()
+    await organizationStore.getAvailableOrganizations()
+    vi.mocked(api.getOrganization).mockRejectedValueOnce(new Error('unavailable'))
+
+    wrapper = mountPage()
+    await flushPromises()
+
+    expect(harness.toastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'error',
+        detail: 'Unable to retrieve organization data',
+      }),
+    )
+    expect(organizationStore.loading).toBe(false)
+    harness.route.params.id = organizationB.id
+  })
+
   it('only reloads details when the URL organization is already current', async () => {
     harness.route.params.id = organizationA.id
     vi.mocked(api.getOrganizations).mockResolvedValue([organizationA, organizationB])

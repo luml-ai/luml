@@ -18,6 +18,8 @@ export const useOrganizationStore = defineStore('organization', () => {
   const organizationDetails = ref<OrganizationDetails | null>(null)
   const currentOrganizationId = ref<string | null>(null)
   const loading = ref(false)
+  let organizationRequestId = 0
+  let detailsRequestId = 0
 
   const currentOrganization = computed(() => {
     return (
@@ -63,52 +65,74 @@ export const useOrganizationStore = defineStore('organization', () => {
 
   async function deleteOrganization(organizationId: string) {
     await api.deleteOrganization(organizationId)
-    const organizationInLocalStorage = LocalStorageService.get('currentOrganizationId')
-    if (organizationInLocalStorage && organizationInLocalStorage === organizationId) {
-      LocalStorageService.remove('currentOrganizationId')
-    }
     availableOrganizations.value = availableOrganizations.value.filter(
       (organization) => organization.id !== organizationId,
     )
-    setInitialOrganization()
+    if (currentOrganizationId.value !== organizationId) return
+
+    resetCurrentOrganization()
+    await setInitialOrganization()
   }
 
   function setCurrentOrganizationId(id: string) {
+    organizationRequestId++
     currentOrganizationId.value = id
     LocalStorageService.set('currentOrganizationId', `${id}`)
   }
 
   async function switchOrganization(id: string) {
     setCurrentOrganizationId(id)
+    const requestId = organizationRequestId
+    organizationDetails.value = null
+    loading.value = true
 
     const orbitsStore = useOrbitsStore()
     orbitsStore.reset()
-    await orbitsStore.loadOrbitsList(id)
-
-    const savedOrbitId = LocalStorageService.get('currentOrbitId')
-    const orbitExists = orbitsStore.orbitsList.some((o) => o.id === savedOrbitId)
-
-    if (orbitExists) {
-      orbitsStore.setCurrentOrbitId(savedOrbitId, id)
-    } else {
-      const firstOrbit = orbitsStore.orbitsList[0]
-      orbitsStore.setCurrentOrbitId(firstOrbit?.id ?? null, id)
-    }
-
-    organizationDetails.value = null
     try {
-      await getOrganizationDetails(id)
+      await orbitsStore.loadOrbitsList(id)
+      if (requestId !== organizationRequestId) return
+
+      const savedOrbitId = LocalStorageService.get('currentOrbitId')
+      const orbitExists = orbitsStore.orbitsList.some((o) => o.id === savedOrbitId)
+
+      if (orbitExists) {
+        orbitsStore.setCurrentOrbitId(savedOrbitId, id)
+      } else {
+        const firstOrbit = orbitsStore.orbitsList[0]
+        orbitsStore.setCurrentOrbitId(firstOrbit?.id ?? null, id)
+      }
+
+      try {
+        await getOrganizationDetails(id)
+      } catch (e) {
+        console.warn('No permission to load organization details', e)
+      }
     } catch (e) {
-      console.warn('No permission to load organization details', e)
+      if (requestId !== organizationRequestId) return
+      loading.value = false
+      throw e
     }
   }
 
   async function getOrganizationDetails(id: string) {
+    const requestId = ++detailsRequestId
+    const organizationId = organizationRequestId
     loading.value = true
     try {
-      organizationDetails.value = await api.getOrganization(id)
+      const details = await api.getOrganization(id)
+      if (
+        organizationId !== organizationRequestId ||
+        requestId !== detailsRequestId ||
+        id !== currentOrganizationId.value
+      )
+        return
+      organizationDetails.value = details
+    } catch (e) {
+      if (organizationId === organizationRequestId && requestId === detailsRequestId) throw e
     } finally {
-      loading.value = false
+      if (organizationId === organizationRequestId && requestId === detailsRequestId) {
+        loading.value = false
+      }
     }
   }
 
@@ -127,7 +151,13 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   function resetCurrentOrganization() {
+    organizationRequestId++
     currentOrganizationId.value = null
+    organizationDetails.value = null
+    loading.value = false
+    LocalStorageService.remove('currentOrganizationId')
+    useOrbitsStore().reset()
+    LocalStorageService.remove('currentOrbitId')
   }
 
   async function updateMember(
@@ -175,10 +205,6 @@ export const useOrganizationStore = defineStore('organization', () => {
     if (currentOrganizationId.value !== organizationId) return
 
     resetCurrentOrganization()
-    organizationDetails.value = null
-    LocalStorageService.remove('currentOrganizationId')
-    useOrbitsStore().reset()
-    LocalStorageService.remove('currentOrbitId')
     await setInitialOrganization()
   }
 
