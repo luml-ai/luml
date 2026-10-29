@@ -61,6 +61,14 @@ _SPAN_STATUS_TO_LUML: dict[str, int] = {
 }
 
 
+class _SearchableTraceInfo(TraceInfo):
+    @property
+    def end_time_ms(self) -> int | None:
+        if self.execution_duration is None:
+            return None
+        return self.request_time + self.execution_duration
+
+
 def resolve_owning_run_id(trace_metadata: dict[str, str]) -> str | None:
     """Return the run id that owns a trace, or ``None`` if there is none.
 
@@ -405,7 +413,7 @@ def _build_trace_info(
     except ValueError:
         state = TraceState.STATE_UNSPECIFIED
     request_time = entry.get("request_time") or 0
-    return TraceInfo(
+    return _SearchableTraceInfo(
         trace_id=trace_id,
         trace_location=TraceLocation.from_experiment_id(group_id or ""),
         request_time=request_time,

@@ -627,3 +627,40 @@ def test_trace_search_filters_before_pagination(
     )
     assert [i.trace_id for i in infos] == [_TRACE_ABC]
     assert token is None
+
+
+@pytest.mark.parametrize("key", ["end_time_ms", "end_time"])
+@pytest.mark.parametrize(
+    ("comparison", "expected"),
+    [
+        ("> 120", [_TRACE_1]),
+        (">= 150", [_TRACE_1]),
+        ("< 150", [_TRACE_2]),
+        ("<= 100", [_TRACE_2]),
+        ("= 150", [_TRACE_1]),
+        ("!= 150", [_TRACE_2]),
+    ],
+)
+def test_trace_search_filters_by_end_time(
+    store: LumlTrackingStore,
+    run: tuple[str, str],
+    key: str,
+    comparison: str,
+    expected: list[str],
+) -> None:
+    from mlflow.entities import TraceState
+
+    exp_id, run_id = run
+    for trace_id, duration in [(_TRACE_1, 50), (_TRACE_2, 0), (_TRACE_ABC, None)]:
+        info = _make_trace_info(
+            trace_id=trace_id, experiment_id=exp_id, run_id=run_id, request_time=100
+        )
+        info.execution_duration = duration
+        if duration is not None:
+            info.state = TraceState.OK
+        store.start_trace(info)
+
+    infos, _ = store.search_traces(
+        locations=[exp_id], filter_string=f"{key} {comparison}"
+    )
+    assert [info.trace_id for info in infos] == expected
