@@ -45,6 +45,10 @@ IMAGE_TAGS = {
     "publish-serving-image.yml": "satellite/serving/v*",
     "publish-relay-image.yml": "luml-relay/image/v*",
 }
+RELEASE_COVERED_SUITES = {
+    "[backend] tests-and-linters.yml",
+    "[satellite-kit] tests-and-linters.yml",
+}
 SUITE_TESTS = {
     "[backend] tests-and-linters.yml": (
         "pytest tests/unit",
@@ -82,9 +86,33 @@ class ReleaseGateTests(unittest.TestCase):
         paths.append(WORKFLOWS / "[sdk] linters.yml")
         for path in paths:
             workflow = load(path.name)
-            for event in ("push", "pull_request"):
-                with self.subTest(workflow=path.name, event=event):
-                    self.assertEqual(set(workflow["on"][event]["branches"]), BRANCHES)
+            with self.subTest(workflow=path.name, event="pull_request"):
+                self.assertEqual(
+                    set(workflow["on"]["pull_request"]["branches"]), BRANCHES
+                )
+            with self.subTest(workflow=path.name, event="push"):
+                if path.name in RELEASE_COVERED_SUITES:
+                    self.assertNotIn("push", workflow["on"])
+                else:
+                    self.assertEqual(set(workflow["on"]["push"]["branches"]), BRANCHES)
+
+    def test_release_covered_suites_are_gates_with_matching_paths(self):
+        callers = {}
+        for name, required in RELEASES.items():
+            for suite in required.values():
+                if suite:
+                    callers.setdefault(suite, []).append(name)
+        for suite in RELEASE_COVERED_SUITES:
+            with self.subTest(suite=suite):
+                self.assertIn(suite, callers)
+                suite_paths = set(load(suite)["on"]["pull_request"]["paths"])
+                suite_paths -= {
+                    path for path in suite_paths if path.startswith(".github/")
+                }
+                covered = set()
+                for name in callers[suite]:
+                    covered |= set(load(name)["on"]["push"]["paths"])
+                self.assertTrue(suite_paths <= covered, suite_paths - covered)
 
     def test_releases_require_the_relevant_checks(self):
         for name, required in RELEASES.items():

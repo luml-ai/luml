@@ -1,11 +1,6 @@
 name: Satellite Kit Tests and Linters
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'satellite/kit/**'
-      - '.github/workflows/*satellite-kit*tests-and-linters.yml'
   pull_request:
     branches: [main, staging, production]
     paths:
