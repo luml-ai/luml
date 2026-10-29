@@ -2,17 +2,19 @@ name: Luml MLflow Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'extras/python/luml-mlflow/**'
       - 'sdk/python/sdk/**'
       - 'sdk/python/api/**'
+      - '.github/workflows/*luml-mlflow*tests-and-linters.yml'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'extras/python/luml-mlflow/**'
       - 'sdk/python/sdk/**'
       - 'sdk/python/api/**'
+      - '.github/workflows/*luml-mlflow*tests-and-linters.yml'
   workflow_dispatch:
 
 jobs:
