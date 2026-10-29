@@ -3,7 +3,7 @@ export type NotebookLaneState = 'active' | 'inactive'
 export interface INotebookLane {
   id: string
   name: string
-  steps: number
+  stepsLabel: string | null
   updatedAgo: string
   parentId: string | null
   state: NotebookLaneState

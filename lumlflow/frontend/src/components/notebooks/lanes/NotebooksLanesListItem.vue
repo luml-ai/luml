@@ -10,7 +10,10 @@
         <span class="lane-dot" :style="{ backgroundColor: dotColor }" />
         <span class="lane-body">
           <span class="lane-name" v-overflow-tooltip.top="lane.name">{{ lane.name }}</span>
-          <span class="lane-meta">{{ lane.steps }} steps · {{ lane.updatedAgo }}</span>
+          <span class="lane-meta">
+            <template v-if="lane.stepsLabel">{{ lane.stepsLabel }} · </template>
+            {{ lane.updatedAgo }}
+          </span>
         </span>
       </button>
     </div>
