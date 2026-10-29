@@ -19,9 +19,11 @@ vi.mock('@/api/slices/workspace/workspace.api', async (importOriginal) => ({
     journalSince: vi.fn(async () => ({ transactions: [] })),
   },
 }))
+const confirmRequire = vi.hoisted(() => vi.fn())
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
   useToast: () => ({ add: toastAdd }),
+  useConfirm: () => ({ require: confirmRequire }),
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: toastAdd }) }))
 

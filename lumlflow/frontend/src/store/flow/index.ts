@@ -23,7 +23,7 @@ import type {
   ViewMode,
 } from '@/components/notebooks/notebooks.interface'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowReactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocalStorage } from '@vueuse/core'
 import { useToast } from 'primevue'
@@ -46,6 +46,11 @@ export interface CellEditContext {
   flow: string | undefined
   branch: string
   base: string
+}
+
+export interface CodeEditor {
+  isDirty: () => boolean
+  close: () => void
 }
 
 export interface LiveRun {
@@ -245,6 +250,10 @@ export const useFlowStore = defineStore('flow', () => {
   const selectedCellId = ref<string | null>(null)
   const revealedCell = ref<{ id: string } | null>(null)
   const expandedCellId = ref<string | null>(null)
+  const codeEditors = shallowReactive(new Map<string, CodeEditor>())
+  const hasUnsavedChanges = computed(() =>
+    [...codeEditors.values()].some((editor) => editor.isDirty()),
+  )
   const uploadExperimentTarget = ref<ExperimentUploadTarget | null>(null)
   const uploadModelTarget = ref<{ slug: string; output: string } | null>(null)
   const experimentRemovals = ref<Record<string, number>>({})
@@ -428,6 +437,27 @@ export const useFlowStore = defineStore('flow', () => {
     expandedCellId.value = id
   }
 
+  function registerCodeEditor(id: string, editor: CodeEditor) {
+    codeEditors.set(id, editor)
+  }
+
+  function unregisterCodeEditor(id: string) {
+    codeEditors.delete(id)
+  }
+
+  function closeCodeEditors() {
+    codeEditors.forEach((editor) => editor.close())
+  }
+
+  let discardConfirmation: Promise<boolean> | null = null
+
+  function shareDiscardConfirmation(ask: () => Promise<boolean>): Promise<boolean> {
+    discardConfirmation ??= ask().finally(() => {
+      discardConfirmation = null
+    })
+    return discardConfirmation
+  }
+
   function setUploadExperimentTarget(target: ExperimentUploadTarget | null) {
     uploadExperimentTarget.value = target
   }
@@ -467,12 +497,15 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchBranches()
   }
 
-  function setViewMode(mode: ViewMode) {
-    if (currentFlow.value) {
-      storedViewModes.value = { ...storedViewModes.value, [currentFlow.value]: mode }
-    }
+  async function setViewMode(mode: ViewMode): Promise<boolean> {
+    const flow = currentFlow.value
     const route = router.currentRoute.value
-    void router.replace({ query: { ...route.query, [VIEW_MODE_QUERY_PARAM]: mode } })
+    const failure = await router.replace({
+      query: { ...route.query, [VIEW_MODE_QUERY_PARAM]: mode },
+    })
+    if (failure) return false
+    if (flow) storedViewModes.value = { ...storedViewModes.value, [flow]: mode }
+    return true
   }
 
   function applySettings(settings: {
@@ -1049,6 +1082,11 @@ export const useFlowStore = defineStore('flow', () => {
     clearRevealedCell,
     expandedCellId,
     setExpandedCellId,
+    hasUnsavedChanges,
+    registerCodeEditor,
+    unregisterCodeEditor,
+    closeCodeEditors,
+    shareDiscardConfirmation,
     uploadExperimentTarget,
     setUploadExperimentTarget,
     publishExperiment,

@@ -67,7 +67,7 @@
 
 <script setup lang="ts">
 import type { NotebookCodeProps } from '@/components/notebooks/cell/cell.interface'
-import { ref, watch } from 'vue'
+import { computed, onUnmounted, ref, useId, watch } from 'vue'
 import { Button, Message } from 'primevue'
 import { useToast } from 'primevue/usetoast'
 import { Pencil } from 'lucide-vue-next'
@@ -77,20 +77,25 @@ import { useCellPanelPayload } from '@/composables/useCellPanelPayload'
 import { WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
 import UiCodeEditor from '@/components/ui/code-editor/UiCodeEditor.vue'
 import CreateLaneDialog from '@/components/notebooks/lanes/CreateLaneDialog.vue'
+import { useDiscardConfirm } from '@/composables/useDiscardConfirm'
 
 const props = defineProps<NotebookCodeProps>()
 
 const flowStore = useFlowStore()
 const toast = useToast()
+const { confirmDiscard } = useDiscardConfirm()
+const editorId = useId()
 
 const source = ref('')
 const loadedContext = ref<CellEditContext | null>(null)
 const draftSource = ref('')
+const originalSource = ref('')
 const editContext = ref<CellEditContext | null>(null)
 const isEditing = ref(false)
 const isSaving = ref(false)
 const isConflicted = ref(false)
 const isForkPromptVisible = ref(false)
+const isDirty = computed(() => isEditing.value && draftSource.value !== originalSource.value)
 
 const { isLoading, reload: load } = useCellPanelPayload({
   slug: () => props.slug,
@@ -102,6 +107,9 @@ const { isLoading, reload: load } = useCellPanelPayload({
   },
   onFailed: (error) => toast.add(errorToast(error, 'Failed to load code')),
 })
+
+flowStore.registerCodeEditor(editorId, { isDirty: () => isDirty.value, close: closeEditing })
+onUnmounted(() => flowStore.unregisterCodeEditor(editorId))
 
 watch(
   () => props.slug,
@@ -115,6 +123,7 @@ function onEdit() {
   if (!flowStore.ensureOnLaneHead()) return
   if (!loadedContext.value) return
   draftSource.value = source.value
+  originalSource.value = source.value
   editContext.value = loadedContext.value
   isEditing.value = true
 }
@@ -125,7 +134,8 @@ function closeEditing() {
   editContext.value = null
 }
 
-function onCancel() {
+async function onCancel() {
+  if (isDirty.value && !(await confirmDiscard())) return
   closeEditing()
 }
 

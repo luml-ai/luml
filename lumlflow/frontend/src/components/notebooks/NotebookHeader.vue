@@ -19,6 +19,7 @@
     </div>
     <div class="toolbar-right">
       <SelectButton
+        :key="viewModeSelectKey"
         :model-value="flowStore.viewMode"
         :options="NOTEBOOK_VIEW_MODE_OPTIONS"
         :allow-empty="false"
@@ -26,7 +27,7 @@
         optionValue="value"
         aria-labelledby="basic"
         size="small"
-        @update:model-value="flowStore.setViewMode($event)"
+        @update:model-value="onViewModeChange"
       />
       <Button
         v-tooltip.bottom="kernelTooltip"
@@ -47,9 +48,10 @@
 </template>
 
 <script setup lang="ts">
+import type { ViewMode } from '@/components/notebooks/notebooks.interface'
 import { ChevronLeft, RotateCcw } from 'lucide-vue-next'
 import { Button, SelectButton, useToast } from 'primevue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useFlowStore } from '@/store/flow'
@@ -61,6 +63,12 @@ import { errorToast } from '@/toasts'
 
 const flowStore = useFlowStore()
 const toast = useToast()
+
+const viewModeSelectKey = ref(0)
+
+async function onViewModeChange(mode: ViewMode) {
+  if (!(await flowStore.setViewMode(mode))) viewModeSelectKey.value++
+}
 
 const kernelTooltip = computed(() =>
   flowStore.kernelState ? `Kernel ${flowStore.kernelState} · Restart` : 'Restart kernel',
