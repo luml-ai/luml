@@ -67,7 +67,8 @@ export function useAgentWebSocket(uploadFlow?: ReturnType<typeof useUploadFlow>)
     intentionalClose = false
     activeRunId = runId
 
-    ws = api.dataAgent.createRunWebSocket(runId)
+    const socket = api.dataAgent.createRunWebSocket(runId)
+    ws = socket
 
     ws.onopen = () => {
       connected.value = true
@@ -94,6 +95,7 @@ export function useAgentWebSocket(uploadFlow?: ReturnType<typeof useUploadFlow>)
     }
 
     ws.onclose = () => {
+      if (ws !== socket) return
       connected.value = false
       ws = null
       if (!intentionalClose && activeRunId === runId) {
