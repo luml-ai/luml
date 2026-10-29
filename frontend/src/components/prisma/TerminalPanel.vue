@@ -38,6 +38,7 @@ let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let ws: WebSocket | null = null
 let resizeObserver: ResizeObserver | null = null
+let connectTimer: ReturnType<typeof setTimeout> | null = null
 
 function onWaitingForInput() {
   if (isIdle.value) return
@@ -158,7 +159,8 @@ onMounted(() => {
     })
     resizeObserver.observe(termRef.value)
 
-    setTimeout(() => {
+    connectTimer = setTimeout(() => {
+      connectTimer = null
       fitAddon?.fit()
       if (props.readonly) {
         loadReadonly()
@@ -183,6 +185,7 @@ watch(
 )
 
 onUnmounted(() => {
+  if (connectTimer !== null) clearTimeout(connectTimer)
   resizeObserver?.disconnect()
   ws?.close()
   terminal?.dispose()
