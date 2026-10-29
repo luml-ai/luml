@@ -169,8 +169,6 @@ async def engine(
 
 @pytest.fixture
 async def redis_client() -> AsyncGenerator[Redis]:
-    if not config.REDIS_URL:
-        pytest.fail("Integration tests require REDIS_URL to point at a test Redis")
     client = Redis.from_url(config.REDIS_URL)
     try:
         async for key in client.scan_iter(f"{KEY_PREFIX}*"):

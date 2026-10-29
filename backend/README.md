@@ -169,10 +169,8 @@ emails in clear text, and they expire with the window. When Redis is unreachable
 the limiter logs the failure and lets the request through, so a Redis outage
 degrades to the previous unthrottled behaviour instead of blocking sign-in.
 
-`REDIS_URL` is optional for now: when it is not set the backend starts, logs a
-warning and applies no authentication rate limits. This is a transition step
-so existing deployments keep working until Redis is provisioned for every
-environment; a follow-up change makes the setting mandatory.
+`REDIS_URL` is mandatory: the backend refuses to start without it, so a
+deployment can never silently run without authentication rate limits.
 
 The application uses the request client address, so configure Uvicorn's trusted
 proxy addresses for your ingress and restrict direct access to the API when
