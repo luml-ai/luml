@@ -46,10 +46,6 @@ const orbitsStore = useOrbitsStore()
 const secretValue = ref('')
 const loading = ref(false)
 
-watch(visible, (val) => {
-  if (val && props.secret) loadSecretValue(props.secret.id)
-})
-
 const dialogPt: DialogPassThroughOptions = {
   mask: {
     style: 'padding: 15px;',
@@ -68,20 +64,34 @@ const dialogPt: DialogPassThroughOptions = {
   },
 }
 
-async function loadSecretValue(secretId: string) {
-  const orbit = orbitsStore.currentOrbitDetails
-  if (!orbit?.organization_id || !orbit?.id) return
-
-  try {
-    loading.value = true
-    const fullSecret = await secretsStore.getSecretById(orbit.organization_id, orbit.id, secretId)
-    secretValue.value = fullSecret?.value || ''
-  } catch {
-    toast.add(simpleErrorToast('You don’t have access to view this key.'))
-  } finally {
+watch(
+  [visible, () => props.secret?.id],
+  async ([isVisible, secretId], _, onCleanup) => {
+    secretValue.value = ''
     loading.value = false
-  }
-}
+    const orbit = orbitsStore.currentOrbitDetails
+    if (!isVisible || !secretId || !orbit?.organization_id || !orbit?.id) return
+
+    let active = true
+    onCleanup(() => {
+      active = false
+    })
+
+    try {
+      loading.value = true
+      const fullSecret = await secretsStore.getSecretById(orbit.organization_id, orbit.id, secretId)
+      if (active) secretValue.value = fullSecret?.value || ''
+    } catch {
+      if (active) {
+        secretValue.value = ''
+        toast.add(simpleErrorToast('You don’t have access to view this key.'))
+      }
+    } finally {
+      if (active) loading.value = false
+    }
+  },
+  { immediate: true },
+)
 
 async function copySecret() {
   if (!secretValue.value) return

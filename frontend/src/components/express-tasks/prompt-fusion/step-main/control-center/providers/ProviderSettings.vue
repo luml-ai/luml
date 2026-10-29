@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import type { ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces'
-import { onBeforeMount, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
 
 type Props = {
@@ -50,23 +50,27 @@ type Emits = {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const saveApiKey = ref(false)
+const saveApiKey = ref(!!LocalStorageService.get('providersSettings')?.saveApiKeys)
 const settingsState = ref<ProviderSetting[]>(JSON.parse(JSON.stringify(props.settings)))
 
 function onSave() {
   emit('save', JSON.parse(JSON.stringify(settingsState.value)))
 }
 
-onBeforeMount(() => {
-  const settings = LocalStorageService.get('providersSettings')
-  saveApiKey.value = !!settings?.saveApiKeys
-})
-
-watch(saveApiKey, (val) => {
-  const settings = LocalStorageService.get('providersSettings') || {}
-  settings.saveApiKeys = val
-  LocalStorageService.set('providersSettings', settings)
-})
+watch(
+  saveApiKey,
+  (val) => {
+    const settings = LocalStorageService.get('providersSettings') || {}
+    settings.saveApiKeys = val
+    if (!val) {
+      for (const provider of Object.values(settings)) {
+        if (provider && typeof provider === 'object') delete provider.apiKey
+      }
+    }
+    LocalStorageService.set('providersSettings', settings)
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
