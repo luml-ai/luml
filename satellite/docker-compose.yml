@@ -12,6 +12,8 @@ networks:
 
 volumes:
   greptimedb-data:
+  caddy-data:
+  caddy-config:
 
 services:
   greptimedb:
@@ -53,13 +55,18 @@ services:
       - satellite-network
 
   reverse-proxy:
-    image: nginx:1.28-alpine
+    image: caddy:2.10.2-alpine
     networks:
       - satellite-network
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      SATELLITE_SITE: ${SATELLITE_DOMAIN:-:80}
     ports:
-      - "127.0.0.1:80:8080"
+      - "${PROXY_BIND:-127.0.0.1}:80:80"
+      - "${PROXY_BIND:-127.0.0.1}:443:443"
     depends_on:
       - agent
     restart: unless-stopped
