@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from luml_mlflow._tracker import ThreadSafeTracker
 from luml_mlflow.meta import RUN_DELETED_TIME, read_run_info_field, write_run_info_field
 from luml_mlflow.store import LumlTrackingStore
 from mlflow.cli import gc
@@ -33,6 +34,12 @@ def _start_run(store: LumlTrackingStore, name: str = "r") -> tuple[str, str]:
         run_name=name,
     )
     return run.info.run_id, exp_id
+
+
+def _other_process_store(temp_store: Path) -> LumlTrackingStore:
+    other = LumlTrackingStore("luml://org1/orbit1")
+    other._tracker = ThreadSafeTracker(f"sqlite://{temp_store}")
+    return other
 
 
 def _search_ids(store: LumlTrackingStore, exp_id: str, view_type: int) -> set[str]:
@@ -172,6 +179,53 @@ def test_hard_delete_run_refuses_active_run(store: LumlTrackingStore) -> None:
         store._hard_delete_run(run_id)
 
     assert store.get_run(run_id).info.lifecycle_stage == LifecycleStage.ACTIVE
+
+
+def test_hard_delete_run_refuses_run_restored_after_gc_snapshot(
+    store: LumlTrackingStore, temp_store: Path
+) -> None:
+    run_id, _ = _start_run(store)
+    store._tracker.log_attachment(
+        "notes.txt", b"kept", binary=True, experiment_id=run_id
+    )
+    store.delete_run(run_id)
+    assert store.get_run(run_id).info.lifecycle_stage == LifecycleStage.DELETED
+
+    _other_process_store(temp_store).restore_run(run_id)
+
+    with pytest.raises(MlflowException, match="deleted lifecycle stage"):
+        store._hard_delete_run(run_id)
+
+    assert store.get_run(run_id).info.lifecycle_stage == LifecycleStage.ACTIVE
+    assert store._tracker.get_attachment("notes.txt", experiment_id=run_id) == b"kept"
+
+
+def test_restore_during_purge_cannot_resurrect_run(
+    store: LumlTrackingStore, temp_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_id, exp_id = _start_run(store)
+    store.delete_run(run_id)
+    other = _other_process_store(temp_store)
+    purge = store._tracker.delete_experiment
+    outcomes: list[str] = []
+
+    def purge_with_concurrent_restore(experiment_id: str) -> None:
+        try:
+            other.restore_run(experiment_id)
+            outcomes.append("restored")
+        except MlflowException:
+            outcomes.append("refused")
+        purge(experiment_id)
+
+    monkeypatch.setattr(
+        store._tracker, "delete_experiment", purge_with_concurrent_restore
+    )
+
+    store._hard_delete_run(run_id)
+
+    assert outcomes == ["refused"]
+    assert store._tracker.get_experiment_record(run_id) is None
+    assert _search_ids(other, exp_id, ViewType.ALL) == set()
 
 
 def test_hard_delete_run_missing_raises(store: LumlTrackingStore) -> None:
