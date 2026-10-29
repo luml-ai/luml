@@ -77,7 +77,7 @@ async function onRunCell() {
 @reference "@/assets/css/index.css";
 
 .footer {
-  @apply flex items-center justify-between gap-4;
+  @apply flex items-center justify-between gap-4 shrink-0;
 }
 .footer-left {
   @apply flex items-start gap-1;

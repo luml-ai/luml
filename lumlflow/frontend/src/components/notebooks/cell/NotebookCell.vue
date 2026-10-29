@@ -36,7 +36,7 @@
       <Clock v-else :size="14" class="shrink-0" />
       <span class="truncate">{{ liveLabel }}</span>
     </div>
-    <div class="py-4 live-body">
+    <div class="py-4 live-body nowheel">
       <slot>
         <Accordion v-model:value="activePanels" multiple>
           <AccordionPanel value="code" :pt="ACCORDION_PANEL_PT">
@@ -133,7 +133,7 @@ const outputs = computed(() =>
   @apply bg-(--p-card-background) border border-surface rounded-lg overflow-hidden p-5 shadow-(--p-card-shadow) relative transition-colors flex flex-col;
 }
 .live-body {
-  @apply min-h-0 flex-1 overflow-hidden;
+  @apply min-h-0 flex-1 overflow-y-auto;
 }
 .card--running {
   @apply border-primary;

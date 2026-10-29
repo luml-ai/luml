@@ -1,10 +1,10 @@
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 import Tooltip from 'primevue/tooltip'
+import { overflowTooltip } from '@/directives/overflow-tooltip'
 
 import type { BranchRecord, JournalTransaction } from '@/api/slices/workspace/workspace.interface'
 
@@ -83,15 +83,21 @@ beforeEach(async () => {
   setActivePinia(createPinia())
   store = useFlowStore()
   store.branches = [MAIN]
-  store.journal = [
-    step(86, 'reused a cached train_model'),
-    step(90, 'added split_copy'),
-    step(91, 'ran split_copy'),
-    step(92, 'Important point!!!', [{ op: 'checkpointed', step: 90 }]),
-  ]
+  mocked.journalSince!.mockResolvedValueOnce({
+    transactions: [
+      step(86, 'reused a cached train_model'),
+      step(90, 'added split_copy'),
+      step(91, 'ran split_copy'),
+      step(92, 'Important point!!!', [{ op: 'checkpointed', step: 90 }]),
+    ],
+  })
+  await store.fetchJournal()
   wrapper = mount(NotebookLanesSteps, {
     attachTo: document.body,
-    global: { plugins: [PrimeVue, ToastService], directives: { tooltip: Tooltip } },
+    global: {
+      plugins: [PrimeVue, ToastService],
+      directives: { tooltip: Tooltip, 'overflow-tooltip': overflowTooltip },
+    },
   })
   await wrapper.find('.p-accordionheader').trigger('click')
   await settle()
