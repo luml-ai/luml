@@ -12,6 +12,7 @@ from types import FrameType
 
 import httpx
 import pytest
+from luml_relay.agent import LoopbackService
 
 import luml.flow as flow_module
 from luml.flow import RelayedFlow, RelayedFlowError
@@ -55,6 +56,25 @@ def serving(monkeypatch: pytest.MonkeyPatch) -> FakeServing:
     fake = FakeServing()
     monkeypatch.setattr(flow_module, "serve_session", fake)
     return fake
+
+
+@pytest.fixture
+def services(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+    """Records the loopback services serving builds; yields what each got."""
+    created: list[dict[str, object]] = []
+
+    class RecordingService(LoopbackService):
+        def __init__(
+            self,
+            port: int,
+            present_loopback_host: bool = False,
+            bearer_token: str | None = None,
+        ) -> None:
+            super().__init__(port, present_loopback_host, bearer_token)
+            created.append({"port": port, "bearer_token": bearer_token})
+
+    monkeypatch.setattr(flow_module, "LoopbackService", RecordingService)
+    return created
 
 
 @pytest.fixture
@@ -105,6 +125,15 @@ def _answers(port: int) -> bool:
     return True
 
 
+def _groups_status(port: int, session_token: str | None) -> int:
+    headers = (
+        {} if session_token is None else {"Authorization": f"Bearer {session_token}"}
+    )
+    return httpx.get(
+        f"http://127.0.0.1:{port}/api/groups", headers=headers, trust_env=False
+    ).status_code
+
+
 @pytest.mark.usefixtures("serving")
 def test_started_lumlflow_is_exposed_and_stopped_with_the_block(
     clients: FakeClients,
@@ -146,7 +175,10 @@ def test_started_lumlflow_is_exposed_and_stopped_with_the_block(
 
 @pytest.mark.usefixtures("no_lumlflow")
 def test_running_lumlflow_is_exposed_and_left_running(
-    clients: FakeClients, serving: FakeServing, port: int
+    clients: FakeClients,
+    serving: FakeServing,
+    services: list[dict[str, object]],
+    port: int,
 ) -> None:
     with local_server(port, answers_as_lumlflow=True):
         with RelayedFlow("training", port=port):
@@ -154,7 +186,63 @@ def test_running_lumlflow_is_exposed_and_left_running(
 
         assert clients.live_sessions.ended == [SESSION_ID]
         assert serving.cancelled == 1
+        assert services == [{"port": port, "bearer_token": None}]
         assert _answers(port)
+
+
+@pytest.mark.usefixtures("clients", "serving")
+def test_started_lumlflow_gets_a_session_token_the_agent_sends(
+    services: list[dict[str, object]], port: int, stub_record: Path
+) -> None:
+    with RelayedFlow("training", port=port):
+        [start] = _stub_starts(stub_record)
+        assert isinstance(start["session_token"], str)
+        assert start["session_token"]
+        assert _groups_status(port, None) == 401
+        assert _groups_status(port, start["session_token"]) == 200
+
+    assert services == [{"port": port, "bearer_token": start["session_token"]}]
+
+
+@pytest.mark.usefixtures("clients", "serving", "stub_record")
+def test_runs_sharing_a_started_lumlflow_share_its_token(
+    services: list[dict[str, object]], port: int
+) -> None:
+    with RelayedFlow("training", port=port), RelayedFlow("evaluation", port=port):
+        pass
+
+    assert len(services) == 2
+    assert services[0]["bearer_token"] == services[1]["bearer_token"]
+
+
+@pytest.mark.usefixtures("no_lumlflow", "serving")
+def test_running_lumlflow_with_a_token_needs_session_token(
+    clients: FakeClients, port: int
+) -> None:
+    with local_server(port, answers_as_lumlflow=True, session_token="launch-token"):
+        with pytest.raises(RelayedFlowError, match="pass session_token"):
+            RelayedFlow("training", port=port).start()
+        with pytest.raises(RelayedFlowError, match="does not accept"):
+            RelayedFlow("training", port=port, session_token="other").start()
+
+    assert clients.flows.exposed == []
+
+
+@pytest.mark.usefixtures("no_lumlflow")
+def test_running_lumlflow_with_a_token_is_served_with_it(
+    clients: FakeClients,
+    serving: FakeServing,
+    services: list[dict[str, object]],
+    port: int,
+) -> None:
+    with (
+        local_server(port, answers_as_lumlflow=True, session_token="launch-token"),
+        RelayedFlow("training", port=port, session_token="launch-token"),
+    ):
+        assert clients.flows.exposed == ["training"]
+
+    assert services == [{"port": port, "bearer_token": "launch-token"}]
+    assert serving.cancelled == 1
 
 
 @pytest.mark.usefixtures("serving")

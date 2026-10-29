@@ -4,6 +4,7 @@ import asyncio
 import atexit
 import logging
 import os
+import secrets
 import shutil
 import signal
 import socket
@@ -28,6 +29,8 @@ except ModuleNotFoundError as error:
 logger = logging.getLogger(__name__)
 
 STATUS_PATH = "/api/auth/status"
+PROTECTED_PATH = "/api/groups"
+SESSION_TOKEN_ENV = "LUMLFLOW_SESSION_TOKEN"
 LUMLFLOW_START_TIMEOUT = 30.0
 LUMLFLOW_STOP_TIMEOUT = 10.0
 CONNECT_TIMEOUT = 15.0
@@ -45,9 +48,11 @@ class RelayedFlow:
     Use it as a context manager, or call `start` and `stop` where a block cannot
     span the work, as across notebook cells. The API key and the address of LUML
     come from the environment variables the API client reads. A Flow already
-    answering on the port is exposed as it is; otherwise one is started on
-    `store_path` and stopped with the flow. Stopping ends the session this
-    object started, so a later run that took over the name keeps its own.
+    answering on the port is exposed as it is, and when it guards its API with a
+    session token, `session_token` must be the token from its launch URL;
+    otherwise one is started on `store_path` with a token of its own and stopped
+    with the flow. Stopping ends the session this object started, so a later run
+    that took over the name keeps its own.
     """
 
     def __init__(
@@ -58,12 +63,14 @@ class RelayedFlow:
         orbit: str | None = None,
         store_path: str | None = None,
         port: int = 5000,
+        session_token: str | None = None,
     ) -> None:
         self.name = name or socket.gethostname()
         self.organization = organization
         self.orbit = orbit
         self.store_path = store_path
         self.port = port
+        self.session_token = session_token
         self.app_url: str | None = None
         self._started = False
         self._running = False
@@ -112,12 +119,21 @@ class RelayedFlow:
                 "name the organization and the orbit"
             )
         self._lumlflow = _acquire_lumlflow(self.port, self.store_path)
+        session_token = (
+            self._lumlflow.session_token
+            if self._lumlflow is not None
+            else _session_token_of_running_flow(self.port, self.session_token)
+        )
         self._client = client
         exposed = client.flows.expose(self.name)
         self._session_id = exposed.session.id
         self._serving = _BackgroundServing()
         self._serving.start(
-            client.organization, client.orbit, exposed.session, self.port
+            client.organization,
+            client.orbit,
+            exposed.session,
+            self.port,
+            session_token,
         )
         self.app_url = exposed.app_url
         return exposed.app_url
@@ -172,11 +188,16 @@ class _BackgroundServing:
         self._task: asyncio.Task[None] | None = None
 
     def start(
-        self, organization: str, orbit: str, session: LiveSessionStart, port: int
+        self,
+        organization: str,
+        orbit: str,
+        session: LiveSessionStart,
+        port: int,
+        session_token: str | None,
     ) -> None:
         """Serve, waiting until the agent connects or `CONNECT_TIMEOUT` passes."""
         self._thread.start()
-        self._run(self._start(organization, orbit, session, port))
+        self._run(self._start(organization, orbit, session, port, session_token))
 
     def stop(self) -> None:
         if self._thread.is_alive():
@@ -189,11 +210,16 @@ class _BackgroundServing:
         asyncio.run_coroutine_threadsafe(coroutine, self._loop).result()
 
     async def _start(
-        self, organization: str, orbit: str, session: LiveSessionStart, port: int
+        self,
+        organization: str,
+        orbit: str,
+        session: LiveSessionStart,
+        port: int,
+        session_token: str | None,
     ) -> None:
         connected = asyncio.Event()
         self._task = asyncio.create_task(
-            _serve(organization, orbit, session, port, connected)
+            _serve(organization, orbit, session, port, session_token, connected)
         )
         waiting = asyncio.create_task(connected.wait())
         await asyncio.wait(
@@ -220,12 +246,13 @@ async def _serve(
     orbit: str,
     session: LiveSessionStart,
     port: int,
+    session_token: str | None,
     connected: asyncio.Event,
 ) -> None:
     client = AsyncLumlClient()
     client.organization = organization
     client.orbit = orbit
-    service = LoopbackService(port)
+    service = LoopbackService(port, bearer_token=session_token)
     try:
         # Never set: the session is ended through the API and serving is cancelled.
         await serve_session(client, session, service, asyncio.Event(), None, connected)
@@ -258,9 +285,12 @@ def _end_session(client: LumlClient, session_id: str) -> None:
 class _SharedLumlflow:
     """A Flow server this process started, stopped when its last user releases it."""
 
-    def __init__(self, port: int, process: subprocess.Popen[bytes]) -> None:
+    def __init__(
+        self, port: int, process: subprocess.Popen[bytes], session_token: str
+    ) -> None:
         self.port = port
         self.process = process
+        self.session_token = session_token
         self.users = 1
 
 
@@ -279,7 +309,9 @@ def _acquire_lumlflow(port: int, store_path: str | None) -> _SharedLumlflow | No
         if _lumlflow_answers(port):
             _warn_store_not_exposed(port, store_path)
             return None
-        shared = _SharedLumlflow(port, _start_lumlflow(port, store_path))
+        session_token = secrets.token_urlsafe(32)
+        process = _start_lumlflow(port, store_path, session_token)
+        shared = _SharedLumlflow(port, process, session_token)
         _started_lumlflows[port] = shared
         return shared
 
@@ -327,7 +359,41 @@ def _lumlflow_answers(port: int) -> bool:
     return True
 
 
-def _start_lumlflow(port: int, store_path: str | None) -> subprocess.Popen[bytes]:
+def _session_token_of_running_flow(port: int, given: str | None) -> str | None:
+    """The token that reaches Flow on the port; None when it asks for none."""
+    if _flow_accepts(port, None):
+        return None
+    if given is None:
+        raise RelayedFlowError(
+            f"Flow on port {port} guards its API with a session token; pass "
+            "session_token with the token from the launch URL that lumlflow ui printed"
+        )
+    if not _flow_accepts(port, given):
+        raise RelayedFlowError(
+            f"Flow on port {port} does not accept the session token given"
+        )
+    return given
+
+
+def _flow_accepts(port: int, session_token: str | None) -> bool:
+    headers = (
+        {} if session_token is None else {"Authorization": f"Bearer {session_token}"}
+    )
+    try:
+        response = httpx.get(
+            f"http://127.0.0.1:{port}{PROTECTED_PATH}",
+            headers=headers,
+            timeout=2.0,
+            trust_env=False,
+        )
+    except httpx.HTTPError as error:
+        raise RelayedFlowError(f"Flow on port {port} stopped answering") from error
+    return response.status_code != 401
+
+
+def _start_lumlflow(
+    port: int, store_path: str | None, session_token: str
+) -> subprocess.Popen[bytes]:
     command = shutil.which("lumlflow")
     if command is None:
         raise RelayedFlowError(
@@ -338,7 +404,11 @@ def _start_lumlflow(port: int, store_path: str | None) -> subprocess.Popen[bytes
     if store_path is not None:
         arguments += ["--path", store_path]
     # Its access log goes to stdout and would flood the caller's output.
-    process = subprocess.Popen(arguments, stdout=subprocess.DEVNULL)
+    process = subprocess.Popen(
+        arguments,
+        stdout=subprocess.DEVNULL,
+        env={**os.environ, SESSION_TOKEN_ENV: session_token},
+    )
     try:
         _wait_until_answering(process, port)
     except BaseException:

@@ -39,6 +39,13 @@ with RelayedFlow(organization="My organization", orbit="Research"):
 
 When it starts, `RelayedFlow` checks whether Flow answers on port 5000 of the local machine. A running Flow is exposed as it is. When nothing answers, `RelayedFlow` starts `lumlflow ui` on the default store and stops it again at the end. When another program answers on the port, starting fails with a message that names the port. The `store_path` and `port` arguments change the store and the port. The organization and the orbit can be left out when the API key reaches only one of each.
 
+Flow guards its API with a session token, which `lumlflow ui` puts into the launch URL it opens or prints. A Flow that `RelayedFlow` starts gets a token from it, and the agent sends that token with every request it relays. A running Flow needs its token passed as `session_token`; without it, starting fails with a message that says so.
+
+```python
+with RelayedFlow(session_token="the token from the launch URL"):
+    train()
+```
+
 A flow has a name, which defaults to the machine's host name. Each user has one flow of a given name in an orbit.
 
 A block cannot span notebook cells, so in a notebook the flow is started and stopped explicitly.

@@ -22,20 +22,30 @@ APP_URL = (
     f"https://app.luml.test/organizations/{ORGANIZATION_ID}/orbits/{ORBIT_ID}/flow"
 )
 STATUS_PATH = "/api/auth/status"
+PROTECTED_PATH = "/api/groups"
+SESSION_TOKEN_ENV = "LUMLFLOW_SESSION_TOKEN"
 
 STUB_LUMLFLOW = """#!{python}
 import json, os, sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+token = os.environ.get("{token_env}")
 with open(os.environ["STUB_LUMLFLOW_RECORD"], "a") as record:
-    record.write(json.dumps({{"pid": os.getpid(), "argv": sys.argv[1:]}}) + "\\n")
+    start = {{"pid": os.getpid(), "argv": sys.argv[1:], "session_token": token}}
+    record.write(json.dumps(start) + "\\n")
 port = int(sys.argv[sys.argv.index("--port") + 1])
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         body = json.dumps({{"has_key": False}}).encode()
-        self.send_response(200 if self.path == "{status_path}" else 404)
+        if self.path == "{status_path}":
+            status = 200
+        elif self.headers.get("Authorization") != "Bearer " + str(token):
+            status = 401
+        else:
+            status = 200 if self.path == "{protected_path}" else 404
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -53,7 +63,12 @@ def write_stub_lumlflow(directory: Path) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     command = directory / "lumlflow"
     command.write_text(
-        STUB_LUMLFLOW.format(python=sys.executable, status_path=STATUS_PATH)
+        STUB_LUMLFLOW.format(
+            python=sys.executable,
+            status_path=STATUS_PATH,
+            protected_path=PROTECTED_PATH,
+            token_env=SESSION_TOKEN_ENV,
+        )
     )
     command.chmod(0o755)
     return command
@@ -179,6 +194,7 @@ class FakeServing:
     """
 
     served: list[tuple[str, str | None, str | None]] = field(default_factory=list)
+    services: list[Any] = field(default_factory=list)
     cancelled: int = 0
     failure: Exception | None = None
     connects: bool = True
@@ -202,6 +218,7 @@ class FakeServing:
         connected: asyncio.Event | None = None,
     ) -> None:
         self.served.append((started.id, client.organization, client.orbit))
+        self.services.append(service)
         if self.failure is not None:
             raise self.failure
         if self.connects and connected is not None:
@@ -216,11 +233,24 @@ class FakeServing:
         self.returned.set()
 
 
-def _handler(answers_as_lumlflow: bool) -> type[BaseHTTPRequestHandler]:
+def _handler(
+    answers_as_lumlflow: bool, session_token: str | None
+) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
             if answers_as_lumlflow and self.path == STATUS_PATH:
                 status, body = 200, json.dumps({"has_key": True}).encode()
+            elif (
+                answers_as_lumlflow
+                and session_token is not None
+                and (self.headers.get("Authorization") != f"Bearer {session_token}")
+            ):
+                status, body = (
+                    401,
+                    b'{"detail":"Invalid or missing Flow session token"}',
+                )
+            elif answers_as_lumlflow and self.path == PROTECTED_PATH:
+                status, body = 200, b"[]"
             else:
                 status, body = 404, b"<html>Not found</html>"
             self.send_response(status)
@@ -235,8 +265,12 @@ def _handler(answers_as_lumlflow: bool) -> type[BaseHTTPRequestHandler]:
 
 
 @contextmanager
-def local_server(port: int, answers_as_lumlflow: bool) -> Iterator[None]:
-    server = ThreadingHTTPServer(("127.0.0.1", port), _handler(answers_as_lumlflow))
+def local_server(
+    port: int, answers_as_lumlflow: bool, session_token: str | None = None
+) -> Iterator[None]:
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", port), _handler(answers_as_lumlflow, session_token)
+    )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
