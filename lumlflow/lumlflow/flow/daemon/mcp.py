@@ -11,6 +11,7 @@ from urllib.parse import quote, unquote, urlsplit
 from lumlflow import __version__
 from lumlflow.flow.daemon import client, docs, harnesses
 from lumlflow.flow.daemon.client import DaemonClient
+from lumlflow.flow.dsl import portable
 from lumlflow.flow.errors import (
     BranchNotFound,
     CellNotFound,
@@ -149,7 +150,7 @@ TOOLS: tuple[_Tool, ...] = (
         "Add a cell. Give it a name. lumlflow scaffolds an unnamed cell under "
         "a placeholder and flags it until you rename it.",
         (
-            _Arg("slug", "string", "The cell's name, lowercase."),
+            _Arg("slug", "string", f"The cell's name: {portable.CELL_NAME_RULE}."),
             _Arg("source", "string", "The whole cell file. Scaffolded when absent."),
             _Arg("after", "string", "Prefill `consumes` from this cell's outputs."),
             _Arg(

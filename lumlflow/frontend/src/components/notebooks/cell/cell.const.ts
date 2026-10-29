@@ -15,6 +15,7 @@ import {
   StickyNote,
   Table2,
 } from 'lucide-vue-next'
+import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
 
 export const CELL_STATE_LABELS: Record<CellStaleState, string> = {
   synced: 'Up to date',
@@ -30,18 +31,70 @@ export const CELL_STATE_ICONS: Record<CellStaleState, LucideIcon> = {
   failed: AlertTriangle,
 }
 
-export const CELL_NAME_UNSAFE = /[\x00-\x1f\x7f/\\:*?"<>|]/
+export const CELL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/
+
+const PYTHON_KEYWORDS = new Set([
+  'and',
+  'as',
+  'assert',
+  'async',
+  'await',
+  'break',
+  'class',
+  'continue',
+  'def',
+  'del',
+  'elif',
+  'else',
+  'except',
+  'finally',
+  'for',
+  'from',
+  'global',
+  'if',
+  'import',
+  'in',
+  'is',
+  'lambda',
+  'nonlocal',
+  'not',
+  'or',
+  'pass',
+  'raise',
+  'return',
+  'try',
+  'while',
+  'with',
+  'yield',
+])
+
+export const CELL_NAME_HINT =
+  'Lowercase letters, digits and underscores, starting with a letter. E.g. my_cell_1'
 
 export const CELL_NAME_INVALID_MESSAGE =
-  'Name cannot start with a dot, contain ".." or invalid characters'
+  'Use only lowercase letters, digits and underscores, and start with a letter'
 
-export function isValidCellName(name: string): boolean {
-  if (!name) return false
-  if (name.startsWith('.')) return false
-  if (name.includes('..')) return false
-  if (CELL_NAME_UNSAFE.test(name)) return false
+export function getCellNameError(
+  name: string,
+  existingSlugs: string[],
+  currentSlug?: string,
+): string | null {
+  if (!name) return NAME_REQUIRED_MESSAGE
+  if (!CELL_NAME_PATTERN.test(name)) return CELL_NAME_INVALID_MESSAGE
+  if (PYTHON_KEYWORDS.has(name)) return `"${name}" is a Python keyword`
+  const isTaken = existingSlugs.some(
+    (slug) => slug !== currentSlug && slug.toLowerCase() === name.toLowerCase(),
+  )
+  if (isTaken) return `"${name}" already exists`
+  return null
+}
 
-  return true
+export function toCellName(slug: string): string {
+  const name = slug
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return /^[a-z]/.test(name) ? name : `cell_${name}`.replace(/_+$/, '')
 }
 
 export const CELL_HEADER_MENU_PT: MenuPassThroughOptions = {

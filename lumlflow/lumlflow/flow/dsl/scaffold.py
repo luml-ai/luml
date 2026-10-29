@@ -2,6 +2,8 @@ import keyword
 import unicodedata
 from collections.abc import Sequence
 
+from lumlflow.flow.dsl.accept import is_placeholder
+
 TYPING_MODULE = "lumlflow_typing"
 
 _HEADER = """from __future__ import annotations
@@ -53,10 +55,12 @@ def cell_source(
 
 
 def class_name(slug: str) -> str:
-    words = [word for word in _words(slug) if not word.isdigit()]
-    name = "".join(word[0].upper() + word[1:] for word in words)
-    if not name:
+    words = _words(slug)
+    # `untitled_3` is a name given for want of a better one, so its class is
+    # not `Untitled3`: the daemon would otherwise suggest renaming to that.
+    if is_placeholder(slug) or all(word.isdigit() for word in words):
         return "Untitled"
+    name = "".join(word[0].upper() + word[1:] for word in words)
     if not name.isidentifier() or keyword.iskeyword(name):
         return f"Cell{name}"
     return name

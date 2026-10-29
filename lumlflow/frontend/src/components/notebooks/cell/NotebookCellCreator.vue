@@ -22,9 +22,18 @@
       >
         <FormField v-slot="$field" name="name">
           <label for="name" class="inline-block mb-2 required">Name</label>
-          <InputText v-model="initialValues.name" id="name" fluid placeholder="Name your cell" />
+          <InputText
+            v-model="initialValues.name"
+            id="name"
+            fluid
+            placeholder="my_cell"
+            class="mb-2"
+          />
           <Message v-if="$field?.invalid" severity="error" size="small" variant="simple">
             {{ $field.error?.message }}
+          </Message>
+          <Message v-else severity="secondary" size="small" variant="simple">
+            {{ CELL_NAME_HINT }}
           </Message>
         </FormField>
       </Form>
@@ -54,8 +63,7 @@ import z from 'zod'
 import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
-import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
-import { CELL_NAME_INVALID_MESSAGE, isValidCellName } from './cell.const'
+import { CELL_NAME_HINT, getCellNameError } from './cell.const'
 
 const DIALOG_PT: DialogPassThroughOptions = {
   root: {
@@ -81,18 +89,13 @@ const resolver: ReturnType<typeof zodResolver> = zodResolver(
   z.object({
     name: z
       .string()
-      .min(1, { message: NAME_REQUIRED_MESSAGE })
       .max(255)
-      .refine((name) => isValidCellName(name), {
-        message: CELL_NAME_INVALID_MESSAGE,
-      })
       .superRefine((name, ctx) => {
-        if (flowStore.cells.some((cell) => cell.slug.toLowerCase() === name.toLowerCase())) {
-          ctx.addIssue({
-            code: 'custom',
-            message: `"${name}" already exists`,
-          })
-        }
+        const error = getCellNameError(
+          name.trim(),
+          flowStore.cells.map((cell) => cell.slug),
+        )
+        if (error) ctx.addIssue({ code: 'custom', message: error })
       }),
   }) as never,
 )
@@ -125,7 +128,7 @@ function submit(event: FormSubmitEvent) {
   if (!event.valid) return
 
   const values = event.values as typeof initialValues.value
-  createCell(values.name)
+  createCell(values.name.trim())
 }
 
 async function createCell(name: string) {

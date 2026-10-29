@@ -1,4 +1,7 @@
-CHEATSHEET = """\
+from lumlflow.flow.dsl import portable
+
+CHEATSHEET = (
+    """\
 # lumlflow agent guide
 
 Call `context` first. It names the lane you are on, what is stale and why, what
@@ -103,9 +106,14 @@ For an agent that is itself a CLI:
 `lumlflow agents list` · `lumlflow agents setup <harness>` ·
 `lumlflow agents remove <harness>` · `lumlflow guide`
 
+A new or renamed cell is named like an identifier: """
+    + portable.CELL_NAME_RULE
+    + """ (`my_cell_1`).
+
 Renaming a cell is free. References bind to identity, so nothing goes stale and
 no cache is lost. `mv` on the file does the same thing.
 
 Daemon-backed verbs take `--json`. Definition and lane-history changes take
 `-m "why"`, which is what the history reads back.
 """
+)

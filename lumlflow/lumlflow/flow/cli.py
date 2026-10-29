@@ -423,7 +423,7 @@ def diff(
 
 def rename(
     slug: str = typer.Argument(..., help="The cell to rename."),
-    to: str = typer.Argument(..., help="Its new name."),
+    to: str = typer.Argument(..., help=f"Its new name: {portable.CELL_NAME_RULE}."),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
     intent: str | None = _INTENT,
@@ -552,7 +552,9 @@ def cells_show(
 
 @cells_app.command("new")
 def cells_new(
-    slug: str | None = typer.Argument(None, help="The cell's name."),
+    slug: str | None = typer.Argument(
+        None, help=f"The cell's name: {portable.CELL_NAME_RULE}."
+    ),
     after: str | None = typer.Option(
         None, "--after", help="Prefill `consumes` from this cell's outputs."
     ),
