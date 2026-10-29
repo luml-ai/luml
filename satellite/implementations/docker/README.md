@@ -21,61 +21,31 @@ The proxy and agent share the internal `docker-control` network. It carries no
 `df.model-access` label, so model containers never join it. Model containers continue to
 join the satellite's workload and telemetry networks.
 
-Nginx forwards HTTP requests to the agent, preserving authorization headers, paths and
-streaming responses. It listens on `127.0.0.1:80` on the host. Local access remains at
-`http://localhost`. For remote access, put a TLS reverse proxy on the host in front of
-`http://127.0.0.1:80` and set `BASE_URL` to that proxy's public HTTPS URL. Existing remote
-installations must configure this ingress when upgrading. Do not publish the agent's
-port or the Docker API proxy. The GreptimeDB port is independent of the agent ingress.
+Caddy forwards HTTP requests to the agent, preserving authorization headers, paths and
+streaming responses. By default it serves plain HTTP on `127.0.0.1:80` on the host, so
+local access remains at `http://localhost`. Do not publish the agent's port or the Docker
+API proxy. The GreptimeDB port is independent of the agent ingress.
 
-### Remote access with nginx and Let's Encrypt
+### Remote access with automatic HTTPS
 
-The host needs a DNS name that resolves to it and open ports 80 and 443. Move the bundled
-proxy off port 80 so the host nginx can own it; Compose reads this file automatically:
-
-```yaml
-# satellite/docker-compose.override.yml
-services:
-  reverse-proxy:
-    ports: !override
-      - "127.0.0.1:8080:8080"
-```
-
-Install `nginx`, `certbot` and `python3-certbot-nginx`, then create
-`/etc/nginx/sites-available/satellite` and link it into `sites-enabled`:
-
-```nginx
-server {
-    listen 80;
-    server_name sat.example.com;
-    client_max_body_size 0;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 600s;
-        proxy_buffering off;
-        proxy_request_buffering off;
-    }
-}
-```
-
-`client_max_body_size 0` keeps large batches away from 413, the unbuffered settings pass
-streaming responses and uploads through as they arrive, and the read timeout covers long
-inferences. Then obtain the certificate; certbot adds the HTTPS listener and the redirect
-from port 80, and its systemd timer renews it:
+The host needs a DNS name that resolves to it and open ports 80 and 443. Set three values
+in `satellite/.env` and run `docker compose up -d`:
 
 ```shell
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d sat.example.com
+SATELLITE_DOMAIN=sat.example.com
+PROXY_BIND=0.0.0.0
+BASE_URL=https://sat.example.com
 ```
 
-Set `BASE_URL=https://sat.example.com` in `satellite/.env` and run `docker compose up -d`.
-The agent reports that URL to the platform when it pairs on start-up. Check with
-`curl https://sat.example.com/livez`.
+Caddy obtains a Let's Encrypt certificate for that name, renews it, redirects port 80 to
+HTTPS and keeps the certificate in the `caddy-data` volume across restarts. The agent
+reports `BASE_URL` to the platform when it pairs on start-up. Check with
+`curl https://sat.example.com/livez`. Existing remote installations must set these values
+when upgrading.
+
+Without `SATELLITE_DOMAIN` the proxy stays on plain HTTP, and without `PROXY_BIND` it stays
+on the loopback interface. That default also suits a TLS proxy of your own on the host in
+front of `http://127.0.0.1:80`; then set `BASE_URL` to that proxy's public URL instead.
 
 ## One network per satellite
 
@@ -151,7 +121,7 @@ create `satellite/compose.second.yml` to replace the second stack's HTTP port:
 services:
   reverse-proxy:
     ports: !override
-      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:8081:80"
   greptimedb:
     ports: !override []
 ```

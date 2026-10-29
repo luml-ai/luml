@@ -1,0 +1,11 @@
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$SATELLITE_SITE} {
+	reverse_proxy agent:8000 {
+		flush_interval -1
+	}
+}

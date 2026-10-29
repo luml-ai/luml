@@ -114,12 +114,14 @@ def test_reverse_proxy_is_the_only_agent_http_host_binding() -> None:
         "\n  docker-socket-proxy:\n"
     )[0]
 
-    assert '      - "127.0.0.1:80:8080"' in proxy
-    assert "./nginx.conf:/etc/nginx/conf.d/default.conf:ro" in proxy
-    nginx = (SATELLITE_ROOT / "nginx.conf").read_text()
-    assert "listen 8080;" in nginx
-    assert "proxy_pass http://agent:8000;" in nginx
-    assert "proxy_set_header Host $http_host;" in nginx
-    assert "proxy_set_header X-Forwarded-For $remote_addr;" in nginx
-    assert "proxy_buffering off;" in nginx
-    assert "proxy_request_buffering off;" in nginx
+    assert "    image: caddy:2.10.2-alpine" in proxy
+    assert '      - "${PROXY_BIND:-127.0.0.1}:80:80"' in proxy
+    assert '      - "${PROXY_BIND:-127.0.0.1}:443:443"' in proxy
+    assert "      SATELLITE_SITE: ${SATELLITE_DOMAIN:-:80}" in proxy
+    assert "      - ./Caddyfile:/etc/caddy/Caddyfile:ro" in proxy
+    assert "      - caddy-data:/data" in proxy
+    assert not (SATELLITE_ROOT / "nginx.conf").exists()
+    caddyfile = (SATELLITE_ROOT / "Caddyfile").read_text()
+    assert "{$SATELLITE_SITE} {" in caddyfile
+    assert "reverse_proxy agent:8000 {" in caddyfile
+    assert "flush_interval -1" in caddyfile
