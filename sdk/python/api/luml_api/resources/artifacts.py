@@ -5,6 +5,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Never
 
 from luml_api._exceptions import (
@@ -841,7 +842,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         """
         artifact_details = ModelFileHandler(file_path).artifact_details()
 
-        file_format = artifact_details.file_name.split(".")[1]
+        file_format = Path(artifact_details.file_name).suffix[1:]
         if file_format not in ["fnnx", "pyfnx", "dfs", "luml", "tar"]:
             raise FileError("File format error")
 
@@ -2277,7 +2278,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         """
         artifact_details = ModelFileHandler(file_path).artifact_details()
 
-        file_format = artifact_details.file_name.split(".")[1]
+        file_format = Path(artifact_details.file_name).suffix[1:]
         if file_format not in ["fnnx", "pyfnx", "dfs", "luml"]:
             raise FileError("File format error")
 
