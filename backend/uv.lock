@@ -330,7 +330,7 @@ requires-dist = [
     { name = "logfire", extras = ["fastapi", "httpx", "sqlalchemy"], specifier = "==5.1.1" },
     { name = "minio", specifier = "==7.2.18" },
     { name = "pyjwt", specifier = "==2.15.0" },
-    { name = "redis", specifier = ">=8.1.0" },
+    { name = "redis", specifier = "==8.1.0" },
     { name = "sendgrid", specifier = "==6.11.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.44" },
     { name = "uvicorn", specifier = "==0.38.0" },
