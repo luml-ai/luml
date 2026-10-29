@@ -53,7 +53,6 @@ async function deleteOrganization() {
     loading.value = true
     await organizationStore.deleteOrganization(organizationStore.currentOrganization.id)
     router.push({ name: 'home' })
-    organizationStore.resetCurrentOrganization()
     toast.add(
       simpleSuccessToast('The organization and all associated data have been permanently removed.'),
     )
