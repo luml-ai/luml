@@ -350,7 +350,7 @@ const menuItems: CellHeaderMenuItem[] = [
 @reference "@/assets/css/index.css";
 
 .header {
-  @apply flex items-center justify-between gap-4;
+  @apply flex items-center justify-between gap-4 shrink-0;
 }
 .header-left {
   @apply flex items-center gap-1 min-h-10;
