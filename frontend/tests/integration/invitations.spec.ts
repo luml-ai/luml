@@ -1,6 +1,14 @@
 import { test, expect } from './fixtures/test'
 import type { ApiMocks } from './fixtures/api-mocks'
-import { INVITE_ID, USER_FIXTURE, makeInvitation, makeOrganization } from './fixtures/data'
+import {
+  INVITE_ID,
+  ORG_ID,
+  USER_FIXTURE,
+  makeInvitation,
+  makeOrbit,
+  makeOrganization,
+  makeOrganizationDetails,
+} from './fixtures/data'
 
 const SIGNIN_SUCCESS = {
   detail: 'ok',
@@ -14,6 +22,8 @@ async function mockAuthenticatedInvitationPage(apiMocks: ApiMocks) {
   await apiMocks.get('**/v1/auth/users/me', USER_FIXTURE)
   await apiMocks.get('**/v1/users/me/organizations', [organization])
   await apiMocks.get('**/v1/users/me/invitations', [invitation])
+  await apiMocks.get(`**/v1/organizations/${ORG_ID}/orbits`, [makeOrbit()])
+  await apiMocks.get(`**/v1/organizations/${ORG_ID}`, makeOrganizationDetails())
 }
 
 test.describe('Invitation links', () => {

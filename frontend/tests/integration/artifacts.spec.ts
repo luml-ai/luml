@@ -81,8 +81,6 @@ async function mockArtifactsBaseline(apiMocks: ApiMocks) {
 const collectionPageUrl = `/organization/${ORG_ID}/orbit/${ORBIT_ID}/collection/${COLLECTION_ID}`
 const artifactPageUrl = `${collectionPageUrl}/artifacts/${ARTIFACT_ID}`
 
-test.describe.configure({ mode: 'serial' })
-
 test.describe('Artifacts', () => {
   test.beforeEach(async ({ apiMocks }) => {
     await mockArtifactsBaseline(apiMocks)
