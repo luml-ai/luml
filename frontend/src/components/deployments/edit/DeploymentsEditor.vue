@@ -344,13 +344,11 @@ function setSecrets(secrets: Var[]) {
 
 onBeforeMount(async () => {
   try {
-    if (!satellitesStore.satellitesList.length) {
-      const satellites = await satellitesStore.loadSatellites(
-        organizationId.value,
-        props.data.orbit_id,
-      )
-      satellitesStore.setList(satellites)
-    }
+    const satellites = await satellitesStore.loadSatellites(
+      organizationId.value,
+      props.data.orbit_id,
+    )
+    satellitesStore.setList(satellites)
     await secretsStore.loadSecrets(organizationId.value, props.data.orbit_id)
     const requestInfo = {
       organizationId: organizationId.value,
