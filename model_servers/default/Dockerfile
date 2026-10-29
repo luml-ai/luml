@@ -40,4 +40,4 @@ ENV PYTHONPATH=/app
 
 USER 10001:0
 
-CMD ["uv", "run", "python", "main.py"]
+CMD ["/app/.venv/bin/python", "main.py"]
