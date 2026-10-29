@@ -17,14 +17,17 @@ vi.mock('@/api/slices/workspace/workspace.api', () => ({
     journalSince: vi.fn(async () => ({ transactions: [] })),
   },
 }))
+const confirmRequire = vi.hoisted(() => vi.fn())
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
   useToast: () => ({ add: () => {} }),
+  useConfirm: () => ({ require: confirmRequire }),
 }))
 vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: () => {} }) }))
 
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import NotebookLanesSteps from '@/components/notebooks/lanes/NotebookLanesSteps.vue'
+import type { ConfirmationOptions } from 'primevue/confirmationoptions'
 import { useFlowStore } from '@/store/flow'
 import { settle } from './fakes'
 
@@ -64,8 +67,19 @@ function rows(): HTMLElement[] {
   return [...(wrapper.element as HTMLElement).querySelectorAll<HTMLElement>('.step')]
 }
 
+function row(at: string): HTMLElement | undefined {
+  return rows().find((element) => element.dataset.step === at)
+}
+
+function backToLatest(): HTMLButtonElement | undefined {
+  return [...(wrapper.element as HTMLElement).querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent?.includes('Back to latest'),
+  )
+}
+
 beforeEach(async () => {
   for (const fn of Object.values(mocked)) fn.mockClear()
+  confirmRequire.mockClear()
   setActivePinia(createPinia())
   store = useFlowStore()
   store.branches = [MAIN]
@@ -93,19 +107,74 @@ describe('the steps list', () => {
     expect(wrapper.text()).not.toContain('Mark as Point')
   })
 
-  it('moves the lane to a step when its row is clicked, and not to where it is', async () => {
-    rows()
-      .find((row) => row.dataset.step === '86')
-      ?.click()
-    await settle()
-    expect(mocked.rewindBranch).toHaveBeenCalledWith('main', 86, undefined)
-
-    mocked.rewindBranch.mockClear()
-    rows()
-      .find((row) => row.dataset.step === '91')
-      ?.click()
+  it('asks to confirm a move that names the clicked step, without moving the lane yet', async () => {
+    row('86')?.click()
     await settle()
     expect(mocked.rewindBranch).not.toHaveBeenCalled()
+    expect(confirmRequire).toHaveBeenCalledOnce()
+    const options = confirmRequire.mock.calls[0]![0] as ConfirmationOptions
+    expect(options.header).toContain('step 86')
+    expect(options.message).toContain('step 86')
+
+    confirmRequire.mockClear()
+    row('91')?.click()
+    await settle()
+    expect(confirmRequire).not.toHaveBeenCalled()
+  })
+
+  it('moves the lane once the move is confirmed', async () => {
+    row('86')?.click()
+    await settle()
+    const options = confirmRequire.mock.calls[0]![0] as ConfirmationOptions
+    options.accept?.()
+    await settle()
+    expect(mocked.rewindBranch).toHaveBeenCalledOnce()
+    expect(mocked.rewindBranch).toHaveBeenCalledWith('main', 86, undefined)
+  })
+
+  it('does not move a lane that is no longer checked out when the move is confirmed', async () => {
+    row('86')?.click()
+    await settle()
+    const options = confirmRequire.mock.calls[0]![0] as ConfirmationOptions
+    store.branches = [
+      { ...MAIN, checked_out: false },
+      { ...MAIN, branch: 'other', branch_id: 'b-other', checked_out: true },
+    ]
+    options.accept?.()
+    await settle()
+    expect(mocked.rewindBranch).not.toHaveBeenCalled()
+  })
+
+  it('does not promise a way back when the confirmed step is the latest one', async () => {
+    store.branches = [{ ...MAIN, head_step: 86 }]
+    await settle()
+
+    row('90')?.click()
+    await settle()
+    const older = confirmRequire.mock.calls[0]![0] as ConfirmationOptions
+    expect(older.message).toContain('Lane main will move to step 90')
+    expect(older.message).toContain('return to its latest step')
+
+    row('91')?.click()
+    await settle()
+    const latest = confirmRequire.mock.calls[1]![0] as ConfirmationOptions
+    expect(latest.message).toBe('Lane main will move to its latest step 91.')
+  })
+
+  it('says when the lane is behind its latest step, and offers the way back', async () => {
+    store.branches = [{ ...MAIN, head_step: 86 }]
+    await settle()
+    expect(wrapper.text()).toContain('on step 86')
+    expect(wrapper.text()).toContain('not its latest step 91')
+
+    backToLatest()?.click()
+    await settle()
+    expect(mocked.rewindBranch).toHaveBeenCalledWith('main', 91, undefined)
+  })
+
+  it('shows no behind notice when the lane is at its latest step', () => {
+    expect(backToLatest()).toBeUndefined()
+    expect(wrapper.text()).not.toContain('latest step')
   })
 
   it('shows a point with its flag, and offers the flag on every other step', () => {

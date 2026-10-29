@@ -1,14 +1,22 @@
 <template>
-  <Accordion class="border-t border-surface">
+  <Accordion class="accordion border-t border-surface">
     <AccordionPanel value="1" class="border-none!">
       <AccordionHeader class="bg-transparent!" :pt="ACCORDION_HEADER_PT">
         <div class="header">
           <History :size="14" color="var(--p-text-muted-color)" />
           <span class="text-color">Steps</span>
           <span class="text-muted-color">({{ flowStore.currentBranchSteps.length }})</span>
+          <span v-if="flowStore.isBehindLaneHead" class="behind-badge">
+            on step {{ flowStore.currentHeadStep }}
+          </span>
         </div>
       </AccordionHeader>
       <AccordionContent :pt="ACCORDION_CONTENT_PT">
+        <NotebookLanesBehindMessage
+          class="mb-2"
+          :rewinding-step="rewindingStep"
+          @back="rewind"
+        />
         <p v-if="!flowStore.currentBranchSteps.length" class="empty">Nothing on this lane yet</p>
         <ol v-else class="steps">
           <li
@@ -22,8 +30,8 @@
             :aria-current="step.step === flowStore.currentHeadStep ? 'step' : undefined"
             :tabindex="step.step === flowStore.currentHeadStep ? -1 : 0"
             :data-step="step.step"
-            @click="rewind(step.step)"
-            @keydown.enter="rewind(step.step)"
+            @click="confirmRewind(step.step)"
+            @keydown.enter.self="confirmRewind(step.step)"
           >
             <Flag
               v-if="flowStore.currentBranchPoints.has(step.step)"
@@ -59,17 +67,26 @@
 
 <script setup lang="ts">
 import type { JournalTransaction } from '@/api/slices/workspace/workspace.interface'
-import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionHeader,
+  AccordionPanel,
+  useConfirm,
+} from 'primevue'
 import { Flag, History } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
+import { moveLaneConfirmOptions } from '@/confirm/confirm'
 import { formatUpdatedAgo } from '@/helpers/date'
 import { ACCORDION_CONTENT_PT, ACCORDION_HEADER_PT } from '@/prime-vue/pass-through/accordion.pt'
 import NotebookLanesCreatePoint from './NotebookLanesCreatePoint.vue'
+import NotebookLanesBehindMessage from './NotebookLanesBehindMessage.vue'
 
 const toast = useToast()
+const confirm = useConfirm()
 
 const flowStore = useFlowStore()
 
@@ -77,6 +94,21 @@ const rewindingStep = ref<number | null>(null)
 
 function stepTitle(step: JournalTransaction): string {
   return flowStore.currentBranchPoints.get(step.step) ?? step.intent
+}
+
+function confirmRewind(step: number) {
+  const lane = flowStore.currentBranch?.branch
+  if (!lane || step === flowStore.currentHeadStep || rewindingStep.value !== null) return
+  const isLatest = step === flowStore.currentBranch?.newest_step
+  confirm.require(
+    moveLaneConfirmOptions(() => {
+      if (flowStore.currentBranch?.branch !== lane) {
+        toast.add(errorToast(new Error(`Lane ${lane} is no longer checked out, nothing was moved`)))
+        return
+      }
+      rewind(step)
+    }, { lane, step, isLatest }),
+  )
 }
 
 async function rewind(step: number) {
@@ -98,6 +130,12 @@ async function rewind(step: number) {
 
 .header {
   @apply flex items-center gap-1 min-w-0 text-sm font-normal;
+}
+.behind-badge {
+  @apply ml-1 text-xs text-(--p-message-warn-color) truncate;
+}
+.accordion :deep(.p-collapsible-leave-active) {
+  @apply pointer-events-none;
 }
 .head-point {
   @apply max-w-48 truncate text-muted-color;

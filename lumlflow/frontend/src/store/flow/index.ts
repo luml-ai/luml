@@ -341,7 +341,6 @@ export const useFlowStore = defineStore('flow', () => {
   })
 
   const currentHeadStep = computed(() => {
-    console.log(currentBranch.value)
     return currentBranch.value?.head_step ?? null
   })
 

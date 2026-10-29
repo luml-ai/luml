@@ -65,7 +65,6 @@ export const deleteFlowConfirmOptions = (accept: () => void): ConfirmationOption
 
 export const deleteCellConfirmOptions = (accept: () => void, slug: string): ConfirmationOptions => {
   return {
-    group: 'delete-cell',
     message: `${PERMANENT_ACTION_MESSAGE} Every other lane keeps its own copy of \`${slug}\`.`,
     header: 'Delete cell from this lane?',
     acceptProps: {
@@ -75,6 +74,26 @@ export const deleteCellConfirmOptions = (accept: () => void, slug: string): Conf
     },
     rejectProps: {
       label: 'Cancel',
+    },
+    accept,
+  }
+}
+
+export const moveLaneConfirmOptions = (
+  accept: () => void,
+  { lane, step, isLatest }: { lane: string; step: number; isLatest: boolean },
+): ConfirmationOptions => {
+  return {
+    message: isLatest
+      ? `Lane ${lane} will move to its latest step ${step}.`
+      : `Lane ${lane} will move to step ${step}. You can return to its latest step at any time.`,
+    header: `Move to step ${step}?`,
+    acceptProps: {
+      label: `Move to step ${step}`,
+    },
+    rejectProps: {
+      label: 'Cancel',
+      variant: 'outlined',
     },
     accept,
   }
