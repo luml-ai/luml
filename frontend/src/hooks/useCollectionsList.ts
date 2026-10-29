@@ -38,21 +38,26 @@ export const useCollectionsList = (
 
   async function getInitialPage() {
     isLoading.value = true
-    const cursor = null
-    const response = await getCollectionsData(cursor)
-    addCollectionsToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    try {
+      const response = await getCollectionsData(null)
+      addCollectionsToList(response.items)
+      savedCursors.value.push(response.cursor)
+    } finally {
+      isLoading.value = false
+    }
   }
 
   async function getNextPage() {
     const cursor = getNextPageCursor()
     if (!cursor) return
     isLoading.value = true
-    const response = await getCollectionsData(cursor)
-    addCollectionsToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    try {
+      const response = await getCollectionsData(cursor)
+      addCollectionsToList(response.items)
+      savedCursors.value.push(response.cursor)
+    } finally {
+      isLoading.value = false
+    }
   }
 
   async function getCollectionsData(cursor: string | null) {
@@ -97,7 +102,7 @@ export const useCollectionsList = (
   async function onLazyLoad(event: VirtualScrollerLazyEvent) {
     if (isLoading.value) return
     const { last } = event
-    if (last === pageIndex.value * limit) {
+    if (last >= collectionsList.value.length) {
       await getNextPage()
     }
   }

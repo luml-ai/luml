@@ -31,21 +31,26 @@ export const useTracksList = (limit = 20, syncStore = true, types?: ArtifactType
 
   async function getInitialPage() {
     isLoading.value = true
-    const cursor = null
-    const response = await getTracksData(cursor)
-    addTracksToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    try {
+      const response = await getTracksData(null)
+      addTracksToList(response.items)
+      savedCursors.value.push(response.cursor)
+    } finally {
+      isLoading.value = false
+    }
   }
 
   async function getNextPage() {
     const cursor = getNextPageCursor()
     if (!cursor) return
     isLoading.value = true
-    const response = await getTracksData(cursor)
-    addTracksToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    try {
+      const response = await getTracksData(cursor)
+      addTracksToList(response.items)
+      savedCursors.value.push(response.cursor)
+    } finally {
+      isLoading.value = false
+    }
   }
 
   async function getTracksData(cursor: string | null) {
@@ -88,7 +93,7 @@ export const useTracksList = (limit = 20, syncStore = true, types?: ArtifactType
   async function onLazyLoad(event: VirtualScrollerLazyEvent) {
     if (isLoading.value) return
     const { last } = event
-    if (last === pageIndex.value * limit) {
+    if (last >= tracksList.value.length) {
       await getNextPage()
     }
   }
