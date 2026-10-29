@@ -300,6 +300,21 @@ class TestMaterializeCaching:
 
         assert mat_original._cache_dir == mat_copied._cache_dir
 
+    def test_reused_cache_loads_requested_archive(
+        self, pandas_ref: DatasetReference, tmp_path: Path
+    ) -> None:
+        cache = tmp_path / "cache"
+        load_dataset(pandas_ref, cache_dir=cache)
+        expected = pd.DataFrame({"different": [9, 9]})
+        second = save_tabular_dataset(
+            expected, output_path=str(tmp_path / "second.tar")
+        )
+        actual = load_dataset(second, cache_dir=cache).to_pandas()
+        pd.testing.assert_frame_equal(actual, expected)
+        restored = load_dataset(pandas_ref, cache_dir=cache).to_pandas()
+        assert list(restored.columns) == ["a", "b"]
+        assert len(restored) == 5
+
     def test_requires_completion_marker_before_reusing_cache(
         self,
         pandas_ref: DatasetReference,
