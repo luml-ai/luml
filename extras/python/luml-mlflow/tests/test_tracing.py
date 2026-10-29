@@ -560,3 +560,70 @@ def test_concurrent_traces_sharing_run_are_all_indexed(
 
     infos, _ = store.search_traces(experiment_ids=[exp_id], max_results=1000)
     assert {t.trace_id for t in infos} == set(trace_ids)
+
+
+@pytest.mark.parametrize("scope", ["locations", "experiment_ids"])
+def test_trace_search_scopes_and_filters(
+    store: LumlTrackingStore, run: tuple[str, str], scope: str
+) -> None:
+    from mlflow.exceptions import MlflowException
+
+    exp_id, run_id = run
+    other_exp = store.create_experiment("other_traces")
+    other_run = store.create_run(other_exp, user_id="", start_time=0).info.run_id
+    for trace_id, experiment_id, rid, stage, timestamp in [
+        (_TRACE_1, exp_id, run_id, "prod", 100),
+        (_TRACE_2, exp_id, run_id, "dev", 200),
+        (_TRACE_ABC, other_exp, other_run, "prod", 300),
+    ]:
+        store.start_trace(
+            _make_trace_info(
+                trace_id=trace_id,
+                experiment_id=experiment_id,
+                run_id=rid,
+                request_time=timestamp,
+                tags={"stage": stage},
+            )
+        )
+    args = {scope: [exp_id]}
+    infos, _ = store.search_traces(**args, filter_string="tags.stage = 'prod'")
+    assert [i.trace_id for i in infos] == [_TRACE_1]
+    infos, _ = store.search_traces(**args, filter_string="timestamp_ms >= 150")
+    assert [i.trace_id for i in infos] == [_TRACE_2]
+    infos, _ = store.search_traces(**args, filter_string="tags.stage = 'missing'")
+    assert infos == []
+    with pytest.raises(MlflowException):
+        store.search_traces(**args, filter_string="not a valid filter")
+
+
+def test_trace_search_filters_before_pagination(
+    store: LumlTrackingStore, run: tuple[str, str]
+) -> None:
+    exp_id, run_id = run
+    for index, trace_id in enumerate([_TRACE_1, _TRACE_2, _TRACE_ABC]):
+        store.start_trace(
+            _make_trace_info(
+                trace_id=trace_id,
+                experiment_id=exp_id,
+                run_id=run_id,
+                request_time=(index + 1) * 100,
+                tags={"stage": "prod"},
+            )
+        )
+    infos, token = store.search_traces(
+        locations=[exp_id],
+        filter_string="tags.stage = 'prod'",
+        max_results=2,
+        order_by=["timestamp_ms ASC"],
+    )
+    assert [i.trace_id for i in infos] == [_TRACE_1, _TRACE_2]
+    assert token is not None
+    infos, token = store.search_traces(
+        locations=[exp_id],
+        filter_string="tags.stage = 'prod'",
+        max_results=2,
+        order_by=["timestamp_ms ASC"],
+        page_token=token,
+    )
+    assert [i.trace_id for i in infos] == [_TRACE_ABC]
+    assert token is None

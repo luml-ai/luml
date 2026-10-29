@@ -19,7 +19,6 @@ to a (non-existent) luml artifact location.
 
 import json
 import logging
-import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -39,9 +38,10 @@ from mlflow.tracing.constant import (
     TraceMetadataKey,
     TraceTagKey,
 )
+from mlflow.utils.search_utils import SearchTraceUtils
 
 from luml_mlflow._span_buffer import get_buffer
-from luml_mlflow._tracker import ThreadSafeTracker
+from luml_mlflow._tracker import ThreadSafeTracker, mutate_experiment
 from luml_mlflow._unsupported import unsupported
 
 if TYPE_CHECKING:
@@ -70,16 +70,6 @@ def resolve_owning_run_id(trace_metadata: dict[str, str]) -> str | None:
     return (trace_metadata or {}).get(TraceMetadataKey.SOURCE_RUN)
 
 
-_INDEX_LOCK = threading.Lock()
-"""Serializes every read-modify-write of a run's ``trace_index``.
-
-``update_experiment_metadata`` merges only at the top level, so each writer reads
-the whole ``trace_index`` dict, inserts its entry, and writes the dict back. With
-async trace logging on, multiple traces of the same run export concurrently; this
-lock prevents those read-modify-writes from clobbering each other's entries (which
-would make whole traces vanish)."""
-
-
 def _trace_index(tracker: ThreadSafeTracker, run_id: str) -> dict[str, Any]:
     meta = tracker.get_experiment_metadata(run_id)
     return dict(meta.get(META_TRACE_INDEX) or {})
@@ -91,10 +81,12 @@ def _mutate_index(
     fn: Callable[[dict[str, Any]], None],
 ) -> None:
     """Atomically read a run's trace index, apply ``fn``, and write it back."""
-    with _INDEX_LOCK:
-        index = _trace_index(tracker, run_id)
+
+    def update(meta: dict[str, Any], flags: list[str]) -> None:
+        index = meta.setdefault(META_TRACE_INDEX, {})
         fn(index)
-        tracker.update_experiment_metadata(run_id, {META_TRACE_INDEX: index})
+
+    mutate_experiment(tracker, run_id, update)
 
 
 def _write_trace_index_entry(
@@ -384,14 +376,11 @@ def search_traces(
     tracker: ThreadSafeTracker,
     experiment_ids: list[str] | None,
     max_results: int = 100,
+    filter_string: str | None = None,
+    order_by: list[str] | None = None,
+    page_token: str | None = None,
 ) -> tuple[list[TraceInfo], str | None]:
-    """Minimal search: list trace infos owned by runs in the given group ids.
-
-    ``experiment_ids`` in MLflow terms are luml *group* ids; we list each
-    group's experiments (= runs), then unpack any trace-index entries on each
-    run's metadata column. No filter parsing — that is governed by the same
-    minimal-scope rule as ``_search_runs``.
-    """
+    """Search trace infos scoped to MLflow experiments (luml groups)."""
     group_ids = set(experiment_ids or [])
     infos: list[TraceInfo] = []
     for record in tracker.list_experiments():
@@ -400,8 +389,9 @@ def search_traces(
         index = (record.metadata or {}).get(META_TRACE_INDEX) or {}
         for trace_id, entry in index.items():
             infos.append(_build_trace_info(tracker, record.id, trace_id, entry))
-    infos.sort(key=lambda t: t.request_time, reverse=True)
-    return infos[:max_results], None
+    filtered = SearchTraceUtils.filter(infos, filter_string)
+    ordered = SearchTraceUtils.sort(filtered, order_by)
+    return SearchTraceUtils.paginate(ordered, page_token, max_results)
 
 
 def _build_trace_info(

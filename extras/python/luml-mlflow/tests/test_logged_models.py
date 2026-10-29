@@ -178,3 +178,87 @@ def test_logged_model_artifacts_land_as_luml_model(
     models = store._tracker.get_models(experiment_id=rid)
     assert len(models) == 1
     assert (models[0].path or "").endswith(FNNX_SUFFIX)
+
+
+def test_logged_models_persist_across_instances_and_processes(
+    store: LumlTrackingStore, run_id: tuple[str, str]
+) -> None:
+    import json
+    import subprocess
+    import sys
+
+    exp_id, rid = run_id
+    created = store.create_logged_model(
+        exp_id,
+        name="persistent",
+        source_run_id=rid,
+        tags=[LoggedModelTag("old", "value")],
+        params=[LoggedModelParameter("p", "1")],
+        model_type="sklearn",
+    )
+    second = LumlTrackingStore("luml://org1/orbit1")
+    second.finalize_logged_model(created.model_id, LoggedModelStatus.READY)
+    second.set_logged_model_tags(created.model_id, [LoggedModelTag("owner", "alice")])
+    second.delete_logged_model_tag(created.model_id, "old")
+    assert store.get_logged_model(created.model_id).tags == {"owner": "alice"}
+    script = """
+import json, sys
+from luml_mlflow.store import LumlTrackingStore
+store = LumlTrackingStore('luml://org1/orbit1')
+model = store.get_logged_model(sys.argv[1])
+print(json.dumps({'name': model.name, 'status': model.status.value, 'tags': model.tags,
+                  'params': model.params, 'source_run_id': model.source_run_id,
+                  'model_type': model.model_type,
+                  'models': [m.model_id for m in
+                             store.search_logged_models([sys.argv[2]])]}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, created.model_id, exp_id],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert json.loads(result.stdout) == {
+        "name": "persistent",
+        "status": "READY",
+        "tags": {"owner": "alice"},
+        "params": {"p": "1"},
+        "source_run_id": rid,
+        "model_type": "sklearn",
+        "models": [created.model_id],
+    }
+
+
+def test_logged_model_without_source_run_persists(
+    store: LumlTrackingStore, run_id: tuple[str, str]
+) -> None:
+    exp_id, _ = run_id
+    created = store.create_logged_model(exp_id, name="standalone")
+    assert (
+        LumlTrackingStore("luml://org1/orbit1")
+        .get_logged_model(created.model_id)
+        .source_run_id
+        is None
+    )
+
+
+def test_concurrent_logged_model_tags_are_retained(
+    store: LumlTrackingStore, run_id: tuple[str, str]
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    exp_id, rid = run_id
+    created = store.create_logged_model(exp_id, source_run_id=rid)
+    second = LumlTrackingStore("luml://org1/orbit1")
+
+    def write(index: int) -> None:
+        writer = store if index % 2 else second
+        writer.set_logged_model_tags(
+            created.model_id, [LoggedModelTag(f"tag{index}", str(index))]
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(write, range(40)))
+    assert store.get_logged_model(created.model_id).tags == {
+        f"tag{index}": str(index) for index in range(40)
+    }
