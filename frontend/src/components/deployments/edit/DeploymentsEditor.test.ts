@@ -168,6 +168,15 @@ function mountEditor(data = deployment(MONITORED.id)) {
   })
 }
 
+beforeEach(() => {
+  satellitesStore.loadSatellites.mockReset().mockImplementation(async () => {
+    return satellitesStore.satellitesList
+  })
+  satellitesStore.setList.mockReset().mockImplementation((satellites) => {
+    satellitesStore.satellitesList = satellites
+  })
+})
+
 describe('DeploymentsEditor monitoring settings', () => {
   beforeEach(() => {
     satellitesStore.satellitesList = [MONITORED]
@@ -382,6 +391,35 @@ describe('DeploymentsEditor saves', () => {
     await flushPromises()
   }
 
+  it.each([
+    ['an empty store', []],
+    ['satellites from another orbit', [UNSUPPORTED_MONITORING]],
+    [
+      'a cached satellite without its current monitoring capability',
+      [{ ...MONITORED, present_capabilities: ['deploy'] }],
+    ],
+  ])('loads the deployment orbit satellites with %s', async (_, cachedSatellites) => {
+    satellitesStore.satellitesList = cachedSatellites
+    const wrapper = mountEditor({ ...savedDeployment(), orbit_id: 'orbit-B' })
+    await flushPromises()
+
+    expect(satellitesStore.loadSatellites).toHaveBeenCalledExactlyOnceWith('org-1', 'orbit-B')
+    expect(satellitesStore.satellitesList).toEqual([MONITORED])
+    expect(wrapper.find('[data-testid="editor-monitoring-toggle"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="monitoring-sections-hint"]').text()).toContain('Runtime')
+    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+  })
+
+  it('hides monitoring when the deployment satellite is absent from the loaded orbit', async () => {
+    satellitesStore.loadSatellites.mockResolvedValueOnce([])
+    const wrapper = mountEditor(savedDeployment())
+    await flushPromises()
+
+    expect(satellitesStore.satellitesList).toEqual([])
+    expect(wrapper.find('[data-testid="editor-monitoring-toggle"]').exists()).toBe(false)
+    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+  })
+
   it.each(['satellites', 'secrets', 'artifact'] as const)(
     'disables Save and ignores submission until %s initialization finishes',
     async (stage) => {
@@ -421,7 +459,6 @@ describe('DeploymentsEditor saves', () => {
     'keeps Save disabled after %s initialization fails',
     async (stage) => {
       if (stage === 'satellites') {
-        satellitesStore.satellitesList = []
         satellitesStore.loadSatellites.mockRejectedValueOnce(new Error('load failed'))
       } else if (stage === 'secrets') {
         secretsStore.loadSecrets.mockRejectedValueOnce(new Error('load failed'))
