@@ -22,7 +22,6 @@ from luml.settings import Settings
 
 
 class SanitizedSpanExporter(SpanExporter):
-    # free-form values can contain secrets even when their keys look harmless
     ATTRIBUTE_NAMES = frozenset(
         {
             "http.method",
@@ -128,7 +127,6 @@ def configure_observability(
         endpoint=f"{settings.LOGFIRE_BASE_URL}/v1/traces",
         headers={"Authorization": settings.LOGFIRE_TOKEN.get_secret_value()},
     )
-    # legacy otlp environment variables must not create an unfiltered exporter
     os.environ.update(
         OTEL_TRACES_EXPORTER="none",
         OTEL_LOGS_EXPORTER="none",
