@@ -24,6 +24,9 @@ vi.mock('primevue', async (importOriginal) => ({
 
 enableAutoUnmount(afterEach)
 
+const firstKey = 'dfssat_first-test-key-0123456789'
+const secondKey = 'dfssat_second-test-key-9876543210'
+
 function mountModal(apiKey: string | null = null) {
   return mount(SatellitesApiKeyModal, {
     props: { apiKey, satelliteId: 'satellite-1', visible: true },
@@ -38,6 +41,7 @@ function mountModal(apiKey: string | null = null) {
 
 describe('SatellitesApiKeyModal', () => {
   beforeEach(() => {
+    addToast.mockReset()
     regenerateApiKey.mockReset().mockResolvedValue({ key: 'test-satellite-key' })
     vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
   })
@@ -112,5 +116,67 @@ describe('SatellitesApiKeyModal', () => {
     await wrapper.get('button').trigger('click')
     await flushPromises()
     expect(wrapper.get('input').element.value).toBe('test-satellite-key')
+  })
+
+  it('shows the current satellite prefix when the full key is unavailable', () => {
+    const wrapper = mountModal()
+
+    expect(wrapper.get('input').element.value).toBe(
+      'dfssat_***************************************',
+    )
+    expect(wrapper.get('input').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button').text()).toBe('Regenerate key')
+  })
+
+  it('keeps regeneration available after a key is generated', async () => {
+    regenerateApiKey.mockResolvedValueOnce({ key: firstKey })
+    const wrapper = mountModal()
+    await wrapper.get('button[aria-label="Regenerate key"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('input').element.value).toBe('dfssat_fir*******************0123456789')
+    await wrapper.findAll('button')[0].trigger('click')
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(firstKey)
+
+    regenerateApiKey.mockResolvedValueOnce({ key: secondKey })
+    await wrapper.get('button[aria-label="Regenerate key"]').trigger('click')
+    await flushPromises()
+
+    expect(regenerateApiKey).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('input').element.value).toBe('dfssat_sec*******************9876543210')
+    await wrapper.findAll('button')[0].trigger('click')
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(secondKey)
+    expect(wrapper.find('button[aria-label="Regenerate key"]').exists()).toBe(true)
+  })
+
+  it('allows regenerating a key supplied after satellite creation', async () => {
+    const wrapper = mountModal(firstKey)
+    regenerateApiKey.mockResolvedValueOnce({ key: secondKey })
+    await wrapper.get('button[aria-label="Regenerate key"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('input').element.value).toBe('dfssat_sec*******************9876543210')
+  })
+
+  it('disables regeneration while pending and preserves the previous key after failure', async () => {
+    const wrapper = mountModal(firstKey)
+    let rejectRegeneration!: (error: Error) => void
+    regenerateApiKey.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectRegeneration = reject
+      }),
+    )
+    const button = wrapper.get('button[aria-label="Regenerate key"]')
+    await button.trigger('click')
+
+    expect(button.attributes('disabled')).toBeDefined()
+    rejectRegeneration(new Error('Regeneration failed'))
+    await flushPromises()
+
+    expect(wrapper.get('input').element.value).toBe('dfssat_fir*******************0123456789')
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: 'Failed to generate API Key' }),
+    )
   })
 })
