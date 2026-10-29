@@ -1,10 +1,17 @@
+from __future__ import annotations
+
 import warnings
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode, Tracer
+if TYPE_CHECKING:
+    from opentelemetry.trace import Tracer
+
+try:
+    from opentelemetry import trace
+except ImportError:
+    trace = None  # type: ignore[assignment]
 
 from luml.experiments.evaluation.scorers.base import (
     BaseScorer,
@@ -115,6 +122,11 @@ def evaluate(
     """
     _disambiguate_scorer_names(scorers)
 
+    if trace is None:
+        raise ImportError(
+            "Evaluation tracing requires opentelemetry. "
+            "Install with: pip install luml_sdk[tracing]"
+        )
     tracer = trace.get_tracer(__name__)
 
     def evaluate_item(item: EvalItem) -> EvalResult:
@@ -186,6 +198,8 @@ def _evaluate_single_item(
             `EvalResult` object indicating the failure.
 
     """
+    from opentelemetry.trace import Status, StatusCode
+
     with tracer.start_as_current_span(name="eval_request") as span:
         trace_id = f"{span.context.trace_id:032x}"  # type: ignore
 

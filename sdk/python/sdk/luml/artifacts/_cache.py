@@ -36,17 +36,17 @@ def extract_archive_cached(
     lock_file_name: str = DEFAULT_LOCK_FILE,
     lock_timeout_seconds: float = DEFAULT_LOCK_TIMEOUT_SECONDS,
 ) -> None:
+    archive_hash = compute_file_sha256(archive_path)
     cache_dir.mkdir(parents=True, exist_ok=True)
     ready_marker = cache_dir / ready_marker_name
     lock_path = cache_dir / lock_file_name
     deadline = time.monotonic() + lock_timeout_seconds
 
     while True:
-        if ready_marker.exists():
-            return
-
         lock_fd = _acquire_lock_file(lock_path)
         if lock_fd is None:
+            if _remove_stale_lock(lock_path, lock_timeout_seconds):
+                continue
             if time.monotonic() >= deadline:
                 msg = f"Timed out waiting for cache extraction lock at '{lock_path}'."
                 raise TimeoutError(msg)
@@ -54,26 +54,66 @@ def extract_archive_cached(
             continue
 
         try:
-            if ready_marker.exists():
+            if (
+                ready_marker.exists()
+                and ready_marker.read_text(encoding="utf-8").strip() == archive_hash
+            ):
                 return
             _clear_cache_dir(cache_dir, lock_file_name)
             with tarfile.open(str(archive_path), "r") as tar:
                 tar.extractall(path=str(cache_dir), filter="data")  # noqa: S202
-            ready_marker.write_text("ok\n", encoding="utf-8")
+            ready_marker.write_text(archive_hash + "\n", encoding="utf-8")
             return
         finally:
-            os.close(lock_fd)
-            lock_path.unlink(missing_ok=True)
+            try:
+                if lock_path.stat().st_ino == os.fstat(lock_fd).st_ino:
+                    lock_path.unlink()
+            except FileNotFoundError:
+                pass
+            finally:
+                os.close(lock_fd)
 
 
 def _acquire_lock_file(lock_path: Path) -> int | None:
     try:
-        return os.open(
+        lock_fd = os.open(
             lock_path,
             os.O_CREAT | os.O_EXCL | os.O_WRONLY,
         )
     except FileExistsError:
         return None
+    os.write(lock_fd, str(os.getpid()).encode("ascii"))
+    return lock_fd
+
+
+def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
+    try:
+        lock_stat = lock_path.stat()
+        if time.time() - lock_stat.st_mtime < timeout_seconds:
+            return False
+        try:
+            owner_pid = int(lock_path.read_text(encoding="ascii"))
+        except (ValueError, UnicodeError):
+            owner_pid = 0
+        if owner_pid > 0:
+            try:
+                os.kill(owner_pid, 0)
+            except (ProcessLookupError, OverflowError):
+                pass
+            except PermissionError:
+                return False
+            else:
+                return False
+        # another waiter may already have replaced the abandoned lock
+        current_stat = lock_path.stat()
+        if (
+            current_stat.st_ino == lock_stat.st_ino
+            and current_stat.st_mtime_ns == lock_stat.st_mtime_ns
+        ):
+            lock_path.unlink()
+        return True
+    except FileNotFoundError:
+        return True
 
 
 def _clear_cache_dir(cache_dir: Path, lock_file_name: str) -> None:
