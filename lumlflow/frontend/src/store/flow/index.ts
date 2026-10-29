@@ -95,11 +95,16 @@ function formatStepCount(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
-function toLane(record: BranchRecord): INotebookLane {
+function toLane(
+  record: BranchRecord,
+  stepsByBranch: Map<string, JournalTransaction[]> | null,
+): INotebookLane {
   return {
     id: record.branch,
     name: record.branch,
-    steps: record.cells,
+    stepsLabel: stepsByBranch
+      ? formatStepCount(stepsByBranch.get(record.branch_id)?.length ?? 0, 'step')
+      : null,
     updatedAgo: formatUpdatedAgo(record.last_intent?.ts ?? null),
     parentId: record.parent,
     state: record.archived ? 'inactive' : 'active',
@@ -156,8 +161,22 @@ function toNotebookCell(cell: CellSummary): NotebookAssetInterface {
   }
 }
 
-function buildLaneTree(records: BranchRecord[]): INotebookLaneNode[] {
-  const lanes = records.map(toLane)
+function groupStepsByBranch(journal: JournalTransaction[]): Map<string, JournalTransaction[]> {
+  const steps = new Map<string, JournalTransaction[]>()
+  for (const transaction of journal) {
+    if (!transaction.branch || !isPosition(transaction)) continue
+    const branchSteps = steps.get(transaction.branch)
+    if (branchSteps) branchSteps.push(transaction)
+    else steps.set(transaction.branch, [transaction])
+  }
+  return steps
+}
+
+function buildLaneTree(
+  records: BranchRecord[],
+  stepsByBranch: Map<string, JournalTransaction[]> | null,
+): INotebookLaneNode[] {
+  const lanes = records.map((record) => toLane(record, stepsByBranch))
   const nodes = new Map<string, INotebookLaneNode>(
     lanes.map((lane) => [lane.id, { ...lane, children: [] }]),
   )
@@ -214,6 +233,10 @@ export const useFlowStore = defineStore('flow', () => {
 
   const journal = ref<JournalTransaction[]>([])
   const isJournalLoading = ref(false)
+  const isJournalLoaded = ref(false)
+  const stepsByBranch = computed(() =>
+    isJournalLoaded.value ? groupStepsByBranch(journal.value) : null,
+  )
 
   const isLaneForkPromptVisible = ref(false)
 
@@ -224,7 +247,7 @@ export const useFlowStore = defineStore('flow', () => {
   const uploadModelTarget = ref<{ slug: string; output: string } | null>(null)
   const experimentRemovals = ref<Record<string, number>>({})
 
-  const laneTree = computed(() => buildLaneTree(branches.value))
+  const laneTree = computed(() => buildLaneTree(branches.value, stepsByBranch.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
   const agentSessions = ref<AgentSessionRecord[]>([])
   const leasedSessions = computed(() =>
@@ -323,7 +346,11 @@ export const useFlowStore = defineStore('flow', () => {
       .sort((a, b) => b.step - a.step)
   })
 
-  const currentBranchSteps = computed(() => currentBranchActivities.value.filter(isPosition))
+  const currentBranchSteps = computed(() => {
+    const branchId = currentBranch.value?.branch_id
+    const steps = branchId ? stepsByBranch.value?.get(branchId) : undefined
+    return steps ? [...steps].sort((a, b) => b.step - a.step) : []
+  })
 
   const currentBranchPoints = computed(() => {
     const points = new Map<number, string>()
@@ -710,7 +737,9 @@ export const useFlowStore = defineStore('flow', () => {
     try {
       const page = await workspaceApi.journalSince(currentFlow.value ?? undefined)
       journal.value = page.transactions
+      isJournalLoaded.value = true
     } catch (error) {
+      isJournalLoaded.value = false
       toast.add(errorToast(error, 'Failed to load activities'))
     } finally {
       isJournalLoading.value = false
@@ -933,6 +962,7 @@ export const useFlowStore = defineStore('flow', () => {
     restartingFlow.value = null
     journal.value = []
     isJournalLoading.value = false
+    isJournalLoaded.value = false
     selectedCellId.value = null
     revealedCell.value = null
     expandedCellId.value = null
