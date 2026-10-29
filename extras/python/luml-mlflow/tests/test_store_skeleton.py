@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -168,3 +169,100 @@ def test_set_experiment_tag_missing_experiment_raises(
 
     with pytest.raises(MlflowException, match="not found"):
         store.set_experiment_tag("nonexistent", ExperimentTag("k", "v"))
+
+
+def test_create_experiment_rejects_empty_name(store: LumlTrackingStore) -> None:
+    with pytest.raises(ValueError, match="non-empty"):
+        store.create_experiment("")
+
+
+def test_get_experiment_missing_raises(store: LumlTrackingStore) -> None:
+    from mlflow.exceptions import MlflowException
+
+    with pytest.raises(MlflowException, match="not found"):
+        store.get_experiment("missing-experiment")
+
+
+def test_create_run_in_missing_experiment_raises(store: LumlTrackingStore) -> None:
+    from mlflow.exceptions import MlflowException
+
+    with pytest.raises(MlflowException, match="not found"):
+        store.create_run(
+            experiment_id="missing-experiment",
+            user_id="alice",
+            start_time=0,
+            tags=[],
+            run_name="r",
+        )
+
+
+def test_get_run_missing_raises(store: LumlTrackingStore) -> None:
+    from mlflow.exceptions import MlflowException
+
+    with pytest.raises(MlflowException, match="not found"):
+        store.get_run("missing-run")
+
+
+def test_update_run_info_renames_run(store: LumlTrackingStore) -> None:
+    from mlflow.entities import RunStatus
+
+    exp_id = store.create_experiment("fraud")
+    run = store.create_run(
+        exp_id, user_id="alice", start_time=0, tags=[], run_name="old"
+    )
+
+    info = store.update_run_info(
+        run.info.run_id, RunStatus.RUNNING, end_time=None, run_name="new"
+    )
+
+    assert info.run_name == "new"
+    assert store.get_run(run.info.run_id).info.run_name == "new"
+
+
+def test_get_metric_history_honours_max_results(store: LumlTrackingStore) -> None:
+    from mlflow.entities import Metric
+
+    exp_id = store.create_experiment("fraud")
+    run = store.create_run(exp_id, user_id="alice", start_time=0, tags=[], run_name="r")
+    for step in range(3):
+        store.log_metric(
+            run.info.run_id,
+            Metric(key="loss", value=1.0 / (step + 1), timestamp=0, step=step),
+        )
+
+    history = store.get_metric_history(run.info.run_id, "loss", max_results=2)
+
+    assert [m.step for m in history] == [0, 1]
+
+
+def test_unknown_status_override_falls_back_to_sdk_status(
+    store: LumlTrackingStore,
+) -> None:
+    from luml_mlflow.meta import RUN_STATUS, write_run_info_field
+
+    exp_id = store.create_experiment("fraud")
+    run = store.create_run(exp_id, user_id="alice", start_time=0, tags=[], run_name="r")
+    write_run_info_field(store._tracker, run.info.run_id, RUN_STATUS, "BOGUS")
+
+    assert store.get_run(run.info.run_id).info.status == "RUNNING"
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda store: store.restore_experiment("e1"),
+        lambda store: store.rename_experiment("e1", "renamed"),
+    ],
+)
+def test_unsupported_experiment_ops_raise_when_configured(
+    store: LumlTrackingStore,
+    monkeypatch: pytest.MonkeyPatch,
+    call: Callable[[LumlTrackingStore], None],
+) -> None:
+    from luml_mlflow import config as config_mod
+
+    monkeypatch.setenv("LUML_MLFLOW_ON_UNSUPPORTED", "raise")
+    config_mod.reset_settings_cache()
+
+    with pytest.raises(NotImplementedError, match="not supported"):
+        call(store)

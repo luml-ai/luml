@@ -205,3 +205,48 @@ def test_cli_force_re_syncs(store: LumlTrackingStore) -> None:
     assert result.exit_code == 0, result.stdout
     # Two uploads happened (once initial, once forced re-sync).
     assert len(fake_client.artifacts.upload_calls) == 2
+
+
+# ---------------------------------------------------------------- failures
+
+
+def test_cli_sync_failed_run_exits_nonzero(store: LumlTrackingStore) -> None:
+    run_id = _start_run(store)
+    fake_client = FakeLumlClient()
+    fake_client.artifacts.raise_on_upload = True
+
+    with patch("luml_mlflow.sync._build_client", return_value=fake_client):
+        result = runner.invoke(app, ["sync", "--run", run_id])
+
+    assert result.exit_code == 1
+    assert f"{run_id}: failed" in result.stderr
+    assert "simulated upload failure" in result.stderr
+
+
+def test_cli_status_reports_error_after_failed_sync(store: LumlTrackingStore) -> None:
+    run_id = _start_run(store)
+    fake_client = FakeLumlClient()
+    fake_client.artifacts.raise_on_upload = True
+
+    with patch("luml_mlflow.sync._build_client", return_value=fake_client):
+        runner.invoke(app, ["sync", "--run", run_id])
+
+    result = runner.invoke(app, ["status", "--run", run_id])
+
+    assert result.exit_code == 0, result.stdout
+    assert "status: failed" in result.stdout
+    assert "error: simulated upload failure" in result.stderr
+
+
+def test_cli_status_reports_collection_after_sync(store: LumlTrackingStore) -> None:
+    run_id = _start_run(store)
+    fake_client = FakeLumlClient()
+
+    with patch("luml_mlflow.sync._build_client", return_value=fake_client):
+        runner.invoke(app, ["sync", "--run", run_id])
+
+    result = runner.invoke(app, ["status", "--run", run_id])
+
+    assert result.exit_code == 0, result.stdout
+    assert "collection: col-1" in result.stdout
+    assert "artifact_ids: art-1" in result.stdout
