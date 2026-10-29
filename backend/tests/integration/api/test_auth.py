@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 
-async def test_concurrent_signup_with_same_email_returns_400(
+async def test_concurrent_signup_with_same_email_returns_uniform_response(
     engine: AsyncEngine,
     new_user_in: CreateUserIn,
     monkeypatch: pytest.MonkeyPatch,
@@ -47,11 +47,11 @@ async def test_concurrent_signup_with_same_email_returns_400(
                 )
             )
 
-    assert sorted(response.status_code for response in responses) == [200, 400]
-    winner = next(response for response in responses if response.status_code == 200)
-    loser = next(response for response in responses if response.status_code == 400)
-    assert winner.json() == {"detail": "Please confirm your email address"}
-    assert loser.json() == {"detail": "Email already registered"}
+    assert [response.status_code for response in responses] == [200, 200]
+    assert all(
+        response.json() == {"detail": "Please confirm your email address"}
+        for response in responses
+    )
     send_email.assert_awaited_once()
     assert await get_user(new_user_in.email) is not None
     async with AsyncSession(engine) as session:

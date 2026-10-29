@@ -74,7 +74,7 @@ def client() -> Iterator[TestClient]:
     )
     with (
         patch(
-            "luml.infra.auth_rate_limits.repository.consume",
+            "luml.infra.auth_rate_limits.limiter.consume",
             new_callable=AsyncMock,
             return_value=0,
         ),

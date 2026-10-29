@@ -6,9 +6,7 @@ from fastapi import FastAPI, HTTPException
 from luml.api.auth import auth_router
 from luml.api.platform_admin import platform_admin_routers
 from luml.handlers.auth import AuthHandler
-from luml.repositories.auth_rate_limits import AuthRateLimitRepository
 from luml.settings import config
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 @pytest.mark.parametrize(
@@ -46,7 +44,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
     ],
 )
 async def test_email_limit_survives_changing_ip(
-    engine: AsyncEngine, path: str, body: dict[str, str], handler: str
+    path: str, body: dict[str, str], handler: str
 ) -> None:
     app = FastAPI()
     app.include_router(auth_router, prefix="/v1")
@@ -59,10 +57,6 @@ async def test_email_limit_survives_changing_ip(
 
     with (
         patch(
-            "luml.infra.auth_rate_limits.repository", AuthRateLimitRepository(engine)
-        ),
-        patch("luml.repositories.auth_rate_limits.time", return_value=120),
-        patch(
             handler, new_callable=AsyncMock, side_effect=HTTPException(401)
         ) as handle,
     ):
@@ -74,19 +68,13 @@ async def test_email_limit_survives_changing_ip(
                 response = await client.post(f"/v1{path}", json=body)
             assert response.status_code == (401 if index < 5 else 429)
         assert handle.await_count == 5
-        assert response.headers["Retry-After"] == "60"
+        assert 0 < int(response.headers["Retry-After"]) <= 60
 
 
-async def test_ip_limit_survives_changing_email_and_forwarded_headers(
-    engine: AsyncEngine,
-) -> None:
+async def test_ip_limit_survives_changing_email_and_forwarded_headers() -> None:
     app = FastAPI()
     app.include_router(auth_router, prefix="/v1")
     with (
-        patch(
-            "luml.infra.auth_rate_limits.repository", AuthRateLimitRepository(engine)
-        ),
-        patch("luml.repositories.auth_rate_limits.time", return_value=120),
         patch(
             "luml.api.auth.auth_handler.send_password_reset_email",
             new_callable=AsyncMock,

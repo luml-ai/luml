@@ -44,6 +44,16 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -92,6 +102,8 @@ services:
     <<: *backend-base
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       backend-migrate:
         condition: service_completed_successfully

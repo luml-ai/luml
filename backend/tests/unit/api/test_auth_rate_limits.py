@@ -58,7 +58,7 @@ def test_limited_requests_do_not_reach_handlers(
 ) -> None:
     with (
         patch(
-            "luml.infra.auth_rate_limits.repository.consume",
+            "luml.infra.auth_rate_limits.limiter.consume",
             new_callable=AsyncMock,
             return_value=42,
         ) as consume,
@@ -76,7 +76,7 @@ def test_limited_requests_do_not_reach_handlers(
 def test_email_limits_ignore_case_and_forwarded_headers(client: TestClient) -> None:
     with (
         patch(
-            "luml.infra.auth_rate_limits.repository.consume",
+            "luml.infra.auth_rate_limits.limiter.consume",
             new_callable=AsyncMock,
             return_value=0,
         ) as consume,
@@ -115,7 +115,7 @@ def test_reset_limits_use_only_verified_password_reset_identity(
     )
     with (
         patch(
-            "luml.infra.auth_rate_limits.repository.consume",
+            "luml.infra.auth_rate_limits.limiter.consume",
             new_callable=AsyncMock,
             return_value=42,
         ) as consume,
@@ -136,7 +136,7 @@ def test_google_code_grant_is_unchanged(client: TestClient) -> None:
 
     with (
         patch(
-            "luml.infra.auth_rate_limits.repository.consume", new_callable=AsyncMock
+            "luml.infra.auth_rate_limits.limiter.consume", new_callable=AsyncMock
         ) as consume,
         patch(
             "luml.api.platform_admin.platform_admin_auth_handler.issue_token",

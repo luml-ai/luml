@@ -153,15 +153,21 @@ model servers and the SDK is unchanged. No App Platform specs are tracked here.
 
 References: [Logfire API](https://pydantic.dev/docs/logfire/api/logfire/),
 [OTLP connection settings](https://pydantic.dev/docs/logfire/guides/alternative-clients/).
+
 ## Authentication rate limits
 
 Sign-in, sign-up, forgot-password, reset-password, and the platform-admin password
-grant allow 20 requests per client IP and 5 requests per email per endpoint in each
-one-minute window. Reset-password uses the email from a verified reset token;
-invalid tokens count against the IP limit. Requests over either limit receive
-HTTP 429 with a `Retry-After` header in seconds. Counters are shared through
-PostgreSQL across API workers; apply migration 043 before deploying the backend.
-Expired counters are removed on subsequent authentication requests.
+grant allow 20 requests per client IP and 5 requests per email per endpoint within
+a one-minute window that starts at the first request. Reset-password uses the
+email from a verified reset token; invalid tokens count against the IP limit.
+Requests over either limit receive HTTP 429 with a `Retry-After` header in
+seconds. Denied requests also count towards the limit.
+
+Counters live in Redis (`REDIS_URL`) and are shared across API workers; keys are
+HMAC digests of the endpoint and the scope, so Redis never stores addresses or
+emails in clear text, and they expire with the window. When Redis is unreachable
+the limiter logs the failure and lets the request through, so a Redis outage
+degrades to the previous unthrottled behaviour instead of blocking sign-in.
 
 The application uses the request client address, so configure Uvicorn's trusted
 proxy addresses for your ingress and restrict direct access to the API when

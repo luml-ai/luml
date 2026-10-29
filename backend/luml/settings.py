@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
     POSTGRESQL_DSN: str
+    REDIS_URL: str
 
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str

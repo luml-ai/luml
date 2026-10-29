@@ -18,6 +18,7 @@ dependencies = [
     "argon2-cffi==25.1.0",
     "azure-storage-blob==12.27.1",
     "logfire[fastapi,httpx,sqlalchemy]==5.1.1",
+    "redis==8.1.0",
 ]
 
 [dependency-groups]

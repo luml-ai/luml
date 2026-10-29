@@ -46,6 +46,7 @@ jobs:
     env:
       PYTEST_VERSION: '1'
       POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
+      REDIS_URL: redis://localhost:6379/0
       AUTH_SECRET_KEY: test_secret_key_for_ci
       BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
     steps:
@@ -69,6 +70,7 @@ jobs:
     env:
       PYTEST_VERSION: '1'
       POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
+      REDIS_URL: redis://localhost:6379/0
       AUTH_SECRET_KEY: test_secret_key_for_ci
       BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
     services:
@@ -82,6 +84,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U test_user -d df_studio_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
