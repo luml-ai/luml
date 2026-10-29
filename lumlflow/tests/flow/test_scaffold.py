@@ -39,6 +39,11 @@ def test_a_placeholder_name_does_not_become_the_class_name():
     assert scaffold.class_name("train_model") == "TrainModel"
 
 
+def test_digits_in_a_name_stay_in_the_class_name():
+    assert scaffold.class_name("my_cell_1") == "MyCell1"
+    assert scaffold.class_name("model_v2") == "ModelV2"
+
+
 @pytest.mark.parametrize(
     ("slug", "expected"),
     [

@@ -487,13 +487,13 @@ async def test_path_shaped_cell_names_leave_the_lane_and_files_unchanged(
         before = slice_of(session, "main")
         journal_before = transactions(session)
 
-        with pytest.raises(FlowError, match="path separators"):
+        with pytest.raises(FlowError, match="not a name a cell can have"):
             await api.cells_new(
                 {"flow": "churn", "slug": "../../escaped", "source": SCORE_CELL}
             )
-        with pytest.raises(FlowError, match="path separators"):
+        with pytest.raises(FlowError, match="not a name a cell can have"):
             await api.rename({"flow": "churn", "slug": "score", "to": "../out"})
-        with pytest.raises(FlowError, match="non-empty"):
+        with pytest.raises(FlowError, match="not a name a cell can have"):
             await api.rename({"flow": "churn", "slug": "score", "to": ""})
 
         after = slice_of(session, "main")
@@ -538,7 +538,7 @@ async def test_rename_refuses_a_name_another_cell_holds(tmp_path: Path) -> None:
         before = slice_of(session, "main")
 
         with pytest.raises(FlowError, match=r"`report`.*already"):
-            await api.rename({"flow": "churn", "slug": "score", "to": "REPORT"})
+            await api.rename({"flow": "churn", "slug": "score", "to": "report"})
 
         after = slice_of(session, "main")
 

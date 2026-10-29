@@ -16,6 +16,7 @@ import type {
   PublishTarget,
 } from '@/flow/api/types'
 import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/lanes/interface'
+import { toCellName } from '@/components/notebooks/cell/cell.const'
 import type {
   NotebookAssetInterface,
   NotebookAssetType,
@@ -848,10 +849,11 @@ export const useFlowStore = defineStore('flow', () => {
 
   function nextDuplicateSlug(slug: string): string {
     const taken = new Set(cells.value.map((cell) => cell.slug.toLowerCase()))
-    let candidate = `${slug}_copy`
+    const base = toCellName(slug)
+    let candidate = `${base}_copy`
     let suffix = 2
     while (taken.has(candidate.toLowerCase())) {
-      candidate = `${slug}_copy_${suffix}`
+      candidate = `${base}_copy_${suffix}`
       suffix += 1
     }
     return candidate

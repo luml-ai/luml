@@ -24,6 +24,7 @@ from tests.daemon.helpers import (
     slice_of,
     source_of,
     transactions,
+    write_cell,
 )
 
 SWEEP_CELL = """
@@ -575,12 +576,9 @@ def test_resources_serve_the_guide_and_flow_data_and_refuse_removed_focus(
 def test_a_cell_resource_reads_back_under_a_name_that_needs_escaping(
     talk: Talk, workspace: Path
 ):
-    answers = talk(
-        hello(),
-        tool(1, "init-flow", {"name": "churn"}),
-        tool(2, "new-cell", {"slug": "score #1", "source": SCORE_CELL, "intent": "s"}),
-        request(3, "resources/list"),
-    )
+    talk(hello(), tool(1, "init-flow", {"name": "churn"}))
+    write_cell(workspace / "churn.flow", "score #1", SCORE_CELL)
+    answers = talk(hello(), request(3, "resources/list"))
     listed = [
         resource["uri"]
         for resource in answers[3]["result"]["resources"]

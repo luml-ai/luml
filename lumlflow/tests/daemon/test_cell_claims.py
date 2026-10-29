@@ -7,7 +7,7 @@ from lumlflow.flow.daemon.api import CLAIM_IDLE_S, Api
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.errors import CellClaimed
 
-from tests.daemon.helpers import daemon_api, make_workspace
+from tests.daemon.helpers import daemon_api, make_workspace, write_cell
 
 NOTE = '''
 class Note:
@@ -131,10 +131,10 @@ async def test_a_rename_or_delete_by_the_holder_follows_the_cell(
 
 async def test_dotted_cells_are_held_apart(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project")
+    for slug in ("train.v1", "train.v2"):
+        write_cell(root / "churn.flow", slug, NOTE)
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
-        for slug in ("train.v1", "train.v2"):
-            await api.cells_new({"flow": "churn", "slug": slug, "source": NOTE})
         api.claim("cells.edit", _by("codex-1", slug="train.v1"), label="codex")
         api.claim("cells.edit", _by("claude-1", slug="train.v2"), label="claude")
 
