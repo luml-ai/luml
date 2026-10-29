@@ -9,15 +9,20 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import patch
 
 import httpx
+import logfire
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from luml.infra.observability import SanitizedSpanExporter, configure_observability
+from luml.infra.observability import (
+    SCRUBBING,
+    SanitizedSpanExporter,
+    configure_observability,
+)
 from luml.settings import config
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
@@ -107,6 +112,7 @@ def test_exported_telemetry_is_useful_and_contains_no_request_or_sql_data(
                 "db.system": "log-db-private-value",
             },
         )
+        logging.getLogger("luml.test").info("handled %s", "item")
         return {"ok": True}
 
     @app.post("/items")
@@ -119,7 +125,11 @@ def test_exported_telemetry_is_useful_and_contains_no_request_or_sql_data(
 
     @app.get("/failure")
     def failure() -> None:
-        raise RuntimeError("exception-private-value")
+        raise RuntimeError("password exception-private-value")
+
+    @app.get("/plain-failure")
+    def plain_failure() -> None:
+        raise RuntimeError("plain failure")
 
     client = TestClient(app, raise_server_exceptions=False)
     assert (
@@ -130,6 +140,7 @@ def test_exported_telemetry_is_useful_and_contains_no_request_or_sql_data(
         client.post("/items", json={"opaque": "body-private-value"}).status_code == 200
     )
     assert client.get("/failure").status_code == 500
+    assert client.get("/plain-failure").status_code == 500
     assert client.get("/health?token=health-private-value").status_code == 200
     spans = captured_telemetry.get_finished_spans()
     assert not any((s.attributes or {}).get("http.route") == "/health" for s in spans)
@@ -162,10 +173,21 @@ def test_exported_telemetry_is_useful_and_contains_no_request_or_sql_data(
         (s.attributes or {}).get("logfire.logger_name") == "luml.test" for s in spans
     )
     assert any(
-        (event.attributes or {}).get("exception.type") == "RuntimeError"
+        (span.attributes or {}).get("logfire.msg") == "handled item" for span in spans
+    )
+    exceptions = [
+        event.attributes or {}
         for span in spans
         for event in span.events
+        if (event.attributes or {}).get("exception.type") == "RuntimeError"
+    ]
+    assert any(e.get("exception.message") == "plain failure" for e in exceptions)
+    assert any(
+        'File "' in str(e.get("exception.stacktrace"))
+        and "RuntimeError: plain failure" in str(e.get("exception.stacktrace"))
+        for e in exceptions
     )
+    assert any(e.get("exception.message") == "[Scrubbed]" for e in exceptions)
     for span in spans:
         assert span.resource.attributes["service.name"] == "luml-backend"
         assert span.resource.attributes["service.version"] == "test-version"
@@ -221,7 +243,21 @@ def test_export_boundary_removes_untrusted_names_metadata_and_error_details() ->
     exporter = SanitizedSpanExporter(target, Resource({"service.name": "luml-backend"}))
     span = ReadableSpan(
         name="span-private-value",
-        attributes={"unknown": "attribute-private-value"},
+        attributes={
+            "unknown": "attribute-private-value",
+            "logfire.logger_name": "luml.test",
+            "logfire.msg": "message-private-value",
+        },
+        events=[
+            Event(
+                "exception",
+                {
+                    "exception.type": "ValueError",
+                    "exception.message": "exception-private-value",
+                    "exception.stacktrace": "stack-private-value",
+                },
+            )
+        ],
         resource=Resource({"dsn": "resource-private-value"}),
         status=Status(StatusCode.ERROR, "status-private-value"),
         instrumentation_scope=InstrumentationScope("scope-private-value"),
@@ -234,6 +270,61 @@ def test_export_boundary_removes_untrusted_names_metadata_and_error_details() ->
     assert exported.status.status_code == StatusCode.ERROR
     assert exported.start_time == 1
     assert exported.end_time == 2
+    assert exported.events[0].attributes == {"exception.type": "ValueError"}
+
+
+def test_export_boundary_scrubs_free_text_and_keeps_stack_locations() -> None:
+    scrubber = logfire.configure(
+        local=True,
+        send_to_logfire=False,
+        console=False,
+        metrics=False,
+        scrubbing=SCRUBBING,
+    ).config.scrubber
+    target = InMemorySpanExporter()
+    exporter = SanitizedSpanExporter(target, Resource({}), scrubber)
+    stacktrace = "\n".join(
+        [
+            "Traceback (most recent call last):",
+            '  File "/app/luml/handlers/auth.py", line 7, in login',
+            "    session.execute(query)",
+            "ValueError: postgresql://person:stack-private-value@db/luml",
+        ]
+    )
+    span = ReadableSpan(
+        name="span",
+        attributes={
+            "logfire.logger_name": "luml.test",
+            "logfire.msg": "token message-private-value",
+            "logfire.msg_template": "token %s",
+        },
+        events=[
+            Event(
+                "exception",
+                {
+                    "exception.type": "ValueError",
+                    "exception.message": "user person@example.com is unknown",
+                    "exception.stacktrace": stacktrace,
+                },
+            )
+        ],
+        start_time=1,
+        end_time=2,
+    )
+    exporter.export([span])
+    exported = target.get_finished_spans()[0]
+    serialized = exported.to_json()
+    assert "private-value" not in serialized
+    assert "person@example.com" not in serialized
+    attributes = exported.attributes or {}
+    assert attributes["logfire.msg"] == "[Scrubbed]"
+    assert attributes["logfire.msg_template"] == "[Scrubbed]"
+    event = exported.events[0].attributes or {}
+    assert event["exception.message"] == "[Scrubbed]"
+    stack = str(event["exception.stacktrace"])
+    assert 'File "/app/luml/handlers/auth.py", line 7, in login' in stack
+    assert "session.execute" not in stack
+    assert "Traceback (most recent call last):" in stack
 
 
 def test_backend_and_migration_import_without_observability_configuration() -> None:
@@ -285,7 +376,7 @@ def test_platform_admin_logs_are_forwarded_once(
         engine,
         config.model_copy(update={"LOGFIRE_TOKEN": SecretStr("test-token")}),
     )
-    logging.getLogger("luml.platform_admin.audit").info("audit-private-value")
+    logging.getLogger("luml.platform_admin.audit").info("audit entry")
     spans = captured_telemetry.get_finished_spans()
     audit_spans = [
         span
@@ -294,5 +385,5 @@ def test_platform_admin_logs_are_forwarded_once(
         == "luml.platform_admin.audit"
     ]
     assert len(audit_spans) == 1
-    assert "audit-private-value" not in audit_spans[0].to_json()
+    assert (audit_spans[0].attributes or {})["logfire.msg"] == "audit entry"
     engine.dispose()

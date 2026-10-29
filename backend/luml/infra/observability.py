@@ -1,9 +1,12 @@
 import logging
 import os
+import re
 from collections.abc import Sequence
+from typing import Any, Protocol
 
 import logfire
 from fastapi import FastAPI
+from logfire import ScrubbingOptions, ScrubMatch
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import Event, ReadableSpan
@@ -19,6 +22,31 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from luml.handlers.platform_admin import PLATFORM_ADMIN_LOGGER
 from luml.settings import Settings
+
+SCRUBBING_PATTERNS = (
+    r"\btoken\b",
+    r"\bdsn\b",
+    r"\bbearer\b",
+    r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+",
+    r"://[^\s/@]+@",
+)
+
+STACK_LOCATION_LINE = re.compile(r'^\s*File ".*", line \d+, in .+$')
+
+
+def redact(_match: ScrubMatch) -> str:
+    return "[Scrubbed]"
+
+
+SCRUBBING = ScrubbingOptions(extra_patterns=SCRUBBING_PATTERNS, callback=redact)
+
+ScrubPath = tuple[str | int, ...]
+
+
+class Scrubber(Protocol):
+    def scrub_value(
+        self, path: ScrubPath, value: object
+    ) -> tuple[object, Sequence[object]]: ...
 
 
 class SanitizedSpanExporter(SpanExporter):
@@ -40,18 +68,26 @@ class SanitizedSpanExporter(SpanExporter):
         }
     )
 
-    def __init__(self, exporter: SpanExporter, resource: Resource) -> None:
+    def __init__(
+        self,
+        exporter: SpanExporter,
+        resource: Resource,
+        scrubber: Scrubber | None = None,
+    ) -> None:
         self.exporter = exporter
         self.resource = resource
+        self.scrubber = scrubber
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         sanitized = []
         for span in spans:
+            source = span.attributes or {}
             attributes = {
                 key: value
-                for key, value in (span.attributes or {}).items()
+                for key, value in source.items()
                 if key in self.ATTRIBUTE_NAMES
             }
+            message = template = None
             if "logfire.logger_name" in attributes:
                 attributes = {
                     key: value
@@ -59,6 +95,13 @@ class SanitizedSpanExporter(SpanExporter):
                     if not key.startswith(("http.", "db."))
                 }
                 name = "application log"
+                message = self._scrub(
+                    ("attributes", "logfire.msg"), source.get("logfire.msg")
+                )
+                template = self._scrub(
+                    ("attributes", "logfire.msg_template"),
+                    source.get("logfire.msg_template"),
+                )
             elif "http.route" in attributes:
                 method = attributes.get("http.method", "HTTP")
                 name = f"{method} {attributes['http.route']}"
@@ -72,15 +115,11 @@ class SanitizedSpanExporter(SpanExporter):
                 )
             else:
                 name = "application operation"
-            attributes["logfire.msg"] = name
-            attributes["logfire.msg_template"] = name
+            attributes["logfire.msg"] = message or name
+            attributes["logfire.msg_template"] = template or name
             events = [
-                Event(
-                    name="exception",
-                    attributes={"exception.type": event.attributes["exception.type"]},
-                    timestamp=event.timestamp,
-                )
-                for event in span.events
+                self._exception_event(index, event)
+                for index, event in enumerate(span.events)
                 if event.attributes and "exception.type" in event.attributes
             ]
             sanitized.append(
@@ -99,6 +138,30 @@ class SanitizedSpanExporter(SpanExporter):
                 )
             )
         return self.exporter.export(sanitized)
+
+    def _exception_event(self, index: int, event: Event) -> Event:
+        source = event.attributes or {}
+        path: ScrubPath = ("otel_events", index, "attributes")
+        attributes: dict[str, Any] = {"exception.type": source["exception.type"]}
+        message = self._scrub(
+            (*path, "exception.message"), source.get("exception.message")
+        )
+        if message is not None:
+            attributes["exception.message"] = message
+        stacktrace = source.get("exception.stacktrace")
+        if isinstance(stacktrace, str) and self.scrubber is not None:
+            attributes["exception.stacktrace"] = "\n".join(
+                line
+                if STACK_LOCATION_LINE.match(line)
+                else self._scrub((*path, "exception.stacktrace", number), line) or ""
+                for number, line in enumerate(stacktrace.splitlines())
+            )
+        return Event(name="exception", attributes=attributes, timestamp=event.timestamp)
+
+    def _scrub(self, path: ScrubPath, value: object) -> str | None:
+        if value is None or self.scrubber is None:
+            return None
+        return str(self.scrubber.scrub_value(path, str(value))[0])
 
     def shutdown(self) -> None:
         self.exporter.shutdown()
@@ -132,6 +195,7 @@ def configure_observability(
         OTEL_LOGS_EXPORTER="none",
         OTEL_METRICS_EXPORTER="none",
     )
+    sanitized = SanitizedSpanExporter(exporter, resource)
     instance = logfire.configure(
         local=True,
         send_to_logfire=False,
@@ -140,13 +204,13 @@ def configure_observability(
         inspect_arguments=False,
         add_baggage_to_attributes=False,
         distributed_tracing=False,
+        scrubbing=SCRUBBING,
         service_name="luml-backend",
         service_version=settings.LOGFIRE_SERVICE_VERSION,
         environment=settings.LOGFIRE_ENVIRONMENT,
-        additional_span_processors=[
-            BatchSpanProcessor(SanitizedSpanExporter(exporter, resource))
-        ],
+        additional_span_processors=[BatchSpanProcessor(sanitized)],
     )
+    sanitized.scrubber = instance.config.scrubber
     instance.instrument_fastapi(
         app,
         capture_headers=False,

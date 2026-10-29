@@ -128,12 +128,17 @@ INFO and above, including the platform admin logger.
 Before OTLP export, an allowlist retains timings, trace context, HTTP methods,
 route templates, status codes, database system, exception types, log levels and
 source locations. It removes SQL text and parameters, URL paths and queries,
-headers and bodies, log messages and arguments, exception messages and
-stacktraces, baggage and unknown attributes. Exported log entries are labelled
-`application log`; use their logger, location and trace to identify the event.
-This deliberately limits diagnostic detail so arbitrary secrets and personal
-data in free-form values cannot be sent. The SDK's default exporter, console
-output and metrics are disabled so they cannot bypass this filter. Legacy
+headers and bodies, log arguments, baggage and unknown attributes. Log messages,
+exception messages and stacktraces are exported after scrubbing: Logfire's
+default patterns (password, secret, auth, api key, session, cookie, jwt and
+others) are extended with `token`, `dsn`, `bearer`, email addresses and URL
+credentials. A matching message or stacktrace line is replaced by `[Scrubbed]`
+as a whole; stacktrace location lines (`File "…", line N, in …`) are always
+kept. Pattern scrubbing cannot recognise a secret whose value and surrounding
+text look harmless, so review logs for leaks after enabling the integration and
+extend `SCRUBBING_PATTERNS` in `luml/infra/observability.py` when needed. The
+SDK's default exporter, console output and metrics are disabled so they cannot
+bypass this filter. Legacy
 `OTEL_*_EXPORTER` selectors are set to `none` when enabling this integration,
 preventing old OTLP endpoint variables from creating additional exporters.
 
