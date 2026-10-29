@@ -9,9 +9,13 @@
           }"
         >
           <span>{{ flowStore.currentBranch?.branch }}</span>
-          <Tag severity="success">
-            <CircleQuestionMark :size="10" />
-            Setteled
+          <Tag v-if="health" :severity="health.severity" v-tooltip.bottom="health.tooltip">
+            <component
+              :is="health.icon"
+              :size="10"
+              :class="{ 'animate-spin': flowStore.laneHealth === 'running' }"
+            />
+            {{ health.label }}
           </Tag>
         </div>
         <div class="heading-right">
@@ -52,14 +56,18 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowRightToLine, CircleQuestionMark, History, ListTree } from 'lucide-vue-next'
+import { ArrowRightToLine, History, ListTree } from 'lucide-vue-next'
 import { Tag } from 'primevue'
+import { computed } from 'vue'
 import { useFlowStore } from '@/store/flow'
+import { NOTEBOOK_HEALTH } from '@/components/notebooks/notebooks.const'
 import NotebooksLanes from '@/components/notebooks/lanes/NotebooksLanes.vue'
 import SidebarTooltipPlug from '@/components/notebooks/SidebarTooltipPlug.vue'
 import NotebookLanesSteps from '@/components/notebooks/lanes/NotebookLanesSteps.vue'
 
 const flowStore = useFlowStore()
+
+const health = computed(() => (flowStore.laneHealth ? NOTEBOOK_HEALTH[flowStore.laneHealth] : null))
 </script>
 
 <style scoped>
