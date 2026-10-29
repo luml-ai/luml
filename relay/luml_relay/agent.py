@@ -90,11 +90,22 @@ class ReconnectPolicy:
 
 
 class LoopbackService:
-    """A service on a port of the loopback address; no other host can be reached."""
+    """A service on a port of the loopback address; no other host can be reached.
 
-    def __init__(self, port: int, present_loopback_host: bool = False) -> None:
+    With `bearer_token`, every request reaches the service with that bearer token in
+    its Authorization header in place of whatever the viewer sent, as Flow needs its
+    session token.
+    """
+
+    def __init__(
+        self,
+        port: int,
+        present_loopback_host: bool = False,
+        bearer_token: str | None = None,
+    ) -> None:
         self._port = port
         self._present_loopback_host = present_loopback_host
+        self._bearer_token = bearer_token
         self._transport = httpx.AsyncHTTPTransport()
 
     async def aclose(self) -> None:
@@ -204,6 +215,11 @@ class LoopbackService:
     def _request_headers(self, headers: Headers) -> Headers:
         # Transfer-Encoding tells httpx to send the body in chunks, as the viewer did.
         forwarded = without_hop_by_hop(headers, keep=frozenset({"transfer-encoding"}))
+        if self._bearer_token is not None:
+            forwarded = [
+                ("authorization", f"Bearer {self._bearer_token}"),
+                *((name, value) for name, value in forwarded if name.lower() != "authorization"),
+            ]
         if not self._present_loopback_host:
             return forwarded
         without_host = [(name, value) for name, value in forwarded if name.lower() != "host"]

@@ -456,8 +456,9 @@ async def running_agent(
     token: str,
     service_port: int,
     present_loopback_host: bool = False,
+    bearer_token: str | None = None,
 ) -> AsyncGenerator[Agent]:
-    service = LoopbackService(service_port, present_loopback_host)
+    service = LoopbackService(service_port, present_loopback_host, bearer_token)
     agent = Agent(relay_url(relay_port), FixedToken(token), service, FAST_RECONNECT)
     previous = relay.agents.get(SESSION)
     running = asyncio.create_task(agent.run())

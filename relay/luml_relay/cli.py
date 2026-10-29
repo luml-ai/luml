@@ -51,7 +51,9 @@ def _expose_directly(arguments: argparse.Namespace) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     async def run() -> None:
-        service = LoopbackService(arguments.port, arguments.present_loopback_host)
+        service = LoopbackService(
+            arguments.port, arguments.present_loopback_host, arguments.bearer_token
+        )
         try:
             await Agent(arguments.relay_url, FixedToken(token), service).run()
         finally:
@@ -78,7 +80,9 @@ def _expose_through_luml(arguments: argparse.Namespace) -> int:
         loop = asyncio.get_running_loop()
         for stop_signal in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(stop_signal, stop.set)
-        service = LoopbackService(arguments.port, arguments.present_loopback_host)
+        service = LoopbackService(
+            arguments.port, arguments.present_loopback_host, arguments.bearer_token
+        )
         try:
             await expose_through_luml(
                 arguments.organization, arguments.orbit, arguments.label, service, stop
@@ -197,6 +201,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--present-loopback-host",
         action="store_true",
         help="Send the loopback address as the host instead of the public hostname",
+    )
+    expose.add_argument(
+        "--bearer-token",
+        help="Bearer token sent to the service with every request, such as Flow's "
+        "session token from the launch URL of `lumlflow ui`",
     )
     expose.set_defaults(handler=_expose)
 

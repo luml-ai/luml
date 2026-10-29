@@ -156,6 +156,36 @@ async def test_service_sees_loopback_address_when_asked(
     assert echo.requests[0].header("host") == [f"127.0.0.1:{service_port}"]
 
 
+async def test_viewer_authorization_reaches_the_service_as_is_by_default(
+    connected: None, relay_port: int, view_token: str, echo: EchoService
+) -> None:
+    async with viewer(relay_port, view_token) as client:
+        await client.get("/", headers={"Authorization": "Bearer of-the-viewer"})
+
+    assert echo.requests[0].header("authorization") == ["Bearer of-the-viewer"]
+
+
+async def test_service_gets_the_bearer_token_in_place_of_the_viewers(
+    relay: Relay,
+    relay_port: int,
+    expose_token: str,
+    service_port: int,
+    view_token: str,
+    echo: EchoService,
+) -> None:
+    async with (
+        running_agent(relay, relay_port, expose_token, service_port, bearer_token="flow-session"),
+        viewer(relay_port, view_token) as client,
+    ):
+        await client.get("/")
+        await client.get("/", headers={"Authorization": "Bearer of-the-viewer"})
+
+    assert [request.header("authorization") for request in echo.requests] == [
+        ["Bearer flow-session"],
+        ["Bearer flow-session"],
+    ]
+
+
 async def test_session_without_connected_agent(relay_port: int, view_token: str) -> None:
     async with viewer(relay_port, view_token) as client:
         response = await client.get("/")
