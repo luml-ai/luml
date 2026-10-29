@@ -28,6 +28,55 @@ streaming responses. It listens on `127.0.0.1:80` on the host. Local access rema
 installations must configure this ingress when upgrading. Do not publish the agent's
 port or the Docker API proxy. The GreptimeDB port is independent of the agent ingress.
 
+### Remote access with nginx and Let's Encrypt
+
+The host needs a DNS name that resolves to it and open ports 80 and 443. Move the bundled
+proxy off port 80 so the host nginx can own it; Compose reads this file automatically:
+
+```yaml
+# satellite/docker-compose.override.yml
+services:
+  reverse-proxy:
+    ports: !override
+      - "127.0.0.1:8080:8080"
+```
+
+Install `nginx`, `certbot` and `python3-certbot-nginx`, then create
+`/etc/nginx/sites-available/satellite` and link it into `sites-enabled`:
+
+```nginx
+server {
+    listen 80;
+    server_name sat.example.com;
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+}
+```
+
+`client_max_body_size 0` keeps large batches away from 413, the unbuffered settings pass
+streaming responses and uploads through as they arrive, and the read timeout covers long
+inferences. Then obtain the certificate; certbot adds the HTTPS listener and the redirect
+from port 80, and its systemd timer renews it:
+
+```shell
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d sat.example.com
+```
+
+Set `BASE_URL=https://sat.example.com` in `satellite/.env` and run `docker compose up -d`.
+The agent reports that URL to the platform when it pairs on start-up. Check with
+`curl https://sat.example.com/livez`.
+
 ## One network per satellite
 
 The satellite creates its own Docker network on the first deployment. It names the network
