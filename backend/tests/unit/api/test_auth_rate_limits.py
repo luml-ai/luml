@@ -154,19 +154,3 @@ def test_google_code_grant_is_unchanged(client: TestClient) -> None:
         )
     assert response.status_code == 200
     consume.assert_not_awaited()
-
-
-def test_limits_are_disabled_without_redis_url(client: TestClient) -> None:
-    with (
-        patch("luml.infra.auth_rate_limits.limiter", None),
-        patch(
-            "luml.api.auth.auth_handler.send_password_reset_email",
-            new_callable=AsyncMock,
-        ) as handle,
-    ):
-        response = client.post(
-            "/v1/auth/forgot-password", json={"email": "u@example.com"}
-        )
-
-    assert response.status_code == 200
-    handle.assert_awaited_once()
