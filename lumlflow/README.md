@@ -13,11 +13,13 @@ lumlflow ui
 
 This starts the web UI at [http://127.0.0.1:5000](http://127.0.0.1:5000) and opens it in your browser automatically.
 
-Each server session uses a fresh access token. The CLI opens a URL containing the
-token in its fragment; the UI removes it from the address bar and keeps it for
-that browser tab. With `--no-browser`, open the complete URL printed by the CLI.
-Restarting the server requires opening its new launch URL. A launcher that must
-know the token in advance, such as `luml.flow.RelayedFlow`, sets it through the
+The API is guarded by an access token. The CLI opens a URL containing the token
+in its fragment; the UI removes it from the address bar and keeps it in the
+browser for that address. With `--no-browser`, open the complete URL printed by
+the CLI. The token is stored in `.lumlflow-session-token` next to the experiment
+store, so it survives restarts; `lumlflow ui --rotate-token` issues a new one and
+the old links stop working. When the UI has no valid token, it asks for the
+launch URL. A launcher that must know the token in advance, such as `luml.flow.RelayedFlow`, sets it through the
 `LUMLFLOW_SESSION_TOKEN` environment variable. Only `/api/auth/status`, which
 tells whether a platform API key is configured, answers without the token.
 
