@@ -85,6 +85,7 @@ export function useMonitoringDashboard() {
   const profileDocumentStatus = ref<LoadStatus>('idle')
   const alerts = ref<AlertsResponse | null>(null)
   const alertsStatus = ref<LoadStatus>('idle')
+  const acknowledgeError = ref(false)
   const workerHealth = ref<WorkerHealthResponse | null>(null)
 
   const traces = ref<TracesResponse | null>(null)
@@ -189,12 +190,15 @@ export function useMonitoringDashboard() {
 
   /** The dashboard's only write: mark an alert as seen and take the refreshed list back. */
   async function acknowledgeAlert(metric: string): Promise<void> {
-    await run(
-      alertsStatus,
-      () => monitoringApi.acknowledgeAlert({ ...dimensions }, metric),
+    acknowledgeError.value = false
+    try {
       // Not an anchor: acknowledging one alert is not "I saw the new ones too".
-      applyAlerts,
-    )
+      applyAlerts(await monitoringApi.acknowledgeAlert({ ...dimensions }, metric))
+    } catch (error) {
+      if (error instanceof SessionExpiredError) reportSessionExpired()
+      else acknowledgeError.value = true
+      return
+    }
     // Each section carries its own banner copy and hides acknowledged ones —
     // refetch the visible tab now.
     if (activeTab.value === 'overview') await loadOverview()
@@ -308,6 +312,7 @@ export function useMonitoringDashboard() {
   let tracesTopEventId: string | null = null
 
   async function peekNewTraces(): Promise<void> {
+    if (tracesTopEventId === null) return
     let page: TracesResponse
     try {
       page = await monitoringApi.getTraces(
@@ -497,11 +502,11 @@ export function useMonitoringDashboard() {
     } catch {
       // no session info, no restore — the defaults still stand
     }
-    await Promise.all([loadHeader(), reloadActiveTab()])
+    await refresh()
   }
 
-  function refresh(): Promise<void> {
-    return load()
+  async function refresh(): Promise<void> {
+    await Promise.all([loadHeader(), reloadActiveTab()])
   }
 
   const autoRefreshSeconds = ref<AutoRefreshSeconds>(0)
@@ -677,7 +682,8 @@ export function useMonitoringDashboard() {
     const tab: TabKey = alert.group === 'data_quality' ? 'data-quality' : 'feature-drift'
     if (alert.feature) dimensions.feature = alert.feature
     focusedFeature.value = alert.feature ?? null
-    await setActiveTab(tab)
+    if (activeTab.value === tab) await reloadActiveTab()
+    else await setActiveTab(tab)
   }
 
   /** The feature a jump asked to open, consumed by the tab that lands on it. */
@@ -727,6 +733,7 @@ export function useMonitoringDashboard() {
     profileDocumentStatus,
     alerts,
     alertsStatus,
+    acknowledgeError,
     alertsNewCount,
     alertsFreshKeys,
     markAlertsSeen,

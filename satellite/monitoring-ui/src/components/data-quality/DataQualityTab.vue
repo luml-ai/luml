@@ -189,12 +189,17 @@ const drawerCaption = computed(() => {
     : `${checked.toLocaleString()} values checked against the training reference`
 })
 
+let pendingFocusFeature: string | null = null
 watch(
   [() => props.focusFeature, () => props.dataQuality],
-  ([feature, response]) => {
-    if (!feature || selected.value?.feature === feature) return
-    const row = response?.features.find((entry) => entry.feature === feature)
-    if (row) inspect(row)
+  ([feature, response], previous) => {
+    if (feature !== previous?.[0]) pendingFocusFeature = feature
+    if (!pendingFocusFeature) return
+    const row = response?.features.find((entry) => entry.feature === pendingFocusFeature)
+    if (row) {
+      pendingFocusFeature = null
+      inspect(row)
+    }
   },
   { immediate: true },
 )

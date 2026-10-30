@@ -36,6 +36,7 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { X } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
 
 const props = withDefaults(defineProps<{ name: string; value: string; eyebrow?: string }>(), {
   eyebrow: 'Span field',
@@ -55,14 +56,14 @@ function onKeydown(event: KeyboardEvent): void {
   emit('close')
 }
 
+useBodyScrollLock(() => true)
+
 onMounted(() => {
   document.addEventListener('keydown', onKeydown, true)
-  document.body.style.overflow = 'hidden'
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown, true)
-  document.body.style.overflow = ''
 })
 </script>
 
