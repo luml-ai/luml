@@ -24,7 +24,7 @@ describe('API base URL', () => {
 describe('Flow session authentication', () => {
   beforeEach(() => {
     vi.resetModules()
-    sessionStorage.clear()
+    localStorage.clear()
     window.history.replaceState(null, '', '/')
     vi.stubEnv('VITE_API_URL', '')
   })
@@ -38,7 +38,7 @@ describe('Flow session authentication', () => {
     const { api } = await import('./client')
     expect(window.location.hash).toBe('')
     expect(window.location.pathname + window.location.search).toBe('/experiments?tab=attachments')
-    expect(sessionStorage.getItem('flow-session-token')).toBe('test-session')
+    expect(localStorage.getItem('flow-session-token')).toBe('test-session')
     const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => ({
       data: 'attachment',
       status: 200,
@@ -51,8 +51,8 @@ describe('Flow session authentication', () => {
     expect(api.defaults.baseURL).toBe('/api')
   })
 
-  it('keeps authenticating after reloading the app', async () => {
-    sessionStorage.setItem('flow-session-token', 'test-session')
+  it('keeps authenticating in a new tab opened without the fragment', async () => {
+    localStorage.setItem('flow-session-token', 'test-session')
     const { api } = await import('./client')
     const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => ({
       data: {},

@@ -80,8 +80,9 @@ Vite starts on `http://localhost:5173` and proxies all `/api/*` requests to the 
 
 Copy the `#session-token=…` fragment from the backend CLI's launch URL onto
 `http://localhost:5173/` when opening the dev UI. The app removes the fragment
-from the address bar and sends the session token with API requests, including
-upload progress. Repeat this after restarting the backend.
+from the address bar, keeps the session token in `localStorage` for that
+address and sends it with API requests, including upload progress. The backend
+keeps the same token across restarts unless it is started with `--rotate-token`.
 
 ---
 

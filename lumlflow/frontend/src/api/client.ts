@@ -1,11 +1,10 @@
 import axios from 'axios'
+import { getSessionToken, page, takeSessionTokenFromFragment } from './session'
 
-const fragment = new URLSearchParams(window.location.hash.slice(1))
-const sessionToken = fragment.get('session-token')
-if (sessionToken) {
-  sessionStorage.setItem('flow-session-token', sessionToken)
-  window.history.replaceState(null, '', window.location.pathname + window.location.search)
-}
+takeSessionTokenFromFragment()
+window.addEventListener('hashchange', () => {
+  if (takeSessionTokenFromFragment()) page.reload()
+})
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
@@ -15,7 +14,7 @@ export const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('flow-session-token')
+  const token = getSessionToken()
   if (token) config.headers.set('Authorization', `Bearer ${token}`)
   return config
 })
