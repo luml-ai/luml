@@ -7,6 +7,7 @@ from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.artifacts import ArtifactCreate, ArtifactStatus
+from luml.schemas.organization import OrganizationMemberCreate, OrgRole
 from luml.schemas.tracks import TrackCreate, TrackEntryCreate
 from luml.schemas.user import (
     AuthProvider,
@@ -145,8 +146,19 @@ class TestUserRepository:
         engine: AsyncEngine,
         seeded_collection: CollectionFixtureData,
         new_artifact: ArtifactCreate,
+        new_user: CreateUser,
     ) -> None:
         entry_repository = TrackEntryRepository(engine)
+        author = await repository.create_user(
+            new_user.model_copy(update={"email": f"author_{uuid.uuid4()}@example.com"})
+        )
+        await repository.create_organization_member(
+            OrganizationMemberCreate(
+                user_id=author.id,
+                organization_id=seeded_collection.organization.id,
+                role=OrgRole.MEMBER,
+            )
+        )
 
         artifact = await ArtifactRepository(engine).create_artifact(
             new_artifact.model_copy(
@@ -171,9 +183,9 @@ class TestUserRepository:
             )
         )
 
-        await repository.delete_user(seeded_collection.user.email)
+        await repository.delete_user(author.email)
 
-        assert await repository.get_user(seeded_collection.user.email) is None
+        assert await repository.get_user(author.email) is None
         persisted_entry = await entry_repository.get_entry(entry.id)
         assert persisted_entry is not None
         assert persisted_entry.added_by == TRACK_ENTRY_AUTHOR
