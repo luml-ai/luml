@@ -33,7 +33,7 @@
       </div>
     </div>
     <template #footer>
-      <Button v-if="!currentApiKey" label="Regenerate key" :loading="loading" @click="generate" />
+      <Button label="Regenerate key" :loading="loading" @click="generate" />
     </template>
   </Dialog>
 </template>
@@ -92,7 +92,7 @@ const orbitId = computed(() => {
 const copyAvailable = computed(() => !!currentApiKey.value)
 
 const inputValue = computed(() => {
-  if (!currentApiKey.value) return 'sat_***************************************'
+  if (!currentApiKey.value) return 'dfssat_***************************************'
   if (currentApiKey.value.length > 20) {
     return currentApiKey.value.slice(0, 10) + '*******************' + currentApiKey.value.slice(-10)
   } else {
