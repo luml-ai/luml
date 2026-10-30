@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
 from luml.infra.exceptions import (
+    AccountDeleteError,
     DatabaseConstraintError,
     NotFoundError,
     OrganizationDeleteError,
@@ -109,10 +110,74 @@ class UserRepository(RepositoryBase, CrudMixin):
             return db_user.to_public_user() if db_user else None
 
     async def delete_user(self, email: EmailStr) -> None:
-        async with self._get_session() as session:
-            return await self.delete_model_where(
-                session, UserOrm, UserOrm.email == email
+        async with self._get_session() as session, session.begin():
+            user_id = await session.scalar(
+                select(UserOrm.id).where(UserOrm.email == email)
             )
+            if user_id is None:
+                return
+
+            organization_ids = select(OrganizationMemberOrm.organization_id).where(
+                OrganizationMemberOrm.user_id == user_id
+            )
+            organizations = list(
+                await session.scalars(
+                    select(OrganizationOrm)
+                    .where(OrganizationOrm.id.in_(organization_ids))
+                    .order_by(OrganizationOrm.id)
+                    .with_for_update()
+                )
+            )
+            # match the organization-then-user lock order used by membership creation.
+            await session.scalar(
+                select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
+            )
+            current_ids = set(await session.scalars(organization_ids))
+            if not current_ids.issubset({org.id for org in organizations}):
+                raise AccountDeleteError(
+                    "Organization membership changed. "
+                    "Please retry deleting your account."
+                )
+
+            for organization in organizations:
+                members = (
+                    await session.execute(
+                        select(
+                            OrganizationMemberOrm.id,
+                            OrganizationMemberOrm.user_id,
+                            OrganizationMemberOrm.role,
+                        )
+                        .where(OrganizationMemberOrm.organization_id == organization.id)
+                        .order_by(
+                            case(
+                                (OrganizationMemberOrm.role == OrgRole.ADMIN, 0),
+                                else_=1,
+                            ),
+                            OrganizationMemberOrm.created_at,
+                            OrganizationMemberOrm.id,
+                        )
+                        .with_for_update()
+                    )
+                ).all()
+                remaining = [member for member in members if member.user_id != user_id]
+                if members and not remaining:
+                    await session.delete(organization)
+                elif (
+                    remaining
+                    and any(
+                        member.user_id == user_id and member.role == OrgRole.OWNER
+                        for member in members
+                    )
+                    and not any(member.role == OrgRole.OWNER for member in remaining)
+                ):
+                    await session.execute(
+                        update(OrganizationMemberOrm)
+                        .where(OrganizationMemberOrm.id == remaining[0].id)
+                        .values(role=OrgRole.OWNER)
+                    )
+
+            await session.flush()
+            await session.execute(delete(UserOrm).where(UserOrm.id == user_id))
 
     async def delete_signup(self, user_id: UUID) -> None:
         async with self._get_session() as session, session.begin():
