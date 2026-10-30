@@ -14,3 +14,23 @@ describe('launch URL pasted into an open tab', () => {
     expect(reload).toHaveBeenCalledOnce()
   })
 })
+
+describe('tokenFromLaunchInput', () => {
+  it.each([
+    ['http://127.0.0.1:5000/#session-token=abc_123', 'abc_123'],
+    ['  http://localhost:5065/experiments#session-token=abc  ', 'abc'],
+    ['#session-token=abc', 'abc'],
+    ['abc_123-XYZ', 'abc_123-XYZ'],
+  ])('takes the token from %s', async (input, token) => {
+    const { tokenFromLaunchInput } = await import('./session')
+    expect(tokenFromLaunchInput(input)).toBe(token)
+  })
+
+  it.each(['', '   ', 'http://127.0.0.1:5000/', 'http://127.0.0.1:5000/#other=1', 'two words'])(
+    'finds no token in %j',
+    async (input) => {
+      const { tokenFromLaunchInput } = await import('./session')
+      expect(tokenFromLaunchInput(input)).toBeNull()
+    },
+  )
+})

@@ -1,5 +1,10 @@
-import axios from 'axios'
-import { getSessionToken, page, takeSessionTokenFromFragment } from './session'
+import axios, { isAxiosError } from 'axios'
+import {
+  getSessionToken,
+  page,
+  sessionTokenRejected,
+  takeSessionTokenFromFragment,
+} from './session'
 
 takeSessionTokenFromFragment()
 window.addEventListener('hashchange', () => {
@@ -17,4 +22,9 @@ api.interceptors.request.use((config) => {
   const token = getSessionToken()
   if (token) config.headers.set('Authorization', `Bearer ${token}`)
   return config
+})
+
+api.interceptors.response.use(undefined, (error) => {
+  if (isAxiosError(error) && error.response?.status === 401) sessionTokenRejected.value = true
+  return Promise.reject(error)
 })

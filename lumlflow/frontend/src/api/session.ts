@@ -14,7 +14,6 @@ export function getSessionToken() {
 
 export function saveSessionToken(token: string) {
   localStorage.setItem(SESSION_TOKEN_KEY, token)
-  sessionTokenRejected.value = false
 }
 
 export function takeSessionTokenFromFragment() {
@@ -23,4 +22,15 @@ export function takeSessionTokenFromFragment() {
   saveSessionToken(token)
   window.history.replaceState(null, '', window.location.pathname + window.location.search)
   return true
+}
+
+export function tokenFromLaunchInput(value: string) {
+  const input = value.trim()
+  if (!input) return null
+  const fragmentStart = input.indexOf('#')
+  if (fragmentStart !== -1) {
+    return new URLSearchParams(input.slice(fragmentStart + 1)).get('session-token')
+  }
+  if (input.includes('://') || /\s/.test(input)) return null
+  return input
 }

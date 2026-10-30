@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { InternalAxiosRequestConfig } from 'axios'
+import { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
 describe('API base URL', () => {
   afterEach(() => {
@@ -63,5 +63,28 @@ describe('Flow session authentication', () => {
     }))
     await api.get('/auth/status', { adapter })
     expect(adapter.mock.calls[0]?.[0].headers?.Authorization).toBe('Bearer test-session')
+  })
+
+  it.each([
+    [401, true],
+    [404, false],
+    [500, false],
+  ])('marks the session token as rejected only on %i', async (status, rejected) => {
+    const { api } = await import('./client')
+    const { sessionTokenRejected } = await import('./session')
+    sessionTokenRejected.value = false
+    const adapter = vi.fn(async (config: InternalAxiosRequestConfig) =>
+      Promise.reject(
+        new AxiosError('failed', String(status), config, null, {
+          data: {},
+          status,
+          statusText: '',
+          headers: {},
+          config,
+        }),
+      ),
+    )
+    await expect(api.get('/groups', { adapter })).rejects.toThrow()
+    expect(sessionTokenRejected.value).toBe(rejected)
   })
 })
