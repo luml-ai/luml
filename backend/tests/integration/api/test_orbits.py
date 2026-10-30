@@ -1,6 +1,6 @@
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
-from uuid import uuid7
+from uuid import UUID, uuid7
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -8,6 +8,7 @@ from luml.handlers.orbits import OrbitHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.security import JWTAuthenticationBackend
 from luml.models import AuthUser
+from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.orbit import OrbitMemberCreate, OrbitRole
@@ -57,6 +58,11 @@ async def client(
         OrbitHandler, "_OrbitHandler__orbits_repository", orbit_repository
     )
     monkeypatch.setattr(
+        OrbitHandler,
+        "_OrbitHandler__secret_repository",
+        BucketSecretRepository(data.engine),
+    )
+    monkeypatch.setattr(
         PermissionsHandler, "_PermissionsHandler__user_repository", user_repository
     )
     monkeypatch.setattr(
@@ -73,7 +79,9 @@ async def client(
         ),
     )
     async with AsyncClient(
-        transport=ASGITransport(app=AppService()), base_url="http://test"
+        transport=ASGITransport(app=AppService()),
+        base_url="http://test",
+        headers={"Origin": "http://test"},
     ) as test_client:
         yield test_client
 
@@ -167,3 +175,130 @@ class TestOrbitReadPermissions:
 
         assert response.status_code == 404
         assert response.json() == {"detail": "Orbit not found"}
+
+
+class TestOrbitDeletePermissions:
+    @pytest.mark.parametrize("caller", [OrgRole.ADMIN], indirect=True)
+    @pytest.mark.parametrize("include_member", [None, False, True])
+    async def test_non_owner_creator_can_delete_created_orbit(
+        self,
+        client: AsyncClient,
+        caller: User,
+        seeded_orbit_with_members: OrbitWithMembersFixtureData,
+        include_member: bool | None,
+    ) -> None:
+        data = seeded_orbit_with_members
+        path = f"/v1/organizations/{data.organization.id}/orbits"
+        payload: dict[str, object] = {
+            "name": "created by an organization admin",
+            "bucket_secret_id": str(data.bucket_secret.id),
+        }
+        if include_member is not None:
+            payload["members"] = (
+                [{"user_id": str(data.user.id), "role": "member"}]
+                if include_member
+                else []
+            )
+
+        created = await client.post(path, json=payload)
+
+        assert created.status_code == 200
+        body = created.json()
+        assert "delete" in body["permissions"]["orbit"]
+        assert {member["user"]["id"]: member["role"] for member in body["members"]} == {
+            str(caller.id): "admin",
+            **({str(data.user.id): "member"} if include_member else {}),
+        }
+        repository = OrbitRepository(data.engine)
+        orbit_id = UUID(body["id"])
+        assert (
+            await repository.get_orbit_member_role(orbit_id, caller.id)
+            == OrbitRole.ADMIN
+        )
+
+        listed = await client.get(path)
+        detail = await client.get(f"{path}/{orbit_id}")
+        assert listed.status_code == 200
+        listed_orbit = next(
+            orbit for orbit in listed.json() if orbit["id"] == body["id"]
+        )
+        assert "delete" in listed_orbit["permissions"]["orbit"]
+        assert detail.status_code == 200
+        assert "delete" in detail.json()["permissions"]["orbit"]
+
+        deleted = await client.delete(f"{path}/{orbit_id}")
+
+        assert deleted.status_code == 204
+        assert await repository.get_orbit(orbit_id, data.organization.id) is None
+        assert await repository.get_orbit_members(orbit_id) == []
+        assert (
+            await repository.get_orbit(data.orbit.id, data.organization.id) is not None
+        )
+
+    @pytest.mark.parametrize(
+        ("caller", "orbit_role", "expected_status"),
+        [
+            (OrgRole.OWNER, None, 204),
+            (OrgRole.ADMIN, None, 403),
+            (OrgRole.ADMIN, OrbitRole.MEMBER, 403),
+            (OrgRole.ADMIN, OrbitRole.ADMIN, 204),
+            (OrgRole.MEMBER, None, 403),
+            (OrgRole.MEMBER, OrbitRole.MEMBER, 403),
+            (OrgRole.MEMBER, OrbitRole.ADMIN, 204),
+        ],
+        indirect=["caller"],
+    )
+    async def test_delete_respects_organization_and_orbit_roles(
+        self,
+        client: AsyncClient,
+        caller: User,
+        seeded_orbit_with_members: OrbitWithMembersFixtureData,
+        orbit_role: OrbitRole | None,
+        expected_status: int,
+    ) -> None:
+        data = seeded_orbit_with_members
+        repository = OrbitRepository(data.engine)
+        if orbit_role:
+            await repository.create_orbit_member(
+                OrbitMemberCreate(
+                    user_id=caller.id, orbit_id=data.orbit.id, role=orbit_role
+                )
+            )
+
+        response = await client.delete(
+            f"/v1/organizations/{data.organization.id}/orbits/{data.orbit.id}"
+        )
+
+        assert response.status_code == expected_status
+        stored_orbit = await repository.get_orbit(data.orbit.id, data.organization.id)
+        if expected_status == 403:
+            assert response.json() == {"detail": "Not enough rights"}
+            assert stored_orbit is not None
+        else:
+            assert stored_orbit is None
+
+    @pytest.mark.parametrize("caller", [OrgRole.ADMIN], indirect=True)
+    @pytest.mark.parametrize("missing_orbit", [False, True])
+    async def test_foreign_or_missing_orbit_returns_not_found_without_deletion(
+        self,
+        client: AsyncClient,
+        caller: User,
+        seeded_orbit_with_members: OrbitWithMembersFixtureData,
+        missing_orbit: bool,
+    ) -> None:
+        data = seeded_orbit_with_members
+        organization = await create_sibling_organization(data.engine, caller.id)
+        orbit_id = uuid7() if missing_orbit else data.orbit.id
+
+        response = await client.delete(
+            f"/v1/organizations/{organization.id}/orbits/{orbit_id}"
+        )
+
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Orbit not found"}
+        assert (
+            await OrbitRepository(data.engine).get_orbit(
+                data.orbit.id, data.organization.id
+            )
+            is not None
+        )
