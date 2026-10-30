@@ -86,3 +86,25 @@ describe('SeriesChart marks', () => {
     expect(absurd.marker).toBe(tall.marker)
   })
 })
+
+describe('SeriesChart threshold', () => {
+  it.each([0, 0.5, -1])('draws a threshold at %s', (threshold) => {
+    const wrapper = mount(SeriesChart, {
+      props: { series: series([0.01, 0.02]), threshold },
+      global: { stubs: { apexchart: ApexStub } },
+    })
+    expect(wrapper.getComponent(ApexStub).props('options').annotations.yaxis).toEqual([
+      expect.objectContaining({ y: threshold }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('omits the threshold when none is provided', () => {
+    const wrapper = mount(SeriesChart, {
+      props: { series: series([0.01, 0.02]) },
+      global: { stubs: { apexchart: ApexStub } },
+    })
+    expect(wrapper.getComponent(ApexStub).props('options').annotations).toEqual({})
+    wrapper.unmount()
+  })
+})

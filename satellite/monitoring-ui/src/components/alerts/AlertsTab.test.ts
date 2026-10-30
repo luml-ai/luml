@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 import AlertsTab from './AlertsTab.vue'
 import { SectionState, type AlertsResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
@@ -12,6 +12,8 @@ function mountTab(alerts: AlertsResponse | null = makeAlerts(), status: LoadStat
     global: { stubs: { apexchart: true, teleport: true } },
   })
 }
+
+enableAutoUnmount(afterEach)
 
 describe('AlertsTab', () => {
   it('lists what is firing, by group, with readable numbers', () => {

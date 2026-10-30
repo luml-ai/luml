@@ -59,6 +59,7 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { Maximize2, X } from 'lucide-vue-next'
 import { CHART_HEIGHT } from '@/lib/charts'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
 
 withDefaults(
   defineProps<{
@@ -74,6 +75,7 @@ const CHROME_HEIGHT = 150
 const MIN_STAGE_HEIGHT = 320
 
 const expanded = ref(false)
+useBodyScrollLock(() => expanded.value)
 const stageHeight = ref(measure())
 
 function measure(): number {
@@ -97,7 +99,6 @@ watch(expanded, (open) => {
     stageHeight.value = measure()
     document.addEventListener('keydown', onKeydown, true)
     globalThis.addEventListener?.('resize', onResize)
-    document.body.style.overflow = 'hidden'
   } else {
     stopListening()
   }
@@ -106,7 +107,6 @@ watch(expanded, (open) => {
 function stopListening(): void {
   document.removeEventListener('keydown', onKeydown, true)
   globalThis.removeEventListener?.('resize', onResize)
-  document.body.style.overflow = ''
 }
 
 onBeforeUnmount(stopListening)

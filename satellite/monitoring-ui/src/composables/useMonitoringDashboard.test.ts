@@ -574,3 +574,93 @@ describe('useMonitoringDashboard', () => {
     }
   })
 })
+
+describe('monitoring state regressions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getAlerts.mockResolvedValue(makeAlerts())
+    getHeader.mockResolvedValue(makeHeader())
+    getOverview.mockResolvedValue(makeOverview())
+    getFeatureDrift.mockResolvedValue(makeFeatureDrift())
+    getReferenceProfile.mockResolvedValue(makeReferenceProfile())
+    getWorkerHealth.mockResolvedValue(makeWorkerHealth())
+    getSessionInfo.mockResolvedValue({ deployment_id: 'dep-1', scope: 'monitoring:read' })
+    localStorage.clear()
+  })
+
+  it.each([true, false])('loads an alert feature when feature drift is already active: %s', async (alreadyActive) => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+    if (alreadyActive) await dashboard.setActiveTab('feature-drift')
+    getFeatureDrift.mockClear()
+    getReferenceProfile.mockClear()
+
+    await dashboard.focusAlert({ group: 'feature_drift', feature: 'region' })
+
+    expect(dashboard.activeTab.value).toBe('feature-drift')
+    expect(dashboard.dimensions.feature).toBe('region')
+    expect(getFeatureDrift).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ feature: 'region' }))
+    expect(getReferenceProfile).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ feature: 'region' }))
+  })
+
+  it('refreshes using current settings after another browser tab writes its settings', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+    await dashboard.setWindow(Window.D7)
+    localStorage.setItem('monitoring-settings:dep-1', JSON.stringify({ v: 1, window: Window.D30, tab: 'alerts' }))
+    getHeader.mockClear()
+    getOverview.mockClear()
+
+    await dashboard.refresh()
+
+    expect(dashboard.dimensions.window).toBe(Window.D7)
+    expect(dashboard.activeTab.value).toBe('overview')
+    expect(getOverview).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ window: Window.D7 }))
+    expect(getHeader).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['latency', 'empty'] as const)('does not count traces without a newest-event anchor (%s)', async (reason) => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      localStorage.setItem('monitoring-settings:dep-1', JSON.stringify({
+        v: 1,
+        tab: 'traces',
+        tracesSort: { key: reason === 'latency' ? 'latency' : 'ts', order: 'desc' },
+      }))
+      getTraces.mockResolvedValue(reason === 'empty' ? makeTraces({ rows: [] }) : makeTraces())
+      await dashboard.load()
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+      const row = makeTraces().rows[0]
+      getTraces.mockResolvedValue(makeTraces({
+        rows: Array.from({ length: TRACES_PAGE_SIZE }, (_, index) => ({ ...row, event_id: `new-${index}` })),
+      }))
+      dashboard.setAutoRefresh(30)
+
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      expect(dashboard.tracesNewCount.value).toBe(0)
+      expect(dashboard.tracesOffset.value).toBe(TRACES_PAGE_SIZE)
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
+  })
+
+  it('reports session expiry after an acknowledgement failure without marking the list errored', async () => {
+    const dashboard = useMonitoringDashboard()
+    getAlerts.mockResolvedValue(makeAlerts())
+    await dashboard.setActiveTab('alerts')
+    const alerts = dashboard.alerts.value
+    vi.mocked(monitoringApi.acknowledgeAlert).mockRejectedValueOnce(new SessionExpiredError())
+    const postMessage = vi.spyOn(window.parent, 'postMessage')
+
+    await dashboard.acknowledgeAlert('feature_drift:income')
+
+    expect(dashboard.sessionExpired.value).toBe(true)
+    expect(postMessage).toHaveBeenCalledWith({ type: MONITORING_SESSION_EXPIRED_MESSAGE }, '*')
+    expect(dashboard.alerts.value).toBe(alerts)
+    expect(dashboard.alertsStatus.value).toBe('ready')
+    expect(dashboard.acknowledgeError.value).toBe(false)
+  })
+})
