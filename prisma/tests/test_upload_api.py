@@ -1,10 +1,22 @@
+import asyncio
+import hashlib
 from collections.abc import AsyncGenerator
+from dataclasses import replace
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import (
+    ASGITransport,
+    AsyncBaseTransport,
+    AsyncByteStream,
+    AsyncClient,
+    Request,
+    Response,
+)
 
+from luml_prisma.api import uploads
+from luml_prisma.config import load_config
 from luml_prisma.server import app
 from luml_prisma.services.upload_queue import UploadQueue, UploadStatus
 
@@ -26,9 +38,11 @@ async def client(
     queue: UploadQueue,
 ) -> AsyncGenerator[AsyncClient, None]:
     app.state.upload_queue = queue
+    app.state.config = replace(load_config(), upload_bucket_host="s3.example.com")
     transport = ASGITransport(app=app)
     async with AsyncClient(
-        transport=transport, base_url="http://test",
+        transport=transport,
+        base_url="http://test",
     ) as c:
         yield c
 
@@ -42,7 +56,10 @@ class TestPostUploadUrl:
         model_file: Path,
     ) -> None:
         upload = queue.enqueue(
-            "run-1", "node-1", str(model_file), ["exp-1"],
+            "run-1",
+            "node-1",
+            str(model_file),
+            ["exp-1"],
         )
         with patch(
             "luml_prisma.api.uploads._do_upload",
@@ -63,7 +80,10 @@ class TestPostUploadUrl:
         model_file: Path,
     ) -> None:
         upload = queue.enqueue(
-            "run-1", "node-1", str(model_file), ["exp-1"],
+            "run-1",
+            "node-1",
+            str(model_file),
+            ["exp-1"],
         )
         queue.claim(upload.id)
 
@@ -95,10 +115,16 @@ class TestListUploads:
         model_file: Path,
     ) -> None:
         queue.enqueue(
-            "run-1", "node-1", str(model_file), ["exp-1"],
+            "run-1",
+            "node-1",
+            str(model_file),
+            ["exp-1"],
         )
         queue.enqueue(
-            "run-1", "node-2", str(model_file), ["exp-2"],
+            "run-1",
+            "node-2",
+            str(model_file),
+            ["exp-2"],
         )
 
         resp = await client.get(
@@ -129,10 +155,16 @@ class TestListUploads:
         model_file: Path,
     ) -> None:
         u1 = queue.enqueue(
-            "run-1", "node-1", str(model_file), ["exp-1"],
+            "run-1",
+            "node-1",
+            str(model_file),
+            ["exp-1"],
         )
         queue.enqueue(
-            "run-1", "node-2", str(model_file), ["exp-2"],
+            "run-1",
+            "node-2",
+            str(model_file),
+            ["exp-2"],
         )
         queue.claim(u1.id)
 
@@ -223,7 +255,10 @@ class TestRetryBehavior:
         model_file: Path,
     ) -> None:
         upload = queue.enqueue(
-            "run-1", "node-1", str(model_file), ["exp-1"],
+            "run-1",
+            "node-1",
+            str(model_file),
+            ["exp-1"],
         )
         queue.claim(upload.id)
         queue.fail(upload.id, "network error")
@@ -242,3 +277,171 @@ class TestRetryBehavior:
                 json={"presigned_url": "https://s3.example.com/new-url"},
             )
         assert resp.status_code == 202
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://s3.example.com/upload",
+        "https://attacker.example/upload",
+        "https://s3.example.com.attacker.example/upload",
+        "https://attacker.s3.example.com/upload",
+        "https://s3.example.com@attacker.example/upload",
+        "https://user:password@s3.example.com/upload",
+        "https://s3.example.com:8443/upload",
+        "https://s3.example.com/upload#fragment",
+        "//s3.example.com/upload",
+        "https://[invalid/upload",
+        "https://s3.example.com/\nupload",
+        " https://s3.example.com/upload",
+    ],
+)
+async def test_rejects_untrusted_url_without_claiming(
+    client: AsyncClient,
+    queue: UploadQueue,
+    model_file: Path,
+    url: str,
+) -> None:
+    upload = queue.enqueue("run-1", "node-1", str(model_file), [])
+    with patch.object(uploads, "_do_upload", new_callable=AsyncMock) as do_upload:
+        response = await client.post(
+            f"/api/runs/run-1/uploads/{upload.id}/url",
+            json={"presigned_url": url},
+        )
+    assert response.status_code == 422
+    do_upload.assert_not_called()
+    stored = queue.get(upload.id)
+    assert stored is not None
+    assert stored.status == UploadStatus.PENDING
+    assert stored.retry_count == 0
+
+
+async def test_upload_requires_configured_bucket_host(
+    client: AsyncClient,
+    queue: UploadQueue,
+    model_file: Path,
+) -> None:
+    app.state.config = replace(app.state.config, upload_bucket_host="")
+    upload = queue.enqueue("run-1", "node-1", str(model_file), [])
+    response = await client.post(
+        f"/api/runs/run-1/uploads/{upload.id}/url",
+        json={"presigned_url": "https://s3.example.com/upload"},
+    )
+    assert response.status_code == 503
+    stored = queue.get(upload.id)
+    assert stored is not None
+    assert stored.status == UploadStatus.PENDING
+
+
+async def test_upload_task_is_retained_until_finished(
+    client: AsyncClient,
+    queue: UploadQueue,
+    model_file: Path,
+) -> None:
+    upload = queue.enqueue("run-1", "node-1", str(model_file), [])
+    finished = asyncio.Event()
+
+    async def wait_upload(**kwargs: object) -> None:
+        await finished.wait()
+
+    with patch.object(uploads, "_do_upload", side_effect=wait_upload):
+        response = await client.post(
+            f"/api/runs/run-1/uploads/{upload.id}/url",
+            json={"presigned_url": "https://S3.EXAMPLE.COM:443/upload?signature=x"},
+        )
+        assert response.status_code == 202
+        assert len(uploads._upload_tasks) == 1
+        task = next(iter(uploads._upload_tasks))
+        assert not task.done()
+        finished.set()
+        await task
+        await asyncio.sleep(0)
+        assert uploads._upload_tasks == set()
+
+
+@pytest.mark.parametrize("status_code", [200, 403, 307])
+async def test_upload_streams_bounded_chunks(
+    queue: UploadQueue,
+    model_file: Path,
+    status_code: int,
+) -> None:
+    data = bytes(range(256)) * 2049
+    model_file.write_bytes(data)
+    upload = queue.enqueue("run-1", "node-1", str(model_file), [])
+    assert queue.claim(upload.id)
+    engine = Mock()
+    received_hash = hashlib.sha256()
+    sizes = []
+
+    class Transport(AsyncBaseTransport):
+        async def handle_async_request(self, request: Request) -> Response:
+            assert request.headers["content-type"] == "application/octet-stream"
+            assert request.headers["content-length"] == str(len(data))
+            assert "transfer-encoding" not in request.headers
+            assert isinstance(request.stream, AsyncByteStream)
+            async for chunk in request.stream:
+                sizes.append(len(chunk))
+                received_hash.update(chunk)
+            return Response(
+                status_code,
+                headers={"Location": "https://attacker.example/upload"},
+            )
+
+    storage_client = AsyncClient(transport=Transport())
+    with patch(
+        "luml_prisma.api.uploads.httpx.AsyncClient",
+        return_value=storage_client,
+    ) as create_client:
+        await uploads._do_upload(
+            queue,
+            upload.id,
+            str(model_file),
+            "https://s3.example.com/upload",
+            engine,
+            "run-1",
+            "node-1",
+        )
+    create_client.assert_called_once_with(follow_redirects=False)
+
+    assert len(sizes) > 1
+    assert max(sizes) <= 64 * 1024
+    assert sum(sizes) == len(data)
+    assert received_hash.digest() == hashlib.sha256(data).digest()
+    stored = queue.get(upload.id)
+    assert stored is not None
+    if status_code == 200:
+        assert stored.status == UploadStatus.COMPLETED
+        assert engine._emit_event.call_args.args[2] == "upload_completed"
+    else:
+        assert stored.status == UploadStatus.PENDING
+        assert stored.retry_count == 1
+        assert engine._emit_event.call_args.args[2] == "upload_failed"
+
+
+@pytest.mark.parametrize("file_exists", [True, False])
+async def test_upload_empty_or_missing_file_fails_without_request(
+    queue: UploadQueue,
+    model_file: Path,
+    file_exists: bool,
+) -> None:
+    if file_exists:
+        model_file.write_bytes(b"")
+    else:
+        model_file.unlink()
+    upload = queue.enqueue("run-1", "node-1", str(model_file), [])
+    assert queue.claim(upload.id)
+    with patch("luml_prisma.api.uploads.httpx.AsyncClient") as storage_client:
+        await uploads._do_upload(
+            queue,
+            upload.id,
+            str(model_file),
+            "https://s3.example.com/upload",
+            None,
+            "run-1",
+            "node-1",
+        )
+    storage_client.assert_not_called()
+    stored = queue.get(upload.id)
+    assert stored is not None
+    assert stored.status == UploadStatus.PENDING
+    assert stored.retry_count == 1
