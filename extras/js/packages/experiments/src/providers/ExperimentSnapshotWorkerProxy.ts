@@ -20,12 +20,13 @@ import type { Trace } from './ExperimentSnapshotApiProvider.interface'
 export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider {
   constructor(private worker: Worker) {}
 
-  private call<T>(method: string, args?: any[], signal?: AbortSignal): Promise<T> {
+  private request<T>(message: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const requestId = crypto.randomUUID()
 
     return new Promise((resolve, reject) => {
       const handler = (e: MessageEvent) => {
-        if (e.data.requestId !== requestId) return
+        if (e.data?.requestId !== requestId) return
+        if (e.data.type !== 'error' && e.data.type !== 'result') return
         cleanup()
         if (e.data.type === 'error') {
           reject(e.data.error)
@@ -34,21 +35,42 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
         }
       }
 
-      const onAbort = () => {
+      const onError = (event: ErrorEvent) => {
         cleanup()
-        this.worker.postMessage({
-          type: 'cancel',
-          requestId,
-        })
-        reject(new DOMException('Aborted', 'AbortError'))
+        reject(new Error(event.message || 'Experiment snapshot worker failed'))
       }
 
+      const onMessageError = () => {
+        cleanup()
+        reject(new Error('Experiment snapshot worker response could not be deserialized'))
+      }
+
+      const cancel = (error: Error) => {
+        cleanup()
+        reject(error)
+        try {
+          this.worker.postMessage({ type: 'cancel', requestId })
+        } catch {
+          // the worker may already be unavailable
+        }
+      }
+
+      const onAbort = () => cancel(new DOMException('Aborted', 'AbortError'))
+      const timeout = setTimeout(() => {
+        cancel(new Error('Experiment snapshot worker request timed out'))
+      }, 60_000)
+
       const cleanup = () => {
+        clearTimeout(timeout)
         this.worker.removeEventListener('message', handler)
+        this.worker.removeEventListener('error', onError)
+        this.worker.removeEventListener('messageerror', onMessageError)
         signal?.removeEventListener('abort', onAbort)
       }
 
       this.worker.addEventListener('message', handler)
+      this.worker.addEventListener('error', onError)
+      this.worker.addEventListener('messageerror', onMessageError)
 
       if (signal) {
         if (signal.aborted) {
@@ -58,16 +80,21 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
         signal.addEventListener('abort', onAbort)
       }
 
-      this.worker.postMessage({
-        type: 'call',
-        requestId,
-        payload: { method, args },
-      })
+      try {
+        this.worker.postMessage({ ...message, requestId })
+      } catch (error) {
+        cleanup()
+        reject(error)
+      }
     })
   }
 
+  private call<T>(method: string, args?: any[], signal?: AbortSignal): Promise<T> {
+    return this.request<T>({ type: 'call', payload: { method, args } }, signal)
+  }
+
   init(data: any) {
-    return this.call<void>('init', [data])
+    return this.request<void>({ type: 'init', payload: data })
   }
 
   getStaticParamsList(signal?: AbortSignal) {
