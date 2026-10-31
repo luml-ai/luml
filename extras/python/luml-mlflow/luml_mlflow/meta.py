@@ -12,8 +12,7 @@ encodes the routing rule documented in ``SPEC.md`` under "Tag mapping":
   silently and round-tripped faithfully.
 * User tags whose value is ``"true"`` or ``""`` (flag-shaped) → luml flat
   ``tags`` flags, lossless round-trip.
-* Any other user tag → luml static param (``log_static``) with a warning, not
-  round-tripped back as an MLflow tag.
+* Any other user tag → the metadata tag map, round-tripped as an MLflow tag.
 
 ``get_run`` reconstruction is built from native params/metrics, the ``metadata``
 column, and the dedicated ``upload_status`` column.
@@ -35,7 +34,7 @@ from mlflow.entities import (
     RunTag,
 )
 
-from luml_mlflow._tracker import ThreadSafeTracker
+from luml_mlflow._tracker import ThreadSafeTracker, mutate_experiment
 from luml_mlflow._unsupported import unsupported
 
 logger = logging.getLogger(__name__)
@@ -103,17 +102,7 @@ def _decode_flag(flag: str) -> tuple[str, str]:
 
 
 def write_tag(tracker: ThreadSafeTracker, run_id: str, key: str, value: str) -> None:
-    """Write a single MLflow run tag to the SDK store via the routing rule.
-
-    * ``luml.*`` keys are reserved — user writes go through ``unsupported``
-      (warn → log + ignore; raise → ``MlflowException``).
-    * ``mlflow.*`` keys are stored on the experiment ``metadata`` column under
-      the ``mlflow_tags`` map, silently (no warning).
-    * Flag-shaped values (``"true"``/``""``) on any other key are appended to
-      the SDK's flat ``tags`` list (encoded to preserve the value).
-    * Any other value is logged as a luml static param with a warning, with
-      no round-trip path.
-    """
+    """Store a tag losslessly while retaining native flags for flag values."""
     if key.startswith(RESERVED_TAG_PREFIX):
         unsupported(
             f"Tag key {key!r} uses the reserved 'luml.*' namespace; "
@@ -121,21 +110,16 @@ def write_tag(tracker: ThreadSafeTracker, run_id: str, key: str, value: str) -> 
         )
         return
 
-    if key.startswith(MLFLOW_TAG_PREFIX):
-        _set_mlflow_tag(tracker, run_id, key, value)
-        return
+    def update(meta: dict[str, Any], flags: list[str]) -> None:
+        tags = meta.setdefault(META_MLFLOW_TAGS, {})
+        tags.pop(key, None)
+        flags[:] = [flag for flag in flags if _decode_flag(flag)[0] != key]
+        if not key.startswith(MLFLOW_TAG_PREFIX) and is_flag_shaped(value):
+            flags.append(_encode_flag(key, value))
+        else:
+            tags[key] = value
 
-    if is_flag_shaped(value):
-        _append_flag_tag(tracker, run_id, key, value)
-        return
-
-    logger.warning(
-        "[luml-mlflow] tag %r has non-flag value %r; storing as a luml static "
-        "param. It will not round-trip via get_run tags.",
-        key,
-        value,
-    )
-    tracker.log_static(key, value, experiment_id=run_id)
+    mutate_experiment(tracker, run_id, update)
 
 
 def write_tags(tracker: ThreadSafeTracker, run_id: str, tags: Iterable[Any]) -> None:
@@ -157,48 +141,11 @@ def delete_tag(tracker: ThreadSafeTracker, run_id: str, key: str) -> None:
         )
         return
 
-    if key.startswith(MLFLOW_TAG_PREFIX):
-        _delete_mlflow_tag(tracker, run_id, key)
-        return
+    def update(meta: dict[str, Any], flags: list[str]) -> None:
+        (meta.get(META_MLFLOW_TAGS) or {}).pop(key, None)
+        flags[:] = [flag for flag in flags if _decode_flag(flag)[0] != key]
 
-    _delete_flag_tag(tracker, run_id, key)
-
-
-def _set_mlflow_tag(
-    tracker: ThreadSafeTracker, run_id: str, key: str, value: str
-) -> None:
-    meta = tracker.get_experiment_metadata(run_id)
-    mlflow_tags = dict(meta.get(META_MLFLOW_TAGS) or {})
-    mlflow_tags[key] = value
-    tracker.update_experiment_metadata(run_id, {META_MLFLOW_TAGS: mlflow_tags})
-
-
-def _delete_mlflow_tag(tracker: ThreadSafeTracker, run_id: str, key: str) -> None:
-    meta = tracker.get_experiment_metadata(run_id)
-    mlflow_tags = dict(meta.get(META_MLFLOW_TAGS) or {})
-    if key in mlflow_tags:
-        mlflow_tags.pop(key)
-        tracker.update_experiment_metadata(run_id, {META_MLFLOW_TAGS: mlflow_tags})
-
-
-def _append_flag_tag(
-    tracker: ThreadSafeTracker, run_id: str, key: str, value: str
-) -> None:
-    record = tracker.get_experiment_record(run_id)
-    if record is None:
-        return
-    encoded = _encode_flag(key, value)
-    existing = [t for t in (record.tags or []) if _decode_flag(t)[0] != key]
-    existing.append(encoded)
-    tracker.update_experiment(run_id, tags=existing)
-
-
-def _delete_flag_tag(tracker: ThreadSafeTracker, run_id: str, key: str) -> None:
-    record = tracker.get_experiment_record(run_id)
-    if record is None:
-        return
-    existing = [t for t in (record.tags or []) if _decode_flag(t)[0] != key]
-    tracker.update_experiment(run_id, tags=existing)
+    mutate_experiment(tracker, run_id, update)
 
 
 def write_run_info_field(
@@ -211,14 +158,15 @@ def write_run_info_field(
 def write_run_info_fields(
     tracker: ThreadSafeTracker, run_id: str, updates: dict[str, Any]
 ) -> None:
-    meta = tracker.get_experiment_metadata(run_id)
-    run_info = dict(meta.get(META_RUN_INFO) or {})
-    for field, value in updates.items():
-        if value is None:
-            run_info.pop(field, None)
-        else:
-            run_info[field] = value
-    tracker.update_experiment_metadata(run_id, {META_RUN_INFO: run_info})
+    def update(meta: dict[str, Any], flags: list[str]) -> None:
+        run_info = meta.setdefault(META_RUN_INFO, {})
+        for field, value in updates.items():
+            if value is None:
+                run_info.pop(field, None)
+            else:
+                run_info[field] = value
+
+    mutate_experiment(tracker, run_id, update)
 
 
 def read_run_info_field(
@@ -238,14 +186,16 @@ def write_luml_internal(
     Intended for internal use by the sync orchestrator. ``luml.upload_status``
     has its own dedicated column and is set separately.
     """
-    meta = tracker.get_experiment_metadata(run_id)
-    luml = dict(meta.get(META_LUML_INTERNAL) or {})
-    for key, value in updates.items():
-        if value is None:
-            luml.pop(key, None)
-        else:
-            luml[key] = value
-    tracker.update_experiment_metadata(run_id, {META_LUML_INTERNAL: luml})
+
+    def update(meta: dict[str, Any], flags: list[str]) -> None:
+        luml = meta.setdefault(META_LUML_INTERNAL, {})
+        for key, value in updates.items():
+            if value is None:
+                luml.pop(key, None)
+            else:
+                luml[key] = value
+
+    mutate_experiment(tracker, run_id, update)
 
 
 def reconstruct_run(

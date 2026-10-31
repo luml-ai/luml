@@ -10,9 +10,11 @@ Tag mapping, ``metadata`` column reads/writes, and run reconstruction live in
 :mod:`luml_mlflow.meta`; this file just composes those primitives.
 """
 
+import json
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from mlflow.entities import (
@@ -35,7 +37,7 @@ from mlflow.utils.search_utils import SearchExperimentsUtils, SearchUtils
 from mlflow.utils.time import get_current_time_millis
 
 from luml_mlflow import tracing as _tracing
-from luml_mlflow._tracker import delete_experiment_if, get_tracker
+from luml_mlflow._tracker import delete_experiment_if, get_tracker, store_connection
 from luml_mlflow._unsupported import unsupported
 from luml_mlflow.meta import (
     LUML_LOCAL_ONLY,
@@ -79,7 +81,11 @@ class LumlTrackingStore(AbstractStore):
         self._store_uri = store_uri or ""
         self._target = self._parse_target(store_uri)
         self._tracker = get_tracker()
-        self._logged_models: dict[str, dict[str, Any]] = {}
+        with store_connection(self._tracker) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS mlflow_logged_models "
+                "(model_id TEXT PRIMARY KEY, record TEXT NOT NULL)"
+            )
         self._ensure_default_experiment()
 
     @staticmethod
@@ -500,7 +506,12 @@ class LumlTrackingStore(AbstractStore):
         locations: list[str] | None = None,
     ) -> tuple[list[TraceInfo], str | None]:
         return _tracing.search_traces(
-            self._tracker, experiment_ids, max_results=max_results
+            self._tracker,
+            locations if locations is not None else experiment_ids,
+            max_results=max_results,
+            filter_string=filter_string,
+            order_by=order_by,
+            page_token=page_token,
         )
 
     # --------------------------------------------------------- logged models
@@ -545,7 +556,11 @@ class LumlTrackingStore(AbstractStore):
             "tags": {t.key: t.value for t in tags or []},
             "params": {p.key: p.value for p in params or []},
         }
-        self._logged_models[model_id] = rec
+        with store_connection(self._tracker) as conn:
+            conn.execute(
+                "INSERT INTO mlflow_logged_models (model_id, record) VALUES (?, ?)",
+                (model_id, json.dumps(rec)),
+            )
         return self._to_logged_model(rec)
 
     def get_logged_model(
@@ -562,17 +577,16 @@ class LumlTrackingStore(AbstractStore):
         order_by: list[dict[str, Any]] | None = None,
         page_token: str | None = None,
     ) -> PagedList[LoggedModel]:
-        """Return logged models scoped to ``experiment_ids``.
-
-        The MLflow 3.x run-details page calls this to render its Models section,
-        so it must not raise (the base ``AbstractStore`` does). Logged models are
-        held in-process, so a fresh server process returns an empty page rather
-        than the models a separate training process logged.
-        """
+        """Return persisted logged models scoped to ``experiment_ids``."""
         wanted = set(experiment_ids or [])
+        with store_connection(self._tracker) as conn:
+            records = [
+                json.loads(row[0])
+                for row in conn.execute("SELECT record FROM mlflow_logged_models")
+            ]
         models = [
             self._to_logged_model(rec)
-            for rec in self._logged_models.values()
+            for rec in records
             if rec["experiment_id"] in wanted
         ]
         models.sort(key=lambda m: m.creation_timestamp, reverse=True)
@@ -583,21 +597,43 @@ class LumlTrackingStore(AbstractStore):
     def finalize_logged_model(
         self, model_id: str, status: LoggedModelStatus
     ) -> LoggedModel:
-        rec = self._require_logged_model(model_id)
-        rec["status"] = status
-        rec["last_updated_timestamp"] = self._now_ms()
-        return self._to_logged_model(rec)
+        def update(rec: dict[str, Any]) -> None:
+            rec["status"] = status
+
+        return self._to_logged_model(self._update_logged_model(model_id, update))
 
     def set_logged_model_tags(self, model_id: str, tags: list[Any]) -> None:
-        rec = self._require_logged_model(model_id)
-        for tag in tags or []:
-            rec["tags"][tag.key] = tag.value
-        rec["last_updated_timestamp"] = self._now_ms()
+        def update(rec: dict[str, Any]) -> None:
+            rec["tags"].update({tag.key: tag.value for tag in tags or []})
+
+        self._update_logged_model(model_id, update)
 
     def delete_logged_model_tag(self, model_id: str, key: str) -> None:
-        rec = self._require_logged_model(model_id)
-        rec["tags"].pop(key, None)
-        rec["last_updated_timestamp"] = self._now_ms()
+        def update(rec: dict[str, Any]) -> None:
+            rec["tags"].pop(key, None)
+
+        self._update_logged_model(model_id, update)
+
+    def _update_logged_model(
+        self, model_id: str, fn: Callable[[dict[str, Any]], None]
+    ) -> dict[str, Any]:
+        with store_connection(self._tracker) as conn:
+            row = conn.execute(
+                "SELECT record FROM mlflow_logged_models WHERE model_id = ?",
+                (model_id,),
+            ).fetchone()
+            if row is None:
+                from mlflow.exceptions import MlflowException
+
+                raise MlflowException(f"LoggedModel {model_id!r} not found")
+            rec = json.loads(row[0])
+            fn(rec)
+            rec["last_updated_timestamp"] = self._now_ms()
+            conn.execute(
+                "UPDATE mlflow_logged_models SET record = ? WHERE model_id = ?",
+                (json.dumps(rec), model_id),
+            )
+        return rec
 
     def log_outputs(self, run_id: str, models: list[Any]) -> None:
         # Records the run → LoggedModel linkage. The model artifacts are already
@@ -606,12 +642,16 @@ class LumlTrackingStore(AbstractStore):
         return None
 
     def _require_logged_model(self, model_id: str) -> dict[str, Any]:
-        rec = self._logged_models.get(model_id)
-        if rec is None:
+        with store_connection(self._tracker) as conn:
+            row = conn.execute(
+                "SELECT record FROM mlflow_logged_models WHERE model_id = ?",
+                (model_id,),
+            ).fetchone()
+        if row is None:
             from mlflow.exceptions import MlflowException
 
             raise MlflowException(f"LoggedModel {model_id!r} not found")
-        return rec
+        return json.loads(row[0])
 
     @staticmethod
     def _to_logged_model(rec: dict[str, Any]) -> LoggedModel:
@@ -624,7 +664,7 @@ class LumlTrackingStore(AbstractStore):
             last_updated_timestamp=rec["last_updated_timestamp"],
             model_type=rec["model_type"],
             source_run_id=rec["source_run_id"],
-            status=rec["status"],
+            status=LoggedModelStatus(rec["status"]),
             tags=dict(rec["tags"]),
             params=dict(rec["params"]),
         )
