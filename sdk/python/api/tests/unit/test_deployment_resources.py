@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, Mock
 
 import httpx
 import pytest
+from respx import MockRouter
 
 from luml_api import (
     CapabilityNotSupportedError,
@@ -20,19 +21,24 @@ from luml_api import (
     UnprocessableEntityError,
     UnsupportedCapabilityVersionError,
 )
+from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import (
     LumlAPIError,
     NotFoundError,
 )
+from luml_api._types import Deployment
 from luml_api.resources.deployments import (
     AsyncDeploymentResource,
     DeploymentResource,
 )
 from luml_api.resources.monitoring import (
     MONITORING_API_IMPLEMENTATIONS,
+    AsyncDeploymentMonitoring,
+    DeploymentMonitoring,
     MonitoringApiImplementation,
     MonitoringOperation,
 )
+from tests.conftest import TEST_API_KEY
 
 ORG = "0199c337-09f2-7af1-af5e-83fd7a5b51a0"
 ORBIT = "0199c337-09f3-753e-9def-b27745e69be6"
@@ -558,21 +564,140 @@ def test_monitoring_normalizes_a_trailing_slash_in_the_satellite_url(
     assert url == f"{SATELLITE_URL}{MONITORING_URL}/worker"
 
 
-def test_monitoring_accepts_an_absolute_reported_url(
+@pytest.mark.parametrize(
+    "monitoring_url",
+    [
+        f"{SATELLITE_URL}/custom/root",
+        "http://SATELLITE.example:80/custom/root/",
+        "//satellite.example/custom/root",
+    ],
+)
+def test_monitoring_accepts_a_same_origin_reported_url(
     mock_sync_client: Mock,
+    monitoring_url: str,
 ) -> None:
-    monitoring_url = "https://monitoring.example/custom/root"
     mock_sync_client.get.side_effect = [
         _record(monitoring_url=monitoring_url),
         {"state": "ok"},
     ]
-    mock_sync_client.satellites.get.return_value = _satellite(base_url=None)
+    mock_sync_client.satellites.get.return_value = _satellite()
 
     DeploymentResource(mock_sync_client).monitoring(DEPLOYMENT_ID).worker()
 
     assert mock_sync_client.get.call_args_list[-1].args[0] == (
-        f"{monitoring_url}/worker"
+        f"{SATELLITE_URL}/custom/root/worker"
     )
+
+
+@pytest.mark.parametrize(
+    "monitoring_url",
+    [
+        "https://attacker.example/collect",
+        "//attacker.example/collect",
+        "http://satellite.example:8080/collect",
+        "https://satellite.example/collect",
+        "http://satellite.example.attacker.example/collect",
+        "http://satellite.example@attacker.example/collect",
+    ],
+)
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.asyncio
+async def test_monitoring_refuses_a_foreign_origin_before_sending(
+    client_with_mocks: LumlClient,
+    async_client_with_mocks: AsyncLumlClient,
+    respx_mock: MockRouter,
+    monitoring_url: str,
+    asynchronous: bool,
+) -> None:
+    deployment = Deployment(**_record(monitoring_url=monitoring_url))
+    request_count = len(respx_mock.calls)
+
+    if asynchronous:
+        with pytest.raises(LumlAPIError, match="same origin"):
+            await AsyncDeploymentMonitoring(
+                async_client_with_mocks, _satellite(), deployment
+            ).header()
+    else:
+        with pytest.raises(LumlAPIError, match="same origin"):
+            DeploymentMonitoring(client_with_mocks, _satellite(), deployment).header()
+
+    assert len(respx_mock.calls) == request_count
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize(
+    ("monitoring_url", "expected_url"),
+    [
+        ("monitoring/root/", f"{SATELLITE_URL}/prefix/monitoring/root/header"),
+        ("/monitoring/root", f"{SATELLITE_URL}/monitoring/root/header"),
+        (f"{SATELLITE_URL}/custom/root", f"{SATELLITE_URL}/custom/root/header"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_monitoring_keeps_authentication_for_safe_urls(
+    client_with_mocks: LumlClient,
+    async_client_with_mocks: AsyncLumlClient,
+    respx_mock: MockRouter,
+    asynchronous: bool,
+    monitoring_url: str,
+    expected_url: str,
+) -> None:
+    deployment = Deployment(**_record(monitoring_url=monitoring_url))
+    satellite = _satellite(base_url=f"{SATELLITE_URL}/prefix")
+    response = {"state": "ok", "deployment_id": DEPLOYMENT_ID}
+    route = respx_mock.get(expected_url).mock(
+        return_value=httpx.Response(200, json=response)
+    )
+
+    if asynchronous:
+        answer = await AsyncDeploymentMonitoring(
+            async_client_with_mocks, satellite, deployment
+        ).header()
+    else:
+        answer = DeploymentMonitoring(client_with_mocks, satellite, deployment).header()
+
+    assert answer == response
+    assert route.calls[0].request.headers["Authorization"] == f"Bearer {TEST_API_KEY}"
+
+
+@pytest.mark.parametrize(
+    ("base_url", "monitoring_url"),
+    [
+        (None, f"{SATELLITE_URL}/custom/root"),
+        ("", f"{SATELLITE_URL}/custom/root"),
+        ("satellite.example", f"{SATELLITE_URL}/custom/root"),
+        ("http://[invalid", f"{SATELLITE_URL}/custom/root"),
+        (SATELLITE_URL, "http://satellite.example:invalid/custom/root"),
+    ],
+)
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.asyncio
+async def test_monitoring_requires_valid_urls_before_sending(
+    mock_sync_client: Mock,
+    mock_async_client: AsyncMock,
+    base_url: str | None,
+    monitoring_url: str,
+    asynchronous: bool,
+) -> None:
+    deployment = _record(monitoring_url=monitoring_url)
+    satellite = _satellite(base_url=base_url)
+
+    if asynchronous:
+        monitoring = await _bind_async_monitoring(
+            mock_async_client, deployment=deployment, satellite=satellite
+        )
+        mock_async_client.get.reset_mock()
+        with pytest.raises(LumlAPIError):
+            await monitoring.header()
+        mock_async_client.get.assert_not_called()
+    else:
+        monitoring = _bind_sync_monitoring(
+            mock_sync_client, deployment=deployment, satellite=satellite
+        )
+        mock_sync_client.get.reset_mock()
+        with pytest.raises(LumlAPIError):
+            monitoring.header()
+        mock_sync_client.get.assert_not_called()
 
 
 def test_reference_profile_scopes_to_one_feature_when_asked(
