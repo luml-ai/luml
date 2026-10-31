@@ -58,6 +58,10 @@
         <label for="flow-name" class="label">Name</label>
         <InputText v-model="name" id="flow-name" name="name" :placeholder="defaultName" fluid />
       </div>
+      <p class="hint" data-testid="local-hint">
+        Open this Flow once with the link that <code>lumlflow ui</code> printed. The card then opens
+        it without asking again.
+      </p>
       <p v-if="error" class="error" data-testid="local-error">{{ error }}</p>
       <Button label="Add" type="submit" fluid rounded :loading="checking" />
     </form>
@@ -123,7 +127,7 @@ const dialogPt: DialogPassThroughOptions = {
   },
 }
 
-const DEFAULT_ADDRESS = 'localhost'
+const DEFAULT_ADDRESS = '127.0.0.1'
 const DEFAULT_PORT = 5000
 
 const localFlowsStore = useLocalFlowsStore()
@@ -226,6 +230,12 @@ function reset() {
   display: flex;
   flex-direction: column;
   gap: 7px;
+}
+
+.hint {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--p-text-muted-color);
 }
 
 .error {
