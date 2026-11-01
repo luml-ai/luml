@@ -12,6 +12,7 @@
       :max-zoom="4"
       class="w-full h-full"
       @node-click="onNodeClick"
+      @node-drag-stop="onNodeDragStop"
       @pane-click="flowStore.selectCell(null)"
     >
       <template #node-cell="{ data }">
@@ -30,9 +31,11 @@
     </Button>
     <NotebooksCanvasToolbar
       v-model:zoom="zoomValue"
+      :can-reset-layout="flowStore.hasCanvasLayout"
       @zoom-in="zoomIn()"
       @zoom-out="zoomOut()"
       @zoom-change="onZoomChange"
+      @reset-layout="resetLayout()"
     />
   </div>
   <div
@@ -62,80 +65,44 @@ import { Button } from 'primevue'
 import { Maximize2 } from 'lucide-vue-next'
 import type { CellSummary } from '@/api/slices/workspace/workspace.interface'
 import type {
+  CanvasPosition,
   CellEdge,
   CellNodeData,
   NotebookAssetInterface,
 } from '@/components/notebooks/notebooks.interface'
 import { useFlowStore } from '@/store/flow'
-import { buildEdges, edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
+import { edgeId, edgesLeadingTo } from '@/components/notebooks/canvas.helpers'
 import NotebookCellNode from '@/components/notebooks/cell/NotebookCellNode.vue'
 import NotebooksCanvasToolbar from '@/components/notebooks/NotebooksCanvasToolbar.vue'
-import {
-  NOTEBOOK_CANVAS_LEVEL_HEIGHT,
-  NOTEBOOK_CANVAS_NODE_WIDTH,
-} from '@/components/notebooks/notebooks.const'
 
-function buildLevels(cells: CellSummary[], edges: CellEdge[]): Map<string, number> {
-  const parents = new Map<string, string[]>(cells.map((cell) => [cell.slug, []]))
-  for (const edge of edges) parents.get(edge.to)?.push(edge.from)
-
-  const levels = new Map<string, number>()
-  function levelOf(slug: string, guard: Set<string>): number {
-    if (levels.has(slug)) return levels.get(slug) as number
-    if (guard.has(slug)) return 0
-    guard.add(slug)
-    const cellParents = parents.get(slug) ?? []
-    const level =
-      cellParents.length === 0
-        ? 0
-        : 1 + Math.max(...cellParents.map((parent) => levelOf(parent, guard)))
-    levels.set(slug, level)
-    return level
-  }
-  for (const cell of cells) levelOf(cell.slug, new Set())
-  return levels
-}
-
-function buildCanvas(
+function buildNodes(
   cells: CellSummary[],
+  cellEdges: CellEdge[],
   assets: NotebookAssetInterface[],
-  selected: string | null,
-): { nodes: Node<CellNodeData>[]; edges: Edge[] } {
-  const cellEdges = buildEdges(cells)
-  const levels = buildLevels(cells, cellEdges)
+  positions: Map<string, CanvasPosition>,
+): Node<CellNodeData>[] {
   const hasIncoming = new Set(cellEdges.map((edge) => edge.to))
   const hasOutgoing = new Set(cellEdges.map((edge) => edge.from))
   const assetBySlug = new Map(assets.map((asset) => [asset.id, asset]))
 
-  const layers = new Map<number, string[]>()
-  for (const cell of cells) {
-    const level = levels.get(cell.slug) ?? 0
-    const bucket = layers.get(level) ?? []
-    bucket.push(cell.slug)
-    layers.set(level, bucket)
-  }
-
   const nodes: Node<CellNodeData>[] = []
-  for (const [level, slugs] of layers) {
-    const width = slugs.length * NOTEBOOK_CANVAS_NODE_WIDTH
-    slugs.forEach((slug, index) => {
-      const asset = assetBySlug.get(slug)
-      const cell = cells.find((candidate) => candidate.slug === slug)
-      if (!asset || !cell) return
-      nodes.push({
-        id: slug,
-        type: 'cell',
-        position: {
-          x: index * NOTEBOOK_CANVAS_NODE_WIDTH - width / 2 + NOTEBOOK_CANVAS_NODE_WIDTH / 2,
-          y: level * NOTEBOOK_CANVAS_LEVEL_HEIGHT,
-        },
-        sourcePosition: hasOutgoing.has(slug) ? Position.Bottom : undefined,
-        targetPosition: hasIncoming.has(slug) ? Position.Top : undefined,
-        data: { asset, cell },
-      })
+  for (const cell of cells) {
+    const asset = assetBySlug.get(cell.slug)
+    const position = positions.get(cell.slug)
+    if (!asset || !position) continue
+    nodes.push({
+      id: cell.slug,
+      type: 'cell',
+      position,
+      sourcePosition: hasOutgoing.has(cell.slug) ? Position.Bottom : undefined,
+      targetPosition: hasIncoming.has(cell.slug) ? Position.Top : undefined,
+      data: { asset, cell },
     })
   }
+  return nodes
+}
 
+function buildCanvasEdges(cellEdges: CellEdge[], selected: string | null): Edge[] {
   // The path the selected cell's result was computed along lights up with
   // it: every edge into it, and into what those came from. Lit edges go
   // last so they paint over the unlit ones they cross — SVG paints in order
@@ -158,19 +125,34 @@ function buildCanvas(
     }
   })
   edges.sort((left, right) => Number(lit.has(left.id)) - Number(lit.has(right.id)))
-
-  return { nodes, edges }
+  return edges
 }
 
 const flowStore = useFlowStore()
 
-const canvas = computed(() =>
-  buildCanvas(flowStore.cells, flowStore.notebookCells, flowStore.selectedCellId),
+const nodes = computed(() =>
+  buildNodes(
+    flowStore.cells,
+    flowStore.canvasEdges,
+    flowStore.notebookCells,
+    flowStore.canvasLayout,
+  ),
 )
-const nodes = computed(() => canvas.value.nodes)
-const edges = computed(() => canvas.value.edges)
+const edges = computed(() => buildCanvasEdges(flowStore.canvasEdges, flowStore.selectedCellId))
 
-const { zoomIn, zoomOut, zoomTo, viewport, setCenter, findNode } = useVueFlow()
+const { zoomIn, zoomOut, zoomTo, viewport, setCenter, findNode, getNodes } = useVueFlow()
+
+function onNodeDragStop() {
+  const positions: Record<string, CanvasPosition> = {}
+  for (const node of getNodes.value) {
+    positions[node.id] = { x: node.position.x, y: node.position.y }
+  }
+  flowStore.saveCanvasPositions(positions)
+}
+
+function resetLayout() {
+  flowStore.resetCanvasLayout()
+}
 
 function onNodeClick({ node }: NodeMouseEvent) {
   flowStore.selectCell(node.id)
