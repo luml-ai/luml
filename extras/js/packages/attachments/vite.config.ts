@@ -31,10 +31,18 @@ export default defineConfig({
       fileName: (format) => `luml-attachments.${format}.js`,
     },
     rollupOptions: {
-      external: (id) => peers.some((peer) => id === peer || id.startsWith(`${peer}/`)),
+      // extract peer CSS into the stylesheet so the JS entry stays worker-safe
+      external: (id) =>
+        !id.endsWith('.css') && peers.some((peer) => id === peer || id.startsWith(`${peer}/`)),
       output: {
         globals: {
           vue: 'Vue',
+          primevue: 'PrimeVue',
+          pinia: 'Pinia',
+          'lucide-vue-next': 'LucideVueNext',
+          arquero: 'aq',
+          dompurify: 'DOMPurify',
+          marked: 'marked',
         },
       },
     },
