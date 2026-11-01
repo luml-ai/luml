@@ -1,4 +1,3 @@
-
 import { describe, expect, it } from 'vitest'
 
 import type { CellSummary } from '@/api/slices/workspace/workspace.interface'

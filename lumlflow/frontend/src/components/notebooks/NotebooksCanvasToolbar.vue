@@ -31,16 +31,36 @@
         </template>
       </Button>
     </div>
+    <span v-tooltip.left="'Reset layout'" class="flex">
+      <Button
+        class="pointer-button"
+        variant="text"
+        severity="secondary"
+        size="small"
+        aria-label="Reset layout"
+        :disabled="!canResetLayout"
+        @click="emit('resetLayout')"
+      >
+        <template #icon>
+          <LayoutGrid :size="14" />
+        </template>
+      </Button>
+    </span>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { NotebooksCanvasToolbarEmits } from '@/components/notebooks/notebooks.interface'
+import type {
+  NotebooksCanvasToolbarEmits,
+  NotebooksCanvasToolbarProps,
+} from '@/components/notebooks/notebooks.interface'
 import { computed, ref, watch } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
 import { Button } from 'primevue'
-import { Pointer, MousePointer2 } from 'lucide-vue-next'
+import { LayoutGrid, Pointer, MousePointer2 } from 'lucide-vue-next'
 import UiZoom from '@/components/ui/UiZoom.vue'
+
+defineProps<NotebooksCanvasToolbarProps>()
 
 const emit = defineEmits<NotebooksCanvasToolbarEmits>()
 

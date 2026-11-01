@@ -17,7 +17,13 @@ import type {
 } from '@/flow/api/types'
 import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/lanes/interface'
 import { toCellName } from '@/components/notebooks/cell/cell.const'
+import { buildEdges, layoutCells } from '@/components/notebooks/canvas.helpers'
+import {
+  NOTEBOOK_CANVAS_LEVEL_HEIGHT,
+  NOTEBOOK_CANVAS_NODE_WIDTH,
+} from '@/components/notebooks/notebooks.const'
 import type {
+  CanvasPosition,
   NotebookAssetInterface,
   NotebookAssetType,
   NotebookHealthState,
@@ -89,6 +95,8 @@ export const AGENT_ACTIVE_MS = 30_000
 const VIEW_MODE_QUERY_PARAM = 'view'
 
 const VIEW_MODES_STORAGE_KEY = 'lumlflow:flow-view-modes'
+
+const CANVAS_POSITIONS_STORAGE_KEY = 'lumlflow:flow-canvas-positions'
 
 export interface PairedAgent {
   actor: string
@@ -203,6 +211,39 @@ function buildLaneTree(
   return roots
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isCanvasPosition(value: unknown): value is CanvasPosition {
+  return (
+    isPlainObject(value) &&
+    typeof value.x === 'number' &&
+    typeof value.y === 'number' &&
+    Number.isFinite(value.x) &&
+    Number.isFinite(value.y)
+  )
+}
+
+type CanvasLayouts = Record<string, Record<string, Record<string, CanvasPosition>>>
+
+function readCanvasLayouts(raw: unknown): CanvasLayouts {
+  if (!isPlainObject(raw)) return {}
+  const layouts: CanvasLayouts = {}
+  for (const [flow, lanes] of Object.entries(raw)) {
+    if (!isPlainObject(lanes)) continue
+    for (const [lane, positions] of Object.entries(lanes)) {
+      if (!isPlainObject(positions)) continue
+      const valid: Record<string, CanvasPosition> = {}
+      for (const [slug, position] of Object.entries(positions)) {
+        if (isCanvasPosition(position)) valid[slug] = { x: position.x, y: position.y }
+      }
+      if (Object.keys(valid).length > 0) layouts[flow] = { ...layouts[flow], [lane]: valid }
+    }
+  }
+  return layouts
+}
+
 function isViewMode(value: unknown): value is ViewMode {
   return value === 'canvas' || value === 'notebook'
 }
@@ -220,6 +261,73 @@ export const useFlowStore = defineStore('flow', () => {
     const stored = currentFlow.value ? storedViewModes.value[currentFlow.value] : undefined
     return isViewMode(stored) ? stored : 'canvas'
   })
+
+  const storedCanvasPositions = useLocalStorage<unknown>(CANVAS_POSITIONS_STORAGE_KEY, {})
+  const canvasLayouts = computed<CanvasLayouts>(() =>
+    readCanvasLayouts(storedCanvasPositions.value),
+  )
+  const canvasPositions = computed<Record<string, CanvasPosition>>(() =>
+    lanePositions(currentFlow.value, cellsLane.value),
+  )
+  function lanePositions(flow: string | null, lane: string | null): Record<string, CanvasPosition> {
+    if (!flow || !lane) return {}
+    return { ...(canvasLayouts.value[flow]?.[lane] ?? {}) }
+  }
+  function writeLanePositions(
+    flow: string,
+    lane: string,
+    positions: Record<string, CanvasPosition>,
+  ) {
+    const layouts = { ...canvasLayouts.value }
+    const lanes = { ...(layouts[flow] ?? {}) }
+    if (Object.keys(positions).length > 0) lanes[lane] = positions
+    else delete lanes[lane]
+    if (Object.keys(lanes).length > 0) layouts[flow] = lanes
+    else delete layouts[flow]
+    storedCanvasPositions.value = layouts
+  }
+  const heldCanvasPositions = ref<Record<string, CanvasPosition> | null>(null)
+  const canvasEdges = computed(() => buildEdges(cells.value))
+  const canvasLayout = computed(() =>
+    layoutCells(
+      cells.value,
+      canvasEdges.value,
+      heldCanvasPositions.value
+        ? { ...heldCanvasPositions.value, ...canvasPositions.value }
+        : canvasPositions.value,
+      { width: NOTEBOOK_CANVAS_NODE_WIDTH, height: NOTEBOOK_CANVAS_LEVEL_HEIGHT },
+    ),
+  )
+  const hasCanvasLayout = computed(() =>
+    cells.value.some((cell) => cell.slug in canvasPositions.value),
+  )
+  function updateCanvasPositions(
+    change: (positions: Record<string, CanvasPosition>) => Record<string, CanvasPosition>,
+  ) {
+    const flow = currentFlow.value
+    const lane = cellsLane.value
+    if (!flow || !lane) return
+    writeLanePositions(flow, lane, change(lanePositions(flow, lane)))
+  }
+  function saveCanvasPositions(positions: Record<string, CanvasPosition>) {
+    updateCanvasPositions((current) => ({ ...current, ...positions }))
+  }
+  function pruneCanvasPositions(flow: string | null, lane: string | null, slugs: Set<string>) {
+    if (!flow || !lane || slugs.size === 0) return
+    const positions = lanePositions(flow, lane)
+    const kept = Object.fromEntries(Object.entries(positions).filter(([slug]) => slugs.has(slug)))
+    if (Object.keys(kept).length === Object.keys(positions).length) return
+    writeLanePositions(flow, lane, kept)
+  }
+  function copyCanvasPositions(from: string, to: string) {
+    const flow = currentFlow.value
+    if (!flow) return
+    writeLanePositions(flow, to, lanePositions(flow, from))
+  }
+  function resetCanvasLayout() {
+    if (!hasCanvasLayout.value) return
+    updateCanvasPositions(() => ({}))
+  }
 
   const reactivity = ref<'lazy' | 'auto'>('auto')
   const autoThresholdSeconds = ref(5)
@@ -767,17 +875,22 @@ export const useFlowStore = defineStore('flow', () => {
     await Promise.all([fetchCells(), fetchJournal()])
   }
 
+  let cellsRequest = 0
   async function fetchCells() {
+    const request = ++cellsRequest
     isCellsLoading.value = true
+    const flow = currentFlow.value
     const lane = currentBranch.value?.branch ?? null
     try {
-      const page = await workspaceApi.cellsList(currentFlow.value ?? undefined, lane ?? undefined)
+      const page = await workspaceApi.cellsList(flow ?? undefined, lane ?? undefined)
+      if (request !== cellsRequest) return
       cells.value = page.cells
       cellsLane.value = lane
+      pruneCanvasPositions(flow, lane, new Set(page.cells.map((cell) => cell.slug)))
     } catch (error) {
-      toast.add(errorToast(error, 'Failed to load cells'))
+      if (request === cellsRequest) toast.add(errorToast(error, 'Failed to load cells'))
     } finally {
-      isCellsLoading.value = false
+      if (request === cellsRequest) isCellsLoading.value = false
     }
   }
 
@@ -813,13 +926,30 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   async function renameCell(slug: string, to: string) {
-    await workspaceApi.renameCell(
-      slug,
-      to,
-      currentFlow.value ?? undefined,
-      currentBranch.value?.branch,
-    )
-    await fetchCells()
+    const shown = Object.fromEntries(canvasLayout.value)
+    const position = shown[slug]
+    const pinned = canvasPositions.value[slug]
+    heldCanvasPositions.value = position ? { ...shown, [to]: position } : shown
+    try {
+      const renamed = await workspaceApi.renameCell(
+        slug,
+        to,
+        currentFlow.value ?? undefined,
+        currentBranch.value?.branch,
+      )
+      updateCanvasPositions((current) => {
+        delete current[slug]
+        delete current[renamed.renamed_from]
+        if (pinned) current[renamed.slug] = pinned
+        return current
+      })
+      if (position && renamed.slug !== to) {
+        heldCanvasPositions.value = { ...heldCanvasPositions.value, [renamed.slug]: position }
+      }
+      await fetchCells()
+    } finally {
+      heldCanvasPositions.value = null
+    }
   }
 
   async function fetchCellSource(
@@ -941,6 +1071,7 @@ export const useFlowStore = defineStore('flow', () => {
     const from = options.from ?? currentBranch.value?.branch
     if (!from) throw new Error('No branch to fork from')
     const forked = await workspaceApi.forkBranch(name, from, currentFlow.value ?? undefined)
+    copyCanvasPositions(from, forked.branch)
     if (options.switchTo) {
       await switchBranch(forked.branch)
     } else {
@@ -1027,6 +1158,12 @@ export const useFlowStore = defineStore('flow', () => {
     toggleSidebar,
     viewMode,
     setViewMode,
+    canvasPositions,
+    canvasEdges,
+    canvasLayout,
+    hasCanvasLayout,
+    saveCanvasPositions,
+    resetCanvasLayout,
     reactivity,
     setReactivity,
     autoThresholdSeconds,

@@ -40,6 +40,11 @@ export interface NotebooksCanvasToolbarEmits {
   zoomIn: []
   zoomOut: []
   zoomChange: [value: number]
+  resetLayout: []
+}
+
+export interface NotebooksCanvasToolbarProps {
+  canResetLayout: boolean
 }
 
 export interface SidebarTooltipPlugProps {
@@ -55,4 +60,14 @@ export interface NotebookHealthView {
   label: string
   tooltip: string
   icon: LucideIcon
+}
+
+export interface CanvasPosition {
+  x: number
+  y: number
+}
+
+export interface CanvasLayoutSize {
+  width: number
+  height: number
 }
