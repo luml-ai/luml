@@ -3,7 +3,7 @@ from typing import Any
 
 from sqlalchemy import UUID, BigInteger, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 
 from luml.models.base import Base, TimestampMixin
 from luml.schemas.artifacts import (
@@ -28,6 +28,8 @@ class ArtifactOrm(TimestampMixin, Base):
             postgresql_using="gin",
         ),
     )
+
+    has_experiment_snapshot: Mapped[bool] = query_expression()
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid7

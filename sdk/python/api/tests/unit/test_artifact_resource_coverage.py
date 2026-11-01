@@ -396,3 +396,25 @@ async def test_async_update_file_name_deprecation_warning(
 
     with pytest.warns(DeprecationWarning, match="file_name"):
         await resource.update(VALID_UUID, file_name="ignored.fnnx", name="new-name")
+
+
+@pytest.mark.parametrize("include_payload", [False, True])
+def test_list_parses_full_and_light_artifacts(
+    mock_sync_client: Mock,
+    sample_artifact: Artifact,
+    include_payload: bool,
+) -> None:
+    payload = sample_artifact.model_dump()
+    if not include_payload:
+        payload.pop("manifest")
+        payload.pop("file_index")
+        payload["has_experiment_snapshot"] = True
+    mock_sync_client.get.return_value = {"items": [payload], "cursor": None}
+    result = ArtifactResource(mock_sync_client).list()
+    assert result.items[0].id == sample_artifact.id
+    assert result.items[0].manifest == (
+        sample_artifact.manifest if include_payload else None
+    )
+    assert result.items[0].file_index == (
+        sample_artifact.file_index if include_payload else None
+    )

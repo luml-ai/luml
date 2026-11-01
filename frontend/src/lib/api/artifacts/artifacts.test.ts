@@ -54,3 +54,19 @@ describe('ArtifactsApi', () => {
     expect(result).toEqual(response)
   })
 })
+
+it.each(['collection', 'orbit'])('always requests a light %s listing', async (scope) => {
+  const get = vi.fn().mockResolvedValue({ data: { items: [], cursor: null } })
+  const api = new ArtifactsApi({ get } as unknown as AxiosInstance)
+  const params = { cursor: null, limit: 20 }
+  const signal = new AbortController().signal
+  if (scope === 'collection') await api.getList(ORG, ORBIT, COLLECTION, params, signal)
+  else await api.getOrbitArtifacts(ORG, ORBIT, params, signal)
+  expect(get).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.objectContaining({
+      params: { ...params, include_payload: false },
+      signal,
+    }),
+  )
+})

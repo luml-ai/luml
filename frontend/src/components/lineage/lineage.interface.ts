@@ -1,4 +1,8 @@
-import type { Artifact, ArtifactTrack, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
+import type {
+  ArtifactListed,
+  ArtifactTrack,
+  ArtifactTypeEnum,
+} from '@/lib/api/artifacts/interfaces'
 import type { Edge, Node } from '@vue-flow/core'
 
 export type LineageNodeVariant = 'default' | 'main' | 'disabled'
@@ -19,8 +23,8 @@ export interface LineageNodeData {
   type: ArtifactTypeEnum
   title: string
   variant: LineageNodeVariant
-  data: Artifact | null
-  deployments?: Artifact['deployments']
+  data: ArtifactListed | null
+  deployments?: ArtifactListed['deployments']
   tracks?: ArtifactTrack[]
 }
 

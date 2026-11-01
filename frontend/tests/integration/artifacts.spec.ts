@@ -86,6 +86,31 @@ test.describe('Artifacts', () => {
     await mockArtifactsBaseline(apiMocks)
   })
 
+  test('requests light rows and compares uploaded artifacts with snapshots', async ({
+    page,
+    apiMocks,
+  }) => {
+    const items = [makeArtifact(), makeArtifact({ id: ARTIFACT_ID_2, name: 'model-v2' })].map(
+      ({ manifest, file_index, ...artifact }) => ({ ...artifact, has_experiment_snapshot: true }),
+    )
+    let requestedLight = false
+    await apiMocks.get(
+      new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
+      (request: { url: () => string }) => {
+        requestedLight = new URL(request.url()).searchParams.get('include_payload') === 'false'
+        return { items, cursor: null }
+      },
+    )
+    await page.goto(collectionPageUrl)
+    await expect(page.getByText('model-v1', { exact: true })).toBeVisible()
+    const compare = page.getByRole('button', { name: 'Compare', exact: true })
+    await expect(compare).toBeDisabled()
+    await page.locator('.p-datatable-thead input[type="checkbox"]').first().check()
+    await expect(page.getByText('2 Selected')).toBeVisible()
+    await expect(compare).toBeEnabled()
+    expect(requestedLight).toBe(true)
+  })
+
   test('Pick All selects all collection pages and keeps rows selected after scrolling', async ({
     page,
     apiMocks,

@@ -28,12 +28,12 @@
 </template>
 
 <script setup lang="ts">
-import { type Artifact } from '@/lib/api/artifacts/interfaces'
+import { type ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import ArtifactCard from './ArtifactCard.vue'
 import { VirtualScroller, type VirtualScrollerLazyEvent } from 'primevue'
 
 interface Props {
-  list: Artifact[]
+  list: ArtifactListed[]
   selectedArtifact: string | null
   organizationId: string
   orbitId: string

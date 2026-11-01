@@ -3,7 +3,7 @@ import type {
   LineageCanvasNode,
   LineageNodeData,
 } from '@/components/lineage/lineage.interface'
-import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import type { Artifact, ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import type { LineageGraph, LineageNode } from '@/lib/api/lineage/interfaces'
 import type { Edge } from '@vue-flow/core'
 import { layoutLineageNodes } from './layout'
@@ -20,7 +20,7 @@ export function artifactCanvasNodeId(artifactId: string): string {
 }
 
 export function artifactNodeData(
-  artifact: Artifact,
+  artifact: ArtifactListed,
   collection: { id: string; name: string },
   variant: LineageNodeData['variant'] = 'default',
 ): LineageNodeData {

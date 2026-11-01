@@ -91,7 +91,7 @@ class TestArtifactListing:
                 }
             )
         ]
-        expected = ArtifactsList(items=expected_models_list, cursor=None)
+        expected = ArtifactsList(items=[*expected_models_list], cursor=None)
 
         mocks.repository.get_collection_artifacts.return_value = (
             expected_models_list,
@@ -129,10 +129,15 @@ class TestArtifactListing:
             artifact_types=None,
             search=None,
             excluded_tracks=None,
+            include_payload=True,
         )
 
+    @pytest.mark.parametrize("include_payload", [True, False])
     async def test_get_collection_artifacts_forwards_filters_to_repository(
-        self, mocks: CollaboratorMocks[ArtifactHandler], check_access: AsyncMock
+        self,
+        mocks: CollaboratorMocks[ArtifactHandler],
+        check_access: AsyncMock,
+        include_payload: bool,
     ) -> None:
         collection_ids = [uuid7(), uuid7()]
         artifact_types = [ArtifactType.MODEL, ArtifactType.DATASET]
@@ -147,6 +152,7 @@ class TestArtifactListing:
             artifact_types,
             search="resnet",
             excluded_tracks=excluded_tracks,
+            include_payload=include_payload,
         )
 
         expected_scope = build_scope_id(
@@ -170,6 +176,7 @@ class TestArtifactListing:
             artifact_types=artifact_types,
             search="resnet",
             excluded_tracks=excluded_tracks,
+            include_payload=include_payload,
         )
 
     @pytest.mark.parametrize(

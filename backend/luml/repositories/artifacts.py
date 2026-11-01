@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import noload, selectinload
+from sqlalchemy.orm import defer, noload, selectinload, with_expression
 
 from luml.infra.exceptions import (
     ArtifactDeployedError,
@@ -36,6 +36,7 @@ from luml.schemas.artifacts import (
     ArtifactDeleteTrack,
     ArtifactDetails,
     ArtifactListed,
+    ArtifactListedLight,
     ArtifactSortBy,
     ArtifactStatus,
     ArtifactType,
@@ -413,7 +414,8 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         artifact_types: list[ArtifactType] | None = None,
         search: str | None = None,
         excluded_tracks: list[UUID] | None = None,
-    ) -> tuple[list[ArtifactListed], Cursor | None]:
+        include_payload: bool = True,
+    ) -> tuple[list[ArtifactListed | ArtifactListedLight], Cursor | None]:
         sort_by = pagination.sort_by
         sort_collection_ids = collection_ids or []
         if not sort_collection_ids and sort_by not in ArtifactSortBy:
@@ -458,12 +460,41 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             if search:
                 conditions.append(ArtifactOrm.name.icontains(search, autoescape=True))
 
+            payload_options = []
+            if not include_payload:
+                keys = (
+                    func.jsonb_object_keys(ArtifactOrm.file_index)
+                    .table_valued("key")
+                    .render_derived()
+                )
+                snapshot_exists = (
+                    select(1)
+                    .select_from(keys)
+                    .where(
+                        keys.c.key.op("~")(
+                            r"meta_artifacts/dataforce\.studio~c~~c~"
+                            r"experiment_snapshot~c~v1~~et~~[^/]+/exp\.db\.zip$"
+                            r"|^exp\.db\.zip$"
+                        )
+                    )
+                    .correlate(ArtifactOrm)
+                    .exists()
+                )
+                payload_options = [
+                    defer(ArtifactOrm.manifest, raiseload=True),
+                    defer(ArtifactOrm.file_index, raiseload=True),
+                    with_expression(
+                        ArtifactOrm.has_experiment_snapshot, snapshot_exists
+                    ),
+                ]
+
             result = await self.get_models_with_pagination(
                 session,
                 ArtifactOrm,
                 *conditions,
                 pagination=pagination,
                 options=[
+                    *payload_options,
                     selectinload(ArtifactOrm.collection).load_only(
                         CollectionOrm.id,
                         CollectionOrm.name,
@@ -492,7 +523,10 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             )
 
             artifacts = [
-                orm_artifact.to_listed_artifact() for orm_artifact in db_models
+                orm_artifact.to_listed_artifact()
+                if include_payload
+                else ArtifactListedLight.model_validate(orm_artifact)
+                for orm_artifact in db_models
             ]
 
             return artifacts, cursor

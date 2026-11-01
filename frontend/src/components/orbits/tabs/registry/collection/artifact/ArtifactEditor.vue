@@ -55,6 +55,7 @@
 <script setup lang="ts">
 import {
   ArtifactStatusEnum,
+  type ArtifactListed,
   type Artifact,
   type UpdateArtifactPayload,
 } from '@/lib/api/artifacts/interfaces'
@@ -85,7 +86,7 @@ const FAILED_DELETION_TEXT =
   'The file could not be deleted from the bucket last time. Try again, or force delete to remove the artifact from the registry and leave the file in the bucket. To force delete, type "delete" below.'
 
 type Props = {
-  data: Artifact
+  data: ArtifactListed
 }
 
 type Emits = {

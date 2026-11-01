@@ -250,6 +250,28 @@ class ArtifactListed(Artifact):
     collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
 
 
+class ArtifactListedLight(BaseModel, BaseOrmConfig):
+    file_name: str
+    name: str | None = None
+    description: str | None = None
+    extra_values: dict[str, Any]
+    file_hash: str
+    size: int
+    tags: list[str] | None = None
+    id: UUID
+    type: ArtifactType
+    collection_id: UUID
+    bucket_location: str
+    unique_identifier: str
+    status: ArtifactStatus
+    created_by_user: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    deployments: list[DeploymentBase] = []
+    collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
+    has_experiment_snapshot: bool
+
+
 class ArtifactDetails(Artifact):
     deployments: list[Deployment] | None = None
     collection: Collection
@@ -274,5 +296,5 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 
 class ArtifactsList(BaseModel):
-    items: list[ArtifactListed]
+    items: list[ArtifactListed | ArtifactListedLight]
     cursor: str | None

@@ -710,6 +710,7 @@ class ArtifactHandler:
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
         excluded_tracks: list[UUID] | None = None,
+        include_payload: bool = True,
     ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -748,6 +749,7 @@ class ArtifactHandler:
             artifact_types=artifact_types,
             search=search,
             excluded_tracks=excluded_tracks,
+            include_payload=include_payload,
         )
 
         return ArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))

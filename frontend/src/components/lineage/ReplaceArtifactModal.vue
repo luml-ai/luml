@@ -28,7 +28,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import type { ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import { useLineageStore } from '@/stores/lineage'
 import { Button, Dialog } from 'primevue'
 import { LINK_CREATOR_DIALOG_PT } from './lineage.data'
@@ -40,7 +40,7 @@ const lineageStore = useLineageStore()
 const route = useRoute()
 
 const loading = ref(false)
-const selectedArtifact = ref<Artifact | null>(null)
+const selectedArtifact = ref<ArtifactListed | null>(null)
 
 const organizationId = computed(() => String(route.params.organizationId))
 const orbitId = computed(() => String(route.params.id))
