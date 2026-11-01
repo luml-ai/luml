@@ -640,6 +640,10 @@ def _placeholder(slug: str, cell: ParsedCell | None) -> list[VersionFlag]:
     ]
 
 
+def is_placeholder(slug: str) -> bool:
+    return _PLACEHOLDER.match(slug) is not None
+
+
 def derived_slug(class_name: str) -> str | None:
     slug = _WORD_BREAK.sub("_", class_name).lower()
     return None if not slug or _PLACEHOLDER.match(slug) else slug

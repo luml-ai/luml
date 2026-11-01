@@ -431,7 +431,7 @@ class Api:
         if raw_slug is None:
             slug = _placeholder_slug(session)
         else:
-            slug = portable.cell_name(str(raw_slug))
+            slug = portable.new_cell_name(str(raw_slug))
         output_mode = params.get("outputs")
         if output_mode not in (None, "all"):
             raise FlowError("`outputs` must be `all` when given")
@@ -862,7 +862,7 @@ class Api:
         session, branch = await self._read(params)
         actor = _actor(params)
         old = portable.cell_name(str(params.get("slug") or "")).casefold()
-        new = portable.cell_name(str(params.get("to") or ""))
+        new = portable.new_cell_name(str(params.get("to") or ""))
         head = queries.head(session, branch, old)
         branch_id = session.store.branches.get(branch).branch_id
         canonical = new.casefold()
@@ -1482,7 +1482,7 @@ class Api:
                 self._claims[key] = held
             return
         if method == "rename" and params.get("to"):
-            renamed = portable.cell_name(str(params["to"]))
+            renamed = portable.new_cell_name(str(params["to"]))
             held.slug = renamed
             self._claims[(key[0], key[1], renamed.casefold())] = held
         self._announce_claims(session)

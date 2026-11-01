@@ -616,20 +616,44 @@ async def test_delete_drops_the_key_and_rewind_uses_the_creation_step(
     assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
 
 
-async def test_a_hyphenated_name_scaffolds_a_parseable_cell(tmp_path: Path) -> None:
+async def test_a_new_cell_scaffolds_a_class_named_after_it(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project")
 
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
-        await api.cells_new({"flow": "churn", "slug": "train-model"})
+        await api.cells_new({"flow": "churn", "slug": "train_model"})
         session = api.hub.session("churn")
-        version = slice_of(session, "main")["train-model"]
+        version = slice_of(session, "main")["train_model"]
         stored = session.store.objects.get(version.raw_source_ref).decode("utf-8")
 
     parsed = loader.parse(stored)
     assert parsed.cell is not None
     assert parsed.cell.name == "TrainModel"
     assert version.flags == []
+
+
+@pytest.mark.parametrize(
+    "name", ["My cell 1!", "MyCell", "1st", "my-cell", "a.b", "class", "_x", "__init__"]
+)
+async def test_a_new_or_renamed_cell_must_be_named_like_an_identifier(
+    tmp_path: Path, name: str
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        with pytest.raises(
+            FlowError, match="lowercase letters, digits and underscores"
+        ):
+            await api.cells_new({"flow": "churn", "slug": name})
+        with pytest.raises(
+            FlowError, match="lowercase letters, digits and underscores"
+        ):
+            await api.rename({"flow": "churn", "slug": "score", "to": name})
+        landed = slice_of(api.hub.session("churn"), "main")
+
+    assert list(landed) == ["score"]
 
 
 async def test_slug_index_tracks_all_lanes_and_rewind_restores_a_deleted_slug(

@@ -1,3 +1,4 @@
+import keyword
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -9,6 +10,14 @@ HEADER = "# lumlflow file export"
 
 # A name out of this file becomes a filename under `cells/`, and the file came
 _UNSAFE = re.compile(r"[\x00-\x1f\x7f/\\:*?\"<>|]")
+# A name given to a new or renamed cell is also how code and the CLI refer to
+# it (`score.result`, `cells show score`), so it has to read as an identifier.
+# A leading underscore is refused too: `__init__` would make `cells/` a package.
+_IDENTIFIER = re.compile(r"[a-z][a-z0-9_]*")
+CELL_NAME_RULE = (
+    "lowercase letters, digits and underscores, starting with a letter "
+    "and not a Python keyword"
+)
 
 
 @dataclass(frozen=True)
@@ -66,6 +75,16 @@ def cell_name(raw: str, *, line: int | None = None) -> str:
         raise FlowError(
             f"{location}`{slug}` is not a name a cell can have. use a non-empty "
             "name without path separators, `..`, control characters or a leading dot"
+        )
+    return slug
+
+
+def new_cell_name(raw: str) -> str:
+    slug = raw.strip()
+    if not _IDENTIFIER.fullmatch(slug) or keyword.iskeyword(slug):
+        raise FlowError(
+            f"`{slug}` is not a name a cell can have. use {CELL_NAME_RULE}, "
+            "like `my_cell_1`"
         )
     return slug
 

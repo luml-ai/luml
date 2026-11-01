@@ -13,6 +13,7 @@
             ref="renameInputRef"
             v-model="renameValue"
             :disabled="isSaving"
+            :title="CELL_NAME_HINT"
             class="max-w-40 max-h-6.5 rounded-none! shadow-none! border-x-0! border-t-0! px-0!"
             @keyup.enter="saveName"
           />
@@ -78,8 +79,11 @@ import { errorToast, successToast } from '@/toasts'
 import { useFlowStore } from '@/store/flow'
 import { useAuthStore } from '@/store/auth'
 import { useDownload } from '@/hooks/useDownload'
-import { NAME_REQUIRED_MESSAGE } from '@/constants/forms'
-import { CELL_HEADER_MENU_PT, CELL_NAME_UNSAFE } from '@/components/notebooks/cell/cell.const'
+import {
+  CELL_HEADER_MENU_PT,
+  CELL_NAME_HINT,
+  getCellNameError,
+} from '@/components/notebooks/cell/cell.const'
 
 const props = defineProps<NotebookCellHeaderProps>()
 
@@ -96,18 +100,6 @@ const renameInputRef = useTemplateRef<{ $el: HTMLInputElement }>('renameInputRef
 const isRenaming = ref(false)
 const renameValue = ref('')
 const isSaving = ref(false)
-
-function validateCellName(name: string): string | null {
-  if (!name) return NAME_REQUIRED_MESSAGE
-  if (name.startsWith('.')) return 'Name cannot start with a dot'
-  if (name.includes('..')) return 'Name cannot contain ".."'
-  if (CELL_NAME_UNSAFE.test(name)) return 'Name contains invalid characters'
-  const isTaken = flowStore.cells.some(
-    (cell) => cell.slug !== props.cell.slug && cell.slug.toLowerCase() === name.toLowerCase(),
-  )
-  if (isTaken) return `"${name}" already exists`
-  return null
-}
 
 async function onRename() {
   if (!flowStore.ensureOnLaneHead()) return
@@ -131,7 +123,11 @@ async function saveName() {
     return
   }
 
-  const error = validateCellName(name)
+  const error = getCellNameError(
+    name,
+    flowStore.cells.map((cell) => cell.slug),
+    props.cell.slug,
+  )
   if (error) {
     toast.add(errorToast(new Error(error)))
     return
