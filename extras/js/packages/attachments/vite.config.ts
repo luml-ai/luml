@@ -3,6 +3,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import dts from 'vite-plugin-dts'
+import { peerDependencies } from './package.json'
+
+const peers = Object.keys(peerDependencies)
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -28,7 +31,7 @@ export default defineConfig({
       fileName: (format) => `luml-attachments.${format}.js`,
     },
     rollupOptions: {
-      external: ['vue', 'primevue', 'pinia'],
+      external: (id) => peers.some((peer) => id === peer || id.startsWith(`${peer}/`)),
       output: {
         globals: {
           vue: 'Vue',

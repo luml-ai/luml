@@ -12,7 +12,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "test": "vitest --environment jsdom",
-    "test:ci": "vitest run --environment jsdom",
+    "test:ci": "node --test ../../tests/package.test.mjs && vitest run --environment jsdom",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
     "format:check": "prettier --check --experimental-cli src/",
@@ -46,9 +46,9 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/luml-attachments.es.js",
-      "require": "./dist/luml-attachments.umd.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/luml-attachments.umd.js"
     },
     "./style.css": "./dist/attachments.css"
   },
