@@ -5,6 +5,7 @@ import { nextTick } from 'vue'
 import type {
   ForecastPredictedRecord,
   ForecastingModelConfig,
+  ForecastingPredictSuccess,
 } from '@/lib/data-processing/interfaces'
 
 const { downloadMock, trackMock } = vi.hoisted(() => ({
@@ -329,6 +330,69 @@ describe('Forecasting evaluate — re-forecast', () => {
     expect(
       wrapper.find('[data-testid="download-predictions"]').attributes('disabled'),
     ).toBeDefined()
+  })
+
+  it.each([false, true])(
+    'discards a pending forecast after changing the horizon (restore original: %s)',
+    async (restoreOriginal) => {
+      const { wrapper, predict } = mountEvaluate()
+      let resolve!: (result: ForecastingPredictSuccess) => void
+      predict.mockReturnValueOnce(new Promise((done) => (resolve = done)))
+      await setEndDate(wrapper, new Date('2020-06-01'))
+      await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+      expect(predict.mock.calls[0][0].horizon).toBe(3)
+
+      await setEndDate(wrapper, new Date('2020-09-01'))
+      if (restoreOriginal) await setEndDate(wrapper, new Date('2020-06-01'))
+      resolve({ status: 'success', forecast: baseForecast })
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'ForecastChart' }).props('prediction')).toBeNull()
+      expect(
+        wrapper.find('[data-testid="download-predictions"]').attributes('disabled'),
+      ).toBeDefined()
+      expect(wrapper.find('[data-testid="forecast-status"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="run-forecast"]').attributes('disabled')).toBeUndefined()
+
+      await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+      await flushPromises()
+      expect(predict.mock.calls[1][0].horizon).toBe(restoreOriginal ? 3 : 6)
+      expect(wrapper.findComponent({ name: 'ForecastChart' }).props('prediction')).not.toBeNull()
+    },
+  )
+
+  it('discards a pending forecast after editing its known-future inputs', async () => {
+    const { wrapper, predict } = mountEvaluate({
+      modelConfig: { ...baseConfig, aux_cols: ['promo'], known_future_cols: ['promo'] },
+    })
+    let resolve!: (result: ForecastingPredictSuccess) => void
+    predict.mockReturnValueOnce(new Promise((done) => (resolve = done)))
+    await setEndDate(wrapper, new Date('2020-06-01'))
+    const editor = wrapper.findComponent({ name: 'FutureValuesEditor' })
+    const future = baseForecast.map((row) => ({ date: row.date, promo: 1 }))
+    editor.vm.$emit('change', { complete: true, future })
+    await nextTick()
+    await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+
+    const updatedFuture = future.map((row) => ({ ...row, promo: 2 }))
+    editor.vm.$emit('change', { complete: true, future: updatedFuture })
+    resolve({ status: 'success', forecast: baseForecast })
+    await flushPromises()
+
+    const chart = wrapper.findComponent({ name: 'ForecastChart' })
+    expect(chart.props('prediction')).toBeNull()
+    expect(chart.props('supplied')).toBeNull()
+    expect(
+      wrapper.find('[data-testid="download-predictions"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="forecast-status"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+    await flushPromises()
+    expect(predict.mock.calls[1][0].future).toEqual(updatedFuture)
+    expect(chart.props('supplied').promo.map((point: { value: number }) => point.value)).toEqual([
+      2, 2, 2,
+    ])
   })
 })
 

@@ -146,7 +146,7 @@ async function runOptimization() {
     await promptFusionService.runOptimization()
     toast.add(simpleSuccessToast('Your model is successfully trained'))
   } catch (e) {
-    toast.add(trainingErrorToast(e as string))
+    toast.add(trainingErrorToast(e instanceof Error ? e.message : String(e)))
   }
 }
 
