@@ -862,7 +862,7 @@ class TestArtifactRepositoryListing:
 
 
 @pytest.mark.parametrize("collection_scoped", [False, True])
-async def test_light_listing_omits_payload_columns_and_preserves_pagination(
+async def test_listing_omits_payload_columns_and_preserves_pagination(
     repository: ArtifactRepository,
     engine: AsyncEngine,
     seeded_collection: CollectionFixtureData,
@@ -900,7 +900,6 @@ async def test_light_listing_omits_payload_columns_and_preserves_pagination(
             seeded_collection.orbit.id,
             PaginationParams(limit=2, sort_by="name", order=SortOrder.ASC),
             collection_ids=collection_ids,
-            include_payload=False,
         )
         second, next_cursor = await repository.get_collection_artifacts(
             seeded_collection.orbit.id,
@@ -908,7 +907,6 @@ async def test_light_listing_omits_payload_columns_and_preserves_pagination(
                 limit=2, sort_by="name", order=SortOrder.ASC, cursor=cursor
             ),
             collection_ids=collection_ids,
-            include_payload=False,
         )
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", capture_sql)
@@ -920,8 +918,8 @@ async def test_light_listing_omits_payload_columns_and_preserves_pagination(
     assert len({item.id for item in first + second}) == 3
     for item in first + second:
         payload = item.model_dump()
-        assert "manifest" not in payload
-        assert "file_index" not in payload
+        assert payload["manifest"] == {}
+        assert payload["file_index"] == {}
         assert payload["has_experiment_snapshot"] is False
         assert item.collection_name == seeded_collection.collection.name
     assert statements
@@ -954,7 +952,7 @@ async def test_light_listing_omits_payload_columns_and_preserves_pagination(
         ),
     ],
 )
-async def test_light_listing_detects_experiment_snapshots(
+async def test_listing_detects_experiment_snapshots(
     repository: ArtifactRepository,
     seeded_collection: CollectionFixtureData,
     new_artifact: ArtifactCreate,
@@ -972,15 +970,6 @@ async def test_light_listing_detects_experiment_snapshots(
     items, _ = await repository.get_collection_artifacts(
         seeded_collection.orbit.id,
         PaginationParams(limit=10),
-        include_payload=False,
     )
     assert items[0].id == artifact.id
-    assert items[0].model_dump()["has_experiment_snapshot"] is expected
-    full_items, _ = await repository.get_collection_artifacts(
-        seeded_collection.orbit.id,
-        PaginationParams(limit=10),
-    )
-    full = full_items[0].model_dump()
-    assert full["file_index"] == {path: (0, 10)}
-    assert full["manifest"] == artifact.manifest.model_dump()
-    assert "has_experiment_snapshot" not in full
+    assert items[0].has_experiment_snapshot is expected

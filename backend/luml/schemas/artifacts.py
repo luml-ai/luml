@@ -271,6 +271,16 @@ class ArtifactListedLight(BaseModel, BaseOrmConfig):
     collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
     has_experiment_snapshot: bool
 
+    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
+    @property
+    def manifest(self) -> dict[str, Any]:
+        return {}
+
+    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
+    @property
+    def file_index(self) -> dict[str, tuple[int, int]]:
+        return {}
+
 
 class ArtifactDetails(Artifact):
     deployments: list[Deployment] | None = None
@@ -296,5 +306,5 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 
 class ArtifactsList(BaseModel):
-    items: list[ArtifactListed | ArtifactListedLight]
+    items: list[ArtifactListedLight]
     cursor: str | None

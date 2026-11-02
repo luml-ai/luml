@@ -7,14 +7,12 @@ from fastapi.testclient import TestClient
 from luml.infra.exceptions import ApplicationError
 from luml.schemas.artifacts import (
     Artifact,
-    ArtifactCreate,
     ArtifactCreateIn,
     ArtifactDeleteDeployment,
     ArtifactDeleteFailure,
     ArtifactDeleteReason,
     ArtifactDeleteTrack,
     ArtifactDeleteURL,
-    ArtifactListed,
     ArtifactListedLight,
     ArtifactsDeleteResponse,
     ArtifactsDeleteURLsResponse,
@@ -391,47 +389,44 @@ class TestOrbitArtifacts:
             collection_ids=None,
             search=None,
             excluded_tracks=None,
-            include_payload=True,
         )
 
-
-@pytest.mark.parametrize("include_payload", [True, False])
-@patch(
-    "luml.handlers.artifacts.ArtifactHandler.get_collection_artifacts",
-    new_callable=AsyncMock,
-)
-def test_listing_payload_option_and_serialization(
-    mock_get_artifacts: AsyncMock,
-    client: TestClient,
-    new_artifact: ArtifactCreate,
-    include_payload: bool,
-) -> None:
-    data = new_artifact.model_dump()
-    data.update(
-        id=ARTIFACT_ID, created_at=datetime.now(), collection={"name": "models"}
+    @patch(
+        "luml.handlers.artifacts.ArtifactHandler.get_collection_artifacts",
+        new_callable=AsyncMock,
     )
-    full = ArtifactListed.model_validate(data)
-    item: ArtifactListed | ArtifactListedLight
-    if include_payload:
-        item = full
-    else:
-        data.pop("manifest")
-        data.pop("file_index")
-        data["has_experiment_snapshot"] = True
-        item = ArtifactListedLight.model_validate(data)
-    mock_get_artifacts.return_value = ArtifactsList(items=[item], cursor=None)
-    params = {} if include_payload else {"include_payload": "false"}
-    response = client.get(ORBIT_ARTIFACTS_PATH, params=params)
-    assert response.status_code == 200
-    assert mock_get_artifacts.await_args is not None
-    assert mock_get_artifacts.await_args.kwargs["include_payload"] is include_payload
-    expected = item.model_dump(mode="json")
-    assert response.json() == {"items": [expected], "cursor": None}
-    if include_payload:
-        assert (
-            response.content
-            == ArtifactsList(items=[full], cursor=None).model_dump_json().encode()
+    def test_list_returns_empty_manifest_and_file_index(
+        self, mock_get_artifacts: AsyncMock, client: TestClient
+    ) -> None:
+        mock_get_artifacts.return_value = ArtifactsList(
+            items=[
+                ArtifactListedLight.model_validate(
+                    {
+                        "id": ARTIFACT_ID,
+                        "collection_id": COLLECTION_ID,
+                        "collection": {"name": "models"},
+                        "file_name": "model.luml",
+                        "name": "model",
+                        "extra_values": {},
+                        "file_hash": "hash",
+                        "bucket_location": "loc",
+                        "size": 1,
+                        "unique_identifier": "uid",
+                        "status": ArtifactStatus.UPLOADED,
+                        "type": ArtifactType.MODEL,
+                        "created_at": datetime(2026, 11, 2),
+                        "has_experiment_snapshot": True,
+                    }
+                )
+            ],
+            cursor=None,
         )
-    else:
-        assert "manifest" not in response.json()["items"][0]
-        assert "file_index" not in response.json()["items"][0]
+
+        response = client.get(ORBIT_ARTIFACTS_PATH)
+
+        assert response.status_code == 200
+        [item] = response.json()["items"]
+        assert item["manifest"] == {}
+        assert item["file_index"] == {}
+        assert item["has_experiment_snapshot"] is True
+        assert item["collection_name"] == "models"

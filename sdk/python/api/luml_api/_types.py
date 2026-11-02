@@ -232,9 +232,9 @@ class Artifact(BaseModel, BaseOrmConfig):
     name: str
     description: str | None = None
     extra_values: dict
-    manifest: dict | None = None
+    manifest: dict
     file_hash: str
-    file_index: dict[str, tuple[int, int]] | None = None
+    file_index: dict[str, tuple[int, int]]
     bucket_location: str
     size: int
     unique_identifier: str
