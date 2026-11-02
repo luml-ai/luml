@@ -69,6 +69,8 @@ class _Derivation:
 
     def verdict(self, uid: str) -> Verdict:
         version = self.here[uid]
+        if version.manifest.classification == "note":
+            return Verdict(uid=uid, slug=version.slug, state="synced")
         mat = self.mats.get(uid)
         if mat is None:
             return Verdict(uid=uid, slug=version.slug, state="unmaterialized")

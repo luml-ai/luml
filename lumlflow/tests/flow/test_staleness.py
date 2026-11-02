@@ -48,6 +48,17 @@ class TestStates:
 
         assert verdicts(store)["features"].state == "unmaterialized"
 
+    def test_a_note_is_synced_though_it_never_runs(self, store: FlowStore) -> None:
+        accept(
+            store,
+            "readme",
+            source='class Readme:\n    """# Notes"""',
+            classification="note",
+        )
+
+        verdict = verdicts(store)["readme"]
+        assert (verdict.state, verdict.causes) == ("synced", ())
+
     def test_a_run_cell_with_nothing_changed_is_synced(self, store: FlowStore) -> None:
         record_run(store, accept(store, "features"))
 

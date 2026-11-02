@@ -8,6 +8,7 @@ from lumlflow.flow.store.flowstore import FlowStore
 from lumlflow.flow.store.index import Index
 from lumlflow.flow.store.models import (
     CellAccepted,
+    CellClassification,
     CellManifest,
     ConsumedRef,
     InputRef,
@@ -50,6 +51,7 @@ def cell_accepted(
     parent_version_id: str | None = None,
     copied_from: str | None = None,
     author: str = "user",
+    classification: CellClassification = "cell",
 ) -> CellAccepted:
     body = source.encode()
     return CellAccepted(
@@ -71,6 +73,7 @@ def cell_accepted(
             produces=produces or {"data": OutputSpec(type="asset")},
             params={"seed": 1337},
             env_sensitive=env_sensitive,
+            classification=classification,
         ),
         parent_version_id=parent_version_id,
         copied_from=copied_from,
@@ -90,6 +93,7 @@ def accept(
     bound_to: dict[str, str | None] | None = None,
     produces: dict[str, OutputSpec] | None = None,
     env_sensitive: bool = False,
+    classification: CellClassification = "cell",
 ) -> CellAccepted:
     branch_id = store.branches.get(branch).branch_id
     op = cell_accepted(
@@ -100,6 +104,7 @@ def accept(
         bound_to=bound_to,
         produces=produces,
         env_sensitive=env_sensitive,
+        classification=classification,
     )
     store.commit(
         [op, SelectionSet(branch_id=branch_id, uid=op.uid, version_id=op.version_id)],
