@@ -46,4 +46,10 @@ def test_serves_config_with_storage_name(client: TestClient) -> None:
 )
 def test_rejects_paths_outside_root(client: TestClient, path: str) -> None:
     response = client.get(path)
+    assert response.status_code == 404
     assert response.json() == {"detail": "Not Found"}
+
+
+def test_missing_file_is_404(client: TestClient) -> None:
+    response = client.get("/missing.json")
+    assert response.status_code == 404

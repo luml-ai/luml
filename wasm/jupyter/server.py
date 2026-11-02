@@ -4,7 +4,7 @@ import os
 from copy import deepcopy
 from urllib.parse import parse_qs, urlparse
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 
 app = FastAPI()
@@ -35,7 +35,7 @@ def get_config(referer):
 def serve_static(request: Request, path: str):
     file_path = os.path.realpath(os.path.join(STATIC_ROOT, path))
     if os.path.commonpath([STATIC_ROOT, file_path]) != STATIC_ROOT:
-        return {"detail": "Not Found"}
+        raise HTTPException(status_code=404)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         mime_type, _ = mimetypes.guess_type(file_path)
         if path == "jupyter-lite.json":
@@ -52,4 +52,4 @@ def serve_static(request: Request, path: str):
         else:
             with open(file_path, "rb") as f:
                 return Response(content=f.read(), media_type=mime_type)
-    return {"detail": "Not Found"}
+    raise HTTPException(status_code=404)
