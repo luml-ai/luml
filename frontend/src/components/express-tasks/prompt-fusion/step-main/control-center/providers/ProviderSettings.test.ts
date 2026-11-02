@@ -1,11 +1,13 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PrimeVue from 'primevue/config'
 import { Button, Checkbox, InputText } from 'primevue'
 import ProviderSettings from './ProviderSettings.vue'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
-import { getProviders } from '@/lib/promt-fusion/prompt-fusion.data'
+import { getProviders, loadProviders } from '@/lib/promt-fusion/prompt-fusion.data'
 import { ProvidersEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
+
+vi.mock('@/utils/services/SecretCipherService')
 
 enableAutoUnmount(afterEach)
 
@@ -76,14 +78,14 @@ describe('provider API key storage', () => {
     },
   )
 
-  it('ignores saved API keys when storage is disabled', () => {
+  it('ignores saved API keys when storage is disabled', async () => {
     LocalStorageService.set('providersSettings', {
       saveApiKeys: false,
       openAi: { apiKey: 'test-legacy-key' },
       ollama: { apiBase: 'http://localhost:11434' },
     })
 
-    const providers = getProviders()
+    const providers = await loadProviders()
     expect(
       providers.find((provider) => provider.id === ProvidersEnum.openAi)?.settings[0].value,
     ).toBe('')
@@ -92,16 +94,17 @@ describe('provider API key storage', () => {
     ).toBe('http://localhost:11434')
   })
 
-  it('keeps and loads stored API keys while storage is enabled', () => {
+  it('keeps and loads stored API keys while storage is enabled', async () => {
     LocalStorageService.set('providersSettings', {
       saveApiKeys: true,
       openAi: { apiKey: 'test-stored-key' },
     })
     mountSettings()
 
-    expect(LocalStorageService.get('providersSettings')?.openAi?.apiKey).toBe('test-stored-key')
-    expect(
-      getProviders().find((provider) => provider.id === ProvidersEnum.openAi)?.settings[0].value,
-    ).toBe('test-stored-key')
+    const findOpenAi = (providers: ReturnType<typeof getProviders>) =>
+      providers.find((provider) => provider.id === ProvidersEnum.openAi)
+    expect(findOpenAi(getProviders())?.settings[0].value).toBe('')
+    expect(findOpenAi(await loadProviders())?.settings[0].value).toBe('test-stored-key')
+    expect(LocalStorageService.get('providersSettings')?.openAi?.apiKey).toMatch(/^enc:v1:/)
   })
 })

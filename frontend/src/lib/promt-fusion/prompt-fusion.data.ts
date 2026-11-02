@@ -8,14 +8,19 @@ import {
 } from './prompt-fusion.interfaces'
 import OpenAi from '@/assets/img/providers/open-ai.svg'
 import Ollama from '@/assets/img/providers/ollama.svg'
-import { LocalStorageService } from '@/utils/services/LocalStorageService'
 import GptModel from '@/assets/img/providers/gpt-model.svg'
 import OllamaModel from '@/assets/img/providers/ollama-model.svg'
+import {
+  getNonSecretProviderSettings,
+  loadSavedProviderSettings,
+  type SavedProviderSettings,
+} from './provider-settings.storage'
 
-export const getProviders = (): BaseProviderInfo[] => {
-  const settings = LocalStorageService.get('providersSettings')
-  const savedOpenAiSettings = settings?.saveApiKeys ? settings[ProvidersEnum.openAi] : undefined
-  const savedOllamaSettings = settings?.[ProvidersEnum.ollama]
+export const getProviders = (
+  saved: SavedProviderSettings = getNonSecretProviderSettings(),
+): BaseProviderInfo[] => {
+  const savedOpenAiSettings = saved[ProvidersEnum.openAi]
+  const savedOllamaSettings = saved[ProvidersEnum.ollama]
   const data = [
     {
       id: ProvidersEnum.openAi,
@@ -60,6 +65,22 @@ export const getProviders = (): BaseProviderInfo[] => {
           }, ProviderStatus.connected),
     }
   })
+}
+
+export const loadProviders = async (): Promise<BaseProviderInfo[]> =>
+  getProviders(await loadSavedProviderSettings())
+
+export const applySavedProviders = (
+  providers: BaseProviderInfo[],
+  savedProviders: BaseProviderInfo[],
+) => {
+  for (const saved of savedProviders) {
+    if (saved.status !== ProviderStatus.connected) continue
+    const current = providers.find((provider) => provider.id === saved.id)
+    if (!current || current.status === ProviderStatus.connected) continue
+    current.settings = saved.settings
+    current.status = saved.status
+  }
 }
 
 export const openAiModels: ProviderModel[] = [

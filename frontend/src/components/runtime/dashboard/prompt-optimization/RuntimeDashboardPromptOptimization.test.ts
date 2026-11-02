@@ -26,6 +26,7 @@ vi.mock('@/lib/analytics/AnalyticsService', () => ({
   AnalyticsService: { track: vi.fn() },
   AnalyticsTrackKeysEnum: {},
 }))
+vi.mock('@/utils/services/SecretCipherService')
 vi.mock('@/hooks/useDataTable', async () => {
   const { ref } = await import('vue')
   return {
@@ -86,11 +87,15 @@ describe('runtime provider session credentials', () => {
       openAi: { apiKey: 'test-saved-key' },
     })
     const wrapper = await mountRuntime()
+    await vi.waitFor(() =>
+      expect(wrapper.get('.manual button').attributes('disabled')).toBeUndefined(),
+    )
     await wrapper.get('.manual button').trigger('click')
     await flushPromises()
     expect(computePythonModel).toHaveBeenLastCalledWith(
       expect.objectContaining({ dynamic_attributes: { api_key: 'test-saved-key' } }),
     )
+    expect(LocalStorageService.get('providersSettings')?.openAi?.apiKey).toMatch(/^enc:v1:/)
 
     await wrapper.get('.provider button').trigger('click')
     const settings = wrapper.getComponent(ProviderSettings)

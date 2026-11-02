@@ -28,9 +28,13 @@ import {
   ProviderStatus,
 } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import { onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
-import { getProviders } from '@/lib/promt-fusion/prompt-fusion.data'
+import {
+  applySavedProviders,
+  getProviders,
+  loadProviders,
+} from '@/lib/promt-fusion/prompt-fusion.data'
 import { Brain } from 'lucide-vue-next'
-import { LocalStorageService } from '@/utils/services/LocalStorageService'
+import { saveProviderSettings } from '@/lib/promt-fusion/provider-settings.storage'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import ProviderItem from './ProviderItem.vue'
 import ProviderSettings from './ProviderSettings.vue'
@@ -49,19 +53,8 @@ function saveSettings(settings: ProviderSetting[]) {
   }, ProviderStatus.connected)
   openedProvider.value.status = newStatus
   openedProvider.value.settings = settings
-  const settingsInStorage = LocalStorageService.get('providersSettings')
   promptFusionService.updateProviderSettings(openedProvider.value.id, settings)
-  const isNeedToSaveData = settingsInStorage?.saveApiKeys
-  if (isNeedToSaveData) {
-    settingsInStorage[openedProvider.value.id] = settings.reduce(
-      (acc: Record<string, string>, setting) => {
-        acc[setting.id] = setting.value
-        return acc
-      },
-      {},
-    )
-    LocalStorageService.set('providersSettings', settingsInStorage)
-  }
+  saveProviderSettings(openedProvider.value.id, settings)
   promptFusionService.closeProviderSettings()
 }
 function showSettings(provider: BaseProviderInfo) {
@@ -90,6 +83,12 @@ function onProviderButtonClick() {
   promptFusionService.openSettings()
 }
 
+async function restoreSavedProviders() {
+  const savedProviders = await loadProviders()
+  applySavedProviders(providers.value, savedProviders)
+  promptFusionService.restoreSavedProviders(savedProviders)
+}
+
 watch(isProviderSettingsOpened, (val) => {
   if (!val) promptFusionService.closeProviderSettings()
 })
@@ -98,6 +97,7 @@ onBeforeMount(() => {
   promptFusionService.on('OPEN_PROVIDER_SETTINGS', onOpenProviderSettings)
   promptFusionService.on('CLOSE_PROVIDER_SETTINGS', onCloseProviderSettings)
   promptFusionService.on('CHANGE_SETTINGS_STATUS', onChangeSettingsStatus)
+  restoreSavedProviders()
 })
 
 onBeforeUnmount(() => {
