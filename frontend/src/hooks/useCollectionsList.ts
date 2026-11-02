@@ -5,6 +5,7 @@ import type {
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
+import { usePageLoading } from '@/hooks/usePageLoading'
 import { useCollectionsStore } from '@/stores/collections'
 
 interface RequestInfo {
@@ -21,7 +22,7 @@ export const useCollectionsList = (
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
-  const isLoading = ref(false)
+  const { isLoading, invalidate, track } = usePageLoading()
   const searchQuery = ref<string>('')
   const typesQuery = ref<OrbitCollectionTypeEnum[]>(types ?? [])
   const tagsQuery = ref<string[]>([])
@@ -37,27 +38,24 @@ export const useCollectionsList = (
   }
 
   async function getInitialPage() {
-    isLoading.value = true
-    try {
+    invalidate()
+    await track(async (isCurrent) => {
       const response = await getCollectionsData(null)
+      if (!isCurrent()) return
       addCollectionsToList(response.items)
       savedCursors.value.push(response.cursor)
-    } finally {
-      isLoading.value = false
-    }
+    })
   }
 
   async function getNextPage() {
     const cursor = getNextPageCursor()
     if (!cursor) return
-    isLoading.value = true
-    try {
+    await track(async (isCurrent) => {
       const response = await getCollectionsData(cursor)
+      if (!isCurrent()) return
       addCollectionsToList(response.items)
       savedCursors.value.push(response.cursor)
-    } finally {
-      isLoading.value = false
-    }
+    })
   }
 
   async function getCollectionsData(cursor: string | null) {
@@ -74,6 +72,7 @@ export const useCollectionsList = (
   }
 
   function reset() {
+    invalidate()
     setCollectionsList([])
     savedCursors.value = []
     requestInfo.value = null

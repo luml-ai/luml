@@ -207,5 +207,74 @@ describe.each(cases)('$name pagination', ({ create, request, cursorArgument }) =
       await loading
       expect(hook.isLoading.value).toBe(false)
     })
+
+    function pending() {
+      let resolve!: (value: ReturnType<typeof page>) => void
+      const promise = new Promise<ReturnType<typeof page>>((r) => (resolve = r))
+      return { promise, resolve }
+    }
+
+    async function startReloadDuringNextPage() {
+      const stale = pending()
+      const fresh = pending()
+      request
+        .mockResolvedValueOnce(page(['a', 'b'], 'c1'))
+        .mockReturnValueOnce(stale.promise)
+        .mockReturnValueOnce(fresh.promise)
+      const hook = mountList()
+      await hook.getInitialPage()
+      const nextPage = hook.onLazyLoad({ first: 0, last: 2 })
+      hook.reset()
+      hook.setRequestInfo(requestInfo)
+      const reload = hook.getInitialPage()
+      return { hook, stale, fresh, nextPage, reload }
+    }
+
+    it('drops a next page that resolves before the reload that replaced it', async () => {
+      const { hook, stale, fresh, nextPage, reload } = await startReloadDuringNextPage()
+
+      stale.resolve(page(['c', 'd'], 'c2'))
+      await nextPage
+      expect(hook.isLoading.value).toBe(true)
+      expect(hook.list.value).toEqual([])
+
+      fresh.resolve(page(['x'], 'x1'))
+      await reload
+      expect(hook.isLoading.value).toBe(false)
+      expect(hook.list.value.map((item) => item.id)).toEqual(['x'])
+      expect(hook.pageIndex.value).toBe(1)
+    })
+
+    it('drops a next page that resolves after the reload that replaced it', async () => {
+      const { hook, stale, fresh, nextPage, reload } = await startReloadDuringNextPage()
+
+      fresh.resolve(page(['x'], 'x1'))
+      await reload
+      expect(hook.isLoading.value).toBe(false)
+      stale.resolve(page(['c', 'd'], 'c2'))
+      await nextPage
+
+      expect(hook.isLoading.value).toBe(false)
+      expect(hook.list.value.map((item) => item.id)).toEqual(['x'])
+      request.mockResolvedValueOnce(page([], null))
+      await hook.onLazyLoad({ first: 0, last: 1 })
+      expect(requestedCursors()).toEqual([null, 'c1', null, 'x1'])
+    })
+
+    it('drops a page that resolves after a reset without reload', async () => {
+      const stale = pending()
+      request.mockResolvedValueOnce(page(['a', 'b'], 'c1')).mockReturnValueOnce(stale.promise)
+      const hook = mountList()
+      await hook.getInitialPage()
+      const nextPage = hook.onLazyLoad({ first: 0, last: 2 })
+
+      hook.reset()
+      stale.resolve(page(['c'], 'c2'))
+      await nextPage
+
+      expect(hook.list.value).toEqual([])
+      expect(hook.pageIndex.value).toBe(0)
+      expect(hook.isLoading.value).toBe(false)
+    })
   })
 })
