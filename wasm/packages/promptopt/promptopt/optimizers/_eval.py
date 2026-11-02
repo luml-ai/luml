@@ -1,7 +1,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 import json
-from promptopt.llm import LLM
+from promptopt.llm import LLM, generate_validated
 from promptopt.dataclasses import Field, JsonModel
 
 METRIC_MODEL = JsonModel([Field("score", "integer")])
@@ -55,9 +55,8 @@ class LLMJudge(BaseMetric):
                 true_value=json.dumps(tgt),
             )
             messages = [{"role": "user", "content": template}]
-            return json.loads(await llm.generate(messages, out_schema=METRIC_MODEL))[
-                "score"
-            ]
+            _, result = await generate_validated(llm, messages, METRIC_MODEL)
+            return result["score"]
 
         scores = await asyncio.gather(
             *[get_score(pred, tgt) for pred, tgt in zip(predictions, targets)]

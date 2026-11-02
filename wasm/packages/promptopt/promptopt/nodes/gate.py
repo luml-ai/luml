@@ -7,6 +7,7 @@ from promptopt.dataclasses import (
     OutputSpec,
 )
 from promptopt.nodes._base import BaseNode
+from promptopt.llm import generate_validated
 from promptopt.templates import NODE_SYSTEM_PROMPT_TEMPLATE
 from promptopt.dataclasses import LLMExample
 from uuid import uuid4
@@ -121,20 +122,14 @@ class Gate(BaseNode):
             }
         )
 
-        classification_result_str = await llm.generate(
-            messages,
-            out_schema=self.output_schema,
+        classification_result_str, classification_result = await generate_validated(
+            llm, messages, self.output_schema
         )
 
         if trace:
             trace.add_example(self, inputs_json, classification_result_str)
 
-        classification_result = json.loads(classification_result_str)
-
         classification = classification_result["classification"]
-
-        if classification not in self.output_classes:
-            raise ValueError(f"Invalid classification result: {classification}")
 
         return NodeOutput(
             writes={

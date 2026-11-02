@@ -3,7 +3,7 @@ from promptopt.optimizers._base import BaseOptimizer
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
 from promptopt.trace import Trace
-from promptopt.llm import LLM
+from promptopt.llm import LLM, InvalidLLMResponseError
 
 import random
 
@@ -33,9 +33,15 @@ class RandomFewShotOptimizer(BaseOptimizer):
         async def process_example(example: Example):
             return await self.graph.run(example.input, self.llm, trace)
 
-        await asyncio.gather(
-            *(process_example(example) for example in training_examples)
+        results = await asyncio.gather(
+            *(process_example(example) for example in training_examples),
+            return_exceptions=True,
         )
+        for result in results:
+            if isinstance(result, BaseException) and not isinstance(
+                result, InvalidLLMResponseError
+            ):
+                raise result
 
         for node in self.graph.nodes.values():
             if id(node) in trace._examples:
