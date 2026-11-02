@@ -1,18 +1,20 @@
-from fastapi import FastAPI, Request
-from urllib.parse import urlparse, parse_qs
 import json
-from copy import deepcopy
-import os
-
-from fastapi.responses import Response
 import mimetypes
+import os
+from copy import deepcopy
+from urllib.parse import parse_qs, urlparse
 
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
 
 app = FastAPI()
 
+STATIC_ROOT = os.path.realpath(".")
 
-with open("jupyter-lite.json", "r") as f:
+
+with open("jupyter-lite.json") as f:
     config = json.load(f)
+
 
 def extractName(referer):
     if referer:
@@ -30,9 +32,10 @@ def get_config(referer):
 
 
 @app.get("/{path:path}")
-async def serve_static(request: Request, path: str):
-    # print(f"GET {path} :: {request.headers.get('referer')}")
-    file_path = os.path.join(".", path)
+def serve_static(request: Request, path: str):
+    file_path = os.path.realpath(os.path.join(STATIC_ROOT, path))
+    if os.path.commonpath([STATIC_ROOT, file_path]) != STATIC_ROOT:
+        raise HTTPException(status_code=404)
     if os.path.exists(file_path) and os.path.isfile(file_path):
         mime_type, _ = mimetypes.guess_type(file_path)
         if path == "jupyter-lite.json":
@@ -49,4 +52,4 @@ async def serve_static(request: Request, path: str):
         else:
             with open(file_path, "rb") as f:
                 return Response(content=f.read(), media_type=mime_type)
-    return {"detail": "Not Found"}
+    raise HTTPException(status_code=404)
