@@ -1,5 +1,8 @@
 name: Backend Tests and Linters
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     branches: [main, staging, production]
@@ -16,10 +19,10 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.14'
           enable-cache: true
@@ -46,10 +49,10 @@ jobs:
       AUTH_SECRET_KEY: test_secret_key_for_ci
       BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.14'
           enable-cache: true
@@ -93,10 +96,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.14'
           enable-cache: true
