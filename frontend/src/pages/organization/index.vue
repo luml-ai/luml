@@ -42,6 +42,13 @@ const hasPermission = computed(() => {
   return true
 })
 
+function getFallbackOrganizationId(organizationId: string) {
+  const organizations = organizationStore.availableOrganizations
+  if (organizationStore.availableOrganizationsRequest || !organizations.length) return null
+  if (organizations.some((organization) => organization.id === organizationId)) return null
+  return organizationStore.currentOrganization?.id ?? organizations[0]?.id ?? null
+}
+
 async function init() {
   const idParam = route.params.id
   const organizationId = Array.isArray(idParam) ? idParam[0] : idParam
@@ -53,10 +60,18 @@ async function init() {
     if (organizationStore.availableOrganizationsRequest && organizationStore.currentOrganization) {
       await organizationStore.availableOrganizationsRequest
     }
-    if (organizationStore.currentOrganization?.id === organizationId) {
-      await organizationStore.getOrganizationDetails(organizationId)
+    const fallbackOrganizationId = getFallbackOrganizationId(organizationId)
+    if (fallbackOrganizationId) {
+      await router.replace({
+        name: route.name,
+        params: { ...route.params, id: fallbackOrganizationId },
+      })
+    }
+    const targetOrganizationId = fallbackOrganizationId ?? organizationId
+    if (organizationStore.currentOrganization?.id === targetOrganizationId) {
+      await organizationStore.getOrganizationDetails(targetOrganizationId)
     } else {
-      await organizationStore.switchOrganization(organizationId)
+      await organizationStore.switchOrganization(targetOrganizationId)
     }
   } catch (e: unknown) {
     const errorDetails = (e as ApiError)?.details

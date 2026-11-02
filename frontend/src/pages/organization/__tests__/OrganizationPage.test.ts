@@ -11,6 +11,7 @@ import OrganizationPage from '../index.vue'
 const harness = vi.hoisted(() => ({
   route: { name: 'organization', params: { id: 'organization-b' } },
   routerPush: vi.fn(),
+  routerReplace: vi.fn(),
   toastAdd: vi.fn(),
 }))
 
@@ -19,7 +20,7 @@ vi.mock('vue-router', async (importOriginal) => {
   return {
     ...actual,
     useRoute: () => harness.route,
-    useRouter: () => ({ push: harness.routerPush }),
+    useRouter: () => ({ push: harness.routerPush, replace: harness.routerReplace }),
   }
 })
 vi.mock('primevue', async (importOriginal) => {
@@ -159,6 +160,31 @@ describe('OrganizationPage', () => {
     )
     expect(organizationStore.loading).toBe(false)
     harness.route.params.id = organizationB.id
+  })
+
+  it('redirects to the current organization when the URL organization is no longer available', async () => {
+    harness.route.params.id = 'organization-deleted'
+    harness.routerReplace.mockImplementation(async ({ params }) => {
+      harness.route.params = params
+    })
+    vi.mocked(api.getOrganizations).mockResolvedValue([organizationA, organizationB])
+    const organizationStore = useOrganizationStore()
+    await organizationStore.getAvailableOrganizations()
+
+    wrapper = mountPage()
+    await flushPromises()
+
+    expect(harness.routerReplace).toHaveBeenCalledWith({
+      name: 'organization',
+      params: { id: organizationA.id },
+    })
+    expect(organizationStore.currentOrganization?.id).toBe(organizationA.id)
+    expect(LocalStorageService.get('currentOrganizationId')).toBe(organizationA.id)
+    expect(api.getOrganizationOrbits).not.toHaveBeenCalledWith('organization-deleted')
+    expect(api.getOrganization).not.toHaveBeenCalledWith('organization-deleted')
+    expect(api.getOrganization).toHaveBeenLastCalledWith(organizationA.id)
+    expect(harness.toastAdd).not.toHaveBeenCalled()
+    harness.route.params = { id: organizationB.id }
   })
 
   it('only reloads details when the URL organization is already current', async () => {
