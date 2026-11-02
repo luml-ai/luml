@@ -19,6 +19,8 @@ export const useOrbitsStore = defineStore('orbit', () => {
   const currentOrbitId = ref<string | null>(null)
   const currentOrbitDetails = ref<OrbitDetails | null>(null)
   const isLoadingOrbitDetails = ref(false)
+  let orbitsListRequestId = 0
+  let orbitDetailsRequestId = 0
 
   const currentOrbit = computed(
     () => orbitsList.value.find((o) => o.id === currentOrbitId.value) ?? null,
@@ -35,6 +37,7 @@ export const useOrbitsStore = defineStore('orbit', () => {
       LocalStorageService.remove('currentOrbitId')
     }
 
+    orbitDetailsRequestId++
     currentOrbitId.value = id
     currentOrbitDetails.value = null
     isLoadingOrbitDetails.value = false
@@ -51,25 +54,29 @@ export const useOrbitsStore = defineStore('orbit', () => {
   }
 
   async function loadOrbitDetails(orgId: string, orbitId: string) {
+    const requestId = ++orbitDetailsRequestId
     isLoadingOrbitDetails.value = true
 
     try {
       const details = await getOrbitDetails(orgId, orbitId)
-      if (currentOrbitId.value !== orbitId) return
+      if (requestId !== orbitDetailsRequestId || currentOrbitId.value !== orbitId) return
       currentOrbitDetails.value = details
     } catch (e) {
       console.error('Failed to load orbit details', e)
-      if (currentOrbitId.value !== orbitId) return
+      if (requestId !== orbitDetailsRequestId || currentOrbitId.value !== orbitId) return
       currentOrbitDetails.value = null
     } finally {
-      if (currentOrbitId.value === orbitId) {
+      if (requestId === orbitDetailsRequestId && currentOrbitId.value === orbitId) {
         isLoadingOrbitDetails.value = false
       }
     }
   }
 
   async function loadOrbitsList(organizationId: string) {
-    orbitsList.value = await api.getOrganizationOrbits(organizationId)
+    const requestId = ++orbitsListRequestId
+    const orbits = await api.getOrganizationOrbits(organizationId)
+    if (requestId !== orbitsListRequestId) return
+    orbitsList.value = orbits
   }
 
   async function createOrbit(organizationId: string, payload: CreateOrbitPayload) {
@@ -147,6 +154,8 @@ export const useOrbitsStore = defineStore('orbit', () => {
   }
 
   function reset() {
+    orbitsListRequestId++
+    orbitDetailsRequestId++
     orbitsList.value = []
     currentOrbitId.value = null
     currentOrbitDetails.value = null

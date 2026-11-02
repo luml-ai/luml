@@ -1,6 +1,11 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Orbit, Organization, OrganizationDetails } from '@/lib/api/api.interfaces'
+import type {
+  Orbit,
+  OrbitDetails,
+  Organization,
+  OrganizationDetails,
+} from '@/lib/api/api.interfaces'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
 import { useOrganizationStore } from '../organization'
 import { useOrbitsStore } from '../orbits'
@@ -227,5 +232,268 @@ describe('organization initialization', () => {
     expect(store.currentOrganization).toEqual(remaining)
     expect(apiMocks.getOrganizationOrbits).toHaveBeenCalledWith(remaining.id)
     expect(LocalStorageService.get('currentOrganizationId')).toBe(remaining.id)
+  })
+})
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: Error) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+describe('organization switching', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.resetAllMocks()
+    apiMocks.getOrganization.mockImplementation(async (id: string) => ({ id }))
+    apiMocks.getOrganizationOrbits.mockResolvedValue([])
+    apiMocks.getOrbitDetails.mockResolvedValue({})
+  })
+
+  function setup() {
+    const store = useOrganizationStore()
+    store.availableOrganizations = [firstOrganization, secondOrganization]
+    return { store, orbits: useOrbitsStore() }
+  }
+
+  it('keeps the latest organization when older orbits arrive last', async () => {
+    const { store, orbits } = setup()
+    const oldOrbits = deferred<Orbit[]>()
+    apiMocks.getOrganizationOrbits.mockReturnValueOnce(oldOrbits.promise)
+    apiMocks.getOrganizationOrbits.mockResolvedValueOnce([secondOrbit])
+
+    const first = store.switchOrganization(firstOrganization.id)
+    await store.switchOrganization(secondOrganization.id)
+    oldOrbits.resolve([firstOrbit])
+    await first
+
+    expect(store.currentOrganization).toEqual(secondOrganization)
+    expect(store.organizationDetails?.id).toBe(secondOrganization.id)
+    expect(orbits.orbitsList).toEqual([secondOrbit])
+    expect(orbits.currentOrbitId).toBe(secondOrbit.id)
+    expect(LocalStorageService.get('currentOrganizationId')).toBe(secondOrganization.id)
+    expect(LocalStorageService.get('currentOrbitId')).toBe(secondOrbit.id)
+    expect(apiMocks.getOrganization).not.toHaveBeenCalledWith(firstOrganization.id)
+  })
+
+  it('discards an older detail response and preserves the latest loading state', async () => {
+    const { store } = setup()
+    const oldDetails = deferred<OrganizationDetails>()
+    const newDetails = deferred<OrganizationDetails>()
+    apiMocks.getOrganization.mockReturnValueOnce(oldDetails.promise)
+    apiMocks.getOrganization.mockReturnValueOnce(newDetails.promise)
+    const first = store.switchOrganization(firstOrganization.id)
+    await vi.waitFor(() => expect(apiMocks.getOrganization).toHaveBeenCalledOnce())
+    const second = store.switchOrganization(secondOrganization.id)
+    await vi.waitFor(() => expect(apiMocks.getOrganization).toHaveBeenCalledTimes(2))
+
+    oldDetails.resolve({ id: firstOrganization.id } as OrganizationDetails)
+    await first
+    expect(store.organizationDetails).toBeNull()
+    expect(store.loading).toBe(true)
+
+    newDetails.resolve({ id: secondOrganization.id } as OrganizationDetails)
+    await second
+    expect(store.organizationDetails?.id).toBe(secondOrganization.id)
+    expect(store.loading).toBe(false)
+  })
+
+  it('invalidates older requests even when switching back to the same organization', async () => {
+    const { store, orbits } = setup()
+    const oldOrbits = deferred<Orbit[]>()
+    apiMocks.getOrganizationOrbits.mockReturnValueOnce(oldOrbits.promise)
+    const first = store.switchOrganization(firstOrganization.id)
+    await store.switchOrganization(secondOrganization.id)
+    await store.switchOrganization(firstOrganization.id)
+    oldOrbits.resolve([firstOrbit])
+    await first
+
+    expect(store.currentOrganization).toEqual(firstOrganization)
+    expect(orbits.orbitsList).toEqual([])
+    expect(orbits.currentOrbitId).toBeNull()
+  })
+
+  it('discards old orbit details after switching away and back to the same orbit', async () => {
+    const { store, orbits } = setup()
+    const oldDetails = deferred<OrbitDetails>()
+    apiMocks.getOrganizationOrbits.mockResolvedValue([firstOrbit])
+    apiMocks.getOrbitDetails.mockReturnValueOnce(oldDetails.promise)
+    await store.switchOrganization(firstOrganization.id)
+    apiMocks.getOrganizationOrbits.mockResolvedValueOnce([])
+    await store.switchOrganization(secondOrganization.id)
+    apiMocks.getOrbitDetails.mockResolvedValueOnce({ id: firstOrbit.id, name: 'New' })
+    await store.switchOrganization(firstOrganization.id)
+
+    oldDetails.resolve({ id: firstOrbit.id, name: 'Old' } as OrbitDetails)
+    await oldDetails.promise
+    await Promise.resolve()
+
+    expect(orbits.currentOrbitDetails?.name).toBe('New')
+    expect(orbits.isLoadingOrbitDetails).toBe(false)
+  })
+
+  it('does not let a superseded switch finish a newer detail refresh', async () => {
+    const { store } = setup()
+    const oldDetails = deferred<OrganizationDetails>()
+    const newDetails = deferred<OrganizationDetails>()
+    apiMocks.getOrganization.mockReturnValueOnce(oldDetails.promise)
+    apiMocks.getOrganization.mockReturnValueOnce(newDetails.promise)
+    const switching = store.switchOrganization(firstOrganization.id)
+    await vi.waitFor(() => expect(apiMocks.getOrganization).toHaveBeenCalledOnce())
+    const refresh = store.getOrganizationDetails(firstOrganization.id)
+
+    oldDetails.resolve({ id: firstOrganization.id, name: 'Old' } as OrganizationDetails)
+    await switching
+    expect(store.loading).toBe(true)
+    expect(store.organizationDetails).toBeNull()
+    newDetails.resolve({ id: firstOrganization.id, name: 'New' } as OrganizationDetails)
+    await refresh
+    expect(store.organizationDetails?.name).toBe('New')
+    expect(store.loading).toBe(false)
+  })
+
+  it('ignores a superseded orbit request failure', async () => {
+    const { store, orbits } = setup()
+    const oldOrbits = deferred<Orbit[]>()
+    apiMocks.getOrganizationOrbits.mockReturnValueOnce(oldOrbits.promise)
+    const first = store.switchOrganization(firstOrganization.id)
+    apiMocks.getOrganizationOrbits.mockResolvedValueOnce([secondOrbit])
+    await store.switchOrganization(secondOrganization.id)
+    oldOrbits.reject(new Error('unavailable'))
+    await expect(first).resolves.toBeUndefined()
+
+    expect(store.organizationDetails?.id).toBe(secondOrganization.id)
+    expect(orbits.orbitsList).toEqual([secondOrbit])
+  })
+
+  it('clears previous details immediately and keeps them cleared if new orbits fail', async () => {
+    const { store, orbits } = setup()
+    await store.switchOrganization(firstOrganization.id)
+    apiMocks.getOrganizationOrbits.mockRejectedValueOnce(new Error('unavailable'))
+
+    const switching = store.switchOrganization(secondOrganization.id)
+    expect(store.organizationDetails).toBeNull()
+    await expect(switching).rejects.toThrow('unavailable')
+    expect(orbits.orbitsList).toEqual([])
+    expect(store.loading).toBe(false)
+  })
+
+  it('discards detail refreshes after switching organizations', async () => {
+    const { store } = setup()
+    await store.switchOrganization(firstOrganization.id)
+    const oldDetails = deferred<OrganizationDetails>()
+    apiMocks.getOrganization.mockReturnValueOnce(oldDetails.promise)
+    const refresh = store.getOrganizationDetails(firstOrganization.id)
+    await store.switchOrganization(secondOrganization.id)
+    oldDetails.resolve({ id: firstOrganization.id } as OrganizationDetails)
+    await refresh
+
+    expect(store.organizationDetails?.id).toBe(secondOrganization.id)
+    expect(store.loading).toBe(false)
+  })
+
+  it('does not repopulate organization or orbit state after a reset', async () => {
+    const { store, orbits } = setup()
+    const pendingOrbits = deferred<Orbit[]>()
+    apiMocks.getOrganizationOrbits.mockReturnValueOnce(pendingOrbits.promise)
+    const switching = store.switchOrganization(firstOrganization.id)
+    store.resetCurrentOrganization()
+    pendingOrbits.resolve([firstOrbit])
+    await switching
+
+    expect(store.currentOrganization).toBeNull()
+    expect(store.organizationDetails).toBeNull()
+    expect(orbits.orbitsList).toEqual([])
+    expect(orbits.currentOrbitId).toBeNull()
+    expect(LocalStorageService.get('currentOrganizationId')).toBeNull()
+    expect(LocalStorageService.get('currentOrbitId')).toBeNull()
+    expect(apiMocks.getOrganization).not.toHaveBeenCalled()
+  })
+
+  it('invalidates pending organization and orbit details when resetting', async () => {
+    const { store, orbits } = setup()
+    const pendingDetails = deferred<OrganizationDetails>()
+    const pendingOrbitDetails = deferred<typeof orbits.currentOrbitDetails>()
+    apiMocks.getOrganizationOrbits.mockResolvedValueOnce([firstOrbit])
+    apiMocks.getOrganization.mockReturnValueOnce(pendingDetails.promise)
+    apiMocks.getOrbitDetails.mockReturnValueOnce(pendingOrbitDetails.promise)
+    const switching = store.switchOrganization(firstOrganization.id)
+    await vi.waitFor(() => expect(apiMocks.getOrganization).toHaveBeenCalledOnce())
+
+    store.resetCurrentOrganization()
+    pendingDetails.resolve({ id: firstOrganization.id } as OrganizationDetails)
+    pendingOrbitDetails.resolve({ id: firstOrbit.id } as typeof orbits.currentOrbitDetails)
+    await switching
+
+    expect(store.currentOrganization).toBeNull()
+    expect(store.organizationDetails).toBeNull()
+    expect(store.loading).toBe(false)
+    expect(orbits.orbitsList).toEqual([])
+    expect(orbits.currentOrbitDetails).toBeNull()
+    expect(orbits.isLoadingOrbitDetails).toBe(false)
+  })
+
+  it('waits for the replacement organization when deleting the current organization', async () => {
+    const { store, orbits } = setup()
+    await store.switchOrganization(firstOrganization.id)
+    const pendingOrbits = deferred<Orbit[]>()
+    const pendingDetails = deferred<OrganizationDetails>()
+    apiMocks.getOrganizationOrbits.mockReturnValueOnce(pendingOrbits.promise)
+    apiMocks.getOrganization.mockReturnValueOnce(pendingDetails.promise)
+    const settled = vi.fn()
+    const deletion = store.deleteOrganization(firstOrganization.id).then(settled)
+    await vi.waitFor(() => expect(store.currentOrganization).toEqual(secondOrganization))
+    expect(settled).not.toHaveBeenCalled()
+
+    pendingOrbits.resolve([secondOrbit])
+    await vi.waitFor(() =>
+      expect(apiMocks.getOrganization).toHaveBeenLastCalledWith(secondOrganization.id),
+    )
+    expect(settled).not.toHaveBeenCalled()
+    pendingDetails.resolve({ id: secondOrganization.id } as OrganizationDetails)
+    await deletion
+
+    expect(settled).toHaveBeenCalledOnce()
+    expect(store.organizationDetails?.id).toBe(secondOrganization.id)
+    expect(orbits.orbitsList).toEqual([secondOrbit])
+  })
+
+  it('clears all selection state when deleting the last organization', async () => {
+    const { store, orbits } = setup()
+    store.availableOrganizations = [firstOrganization]
+    apiMocks.getOrganizationOrbits.mockResolvedValueOnce([firstOrbit])
+    await store.switchOrganization(firstOrganization.id)
+
+    await store.deleteOrganization(firstOrganization.id)
+
+    expect(store.currentOrganization).toBeNull()
+    expect(store.organizationDetails).toBeNull()
+    expect(orbits.orbitsList).toEqual([])
+    expect(orbits.currentOrbitId).toBeNull()
+    expect(orbits.currentOrbitDetails).toBeNull()
+    expect(LocalStorageService.get('currentOrganizationId')).toBeNull()
+    expect(LocalStorageService.get('currentOrbitId')).toBeNull()
+  })
+
+  it('preserves the selection when deleting another organization or deletion fails', async () => {
+    const { store, orbits } = setup()
+    apiMocks.getOrganizationOrbits.mockResolvedValueOnce([firstOrbit])
+    await store.switchOrganization(firstOrganization.id)
+    apiMocks.deleteOrganization.mockRejectedValueOnce(new Error('unavailable'))
+
+    await expect(store.deleteOrganization(firstOrganization.id)).rejects.toThrow('unavailable')
+    expect(store.availableOrganizations).toEqual([firstOrganization, secondOrganization])
+    await store.deleteOrganization(secondOrganization.id)
+
+    expect(store.currentOrganization).toEqual(firstOrganization)
+    expect(store.organizationDetails?.id).toBe(firstOrganization.id)
+    expect(orbits.orbitsList).toEqual([firstOrbit])
+    expect(LocalStorageService.get('currentOrganizationId')).toBe(firstOrganization.id)
+    expect(LocalStorageService.get('currentOrbitId')).toBe(firstOrbit.id)
   })
 })
