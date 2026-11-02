@@ -1,9 +1,14 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import UUID, BigInteger, ForeignKey, Index, String
+from sqlalchemy import UUID, BigInteger, Exists, ForeignKey, Index, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
+from sqlalchemy.orm import (
+    Mapped,
+    column_property,
+    mapped_column,
+    relationship,
+)
 
 from luml.models.base import Base, TimestampMixin
 from luml.schemas.artifacts import (
@@ -12,6 +17,24 @@ from luml.schemas.artifacts import (
     ArtifactListed,
     ArtifactStatus,
 )
+
+EXPERIMENT_SNAPSHOT_PATTERN = (
+    r"meta_artifacts/dataforce\.studio~c~~c~"
+    r"experiment_snapshot~c~v1~~et~~[^/]+/exp\.db\.zip$"
+    r"|^exp\.db\.zip$"
+)
+
+
+def _has_experiment_snapshot(
+    file_index: Mapped[dict[str, tuple[int, int]]],
+) -> Exists:
+    keys = func.jsonb_object_keys(file_index).table_valued("key").render_derived()
+    return (
+        select(1)
+        .select_from(keys)
+        .where(keys.c.key.op("~")(EXPERIMENT_SNAPSHOT_PATTERN))
+        .exists()
+    )
 
 
 class ArtifactOrm(TimestampMixin, Base):
@@ -28,8 +51,6 @@ class ArtifactOrm(TimestampMixin, Base):
             postgresql_using="gin",
         ),
     )
-
-    has_experiment_snapshot: Mapped[bool] = query_expression()
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
@@ -48,6 +69,9 @@ class ArtifactOrm(TimestampMixin, Base):
     file_hash: Mapped[str] = mapped_column(String, nullable=False)
     file_index: Mapped[dict[str, tuple[int, int]]] = mapped_column(
         JSONB, nullable=False
+    )
+    has_experiment_snapshot: Mapped[bool] = column_property(
+        _has_experiment_snapshot(file_index), deferred=True
     )
     bucket_location: Mapped[str] = mapped_column(String, nullable=False)
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)

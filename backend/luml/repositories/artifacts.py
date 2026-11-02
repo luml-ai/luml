@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer, noload, selectinload, with_expression
+from sqlalchemy.orm import defer, noload, selectinload, undefer
 
 from luml.infra.exceptions import (
     ArtifactDeployedError,
@@ -464,24 +464,6 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                     )
                 )
 
-            keys = (
-                func.jsonb_object_keys(ArtifactOrm.file_index)
-                .table_valued("key")
-                .render_derived()
-            )
-            snapshot_exists = (
-                select(1)
-                .select_from(keys)
-                .where(
-                    keys.c.key.op("~")(
-                        r"meta_artifacts/dataforce\.studio~c~~c~"
-                        r"experiment_snapshot~c~v1~~et~~[^/]+/exp\.db\.zip$"
-                        r"|^exp\.db\.zip$"
-                    )
-                )
-                .correlate(ArtifactOrm)
-                .exists()
-            )
             result = await self.get_models_with_pagination(
                 session,
                 ArtifactOrm,
@@ -490,9 +472,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 options=[
                     defer(ArtifactOrm.manifest, raiseload=True),
                     defer(ArtifactOrm.file_index, raiseload=True),
-                    with_expression(
-                        ArtifactOrm.has_experiment_snapshot, snapshot_exists
-                    ),
+                    undefer(ArtifactOrm.has_experiment_snapshot),
                     selectinload(ArtifactOrm.collection).load_only(
                         CollectionOrm.id,
                         CollectionOrm.name,
