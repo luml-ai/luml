@@ -5,9 +5,9 @@ import type { Organization } from '@/lib/api/api.interfaces'
 import { useOrganizationStore } from '@/stores/organization'
 import OrganizationDelete from './OrganizationDelete.vue'
 
-const harness = vi.hoisted(() => ({ routerPush: vi.fn(), toastAdd: vi.fn() }))
+const harness = vi.hoisted(() => ({ routerReplace: vi.fn(), toastAdd: vi.fn() }))
 
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: harness.routerPush }) }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ replace: harness.routerReplace }) }))
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
   useToast: () => ({ add: harness.toastAdd }),
@@ -54,7 +54,7 @@ it('retains the replacement selected by the store after deletion', async () => {
 
   expect(store.deleteOrganization).toHaveBeenCalledWith(first.id)
   expect(store.currentOrganization).toEqual(second)
-  expect(harness.routerPush).toHaveBeenCalledWith({ name: 'home' })
+  expect(harness.routerReplace).toHaveBeenCalledWith({ name: 'home' })
   expect(harness.toastAdd).toHaveBeenCalledOnce()
   wrapper.unmount()
 })
@@ -70,7 +70,7 @@ it('leaves the page and reports success when only the replacement fails to load'
 
   const wrapper = await confirmDeletion()
 
-  expect(harness.routerPush).toHaveBeenCalledWith({ name: 'home' })
+  expect(harness.routerReplace).toHaveBeenCalledWith({ name: 'home' })
   expect(harness.toastAdd).toHaveBeenCalledTimes(2)
   expect(harness.toastAdd).toHaveBeenNthCalledWith(
     1,
@@ -91,7 +91,7 @@ it('stays on the page when the deletion itself fails', async () => {
 
   const wrapper = await confirmDeletion()
 
-  expect(harness.routerPush).not.toHaveBeenCalled()
+  expect(harness.routerReplace).not.toHaveBeenCalled()
   expect(harness.toastAdd).toHaveBeenCalledOnce()
   expect(harness.toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
   wrapper.unmount()

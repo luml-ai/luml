@@ -65,7 +65,7 @@ async function deleteOrganization() {
   } finally {
     loading.value = false
   }
-  router.push({ name: 'home' })
+  router.replace({ name: 'home' })
   toast.add(
     simpleSuccessToast('The organization and all associated data have been permanently removed.'),
   )
