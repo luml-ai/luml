@@ -42,11 +42,10 @@ const hasPermission = computed(() => {
   return true
 })
 
-function getFallbackOrganizationId(organizationId: string) {
+function isOrganizationUnavailable(organizationId: string) {
   const organizations = organizationStore.availableOrganizations
-  if (organizationStore.availableOrganizationsRequest || !organizations.length) return null
-  if (organizations.some((organization) => organization.id === organizationId)) return null
-  return organizationStore.currentOrganization?.id ?? organizations[0]?.id ?? null
+  if (organizationStore.availableOrganizationsRequest || !organizations.length) return false
+  return !organizations.some((organization) => organization.id === organizationId)
 }
 
 async function init() {
@@ -60,18 +59,14 @@ async function init() {
     if (organizationStore.availableOrganizationsRequest && organizationStore.currentOrganization) {
       await organizationStore.availableOrganizationsRequest
     }
-    const fallbackOrganizationId = getFallbackOrganizationId(organizationId)
-    if (fallbackOrganizationId) {
-      await router.replace({
-        name: route.name,
-        params: { ...route.params, id: fallbackOrganizationId },
-      })
+    if (isOrganizationUnavailable(organizationId)) {
+      await router.replace({ name: 'home' })
+      return
     }
-    const targetOrganizationId = fallbackOrganizationId ?? organizationId
-    if (organizationStore.currentOrganization?.id === targetOrganizationId) {
-      await organizationStore.getOrganizationDetails(targetOrganizationId)
+    if (organizationStore.currentOrganization?.id === organizationId) {
+      await organizationStore.getOrganizationDetails(organizationId)
     } else {
-      await organizationStore.switchOrganization(targetOrganizationId)
+      await organizationStore.switchOrganization(organizationId)
     }
   } catch (e: unknown) {
     const errorDetails = (e as ApiError)?.details
