@@ -314,13 +314,19 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             return self._get_by_id(collection_id, artifact_value)
         return self._get_by_name(collection_id, artifact_value)
 
-    def _get_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
+    def _find_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
         # server search only filters names, so include all pages for file names.
         return find_by_value(
             list(self.list_all(collection_id=collection_id)),
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
+
+    def _get_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
+        listed = self._find_by_name(collection_id, name)
+        if listed is None:
+            return None
+        return self._get_by_id(str(listed.collection_id), str(listed.id))
 
     def _get_by_id(
         self, collection_id: str | None, artifact_value: str
@@ -941,7 +947,11 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         if file_path is None or not is_uuid(artifact_id):
-            artifact = self.get(artifact_id, collection_id=collection_id)
+            artifact = (
+                self._get_by_id(collection_id, artifact_id)
+                if is_uuid(artifact_id)
+                else self._find_by_name(collection_id, artifact_id)
+            )
             if artifact is None:
                 raise ValueError(f"Artifact with id {artifact_id} not found")
             artifact_id = artifact.id
@@ -1559,7 +1569,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             return await self._get_by_id(collection_id, artifact_value)
         return await self._get_by_name(collection_id, artifact_value)
 
-    async def _get_by_name(
+    async def _find_by_name(
         self, collection_id: str | None, name: str
     ) -> Artifact | None:
         # server search only filters names, so include all pages for file names.
@@ -1568,6 +1578,14 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
+
+    async def _get_by_name(
+        self, collection_id: str | None, name: str
+    ) -> Artifact | None:
+        listed = await self._find_by_name(collection_id, name)
+        if listed is None:
+            return None
+        return await self._get_by_id(str(listed.collection_id), str(listed.id))
 
     async def _get_by_id(
         self, collection_id: str | None, artifact_value: str
@@ -2383,7 +2401,11 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         if file_path is None or not is_uuid(artifact_id):
-            artifact = await self.get(artifact_id, collection_id=collection_id)
+            artifact = await (
+                self._get_by_id(collection_id, artifact_id)
+                if is_uuid(artifact_id)
+                else self._find_by_name(collection_id, artifact_id)
+            )
             if artifact is None:
                 raise ValueError(f"Artifact with id {artifact_id} not found")
             artifact_id = artifact.id

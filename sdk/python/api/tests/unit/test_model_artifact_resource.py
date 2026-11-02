@@ -59,15 +59,23 @@ def test_artifact_get_by_name(
     mock_sync_client: Mock, sample_artifact: Artifact
 ) -> None:
     name = "test-model"
-    mock_sync_client.get.return_value = {
-        "items": [sample_artifact.model_dump()],
-        "cursor": None,
-    }
+    listed = sample_artifact.model_dump() | {"manifest": {}, "file_index": {}}
+    mock_sync_client.get.side_effect = [
+        {"items": [listed], "cursor": None},
+        sample_artifact.model_dump(),
+    ]
 
     resource = ArtifactResource(mock_sync_client)
     artifact = resource.get(artifact_value=name)
 
     assert artifact.name == name
+    assert artifact.manifest == sample_artifact.manifest
+    assert artifact.file_index == sample_artifact.file_index
+    mock_sync_client.get.assert_called_with(
+        f"/v1/organizations/{mock_sync_client.organization}/orbits/"
+        f"{mock_sync_client.orbit}/collections/{sample_artifact.collection_id}"
+        f"/artifacts/{sample_artifact.id}"
+    )
 
 
 def test_artifact_download_url(mock_sync_client: Mock) -> None:
@@ -268,15 +276,17 @@ async def test_async_artifact_get_string(
     mock_async_client: AsyncMock, sample_artifact: Artifact
 ) -> None:
     name = sample_artifact.name
-    mock_async_client.get.return_value = {
-        "items": [sample_artifact.model_dump()],
-        "cursor": None,
-    }
+    listed = sample_artifact.model_dump() | {"manifest": {}, "file_index": {}}
+    mock_async_client.get.side_effect = [
+        {"items": [listed], "cursor": None},
+        sample_artifact.model_dump(),
+    ]
 
     resource = AsyncArtifactResource(mock_async_client)
     artifact = await resource.get(artifact_value=name)
 
     assert artifact.name == name
+    assert artifact.manifest == sample_artifact.manifest
 
 
 @pytest.mark.asyncio
@@ -295,10 +305,11 @@ async def test_async_artifact_get_by_name(
     mock_async_client: AsyncMock, sample_artifact: Artifact
 ) -> None:
     name = sample_artifact.name
-    mock_async_client.get.return_value = {
-        "items": [sample_artifact.model_dump()],
-        "cursor": None,
-    }
+    listed = sample_artifact.model_dump() | {"manifest": {}, "file_index": {}}
+    mock_async_client.get.side_effect = [
+        {"items": [listed], "cursor": None},
+        sample_artifact.model_dump(),
+    ]
 
     resource = AsyncArtifactResource(mock_async_client)
     artifact = await resource._get_by_name(
