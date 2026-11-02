@@ -6,6 +6,7 @@ import type { Orbit, Organization } from '@/lib/api/api.interfaces'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
+import OrganizationDelete from '@/components/organizations/OrganizationDelete.vue'
 import OrganizationPage from '../index.vue'
 
 const harness = vi.hoisted(() => ({
@@ -195,6 +196,25 @@ describe('OrganizationPage', () => {
     expect(api.getOrganization).not.toHaveBeenCalled()
     expect(harness.toastAdd).not.toHaveBeenCalled()
     expect(organizationStore.loading).toBe(false)
+    harness.route.params.id = organizationB.id
+  })
+
+  it.each([
+    [['read', 'update', 'delete'], true],
+    [['read', 'update'], false],
+  ])('shows the delete section for organization permissions %j: %s', async (permissions, shown) => {
+    const organization = {
+      ...organizationA,
+      permissions: { organization: permissions },
+    } as unknown as Organization
+    harness.route.params.id = organization.id
+    vi.mocked(api.getOrganizations).mockResolvedValue([organization, organizationB])
+    await useOrganizationStore().getAvailableOrganizations()
+
+    wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.findComponent(OrganizationDelete).exists()).toBe(shown)
     harness.route.params.id = organizationB.id
   })
 

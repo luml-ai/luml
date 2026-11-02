@@ -9,8 +9,9 @@
   >
     <div>
       <p class="text">
-        This will permanently remove all members and work data linked to the organization. This
-        action is final and cannot be undone.
+        This will permanently remove
+        <span class="name">{{ organizationStore.currentOrganization?.name }}</span> with all its
+        members, orbits and data. This action is final and cannot be undone.
       </p>
       <div class="flex items-center gap-2">
         <Checkbox v-model="accept" inputId="deleteAccept" binary />
@@ -75,5 +76,8 @@ async function deleteOrganization() {
 <style scoped>
 .text {
   margin-bottom: 14px;
+}
+.name {
+  font-weight: 600;
 }
 </style>
