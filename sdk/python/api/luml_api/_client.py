@@ -327,7 +327,8 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
     async def _validate_collection_by_name(self, collection_value: str) -> str | None:
         collections_result = await self.collections.list(search=collection_value)
         if len(collections_result.items) == 1:
-            return collections_result.items[0].id
+            collection = collections_result.items[0]
+            return collection.id if collection.name == collection_value else None
         if len(collections_result.items) > 1:
             exact_matches = [
                 collection
@@ -575,7 +576,8 @@ class LumlClient(LumlClientBase, SyncBaseClient):
     def _validate_collection_by_name(self, collection_value: str) -> str | None:
         collections_result = self.collections.list(search=collection_value)
         if len(collections_result.items) == 1:
-            return collections_result.items[0].id
+            collection = collections_result.items[0]
+            return collection.id if collection.name == collection_value else None
         if len(collections_result.items) > 1:
             exact_matches = [
                 collection

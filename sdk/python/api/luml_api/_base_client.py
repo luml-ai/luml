@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 
 import httpx
 from httpx import URL
@@ -131,6 +132,20 @@ class SyncBaseClient(BaseClient):
         self._client = httpx.Client(base_url=base_url, timeout=timeout)
         super().__init__(base_url=base_url, timeout=timeout)
 
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
     def _process_response(self, response: httpx.Response) -> dict | None:
         if response.status_code >= 400:
             try:
@@ -212,6 +227,20 @@ class AsyncBaseClient(BaseClient):
     ) -> None:
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
         super().__init__(base_url=base_url, timeout=timeout)
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.aclose()
 
     async def _process_response(self, response: httpx.Response) -> dict | None:
         if response.status_code >= 400:
