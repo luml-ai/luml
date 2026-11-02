@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -13,6 +15,7 @@ from luml_prisma.services.upload_queue import UploadQueue, UploadStatus
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/runs", tags=["uploads"])
+_upload_tasks: set[asyncio.Task[None]] = set()
 
 
 class UploadUrlIn(BaseModel):
@@ -61,13 +64,17 @@ def _link_experiments(model_path: str, experiment_ids: list[str]) -> None:
             except Exception:
                 logger.warning(
                     "Failed to link experiment %s to %s",
-                    exp_id, model_path, exc_info=True,
+                    exp_id,
+                    model_path,
+                    exc_info=True,
                 )
     except ImportError:
         logger.warning("luml-sdk not installed, skipping experiment linking")
     except Exception:
         logger.warning(
-            "Failed to link experiments to %s", model_path, exc_info=True,
+            "Failed to link experiments to %s",
+            model_path,
+            exc_info=True,
         )
 
 
@@ -82,30 +89,40 @@ async def _do_upload(
 ) -> None:
     try:
         with open(model_path, "rb") as f:
-            file_content = f.read()
-        if not file_content:
-            raise RuntimeError(f"Artifact file is empty: {model_path}")
-        logger.info(
-            "Uploading %s (%d bytes) for upload %s",
-            model_path, len(file_content), upload_id,
-        )
-        async with httpx.AsyncClient() as client:
-            resp = await client.put(
-                presigned_url,
-                content=file_content,
-                headers={"Content-Type": "application/octet-stream"},
-                timeout=300,
+            file_size = os.fstat(f.fileno()).st_size
+            if not file_size:
+                raise RuntimeError(f"Artifact file is empty: {model_path}")
+            logger.info(
+                "Uploading %s (%d bytes) for upload %s",
+                model_path,
+                file_size,
+                upload_id,
             )
-            resp.raise_for_status()
-            body = resp.text
-            if body and "<Error>" in body:
-                raise RuntimeError(
-                    f"Storage returned error: {body[:500]}"
+
+            async def file_chunks() -> AsyncIterator[bytes]:
+                while chunk := await asyncio.to_thread(f.read, 64 * 1024):
+                    yield chunk
+
+            async with httpx.AsyncClient(follow_redirects=False) as client:
+                resp = await client.put(
+                    presigned_url,
+                    content=file_chunks(),
+                    headers={
+                        "Content-Type": "application/octet-stream",
+                        "Content-Length": str(file_size),
+                    },
+                    timeout=300,
                 )
+                resp.raise_for_status()
+                body = resp.text
+                if body and "<Error>" in body:
+                    raise RuntimeError(f"Storage returned error: {body[:500]}")
         upload_queue.complete(upload_id)
         if engine is not None:
             engine._emit_event(
-                run_id, node_id, "upload_completed",
+                run_id,
+                node_id,
+                "upload_completed",
                 {
                     "upload_id": upload_id,
                     "run_id": run_id,
@@ -116,14 +133,19 @@ async def _do_upload(
         error_msg = str(exc)
         logger.warning(
             "Upload %s failed: %s (path=%s)",
-            upload_id, error_msg, model_path, exc_info=True,
+            upload_id,
+            error_msg,
+            model_path,
+            exc_info=True,
         )
         upload_queue.fail(upload_id, error_msg)
         upload = upload_queue.get(upload_id)
         status = upload.status if upload else UploadStatus.FAILED
         if engine is not None:
             engine._emit_event(
-                run_id, node_id, "upload_failed",
+                run_id,
+                node_id,
+                "upload_failed",
                 {
                     "upload_id": upload_id,
                     "run_id": run_id,
@@ -144,6 +166,31 @@ async def post_upload_url(
     upload_id: str,
     body: UploadUrlIn,
 ) -> JSONResponse:
+    bucket_host = request.app.state.config.upload_bucket_host.strip().lower()
+    if not bucket_host:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Upload bucket host is not configured"},
+        )
+    try:
+        url = httpx.URL(body.presigned_url)
+    except httpx.InvalidURL:
+        return JSONResponse(status_code=422, content={"detail": "Invalid upload URL"})
+    if (
+        url.scheme != "https"
+        or url.host != bucket_host
+        or url.port not in (None, 443)
+        or url.userinfo
+        or url.fragment
+        or any(char.isspace() for char in body.presigned_url)
+    ):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": "Upload URL must use HTTPS and the configured bucket host",
+            },
+        )
+
     upload_queue: UploadQueue = request.app.state.upload_queue
     claimed = upload_queue.claim(upload_id)
     if not claimed:
@@ -160,7 +207,7 @@ async def post_upload_url(
         )
 
     engine = getattr(request.app.state, "engine", None)
-    asyncio.create_task(
+    task = asyncio.create_task(
         _do_upload(
             upload_queue=upload_queue,
             upload_id=upload_id,
@@ -171,6 +218,8 @@ async def post_upload_url(
             node_id=upload.node_id,
         ),
     )
+    _upload_tasks.add(task)
+    task.add_done_callback(_upload_tasks.discard)
     return JSONResponse(status_code=202, content={"status": "accepted"})
 
 
@@ -202,6 +251,7 @@ def post_artifact_link(
         return JSONResponse(status_code=404, content={"detail": "Node not found"})
 
     import json as _json
+
     result = _json.loads(node.result_json) if node.result_json else {}
     result["artifact_link"] = {
         "artifact_id": body.artifact_id,
@@ -214,7 +264,9 @@ def post_artifact_link(
     engine = getattr(request.app.state, "engine", None)
     if engine is not None:
         engine._emit_event(
-            run_id, node.id, "node_updated",
+            run_id,
+            node.id,
+            "node_updated",
             {"result": result},
         )
 
@@ -237,7 +289,8 @@ def dismiss_upload(
         return JSONResponse(status_code=404, content={"detail": "Upload not found"})
     if not upload_queue.claim(upload_id):
         return JSONResponse(
-            status_code=409, content={"detail": "Upload is not pending"},
+            status_code=409,
+            content={"detail": "Upload is not pending"},
         )
     upload_queue.complete(upload_id)
     return JSONResponse(status_code=200, content={"status": "dismissed"})

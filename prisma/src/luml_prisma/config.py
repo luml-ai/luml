@@ -26,6 +26,7 @@ class AppConfig:
     preserve_patterns: list[str] = field(default_factory=_default_preserve_patterns)
     shared_paths: list[str] = field(default_factory=_default_shared_paths)
     cors_origins: list[str] = field(default_factory=_default_cors_origins)
+    upload_bucket_host: str = ""
 
 
 DATA_DIR_ENV_VAR = "LUML_PRISMA_DATA_DIR"
@@ -60,6 +61,7 @@ def load_config() -> AppConfig:
         "preserve_patterns": _default_preserve_patterns(),
         "shared_paths": _default_shared_paths(),
         "cors_origins": _default_cors_origins(),
+        "upload_bucket_host": "",
     }
 
     config_path = get_config_path()
@@ -72,6 +74,10 @@ def load_config() -> AppConfig:
     if env_cors:
         defaults["cors_origins"] = [o.strip() for o in env_cors.split(",")]
 
+    env_upload_host = os.environ.get("LUML_PRISMA_UPLOAD_BUCKET_HOST")
+    if env_upload_host is not None:
+        defaults["upload_bucket_host"] = env_upload_host.strip()
+
     return AppConfig(
         data_dir=data_dir,
         db_path=db_path,
@@ -80,4 +86,5 @@ def load_config() -> AppConfig:
         preserve_patterns=defaults["preserve_patterns"],
         shared_paths=defaults["shared_paths"],
         cors_origins=defaults["cors_origins"],
+        upload_bucket_host=defaults["upload_bucket_host"],
     )
