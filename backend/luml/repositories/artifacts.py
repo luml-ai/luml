@@ -7,7 +7,6 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer, noload, selectinload, undefer
-from sqlalchemy.orm.attributes import set_committed_value
 
 from luml.infra.exceptions import (
     ArtifactDeployedError,
@@ -501,9 +500,6 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 )
             )
 
-            for orm_artifact in db_models:
-                set_committed_value(orm_artifact, "manifest", {})
-                set_committed_value(orm_artifact, "file_index", {})
             artifacts = [
                 ArtifactListedBase.model_validate(orm_artifact)
                 for orm_artifact in db_models
