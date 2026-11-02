@@ -24,6 +24,7 @@ async def _resolve(value: Any) -> Any:  # noqa: ANN401
         ("my.model.v2.pyfnx", True),
         ("my.model.v2.dfs", True),
         ("my.model.v2.luml", True),
+        ("my.dataset.v2.tar", True),
         ("model.fnnx.txt", False),
         ("model", False),
         ("fnnx", False),

@@ -2279,7 +2279,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         artifact_details = ModelFileHandler(file_path).artifact_details()
 
         file_format = Path(artifact_details.file_name).suffix[1:]
-        if file_format not in ["fnnx", "pyfnx", "dfs", "luml"]:
+        if file_format not in ["fnnx", "pyfnx", "dfs", "luml", "tar"]:
             raise FileError("File format error")
 
         if name is None:
