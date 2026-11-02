@@ -13,7 +13,7 @@ from luml.schemas.artifacts import (
     ArtifactDeleteReason,
     ArtifactDeleteTrack,
     ArtifactDeleteURL,
-    ArtifactListedLight,
+    ArtifactListedBase,
     ArtifactsDeleteResponse,
     ArtifactsDeleteURLsResponse,
     ArtifactsList,
@@ -400,7 +400,7 @@ class TestOrbitArtifacts:
     ) -> None:
         mock_get_artifacts.return_value = ArtifactsList(
             items=[
-                ArtifactListedLight.model_validate(
+                ArtifactListedBase.model_validate(
                     {
                         "id": ARTIFACT_ID,
                         "collection_id": COLLECTION_ID,

@@ -6,7 +6,7 @@ import pytest
 from luml.handlers.artifacts import ArtifactHandler
 from luml.infra.exceptions import ApplicationError, InvalidSortingError
 from luml.schemas.artifacts import (
-    ArtifactListedLight,
+    ArtifactListedBase,
     ArtifactsList,
     ArtifactStatus,
     ArtifactType,
@@ -59,7 +59,7 @@ class TestArtifactListing:
         check_access: AsyncMock,
     ) -> None:
         expected_models_list = [
-            ArtifactListedLight.model_validate(
+            ArtifactListedBase.model_validate(
                 {
                     "id": ARTIFACT_ID,
                     "collection_id": COLLECTION_ID,

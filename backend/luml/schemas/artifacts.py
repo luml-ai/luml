@@ -250,36 +250,16 @@ class ArtifactListed(Artifact):
     collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
 
 
-class ArtifactListedLight(BaseModel, BaseOrmConfig):
-    file_name: str
-    name: str | None = None
-    description: str | None = None
-    extra_values: dict[str, Any]
-    file_hash: str
-    size: int
-    tags: list[str] | None = None
-    id: UUID
-    type: ArtifactType
-    collection_id: UUID
-    bucket_location: str
-    unique_identifier: str
-    status: ArtifactStatus
-    created_by_user: str | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
+class ArtifactListedBase(Artifact):
+    manifest: dict[str, Any] = Field(  # type: ignore[assignment]
+        default_factory=dict, json_schema_extra={"deprecated": True}
+    )
+    file_index: dict[str, tuple[int, int]] = Field(
+        default_factory=dict, json_schema_extra={"deprecated": True}
+    )
     deployments: list[DeploymentBase] = []
     collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
     has_experiment_snapshot: bool
-
-    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
-    @property
-    def manifest(self) -> dict[str, Any]:
-        return {}
-
-    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
-    @property
-    def file_index(self) -> dict[str, tuple[int, int]]:
-        return {}
 
 
 class ArtifactDetails(Artifact):
@@ -306,5 +286,5 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 
 class ArtifactsList(BaseModel):
-    items: list[ArtifactListedLight]
+    items: list[ArtifactListedBase]
     cursor: str | None

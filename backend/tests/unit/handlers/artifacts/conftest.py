@@ -7,7 +7,7 @@ from luml.handlers.artifacts import ArtifactHandler
 from luml.schemas.artifacts import (
     Artifact,
     ArtifactCreateIn,
-    ArtifactListedLight,
+    ArtifactListedBase,
     ArtifactStatus,
     ArtifactType,
     Manifest,
@@ -23,7 +23,7 @@ def mocks() -> CollaboratorMocks[ArtifactHandler]:
     return mock_collaborators(ArtifactHandler())
 
 
-def _make_listed(**overrides: object) -> ArtifactListedLight:
+def _make_listed(**overrides: object) -> ArtifactListedBase:
     base: dict[str, object] = {
         "id": uuid7(),
         "collection_id": uuid7(),
@@ -44,7 +44,7 @@ def _make_listed(**overrides: object) -> ArtifactListedLight:
         "has_experiment_snapshot": False,
     }
     base.update(overrides)
-    return ArtifactListedLight.model_validate(base)
+    return ArtifactListedBase.model_validate(base)
 
 
 def _pagination_arg(mock: AsyncMock) -> PaginationParams:
