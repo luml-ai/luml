@@ -117,7 +117,6 @@ class TestArtifactListing:
                     artifact_types=None,
                     search=None,
                     excluded_tracks=None,
-                    name=None,
                 ),
                 order=SortOrder.DESC,
                 limit=100,
@@ -127,7 +126,6 @@ class TestArtifactListing:
             artifact_types=None,
             search=None,
             excluded_tracks=None,
-            name=None,
         )
 
     async def test_get_collection_artifacts_forwards_filters_to_repository(
@@ -146,7 +144,6 @@ class TestArtifactListing:
             artifact_types,
             search="resnet",
             excluded_tracks=excluded_tracks,
-            name="resnet.pkl",
         )
 
         expected_scope = build_scope_id(
@@ -155,7 +152,6 @@ class TestArtifactListing:
             artifact_types=artifact_types,
             search="resnet",
             excluded_tracks=excluded_tracks,
-            name="resnet.pkl",
         )
         check_access.assert_awaited_once_with(ORGANIZATION_ID, ORBIT_ID, collection_ids)
         mocks.repository.get_collection_artifacts.assert_awaited_once_with(
@@ -171,7 +167,6 @@ class TestArtifactListing:
             artifact_types=artifact_types,
             search="resnet",
             excluded_tracks=excluded_tracks,
-            name="resnet.pkl",
         )
 
     @pytest.mark.parametrize(
@@ -191,7 +186,6 @@ class TestArtifactListing:
             artifact_types=None,
             search=None,
             excluded_tracks=None,
-            name=None,
         )
         cursor_str = encode_cursor(
             Cursor(
@@ -221,7 +215,6 @@ class TestArtifactListing:
             artifact_types=None,
             search=None,
             excluded_tracks=None,
-            name=None,
         )
         cursor_str = encode_cursor(
             Cursor(
@@ -249,7 +242,6 @@ class TestArtifactListing:
             artifact_types=None,
             search=None,
             excluded_tracks=None,
-            name=None,
         )
         cursor_str = encode_cursor(
             Cursor(

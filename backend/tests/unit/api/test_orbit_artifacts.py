@@ -388,7 +388,6 @@ class TestOrbitArtifacts:
             order=SortOrder.DESC,
             collection_ids=None,
             search=None,
-            name=None,
             excluded_tracks=None,
         )
 
@@ -431,30 +430,3 @@ class TestOrbitArtifacts:
         assert item["file_index"] == {}
         assert item["has_experiment_snapshot"] is True
         assert item["collection_name"] == "models"
-
-    @patch(
-        "luml.handlers.artifacts.ArtifactHandler.get_collection_artifacts",
-        new_callable=AsyncMock,
-    )
-    def test_list_forwards_exact_name(
-        self, mock_get_artifacts: AsyncMock, client: TestClient
-    ) -> None:
-        mock_get_artifacts.return_value = ArtifactsList(items=[], cursor=None)
-
-        response = client.get(ORBIT_ARTIFACTS_PATH, params={"name": "model.luml"})
-
-        assert response.status_code == 200
-        assert mock_get_artifacts.await_args is not None
-        assert mock_get_artifacts.await_args.kwargs["name"] == "model.luml"
-
-    @patch(
-        "luml.handlers.artifacts.ArtifactHandler.get_collection_artifacts",
-        new_callable=AsyncMock,
-    )
-    def test_list_rejects_empty_name(
-        self, mock_get_artifacts: AsyncMock, client: TestClient
-    ) -> None:
-        response = client.get(ORBIT_ARTIFACTS_PATH, params={"name": ""})
-
-        assert response.status_code == 422
-        mock_get_artifacts.assert_not_awaited()
