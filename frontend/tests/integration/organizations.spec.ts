@@ -231,7 +231,6 @@ test.describe('Organizations', () => {
       page,
     }) => {
       await page.goto(`/organization/${ORG_ID}`)
-      await page.locator('.edit-button').click()
       await page.getByRole('button', { name: /delete organization/i }).click()
 
       await expect(page.getByText('Delete this organization?')).toBeVisible()
@@ -254,7 +253,6 @@ test.describe('Organizations', () => {
       })
 
       await page.goto(`/organization/${ORG_ID}`)
-      await page.locator('.edit-button').click()
       await page.getByRole('button', { name: /Delete organization/i }).click()
       await page.getByLabel(/Yes, delete this organization/i).check()
       await page.getByRole('button', { name: 'Delete', exact: true }).click()
