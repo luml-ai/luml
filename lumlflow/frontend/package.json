@@ -27,7 +27,7 @@
     "github-markdown-css": "^5.9.0",
     "jszip": "^3.10.1",
     "lucide-vue-next": "^0.460.0",
-    "marked": "^18.0.0",
+    "marked": "^17.0.0",
     "pinia": "^3.0.4",
     "primevue": "^4.4.1",
     "qs": "^6.17.0",
