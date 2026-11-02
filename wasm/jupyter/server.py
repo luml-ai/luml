@@ -12,7 +12,7 @@ app = FastAPI()
 STATIC_ROOT = os.path.realpath(".")
 
 
-with open("jupyter-lite.json", "r") as f:
+with open("jupyter-lite.json") as f:
     config = json.load(f)
 
 

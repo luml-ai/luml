@@ -3,4 +3,4 @@ test.py
 **/dist/
 **/build/
 **/*.egg-info/
-uv.lock
+uv.lock!jupyter/uv.lock
