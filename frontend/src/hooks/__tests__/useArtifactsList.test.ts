@@ -127,6 +127,24 @@ describe('useArtifactsList', () => {
     expect(requestedCursors()).toEqual([null, 'c1', null])
   })
 
+  it('drops a page that resolves after a reset', async () => {
+    let resolvePage!: (value: unknown) => void
+    getOrbitArtifacts
+      .mockResolvedValueOnce(page(['a', 'b'], 'c1'))
+      .mockReturnValueOnce(new Promise((resolve) => (resolvePage = resolve)))
+    const list = mountList([])
+    await list.getInitialPage()
+    const nextPage = list.getNextPage()
+
+    list.reset()
+    resolvePage(page(['c', 'd'], 'c2'))
+    await nextPage
+
+    expect(list.list.value).toEqual([])
+    expect(list.pageIndex.value).toBe(0)
+    expect(list.isLoading.value).toBe(false)
+  })
+
   it('stops pagination when the response has an empty cursor', async () => {
     getOrbitArtifacts.mockResolvedValueOnce(page(['a', 'b'], ''))
     const list = mountList([])
