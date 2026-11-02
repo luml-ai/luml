@@ -710,6 +710,7 @@ class ArtifactHandler:
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
         excluded_tracks: list[UUID] | None = None,
+        name: str | None = None,
     ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -727,6 +728,7 @@ class ArtifactHandler:
             collection_ids=collection_ids,
             artifact_types=artifact_types,
             search=search,
+            name=name,
             excluded_tracks=excluded_tracks,
         )
 
@@ -747,6 +749,7 @@ class ArtifactHandler:
             collection_ids=collection_ids,
             artifact_types=artifact_types,
             search=search,
+            name=name,
             excluded_tracks=excluded_tracks,
         )
 

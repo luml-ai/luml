@@ -336,6 +336,46 @@ class TestArtifactRepositoryListing:
         assert items == []
         assert cursor is None
 
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("resnet", ["by-name"]),
+            ("resnet.luml", ["by-file-name"]),
+            ("ResNet", []),
+            ("res", []),
+        ],
+    )
+    async def test_get_collection_artifacts_matches_exact_name_or_file_name(
+        self,
+        repository: ArtifactRepository,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+        value: str,
+        expected: list[str],
+    ) -> None:
+        created = {}
+        for key, name, file_name in [
+            ("by-name", "resnet", "first.luml"),
+            ("by-file-name", "other", "resnet.luml"),
+            ("substring", "resnet-v2", "resnet-v2.luml"),
+        ]:
+            created[key] = await repository.create_artifact(
+                new_artifact.model_copy(
+                    update={
+                        "collection_id": seeded_collection.collection.id,
+                        "unique_identifier": key,
+                        "name": name,
+                        "file_name": file_name,
+                    }
+                )
+            )
+
+        items, _ = await repository.get_collection_artifacts(
+            seeded_collection.orbit.id, PaginationParams(limit=100), name=value
+        )
+
+        assert {a.id for a in items} == {created[key].id for key in expected}
+
     async def test_get_collection_artifacts_pages_by_created_at(
         self,
         repository: ArtifactRepository,

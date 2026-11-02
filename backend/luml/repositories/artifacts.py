@@ -414,6 +414,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         artifact_types: list[ArtifactType] | None = None,
         search: str | None = None,
         excluded_tracks: list[UUID] | None = None,
+        name: str | None = None,
     ) -> tuple[list[ArtifactListedLight], Cursor | None]:
         sort_by = pagination.sort_by
         sort_collection_ids = collection_ids or []
@@ -458,6 +459,11 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
 
             if search:
                 conditions.append(ArtifactOrm.name.icontains(search, autoescape=True))
+
+            if name is not None:
+                conditions.append(
+                    or_(ArtifactOrm.name == name, ArtifactOrm.file_name == name)
+                )
 
             keys = (
                 func.jsonb_object_keys(ArtifactOrm.file_index)
