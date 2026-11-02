@@ -43,7 +43,7 @@ export class ArtifactsApi {
     const { data: responseData } = await this.api.get<GetArtifactsListResponse>(
       `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
       {
-        params: { ...params, include_payload: false },
+        params,
         signal,
         paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
       },
@@ -122,7 +122,7 @@ export class ArtifactsApi {
     const { data: responseData } = await this.api.get<GetArtifactsListResponse>(
       `/v1/organizations/${organizationId}/orbits/${orbitId}/artifacts`,
       {
-        params: { ...params, include_payload: false },
+        params,
         signal,
         paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
       },
