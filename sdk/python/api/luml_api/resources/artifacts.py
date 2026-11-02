@@ -315,9 +315,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         return self._get_by_name(collection_id, artifact_value)
 
     def _find_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
-        # server search only filters names, so include all pages for file names.
         return find_by_value(
-            list(self.list_all(collection_id=collection_id)),
+            list(self.list_all(collection_id=collection_id, name=name)),
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
@@ -349,6 +348,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
         search: str | None = None,
+        name: str | None = None,
     ) -> Iterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -364,6 +364,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
             search: Filter by a case-insensitive substring of the artifact name.
+            name: Filter by an exact, case-sensitive artifact name or file name.
 
         Returns:
             Artifact objects from all pages.
@@ -404,6 +405,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             order=order,
             types=types,
             search=search,
+            name=name,
         )
 
     @validate_collection
@@ -417,6 +419,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
         search: str | None = None,
+        name: str | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -435,6 +438,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
             search: Filter by a case-insensitive substring of the artifact name.
+            name: Filter by an exact, case-sensitive artifact name or file name.
 
         Returns:
             ArtifactList object.
@@ -554,6 +558,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             ]
         if search:
             params["search"] = search
+        if name:
+            params["name"] = name
 
         response = self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts",
@@ -1572,9 +1578,13 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
     async def _find_by_name(
         self, collection_id: str | None, name: str
     ) -> Artifact | None:
-        # server search only filters names, so include all pages for file names.
         return find_by_value(
-            [artifact async for artifact in self.list_all(collection_id=collection_id)],
+            [
+                artifact
+                async for artifact in self.list_all(
+                    collection_id=collection_id, name=name
+                )
+            ],
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
@@ -1608,6 +1618,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
         search: str | None = None,
+        name: str | None = None,
     ) -> AsyncIterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -1623,6 +1634,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
             search: Filter by a case-insensitive substring of the artifact name.
+            name: Filter by an exact, case-sensitive artifact name or file name.
 
         Returns:
             Artifact objects from all pages.
@@ -1667,6 +1679,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             order=order,
             types=types,
             search=search,
+            name=name,
         )
 
     @validate_collection
@@ -1680,6 +1693,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
         search: str | None = None,
+        name: str | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -1698,6 +1712,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
             search: Filter by a case-insensitive substring of the artifact name.
+            name: Filter by an exact, case-sensitive artifact name or file name.
 
         Returns:
             ArtifactsList object.
@@ -1822,6 +1837,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             ]
         if search:
             params["search"] = search
+        if name:
+            params["name"] = name
 
         response = await self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts",
