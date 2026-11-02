@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     AliasPath,
     BaseModel,
     ConfigDict,
@@ -28,6 +29,15 @@ ArtifactNamesField = Annotated[
         "filename mustn't contain characters: \" * ` ~ # % ; ' ^ ",
     ),
 ]
+
+
+def _validate_artifact_size(value: int) -> int:
+    if value > MAX_FILE_SIZE_BYTES:
+        raise ValueError("Artifact cant be bigger than 5TB")
+    return value
+
+
+ArtifactSizeField = Annotated[int, AfterValidator(_validate_artifact_size)]
 
 
 class ArtifactStatus(StrEnum):
@@ -201,16 +211,9 @@ class ArtifactIn(BaseModel):
     manifest: LumlArtifactManifest | Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
-    size: int
+    size: ArtifactSizeField
     tags: list[str] | None = None
     type: ArtifactType | None = None
-
-    @field_validator("size")
-    @classmethod
-    def validate_model_size(cls, value: int) -> int:
-        if value > MAX_FILE_SIZE_BYTES:
-            raise ValueError("Artifact cant be bigger than 5TB")
-        return value
 
 
 class ArtifactCreateIn(ArtifactIn):
@@ -234,7 +237,7 @@ class ArtifactBase(BaseModel, BaseOrmConfig):
     description: str | None = None
     extra_values: dict[str, Any]
     file_hash: str
-    size: int
+    size: ArtifactSizeField
     tags: list[str] | None = None
     id: UUID
     type: ArtifactType
