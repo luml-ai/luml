@@ -1,5 +1,8 @@
 name: Deploy Frontend
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, staging, production]
@@ -49,7 +52,7 @@ jobs:
       name: ${{ needs.resolve-env.outputs.environment }}
       url: ${{ vars.FRONTEND_URL }}
     steps:
-      - uses: digitalocean/action-doctl@v2
+      - uses: digitalocean/action-doctl@3cb3953159719656269e044e0e24ca16dd2a690f # v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       - name: Trigger deployment
