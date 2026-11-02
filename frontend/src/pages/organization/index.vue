@@ -64,7 +64,7 @@ async function init() {
       return
     }
     if (organizationStore.currentOrganization?.id === organizationId) {
-      await organizationStore.getOrganizationDetails(organizationId)
+      if (hasPermission.value) await organizationStore.getOrganizationDetails(organizationId)
     } else {
       await organizationStore.switchOrganization(organizationId)
     }

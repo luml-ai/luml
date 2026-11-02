@@ -180,6 +180,24 @@ describe('OrganizationPage', () => {
     harness.route.params.id = organizationB.id
   })
 
+  it('does not request details or show an error for a member of the current organization', async () => {
+    const memberOrganization = { ...organizationA, role: 'member' } as Organization
+    harness.route.params.id = memberOrganization.id
+    vi.mocked(api.getOrganizations).mockResolvedValue([memberOrganization, organizationB])
+    const organizationStore = useOrganizationStore()
+    await organizationStore.getAvailableOrganizations()
+    vi.mocked(api.getOrganization).mockClear()
+    vi.mocked(api.getOrganization).mockRejectedValue(new Error('forbidden'))
+
+    wrapper = mountPage()
+    await flushPromises()
+
+    expect(api.getOrganization).not.toHaveBeenCalled()
+    expect(harness.toastAdd).not.toHaveBeenCalled()
+    expect(organizationStore.loading).toBe(false)
+    harness.route.params.id = organizationB.id
+  })
+
   it('only reloads details when the URL organization is already current', async () => {
     harness.route.params.id = organizationA.id
     vi.mocked(api.getOrganizations).mockResolvedValue([organizationA, organizationB])
