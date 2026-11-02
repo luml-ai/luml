@@ -23,7 +23,7 @@
         />
       </div>
       <div class="field">
-        <label for="artifact-search" class="label"> ArtifactListed </label>
+        <label for="artifact-search" class="label"> Artifact </label>
         <IconField class="artifact-search-field">
           <InputText
             v-model="values.search"
