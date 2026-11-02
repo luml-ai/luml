@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import noload, selectinload
+from sqlalchemy.orm import defer, noload, selectinload, undefer
 
 from luml.infra.exceptions import (
     ArtifactDeployedError,
@@ -36,6 +36,7 @@ from luml.schemas.artifacts import (
     ArtifactDeleteTrack,
     ArtifactDetails,
     ArtifactListed,
+    ArtifactListedBase,
     ArtifactSortBy,
     ArtifactStatus,
     ArtifactType,
@@ -413,7 +414,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         artifact_types: list[ArtifactType] | None = None,
         search: str | None = None,
         excluded_tracks: list[UUID] | None = None,
-    ) -> tuple[list[ArtifactListed], Cursor | None]:
+    ) -> tuple[list[ArtifactListedBase], Cursor | None]:
         sort_by = pagination.sort_by
         sort_collection_ids = collection_ids or []
         if not sort_collection_ids and sort_by not in ArtifactSortBy:
@@ -456,7 +457,12 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 )
 
             if search:
-                conditions.append(ArtifactOrm.name.icontains(search, autoescape=True))
+                conditions.append(
+                    or_(
+                        ArtifactOrm.name.icontains(search, autoescape=True),
+                        ArtifactOrm.file_name.icontains(search, autoescape=True),
+                    )
+                )
 
             result = await self.get_models_with_pagination(
                 session,
@@ -464,6 +470,9 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 *conditions,
                 pagination=pagination,
                 options=[
+                    defer(ArtifactOrm.manifest, raiseload=True),
+                    defer(ArtifactOrm.file_index, raiseload=True),
+                    undefer(ArtifactOrm.has_experiment_snapshot),
                     selectinload(ArtifactOrm.collection).load_only(
                         CollectionOrm.id,
                         CollectionOrm.name,
@@ -492,7 +501,8 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             )
 
             artifacts = [
-                orm_artifact.to_listed_artifact() for orm_artifact in db_models
+                ArtifactListedBase.model_validate(orm_artifact)
+                for orm_artifact in db_models
             ]
 
             return artifacts, cursor

@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import type { AxiosError } from 'axios'
-import type { Artifact, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
+import type { ArtifactListed, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import { IconField, InputIcon, InputText, Select, useToast } from 'primevue'
 import { Search } from 'lucide-vue-next'
 import { computed, onBeforeMount, ref, watch } from 'vue'
@@ -91,7 +91,7 @@ const values = ref({
   type: null,
   search: null,
 })
-const selectedArtifact = defineModel<Artifact | null>('artifact', { default: null })
+const selectedArtifact = defineModel<ArtifactListed | null>('artifact', { default: null })
 
 function selectArtifact(artifactId: string) {
   const artifact = filteredList.value.find((a) => a.id === artifactId)

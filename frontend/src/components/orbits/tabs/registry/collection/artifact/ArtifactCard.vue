@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { type Artifact } from '@/lib/api/artifacts/interfaces'
+import { type ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import { computed } from 'vue'
 import { ARTIFACT_TYPE_TAGS_CONFIG } from '../artifacts-table/models-table.data'
 import { Check, CirclePlus, FileIcon, Folders } from 'lucide-vue-next'
@@ -45,7 +45,7 @@ import { cutStringOnMiddle } from '@/helpers/helpers'
 import { Button, Tag } from 'primevue'
 
 interface Props {
-  data: Artifact
+  data: ArtifactListed
   collectionName: string
   selected: boolean
   organizationId: string

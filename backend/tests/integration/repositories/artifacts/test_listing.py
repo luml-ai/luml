@@ -15,6 +15,7 @@ from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.orbit import OrbitCreateIn
 from luml.schemas.satellite import SatelliteCreate
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from tests.integration.repositories.artifacts.conftest import _add_artifact_to_track
@@ -310,6 +311,34 @@ class TestArtifactRepositoryListing:
         )
 
         assert [a.id for a in items] == [resnet.id]
+
+    async def test_get_collection_artifacts_matches_search_in_file_name(
+        self,
+        repository: ArtifactRepository,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+    ) -> None:
+        created = {}
+        for key, name, file_name in [
+            ("by-file-name", "other", "ResNet50.luml"),
+            ("unrelated", "bert", "bert.luml"),
+        ]:
+            created[key] = await repository.create_artifact(
+                new_artifact.model_copy(
+                    update={
+                        "collection_id": seeded_collection.collection.id,
+                        "unique_identifier": key,
+                        "name": name,
+                        "file_name": file_name,
+                    }
+                )
+            )
+
+        items, _ = await repository.get_collection_artifacts(
+            seeded_collection.orbit.id, PaginationParams(limit=100), search="resnet"
+        )
+
+        assert [a.id for a in items] == [created["by-file-name"].id]
 
     async def test_get_collection_artifacts_returns_nothing_when_search_misses(
         self,
@@ -858,3 +887,117 @@ class TestArtifactRepositoryListing:
         )
 
         assert [a.id for a in items] == [a_in_t2.id]
+
+
+@pytest.mark.parametrize("collection_scoped", [False, True])
+async def test_listing_omits_payload_columns_and_preserves_pagination(
+    repository: ArtifactRepository,
+    engine: AsyncEngine,
+    seeded_collection: CollectionFixtureData,
+    new_artifact: ArtifactCreate,
+    collection_scoped: bool,
+) -> None:
+    for index in range(3):
+        await repository.create_artifact(
+            new_artifact.model_copy(
+                update={
+                    "collection_id": seeded_collection.collection.id,
+                    "unique_identifier": f"light-{index}",
+                    "name": f"light-{index}",
+                }
+            )
+        )
+    statements: list[str] = []
+
+    def capture_sql(
+        conn: object,
+        cursor: object,
+        statement: str,
+        parameters: object,
+        context: object,
+        executemany: bool,
+    ) -> None:
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", capture_sql)
+    try:
+        collection_ids = (
+            [seeded_collection.collection.id] if collection_scoped else None
+        )
+        first, cursor = await repository.get_collection_artifacts(
+            seeded_collection.orbit.id,
+            PaginationParams(limit=2, sort_by="name", order=SortOrder.ASC),
+            collection_ids=collection_ids,
+        )
+        second, next_cursor = await repository.get_collection_artifacts(
+            seeded_collection.orbit.id,
+            PaginationParams(
+                limit=2, sort_by="name", order=SortOrder.ASC, cursor=cursor
+            ),
+            collection_ids=collection_ids,
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture_sql)
+
+    assert len(first) == 2
+    assert cursor is not None
+    assert len(second) == 1
+    assert next_cursor is None
+    assert len({item.id for item in first + second}) == 3
+    for item in first + second:
+        payload = item.model_dump()
+        assert payload["manifest"] == {}
+        assert payload["file_index"] == {}
+        assert payload["has_experiment_snapshot"] is False
+        assert item.collection_name == seeded_collection.collection.name
+    assert statements
+    for statement in statements:
+        # the server may inspect keys, but must never return the jsonb payload
+        projection = statement.split("FROM artifacts")[0]
+        assert "artifacts.manifest" not in projection
+        assert "artifacts.file_index," not in projection
+        assert "artifacts.file_index AS" not in projection
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("exp.db.zip", True),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~run/exp.db.zip",
+            True,
+        ),
+        (
+            "prefix/meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~run/exp.db.zip",
+            True,
+        ),
+        ("nested/exp.db.zip", False),
+        ("expXdbXzip", False),
+        ("exp.db.zip.bak", False),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~run/nested/exp.db.zip",
+            False,
+        ),
+    ],
+)
+async def test_listing_detects_experiment_snapshots(
+    repository: ArtifactRepository,
+    seeded_collection: CollectionFixtureData,
+    new_artifact: ArtifactCreate,
+    path: str,
+    expected: bool,
+) -> None:
+    artifact = await repository.create_artifact(
+        new_artifact.model_copy(
+            update={
+                "collection_id": seeded_collection.collection.id,
+                "file_index": {path: (0, 10)},
+            }
+        )
+    )
+    items, _ = await repository.get_collection_artifacts(
+        seeded_collection.orbit.id,
+        PaginationParams(limit=10),
+    )
+    assert items[0].id == artifact.id
+    assert items[0].has_experiment_snapshot is expected

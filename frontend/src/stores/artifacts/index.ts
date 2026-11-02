@@ -4,6 +4,7 @@ import {
   ArtifactTypeEnum,
   ArtifactStatusEnum,
   type Artifact,
+  type ArtifactListed,
   type ArtifactDeleteFailure,
   type ArtifactDeleteUrl,
   type ArtifactsDeleteResponse,
@@ -36,11 +37,11 @@ export const useArtifactsStore = defineStore('artifacts', () => {
   const attachmentsError = ref<string | null>(null)
   let attachmentsLoadVersion = 0
 
-  const artifactsList = ref<Artifact[]>([])
+  const artifactsList = ref<ArtifactListed[]>([])
 
   const deletionResult = ref<DeleteArtifactsResult | null>(null)
 
-  const setArtifactsList = (list: Artifact[]) => {
+  const setArtifactsList = (list: ArtifactListed[]) => {
     artifactsList.value = list
   }
 
@@ -190,7 +191,15 @@ export const useArtifactsStore = defineStore('artifacts', () => {
       route.params.id === info.orbitId &&
       route.params.collectionId === info.collectionId
     ) {
-      setArtifactsList([...artifactsList.value, result])
+      setArtifactsList([
+        ...artifactsList.value,
+        {
+          ...result,
+          has_experiment_snapshot: !!FnnxService.findExperimentSnapshotArchiveName(
+            result.file_index,
+          ),
+        },
+      ])
     }
   }
 
@@ -273,7 +282,9 @@ export const useArtifactsStore = defineStore('artifacts', () => {
       payload.id,
       payload,
     )
-    const newArtifactsList = artifactsList.value.map((a) => (a.id === result.id ? result : a))
+    const newArtifactsList = artifactsList.value.map((a) =>
+      a.id === result.id ? { ...a, ...result } : a,
+    )
     setArtifactsList(newArtifactsList)
     return result
   }

@@ -1,6 +1,6 @@
 import type {
   GetArtifactsListParams,
-  Artifact,
+  ArtifactListed,
   ArtifactTypeEnum,
 } from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
@@ -44,9 +44,9 @@ export const useArtifactsList = (
     searchQuery.value = query
   }
 
-  const list = ref<Artifact[]>([])
+  const list = ref<ArtifactListed[]>([])
 
-  function isVisible(artifact: Artifact): boolean {
+  function isVisible(artifact: ArtifactListed): boolean {
     return !excludedArtifactIds?.value?.includes(artifact.id)
   }
 
@@ -132,7 +132,7 @@ export const useArtifactsList = (
     requestInfo.value = null
   }
 
-  function addItemsToList(artifacts: Artifact[], reset = false) {
+  function addItemsToList(artifacts: ArtifactListed[], reset = false) {
     if (reset) {
       setList(artifacts)
     } else {
@@ -156,7 +156,7 @@ export const useArtifactsList = (
     }
   }
 
-  function setList(artifacts: Artifact[]) {
+  function setList(artifacts: ArtifactListed[]) {
     if (syncStore) {
       artifactsStore.setArtifactsList(artifacts)
     } else {

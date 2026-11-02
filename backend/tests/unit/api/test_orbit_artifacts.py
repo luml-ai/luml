@@ -13,8 +13,10 @@ from luml.schemas.artifacts import (
     ArtifactDeleteReason,
     ArtifactDeleteTrack,
     ArtifactDeleteURL,
+    ArtifactListedBase,
     ArtifactsDeleteResponse,
     ArtifactsDeleteURLsResponse,
+    ArtifactsList,
     ArtifactStatus,
     ArtifactType,
     CreateArtifactResponse,
@@ -388,3 +390,43 @@ class TestOrbitArtifacts:
             search=None,
             excluded_tracks=None,
         )
+
+    @patch(
+        "luml.handlers.artifacts.ArtifactHandler.get_collection_artifacts",
+        new_callable=AsyncMock,
+    )
+    def test_list_returns_empty_manifest_and_file_index(
+        self, mock_get_artifacts: AsyncMock, client: TestClient
+    ) -> None:
+        mock_get_artifacts.return_value = ArtifactsList(
+            items=[
+                ArtifactListedBase.model_validate(
+                    {
+                        "id": ARTIFACT_ID,
+                        "collection_id": COLLECTION_ID,
+                        "collection": {"name": "models"},
+                        "file_name": "model.luml",
+                        "name": "model",
+                        "extra_values": {},
+                        "file_hash": "hash",
+                        "bucket_location": "loc",
+                        "size": 1,
+                        "unique_identifier": "uid",
+                        "status": ArtifactStatus.UPLOADED,
+                        "type": ArtifactType.MODEL,
+                        "created_at": datetime(2026, 11, 2),
+                        "has_experiment_snapshot": True,
+                    }
+                )
+            ],
+            cursor=None,
+        )
+
+        response = client.get(ORBIT_ARTIFACTS_PATH)
+
+        assert response.status_code == 200
+        [item] = response.json()["items"]
+        assert item["manifest"] == {}
+        assert item["file_index"] == {}
+        assert item["has_experiment_snapshot"] is True
+        assert item["collection_name"] == "models"

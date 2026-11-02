@@ -48,7 +48,7 @@ def _items(
         )
         item.update(id=str(UUID(int=index + 1)), name=f"target-extra-{index}")
         if resource == "artifacts":
-            item["file_name"] = f"model_{index}.fnnx"
+            item.update(file_name=f"model_{index}.fnnx", manifest={}, file_index={})
         items.append(item)
     items[120]["name"] = "target"
     return items
@@ -63,13 +63,16 @@ def _path(
     return f"{path}/{resource}"
 
 
-def _mock_pages(router: MockRouter, path: str, items: list[dict]) -> None:
+def _mock_pages(
+    router: MockRouter, path: str, items: list[dict], *, filters: bool = True
+) -> None:
     def respond(request: httpx.Request) -> httpx.Response:
-        search = request.url.params.get("search")
+        search = (request.url.params.get("search") or "").lower() if filters else ""
         matches = [
             item
             for item in items
-            if not search or search.lower() in item["name"].lower()
+            if search in item["name"].lower()
+            or search in item.get("file_name", "").lower()
         ]
         start = 100 if request.url.params.get("cursor") == "page-2" else 0
         return httpx.Response(
@@ -81,6 +84,21 @@ def _mock_pages(router: MockRouter, path: str, items: list[dict]) -> None:
         )
 
     router.get(path).mock(side_effect=respond)
+
+
+def _mock_details(router: MockRouter, items: list[dict], artifact: Artifact) -> None:
+    details = {
+        item["id"]: item
+        | {"manifest": artifact.manifest, "file_index": artifact.file_index}
+        for item in items
+    }
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=details[request.url.path.rsplit("/", 1)[-1]])
+
+    router.get(url__regex=r"/collections/[^/]+/artifacts/[^/]+$").mock(
+        side_effect=respond
+    )
 
 
 @pytest.mark.parametrize("resource", ["artifacts", "tracks"])
@@ -112,6 +130,8 @@ async def test_name_lookup_pages_and_exact_matches(
     elif scenario == "duplicate":
         items[5]["name"] = "target"
     _mock_pages(respx_mock, _path(lookup_client, resource), items)
+    if resource == "artifacts" and scenario in {"first_page", "second_page"}:
+        _mock_details(respx_mock, items, sample_artifact)
     value = "absent" if scenario == "missing" else "target"
 
     if scenario == "duplicate":
@@ -130,11 +150,8 @@ async def test_name_lookup_pages_and_exact_matches(
         if call.request.url.path == _path(lookup_client, resource)
     ]
     assert requests[0].url.params.get("cursor") is None
-    if scenario != "missing" or resource == "artifacts":
-        assert len(requests) == 2
-        assert requests[1].url.params["cursor"] == "page-2"
-    if resource == "tracks":
-        assert all(request.url.params["search"] == value for request in requests)
+    assert all(request.url.params["search"] == value for request in requests)
+    assert len(requests) == (1 if scenario == "missing" else 2)
 
 
 @pytest.mark.parametrize("duplicate", [False, True])
@@ -149,6 +166,8 @@ async def test_artifact_filename_lookup_and_name_collision(
     if duplicate:
         items[5]["name"] = "target"
     _mock_pages(respx_mock, _path(lookup_client, "artifacts"), items)
+    if not duplicate:
+        _mock_details(respx_mock, items, sample_artifact)
 
     if duplicate:
         with pytest.raises(MultipleResourcesFoundError):
@@ -156,6 +175,27 @@ async def test_artifact_filename_lookup_and_name_collision(
     else:
         result = await _resolve(lookup_client.artifacts.get("target"))
         assert str(result.id) == items[120]["id"]
+        assert result.manifest == sample_artifact.manifest
+
+
+async def test_artifact_name_lookup_filters_locally_when_server_ignores_search(
+    lookup_client: LumlClient | AsyncLumlClient,
+    respx_mock: MockRouter,
+    sample_artifact: Artifact,
+) -> None:
+    items = _items(lookup_client, "artifacts", sample_artifact)
+    _mock_pages(respx_mock, _path(lookup_client, "artifacts"), items, filters=False)
+    _mock_details(respx_mock, items, sample_artifact)
+
+    result = await _resolve(lookup_client.artifacts.get("target"))
+
+    assert str(result.id) == items[120]["id"]
+    requests = [
+        call.request
+        for call in respx_mock.calls
+        if call.request.url.path == _path(lookup_client, "artifacts")
+    ]
+    assert len(requests) == 2
 
 
 @pytest.mark.parametrize("resource", ["artifacts", "tracks"])
@@ -214,6 +254,7 @@ async def test_artifact_lookup_honors_collection_override(
     else:
         path = _path(lookup_client, "artifacts")
         _mock_pages(respx_mock, path, items)
+        _mock_details(respx_mock, items, sample_artifact)
 
     result = await _resolve(
         lookup_client.artifacts.get(item[by], collection_id=collection_id)

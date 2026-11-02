@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     AliasPath,
     BaseModel,
     ConfigDict,
@@ -28,6 +29,15 @@ ArtifactNamesField = Annotated[
         "filename mustn't contain characters: \" * ` ~ # % ; ' ^ ",
     ),
 ]
+
+
+def _validate_artifact_size(value: int) -> int:
+    if value > MAX_FILE_SIZE_BYTES:
+        raise ValueError("Artifact cant be bigger than 5TB")
+    return value
+
+
+ArtifactSizeField = Annotated[int, AfterValidator(_validate_artifact_size)]
 
 
 class ArtifactStatus(StrEnum):
@@ -201,16 +211,9 @@ class ArtifactIn(BaseModel):
     manifest: LumlArtifactManifest | Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
-    size: int
+    size: ArtifactSizeField
     tags: list[str] | None = None
     type: ArtifactType | None = None
-
-    @field_validator("size")
-    @classmethod
-    def validate_model_size(cls, value: int) -> int:
-        if value > MAX_FILE_SIZE_BYTES:
-            raise ValueError("Artifact cant be bigger than 5TB")
-        return value
 
 
 class ArtifactCreateIn(ArtifactIn):
@@ -228,8 +231,14 @@ class ArtifactCreate(ArtifactIn):
     created_by_user: str | None = None
 
 
-class Artifact(ArtifactIn, BaseOrmConfig):
+class ArtifactBase(BaseModel, BaseOrmConfig):
     file_name: str
+    name: str | None = None
+    description: str | None = None
+    extra_values: dict[str, Any]
+    file_hash: str
+    size: ArtifactSizeField
+    tags: list[str] | None = None
     id: UUID
     type: ArtifactType
     collection_id: UUID
@@ -245,9 +254,30 @@ class Artifact(ArtifactIn, BaseOrmConfig):
         return self.name or self.file_name
 
 
+class Artifact(ArtifactBase):
+    manifest: LumlArtifactManifest | Manifest
+    file_index: dict[str, tuple[int, int]]
+
+
 class ArtifactListed(Artifact):
     deployments: list[DeploymentBase] = []
     collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
+
+
+class ArtifactListedBase(ArtifactBase):
+    deployments: list[DeploymentBase] = []
+    collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
+    has_experiment_snapshot: bool
+
+    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
+    @property
+    def manifest(self) -> dict[str, Any]:
+        return {}
+
+    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
+    @property
+    def file_index(self) -> dict[str, tuple[int, int]]:
+        return {}
 
 
 class ArtifactDetails(Artifact):
@@ -274,5 +304,5 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 
 class ArtifactsList(BaseModel):
-    items: list[ArtifactListed]
+    items: list[ArtifactListedBase]
     cursor: str | None
