@@ -154,7 +154,7 @@ List all collection artifacts with auto-paging.
 - `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
-- `search` - Filter by a case-insensitive substring of the artifact name.
+- `search` - Filter by a case-insensitive substring of the artifact name or file name.
   
 
 **Returns**:
@@ -222,7 +222,7 @@ If collection_id is None, uses the default collection from client.
 - `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
-- `search` - Filter by a case-insensitive substring of the artifact name.
+- `search` - Filter by a case-insensitive substring of the artifact name or file name.
   
 
 **Returns**:
@@ -1213,7 +1213,7 @@ List all collection artifacts with auto-paging.
 - `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
-- `search` - Filter by a case-insensitive substring of the artifact name.
+- `search` - Filter by a case-insensitive substring of the artifact name or file name.
   
 
 **Returns**:
@@ -1285,7 +1285,7 @@ If collection_id is None, uses the default collection from client.
 - `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
-- `search` - Filter by a case-insensitive substring of the artifact name.
+- `search` - Filter by a case-insensitive substring of the artifact name or file name.
   
 
 **Returns**:

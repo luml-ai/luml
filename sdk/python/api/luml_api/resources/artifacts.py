@@ -314,31 +314,9 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             return self._get_by_id(collection_id, artifact_value)
         return self._get_by_name(collection_id, artifact_value)
 
-    def _list_by_name(
-        self, collection_id: str | None, name: str, cursor: str | None
-    ) -> ArtifactsList:
-        params: dict[str, Any] = {"collection_ids": [collection_id], "name": name}
-        if cursor:
-            params["cursor"] = cursor
-        response = self._client.get(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts",
-            params=params,
-        )
-        if response is None:
-            return ArtifactsList(items=[])
-        return ArtifactsList.model_validate(response)
-
     def _find_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
-        artifacts: list[Artifact] = []
-        cursor = None
-        while True:
-            page = self._list_by_name(collection_id, name, cursor)
-            artifacts.extend(page.items)
-            if page.cursor is None:
-                break
-            cursor = page.cursor
         return find_by_value(
-            artifacts,
+            list(self.list_all(collection_id=collection_id, search=name)),
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
@@ -384,7 +362,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             Artifact objects from all pages.
@@ -455,7 +434,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             ArtifactList object.
@@ -1590,33 +1570,16 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             return await self._get_by_id(collection_id, artifact_value)
         return await self._get_by_name(collection_id, artifact_value)
 
-    async def _list_by_name(
-        self, collection_id: str | None, name: str, cursor: str | None
-    ) -> ArtifactsList:
-        params: dict[str, Any] = {"collection_ids": [collection_id], "name": name}
-        if cursor:
-            params["cursor"] = cursor
-        response = await self._client.get(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts",
-            params=params,
-        )
-        if response is None:
-            return ArtifactsList(items=[])
-        return ArtifactsList.model_validate(response)
-
     async def _find_by_name(
         self, collection_id: str | None, name: str
     ) -> Artifact | None:
-        artifacts: list[Artifact] = []
-        cursor = None
-        while True:
-            page = await self._list_by_name(collection_id, name, cursor)
-            artifacts.extend(page.items)
-            if page.cursor is None:
-                break
-            cursor = page.cursor
         return find_by_value(
-            artifacts,
+            [
+                artifact
+                async for artifact in self.list_all(
+                    collection_id=collection_id, search=name
+                )
+            ],
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
@@ -1664,7 +1627,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             Artifact objects from all pages.
@@ -1739,7 +1703,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             ArtifactsList object.
