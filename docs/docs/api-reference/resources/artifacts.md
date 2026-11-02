@@ -155,7 +155,6 @@ List all collection artifacts with auto-paging.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
 - `search` - Filter by a case-insensitive substring of the artifact name.
-- `name` - Filter by an exact, case-sensitive artifact name or file name.
   
 
 **Returns**:
@@ -224,7 +223,6 @@ If collection_id is None, uses the default collection from client.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
 - `search` - Filter by a case-insensitive substring of the artifact name.
-- `name` - Filter by an exact, case-sensitive artifact name or file name.
   
 
 **Returns**:
@@ -1216,7 +1214,6 @@ List all collection artifacts with auto-paging.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
 - `search` - Filter by a case-insensitive substring of the artifact name.
-- `name` - Filter by an exact, case-sensitive artifact name or file name.
   
 
 **Returns**:
@@ -1289,7 +1286,6 @@ If collection_id is None, uses the default collection from client.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `types` - Filter by artifact types: "model", "dataset", or "experiment".
 - `search` - Filter by a case-insensitive substring of the artifact name.
-- `name` - Filter by an exact, case-sensitive artifact name or file name.
   
 
 **Returns**:
