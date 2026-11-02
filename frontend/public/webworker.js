@@ -84,13 +84,19 @@ self.pyodideReadyPromise = initPyWorker().catch((error) => ({
     error: error instanceof Error ? error.message : String(error),
 }));
 
+let interruptBuffer;
 
 async function invokeRoute(route, data) {
-    const dfw = self.pyodide.pyimport("dfs_webworker");
-    const response = await dfw.invoke(route, data);
-    // store deletion returns none on success
-    const res = response == null ? null : response.toJs();
-    return JSON.parse(JSON.stringify(res));
+    if (interruptBuffer) interruptBuffer[0] = 0;
+    try {
+        const dfw = self.pyodide.pyimport("dfs_webworker");
+        const response = await dfw.invoke(route, data);
+        // store deletion returns none on success
+        const res = response == null ? null : response.toJs();
+        return JSON.parse(JSON.stringify(res));
+    } finally {
+        if (interruptBuffer) interruptBuffer[0] = 0;
+    }
 }
 
 
@@ -141,9 +147,9 @@ self.onmessage = async (event) => {
                 self.postMessage({ message: m.message, id: m.id, payload: result });
                 break;
             case "interrupt":
-                const interrupt = new Uint8Array(new SharedArrayBuffer(1));
-                interrupt[0] = 2;
-                self.pyodide.setInterruptBuffer(interrupt);
+                interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
+                interruptBuffer[0] = 2;
+                self.pyodide.setInterruptBuffer(interruptBuffer);
                 self.postMessage({ message: m.message, id: m.id, payload: true });
                 break;
             default:
