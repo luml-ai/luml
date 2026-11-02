@@ -15,6 +15,7 @@ STATIC_ROOT = os.path.realpath(".")
 with open("jupyter-lite.json", "r") as f:
     config = json.load(f)
 
+
 def extractName(referer):
     if referer:
         parsed_url = urlparse(referer)
@@ -32,7 +33,6 @@ def get_config(referer):
 
 @app.get("/{path:path}")
 def serve_static(request: Request, path: str):
-    # print(f"GET {path} :: {request.headers.get('referer')}")
     file_path = os.path.realpath(os.path.join(STATIC_ROOT, path))
     if os.path.commonpath([STATIC_ROOT, file_path]) != STATIC_ROOT:
         return {"detail": "Not Found"}
