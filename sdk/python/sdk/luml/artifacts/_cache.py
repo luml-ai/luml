@@ -104,7 +104,6 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
                 return False
             else:
                 return False
-        # another waiter may already have replaced the abandoned lock
         current_stat = lock_path.stat()
         if (
             current_stat.st_ino == lock_stat.st_ino
