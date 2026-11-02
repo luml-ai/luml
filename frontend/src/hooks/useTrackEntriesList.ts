@@ -2,6 +2,7 @@ import type { GetTrackEntriesListParams, TrackEntry } from '@/lib/api/orbit-trac
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
+import { usePageLoading } from '@/hooks/usePageLoading'
 import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links'
 
 interface RequestInfo {
@@ -15,7 +16,7 @@ export const useTrackEntriesList = (limit = 20, syncStore = false) => {
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
-  const isLoading = ref(false)
+  const { isLoading, invalidate, track } = usePageLoading()
   const stageFilter = ref<string | undefined>(undefined)
   const sortData = ref<Pick<GetTrackEntriesListParams, 'sort_by' | 'order'>>({
     sort_by: undefined,
@@ -37,22 +38,24 @@ export const useTrackEntriesList = (limit = 20, syncStore = false) => {
   }
 
   async function getInitialPage() {
-    isLoading.value = true
-    const cursor = null
-    const response = await getEntriesData(cursor)
-    addEntriesToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    invalidate()
+    await track(async (isCurrent) => {
+      const response = await getEntriesData(null)
+      if (!isCurrent()) return
+      addEntriesToList(response.items)
+      savedCursors.value.push(response.cursor)
+    })
   }
 
   async function getNextPage() {
     const cursor = getNextPageCursor()
     if (!cursor) return
-    isLoading.value = true
-    const response = await getEntriesData(cursor)
-    addEntriesToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    await track(async (isCurrent) => {
+      const response = await getEntriesData(cursor)
+      if (!isCurrent()) return
+      addEntriesToList(response.items)
+      savedCursors.value.push(response.cursor)
+    })
   }
 
   async function getEntriesData(cursor: string | null) {
@@ -70,6 +73,7 @@ export const useTrackEntriesList = (limit = 20, syncStore = false) => {
   }
 
   function reset() {
+    invalidate()
     setEntriesList([])
     savedCursors.value = []
     requestInfo.value = null
@@ -88,7 +92,7 @@ export const useTrackEntriesList = (limit = 20, syncStore = false) => {
   async function onLazyLoad(event: VirtualScrollerLazyEvent) {
     if (isLoading.value) return
     const { last } = event
-    if (last === pageIndex.value * limit) {
+    if (last >= entriesList.value.length) {
       await getNextPage()
     }
   }

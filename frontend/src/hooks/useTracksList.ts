@@ -3,6 +3,7 @@ import type { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
+import { usePageLoading } from '@/hooks/usePageLoading'
 import { useTracksStore } from '@/stores/tracks'
 
 interface RequestInfo {
@@ -15,7 +16,7 @@ export const useTracksList = (limit = 20, syncStore = true, types?: ArtifactType
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
-  const isLoading = ref(false)
+  const { isLoading, invalidate, track } = usePageLoading()
   const searchQuery = ref<string>('')
   const typesQuery = ref<ArtifactTypeEnum[]>(types ?? [])
 
@@ -30,22 +31,24 @@ export const useTracksList = (limit = 20, syncStore = true, types?: ArtifactType
   }
 
   async function getInitialPage() {
-    isLoading.value = true
-    const cursor = null
-    const response = await getTracksData(cursor)
-    addTracksToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    invalidate()
+    await track(async (isCurrent) => {
+      const response = await getTracksData(null)
+      if (!isCurrent()) return
+      addTracksToList(response.items)
+      savedCursors.value.push(response.cursor)
+    })
   }
 
   async function getNextPage() {
     const cursor = getNextPageCursor()
     if (!cursor) return
-    isLoading.value = true
-    const response = await getTracksData(cursor)
-    addTracksToList(response.items)
-    savedCursors.value.push(response.cursor)
-    isLoading.value = false
+    await track(async (isCurrent) => {
+      const response = await getTracksData(cursor)
+      if (!isCurrent()) return
+      addTracksToList(response.items)
+      savedCursors.value.push(response.cursor)
+    })
   }
 
   async function getTracksData(cursor: string | null) {
@@ -62,6 +65,7 @@ export const useTracksList = (limit = 20, syncStore = true, types?: ArtifactType
   }
 
   function reset() {
+    invalidate()
     setTracksList([])
     savedCursors.value = []
     requestInfo.value = null
@@ -88,7 +92,7 @@ export const useTracksList = (limit = 20, syncStore = true, types?: ArtifactType
   async function onLazyLoad(event: VirtualScrollerLazyEvent) {
     if (isLoading.value) return
     const { last } = event
-    if (last === pageIndex.value * limit) {
+    if (last >= tracksList.value.length) {
       await getNextPage()
     }
   }
