@@ -160,3 +160,99 @@ describe('worker cleanup responses', () => {
     },
   )
 })
+
+describe('Pyodide interrupt cleanup', () => {
+  it.each(['success', 'failure'])(
+    'clears a pending interrupt after a route finishes with %s',
+    async (outcome) => {
+      const postMessage = vi.fn()
+      let buffer: Uint8Array | undefined
+      let finish!: () => void
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      const invoke = vi
+        .fn()
+        .mockImplementationOnce(async () => {
+          await pending
+          if (outcome === 'failure') throw new Error('Interrupted')
+          return { toJs: () => ({ status: 'success' }) }
+        })
+        .mockImplementationOnce(async () => {
+          expect(buffer?.[0]).toBe(0)
+          return { toJs: () => ({ status: 'success' }) }
+        })
+      const self = { postMessage, onmessage: null as unknown as (event: object) => Promise<void> }
+      runInNewContext(source, {
+        self,
+        importScripts: vi.fn(),
+        loadPyodide: async () => ({
+          loadPackage: vi.fn(),
+          pyimport: (name: string) => (name === 'micropip' ? { install: vi.fn() } : { invoke }),
+          setInterruptBuffer: (value: Uint8Array) => {
+            buffer = value
+          },
+        }),
+        SharedArrayBuffer,
+        Uint8Array,
+        Error,
+      })
+      const route = { message: 'invokeRoute', payload: { route: '/pyfunc/compute', data: {} } }
+      await self.onmessage({ data: { id: 1, message: 'LOAD_PYODIDE' } })
+      const computation = self.onmessage({ data: { ...route, id: 2 } })
+      await self.onmessage({ data: { id: 3, message: 'interrupt' } })
+      expect(buffer?.[0]).toBe(2)
+      finish()
+      await computation
+      expect(buffer?.[0]).toBe(0)
+      await self.onmessage({ data: { ...route, id: 4 } })
+      expect(postMessage).toHaveBeenLastCalledWith({
+        id: 4,
+        message: 'invokeRoute',
+        payload: { status: 'success' },
+      })
+    },
+  )
+
+  it.each(['invokeRoute', 'tabular_train', 'tabular_predict', 'tabular_deallocate'])(
+    'clears idle interrupts before the next %s executes Python',
+    async (message) => {
+      const postMessage = vi.fn()
+      let buffer: Uint8Array | undefined
+      const invoke = vi.fn(async () => {
+        expect(buffer?.[0]).toBe(0)
+        return { toJs: () => ({ status: 'success' }) }
+      })
+      const self = { postMessage, onmessage: null as unknown as (event: object) => Promise<void> }
+      runInNewContext(source, {
+        self,
+        importScripts: vi.fn(),
+        loadPyodide: async () => ({
+          loadPackage: vi.fn(),
+          pyimport: (name: string) => {
+            if (name === 'micropip') return { install: vi.fn() }
+            expect(buffer?.[0]).toBe(0)
+            return { invoke }
+          },
+          setInterruptBuffer: (value: Uint8Array) => {
+            buffer = value
+          },
+        }),
+        SharedArrayBuffer,
+        Uint8Array,
+      })
+      await self.onmessage({ data: { id: 1, message: 'interrupt' } })
+      await self.onmessage({ data: { id: 2, message: 'interrupt' } })
+      await self.onmessage({
+        data: { id: 3, message, payload: { route: '/pyfunc/compute', data: {} } },
+      })
+      expect(invoke).toHaveBeenCalledOnce()
+      expect(postMessage).toHaveBeenLastCalledWith({
+        id: 3,
+        message,
+        payload: { status: 'success' },
+      })
+      expect(buffer?.[0]).toBe(0)
+    },
+  )
+})
