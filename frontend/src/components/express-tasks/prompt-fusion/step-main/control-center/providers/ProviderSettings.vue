@@ -34,8 +34,11 @@
 
 <script setup lang="ts">
 import type { ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces'
-import { onBeforeMount, ref, watch } from 'vue'
-import { LocalStorageService } from '@/utils/services/LocalStorageService'
+import { ref, watch } from 'vue'
+import {
+  isApiKeysStorageEnabled,
+  setApiKeysStorageEnabled,
+} from '@/lib/promt-fusion/provider-settings.storage'
 
 type Props = {
   providerName: string
@@ -50,23 +53,14 @@ type Emits = {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const saveApiKey = ref(false)
+const saveApiKey = ref(isApiKeysStorageEnabled())
 const settingsState = ref<ProviderSetting[]>(JSON.parse(JSON.stringify(props.settings)))
 
 function onSave() {
   emit('save', JSON.parse(JSON.stringify(settingsState.value)))
 }
 
-onBeforeMount(() => {
-  const settings = LocalStorageService.get('providersSettings')
-  saveApiKey.value = !!settings?.saveApiKeys
-})
-
-watch(saveApiKey, (val) => {
-  const settings = LocalStorageService.get('providersSettings') || {}
-  settings.saveApiKeys = val
-  LocalStorageService.set('providersSettings', settings)
-})
+watch(saveApiKey, (val) => setApiKeysStorageEnabled(val), { immediate: true })
 </script>
 
 <style scoped>

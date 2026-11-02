@@ -1,7 +1,7 @@
 <template>
   <Dialog
     v-model:visible="visible"
-    header="Connect a new satellite"
+    :header="apiKey ? 'Connect a new satellite' : 'Satellite API key'"
     :pt="dialogPt"
     modal
     :draggable="false"
@@ -10,7 +10,7 @@
       <div class="text">Use the pairing key to connect your Satellite.</div>
       <InputGroup>
         <InputText
-          placeholder="Apy key"
+          placeholder="API key"
           :value="inputValue"
           :disabled="!copyAvailable"
           readonly
@@ -43,7 +43,7 @@ import type { DialogPassThroughOptions } from 'primevue'
 import { Dialog, InputText, InputGroup, InputGroupAddon, Button, useToast } from 'primevue'
 import { Copy, CopyCheck } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useSatellitesStore } from '@/stores/satellites'
 import { useRoute } from 'vue-router'
 
@@ -77,6 +77,7 @@ const visible = defineModel<boolean>('visible')
 const currentApiKey = ref<string | null>(null)
 const loading = ref(false)
 const isCopied = ref(false)
+let generationId = 0
 
 const organizationId = computed(() => {
   const param = route.params.organizationId
@@ -111,6 +112,7 @@ function copy() {
 }
 
 async function generate() {
+  const requestId = ++generationId
   try {
     loading.value = true
     const { key } = await satellitesStore.regenerateApiKey(
@@ -118,24 +120,30 @@ async function generate() {
       orbitId.value,
       props.satelliteId,
     )
+    if (requestId !== generationId) return
     currentApiKey.value = key
     toast.add(simpleSuccessToast('A new API key has been generated successfully.'))
   } catch {
-    toast.add(simpleErrorToast('Failed to generate API Key'))
+    if (requestId === generationId) toast.add(simpleErrorToast('Failed to generate API Key'))
   } finally {
-    loading.value = false
+    if (requestId === generationId) loading.value = false
   }
 }
 
 watch(
-  () => props.apiKey,
-  (val) => {
-    if (val) {
-      currentApiKey.value = val
-    }
+  [visible, () => props.apiKey, () => props.satelliteId],
+  ([isVisible, apiKey]) => {
+    generationId++
+    currentApiKey.value = isVisible ? apiKey : null
+    isCopied.value = false
+    loading.value = false
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => {
+  generationId++
+})
 </script>
 
 <style scoped>

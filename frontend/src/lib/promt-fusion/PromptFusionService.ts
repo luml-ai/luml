@@ -7,6 +7,7 @@ import {
   type PromptNode,
 } from '@/components/express-tasks/prompt-fusion/interfaces'
 import type {
+  BaseProviderInfo,
   PayloadData,
   PayloadNode,
   PromptFusionPayload,
@@ -105,6 +106,15 @@ class PromptFusionServiceClass extends Observable<Events> {
       ? ProviderStatus.disconnected
       : ProviderStatus.connected
     this.changeAvailableModels()
+  }
+
+  restoreSavedProviders(savedProviders: BaseProviderInfo[]) {
+    for (const saved of savedProviders) {
+      if (saved.status !== ProviderStatus.connected) continue
+      const current = this.providers.find((provider) => provider.id === saved.id)
+      if (!current || current.status === ProviderStatus.connected) continue
+      this.updateProviderSettings(saved.id, saved.settings)
+    }
   }
 
   closeProviderSettings() {
