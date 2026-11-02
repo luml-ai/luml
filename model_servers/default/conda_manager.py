@@ -37,7 +37,7 @@ class ModelCondaManager:
 
     @property
     def worker_url(self) -> str | None:
-        return f"http://0.0.0.0:{self.port}" if self.port else None
+        return f"http://127.0.0.1:{self.port}" if self.port else None
 
     def _monitor_stderr(self) -> None:
         if not self.process or not self.process.stderr:
@@ -70,7 +70,7 @@ class ModelCondaManager:
             raise RuntimeError(error_msg)
 
     def _wait_for_health_check(self, timeout: int = 90) -> None:
-        with httpx.Client() as client:
+        with httpx.Client(trust_env=False) as client:
             for _ in range(timeout):
                 self._check_process_status()
 
