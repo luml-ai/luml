@@ -402,7 +402,7 @@ async def test_open_terminal_agent_mode(
         name="t",
         branch="b",
         worktree_path=str(worktree),
-        agent_id="claude",
+        agent_id="mock",
         prompt="do stuff",
         status=TaskStatus.SUCCEEDED,
     )
@@ -434,7 +434,7 @@ async def test_open_terminal_default_is_agent(
         name="t",
         branch="b",
         worktree_path=str(worktree),
-        agent_id="claude",
+        agent_id="mock",
         prompt="",
         status=TaskStatus.SUCCEEDED,
     )
@@ -591,7 +591,9 @@ async def test_list_branches(
     )
     await proc.communicate()
     proc = await asyncio.create_subprocess_exec(
-        "git", "commit", "--allow-empty", "-m", "init",
+        "git", "-c", "user.name=Test",
+        "-c", "user.email=test@example.com",
+        "commit", "--allow-empty", "-m", "init",
         cwd=str(repo),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,

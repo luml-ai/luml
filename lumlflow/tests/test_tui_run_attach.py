@@ -526,6 +526,9 @@ class TestRunAttachSuccess:
                 pilot=pilot,
                 timeout=10.0,
             )
+            # let the destination screen finish mounting before teardown
+            for _ in range(8):
+                await pilot.pause()
 
     async def test_status_indicator_shows_attached_id(
         self,

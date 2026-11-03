@@ -54,15 +54,15 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install --upgrade uv
-          uv sync
+          uv sync --locked
       - name: Run migrations
         if: vars.MIGRATIONS_IN_APP_PLATFORM != 'true'
         working-directory: backend
         env:
           POSTGRESQL_DSN: ${{ secrets.POSTGRESQL_DSN }}
         run: |
-          uv run alembic upgrade head
-          uv run alembic current
+          uv run --locked alembic upgrade head
+          uv run --locked alembic current
 
   deploy:
     needs: [resolve-env, migrate, tests]
