@@ -51,7 +51,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
         try {
           this.worker.postMessage({ type: 'cancel', requestId })
         } catch {
-          // the worker may already be unavailable
+          return
         }
       }
 
