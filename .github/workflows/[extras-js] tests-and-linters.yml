@@ -59,7 +59,7 @@ jobs:
 
       - name: ESLint
         working-directory: extras/js/packages/${{ matrix.package }}
-        run: npm run lint
+        run: npx eslint .
 
       - name: Prettier check
         working-directory: extras/js/packages/${{ matrix.package }}

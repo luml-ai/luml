@@ -80,6 +80,14 @@ class FrontendCITests(unittest.TestCase):
                         any(fnmatch.fnmatchcase(changed, path) for path in paths)
                     )
 
+    def test_extras_eslint_does_not_autofix_in_ci(self):
+        steps = load("[extras-js] tests-and-linters.yml")["jobs"]["checks"]["steps"]
+        lint_steps = [step for step in steps if step.get("name") == "ESLint"]
+        self.assertEqual(len(lint_steps), 1)
+        self.assertNotIn("--fix", lint_steps[0]["run"])
+        self.assertNotIn("npm run lint", lint_steps[0]["run"])
+        self.assertNotIn("continue-on-error", lint_steps[0])
+
     def test_test_jobs_use_optional_dependencies_without_mutating_the_lockfile(self):
         jobs = {
             ("[frontend] tests-and-linters.yml", "unit"),
