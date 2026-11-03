@@ -1,17 +1,6 @@
 FROM python:3.13-slim-bookworm
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    bzip2 \
-    && rm -rf /var/lib/apt/lists/*
-
-ARG MICROMAMBA_VERSION=2.9.0
-# The platform comes from the build container itself, so the binary always matches the
-# image being built — with or without BuildKit, and under --platform. micromamba names
-# x86_64 "linux-64" and every other machine "linux-<machine>".
-RUN MAMBA_PLATFORM="linux-$(uname -m | sed 's/^x86_64$/64/')" \
-    && curl -Ls "https://micro.mamba.pm/api/micromamba/${MAMBA_PLATFORM}/${MICROMAMBA_VERSION}" \
-    | tar -xvj -C /usr/local bin/micromamba && chmod +x /usr/local/bin/micromamba
+COPY --from=mambaorg/micromamba:2.9.0@sha256:7b93def90e48d6d7744938e31c29172e03b19bc9f56f0db512039f18efd21529 /bin/micromamba /usr/local/bin/micromamba
 
 WORKDIR /app
 
