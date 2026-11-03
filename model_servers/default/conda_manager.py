@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,7 @@ class ModelCondaManager:
         self.process: subprocess.Popen | None = None
         self.port: int | None = 8080
         self.worker_script = Path(__file__).parent / "conda_worker.py"
-        self._error_output: list[str] = []
+        self._error_output: deque[str] = deque(maxlen=self.WORKER_LOGS_LINES)
         self._stderr_monitor_thread: threading.Thread | None = None
 
     @property
@@ -48,7 +49,7 @@ class ModelCondaManager:
                 line = line.strip()
                 if line:
                     self._error_output.append(line)
-                    logger.error(f"[conda_worker] {line}")
+                    logger.info(f"[conda_worker] {line}")
 
             if self.process:
                 exit_code = self.process.poll()
@@ -66,7 +67,7 @@ class ModelCondaManager:
         if exit_code is not None and exit_code != 0:
             error_msg = f"Conda worker process exited with code {exit_code}"
             if self._error_output:
-                error_msg += "\n" + "\n".join(self._error_output[-self.WORKER_LOGS_LINES :])
+                error_msg += "\n" + "\n".join(self._error_output)
             raise RuntimeError(error_msg)
 
     def _wait_for_health_check(self, timeout: int = 90) -> None:
