@@ -34,6 +34,8 @@ export interface CellOutputTabContentProps {
   content: CellTabContent
   compact?: boolean
   slug?: string
+  /** The output shown, so a table can fetch rows past its preview. */
+  output?: string
 }
 
 export interface CellPlotImageProps {
@@ -45,8 +47,11 @@ export interface CellPreviewBlocksProps {
   truncated: boolean
   compact?: boolean
   slug?: string
+  output?: string
 }
 
 export interface CellTableBlockProps {
   block: TableBlock
+  slug?: string
+  output?: string
 }

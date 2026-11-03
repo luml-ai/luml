@@ -63,22 +63,32 @@ class Experiment:
         return [dict(point) for point in history]
 
     def _record(self) -> Any:
-        if self._ref.store.expanduser().resolve() != self._client.store.resolve():
-            raise TrackerError(
-                f"experiment `{self._ref.experiment_id}` is unreachable: it was "
-                f"recorded in tracker store `{self._ref.store}`, but this kernel "
-                f"uses `{self._client.store}`"
-            )
+        elsewhere = (
+            self._ref.store.expanduser().resolve() != self._client.store.resolve()
+        )
         try:
             record = self._client.get_experiment_record(self._ref.experiment_id)
         except TrackerError as failure:
+            if elsewhere:
+                raise self._recorded_elsewhere() from None
             raise self._unreachable(failure) from None
+        # A store that moved with its flow keeps its experiments: ids are UUIDs,
+        # so the same id in this kernel's store is the same experiment.
+        if record is None and elsewhere:
+            raise self._recorded_elsewhere()
         if record is None:
             raise TrackerError(
                 f"experiment `{self._ref.experiment_id}` is missing from tracker "
                 f"store `{self._ref.store}`; run the cell that produced it again"
             )
         return record
+
+    def _recorded_elsewhere(self) -> TrackerError:
+        return TrackerError(
+            f"experiment `{self._ref.experiment_id}` is unreachable: it was "
+            f"recorded in tracker store `{self._ref.store}`, but this kernel "
+            f"uses `{self._client.store}`"
+        )
 
     def _unreachable(self, failure: TrackerError) -> TrackerError:
         return TrackerError(

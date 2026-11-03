@@ -968,6 +968,26 @@ export const useFlowStore = defineStore('flow', () => {
     }
   }
 
+  async function fetchAssetPage(slug: string, output: string, offset: number, limit: number) {
+    return workspaceApi.assetPage(
+      `${slug}.${output}`,
+      offset,
+      limit,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+  }
+
+  // A note cell's prose, as the daemon dedents it from the class docstring.
+  async function fetchCellNote(slug: string): Promise<string> {
+    const detail = await workspaceApi.cellSource(
+      slug,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    return detail.doc ?? ''
+  }
+
   async function fetchAssetPreview(slug: string, output?: string): Promise<AssetPreview> {
     const target = output ? `${slug}.${output}` : slug
     return workspaceApi.assetPreview(
@@ -1206,6 +1226,8 @@ export const useFlowStore = defineStore('flow', () => {
     restartKernel,
     renameCell,
     fetchCellSource,
+    fetchCellNote,
+    fetchAssetPage,
     fetchCellLogs,
     copyCellContext,
     fetchAssetPreview,

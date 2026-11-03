@@ -1,3 +1,4 @@
+import shutil
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -160,6 +161,43 @@ async def test_an_experiment_from_a_different_store_is_unreachable(
     assert "lumlflow daemon stop" in state.sentence
     assert shown["state"] == "synced"
     assert shown["tracker"]["sentence"] == state.sentence
+
+
+async def test_an_experiment_carried_with_its_store_stays_reachable(
+    tmp_path: Path, tracker: TrackerProvider
+) -> None:
+    """A flow and its tracker store copied elsewhere together (a zipped demo,
+    a moved folder): the recorded store path is stale, the experiment is not."""
+    async with _materialized_flow(tmp_path, tracker) as (root, first_api):
+        ref = _tracker_ref(first_api)
+        first_api.hub.session("churn").store.close()
+
+    moved = tmp_path / "moved"
+    shutil.copytree(root, moved / "project")
+    shutil.copytree(tracker.store_path, moved / "experiments")
+    carried = TrackerProvider(lambda: moved / "experiments")
+    with carried.bind(ThreadSafeTracker(f"sqlite://{moved / 'experiments'}")):
+        async with daemon_api(moved / "project", tracker=carried) as api:
+            await api.flow_open({"flow": "churn"})
+            session = api.hub.session("churn")
+            state = queries.experiment_state(session, ref)
+            shown = await api.cells_show({"flow": "churn", "slug": "evaluate"})
+            await api.settings_set(
+                {"flow": "churn", "reactivity": "auto", "eager_cost_threshold_s": 60}
+            )
+            await session.reactor.settled()
+            await api.cells_edit(
+                {"flow": "churn", "slug": "report", "source": EDITED_REPORT_CELL}
+            )
+            await session.reactor.settled()
+            listed = await api.cells_list({"flow": "churn"})
+
+    assert ref.store != str(moved / "experiments")
+    assert state.state == "ok"
+    assert shown["tracker"]["state"] == "ok"
+    assert shown["tracker"]["url"] is not None
+    assert _cell(listed, "report")["auto_declined"] is None
+    assert _cell(listed, "report")["state"] == "synced"
 
 
 async def test_an_external_delete_expires_and_flow_open_drops_the_cache(

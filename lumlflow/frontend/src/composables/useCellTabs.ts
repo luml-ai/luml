@@ -1,6 +1,6 @@
 import type { CellSummary, PreviewBlock } from '@/api/slices/workspace/workspace.interface'
 import type { CellTab } from '@/components/notebooks/cell/cell.interface'
-import { CodeXml, Scroll } from 'lucide-vue-next'
+import { CodeXml, NotebookText, Scroll } from 'lucide-vue-next'
 import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { useFlowStore } from '@/store/flow'
 import { capitalize } from '@/helpers/string'
@@ -9,6 +9,7 @@ import {
   DEFAULT_OUTPUT_KIND_ICON,
 } from '@/components/notebooks/cell/cell.const'
 
+export const NOTE_TAB_ID = 'note'
 export const CODE_TAB_ID = 'code'
 export const LOGS_TAB_ID = 'logs'
 const OUTPUT_TAB_PREFIX = 'output:'
@@ -27,6 +28,11 @@ function outputNameFromTabId(id: string): string {
   return id.slice(OUTPUT_TAB_PREFIX.length)
 }
 
+/** The output a tab shows, or undefined for the note, code and logs tabs. */
+export function outputOfTab(id: string): string | undefined {
+  return id.startsWith(OUTPUT_TAB_PREFIX) ? outputNameFromTabId(id) : undefined
+}
+
 export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
   const flowStore = useFlowStore()
 
@@ -38,6 +44,7 @@ export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
       icon: CELL_OUTPUT_KIND_ICONS[kind] ?? DEFAULT_OUTPUT_KIND_ICON,
     }))
     return [
+      ...(summary.note ? [{ id: NOTE_TAB_ID, label: 'Note', icon: NotebookText }] : []),
       ...outputs,
       { id: CODE_TAB_ID, label: 'Code', icon: CodeXml },
       { id: LOGS_TAB_ID, label: 'Logs', icon: Scroll },
@@ -102,7 +109,7 @@ export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
   watch(
     activeTab,
     (tabId) => {
-      if (tabId === CODE_TAB_ID || tabId === LOGS_TAB_ID) {
+      if (tabId === CODE_TAB_ID || tabId === LOGS_TAB_ID || tabId === NOTE_TAB_ID) {
         content.value = { status: 'idle' }
         return
       }
@@ -112,7 +119,7 @@ export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
   )
 
   watch(cellSnapshot, () => {
-    if (activeTab.value !== CODE_TAB_ID && activeTab.value !== LOGS_TAB_ID) {
+    if (![CODE_TAB_ID, LOGS_TAB_ID, NOTE_TAB_ID].includes(activeTab.value)) {
       void loadOutput(activeTab.value)
     }
   })

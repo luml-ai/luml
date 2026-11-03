@@ -34,7 +34,12 @@
         :entries="section.entries"
         :limit="clamped(section) ? COMPACT_KV_ROWS : null"
       />
-      <CellTableBlock v-else-if="section.kind === 'table'" :block="section.block" />
+      <CellTableBlock
+        v-else-if="section.kind === 'table'"
+        :block="section.block"
+        :slug="slug"
+        :output="output"
+      />
       <CellPlotImage v-else-if="section.kind === 'image'" :block="section.block" />
       <CellMarkdownBlock v-else-if="section.kind === 'markdown'" :block="section.block" />
       <CellFileBlock v-else :block="section.block" />

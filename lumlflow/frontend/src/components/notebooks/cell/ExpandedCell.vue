@@ -1,6 +1,14 @@
 <template>
   <RightFullHeightDialog v-model:visible="visible" :title="cell.slug">
     <div>
+      <div v-if="cell.note" class="item">
+        <div class="item-header">
+          <div class="item-title mb-4">Note</div>
+        </div>
+        <div class="item-content">
+          <NotebookNote :slug="cell.slug" />
+        </div>
+      </div>
       <div v-for="output in outputs" :key="output.name" class="item">
         <div class="item-header">
           <div class="item-title mb-4">{{ output.label }}</div>
@@ -37,6 +45,7 @@ import { capitalize } from '@/helpers/string'
 import NotebookOutput from '@/components/notebooks/cell/NotebookOutput.vue'
 import NotebookCode from '@/components/notebooks/cell/NotebookCode.vue'
 import NotebookLogs from '@/components/notebooks/cell/NotebookLogs.vue'
+import NotebookNote from '@/components/notebooks/cell/NotebookNote.vue'
 
 const props = defineProps<ExpandedCellProps>()
 

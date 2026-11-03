@@ -7,6 +7,7 @@ import type {
   PublishTarget,
 } from '@/flow/api/types'
 import type {
+  AssetPage,
   AssetPreview,
   BranchTree,
   CancelledRun,
@@ -196,6 +197,23 @@ export const workspaceApi = {
       ...(flow ? { flow } : {}),
       ...(branch ? { branch } : {}),
       target,
+    }),
+
+  // Rows of a table output past its preview, `limit` at a time from `offset`.
+  assetPage: (target: string, offset: number, limit: number, flow?: string, branch?: string) =>
+    call<
+      {
+        flow?: string
+        branch?: string
+        target: string
+        query: { offset: number; limit: number }
+      },
+      AssetPage
+    >('asset.page', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      target,
+      query: { offset, limit },
     }),
 
   publishAsset: (target: string, destination: PublishTarget, flow?: string, branch?: string) =>

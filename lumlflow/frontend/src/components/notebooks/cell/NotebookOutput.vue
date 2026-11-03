@@ -1,5 +1,5 @@
 <template>
-  <CellOutputTabContent :content="content" />
+  <CellOutputTabContent :content="content" :slug="slug" :output="name" />
 </template>
 
 <script setup lang="ts">

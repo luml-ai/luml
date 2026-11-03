@@ -110,6 +110,12 @@ class ExperimentStates:
     def _read(self, ref: TrackerRef, store: Path) -> ExperimentState:
         served = self._tracker.store_path.resolve()
         if store != served:
+            # Stores move with their flow (a copied folder, an unzipped demo),
+            # and the path recorded at run time goes stale. Experiment ids are
+            # UUIDs: the same id in the served store is the same experiment.
+            carried = self._carried(ref.experiment_id)
+            if carried is not None:
+                return ExperimentState("ok", record=carried)
             return ExperimentState(
                 "unreachable",
                 f"experiment `{ref.experiment_id}` was recorded in a different "
@@ -134,6 +140,12 @@ class ExperimentStates:
                 f"`{served}`.",
             )
         return ExperimentState("ok", record=record)
+
+    def _carried(self, experiment_id: str) -> Any | None:
+        try:
+            return self._tracker.read_experiment(experiment_id)
+        except Exception:
+            return None
 
 
 @dataclass(frozen=True)
@@ -211,8 +223,9 @@ def experiment_state(session: "FlowSession", ref: TrackerRef) -> ExperimentState
 def experiment_locations(
     session: "FlowSession", experiment_id: str
 ) -> list[tuple[str, str]]:
+    # Matched by id alone: ids are UUIDs, and a store that moved with its flow
+    # no longer sits at the path recorded when the cell ran.
     locations: set[tuple[str, str]] = set()
-    served = session.tracker.store_path.resolve()
     index = session.store.index
     for branch in index.branches():
         versions = index.slice_versions(branch.branch_id)
@@ -224,14 +237,9 @@ def experiment_locations(
             output_matches = any(
                 record.tracker_ref is not None
                 and record.tracker_ref.experiment_id == experiment_id
-                and _tracker_path(record.tracker_ref.store) == served
                 for record in mat.outputs.values()
             )
-            run_matches = (
-                mat.experiment_id == experiment_id
-                and mat.experiment_store is not None
-                and _tracker_path(mat.experiment_store) == served
-            )
+            run_matches = mat.experiment_id == experiment_id
             if output_matches or run_matches:
                 locations.add((branch.name, version.slug))
     return sorted(locations)

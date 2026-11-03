@@ -9,6 +9,7 @@
     :truncated="content.truncated"
     :compact="compact"
     :slug="slug"
+    :output="output"
   />
 </template>
 

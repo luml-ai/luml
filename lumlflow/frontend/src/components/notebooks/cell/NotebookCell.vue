@@ -39,6 +39,12 @@
     <div class="py-4 live-body nowheel">
       <slot>
         <Accordion v-model:value="activePanels" multiple>
+          <AccordionPanel v-if="cell.note" value="note" :pt="ACCORDION_PANEL_PT">
+            <AccordionHeader :pt="ACCORDION_HEADER_PT">Note</AccordionHeader>
+            <AccordionContent :pt="ACCORDION_CONTENT_PT">
+              <NotebookNote v-if="activePanels.includes('note')" :slug="cell.slug" />
+            </AccordionContent>
+          </AccordionPanel>
           <AccordionPanel value="code" :pt="ACCORDION_PANEL_PT">
             <AccordionHeader :pt="ACCORDION_HEADER_PT">Code</AccordionHeader>
             <AccordionContent :pt="ACCORDION_CONTENT_PT">
@@ -95,12 +101,14 @@ import NotebookCellFooter from '@/components/notebooks/cell/NotebookCellFooter.v
 import NotebookOutput from '@/components/notebooks/cell/NotebookOutput.vue'
 import NotebookCode from '@/components/notebooks/cell/NotebookCode.vue'
 import NotebookLogs from '@/components/notebooks/cell/NotebookLogs.vue'
+import NotebookNote from '@/components/notebooks/cell/NotebookNote.vue'
 
 const props = defineProps<NotebookCellProps>()
 
 const flowStore = useFlowStore()
 
-const activePanels = ref<string[]>(['code'])
+// A note reads as prose; its source stays one click away for editing.
+const activePanels = ref<string[]>([props.cell.note ? 'note' : 'code'])
 
 const live = computed(() => flowStore.cellLiveStates[props.cell.slug] ?? null)
 

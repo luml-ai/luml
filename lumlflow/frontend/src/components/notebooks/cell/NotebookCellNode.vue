@@ -11,9 +11,16 @@
     :cell="cell"
   >
     <NotebookCellTabs v-model="activeTab" :tabs="tabs" class="mb-4" />
-    <NotebookCode v-if="activeTab === CODE_TAB_ID" :slug="cell.slug" />
+    <NotebookNote v-if="activeTab === NOTE_TAB_ID" :slug="cell.slug" />
+    <NotebookCode v-else-if="activeTab === CODE_TAB_ID" :slug="cell.slug" />
     <NotebookLogs v-else-if="activeTab === LOGS_TAB_ID" :slug="cell.slug" />
-    <CellOutputTabContent v-else :content="content" compact :slug="cell.slug" />
+    <CellOutputTabContent
+      v-else
+      :content="content"
+      compact
+      :slug="cell.slug"
+      :output="outputOfTab(activeTab)"
+    />
   </NotebookCell>
 </template>
 
@@ -25,8 +32,15 @@ import NotebookCell from '@/components/notebooks/cell/NotebookCell.vue'
 import NotebookCellTabs from '@/components/notebooks/cell/NotebookCellTabs.vue'
 import NotebookCode from '@/components/notebooks/cell/NotebookCode.vue'
 import NotebookLogs from '@/components/notebooks/cell/NotebookLogs.vue'
+import NotebookNote from '@/components/notebooks/cell/NotebookNote.vue'
 import CellOutputTabContent from '@/components/notebooks/cell/preview/CellOutputTabContent.vue'
-import { CODE_TAB_ID, LOGS_TAB_ID, useCellTabs } from '@/composables/useCellTabs'
+import {
+  CODE_TAB_ID,
+  LOGS_TAB_ID,
+  NOTE_TAB_ID,
+  outputOfTab,
+  useCellTabs,
+} from '@/composables/useCellTabs'
 
 const props = defineProps<NotebookCellNodeProps>()
 

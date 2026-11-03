@@ -234,6 +234,20 @@ export interface AssetTracker {
   recorded_step: number | null
 }
 
+export interface AssetPage {
+  slug: string
+  output: string
+  kind: string
+  page: {
+    columns: string[]
+    dtypes: string[]
+    rows: (string | number | boolean | null)[][]
+    offset: number
+    total_rows: number
+    total_columns: number
+  }
+}
+
 export interface AssetPreview {
   flow: string
   branch: string
@@ -259,6 +273,23 @@ export interface CellSummary {
   changed_step: number
   order: string
   mat_id: string | null
+  /** A class with only a docstring: prose, not code. */
+  note?: boolean
+  /** Why reactivity left this stale cell for you to run, when it did. */
+  auto_declined?: CellAutoDeclined | null
+}
+
+export interface CellAutoDeclined {
+  reason:
+    | 'blocked'
+    | 'never-timed'
+    | 'too-expensive'
+    | 'dangling-experiment'
+    | 'unresolvable-reference'
+    | 'refresh-failed'
+  estimate_seconds: number
+  untimed: string[]
+  detail?: string
 }
 
 export interface CellsPage {
@@ -278,6 +309,8 @@ export interface CellDetail {
   branch: string
   definition_hash: string
   source: string
+  /** The class docstring, dedented; a note cell's prose. */
+  doc?: string
 }
 
 export interface CellLogs {

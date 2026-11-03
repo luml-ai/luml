@@ -15,7 +15,7 @@
     />
     <div class="flex gap-2 items-center">
       <RefreshButton />
-      <h1 class="text-2xl font-medium pt-2 mb-2">Test experiment</h1>
+      <h1 class="text-2xl font-medium pt-2 mb-2">{{ experimentStore.experiment.name }}</h1>
     </div>
     <DetailsTabs class="mb-4" />
     <RouterView />

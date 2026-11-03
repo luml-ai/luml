@@ -19,4 +19,15 @@ const html = computed(() => DOMPurify.sanitize(marked.parse(props.block.text) as
   background-color: transparent;
   color: var(--p-text-color);
 }
+/* Tailwind's reset drops list markers and github-markdown-css does not bring
+   them back, so numbered and bulleted lists read as plain lines. */
+.markdown-body :deep(ol) {
+  list-style-type: decimal;
+}
+.markdown-body :deep(ul) {
+  list-style-type: disc;
+}
+.markdown-body :deep(ul ul) {
+  list-style-type: circle;
+}
 </style>
