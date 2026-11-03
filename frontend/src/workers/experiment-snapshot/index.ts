@@ -29,6 +29,10 @@ async function call(payload: CallPayload, requestId: string) {
 
 self.onmessage = async (event) => {
   const { type, payload, requestId } = event.data
+  if (type === 'cancel') {
+    activeRequests.delete(requestId)
+    return
+  }
   activeRequests.add(requestId)
   try {
     switch (type) {
@@ -38,17 +42,15 @@ self.onmessage = async (event) => {
       case 'call':
         await call(payload, requestId)
         break
-      case 'cancel':
-        activeRequests.delete(requestId)
-        break
     }
   } catch (err: unknown) {
     const error = err as Error
-    activeRequests.delete(requestId)
     self.postMessage({
       type: 'error',
       requestId,
       error: error.message,
     })
+  } finally {
+    activeRequests.delete(requestId)
   }
 }
