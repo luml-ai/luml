@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ExperimentSnapshotApiProvider } from '../ExperimentSnapshotApiProvider'
 import type {
   ApiServiceInterface,
@@ -51,5 +51,30 @@ describe('ExperimentSnapshotApiProvider.prepareMetricData', () => {
     })
 
     expect(metric.aggregated).toBe(false)
+  })
+})
+
+describe('ExperimentSnapshotApiProvider.getTraceId', () => {
+  it('loads the linked trace for the requested model and dataset immediately after init', async () => {
+    const getEvalById = vi.fn().mockResolvedValue({ dataset_id: 'ds1', trace_ids: ['t1', 't2'] })
+    const provider = new ExperimentSnapshotApiProvider({
+      getEvalById,
+    } as unknown as ApiServiceInterface)
+    await provider.init({ artifacts: [{ id: 'm1', dynamicMetrics: [], staticParams: {} }] })
+
+    expect(await provider.getTraceId({ modelId: 'm1', datasetId: 'ds1', evalId: 'e1' })).toBe('t1')
+    expect(getEvalById).toHaveBeenCalledWith('m1', 'e1')
+    expect(await provider.getTraceId({ modelId: 'm1', datasetId: 'ds2', evalId: 'e1' })).toBeNull()
+  })
+
+  it('returns null when no traces are linked and propagates API errors', async () => {
+    const getEvalById = vi.fn().mockResolvedValue({ dataset_id: 'ds1', trace_ids: [] })
+    const provider = new ExperimentSnapshotApiProvider({
+      getEvalById,
+    } as unknown as ApiServiceInterface)
+    const params = { modelId: 'm1', datasetId: 'ds1', evalId: 'e1' }
+    expect(await provider.getTraceId(params)).toBeNull()
+    getEvalById.mockRejectedValue(new Error('Request failed'))
+    await expect(provider.getTraceId(params)).rejects.toThrow('Request failed')
   })
 })
