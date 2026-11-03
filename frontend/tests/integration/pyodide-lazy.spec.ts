@@ -34,7 +34,7 @@ for (const path of ['/sign-in', '/classification', '/runtime']) {
       await page
         .getByRole('button', { name: path === '/runtime' ? 'Express tasks' : 'Back', exact: true })
         .click()
-      await expect(page).toHaveURL('/')
+      await expect(page).toHaveURL('/express-tasks')
     }
     expect(requests).toEqual([])
   })

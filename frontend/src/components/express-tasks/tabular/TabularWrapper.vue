@@ -31,7 +31,11 @@
           @removeFile="onRemoveFile"
         />
         <div class="navigation">
-          <d-button label="Back" severity="secondary" @click="$router.push({ name: 'express-tasks' })" />
+          <d-button
+            label="Back"
+            severity="secondary"
+            @click="$router.push({ name: 'express-tasks' })"
+          />
           <d-button :disabled="!isStepAvailable(2)" @click="activateCallback(2)">
             <span style="font-weight: 500">Continue</span>
             <arrow-right width="14" height="14" />

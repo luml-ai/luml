@@ -3,6 +3,7 @@ import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { FolderDot, Folders, User } from 'lucide-vue-next'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useAuthStore } from '@/stores/auth'
 import { useBucketsStore } from '@/stores/buckets'
 import { useOrbitsStore } from '@/stores/orbits'
@@ -42,6 +43,11 @@ export const useQuickStart = () => {
 
   const organizationId = computed(() => organizationStore.currentOrganization?.id ?? null)
 
+  const canCreateOrbit = computed(
+    () =>
+      !!organizationStore.currentOrganization?.permissions?.orbit?.includes(PermissionEnum.create),
+  )
+
   const collectionOrbit = computed(
     () => orbitsStore.currentOrbit ?? orbitsStore.orbitsList[0] ?? null,
   )
@@ -58,7 +64,9 @@ export const useQuickStart = () => {
     if (!authStore.isAuth) return QuickStartStepEnum.account
     if (!organizationId.value || !isBucketsLoaded.value) return null
     if (!hasBucket.value) return QuickStartStepEnum.bucket
-    if (!hasCollection.value) return QuickStartStepEnum.collection
+    if (!hasCollection.value && (collectionOrbit.value || canCreateOrbit.value)) {
+      return QuickStartStepEnum.collection
+    }
     return null
   })
 
@@ -82,7 +90,7 @@ export const useQuickStart = () => {
   }
 
   async function createDefaultOrbit(orgId: string) {
-    const bucket = bucketsStore.buckets[0]
+    const bucket = isBucketsLoaded.value ? bucketsStore.buckets[0] : undefined
     if (!bucket) throw new Error('Storage bucket not found')
     const orbit = await orbitsStore.createOrbit(orgId, {
       name: DEFAULT_ORBIT_NAME,
