@@ -29,10 +29,10 @@ async function confirmDeletion() {
   return wrapper
 }
 
-function selectFirstOf(organizations: Organization[]) {
+function selectFirstOf(organizations: [Organization, ...Organization[]]) {
   const store = useOrganizationStore()
   store.availableOrganizations = organizations
-  store.setCurrentOrganizationId(organizations[0]!.id)
+  store.setCurrentOrganizationId(organizations[0].id)
   return store
 }
 

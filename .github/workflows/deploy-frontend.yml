@@ -5,7 +5,9 @@ on:
     branches: [main, staging, production]
     paths:
       - "frontend/**"
-      - "lumlflow/frontend/**"
+      - "extras/js/**"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
 
 concurrency:
