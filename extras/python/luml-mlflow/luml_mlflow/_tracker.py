@@ -1,7 +1,8 @@
 import json
 import sqlite3
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,39 @@ class ThreadSafeTracker(ExperimentTracker):
     def __init__(self, connection_string: str) -> None:
         super().__init__(connection_string)
         self._lock = threading.Lock()
+
+
+@contextmanager
+def store_connection(tracker: ThreadSafeTracker) -> Iterator[sqlite3.Connection]:
+    """Serialize plugin writes in a transaction shared across processes."""
+    conn = sqlite3.connect(tracker.backend.meta_db_path, timeout=30)
+    try:
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            yield conn
+    finally:
+        conn.close()
+
+
+def mutate_experiment(
+    tracker: ThreadSafeTracker,
+    run_id: str,
+    fn: Callable[[dict[str, Any], list[str]], None],
+) -> None:
+    """Atomically update a run's metadata and native flag tags."""
+    with store_connection(tracker) as conn:
+        row = conn.execute(
+            "SELECT metadata, tags FROM experiments WHERE id = ?", (run_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Experiment {run_id!r} not found")
+        metadata = json.loads(row[0]) if row[0] else {}
+        tags = json.loads(row[1]) if row[1] else []
+        fn(metadata, tags)
+        conn.execute(
+            "UPDATE experiments SET metadata = ?, tags = ? WHERE id = ?",
+            (json.dumps(metadata), json.dumps(tags), run_id),
+        )
 
 
 @cache
