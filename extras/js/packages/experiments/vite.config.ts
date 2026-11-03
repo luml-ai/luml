@@ -31,7 +31,6 @@ export default defineConfig({
       fileName: (format) => `luml-experiments.${format}.js`,
     },
     rollupOptions: {
-      // extract peer CSS into the stylesheet so the JS entry stays worker-safe
       external: (id) =>
         !id.endsWith('.css') && peers.some((peer) => id === peer || id.startsWith(`${peer}/`)),
       output: {
