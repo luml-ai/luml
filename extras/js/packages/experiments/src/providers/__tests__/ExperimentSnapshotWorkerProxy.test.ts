@@ -107,6 +107,20 @@ describe('ExperimentSnapshotWorkerProxy', () => {
     expectCleanedUp()
   })
 
+  it('uses the configured request timeout', async () => {
+    proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker, {
+      requestTimeoutMs: 1_000,
+    })
+    const result = proxy.getUniqueDatasetsIds()
+    const rejection = expect(result).rejects.toThrow(/timed out/i)
+    await vi.advanceTimersByTimeAsync(999)
+    expect(vi.getTimerCount()).toBe(1)
+    await vi.advanceTimersByTimeAsync(1)
+
+    await rejection
+    expectCleanedUp()
+  })
+
   it('cleans up when posting the request throws', async () => {
     worker.postMessage.mockImplementation(() => {
       throw new DOMException('cannot clone', 'DataCloneError')

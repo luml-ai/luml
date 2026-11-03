@@ -17,8 +17,21 @@ import type {
 } from '../interfaces/interfaces'
 import type { Trace } from './ExperimentSnapshotApiProvider.interface'
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
+
+export interface ExperimentSnapshotWorkerProxyOptions {
+  requestTimeoutMs?: number
+}
+
 export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider {
-  constructor(private worker: Worker) {}
+  private readonly requestTimeoutMs: number
+
+  constructor(
+    private worker: Worker,
+    options: ExperimentSnapshotWorkerProxyOptions = {},
+  ) {
+    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+  }
 
   private request<T>(message: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const requestId = crypto.randomUUID()
@@ -58,7 +71,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
       const onAbort = () => cancel(new DOMException('Aborted', 'AbortError'))
       const timeout = setTimeout(() => {
         cancel(new Error('Experiment snapshot worker request timed out'))
-      }, 60_000)
+      }, this.requestTimeoutMs)
 
       const cleanup = () => {
         clearTimeout(timeout)
