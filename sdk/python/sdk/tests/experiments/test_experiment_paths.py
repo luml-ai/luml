@@ -6,6 +6,7 @@ import pytest
 
 from luml.experiments.backends.sqlite import SQLiteBackend
 from luml.experiments.tracker import ExperimentTracker
+from tests.conftest import _symlink_dir
 
 
 @pytest.mark.parametrize(
@@ -90,12 +91,7 @@ def test_experiment_paths_cannot_resolve_to_root_or_outside_store(
     destination.mkdir(exist_ok=True)
     sentinel = destination / "keep.txt"
     sentinel.write_text("keep")
-    try:
-        (backend.base_path / "linked").symlink_to(destination, target_is_directory=True)
-    except OSError as err:
-        if getattr(err, "winerror", None) == 1314:
-            pytest.skip("Symlink creation requires admin privileges on Windows")
-        raise
+    _symlink_dir(backend.base_path / "linked", destination)
     rmtree = Mock()
     monkeypatch.setattr("shutil.rmtree", rmtree)
     action = {

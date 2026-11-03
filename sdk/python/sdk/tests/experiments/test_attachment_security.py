@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from luml.experiments.backends.sqlite import SQLiteBackend
+from tests.conftest import _symlink_dir
 
 
 @pytest.mark.parametrize("operation", ["read", "write", "tree"])
@@ -51,7 +52,7 @@ def test_attachment_symlinks_cannot_escape_store(
     marker = outside / "marker.txt"
     marker.write_bytes(b"outside")
     attachments = tmp_path / "experiments" / experiment_id / "attachments"
-    (attachments / "linked").symlink_to(outside, target_is_directory=True)
+    _symlink_dir(attachments / "linked", outside)
     actions = {
         "write": partial(
             backend.log_attachment, experiment_id, "linked/marker.txt", b"changed", True
