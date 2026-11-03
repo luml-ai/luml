@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ExperimentSnapshotWorkerProxy } from '../ExperimentSnapshotWorkerProxy'
+import { ExperimentSnapshotWorkerProxy } from '@luml/experiments'
 
 const database = vi.hoisted(() => ({ init: vi.fn(), getUniqueDatasetsIds: vi.fn() }))
 
-vi.mock('@luml/experiments', () => ({
+vi.mock('@luml/experiments', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@luml/experiments')>()),
   ExperimentSnapshotDatabaseProvider: class {
     init = database.init
     getUniqueDatasetsIds = database.getUniqueDatasetsIds
@@ -23,7 +24,7 @@ describe('experiment snapshot worker protocol', () => {
     }
     vi.stubGlobal('self', scope)
     vi.resetModules()
-    await import('../../../../../../../frontend/src/workers/experiment-snapshot/index')
+    await import('../index')
     const postMessage = vi.fn((data: unknown) => {
       void scope.onmessage!(new MessageEvent('message', { data }))
     })

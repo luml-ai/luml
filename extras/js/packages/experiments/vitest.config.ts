@@ -10,7 +10,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@luml/experiments': fileURLToPath(new URL('./src/index.ts', import.meta.url)),
     },
   },
 
