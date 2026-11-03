@@ -19,6 +19,7 @@ RELEASES = {
     "deploy-frontend.yml": {
         "tests": "[frontend] tests-and-linters.yml",
         "flow-tests": "[lumlflow] tests-and-linters.yml",
+        "extras-tests": "[extras-js] tests-and-linters.yml",
     },
     "deploy-docs.yml": {"tests": None},
     "publish-satellite-agent-image.yml": {
@@ -56,6 +57,7 @@ SUITE_TESTS = {
     ),
     "[frontend] tests-and-linters.yml": ("npm run test:ci", "npm run test:integration"),
     "[lumlflow] tests-and-linters.yml": ("npm run test:ci", "vite build"),
+    "[extras-js] tests-and-linters.yml": ("npm run test:ci", "npm run build-only"),
     "[satellite-monitoring-ui] tests-and-linters.yml": ("npm test", "npm run build"),
 }
 

@@ -21,6 +21,9 @@ jobs:
   flow-tests:
     uses: "./.github/workflows/[lumlflow] tests-and-linters.yml"
 
+  extras-tests:
+    uses: "./.github/workflows/[extras-js] tests-and-linters.yml"
+
   resolve-env:
     runs-on: ubuntu-latest
     outputs:
@@ -45,7 +48,7 @@ jobs:
           esac
 
   deploy:
-    needs: [resolve-env, tests, flow-tests]
+    needs: [resolve-env, tests, flow-tests, extras-tests]
     runs-on: ubuntu-latest
     environment:
       name: ${{ needs.resolve-env.outputs.environment }}

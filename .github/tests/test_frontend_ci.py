@@ -52,25 +52,44 @@ class FrontendCITests(unittest.TestCase):
         self.assertNotIn("continue-on-error", lint_steps[0])
         self.assertNotIn("if", lint_steps[0])
 
-    def test_experiments_tests_run_as_a_blocking_frontend_check(self):
-        job = load("[frontend] tests-and-linters.yml")["jobs"]["unit"]
-        self.assertNotIn("continue-on-error", job)
-        self.assertNotIn("if", job)
-        test_steps = [
-            step
+    def test_workspace_package_checks_run_once_outside_the_frontend_suite(self):
+        commands = "\n".join(
+            step.get("run", "")
+            for job in load("[frontend] tests-and-linters.yml")["jobs"].values()
             for step in job["steps"]
-            if "npm run test:ci --workspace=@luml/experiments"
-            in step.get("run", "")
-        ]
-        self.assertEqual(len(test_steps), 1)
-        self.assertNotIn("continue-on-error", test_steps[0])
-        self.assertNotIn("if", test_steps[0])
+        )
+        self.assertNotIn("test:ci --workspace=", commands)
+        job = load("[extras-js] tests-and-linters.yml")["jobs"]["checks"]
+        self.assertEqual(
+            set(job["strategy"]["matrix"]["package"]), {"attachments", "experiments"}
+        )
+
+    def test_extras_checks_trigger_on_workspace_sources_and_manifests(self):
+        workflow = load("[extras-js] tests-and-linters.yml")
+        for event in ("push", "pull_request"):
+            paths = workflow["on"][event]["paths"]
+            for changed in (
+                "extras/js/packages/attachments/src/index.ts",
+                "extras/js/packages/experiments/src/index.ts",
+                "extras/js/packages/new-package/src/index.ts",
+                "package.json",
+                "package-lock.json",
+            ):
+                with self.subTest(event=event, changed=changed):
+                    self.assertTrue(
+                        any(fnmatch.fnmatchcase(changed, path) for path in paths)
+                    )
 
     def test_test_jobs_use_optional_dependencies_without_mutating_the_lockfile(self):
-        jobs = load("[frontend] tests-and-linters.yml")["jobs"]
-        for name in ("unit", "integration"):
-            commands = [step.get("run", "") for step in jobs[name]["steps"]]
-            with self.subTest(job=name):
+        jobs = {
+            ("[frontend] tests-and-linters.yml", "unit"),
+            ("[frontend] tests-and-linters.yml", "integration"),
+            ("[extras-js] tests-and-linters.yml", "checks"),
+        }
+        for workflow, name in jobs:
+            steps = load(workflow)["jobs"][name]["steps"]
+            commands = [step.get("run", "") for step in steps]
+            with self.subTest(workflow=workflow, job=name):
                 self.assertIn("npm ci --include=optional", commands)
                 self.assertFalse(any("npm install" in command for command in commands))
 

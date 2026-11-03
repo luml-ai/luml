@@ -64,9 +64,6 @@ jobs:
         working-directory: frontend
         run: npm run test:ci
 
-      - name: Run experiments unit tests
-        run: npm run test:ci --workspace=@luml/experiments
-
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
