@@ -8,6 +8,9 @@
     </div>
 
     <div class="card">
+      <p v-if="acknowledgeError" class="acknowledge-error" role="alert">
+        Could not acknowledge alert. Please try again.
+      </p>
       <StateBlock
         v-if="view !== 'ready'"
         :view="view"
@@ -153,10 +156,11 @@ const props = withDefaults(
   defineProps<{
     alerts: AlertsResponse | null
     status: LoadStatus
+    acknowledgeError?: boolean
     newCount?: number
     freshKeys?: Set<string>
   }>(),
-  { newCount: 0, freshKeys: undefined },
+  { newCount: 0, freshKeys: undefined, acknowledgeError: false },
 )
 
 const emit = defineEmits<{ 'show-feature': [AlertBanner]; acknowledge: [AlertBanner]; seen: [] }>()
@@ -250,6 +254,10 @@ watch(
 </script>
 
 <style scoped>
+.acknowledge-error {
+  color: var(--luml-danger-tint-fg);
+  font-size: 13px;
+}
 .alerts-tab {
   display: flex;
   flex-direction: column;

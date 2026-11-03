@@ -139,7 +139,7 @@ const options = computed(() => ({
     y: { formatter: (value: number | null) => formatTick(value) },
   },
   // The line the metric had to cross to raise its alert.
-  annotations: props.threshold
+  annotations: props.threshold != null
     ? {
         yaxis: [
           {
