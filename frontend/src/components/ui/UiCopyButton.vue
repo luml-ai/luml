@@ -7,20 +7,21 @@
     @mousedown.stop
     @pointerdown.stop
   >
-    <component :is="copied ? CopyCheck : Copy" :size="12"></component>
+    <component :is="copied ? Check : Copy" :size="iconSize"></component>
   </Button>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Copy, CopyCheck } from 'lucide-vue-next'
+import { Check, Copy } from 'lucide-vue-next'
 import { Button } from 'primevue'
 
 type Props = {
   text: string
+  iconSize?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { iconSize: 12 })
 
 const copied = ref(false)
 

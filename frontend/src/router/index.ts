@@ -13,6 +13,11 @@ const router = createRouter({
       component: HomePage,
     },
     {
+      path: '/express-tasks',
+      name: 'express-tasks',
+      component: () => import('../pages/ExpressTasksPage.vue'),
+    },
+    {
       path: '/sign-up',
       name: 'sign-up',
       component: () => import('../pages/SignUpPage.vue'),

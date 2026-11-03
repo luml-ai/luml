@@ -81,6 +81,8 @@
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
     </div>
 
+    <slot name="default"></slot>
+
     <Button v-if="showSubmitButton" type="submit" fluid rounded :loading="loading">Create</Button>
   </Form>
 </template>

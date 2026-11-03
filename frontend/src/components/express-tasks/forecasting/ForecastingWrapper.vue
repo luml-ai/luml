@@ -31,7 +31,7 @@
           @removeFile="onRemoveFile"
         />
         <div class="navigation">
-          <d-button label="Back" severity="secondary" @click="$router.push({ name: 'home' })" />
+          <d-button label="Back" severity="secondary" @click="$router.push({ name: 'express-tasks' })" />
           <d-button
             data-testid="forecasting-continue"
             :disabled="!isStepAvailable(2)"

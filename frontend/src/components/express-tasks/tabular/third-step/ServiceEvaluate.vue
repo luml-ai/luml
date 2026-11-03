@@ -171,7 +171,7 @@ const finishConfirm = () => {
   if (props.currentTask) {
     AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: taskName.value })
   }
-  router.push({ name: 'home' })
+  router.push({ name: 'express-tasks' })
 }
 
 onBeforeMount(() => {

@@ -18,7 +18,7 @@
         <div class="sample-title">
           <span>Don't have a model yet? Train one in “Express tasks”</span>
         </div>
-        <d-button label="Express tasks" @click="$router.push({ name: 'home' })" />
+        <d-button label="Express tasks" @click="$router.push({ name: 'express-tasks' })" />
       </div>
     </div>
     <div class="navigation">
