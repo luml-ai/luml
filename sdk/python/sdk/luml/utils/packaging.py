@@ -9,7 +9,6 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
-import scipy.sparse as sp
 from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
 from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
     JSON,
@@ -17,6 +16,11 @@ from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untype
 )
 
 from luml._constants import FNNX_PRODUCER_NAME
+
+try:
+    import scipy.sparse as sp
+except ImportError:  # pragma: no cover - optional dependency
+    sp = None  # type: ignore[assignment]
 
 try:
     import pandas as pd
@@ -38,8 +42,15 @@ REFERENCE_PROFILE_FILENAME = "reference_profile.json"
 
 
 def resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
-    if pd is not None and isinstance(dtype, pd.CategoricalDtype):
-        return "str"
+    if pd is not None:
+        if isinstance(dtype, pd.CategoricalDtype):
+            return "str"
+        if isinstance(dtype, pd.api.extensions.ExtensionDtype):
+            if pd.api.types.is_float_dtype(dtype):
+                return "float"
+            if pd.api.types.is_integer_dtype(dtype):
+                return "int"
+            return "str"
     if np.issubdtype(dtype, np.floating):
         return "float"
     if np.issubdtype(dtype, np.integer):
@@ -75,7 +86,7 @@ def normalize_inputs(  # noqa: C901
                 feature_names = [f"x{i}" for i in range(inputs.num_col())]
             return inputs, list(feature_names), categorical_features
 
-    if sp.issparse(inputs):
+    if sp is not None and sp.issparse(inputs):
         if input_format != "native":
             raise ValueError("Sparse requires input_format='native'")
         if inputs.ndim < 2:  # type: ignore[attr-defined]
