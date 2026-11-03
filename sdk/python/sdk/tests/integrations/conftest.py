@@ -1,5 +1,9 @@
-import catboost as ctb
+# On Windows, lightgbm must be imported before other ML runtimes (such as
+# catboost) to prevent OpenMP runtime conflicts that cause access violations.
 import lightgbm as lgb
+
+# isort: split
+import catboost as ctb
 import numpy as np
 import pandas as pd
 import pytest
