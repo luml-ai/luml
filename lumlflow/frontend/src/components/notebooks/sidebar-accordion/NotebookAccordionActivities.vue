@@ -25,6 +25,7 @@
 import type { JournalTransaction } from '@/api/slices/workspace/workspace.interface'
 import { computed } from 'vue'
 import {
+  ArrowUpDown,
   Bot,
   CloudUpload,
   GitMerge,
@@ -48,6 +49,7 @@ const OP_ICONS: [string, unknown][] = [
   ['adopted', GitMerge],
   ['renamed', Pencil],
   ['cell_removed', Trash2],
+  ['cells_ordered', ArrowUpDown],
   ['cell_noted', MessageSquare],
   ['env_changed', Settings],
   ['agent_begin', Bot],

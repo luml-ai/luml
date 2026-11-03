@@ -158,6 +158,20 @@ class Rewound(_Frozen):
     selections: dict[str, str] = Field(default_factory=dict)
     slugs: dict[str, str] = Field(default_factory=dict)
     baselines: dict[str, str] = Field(default_factory=dict)
+    orders: dict[str, str] = Field(default_factory=dict)
+
+
+class CellsOrdered(_Frozen):
+    """Order keys for cells of one lane.
+
+    `fill_only` marks the one-off fixing of lane orders: it sets a key only
+    where the lane has none yet, so a repeated or racing fix never undoes a move.
+    """
+
+    op: Literal["cells_ordered"] = "cells_ordered"
+    branch_id: str
+    orders: dict[str, str]
+    fill_only: bool = False
 
 
 class Adopted(_Frozen):
@@ -257,6 +271,7 @@ Op = Annotated[
     | BranchArchived
     | WorktreeBound
     | Rewound
+    | CellsOrdered
     | Adopted
     | Renamed
     | RunRecorded

@@ -16,11 +16,18 @@ from lumlflow.flow.store.cas import Cas
 from lumlflow.flow.store.index import INDEX_SCHEMA_VERSION, Index, is_annotation
 from lumlflow.flow.store.journal import Journal
 from lumlflow.flow.store.models import (
+    AUTO_ACTOR,
     JOURNAL_SCHEMA_VERSION,
+    Adopted,
     BranchCreated,
+    CellAccepted,
+    CellRemoved,
+    CellsOrdered,
     FlowInit,
     FlowManifest,
     Op,
+    Rewound,
+    SelectionSet,
     Transaction,
 )
 
@@ -72,6 +79,8 @@ class FlowStore:
         self._index_stale = False
         self._manifest_on_disk = _manifest_bytes(flow_dir)
         self._manifest_base = manifest.model_dump(mode="json")
+        self._importing_order = False
+        self._pending_order: tuple[str, dict[str, str]] | None = None
 
     @classmethod
     def init(
@@ -163,6 +172,11 @@ class FlowStore:
                 # The journal already holds the line, so nothing is lost. But an
                 self._index_stale = True
                 raise
+            if _moves_root_order(transaction, self.index):
+                try:
+                    self._mirror_root_order()
+                except Exception:
+                    logger.exception("could not mirror the root lane's order")
         self._announce(transaction)
         return transaction
 
@@ -175,6 +189,9 @@ class FlowStore:
 
     def _settle(self, draft: Transaction) -> Transaction:
         if draft.branch is None or is_annotation(draft):
+            return draft
+        # A reorder adds no step, so it must not become the lane's checkpoint.
+        if all(isinstance(op, CellsOrdered) for op in draft.ops):
             return draft
         with self.index.probe(draft) as ahead:
             settled = is_settled(ahead, draft.branch)
@@ -195,23 +212,58 @@ class FlowStore:
         A three-way merge against the copy last read or written: a key the store
         has not changed since takes the disk's value, a key it has changed keeps
         its own, so neither side's edit is lost.
+
+        Once lane orders are fixed, `order` there mirrors the root lane: an
+        outside change to it lands on the root lane as a reorder, committed
+        once. While the root lane stands behind its newest step the import
+        waits, so it neither lands on an old step nor gets lost.
         """
-        on_disk = _manifest_bytes(self.flow_dir)
-        if on_disk is None or on_disk == self._manifest_on_disk:
+        if self._importing_order:
             return
-        theirs = _parse_manifest(manifest_path(self.flow_dir), on_disk)
-        theirs_payload = theirs.model_dump(mode="json")
-        merged = _merge3(
-            self._manifest_base, self.manifest.model_dump(mode="json"), theirs_payload
-        )
-        self.manifest = FlowManifest.model_validate(merged)
-        self._manifest_on_disk = on_disk
-        self._manifest_base = theirs_payload
+        on_disk = _manifest_bytes(self.flow_dir)
+        if on_disk is not None and on_disk != self._manifest_on_disk:
+            theirs = _parse_manifest(manifest_path(self.flow_dir), on_disk)
+            theirs_payload = theirs.model_dump(mode="json")
+            base_order = self._manifest_base.get("order")
+            merged = _merge3(
+                self._manifest_base,
+                self.manifest.model_dump(mode="json"),
+                theirs_payload,
+            )
+            self.manifest = FlowManifest.model_validate(merged)
+            self._manifest_on_disk = on_disk
+            self._manifest_base = theirs_payload
+            if self.index.lane_orders_fixed():
+                imported = self._imported_root_order(
+                    base_order, theirs_payload.get("order")
+                )
+                if imported is not None:
+                    self._pending_order = _fold_pending(self._pending_order, imported)
+        self._import_pending_order()
+
+    def _import_pending_order(self) -> None:
+        if self._pending_order is None:
+            return
+        branch_id, orders = self._pending_order
+        if self.index.head_step(branch_id) < self.index.newest_step(branch_id):
+            return
+        self._pending_order = None
+        self._importing_order = True
+        try:
+            self.commit(
+                [CellsOrdered(branch_id=branch_id, orders=orders)],
+                intent="order from flow.yaml",
+                actor="user",
+                branch=branch_id,
+            )
+        finally:
+            self._importing_order = False
 
     def save_manifest(self) -> None:
         self.refresh_manifest()
         self._sync_manifest_cells()
-        self._drop_unselected_order_entries()
+        if not self.index.lane_orders_fixed():
+            self._drop_unselected_order_entries()
         body = _manifest_body(self.manifest)
         if body == self._manifest_on_disk:
             return
@@ -219,39 +271,48 @@ class FlowStore:
         self._manifest_on_disk = body
         self._manifest_base = self.manifest.model_dump(mode="json")
 
-    def effective_order(self) -> dict[str, Decimal]:
+    def effective_order(self, branch_id: str) -> dict[str, Decimal]:
+        """Where each cell of one lane sits: its own key, else its creation step.
+        The root lane also reads flow.yaml before the creation step.
+
+        Until the flow's lane orders are fixed (an old flow before its first
+        open by this version), the flow-wide order it always had stands in.
+        """
+        if not self.index.lane_orders_fixed():
+            legacy = self._legacy_effective_order()
+            return {
+                uid: legacy[uid]
+                for uid in self.index.selections(branch_id)
+                if uid in legacy
+            }
+        born = self.index.creation_steps()
+        fallback = {
+            uid: Decimal(born[uid])
+            for uid in self.index.selections(branch_id)
+            if uid in born
+        }
+        own: dict[str, object] = dict(self.index.orders(branch_id))
+        root = self.index.root_branch()
+        if root is not None and root.branch_id == branch_id:
+            # flow.yaml mirrors this lane, so it is this lane's own order too:
+            # a fresh clone accepts its cells after the fixing and finds their
+            # places there. No other lane reads it, so nothing leaks across.
+            own = {**(self.manifest.order or {}), **own}
+        return _resolve_order(fallback, own)
+
+    def _legacy_effective_order(self) -> dict[str, Decimal]:
+        """The flow-wide order of every selected cell, as flows kept it before
+        each lane had its own. Only the one-off fixing reads it."""
         born = self.index.creation_steps()
         fallback = {
             uid: Decimal(born[uid]) for uid in self._selected_uids() if uid in born
         }
-        raw = self.manifest.order or {}
-        mapped = {
-            uid: key
-            for uid in fallback
-            if (key := _order_decimal(raw.get(uid))) is not None
-        }
+        return _resolve_order(fallback, self.manifest.order or {})
 
-        while True:
-            effective = {
-                uid: mapped.get(uid, created) for uid, created in fallback.items()
-            }
-            collisions: dict[Decimal, list[str]] = {}
-            for uid, key in effective.items():
-                collisions.setdefault(key, []).append(uid)
-            invalid = {
-                uid
-                for uids in collisions.values()
-                if len(uids) > 1
-                for uid in uids
-                if uid in mapped
-            }
-            if not invalid:
-                return effective
-            for uid in invalid:
-                mapped.pop(uid)
-
-    def order_before(self, anchor_uid: str, *, excluding_uid: str | None = None) -> str:
-        effective, upper = self._order_anchor(anchor_uid, excluding_uid)
+    def order_before(
+        self, anchor_uid: str, *, branch_id: str, excluding_uid: str | None = None
+    ) -> str:
+        effective, upper = self._order_anchor(anchor_uid, branch_id, excluding_uid)
         lower = max(
             (key for key in effective.values() if key < upper),
             default=Decimal(0),
@@ -260,8 +321,10 @@ class FlowStore:
             raise FlowError("the anchor's order must be later than the first step")
         return _order_text(_exact_midpoint(lower, upper))
 
-    def order_after(self, anchor_uid: str, *, excluding_uid: str | None = None) -> str:
-        effective, lower = self._order_anchor(anchor_uid, excluding_uid)
+    def order_after(
+        self, anchor_uid: str, *, branch_id: str, excluding_uid: str | None = None
+    ) -> str:
+        effective, lower = self._order_anchor(anchor_uid, branch_id, excluding_uid)
         upper = min((key for key in effective.values() if key > lower), default=None)
         if upper is None:
             upper = Decimal(self.next_step)
@@ -270,14 +333,105 @@ class FlowStore:
         return _order_text(_exact_midpoint(lower, upper))
 
     def _order_anchor(
-        self, anchor_uid: str, excluding_uid: str | None
+        self, anchor_uid: str, branch_id: str, excluding_uid: str | None
     ) -> tuple[dict[str, Decimal], Decimal]:
-        effective = self.effective_order()
+        effective = self.effective_order(branch_id)
         if excluding_uid is not None:
             effective.pop(excluding_uid, None)
         if anchor_uid not in effective:
-            raise FlowError("the anchor is no longer selected on any lane")
+            raise FlowError("the anchor is no longer selected on this lane")
         return effective, effective[anchor_uid]
+
+    def fix_lane_orders(self) -> list[CellsOrdered]:
+        """One `fill_only` op per lane, archived ones too, holding the order the
+        lane shows today. Empty when the flow's lane orders are already fixed."""
+        if self.index.lane_orders_fixed():
+            return []
+        legacy = self._legacy_effective_order()
+        return [
+            CellsOrdered(
+                branch_id=branch.branch_id,
+                orders={
+                    uid: _order_text(legacy[uid])
+                    for uid in self.index.selections(branch.branch_id)
+                    if uid in legacy
+                },
+                fill_only=True,
+            )
+            for branch in self.index.branches()
+        ]
+
+    def ensure_lane_orders_fixed(self) -> None:
+        """Give every lane its own copy of its order, once per flow.
+
+        Run when a session opens the flow. It writes the journal even when
+        nobody reorders anything, so an older lumlflow cannot open the flow
+        afterwards.
+        """
+        ops = self.fix_lane_orders()
+        if not ops:
+            return
+        self.commit(ops, intent="fixed lane orders", actor=AUTO_ACTOR)
+        self._mirror_root_order()
+
+    def _mirror_root_order(self) -> None:
+        """Keep `order` in flow.yaml equal to the root lane's order, so a flow
+        shared through git carries it. Writes only when it changed."""
+        if not self.index.lane_orders_fixed():
+            return
+        root = self.index.root_branch()
+        if root is None:
+            return
+        mirrored = {
+            uid: _order_text(key)
+            for uid, key in sorted(
+                self.effective_order(root.branch_id).items(),
+                key=lambda item: (item[1], item[0]),
+            )
+        }
+        # Cells flow.yaml lists but the store has not accepted yet (a fresh
+        # clone, before cells/ is read) keep the place flow.yaml gives them.
+        known = set(self.index.creation_steps())
+        for uid in set(self.manifest.cells.values()) - known:
+            pending = (self.manifest.order or {}).get(uid)
+            if pending is not None:
+                mirrored[uid] = str(pending)
+        if self.manifest.order == (mirrored or None):
+            return
+        self.manifest.order = mirrored or None
+        self._write_manifest_now()
+
+    def _write_manifest_now(self) -> None:
+        """Write the in-memory manifest without folding the disk in first:
+        `save_manifest` refreshes, and a refresh may import, which commits."""
+        body = _manifest_body(self.manifest)
+        if body == self._manifest_on_disk:
+            return
+        atomic_write_bytes(manifest_path(self.flow_dir), body)
+        self._manifest_on_disk = body
+        self._manifest_base = self.manifest.model_dump(mode="json")
+
+    def _imported_root_order(
+        self, base: object, theirs: object
+    ) -> tuple[str, dict[str, str]] | None:
+        """The root-lane keys an outside edit of flow.yaml changed, if any."""
+        if not isinstance(theirs, dict):
+            return None
+        root = self.index.root_branch()
+        if root is None:
+            return None
+        before = base if isinstance(base, dict) else {}
+        selected = self.index.selections(root.branch_id)
+        changed: dict[str, str] = {}
+        for uid, value in theirs.items():
+            if value == before.get(uid):
+                continue
+            key = _order_decimal(value)
+            if uid not in selected or key is None:
+                logger.info("flow.yaml order: ignored `%s: %s`", uid, value)
+                continue
+            changed[str(uid)] = _order_text(key)
+        return (root.branch_id, changed) if changed else None
 
     def _selected_uids(self) -> set[str]:
         return {
@@ -435,6 +589,61 @@ def _merge3(base: object, ours: object, theirs: object) -> object:
     return merged
 
 
+_ROOT_ORDER_OPS = (
+    CellsOrdered,
+    Rewound,
+    Adopted,
+    CellRemoved,
+    CellAccepted,
+    SelectionSet,
+)
+
+
+def _fold_pending(
+    pending: tuple[str, dict[str, str]] | None, imported: tuple[str, dict[str, str]]
+) -> tuple[str, dict[str, str]]:
+    if pending is None or pending[0] != imported[0]:
+        return imported
+    return imported[0], {**pending[1], **imported[1]}
+
+
+def _moves_root_order(transaction: Transaction, index: Index) -> bool:
+    if transaction.branch is None or not any(
+        isinstance(op, _ROOT_ORDER_OPS) for op in transaction.ops
+    ):
+        return False
+    root = index.root_branch()
+    return root is not None and root.branch_id == transaction.branch
+
+
+def _resolve_order(
+    fallback: dict[str, Decimal], raw: dict[str, object]
+) -> dict[str, Decimal]:
+    """Each cell's key from `raw`, else its fallback. Keys that collide drop
+    back to the fallback until no two cells share a place."""
+    mapped = {
+        uid: key
+        for uid in fallback
+        if (key := _order_decimal(raw.get(uid))) is not None
+    }
+    while True:
+        effective = {uid: mapped.get(uid, created) for uid, created in fallback.items()}
+        collisions: dict[Decimal, list[str]] = {}
+        for uid, key in effective.items():
+            collisions.setdefault(key, []).append(uid)
+        invalid = {
+            uid
+            for uids in collisions.values()
+            if len(uids) > 1
+            for uid in uids
+            if uid in mapped
+        }
+        if not invalid:
+            return effective
+        for uid in invalid:
+            mapped.pop(uid)
+
+
 def _order_decimal(value: object) -> Decimal | None:
     try:
         key = Decimal(str(value))
@@ -460,6 +669,10 @@ def _exact_midpoint(lower: Decimal, upper: Decimal) -> Decimal:
     sign = int(coefficient < 0)
     digits = tuple(int(digit) for digit in str(abs(coefficient))) or (0,)
     return Decimal((sign, digits, exponent - 1))
+
+
+def order_text(value: Decimal) -> str:
+    return _order_text(value)
 
 
 def _order_text(value: Decimal) -> str:

@@ -32,7 +32,13 @@ from lumlflow.flow.scheduler.queue import RunOutcome
 from lumlflow.flow.store import gc
 from lumlflow.flow.store.flowstore import FlowStore, store_dir
 from lumlflow.flow.store.index import VersionRow
-from lumlflow.flow.store.models import AgentBegin, AgentEnd, OutputRecord, Reactivity
+from lumlflow.flow.store.models import (
+    AgentBegin,
+    AgentEnd,
+    CellsOrdered,
+    OutputRecord,
+    Reactivity,
+)
 
 _FENCED = frozenset(
     {
@@ -446,29 +452,30 @@ class Api:
             if original is not None:
                 anchor_name = original.slug
         anchor = queries.head(session, branch, anchor_name) if anchor_name else None
+        branch_id = session.store.branches.get(branch).branch_id
         uid = new_ulid() if anchor is not None else None
-        order_key = (
-            session.store.order_after(anchor.uid) if anchor is not None else None
-        )
+        order_ops: list[CellsOrdered] = []
+        if anchor is not None and uid is not None:
+            order_ops = [
+                *session.store.fix_lane_orders(),
+                CellsOrdered(
+                    branch_id=branch_id,
+                    orders={
+                        uid: session.store.order_after(anchor.uid, branch_id=branch_id)
+                    },
+                ),
+            ]
         source = provided_source or _scaffold(session, params, slug=slug, branch=branch)
-        previous_order = session.store.manifest.order
-        if order_key is not None and uid is not None:
-            order = dict(previous_order or {})
-            order[uid] = order_key
-            session.store.manifest.order = order
-        try:
-            accepted = session.acceptance.accept_source(
-                slug,
-                str(source),
-                branch=branch,
-                actor=_actor(params),
-                intent=params.get("intent") or f"added {slug}",
-                uid=uid,
-                fresh=True,
-            )
-        except BaseException:
-            session.store.manifest.order = previous_order
-            raise
+        accepted = session.acceptance.accept_source(
+            slug,
+            str(source),
+            branch=branch,
+            actor=_actor(params),
+            intent=params.get("intent") or f"added {slug}",
+            uid=uid,
+            fresh=True,
+            order_ops=order_ops,
+        )
         _rebind(session, {accepted.uid}, branch=branch, actor=_actor(params))
         return self._edited(session, accepted, branch=branch)
 
@@ -484,34 +491,49 @@ class Api:
         if moved.uid == neighbour.uid:
             raise FlowError(f"`{moved.slug}` cannot be moved beside itself")
 
+        index = session.store.index
+        branch_id = session.store.branches.get(branch).branch_id
+        if moved.uid not in index.selections(branch_id):
+            raise FlowError(f"`{moved.slug}` is not on `{branch}`")
+        head, newest = index.head_step(branch_id), index.newest_step(branch_id)
+        if head < newest:
+            # A reorder adds no step, so it cannot move the lane on the way an
+            # edit does; made here it would vanish on the way back to `newest`.
+            raise FlowError(
+                f"`{branch}` stands at step {head}, behind its newest step "
+                f"{newest}. Reordering cells there would be lost; start a new "
+                f"lane from here or rewind to step {newest}"
+            )
+
+        # The key is computed outside the store's lock. Nothing is awaited
+        # between here and the commit, so no other change lands in between.
         if before:
             order_key = session.store.order_before(
-                neighbour.uid, excluding_uid=moved.uid
+                neighbour.uid, branch_id=branch_id, excluding_uid=moved.uid
             )
         else:
             order_key = session.store.order_after(
-                neighbour.uid, excluding_uid=moved.uid
+                neighbour.uid, branch_id=branch_id, excluding_uid=moved.uid
             )
-        branch_id = session.store.branches.get(branch).branch_id
-        versions = session.store.index.slice_versions(branch_id)
+        versions = index.slice_versions(branch_id)
         _validate_reorder_topology(
             versions,
             moved,
             Decimal(order_key),
-            session.store.effective_order(),
+            session.store.effective_order(branch_id),
             branch,
         )
 
-        previous_order = session.store.manifest.order
-        session.store.manifest.order = {
-            **(previous_order or {}),
-            moved.uid: order_key,
-        }
-        try:
-            session.store.save_manifest()
-        except BaseException:
-            session.store.manifest.order = previous_order
-            raise
+        side = "before" if before else "after"
+        session.store.commit(
+            [
+                *session.store.fix_lane_orders(),
+                CellsOrdered(branch_id=branch_id, orders={moved.uid: order_key}),
+            ],
+            intent=f"moved {moved.slug} {side} {neighbour.slug} on {branch}",
+            actor=_actor(params),
+            branch=branch_id,
+        )
         self.hub.push_state(session, "order_changed")
         return {
             "slug": moved.slug,

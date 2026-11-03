@@ -125,6 +125,15 @@ export interface RewoundOp {
   to_step: number
   selections: Record<string, string>
   baselines: Record<string, string>
+  orders?: Record<string, string>
+}
+
+/** Order keys for cells of one lane. Not a step: it shows in Activities only. */
+export interface CellsOrderedOp {
+  op: 'cells_ordered'
+  branch_id: string
+  orders: Record<string, string>
+  fill_only?: boolean
 }
 
 export interface AdoptedOp {
@@ -221,6 +230,7 @@ export type FlowOp =
   | BranchArchivedOp
   | WorktreeBoundOp
   | RewoundOp
+  | CellsOrderedOp
   | AdoptedOp
   | RenamedOp
   | RunRecordedOp

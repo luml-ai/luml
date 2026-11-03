@@ -36,6 +36,7 @@ SPEC_OP_VOCABULARY = {
     "agent_begin",
     "agent_end",
     "checkpointed",
+    "cells_ordered",
 }
 
 

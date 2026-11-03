@@ -496,7 +496,11 @@ def test_move_cell_places_a_cell_and_returns_its_order(talk: Talk) -> None:
 
     assert moved["slug"] == "moved"
     assert moved["uid"] == moved_uid
-    assert live.store.manifest.order == {moved_uid: moved["order"]}
+    main_id = live.store.branches.get("main").branch_id
+    assert live.store.index.orders(main_id)[moved_uid] == moved["order"]
+    # flow.yaml mirrors the root lane, so the move shows there too.
+    assert live.store.manifest.order is not None
+    assert live.store.manifest.order[moved_uid] == moved["order"]
 
 
 def test_new_cell_all_outputs_wires_every_producer_output(talk: Talk) -> None:

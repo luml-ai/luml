@@ -283,7 +283,8 @@ def test_cells_new_after_prefills_the_wiring_and_the_signature(
     ]
 
     assert anchored.exit_code == 0, anchored.output
-    assert len(order) == 2
+    # flow.yaml mirrors the whole root lane: `score` and both anchored cells.
+    assert len(order) == 3
     assert 'consumes = {"summary": "score.summary"}' in source
     assert "def materialize(self, ctx, summary):" in source
     assert "from __future__ import annotations" in source

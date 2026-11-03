@@ -70,6 +70,13 @@ behind its newest one. A change made from there moves the lane on from that
 step. To keep the later steps reachable as they were, start a lane with
 `new-lane` first — it starts from where the lane stands.
 
+Each lane keeps its own cell order. `move-cell` changes it on that lane only
+and adds no step: the move shows among the lane's activities and rides the
+step before it, so `rewind` to that step brings it back. A lane that stands
+behind its newest step refuses a move, since it would be lost on the way back;
+start a lane with `new-lane` there instead. `flow.yaml` carries the root lane's
+order, so a flow shared through git keeps it.
+
 Somebody else may move the lane while you work. Your next change to it is
 then refused, nothing lands, and the refusal names the step the lane went to.
 Call `context`, then start a lane with `new-lane` or make the change again to

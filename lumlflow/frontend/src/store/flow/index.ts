@@ -138,6 +138,7 @@ const NOT_A_POSITION_OPS = new Set([
   'branch_archived',
   'checkpointed',
   'rewound',
+  'cells_ordered',
 ])
 
 function isPosition(transaction: JournalTransaction): boolean {

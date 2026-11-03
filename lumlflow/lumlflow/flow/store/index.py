@@ -20,6 +20,7 @@ from lumlflow.flow.store.models import (
     CellNoted,
     CellNoteKind,
     CellRemoved,
+    CellsOrdered,
     Checkpointed,
     EnvChanged,
     FlagSet,
@@ -39,7 +40,7 @@ from lumlflow.flow.store.models import (
     WorktreeBound,
 )
 
-INDEX_SCHEMA_VERSION = 16
+INDEX_SCHEMA_VERSION = 17
 
 _SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -89,6 +90,7 @@ CREATE TABLE selections (
     version_id TEXT NOT NULL,
     slug TEXT NOT NULL,
     pinned INTEGER NOT NULL DEFAULT 0,
+    order_key TEXT,
     PRIMARY KEY (branch_id, uid)
 );
 
@@ -369,6 +371,46 @@ class Index:
             )
         }
 
+    def orders(self, branch_id: str) -> dict[str, str]:
+        """The lane's own order keys; a cell without one is absent."""
+        return {
+            row["uid"]: row["order_key"]
+            for row in self._conn.execute(
+                "SELECT uid, order_key FROM selections "
+                "WHERE branch_id = ? AND order_key IS NOT NULL ORDER BY uid",
+                (branch_id,),
+            )
+        }
+
+    def lane_orders_fixed(self) -> bool:
+        row = self._conn.execute(
+            "SELECT value FROM meta WHERE key = 'lane_orders_fixed'"
+        ).fetchone()
+        return row is not None and row["value"] == "1"
+
+    def fixed_lane_orders(self, branch_id: str) -> dict[str, str]:
+        """The keys the one-off fixing gave this lane, read back from the journal
+        rows it left, for steps that predate the fixing."""
+        for row in self._conn.execute(
+            "SELECT ops FROM transactions WHERE ops LIKE '%cells_ordered%' "
+            "ORDER BY step"
+        ):
+            for raw in json.loads(row["ops"]):
+                if (
+                    raw.get("op") == "cells_ordered"
+                    and raw.get("fill_only")
+                    and raw.get("branch_id") == branch_id
+                ):
+                    return {str(uid): str(key) for uid, key in raw["orders"].items()}
+        return {}
+
+    def root_branch(self) -> BranchRow | None:
+        row = self._conn.execute(
+            "SELECT * FROM branches WHERE parent_branch_id IS NULL "
+            "ORDER BY fork_step LIMIT 1"
+        ).fetchone()
+        return _branch(row) if row is not None else None
+
     def baselines(self, branch_id: str) -> dict[str, str]:
         return {
             row["uid"]: row["mat_id"]
@@ -584,6 +626,14 @@ class Index:
             "SELECT step FROM transactions WHERE branch = ? AND step <= ? "
             "AND position = 1 ORDER BY step DESC LIMIT 1",
             (branch_id, at_or_before),
+        ).fetchone()
+        return int(row["step"]) if row is not None else None
+
+    def next_position_after(self, branch_id: str, step: int) -> int | None:
+        row = self._conn.execute(
+            "SELECT step FROM transactions WHERE branch = ? AND step > ? "
+            "AND position = 1 ORDER BY step LIMIT 1",
+            (branch_id, step),
         ).fetchone()
         return int(row["step"]) if row is not None else None
 
@@ -910,6 +960,8 @@ class Index:
                 self._conn.execute(
                     "DELETE FROM agent_sessions WHERE actor = ?", (op.actor,)
                 )
+            case CellsOrdered():
+                self._order_cells(op)
             case Renamed():
                 self._conn.execute(
                     "UPDATE selections SET slug = ? WHERE branch_id = ? AND uid = ?",
@@ -954,11 +1006,23 @@ class Index:
             ),
         )
 
+    def _order_cells(self, op: CellsOrdered) -> None:
+        guard = " AND order_key IS NULL" if op.fill_only else ""
+        for uid, key in op.orders.items():
+            self._conn.execute(
+                "UPDATE selections SET order_key = ? "
+                f"WHERE branch_id = ? AND uid = ?{guard}",
+                (key, op.branch_id, uid),
+            )
+        if op.fill_only:
+            self._set_meta("lane_orders_fixed", "1")
+
     def _dense_copy(self, branch_id: str, parent_branch_id: str) -> None:
         self._conn.execute(
             "INSERT OR REPLACE INTO selections "
-            "(branch_id, uid, version_id, slug, pinned) "
-            "SELECT ?, uid, version_id, slug, 1 FROM selections WHERE branch_id = ?",
+            "(branch_id, uid, version_id, slug, pinned, order_key) "
+            "SELECT ?, uid, version_id, slug, 1, order_key "
+            "FROM selections WHERE branch_id = ?",
             (branch_id, parent_branch_id),
         )
         self._conn.execute(
@@ -983,9 +1047,13 @@ class Index:
             if row is None:
                 raise ValueError(f"unknown version `{version_id}`")
             slug = str(row["slug"])
+        # An upsert, not a replace: a new version of a cell keeps its place.
         self._conn.execute(
-            "INSERT OR REPLACE INTO selections "
-            "(branch_id, uid, version_id, slug, pinned) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO selections (branch_id, uid, version_id, slug, pinned) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(branch_id, uid) DO UPDATE SET "
+            "version_id = excluded.version_id, slug = excluded.slug, "
+            "pinned = excluded.pinned",
             (branch_id, uid, version_id, slug, int(pinned)),
         )
 
@@ -1013,6 +1081,11 @@ class Index:
             )
         for uid, mat_id in op.baselines.items():
             self._set_baseline(op.branch_id, uid, mat_id, "rewind")
+        for uid, key in op.orders.items():
+            self._conn.execute(
+                "UPDATE selections SET order_key = ? WHERE branch_id = ? AND uid = ?",
+                (key, op.branch_id, uid),
+            )
 
     def _record_run(self, op: RunRecorded) -> None:
         self._conn.execute(
@@ -1143,6 +1216,7 @@ _NOT_A_PLACE = (
     BranchArchived,
     Checkpointed,
     Rewound,
+    CellsOrdered,
 )
 
 

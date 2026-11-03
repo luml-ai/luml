@@ -216,10 +216,11 @@ class TestOpen:
         assert reopened.manifest.order == {
             features.uid: "2.00000000000000000000000000005"
         }
-        assert reopened.effective_order()[features.uid] == Decimal(
+        main = reopened.branches.get("main").branch_id
+        assert reopened.effective_order(main)[features.uid] == Decimal(
             "2.00000000000000000000000000005"
         )
-        assert reopened.order_after(features.uid) == (
+        assert reopened.order_after(features.uid, branch_id=main) == (
             "2.500000000000000000000000000025"
         )
 
@@ -250,7 +251,7 @@ class TestOpen:
             evaluate.uid: str(store.index.creation_steps()[split.uid]),
         }
 
-        order = store.effective_order()
+        order = store.effective_order(store.branches.get("main").branch_id)
         born = store.index.creation_steps()
 
         assert order == {

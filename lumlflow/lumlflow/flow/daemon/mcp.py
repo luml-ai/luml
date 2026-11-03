@@ -187,8 +187,9 @@ TOOLS: tuple[_Tool, ...] = (
     _Tool(
         "move-cell",
         "cells.reorder",
-        "Move a cell directly before or after another cell. Give exactly one "
-        "of `before` and `after`.",
+        "Move a cell directly before or after another cell on this lane only. "
+        "Give exactly one of `before` and `after`. Adds no step; refused while "
+        "the lane stands behind its newest step.",
         (
             _Arg("slug", "string", "The cell to move.", required=True),
             _Arg("before", "string", "Place it directly before this cell."),

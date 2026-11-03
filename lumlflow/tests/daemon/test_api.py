@@ -465,11 +465,15 @@ async def test_anchored_adds_persist_exact_keys_across_rename_and_reload(
         await api.flow_open({"flow": "churn"})
         await api.cells_new({"flow": "churn", "slug": "first", "source": NOTE_CELL})
         await api.cells_new({"flow": "churn", "slug": "last", "source": NOTE_CELL})
-        assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+        mirrored = yaml.safe_load((flow / "flow.yaml").read_text())["order"]
         unmapped = await api.cells_list({"flow": "churn"})
         assert all(
             cell["order"] == str(cell["created_step"]) for cell in unmapped["cells"]
         )
+        # flow.yaml mirrors the root lane, unmapped cells included.
+        assert mirrored == {
+            cell["uid"]: str(cell["created_step"]) for cell in unmapped["cells"]
+        }
 
         await api.cells_new(
             {
@@ -586,7 +590,7 @@ async def test_a_duplicate_is_anchored_on_its_original(tmp_path: Path) -> None:
     assert by_slug["original"] < by_slug["original_copy"] < by_slug["last"]
 
 
-async def test_delete_drops_the_key_and_rewind_uses_the_creation_step(
+async def test_delete_drops_the_key_and_rewind_restores_the_anchored_one(
     tmp_path: Path,
 ) -> None:
     root = make_workspace(tmp_path / "project")
@@ -607,13 +611,17 @@ async def test_delete_drops_the_key_and_rewind_uses_the_creation_step(
         assert placed["order"] != str(placed["created_step"])
 
         await api.cells_delete({"flow": "churn", "slug": "placed"})
-        assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+        mirrored = yaml.safe_load((flow / "flow.yaml").read_text())["order"]
+        assert placed["uid"] not in mirrored
 
         await api.rewind({"flow": "churn", "to_step": placed["created_step"]})
         restored = await api.cells_show({"flow": "churn", "slug": "placed"})
 
-    assert restored["order"] == str(restored["created_step"])
-    assert "order" not in yaml.safe_load((flow / "flow.yaml").read_text())
+    # The order is part of the lane's state now: rewinding to the step that
+    # placed the cell brings back the place it was given, not its creation step.
+    assert restored["order"] == placed["order"]
+    mirrored = yaml.safe_load((flow / "flow.yaml").read_text())["order"]
+    assert mirrored[placed["uid"]] == placed["order"]
 
 
 async def test_a_new_cell_scaffolds_a_class_named_after_it(tmp_path: Path) -> None:
@@ -753,7 +761,10 @@ async def test_reorder_checks_the_called_lanes_topology_and_allows_archived_lane
             }
         )
         train_uid = slice_of(session, "exp")["train_model"].uid
-        assert Decimal(moved["order"]) < session.store.effective_order()[train_uid]
+        exp_id = session.store.branches.get("exp").branch_id
+        assert (
+            Decimal(moved["order"]) < session.store.effective_order(exp_id)[train_uid]
+        )
 
         archived = await api.archive(
             {"flow": "churn", "branch": "exp", "intent": "retired experiment"}
@@ -766,7 +777,7 @@ async def test_reorder_checks_the_called_lanes_topology_and_allows_archived_lane
                 "after": "train_model",
             }
         )
-        train_order_after = session.store.effective_order()[train_uid]
+        train_order_after = session.store.effective_order(exp_id)[train_uid]
 
     assert archived == {"branch": "exp", "archived": True}
     assert moved_back["branch"] == "exp"
@@ -826,7 +837,7 @@ async def test_reorder_refuses_missing_lane_cells_and_an_invalid_position(
             )
 
 
-async def test_reorder_pushes_state_without_moving_the_journal_cursor(
+async def test_reorder_is_a_journal_entry_but_not_a_step(
     tmp_path: Path,
 ) -> None:
     root = make_workspace(tmp_path / "project")
@@ -839,10 +850,11 @@ async def test_reorder_pushes_state_without_moving_the_journal_cursor(
         await api.cells_new({"flow": "churn", "slug": "last", "source": NOTE_CELL})
         await api.cells_new({"flow": "churn", "slug": "moved", "source": NOTE_CELL})
         session = hub.session("churn")
+        main_id = session.store.branches.get("main").branch_id
         before = await api.cells_list({"flow": "churn"})
         before_by_slug = {cell["slug"]: cell for cell in before["cells"]}
-        cursor = session.store.next_step - 1
-        journal_before = transactions(session)
+        newest_before = session.store.index.newest_step(main_id)
+        steps_before = len(transactions(session))
         watching = streams.subscribe()
         watching.journals.add(session.ref.address)
 
@@ -853,7 +865,10 @@ async def test_reorder_pushes_state_without_moving_the_journal_cursor(
                 "before": "last",
             }
         )
-        frame = await asyncio.wait_for(watching.next(), timeout=1)
+        frames = [
+            await asyncio.wait_for(watching.next(), timeout=1),
+            await asyncio.wait_for(watching.next(), timeout=1),
+        ]
 
         assert result["slug"] == "moved"
         assert result["uid"] == slice_of(session, "main")["moved"].uid
@@ -862,17 +877,16 @@ async def test_reorder_pushes_state_without_moving_the_journal_cursor(
             < Decimal(result["order"])
             < Decimal(str(before_by_slug["last"]["order"]))
         )
-        assert frame == {
-            "channel": "journal",
-            "type": "state",
-            "state": "order_changed",
-            "flow": session.ref.address,
-            "step": cursor,
-        }
-        assert session.store.next_step - 1 == cursor
-        assert transactions(session) == journal_before
-        with pytest.raises(TimeoutError):
-            await asyncio.wait_for(watching.next(), timeout=0.05)
+        moved_step = session.store.next_step - 1
+        entry = session.store.index.transaction(moved_step)
+        assert entry is not None
+        assert entry.intent == "moved moved before last on main"
+        assert entry.position is False
+        assert len(transactions(session)) == steps_before + 1
+        assert session.store.index.newest_step(main_id) == newest_before
+        assert session.store.index.head_step(main_id) == newest_before
+        assert {frame["type"] for frame in frames} == {"transaction", "state"}
+        assert any(frame.get("state") == "order_changed" for frame in frames)
     finally:
         await hub.close()
 

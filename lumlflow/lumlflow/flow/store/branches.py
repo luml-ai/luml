@@ -24,6 +24,7 @@ from lumlflow.flow.store.models import (
     BranchArchived,
     BranchCreated,
     CellRemoved,
+    CellsOrdered,
     Checkpointed,
     Rewound,
     SelectionSet,
@@ -44,6 +45,7 @@ class RewindResult:
     selections: dict[str, str]
     slugs: dict[str, str]
     baselines: dict[str, str]
+    orders: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -201,6 +203,7 @@ class Branches:
                 for uid, version in state.slice_versions(branch.branch_id).items()
             }
             baselines = state.baselines(branch.branch_id)
+        orders = self._orders_at(branch.branch_id, to_step, selections)
         self._store.commit(
             [
                 Rewound(
@@ -209,6 +212,7 @@ class Branches:
                     selections=selections,
                     slugs=slugs,
                     baselines=baselines,
+                    orders=orders,
                 )
             ],
             intent=intent or f"rewound {name} to step {to_step}",
@@ -221,7 +225,54 @@ class Branches:
             selections=selections,
             slugs=slugs,
             baselines=baselines,
+            orders=orders,
         )
+
+    def _orders_at(
+        self, branch_id: str, to_step: int, selections: dict[str, str]
+    ) -> dict[str, str]:
+        """The lane's order as it stood at `to_step`, reorders made there after
+        it included: a reorder adds no step, so it rides the step before it.
+
+        Replays the lane's journal from `to_step` up to its next step. A reorder
+        counts only while the lane stood on the same step; a rewind back to that
+        step already carries every reorder made there before it. Steps older
+        than the fixing of lane orders take the order the fixing recorded.
+        """
+        target = self._place(branch_id, to_step)
+        following = self._index.next_position_after(branch_id, to_step)
+        end = following - 1 if following is not None else self._store.next_step - 1
+        with self._state_at(to_step) as state:
+            orders = (
+                dict(state.orders(branch_id)) if state.lane_orders_fixed() else None
+            )
+        standing = True
+        for entry in self._store.journal.replay():
+            if entry.step <= to_step:
+                continue
+            if entry.step > end:
+                break
+            for op in entry.ops:
+                if isinstance(op, Rewound) and op.branch_id == branch_id:
+                    standing = self._place(branch_id, op.to_step) == target
+                    if standing and op.orders:
+                        orders = dict(op.orders)
+                elif isinstance(op, CellsOrdered) and op.branch_id == branch_id:
+                    if op.fill_only:
+                        orders = {**op.orders, **(orders or {})}
+                    elif standing:
+                        orders = {**(orders or {}), **op.orders}
+        if orders is None:
+            orders = self._index.fixed_lane_orders(branch_id)
+        return {uid: key for uid, key in orders.items() if uid in selections}
+
+    def _place(self, branch_id: str, step: int) -> int:
+        """The step the lane stands on when sent to `step`."""
+        found = self._index.last_step_on(branch_id, at_or_before=step)
+        if found is not None:
+            return found
+        branch = self._index.branch_by_id(branch_id)
+        return branch.fork_step if branch is not None else 0
 
     def adopt(
         self,
@@ -263,7 +314,8 @@ class Branches:
                     uid=uid,
                     version_id=incoming.version_id,
                     from_branch_id=source.branch_id,
-                )
+                ),
+                *self._adopted_order(source, target, uid, known=current is not None),
             ],
             intent=intent or f"adopted {slug} from {from_branch}",
             actor=actor,
@@ -281,6 +333,21 @@ class Branches:
             rewire=rewire,
             namespace_conflicts=conflicts,
         )
+
+    def _adopted_order(
+        self, source: BranchRow, target: BranchRow, uid: str, *, known: bool
+    ) -> list[CellsOrdered]:
+        """A cell new to the lane takes the place it had on the lane it came
+        from, unless another cell already sits there; then its creation step.
+        A cell the lane already holds keeps its own place."""
+        if known or not self._index.lane_orders_fixed():
+            return []
+        key = self._store.effective_order(source.branch_id).get(uid)
+        if key is None or key in self._store.effective_order(target.branch_id).values():
+            return []
+        from lumlflow.flow.store.flowstore import order_text
+
+        return [CellsOrdered(branch_id=target.branch_id, orders={uid: order_text(key)})]
 
     def delete(
         self,

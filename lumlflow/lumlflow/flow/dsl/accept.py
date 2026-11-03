@@ -175,7 +175,10 @@ class Acceptance:
         fresh: bool = False,
         base_version_id: str | None = None,
         batch: Batch | None = None,
+        order_ops: Sequence[Op] = (),
     ) -> AcceptedCell:
+        """`order_ops` ride in the same transaction, after the selection they
+        key, so a new cell lands where it was asked to."""
         return self._accept(
             slug,
             source,
@@ -187,6 +190,7 @@ class Acceptance:
             fresh=fresh,
             base_version_id=base_version_id,
             batch=batch,
+            order_ops=order_ops,
         )
 
     def reaccept(
@@ -296,6 +300,7 @@ class Acceptance:
         batch: Batch | None = None,
         source_flags: Sequence[VersionFlag] = (),
         write_back: bool = True,
+        order_ops: Sequence[Op] = (),
     ) -> AcceptedCell:
         record = self._store.branches.get(branch)
         here = self._store.index.slice_versions(record.branch_id)
@@ -338,6 +343,7 @@ class Acceptance:
             branch_id=record.branch_id,
             actor=actor,
             intent=intent,
+            order_ops=order_ops,
             base_version_id=base_version_id,
             batch=batch,
         )
@@ -454,6 +460,7 @@ class Acceptance:
         intent: str | None,
         base_version_id: str | None,
         batch: Batch | None = None,
+        order_ops: Sequence[Op] = (),
     ) -> AcceptedCell:
         identity = draft.identity
         version_id = new_ulid()
@@ -486,6 +493,7 @@ class Acceptance:
         ops.append(
             SelectionSet(branch_id=branch_id, uid=identity.uid, version_id=version_id)
         )
+        ops.extend(order_ops)
         summary = _auto_intent(draft.slug, identity)
         accepted = AcceptedCell(
             uid=identity.uid,

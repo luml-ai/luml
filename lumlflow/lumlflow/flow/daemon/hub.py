@@ -262,6 +262,9 @@ class Hub:
             if store_dir(ref.path).is_dir()
             else FlowStore.init(ref.path)
         )
+        # Before the session serves anything: each lane gets its own copy of
+        # its order, and flow.yaml starts mirroring the root lane's.
+        store.ensure_lane_orders_fixed()
         session = self._session(ref, store)
         reconciliation.sync_workspace_code(session.workspace_dir, [session])
         envs.sync(session.workspace_dir, [session])

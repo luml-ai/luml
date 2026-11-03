@@ -163,7 +163,13 @@ class Slice:
         return {version.slug: version for version in self.versions.values()}
 
     def ordered(self) -> list[str]:
-        return sorted(self.versions, key=lambda uid: self.versions[uid].slug)
+        """The lane's cells in notebook order: by order key, then by name."""
+
+        def place(uid: str) -> tuple[Decimal, str]:
+            key = self.order.get(uid, Decimal(self.born.get(uid, 0)))
+            return key, self.versions[uid].slug
+
+        return sorted(self.versions, key=place)
 
 
 def read(session: "FlowSession", branch: str) -> Slice:
@@ -182,7 +188,7 @@ def read(session: "FlowSession", branch: str) -> Slice:
         env_lock_hash=index.env_lock_hash(),
         reused=frozenset(index.reused_baselines(record.branch_id)),
         born=index.creation_steps(),
-        order=session.store.effective_order(),
+        order=session.store.effective_order(record.branch_id),
         eager=frozenset(session.store.manifest.settings.eager),
         reactivity=lambda: session.planner.auto_verdicts(branch),
     )

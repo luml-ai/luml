@@ -89,6 +89,9 @@ beforeEach(async () => {
       step(90, 'added split_copy'),
       step(91, 'ran split_copy'),
       step(92, 'Important point!!!', [{ op: 'checkpointed', step: 90 }]),
+      step(93, 'moved split_copy after train_model on main', [
+        { op: 'cells_ordered', branch_id: 'b-main', orders: { u: '95.5' } },
+      ]),
     ],
   })
   await store.fetchJournal()
@@ -106,6 +109,11 @@ beforeEach(async () => {
 afterEach(() => wrapper.unmount())
 
 describe('the steps list', () => {
+  it('leaves a reorder out: it adds no step', () => {
+    expect(row('93')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('moved split_copy')
+  })
+
   it('highlights the step the lane stands on, and has no go buttons', () => {
     const current = rows().filter((row) => row.classList.contains('step--current'))
     expect(current.map((row) => row.dataset.step)).toEqual(['91'])
