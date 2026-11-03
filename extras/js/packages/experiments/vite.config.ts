@@ -3,9 +3,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import dts from 'vite-plugin-dts'
-import { peerDependencies } from './package.json'
+import { dependencies, peerDependencies } from './package.json'
 
-const peers = Object.keys(peerDependencies)
+const externals = [...Object.keys(peerDependencies), ...Object.keys(dependencies)]
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -32,7 +32,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: (id) =>
-        !id.endsWith('.css') && peers.some((peer) => id === peer || id.startsWith(`${peer}/`)),
+        !id.endsWith('.css') && externals.some((name) => id === name || id.startsWith(`${name}/`)),
       output: {
         globals: {
           vue: 'Vue',
@@ -48,6 +48,7 @@ export default defineConfig({
           'sql.js': 'initSqlJs',
           uuid: 'uuid',
           'plotly.js-dist': 'Plotly',
+          axios: 'axios',
         },
       },
     },

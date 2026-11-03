@@ -8,6 +8,7 @@ import { Worker } from 'node:worker_threads'
 import { build, loadConfigFromFile } from 'vite'
 
 const packageJson = JSON.parse(await readFile(resolve('package.json'), 'utf8'))
+const externals = { ...packageJson.peerDependencies, ...packageJson.dependencies }
 
 test('package exports prioritize TypeScript declarations', () => {
   assert.equal(Object.keys(packageJson.exports['.'])[0], 'types')
@@ -20,9 +21,9 @@ if (packageJson.name === '@luml/experiments') {
 }
 
 for (const format of ['es', 'umd']) {
-  test(`library builds externalize every peer and peer subpath (${format})`, async () => {
+  test(`library builds externalize every peer, runtime dependency and subpath (${format})`, async () => {
     const { config } = await loadConfigFromFile({ command: 'build', mode: 'production' })
-    const peers = Object.keys(packageJson.peerDependencies)
+    const peers = Object.keys(externals)
     const requests = peers.flatMap((peer) => [peer, `${peer}/packaging-test`])
     const unrelated = `${peers[0]}-unrelated`
     const result = await build({
@@ -85,8 +86,9 @@ test('UMD builds use the browser globals exposed by peer packages', async () => 
     'sql.js': 'initSqlJs',
     uuid: 'uuid',
     'plotly.js-dist': 'Plotly',
+    axios: 'axios',
   }
-  const peers = Object.keys(browserGlobals).filter((peer) => peer in packageJson.peerDependencies)
+  const peers = Object.keys(browserGlobals).filter((peer) => peer in externals)
   const result = await build({
     configFile: false,
     logLevel: 'silent',
