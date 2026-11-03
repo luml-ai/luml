@@ -46,7 +46,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
   function terminateWorkerIfUnused() {
     if (!unmounted) return
     if (provider && toRaw(artifactsStore.experimentSnapshotProvider) === provider) return
-    worker.terminate()
+    workerProxy.terminate()
   }
 
   async function loadArchiveBuffer(model: ModelArtifact) {

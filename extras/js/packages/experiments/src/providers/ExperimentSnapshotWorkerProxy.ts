@@ -25,6 +25,8 @@ export interface ExperimentSnapshotWorkerProxyOptions {
 
 export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider {
   private readonly requestTimeoutMs: number
+  private readonly pendingRequests = new Set<(error: Error) => void>()
+  private terminated = false
 
   constructor(
     private worker: Worker,
@@ -33,7 +35,18 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
   }
 
+  terminate() {
+    if (this.terminated) return
+    this.terminated = true
+    this.worker.terminate()
+    const error = new Error('Experiment snapshot worker was terminated')
+    this.pendingRequests.forEach((fail) => fail(error))
+  }
+
   private request<T>(message: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+    if (this.terminated) {
+      return Promise.reject(new Error('Experiment snapshot worker was terminated'))
+    }
     const requestId = crypto.randomUUID()
 
     return new Promise((resolve, reject) => {
@@ -51,6 +64,11 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
       const onError = (event: ErrorEvent) => {
         cleanup()
         reject(new Error(event.message || 'Experiment snapshot worker failed'))
+      }
+
+      const fail = (error: Error) => {
+        cleanup()
+        reject(error)
       }
 
       const onMessageError = () => {
@@ -79,8 +97,10 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
         this.worker.removeEventListener('error', onError)
         this.worker.removeEventListener('messageerror', onMessageError)
         signal?.removeEventListener('abort', onAbort)
+        this.pendingRequests.delete(fail)
       }
 
+      this.pendingRequests.add(fail)
       this.worker.addEventListener('message', handler)
       this.worker.addEventListener('error', onError)
       this.worker.addEventListener('messageerror', onMessageError)

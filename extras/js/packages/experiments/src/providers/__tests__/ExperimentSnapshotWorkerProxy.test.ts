@@ -3,6 +3,7 @@ import { ExperimentSnapshotWorkerProxy } from '../ExperimentSnapshotWorkerProxy'
 
 class FakeWorker extends EventTarget {
   readonly postMessage = vi.fn()
+  readonly terminate = vi.fn()
   readonly addEventListener = vi.fn(super.addEventListener.bind(this))
   readonly removeEventListener = vi.fn(super.removeEventListener.bind(this))
 
@@ -165,6 +166,27 @@ describe('ExperimentSnapshotWorkerProxy', () => {
       requestId: message.requestId,
     })
     expectCleanedUp()
+  })
+
+  it('rejects pending requests at once when terminated', async () => {
+    const first = proxy.getUniqueDatasetsIds()
+    const second = proxy.init([])
+    proxy.terminate()
+
+    await expect(first).rejects.toThrow(/terminated/i)
+    await expect(second).rejects.toThrow(/terminated/i)
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    expectCleanedUp()
+  })
+
+  it('rejects requests made after termination without posting them', async () => {
+    proxy.terminate()
+    proxy.terminate()
+
+    await expect(proxy.resetTracesRequestParams()).rejects.toThrow(/terminated/i)
+    expect(worker.postMessage).not.toHaveBeenCalled()
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('cleans up an init request when the worker never answers', async () => {

@@ -226,6 +226,8 @@ Every request rejects when the worker fires `error` or `messageerror`, or when i
 const proxy = new ExperimentSnapshotWorkerProxy(worker, { requestTimeoutMs: 120_000 })
 ```
 
+Call `proxy.terminate()` instead of `worker.terminate()`: it stops the worker, rejects pending requests at once, and rejects later calls without posting them.
+
 ### Custom provider
 
 Implement the `ExperimentSnapshotProvider` interface to connect any data source:

@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useExperimentSnapshotsDatabaseProvider } from './useExperimentSnapshotsDatabaseProvider'
+import type { ExperimentSnapshotWorkerProxy } from '@luml/experiments'
 
 const mocks = vi.hoisted(() => {
   const store = {
@@ -136,6 +137,22 @@ describe('experiment snapshot worker lifecycle', () => {
     expect(worker.listeners.size).toBe(0)
     expect(mocks.setExperimentSnapshotProvider).not.toHaveBeenCalled()
     wrapper.unmount()
+  })
+
+  it('rejects calls left in flight when the worker is terminated', async () => {
+    const wrapper = mount(Harness)
+    const worker = workers[0]
+    await initialize(worker, init([]))
+    const provider = mocks.experimentSnapshotProvider as ExperimentSnapshotWorkerProxy
+    wrapper.unmount()
+
+    const inFlight = provider.resetTracesRequestParams()
+    mocks.resetExperimentSnapshotProvider()
+
+    await expect(inFlight).rejects.toThrow(/terminated/i)
+    await expect(provider.resetEvalsDatasetsRequestParams()).rejects.toThrow(/terminated/i)
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    expect(worker.listeners.size).toBe(0)
   })
 
   it('reuses the worker when the provider is reset while the view is mounted', async () => {
