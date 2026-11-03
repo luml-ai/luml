@@ -106,8 +106,8 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     return this.request<T>({ type: 'call', payload: { method, args } }, signal)
   }
 
-  init(data: any) {
-    return this.request<void>({ type: 'init', payload: data })
+  init(data: any, signal?: AbortSignal) {
+    return this.request<void>({ type: 'init', payload: data }, signal)
   }
 
   getStaticParamsList(signal?: AbortSignal) {

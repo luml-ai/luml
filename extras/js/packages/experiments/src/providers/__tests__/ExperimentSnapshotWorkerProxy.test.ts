@@ -153,6 +153,20 @@ describe('ExperimentSnapshotWorkerProxy', () => {
     expectCleanedUp()
   })
 
+  it('aborts a pending init and cancels it in the worker', async () => {
+    const controller = new AbortController()
+    const result = proxy.init([], controller.signal)
+    const [message] = worker.postMessage.mock.calls[0]
+    controller.abort()
+
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' })
+    expect(worker.postMessage).toHaveBeenLastCalledWith({
+      type: 'cancel',
+      requestId: message.requestId,
+    })
+    expectCleanedUp()
+  })
+
   it('cleans up an init request when the worker never answers', async () => {
     const result = proxy.init([])
     const rejection = expect(result).rejects.toThrow(/timed out/i)
