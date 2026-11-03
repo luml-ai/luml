@@ -1,0 +1,35 @@
+name: Prisma Tests and Linters
+
+on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - 'prisma/**'
+      - '.github/workflows/*prisma*tests-and-linters.yml'
+  pull_request:
+    branches: [main, staging, production]
+    paths:
+      - 'prisma/**'
+      - '.github/workflows/*prisma*tests-and-linters.yml'
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prisma
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: uv sync --locked --group dev
+      - name: Lint
+        run: uv run --locked ruff check src tests
+      - name: Type check
+        run: uv run --locked mypy src
+      - name: Test
+        run: uv run --locked pytest

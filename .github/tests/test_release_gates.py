@@ -132,7 +132,9 @@ class ReleaseGateTests(unittest.TestCase):
                             for check in load(suite)["jobs"].values()
                             for step in check["steps"]
                         )
-                        for command in SUITE_TESTS.get(suite, ("uv run pytest",)):
+                        for command in SUITE_TESTS.get(
+                            suite, ("uv run --locked pytest",)
+                        ):
                             self.assertIn(command, commands)
                         for check in load(suite)["jobs"].values():
                             self.assertNotIn("if", check)

@@ -41,13 +41,13 @@ jobs:
           uv sync --group dev --locked
 
       - name: Check formatting
-        run: uv run ruff format --check .
+        run: uv run --locked ruff format --check .
 
       - name: Lint
-        run: uv run ruff check .
+        run: uv run --locked ruff check .
 
       - name: Type check
-        run: uv run mypy
+        run: uv run --locked mypy
 
       - name: Test
-        run: uv run pytest -ra
+        run: uv run --locked pytest -ra

@@ -1,0 +1,43 @@
+name: Lumlflow Python Tests and Linters
+
+on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - 'lumlflow/**'
+      - 'sdk/python/sdk/**'
+      - 'sdk/python/api/**'
+      - 'relay/**'
+      - '.github/workflows/*lumlflow-python*tests-and-linters.yml'
+  pull_request:
+    branches: [main, staging, production]
+    paths:
+      - 'lumlflow/**'
+      - 'sdk/python/sdk/**'
+      - 'sdk/python/api/**'
+      - 'relay/**'
+      - '.github/workflows/*lumlflow-python*tests-and-linters.yml'
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      HATCH_BUILD_NO_HOOKS: "true"
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: uv sync --locked --group dev
+      - name: Lint
+        run: uv run --locked ruff check lumlflow tests
+      - name: Type check
+        run: uv run --locked mypy lumlflow
+      - name: Test
+        run: uv run --locked pytest

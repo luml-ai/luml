@@ -29,13 +29,13 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Check formatting
-        run: uv run ruff format --check luml migrations tests utils
+        run: uv run --locked ruff format --check luml migrations tests utils
 
       - name: Linting
-        run: uv run ruff check luml migrations tests utils
+        run: uv run --locked ruff check luml migrations tests utils
 
       - name: Type checking
-        run: uv run mypy luml utils tests
+        run: uv run --locked mypy luml utils tests
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -59,7 +59,7 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Run unit tests
-        run: uv run pytest tests/unit
+        run: uv run --locked pytest tests/unit
 
   integration-tests:
     runs-on: ubuntu-latest
@@ -106,4 +106,4 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Run integration tests
-        run: uv run pytest tests/integration
+        run: uv run --locked pytest tests/integration

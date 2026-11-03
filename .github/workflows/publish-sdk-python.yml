@@ -11,7 +11,49 @@ on:
       - "luml-relay/v*"
 
 jobs:
+  api-tests:
+    if: startsWith(github.ref_name, 'sdk-python/api/v')
+    uses: "./.github/workflows/[api-client] tests-and-linters.yml"
+
+  sdk-tests:
+    if: startsWith(github.ref_name, 'sdk-python/sdk/v')
+    uses: "./.github/workflows/[sdk] tests.yml"
+
+  sdk-linters:
+    if: startsWith(github.ref_name, 'sdk-python/sdk/v')
+    uses: "./.github/workflows/[sdk] linters.yml"
+
+  flow-tests:
+    if: startsWith(github.ref_name, 'lumlflow/v')
+    uses: "./.github/workflows/[lumlflow-python] tests-and-linters.yml"
+
+  flow-ui-tests:
+    if: startsWith(github.ref_name, 'lumlflow/v')
+    uses: "./.github/workflows/[lumlflow] tests-and-linters.yml"
+
+  prisma-tests:
+    if: startsWith(github.ref_name, 'luml-prisma/v')
+    uses: "./.github/workflows/[prisma] tests-and-linters.yml"
+
+  mlflow-tests:
+    if: startsWith(github.ref_name, 'luml-mlflow/v')
+    uses: "./.github/workflows/[luml-mlflow] tests-and-linters.yml"
+
+  relay-tests:
+    if: startsWith(github.ref_name, 'luml-relay/v')
+    uses: "./.github/workflows/[relay] tests-and-linters.yml"
+
   publish:
+    needs: [api-tests, sdk-tests, sdk-linters, flow-tests, flow-ui-tests, prisma-tests, mlflow-tests, relay-tests]
+    if: >-
+      ${{ !cancelled() && (
+        (startsWith(github.ref_name, 'sdk-python/api/v') && needs.api-tests.result == 'success') ||
+        (startsWith(github.ref_name, 'sdk-python/sdk/v') && needs.sdk-tests.result == 'success' && needs.sdk-linters.result == 'success') ||
+        (startsWith(github.ref_name, 'lumlflow/v') && needs.flow-tests.result == 'success' && needs.flow-ui-tests.result == 'success') ||
+        (startsWith(github.ref_name, 'luml-prisma/v') && needs.prisma-tests.result == 'success') ||
+        (startsWith(github.ref_name, 'luml-mlflow/v') && needs.mlflow-tests.result == 'success') ||
+        (startsWith(github.ref_name, 'luml-relay/v') && needs.relay-tests.result == 'success')
+      ) }}
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -82,6 +124,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Validate release dependencies
+        working-directory: ${{ steps.release.outputs.package_dir }}
+        run: uv sync --locked --no-dev --no-install-project
+
       - name: Set package version
         working-directory: ${{ steps.release.outputs.package_dir }}
         run: |
@@ -96,6 +144,5 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: |
           echo "Publishing ${{ steps.release.outputs.package_name }}@${{ steps.release.outputs.version }}"
-          python -m pip install --upgrade uv
           uv build --wheel
           uv publish

@@ -34,16 +34,16 @@ jobs:
       - name: Install dependencies with uv
         run: |
           python -m pip install --upgrade uv
-          uv sync --group dev --all-extras
+          uv sync --locked --group dev --all-extras
 
       - name: Check formatting
-        run: uv run ruff format --check .
+        run: uv run --locked ruff format --check .
 
       - name: Lint
-        run: uv run ruff check .
+        run: uv run --locked ruff check .
 
       - name: Type check
-        run: uv run mypy
+        run: uv run --locked mypy
 
       - name: Test
-        run: uv run pytest
+        run: uv run --locked pytest
