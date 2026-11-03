@@ -54,3 +54,12 @@ def _exp_db(tmp_path: Path, exp_id: str) -> sqlite3.Connection:
 
 def _meta_db(tmp_path: Path) -> sqlite3.Connection:
     return sqlite3.connect(tmp_path / "experiments" / "meta.db")
+
+
+def _symlink_dir(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as err:
+        if getattr(err, "winerror", None) == 1314:
+            pytest.skip("Symlink creation requires admin privileges on Windows")
+        raise
