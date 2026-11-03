@@ -9,7 +9,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
   const artifactsStore = useArtifactsStore()
 
   const abortControllers: Record<string, AbortController> = {}
-  const pendingWorkerCalls = new Map<(e: MessageEvent) => void, (reason: Error) => void>()
+  const initController = new AbortController()
   let unmounted = false
   let provider: ExperimentSnapshotWorkerProxy | null = null
 
@@ -25,26 +25,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     console.error('❌ Worker message error:', e)
   }
 
-  function callWorker<T>(message: Record<string, unknown>): Promise<T> {
-    if (unmounted) return Promise.reject(new Error('Experiment snapshot view was unmounted'))
-    const requestId = crypto.randomUUID()
-
-    return new Promise((resolve, reject) => {
-      const handler = (e: MessageEvent) => {
-        if (e.data.requestId !== requestId) return
-        worker.removeEventListener('message', handler)
-        pendingWorkerCalls.delete(handler)
-        if (e.data.type === 'error') {
-          reject(e.data.error)
-        } else {
-          resolve(e.data.data)
-        }
-      }
-      worker.addEventListener('message', handler)
-      pendingWorkerCalls.set(handler, reject)
-      worker.postMessage({ ...message, requestId })
-    })
-  }
+  const workerProxy = new ExperimentSnapshotWorkerProxy(worker)
 
   async function init(models: ModelArtifact[]) {
     const payload = await Promise.all(
@@ -55,13 +36,10 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     )
 
     if (unmounted) return
-    await callWorker({
-      type: 'init',
-      payload,
-    })
+    await workerProxy.init(payload, initController.signal)
 
     if (unmounted) return
-    provider = new ExperimentSnapshotWorkerProxy(worker)
+    provider = workerProxy
     artifactsStore.setExperimentSnapshotProvider(provider, terminateWorkerIfUnused)
   }
 
@@ -96,11 +74,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     Object.values(abortControllers).forEach((controller) => {
       controller.abort()
     })
-    pendingWorkerCalls.forEach((reject, handler) => {
-      worker.removeEventListener('message', handler)
-      reject(new Error('Experiment snapshot view was unmounted'))
-    })
-    pendingWorkerCalls.clear()
+    initController.abort()
     terminateWorkerIfUnused()
   })
 

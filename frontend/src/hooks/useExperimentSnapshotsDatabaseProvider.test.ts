@@ -40,27 +40,23 @@ vi.mock('@/lib/fnnx/FnnxService', () => ({
   FnnxService: { findExperimentSnapshotArchiveName: () => 'snapshot' },
 }))
 
-vi.mock('@luml/experiments', () => ({
-  ExperimentSnapshotWorkerProxy: class {
-    constructor(public worker: Worker) {}
-  },
-}))
-
-class MockWorker {
+class MockWorker extends EventTarget {
   readonly terminate = vi.fn()
   readonly postMessage = vi.fn()
-  readonly listeners = new Set<(event: MessageEvent) => void>()
+  readonly listeners = new Set<EventListenerOrEventListenerObject>()
 
-  addEventListener(_type: string, listener: (event: MessageEvent) => void) {
+  override addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
     this.listeners.add(listener)
+    super.addEventListener(type, listener)
   }
 
-  removeEventListener(_type: string, listener: (event: MessageEvent) => void) {
+  override removeEventListener(type: string, listener: EventListenerOrEventListenerObject) {
     this.listeners.delete(listener)
+    super.removeEventListener(type, listener)
   }
 
   emit(data: unknown) {
-    this.listeners.forEach((listener) => listener({ data } as MessageEvent))
+    this.dispatchEvent(new MessageEvent('message', { data }))
   }
 }
 
@@ -96,7 +92,8 @@ describe('experiment snapshot worker lifecycle', () => {
   async function initialize(worker: MockWorker, initialized: Promise<void>) {
     await Promise.resolve()
     const [message] = worker.postMessage.mock.calls[worker.postMessage.mock.calls.length - 1]
-    worker.emit({ requestId: message.requestId, data: null })
+    expect(message.type).toBe('init')
+    worker.emit({ type: 'result', requestId: message.requestId, data: true })
     await initialized
   }
 
@@ -126,6 +123,21 @@ describe('experiment snapshot worker lifecycle', () => {
     second.unmount()
   })
 
+  it('rejects a pending init when the worker crashes', async () => {
+    const wrapper = mount(Harness)
+    const initialized = init([])
+    const rejection = expect(initialized).rejects.toThrow('worker crashed')
+    await Promise.resolve()
+
+    const worker = workers[0]
+    worker.dispatchEvent(new ErrorEvent('error', { message: 'worker crashed' }))
+
+    await rejection
+    expect(worker.listeners.size).toBe(0)
+    expect(mocks.setExperimentSnapshotProvider).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('reuses the worker when the provider is reset while the view is mounted', async () => {
     const wrapper = mount(Harness)
     const worker = workers[0]
@@ -139,17 +151,21 @@ describe('experiment snapshot worker lifecycle', () => {
     wrapper.unmount()
   })
 
-  it('settles an in-flight worker request and removes its listener on unmount', async () => {
+  it('aborts an in-flight worker init and removes its listeners on unmount', async () => {
     const wrapper = mount(Harness)
     const initialized = init([])
-    const rejection = expect(initialized).rejects.toThrow('unmounted')
+    const rejection = expect(initialized).rejects.toMatchObject({ name: 'AbortError' })
     await Promise.resolve()
 
     const worker = workers[0]
-    expect(worker.postMessage).toHaveBeenCalledOnce()
+    const [message] = worker.postMessage.mock.calls[0]
     wrapper.unmount()
 
     await rejection
+    expect(worker.postMessage).toHaveBeenLastCalledWith({
+      type: 'cancel',
+      requestId: message.requestId,
+    })
     expect(worker.listeners.size).toBe(0)
     expect(worker.terminate).toHaveBeenCalledOnce()
     expect(mocks.setExperimentSnapshotProvider).not.toHaveBeenCalled()
