@@ -322,6 +322,30 @@ describe('App (dashboard shell)', () => {
     )
   })
 
+  it('reopens a data-quality feature when its banner is followed again after closing the drawer', async () => {
+    const [banner] = makeRuntime().alerts
+    getDataQuality.mockResolvedValue(
+      makeDataQuality({
+        alerts: [{ ...banner, group: 'data_quality', metric: 'data_quality:region', feature: 'region' }],
+      }),
+    )
+    const wrapper = mountApp()
+    await flushPromises()
+    await wrapper.get('[data-testid="tab-data-quality"]').trigger('click')
+    await flushPromises()
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await wrapper.get('[data-testid="alert-banner"]').trigger('click')
+      await wrapper.get('[data-testid="alert-show-feature"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(true)
+
+      await wrapper.get('[data-testid="invalid-values-drawer-close"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(false)
+    }
+  })
+
   it('switches to the Reference profile tab and shows the artifact document', async () => {
     const wrapper = mountApp()
     await flushPromises()

@@ -177,6 +177,7 @@ export function useMonitoringDashboard() {
 
   function loadQualityTrends(feature: string | null): Promise<void> {
     if (feature === null) {
+      focusedFeature.value = null
       qualityTrends.value = []
       qualityTrendsStatus.value = 'idle'
       return Promise.resolve()
