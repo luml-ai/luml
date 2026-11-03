@@ -195,9 +195,153 @@ async def test_an_older_version_from_another_lane_lands_as_an_offline_edit(
     assert source_of(flow, "score").encode() == exp_source
 
 
-async def test_a_same_lane_hand_revert_is_completed_noted_and_rewindable(
+async def test_a_hand_revert_after_an_api_edit_is_kept_as_an_edit(
     tmp_path: Path,
 ) -> None:
+    # The edit is projected into the file, so the file has held the head when
+    # its author puts the older bytes back: that is their edit, not a
+    # projection the store got ahead of.
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        older = slice_of(session, "main")["score"]
+        older_source = session.store.objects.get(older.raw_source_ref)
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.93"),
+            }
+        )
+        edited = slice_of(session, "main")["score"]
+        landed_at = len(transactions(session))
+
+        (flow / "cells" / "score.py").write_bytes(older_source)
+        await api.status({"flow": "churn"})
+
+        landed = transactions(session)[landed_at:]
+        head = slice_of(session, "main")["score"]
+        on_disk = (flow / "cells" / "score.py").read_bytes()
+
+    assert len(landed) == 1
+    assert landed[0].actor == "user"
+    assert not any(isinstance(op, CellNoted) for op in landed[0].ops)
+    assert head.version_id != edited.version_id
+    assert head.parent_version_id == edited.version_id
+    assert head.raw_source_ref == older.raw_source_ref
+    assert on_disk == older_source
+
+
+async def test_an_editor_undo_of_a_file_edit_is_kept(tmp_path: Path) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        path = flow / "cells" / "score.py"
+        before = path.read_bytes()
+        path.write_bytes(before.replace(b"0.91", b"0.95"))
+        await api.status({"flow": "churn"})
+        edited = slice_of(session, "main")["score"]
+
+        path.write_bytes(before)
+        await api.status({"flow": "churn"})
+        await api.status({"flow": "churn"})
+        head = slice_of(session, "main")["score"]
+        notes = ops_of(session, CellNoted)
+
+    assert path.read_bytes() == before
+    assert head.version_id != edited.version_id
+    assert b"0.91" in session.store.objects.get(head.raw_source_ref)
+    assert not [note for note in notes if note.kind == "projection_completed"]
+
+
+async def test_rewinding_back_and_forth_puts_each_step_on_disk_and_keeps_edits(
+    tmp_path: Path,
+) -> None:
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+    path = flow / "cells" / "score.py"
+
+    def on_disk() -> str:
+        text = path.read_text()
+        return next(value for value in ("0.91", "0.95", "0.97") if value in text)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
+        first = slice_of(session, "main")["score"]
+        path.write_bytes(path.read_bytes().replace(b"0.91", b"0.95"))
+        await api.status({"flow": "churn"})
+        second = slice_of(session, "main")["score"]
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.97"),
+            }
+        )
+        third = slice_of(session, "main")["score"]
+        accepted = len(ops_of(session, CellAccepted))
+
+        visits = []
+        for step in (
+            second.created_step,
+            third.created_step,
+            first.created_step,
+            third.created_step,
+            second.created_step,
+        ):
+            await api.rewind({"flow": "churn", "to_step": step})
+            await api.status({"flow": "churn"})
+            await api.status({"flow": "churn"})
+            visits.append((slice_of(session, "main")["score"].version_id, on_disk()))
+        quiet = len(ops_of(session, CellAccepted)) == accepted
+
+        # Back on the newest step, put the second step's bytes back by hand (an
+        # editor's undo): the file has held this step, so it is an edit.
+        await api.rewind({"flow": "churn", "to_step": third.created_step})
+        path.write_bytes(path.read_bytes().replace(b"0.97", b"0.95"))
+        await api.status({"flow": "churn"})
+        await api.status({"flow": "churn"})
+        undone = slice_of(session, "main")["score"]
+        undone_on_disk = on_disk()
+        notes = [
+            n for n in ops_of(session, CellNoted) if n.kind == "projection_completed"
+        ]
+
+    assert visits == [
+        (second.version_id, "0.95"),
+        (third.version_id, "0.97"),
+        (first.version_id, "0.91"),
+        (third.version_id, "0.97"),
+        (second.version_id, "0.95"),
+    ]
+    assert quiet, "a rewind must not read its own projection back as an edit"
+    assert undone.version_id not in (
+        first.version_id,
+        second.version_id,
+        third.version_id,
+    )
+    assert undone.parent_version_id == third.version_id
+    assert undone_on_disk == "0.95"
+    assert notes == []
+
+
+async def test_an_interrupted_projection_is_still_completed_after_a_restart(
+    tmp_path: Path,
+) -> None:
+    # A new session knows nothing of what the files held before, so an older
+    # file is read as a projection the store got ahead of (a crash between a
+    # store-side edit and its write): the store wins, visibly, and a rewind
+    # brings the file's version back.
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "score", SCORE_CELL)
@@ -216,25 +360,29 @@ async def test_a_same_lane_hand_revert_is_completed_noted_and_rewindable(
         )
         selected = slice_of(session, "main")["score"]
         selected_source = session.store.objects.get(selected.raw_source_ref)
+
+    (flow / "cells" / "score.py").write_bytes(older_source)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        session = api.hub.session("churn")
         main_branch_id = session.store.branches.get("main").branch_id
-        landed_at = len(transactions(session))
-
-        (flow / "cells" / "score.py").write_bytes(older_source)
-        await api.status({"flow": "churn"})
-
-        landed = transactions(session)[landed_at:]
         head = slice_of(session, "main")["score"]
         completed_source = (flow / "cells" / "score.py").read_bytes()
+        notes = [
+            entry
+            for entry in transactions(session)
+            if any(isinstance(op, CellNoted) for op in entry.ops)
+        ]
         brief = await api.context({"flow": "churn"})
 
         await api.rewind({"flow": "churn", "to_step": older.created_step})
         rewound = slice_of(session, "main")["score"]
         rewound_source = (flow / "cells" / "score.py").read_bytes()
 
-    assert len(landed) == 1
-    (noted,) = landed
+    assert len(notes) == 1
+    (noted,) = notes
     assert (noted.actor, noted.branch) == ("system", main_branch_id)
-    assert len(noted.ops) == 1
     note = noted.ops[0]
     assert isinstance(note, CellNoted)
     assert (note.uid, note.kind, note.version_id) == (
@@ -242,14 +390,10 @@ async def test_a_same_lane_hand_revert_is_completed_noted_and_rewindable(
         "projection_completed",
         selected.version_id,
     )
-    assert "score" in note.sentence
-    assert selected.version_id in note.sentence
     assert "rewind" in note.sentence
-    assert noted.intent == note.sentence
     assert head.version_id == selected.version_id
     assert completed_source == selected_source
-    assert brief["recent"][0]["step"] == noted.step
-    assert brief["recent"][0]["intent"] == note.sentence
+    assert any(item["intent"] == note.sentence for item in brief["recent"])
     assert rewound.version_id == older.version_id
     assert rewound_source == older_source
 

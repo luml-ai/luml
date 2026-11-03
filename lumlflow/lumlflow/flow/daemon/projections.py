@@ -23,6 +23,19 @@ class Projection:
 class Worktree:
     def __init__(self, store: FlowStore) -> None:
         self._store = store
+        # (branch_id, uid) -> the version whose bytes this session has seen in
+        # the cell's file, or written there. A file that has held its head
+        # version and later diverges is being edited, never a projection the
+        # store got ahead of. Memory only: after a restart nothing is known,
+        # and recovering an interrupted projection takes over again.
+        self._on_disk: dict[tuple[str, str], str] = {}
+
+    def note_on_disk(self, branch_id: str, uid: str, version_id: str) -> None:
+        self._on_disk[(branch_id, uid)] = version_id
+
+    def caught_up(self, branch_id: str, uid: str, version_id: str) -> bool:
+        """Has the cell's file held `version_id` since this session began?"""
+        return self._on_disk.get((branch_id, uid)) == version_id
 
     @property
     def path(self) -> Path:
@@ -72,7 +85,7 @@ class Worktree:
         self.cells_dir.mkdir(parents=True, exist_ok=True)
         written: list[str] = []
         keep: dict[str, Path] = {}
-        for _uid, version in sorted(here.items(), key=lambda item: item[1].slug):
+        for uid, version in sorted(here.items(), key=lambda item: item[1].slug):
             path = self.cells_dir / f"{version.slug}{CELL_SUFFIX}"
             if path.is_symlink() and not path.exists():
                 continue
@@ -85,8 +98,10 @@ class Worktree:
                 except OSError:
                     continue
                 if cell_source_matches(held, source, version.flags):
+                    self.note_on_disk(branch.branch_id, uid, version.version_id)
                     continue
             atomic_write_bytes(path, source)
+            self.note_on_disk(branch.branch_id, uid, version.version_id)
             written.append(version.slug)
         removed = []
         for path in cell_paths(self.cells_dir):

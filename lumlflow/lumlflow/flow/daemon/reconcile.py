@@ -116,6 +116,9 @@ def reconcile(
         branch=branch_id,
         offline=tier == "cold",
     )
+    # Each accepted version came from its file, so the file holds it now.
+    for accepted in batch.accepted:
+        worktree.note_on_disk(branch_id, accepted.uid, accepted.version_id)
     session.store.save_manifest()
     return Reconciliation(
         accepted=list(batch.accepted),
@@ -338,11 +341,18 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
     fork's version over by hand — and completing those would quietly undo the
     author's work and accept nothing in its place.
 
-    A file an author reverted by hand to an older version reads the same way,
-    and is completed too: content cannot tell the two apart, and of the two
-    readings only this one can lose nothing — every version is still in the
-    store, and the revert is one rewind away from being made again. The note
-    makes that completion visible and names the rewind escape hatch.
+    A file an author reverted by hand to an older version holds the same bytes,
+    and content alone cannot tell the two apart. History can: a projection is
+    a file that has not caught up with the head yet, while a revert is written
+    over a file that already held the head. The worktree remembers which
+    version it has seen on disk this session (projected, accepted from the
+    file, or read back), and a file that has held its head is the author's,
+    whatever it holds now: it is accepted as an edit, never overwritten.
+
+    After a restart nothing is remembered, so a divergent older file is
+    completed as before: that is when an interrupted projection is found, and
+    of the two readings only this one can lose nothing. The note makes such a
+    completion visible and names the rewind escape hatch.
     """
     store = session.store
     here = store.index.slice_versions(branch_id)
@@ -360,6 +370,12 @@ def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
         except OSError:
             continue
         if held == source:
+            session.worktree.note_on_disk(branch_id, uid, version.version_id)
+            continue
+        # The file has held the head version this session: whatever it holds
+        # now was written after that, by its author, even when the bytes are
+        # an older version's (an editor's undo, a revert). It is an edit.
+        if session.worktree.caught_up(branch_id, uid, version.version_id):
             continue
         older = store.index.version_by_source(
             uid,

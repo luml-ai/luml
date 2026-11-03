@@ -99,7 +99,7 @@ When a flow is created beneath a directory that already has a `.git` ancestor, `
 
 A clone receives the committed flow id and the files selected on `main`, but not the local store. Opening it starts a fresh history under that flow id from the `cells/` files and `flow.yaml` on disk. Other lanes and recorded results do not cross through Git.
 
-If `git checkout` or `git pull` restores a cell file to a known older version on the checked-out lane, the daemon completes its projection by putting the lane's current head back on disk. It records a *projection completed* note in Activity, so the change is not silent. To keep the older cell version, use `lumlflow rewind <step>` to move the lane itself to the corresponding step.
+A cell file that goes back to an older version of itself while the daemon is running (an editor's undo, `git checkout`, `git pull`) is an edit like any other: the lane takes those bytes as its new version, and `lumlflow rewind <step>` brings the previous one back. The daemon only overrides a file it has not yet seen hold the lane's current version: that is a projection a store-side edit got ahead of, typically one interrupted when the daemon stopped. When a daemon starts and finds a cell file at a known older version, it puts the lane's current head back on disk and records a *projection completed* note in Activity, so the change is not silent. To keep the file's older version in that case, use `lumlflow rewind <step>` to move the lane itself to the corresponding step.
 
 ## Writing cells
 
