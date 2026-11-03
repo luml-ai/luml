@@ -2,18 +2,15 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
-from httpx import URL, InvalidURL
-
 from luml_api._exceptions import (
     CapabilityNotSupportedError,
     ContractViolationError,
-    LumlAPIError,
     NotAvailableInVersionError,
     NotFoundError,
     SatelliteOutOfSyncError,
     UnsupportedCapabilityVersionError,
 )
-from luml_api._types import Deployment
+from luml_api._types import Deployment, _resolve_satellite_url
 
 
 @dataclass(frozen=True)
@@ -208,24 +205,12 @@ class _MonitoringBase[ClientT: (_SyncMonitoringClient, _AsyncMonitoringClient)]:
                 ),
             )
 
-        try:
-            target = URL(monitoring_url)
-            if target.is_absolute_url:
-                return str(target).rstrip("/")
-            if not self._satellite.base_url:
-                raise LumlAPIError(
-                    f"Satellite {self._satellite.id} has no reachable base URL "
-                    "configured, so its relative monitoring URL cannot be addressed"
-                )
-            base = URL(f"{self._satellite.base_url.rstrip('/')}/")
-            if not base.is_absolute_url:
-                raise InvalidURL("Satellite base URL must be absolute")
-            return str(base.join(monitoring_url)).rstrip("/")
-        except InvalidURL as error:
-            raise LumlAPIError(
-                f"Deployment {self._deployment.id} has an invalid monitoring URL "
-                f"{monitoring_url!r}"
-            ) from error
+        base_url = self._satellite.base_url
+        if base_url:
+            base_url = f"{base_url.rstrip('/')}/"
+        return _resolve_satellite_url(
+            base_url, monitoring_url, self._satellite.id
+        ).rstrip("/")
 
     def _request_details(
         self,
