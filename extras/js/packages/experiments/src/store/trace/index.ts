@@ -33,7 +33,7 @@ export const useTraceStore = defineStore('trace', () => {
   async function getNextPage(reset: boolean = false) {
     const params = JSON.parse(JSON.stringify(requestParams.value))
     if (reset) {
-      evalsStore.getProvider.resetTracesRequestParams()
+      evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
     }
     const data = await evalsStore.getProvider.getTraces(params)
     if (reset) {
@@ -59,7 +59,7 @@ export const useTraceStore = defineStore('trace', () => {
 
   function reset() {
     requestParams.value = { ...INITIAL_REQUEST_PARAMS }
-    evalsStore.getProvider.resetTracesRequestParams()
+    evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
     traces.value = []
     loading.value = false
     artifactId.value = null

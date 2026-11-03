@@ -11,6 +11,7 @@ import type {
 } from './interfaces/interfaces'
 import { ExperimentSnapshotDatabaseProvider } from './providers/ExperimentSnapshotDatabaseProvider'
 import { ExperimentSnapshotWorkerProxy } from './providers/ExperimentSnapshotWorkerProxy'
+import type { ExperimentSnapshotWorkerProxyOptions } from './providers/ExperimentSnapshotWorkerProxy'
 import { ExperimentSnapshotApiProvider } from './providers/ExperimentSnapshotApiProvider'
 import { provideTheme } from './lib/theme/ThemeProvider'
 import { useEvalsStore } from './store/evals'
@@ -36,6 +37,7 @@ export type {
   ExperimentSnapshotStaticParams,
   ModelInfo,
   BaseTraceInfo,
+  ExperimentSnapshotWorkerProxyOptions,
 }
 
 export {

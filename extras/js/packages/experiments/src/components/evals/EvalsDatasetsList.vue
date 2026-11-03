@@ -81,7 +81,7 @@ onMounted(init)
 
 onUnmounted(() => {
   evalsStore.reset()
-  evalsStore.getProvider.resetEvalsDatasetsRequestParams()
+  evalsStore.getProvider.resetEvalsDatasetsRequestParams().catch(() => undefined)
 })
 </script>
 
