@@ -90,9 +90,8 @@ def stub_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     write_stub_lumlflow(stub_directory)
     if sys.platform == "win32":
         system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
-        new_path = (
-            f"{stub_directory}{os.pathsep}{system_root}\\system32{os.pathsep}{system_root}"
-        )
+        system32 = os.path.join(system_root, "system32")
+        new_path = os.pathsep.join([str(stub_directory), system32, system_root])
         monkeypatch.setenv("PATH", new_path)
     else:
         monkeypatch.setenv("PATH", str(stub_directory))
@@ -119,6 +118,7 @@ def _stub_starts(record: Path) -> list[dict]:
 def _alive(pid: int) -> bool:
     if sys.platform == "win32":
         import ctypes
+
         kernel32 = ctypes.windll.kernel32
         handle = kernel32.OpenProcess(0x0400, False, pid)
         if not handle:
