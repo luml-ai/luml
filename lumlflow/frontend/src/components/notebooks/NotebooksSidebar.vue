@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="sidebar">
     <NotebookMainInfo class="mb-2" />
     <NotebookSidebarAccordion v-if="flowStore.isSidebarOpened" />
     <div v-else class="card">
@@ -32,5 +32,14 @@ const sections = useSidebarSections()
 
 .card {
   @apply bg-(--p-card-background) border border-surface rounded-lg overflow-hidden;
+}
+
+/* Scrolls on its own, level with the notebook beside it: otherwise expanded
+   sections stretch the page and a second scrollbar appears next to the
+   notebook's. */
+.sidebar {
+  max-height: calc(100vh - 162px);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 </style>

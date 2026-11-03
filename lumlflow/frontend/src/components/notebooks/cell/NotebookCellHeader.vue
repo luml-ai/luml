@@ -220,13 +220,19 @@ function modelOutputNames(): string[] {
     .map(([name]) => name)
 }
 
+// The daemon says why an experiment cannot be opened (never run, recorded in
+// another tracker store, removed); a generic line would hide the fix.
+function untrackedReason(tracker: { sentence?: string } | null | undefined): string {
+  return tracker?.sentence || 'This experiment has not been tracked yet'
+}
+
 async function onOpenInExperiments() {
   const output = experimentOutputName()
   if (!output) return
   try {
     const asset = await flowStore.fetchAssetPreview(props.cell.slug, output)
     if (!asset.tracker?.url) {
-      toast.add(errorToast(new Error('This experiment has not been tracked yet')))
+      toast.add(errorToast(new Error(untrackedReason(asset.tracker))))
       return
     }
     window.open(asset.tracker.url, '_blank')
@@ -265,7 +271,7 @@ async function promoteExperiment() {
   try {
     const asset = await flowStore.fetchAssetPreview(props.cell.slug, output)
     if (asset.tracker?.state !== 'ok') {
-      toast.add(errorToast(new Error('This experiment has not been tracked yet')))
+      toast.add(errorToast(new Error(untrackedReason(asset.tracker))))
       return
     }
     if (await authStore.ensureAuth()) {

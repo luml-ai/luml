@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import {
   NOTEBOOK_ASSET_ICONS,
 } from '@/components/notebooks/notebooks.const'
@@ -49,12 +49,45 @@ function setCellRef(id: string, el: unknown) {
   }
 }
 
+// Cells above the revealed one keep growing for a moment after it is scrolled
+// to (code editors, tables and charts render late), which pushed it out of
+// view. Hold it at the top while they settle; the user's own scroll lets go.
+const SETTLE_MS = 1500
+let releaseAnchor: (() => void) | null = null
+
+function scrollToCell(wrapper: HTMLElement, cellEl: HTMLElement, behavior: ScrollBehavior) {
+  const offset = cellEl.getBoundingClientRect().top - wrapper.getBoundingClientRect().top
+  if (Math.abs(offset) < 1) return
+  wrapper.scrollTo({ top: wrapper.scrollTop + offset, behavior })
+}
+
+function anchorCell(wrapper: HTMLElement, cellEl: HTMLElement) {
+  releaseAnchor?.()
+  const observer = new ResizeObserver(() => scrollToCell(wrapper, cellEl, 'auto'))
+  for (const child of wrapper.children) observer.observe(child)
+  const release = () => {
+    observer.disconnect()
+    clearTimeout(timer)
+    for (const event of USER_SCROLL_EVENTS) wrapper.removeEventListener(event, release)
+    if (releaseAnchor === release) releaseAnchor = null
+  }
+  const timer = setTimeout(release, SETTLE_MS)
+  for (const event of USER_SCROLL_EVENTS) {
+    wrapper.addEventListener(event, release, { passive: true, once: true })
+  }
+  releaseAnchor = release
+}
+
+const USER_SCROLL_EVENTS = ['wheel', 'touchstart', 'keydown', 'mousedown'] as const
+
+onBeforeUnmount(() => releaseAnchor?.())
+
 function revealCell(id: string) {
   const wrapper = wrapperRef.value
   const cellEl = cellRefs.get(id)
   if (!wrapper || !cellEl) return
-  const offset = cellEl.getBoundingClientRect().top - wrapper.getBoundingClientRect().top
-  wrapper.scrollTo({ top: wrapper.scrollTop + offset, behavior: 'smooth' })
+  scrollToCell(wrapper, cellEl, 'smooth')
+  anchorCell(wrapper, cellEl)
   cellEl.animate?.(
     [
       { outline: '3px solid var(--p-primary-color)', outlineOffset: '-3px' },
@@ -80,6 +113,9 @@ watch(
 .wrapper {
   height: v-bind(wrapperHeight);
   overflow-y: auto;
+  /* Room for the scrollbar, so it never sits on top of a card's border. */
+  padding-right: 10px;
+  scrollbar-gutter: stable;
   margin-bottom: -20px;
   transition: height 0.2s ease;
 }

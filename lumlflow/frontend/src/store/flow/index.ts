@@ -517,7 +517,11 @@ export const useFlowStore = defineStore('flow', () => {
     const branch = currentBranch.value
     if (!branch || currentHeadStep.value === null) return ''
     if (branch.parent === null || branch.parent_step === null) return 'root lane'
-    return `started from ${branch.parent} · ${formatStepCount(currentHeadStep.value - branch.parent_step, 'step')} ago`
+    // Journal steps are numbered across the whole flow, so subtracting them
+    // counts other lanes' steps too. Count this lane's own steps up to where it stands.
+    const head = currentHeadStep.value
+    const own = currentBranchSteps.value.filter((step) => step.step <= head).length
+    return `started from ${branch.parent} · ${formatStepCount(own, 'step')} ago`
   })
 
   function ensureOnLaneHead(): boolean {
