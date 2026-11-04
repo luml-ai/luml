@@ -29,7 +29,6 @@ def test_frontend_ci_runs_required_checks_in_order() -> None:
     ]
     assert _commands(jobs["unit"]) == [
         "npm ci --include=optional",
-        "npm install @rollup/rollup-linux-x64-gnu --workspace=lumlflow/frontend",
         "npm run build-only --workspace=@luml/attachments",
         "npm run build-only --workspace=@luml/experiments",
         "npm run type-check",
