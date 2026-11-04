@@ -187,10 +187,10 @@ def save_lightgbm(  # noqa: C901
     model_filename = "model.json"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp_file:
-        estimator.save_model(tmp_file.name)
         tmp_model_path = tmp_file.name
 
     try:
+        estimator.save_model(tmp_model_path)
         builder.add_file(tmp_model_path, target_path=model_filename)
 
         _add_io(builder, estimator, inputs, input_format=input_format)

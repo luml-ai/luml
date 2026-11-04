@@ -1,5 +1,7 @@
-import catboost as ctb
 import lightgbm as lgb
+
+# isort: split
+import catboost as ctb
 import numpy as np
 import pandas as pd
 import pytest
