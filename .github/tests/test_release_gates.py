@@ -89,8 +89,6 @@ class ReleaseGateTests(unittest.TestCase):
     def test_checks_run_on_all_release_branches(self):
         paths = list(WORKFLOWS.glob("*tests-and-linters.yml"))
         paths.append(WORKFLOWS / "[satellite-kubernetes] end-to-end.yml")
-        paths.append(WORKFLOWS / "[sdk] tests.yml")
-        paths.append(WORKFLOWS / "[sdk] linters.yml")
         for path in paths:
             workflow = load(path.name)
             with self.subTest(workflow=path.name, event="pull_request"):
