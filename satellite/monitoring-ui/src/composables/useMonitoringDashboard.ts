@@ -123,20 +123,32 @@ export function useMonitoringDashboard() {
     window.parent?.postMessage({ type: MONITORING_SESSION_EXPIRED_MESSAGE }, '*')
   }
 
+  const requestSequences = new Map<{ value: LoadStatus }, number>()
+
+  function nextRequest(status: { value: LoadStatus }): number {
+    const sequence = (requestSequences.get(status) ?? 0) + 1
+    requestSequences.set(status, sequence)
+    return sequence
+  }
+
   async function run<T>(
     status: { value: LoadStatus },
     load: () => Promise<T>,
     assign: (value: T) => void,
   ): Promise<void> {
+    const sequence = nextRequest(status)
     status.value = 'loading'
     try {
-      assign(await load())
+      const value = await load()
+      if (requestSequences.get(status) !== sequence) return
+      assign(value)
       status.value = 'ready'
     } catch (error) {
       if (error instanceof SessionExpiredError) {
         reportSessionExpired()
         return
       }
+      if (requestSequences.get(status) !== sequence) return
       status.value = 'error'
     }
   }
@@ -177,6 +189,7 @@ export function useMonitoringDashboard() {
 
   function loadQualityTrends(feature: string | null): Promise<void> {
     if (feature === null) {
+      nextRequest(qualityTrendsStatus)
       focusedFeature.value = null
       qualityTrends.value = []
       qualityTrendsStatus.value = 'idle'
@@ -377,7 +390,9 @@ export function useMonitoringDashboard() {
     if (activeTab.value === 'reference-profile') return loadProfileDocument()
     if (activeTab.value === 'data-quality') {
       // the open panel described the previous window
+      nextRequest(qualityTrendsStatus)
       qualityTrends.value = []
+      qualityTrendsStatus.value = 'idle'
       return loadDataQuality()
     }
     return Promise.all([loadFeatureDrift(), loadReferenceProfile()])
@@ -667,6 +682,7 @@ export function useMonitoringDashboard() {
   }
 
   function closeTrace(): void {
+    nextRequest(traceDetailStatus)
     openTraceId.value = null
     traceDetail.value = null
     traceDetailStatus.value = 'idle'
