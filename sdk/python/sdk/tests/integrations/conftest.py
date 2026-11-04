@@ -1,5 +1,3 @@
-# On Windows, lightgbm must be imported before other ML runtimes (such as
-# catboost) to prevent OpenMP runtime conflicts that cause access violations.
 import lightgbm as lgb
 
 # isort: split
