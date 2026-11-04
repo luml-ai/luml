@@ -185,7 +185,12 @@ class Backend(ABC):
 
     @abstractmethod
     def delete_remote_artifact(
-        self, local_type: str, local_id: str, orbit_id: str
+        self,
+        local_type: str,
+        local_id: str,
+        orbit_id: str,
+        *,
+        expected_artifact_id: str | None = None,
     ) -> None:
         pass
 

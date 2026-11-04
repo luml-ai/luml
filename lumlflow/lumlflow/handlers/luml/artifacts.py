@@ -103,6 +103,7 @@ class ArtifactHandler(BaseLumlHandler):
                         "experiment",
                         data.experiment_id,
                         data.orbit_id,
+                        expected_artifact_id=experiment_artifact_id,
                     )
                 artifact = upload(None)
 
