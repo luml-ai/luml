@@ -55,7 +55,6 @@ usePlotlyChart(
   },
   () => ({ ...baseChartLayout(), barcornerradius: 4 }),
 )
-
 </script>
 
 <style scoped>

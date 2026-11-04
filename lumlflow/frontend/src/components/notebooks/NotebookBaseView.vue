@@ -20,9 +20,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import {
-  NOTEBOOK_ASSET_ICONS,
-} from '@/components/notebooks/notebooks.const'
+import { NOTEBOOK_ASSET_ICONS } from '@/components/notebooks/notebooks.const'
 import { useFlowStore } from '@/store/flow'
 import NotebookCell from '@/components/notebooks/cell/NotebookCell.vue'
 

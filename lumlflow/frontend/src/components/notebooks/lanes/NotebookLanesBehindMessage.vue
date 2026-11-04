@@ -1,13 +1,8 @@
 <template>
-  <Message
-    v-if="flowStore.isBehindLaneHead && newestStep !== null"
-    severity="warn"
-    size="small"
-  >
+  <Message v-if="flowStore.isBehindLaneHead && newestStep !== null" severity="warn" size="small">
     <div class="behind-message">
       <span>
-        The lane is on step {{ flowStore.currentHeadStep }}, not its latest step
-        {{ newestStep }}.
+        The lane is on step {{ flowStore.currentHeadStep }}, not its latest step {{ newestStep }}.
       </span>
       <Button
         label="Back to latest"

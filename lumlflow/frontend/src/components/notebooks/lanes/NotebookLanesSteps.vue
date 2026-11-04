@@ -12,11 +12,7 @@
         </div>
       </AccordionHeader>
       <AccordionContent :pt="ACCORDION_CONTENT_PT">
-        <NotebookLanesBehindMessage
-          class="mb-2"
-          :rewinding-step="rewindingStep"
-          @back="rewind"
-        />
+        <NotebookLanesBehindMessage class="mb-2" :rewinding-step="rewindingStep" @back="rewind" />
         <p v-if="!flowStore.currentBranchSteps.length" class="empty">Nothing on this lane yet</p>
         <ol v-else class="steps">
           <li
@@ -67,13 +63,7 @@
 
 <script setup lang="ts">
 import type { JournalTransaction } from '@/api/slices/workspace/workspace.interface'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionHeader,
-  AccordionPanel,
-  useConfirm,
-} from 'primevue'
+import { Accordion, AccordionContent, AccordionHeader, AccordionPanel, useConfirm } from 'primevue'
 import { Flag, History } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
@@ -104,13 +94,18 @@ async function confirmRewind(step: number) {
   if (!(await confirmLeave())) return
   const isLatest = step === flowStore.currentBranch?.newest_step
   confirm.require(
-    moveLaneConfirmOptions(() => {
-      if (flowStore.currentBranch?.branch !== lane) {
-        toast.add(errorToast(new Error(`Lane ${lane} is no longer checked out, nothing was moved`)))
-        return
-      }
-      rewind(step)
-    }, { lane, step, isLatest }),
+    moveLaneConfirmOptions(
+      () => {
+        if (flowStore.currentBranch?.branch !== lane) {
+          toast.add(
+            errorToast(new Error(`Lane ${lane} is no longer checked out, nothing was moved`)),
+          )
+          return
+        }
+        rewind(step)
+      },
+      { lane, step, isLatest },
+    ),
   )
 }
 

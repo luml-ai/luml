@@ -14,5 +14,7 @@ export function isValidGitBranchName(name: string): boolean {
 
   return name
     .split('/')
-    .every((segment) => segment.length > 0 && !segment.startsWith('.') && !segment.endsWith('.lock'))
+    .every(
+      (segment) => segment.length > 0 && !segment.startsWith('.') && !segment.endsWith('.lock'),
+    )
 }

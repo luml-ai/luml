@@ -12,8 +12,7 @@ export function useCopy(value: () => string): { copied: Ref<boolean>; copy: () =
       setTimeout(() => {
         copied.value = false
       }, ACKNOWLEDGED_MS)
-    } catch {
-    }
+    } catch {}
   }
 
   return { copied, copy }

@@ -1,4 +1,3 @@
-
 import { LogRing } from './logs'
 import type { LogFrame, StreamFrame } from './types'
 
