@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -70,7 +71,8 @@ def test_launch_url_carries_the_stored_session_token(
     token = _launch_token()
     token_file = store / SESSION_TOKEN_FILE
     assert token_file.read_text() == token
-    assert token_file.stat().st_mode & 0o777 == 0o600
+    if sys.platform != "win32":
+        assert token_file.stat().st_mode & 0o777 == 0o600
     assert serving == [False]
 
 
