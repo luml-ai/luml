@@ -75,7 +75,7 @@ const avatarLabel = computed(() => {
 async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
   const payload = {
-    logo: 'https://framerusercontent.com/images/Ks0qcMuaRUt9YEMHOZIkAAXLwl0.png',
+    logo: organizationStore.currentOrganization?.logo,
     name: values.name,
   }
   try {

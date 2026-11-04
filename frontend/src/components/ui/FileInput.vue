@@ -48,7 +48,13 @@
           </div>
           <div class="help-text">{{ acceptText }}</div>
         </template>
-        <input ref="inputRef" :id="id" type="file" @change="inputChange" />
+        <input
+          ref="inputRef"
+          :id="id"
+          type="file"
+          :accept="accept?.join(',')"
+          @change="inputChange"
+        />
       </div>
     </template>
   </div>
@@ -133,7 +139,19 @@ function inputChange(e: Event) {
   if (file) selectFile(file)
 }
 function selectFile(file: File) {
-  if (props.accept && !props.accept.includes(file.type)) toast.add(incorrectFileTypeErrorToast)
+  const accepted =
+    !props.accept?.length ||
+    props.accept.some((type) => {
+      const acceptedType = type.toLowerCase()
+      const name = file.name.toLowerCase()
+      return acceptedType.startsWith('.')
+        ? name.endsWith(acceptedType)
+        : acceptedType.endsWith('/*')
+          ? file.type.toLowerCase().startsWith(acceptedType.slice(0, -1))
+          : file.type.toLowerCase() === acceptedType ||
+            (acceptedType === 'text/csv' && name.endsWith('.csv'))
+    })
+  if (!accepted) toast.add(incorrectFileTypeErrorToast)
   else emit('selectFile', file)
 }
 function removeFile() {

@@ -140,3 +140,11 @@ describe('DeploymentsTable progress notes', () => {
     expect(wrapper.find('[data-testid="deployment-progress-note"]').exists()).toBe(false)
   })
 })
+
+it('shows deletion failures with a danger tag', () => {
+  const wrapper = mountTable([deployment(DeploymentStatusEnum.deletion_failed)])
+  const tag = wrapper
+    .findAllComponents({ name: 'TagStub' })
+    .find((tag) => tag.text() === 'Deletion failed')
+  expect(tag?.attributes('severity')).toBe('danger')
+})

@@ -66,6 +66,7 @@ const formRef = ref<FormInstance>()
 const saveLoading = ref(false)
 const deleteLoading = ref(false)
 const artifactWithSelectedStage = ref<TrackEntry | null>(null)
+let stageRequest = 0
 
 const initialValues = computed(() => {
   if (!artifactLinksStore.editableEntry) return {}
@@ -169,15 +170,17 @@ async function deleteEntry() {
 }
 
 async function getArtifactWithSelectedStage(trackId: string, stageId: string) {
+  const request = ++stageRequest
   artifactWithSelectedStage.value = null
   try {
     const artifact = await artifactLinksStore.getEntryByStage(trackId, stageId)
-    if (formRef.value?.getFieldState('stage_id')?.value !== stageId) return
+    if (request !== stageRequest || formRef.value?.getFieldState('stage_id')?.value !== stageId)
+      return
     if (artifact.id !== artifactLinksStore.editableEntry?.id) {
       artifactWithSelectedStage.value = artifact
     }
   } catch {
-    if (formRef.value?.getFieldState('stage_id')?.value === stageId) {
+    if (request === stageRequest && formRef.value?.getFieldState('stage_id')?.value === stageId) {
       artifactWithSelectedStage.value = null
     }
   }
@@ -191,6 +194,8 @@ watch(
 )
 
 watchEffect(() => {
+  stageRequest++
+  artifactWithSelectedStage.value = null
   if (!artifactLinksStore.editableEntry) return
   const stageId = formRef.value?.getFieldState('stage_id')?.value
   if (!stageId) {

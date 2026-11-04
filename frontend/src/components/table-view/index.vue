@@ -86,13 +86,13 @@
 </template>
 
 <script lang="ts">
-// Date objects otherwise render via Date.toString() ("Wed Jan 01 2020 01:00:00 GMT+0100 ...").
-// An Invalid Date must pass through untouched: toISOString() would throw and
-// take the whole table render down with it.
 export function formatCellValue(value: unknown): unknown {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return value
-  const iso = value.toISOString()
-  return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 16).replace('T', ' ')
+  const pad = (part: number) => String(part).padStart(2, '0')
+  const day = `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+  const midnight =
+    !value.getHours() && !value.getMinutes() && !value.getSeconds() && !value.getMilliseconds()
+  return midnight ? day : `${day} ${pad(value.getHours())}:${pad(value.getMinutes())}`
 }
 </script>
 

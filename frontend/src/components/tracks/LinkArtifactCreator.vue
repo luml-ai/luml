@@ -180,6 +180,13 @@ function onCollectionChanged(collectionId: string) {
       collectionIds: [collectionId],
     })
     resetList()
+  } else if (artifactLinksStore.creatorVisible) {
+    setRequestInfo({
+      organizationId: organizationId.value,
+      orbitId: orbitId.value,
+      collectionIds: [],
+    })
+    resetList()
   } else {
     reset()
   }

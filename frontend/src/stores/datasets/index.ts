@@ -19,6 +19,8 @@ export const useDatasetsStore = defineStore('datasets', () => {
   const artifactsStore = useArtifactsStore()
   const toast = useToast()
 
+  let pageRequest = 0
+
   const isInitialized = ref(false)
 
   const loading = ref(false)
@@ -132,7 +134,7 @@ export const useDatasetsStore = defineStore('datasets', () => {
 
   async function setDownloader(artifact: Artifact) {
     const url = await artifactsStore.getDownloadUrl(artifact.id)
-    downloader.value = new ModelDownloader(url)
+    downloader.value = new ModelDownloader(url, () => artifactsStore.getDownloadUrl(artifact.id))
   }
 
   function setCurrentPage(page: number) {
@@ -143,26 +145,23 @@ export const useDatasetsStore = defineStore('datasets', () => {
     const chunk = chunks.value[page]
     if (!chunk) throw new Error('Chunk not found')
     if (!downloader.value) throw new Error('Downloader not found')
-    const arrayBuffer = await downloader.value?.getFileFromBucket<ArrayBuffer>(
+    const format = currentSplitFormat.value
+    const arrayBuffer = await downloader.value.getFileFromBucket<ArrayBuffer>(
       datasetIndex.value,
       chunk,
       true,
     )
-    const { columns, rows } = await getDataFromBuffer(arrayBuffer)
-    tableColumns.value = columns
-    tableRows.value = rows
-    if (!isInitialized.value) {
-      isInitialized.value = true
-    }
+    return getDataFromBuffer(arrayBuffer, format)
   }
 
   function getDataFromBuffer(
     arrayBuffer: ArrayBuffer,
+    format: string | undefined,
   ): Promise<{ columns: string[]; rows: Record<string, unknown>[] }> {
-    if (currentSplitFormat.value === 'parquet') {
+    if (format === 'parquet') {
       return getParquetData(arrayBuffer)
     }
-    if (currentSplitFormat.value === 'csv') {
+    if (format === 'csv') {
       return getCsvData(arrayBuffer)
     }
     throw new Error('Unsupported file format')
@@ -194,6 +193,7 @@ export const useDatasetsStore = defineStore('datasets', () => {
   }
 
   function reset() {
+    pageRequest++
     selectedSubset.value = null
     selectedSplit.value = null
     currentPage.value = null
@@ -209,7 +209,9 @@ export const useDatasetsStore = defineStore('datasets', () => {
   }
 
   watch([currentPage, selectedSplit], async ([page]) => {
-    if (page === null) {
+    const request = ++pageRequest
+    if (page === null || !selectedSplit.value) {
+      loading.value = false
       resetDataTable()
       return
     }
@@ -218,15 +220,20 @@ export const useDatasetsStore = defineStore('datasets', () => {
       if (isInitialized.value) {
         loading.value = true
       }
-      await getChunkData(page)
+      const { columns, rows } = await getChunkData(page)
+      if (request !== pageRequest) return
+      tableColumns.value = columns
+      tableRows.value = rows
+      isInitialized.value = true
       if (page === 0) {
         setRowsPerPage(tableRows.value.length)
       }
     } catch (e) {
+      if (request !== pageRequest) return
       const message = getErrorMessage(e, 'Failed to get chunk data')
       toast.add(simpleErrorToast(message))
     } finally {
-      loading.value = false
+      if (request === pageRequest) loading.value = false
     }
   })
 
