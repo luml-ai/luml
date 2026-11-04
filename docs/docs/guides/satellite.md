@@ -336,10 +336,10 @@ Starting with `v0.4.0`, the model server rejects request bodies larger than 16 M
 1. Replace `docker-compose.yml` and `otel-collector-config.yaml` with the versions above and create the `Caddyfile`.
 2. Add `GREPTIMEDB_USERNAME` and `GREPTIMEDB_PASSWORD` to `.env`. The existing GreptimeDB data stays in its volume.
 3. If other machines reached the Satellite on port 80 before, the new proxy serves only `127.0.0.1` by default. Set `SATELLITE_DOMAIN`, `PROXY_BIND` and `BASE_URL` as described in [Reach the Satellite from other machines](#reach-the-satellite-from-other-machines). To keep plain HTTP on all interfaces, set only `PROXY_BIND=0.0.0.0`.
-4. Detach running model containers from the old stack network. Compose recreates `satellite-network` to add its label and cannot remove a network that model containers are still attached to:
+4. Detach running model containers from the old stack network. Compose recreates `satellite-network` to add its label and cannot remove a network that model containers are still attached to. Every Satellite release labels its model containers with `df.deployment_id`, so the filter also finds containers started by `v0.2.x`:
 
    ```bash
-   for c in $(docker ps -q --filter label=df.satellite_id --filter network=satellite_satellite-network); do
+   for c in $(docker ps -q --filter label=df.deployment_id --filter network=satellite_satellite-network); do
      docker network disconnect satellite_satellite-network "$c"
    done
    ```
@@ -354,7 +354,7 @@ Starting with `v0.4.0`, the model server rejects request bodies larger than 16 M
    docker compose up -d
    ```
 
-The models keep running in the Satellite's own network during these steps. On its first start the new Satellite relaunches each model container once and connects it only to the networks labelled `df.model-access`. Expect a short interruption of inference for each deployment.
+Model containers started by `v0.3.x` keep serving from the Satellite's own network during these steps. Containers started by `v0.2.x` run in the stack network itself, so they are left without a network after step 4 and stop serving until the new Satellite starts. On its first start the new Satellite relaunches each model container once and connects it only to the networks labelled `df.model-access`. Expect a short interruption of inference for each deployment.
 
 ### Several Satellites on one host
 
