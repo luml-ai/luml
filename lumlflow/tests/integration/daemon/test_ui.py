@@ -681,7 +681,9 @@ def _rpc(record: DaemonRecord, method: str = "status", **params: Any) -> Any:
 
 
 def _kernels(root: Path) -> list[str]:
-    listed = subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True)
+    listed = subprocess.run(
+        ["ps", "-ww", "-eo", "args"], capture_output=True, text=True
+    )
     return [
         line
         for line in listed.stdout.splitlines()

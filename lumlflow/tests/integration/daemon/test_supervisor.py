@@ -424,25 +424,26 @@ def test_a_kernel_outliving_a_dead_daemon_does_not_hold_the_lock(
             running = pool.submit(
                 runner.call, "run", {"flow": "churn", "target": "gated"}
             )
-            kernel_pid = _wait_for_kernel(root)
-            lock_target = str(workspace.lock_path().resolve())
-            inherited = {
-                Path(fd).resolve()
-                for fd in Path(f"/proc/{kernel_pid}/fd").glob("*")
-                if Path(fd).exists()
-            }
-            assert Path(lock_target) not in inherited
+            try:
+                kernel_pid = _wait_for_kernel(root)
+                lock_target = str(workspace.lock_path().resolve())
+                inherited = {
+                    Path(fd).resolve()
+                    for fd in Path(f"/proc/{kernel_pid}/fd").glob("*")
+                    if Path(fd).exists()
+                }
+                assert Path(lock_target) not in inherited
 
-            os.kill(live.record.pid, HARD_KILL)
-            _wait_until_gone(live.record)
-            assert Path(f"/proc/{kernel_pid}").exists()
+                os.kill(live.record.pid, HARD_KILL)
+                _wait_until_gone(live.record)
+                assert Path(f"/proc/{kernel_pid}").exists()
 
-            with client.connect(root) as successor:
-                assert successor.record.instance_id != live.record.instance_id
-                assert workspace.lock_held()
-                _kill(successor.record)
-
-            (root / "go").write_text("", encoding="utf-8")
+                with client.connect(root) as successor:
+                    assert successor.record.instance_id != live.record.instance_id
+                    assert workspace.lock_held()
+                    _kill(successor.record)
+            finally:
+                (root / "go").write_text("", encoding="utf-8")
             with contextlib.suppress(Exception):
                 running.result(timeout=30)
 
@@ -793,7 +794,7 @@ def _wait_for_kernel(root: Path, timeout: float = 30.0) -> int:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         listed = subprocess.run(
-            ["ps", "-eo", "pid=,args="], capture_output=True, text=True
+            ["ps", "-ww", "-eo", "pid=,args="], capture_output=True, text=True
         )
         for line in listed.stdout.splitlines():
             pid, _, command = line.strip().partition(" ")
