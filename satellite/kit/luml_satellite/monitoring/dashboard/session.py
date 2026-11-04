@@ -12,6 +12,8 @@ from uuid import UUID
 
 from fastapi import HTTPException, Request, Response, status
 
+from luml_satellite.wire import MONITORING_WRITE_SCOPE
+
 SESSION_COOKIE_NAME = "monitoring_session"
 DEFAULT_SESSION_TTL_SECONDS = 30 * 60
 DEFAULT_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
@@ -141,7 +143,13 @@ def set_monitoring_cookie(
 
 
 def require_monitoring_write(request: Request, response: Response) -> MonitoringSession:
-    return require_monitoring_session(request, response)
+    session = require_monitoring_session(request, response)
+    if session.scope != MONITORING_WRITE_SCOPE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Monitoring write scope required",
+        )
+    return session
 
 
 def require_monitoring_session(request: Request, response: Response) -> MonitoringSession:
