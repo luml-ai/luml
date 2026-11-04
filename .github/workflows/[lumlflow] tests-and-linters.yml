@@ -99,7 +99,10 @@ jobs:
         run: uv run mypy lumlflow/flow lumlflow_kernel lumlflow_typing
 
       - name: Running tests
-        run: uv run pytest
+        run: uv run pytest -n auto -m "not default_port"
+
+      - name: Running default port tests
+        run: uv run pytest -m default_port
 
   # Portability is a v1 requirement, not a port at the end. The store and the
   # watcher are where the platform's differences land — atomic replace, sharing

@@ -527,6 +527,7 @@ def test_a_second_ui_in_another_directory_opens_the_one_already_serving(
     assert workspace.read_record() == record
 
 
+@pytest.mark.default_port
 def test_a_verb_still_starts_a_server_behind_the_user(tmp_path: Path) -> None:
     root = make_workspace(tmp_path / "project", flows=())
 
@@ -547,6 +548,7 @@ def test_a_verb_still_starts_a_server_behind_the_user(tmp_path: Path) -> None:
     assert client.is_alive(record)
 
 
+@pytest.mark.default_port
 def test_a_background_daemon_uses_an_ephemeral_port_when_5000_is_taken(
     tmp_path: Path,
 ) -> None:

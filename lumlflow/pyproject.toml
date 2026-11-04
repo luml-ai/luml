@@ -43,6 +43,7 @@ dev = [
     "mypy>=1.15.0",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.26.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.11.0",
     "pytest-cov>=7.1.0",
     "pyyaml>=6.0.3",
@@ -141,6 +142,9 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+markers = [
+    "default_port: binds the daemon's default web port, so it runs apart from the parallel suite",
+]
 
 [tool.uv.sources]
 luml-sdk = { path = "../sdk/python/sdk", editable = true }
