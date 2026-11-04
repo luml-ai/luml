@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,7 @@ def test_without_model_files_the_experiments_linked_models_go(
     store = ProgressStore()
     handler = ArtifactHandler.__new__(ArtifactHandler)
     handler.progress_store = store
+    handler._tracker_lock = nullcontext()
     linked = [SimpleNamespace(name=name) for name in ("forest", "boost")]
     handler.tracker = SimpleNamespace(get_models=lambda experiment_id: linked)
     calls: list[tuple[Any, ...]] = []
@@ -125,6 +127,7 @@ def test_model_files_follow_the_auto_plan(
     store = ProgressStore()
     handler = ArtifactHandler.__new__(ArtifactHandler)
     handler.progress_store = store
+    handler._tracker_lock = nullcontext()
     calls: list[tuple[Any, ...]] = []
 
     def upload_model_file(data, path, name, embed, on_progress, uploaded_experiment_id):
