@@ -85,7 +85,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   }
 
   function reset() {
-    resetCurrentCollection()
+    currentCollection.value = null
     collectionsTagsRequest++
     collectionsList.value = []
     collectionsTags.value = []
