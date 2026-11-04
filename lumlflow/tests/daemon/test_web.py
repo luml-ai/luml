@@ -434,11 +434,11 @@ def test_a_bad_numeric_parameter_is_a_json_refusal(
     answer = served.http.post(
         web.RPC_PATH,
         json={"method": "rewind", "params": {"flow": "churn", "to_step": "abc"}},
-        headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://localhost:5173"},
+        headers={web.TOKEN_HEADER: TOKEN, "Origin": "https://app.luml.ai"},
     )
 
     assert answer.status_code == 400
-    assert answer.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert answer.headers["access-control-allow-origin"] == "https://app.luml.ai"
     assert answer.json() == {
         "error": {"kind": "FlowError", "message": "`to_step` must be an integer"}
     }
@@ -459,13 +459,13 @@ def test_an_unexpected_failure_is_json_and_logs_its_traceback(
         answer = served.http.post(
             web.RPC_PATH,
             json={"method": "test.fail"},
-            headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://localhost:5173"},
+            headers={web.TOKEN_HEADER: TOKEN, "Origin": "https://app.luml.ai"},
         )
     finally:
         daemon_log.close()
 
     assert answer.status_code == 500
-    assert answer.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert answer.headers["access-control-allow-origin"] == "https://app.luml.ai"
     assert answer.json() == {"error": {"message": "the store failed"}}
     assert "Traceback" not in answer.text
     captured = capsys.readouterr()

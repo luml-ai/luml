@@ -24,6 +24,13 @@ from lumlflow.infra.exceptions import ApplicationError
 from lumlflow.settings import get_config
 
 OPEN_API_PATHS = frozenset({"/api/auth/status"})
+ALLOWED_ORIGINS = (
+    "http://localhost:5173",
+    "https://app.luml.ai",
+    "https://dev.luml.ai",
+    "https://app.dataforce.studio",
+    "https://dev.dataforce.studio",
+)
 
 
 class AppService(FastAPI):
@@ -58,9 +65,9 @@ class AppService(FastAPI):
 
         self.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:5173"],
-            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_origins=list(ALLOWED_ORIGINS),
+            allow_methods=["*"],
+            allow_headers=["*"],
         )
 
         self.include_router(router=auth_router)
