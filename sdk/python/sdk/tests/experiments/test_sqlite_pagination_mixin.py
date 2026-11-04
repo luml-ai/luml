@@ -1,3 +1,6 @@
+import json
+import sqlite3
+
 import pytest
 
 from luml.experiments.backends._sqlite_pagination_mixin import SQLitePaginationMixin
@@ -70,20 +73,50 @@ class TestBuildCursorClause:
         assert clause == ""
         assert params == []
 
-    def test_cursor_id_only_no_value_covers_line_80(self) -> None:
-        # line 80: cursor_id set, cursor_value=None → id-only WHERE clause
-        clause, params = SQLitePaginationMixin._build_cursor_clause(
-            "created_at", "asc", cursor_id="abc-123", cursor_value=None
+    @pytest.mark.parametrize("json_sort_column", [None, "scores"])
+    @pytest.mark.parametrize(
+        ("order", "cursor_id", "cursor_value", "expected_ids"),
+        [
+            ("asc", "a", 1, ["e", "c"]),
+            ("desc", "a", 1, ["d", "b"]),
+            ("asc", "b", None, ["d", "a", "e", "c"]),
+            ("desc", "d", None, ["b"]),
+        ],
+    )
+    def test_cursor_respects_null_ordering(
+        self,
+        json_sort_column: str | None,
+        order: str,
+        cursor_id: str,
+        cursor_value: int | None,
+        expected_ids: list[str],
+    ) -> None:
+        conn = sqlite3.connect(":memory:")
+        conn.execute("CREATE TABLE records (eval_id TEXT, score REAL, scores TEXT)")
+        conn.executemany(
+            "INSERT INTO records VALUES (?, ?, ?)",
+            [
+                (row_id, value, json.dumps({"score": value}))
+                for row_id, value in [
+                    ("a", 1),
+                    ("b", None),
+                    ("c", 2),
+                    ("d", None),
+                    ("e", 1),
+                ]
+            ],
         )
-        assert "id > ?" in clause
-        assert params == ["abc-123"]
-
-    def test_cursor_id_only_desc_order(self) -> None:
         clause, params = SQLitePaginationMixin._build_cursor_clause(
-            "created_at", "desc", cursor_id="abc-123", cursor_value=None
+            "score",
+            order,
+            cursor_id=cursor_id,
+            cursor_value=cursor_value,
+            json_sort_column=json_sort_column,
+            id_column="eval_id",
         )
-        assert "id < ?" in clause
-        assert params == ["abc-123"]
+        rows = conn.execute(f"SELECT eval_id FROM records {clause}", params).fetchall()
+        conn.close()
+        assert sorted(row[0] for row in rows) == sorted(expected_ids)
 
     def test_cursor_with_value_asc(self) -> None:
         clause, params = SQLitePaginationMixin._build_cursor_clause(

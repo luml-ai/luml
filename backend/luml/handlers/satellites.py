@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -240,7 +240,6 @@ class SatelliteHandler:
             openapi=satellite_in.openapi,
             kit_info=satellite_in.kit,
             paired=True,
-            last_seen_at=datetime.now(UTC),
         )
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
@@ -254,8 +253,11 @@ class SatelliteHandler:
 
         return updated_satellite
 
-    async def touch_last_seen(self, satellite_id: UUID) -> None:
-        await self.__sat_repo.touch_last_seen(satellite_id)
+    async def touch_last_seen(self, satellite: Satellite) -> None:
+        seen_before = datetime.now(UTC) - timedelta(minutes=1)
+        if satellite.last_seen_at is not None and satellite.last_seen_at > seen_before:
+            return
+        await self.__sat_repo.touch_last_seen(satellite.id, seen_before=seen_before)
 
     async def list_tasks(
         self, satellite_id: UUID, status: SatelliteTaskStatus | None = None

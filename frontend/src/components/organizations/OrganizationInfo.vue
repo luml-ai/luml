@@ -32,7 +32,6 @@
       </div>
       <template #footer>
         <div class="organization-edit-footer">
-          <OrganizationDelete></OrganizationDelete>
           <Button type="submit" form="editOrganizationForm">Save changes</Button>
         </div>
       </template>
@@ -50,7 +49,6 @@ import { Form } from '@primevue/forms'
 import { PenLine, UserCog } from 'lucide-vue-next'
 import { useOrganizationStore } from '@/stores/organization'
 import { Avatar, Button, useToast, InputText } from 'primevue'
-import OrganizationDelete from './OrganizationDelete.vue'
 import UiId from '../ui/UiId.vue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import UiDialogRight from '@/components/ui/dialogs/UiDialogRight.vue'
@@ -156,7 +154,7 @@ onMounted(() => {
 }
 .organization-edit-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   width: 100%;
   margin-top: auto;
 }

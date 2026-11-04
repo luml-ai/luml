@@ -53,7 +53,7 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
 })
 
-const modelValue = defineModel<string[]>('modelValue', { default: [] })
+const modelValue = defineModel<string[]>('modelValue', { default: () => [] })
 
 const elementRef = useTemplateRef<AutoCompleteInstance>('elementRef')
 

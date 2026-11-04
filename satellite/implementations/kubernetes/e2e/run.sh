@@ -116,7 +116,6 @@ HELM_ARGUMENTS=(
   upgrade --install "$RELEASE" "$PREVIOUS_CHART"
   --namespace "$NAMESPACE"
   --values "$CHART/ci/$PRESET-values.yaml"
-  --set-string satellite.derivationKey=
   --set satellite.platformUrl=http://fake-platform:8090
   --set satellite.host="$HOST"
   --set satellite.pollIntervalSeconds=1

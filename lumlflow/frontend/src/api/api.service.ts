@@ -334,8 +334,9 @@ export const apiService = {
   },
 
   getLumlCollections: async (params: GetLumlCollectionsParams) => {
+    const { cursor, ...rest } = params
     const { data } = await api.get<PaginatedResponse<CollectionInfo>>(`/luml/collections`, {
-      params,
+      params: { ...rest, start_after: cursor },
     })
     return data
   },

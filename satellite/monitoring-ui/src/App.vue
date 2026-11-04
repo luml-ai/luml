@@ -111,6 +111,7 @@
       v-else-if="activeTab === 'alerts'"
       :alerts="alerts"
       :status="alertsStatus"
+      :acknowledge-error="acknowledgeError"
       :new-count="alertsNewCount"
       :fresh-keys="alertsFreshKeys"
       @show-feature="focusAlert"
@@ -190,6 +191,7 @@ const {
   profileDocumentStatus,
   alerts,
   alertsStatus,
+  acknowledgeError,
   alertsNewCount,
   alertsFreshKeys,
   markAlertsSeen,

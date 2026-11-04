@@ -1,4 +1,12 @@
 <template>
+  <Breadcrumb :model="breadcrumbs" :pt="{ root: { style: 'padding-left: 0' } }" class="breadcrumbs">
+    <template #item="{ item, props: itemProps }">
+      <RouterLink v-if="item.route" v-slot="{ href, navigate }" :to="item.route" custom>
+        <a :href="href" v-bind="itemProps.action" @click="navigate">{{ item.label }}</a>
+      </RouterLink>
+      <span v-else v-bind="itemProps.action">{{ item.label }}</span>
+    </template>
+  </Breadcrumb>
   <div class="deployment-schema-page">
     <UiPageLoader v-if="loading" />
     <OpenApi v-else-if="schema" :content="schema" :server-url="serverUrl" />
@@ -9,7 +17,7 @@
 <script setup lang="ts">
 import type { Deployment } from '@/lib/api/deployments/interfaces'
 import { computed, onMounted, ref } from 'vue'
-import { useToast } from 'primevue'
+import { Breadcrumb, useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useRoute } from 'vue-router'
@@ -67,6 +75,17 @@ const requestInfo = computed(() => {
   }
 })
 
+const breadcrumbs = computed(() => [
+  {
+    label: 'Deployments',
+    route: {
+      name: 'orbit-deployments',
+      params: { organizationId: requestInfo.value.organizationId, id: requestInfo.value.orbitId },
+    },
+  },
+  { label: 'API schema' },
+])
+
 function getSchema(deployment: Deployment) {
   const schemas = deployment.schemas
   if (!schemas || !Object.keys(schemas).length) {
@@ -110,6 +129,10 @@ async function getServerUrl(deployment: Deployment) {
 </script>
 
 <style scoped>
+.breadcrumbs {
+  padding-top: 18px;
+}
+
 .deployment-schema-page {
   margin: 0 -100px;
 }

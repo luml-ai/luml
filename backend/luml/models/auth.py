@@ -38,3 +38,16 @@ class AuthSatellite(BaseUser):
     @property
     def display_name(self) -> str:
         return f"satellite-{self.id}"
+
+
+class AuthRelay(BaseUser):
+    def __init__(self, relay_id: UUID) -> None:
+        self.id = relay_id
+
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+
+    @property
+    def display_name(self) -> str:
+        return f"relay-{self.id}"

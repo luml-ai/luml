@@ -50,9 +50,7 @@ const toast = useToast()
 const deleteLoading = ref(false)
 
 function onDeleteClick() {
-  confirm.require(
-    deleteTrackEntryConfirmOptions(deleteEntries, artifactLinksStore.selectedEntries.length),
-  )
+  confirm.require(deleteTrackEntryConfirmOptions(deleteEntries, artifactLinksStore.selectedEntries))
 }
 
 async function deleteEntries() {

@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import noload, selectinload
+from sqlalchemy.orm import defer, noload, selectinload, undefer
 
 from luml.infra.exceptions import (
     ArtifactDeployedError,
@@ -36,6 +36,7 @@ from luml.schemas.artifacts import (
     ArtifactDeleteTrack,
     ArtifactDetails,
     ArtifactListed,
+    ArtifactListedBase,
     ArtifactSortBy,
     ArtifactStatus,
     ArtifactType,
@@ -413,17 +414,25 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         artifact_types: list[ArtifactType] | None = None,
         search: str | None = None,
         excluded_tracks: list[UUID] | None = None,
-    ) -> tuple[list[ArtifactListed], Cursor | None]:
+    ) -> tuple[list[ArtifactListedBase], Cursor | None]:
+        sort_by = pagination.sort_by
+        sort_collection_ids = collection_ids or []
+        if not sort_collection_ids and sort_by not in ArtifactSortBy:
+            async with self._get_session() as session:
+                sort_collection_ids = list(
+                    await session.scalars(
+                        select(CollectionOrm.id).where(
+                            CollectionOrm.orbit_id == orbit_id
+                        )
+                    )
+                )
+        is_extra_values = await self._is_extra_values_sort(sort_collection_ids, sort_by)
+
+        if is_extra_values:
+            pagination.extra_sort_field = sort_by
+            pagination.sort_by = "extra_values"
+
         async with self._get_session() as session:
-            sort_by = pagination.sort_by
-            is_extra_values = await self._is_extra_values_sort(
-                collection_ids or [], sort_by
-            )
-
-            if is_extra_values:
-                pagination.extra_sort_field = sort_by
-                pagination.sort_by = "extra_values"
-
             conditions: list[Any] = [
                 ArtifactOrm.collection_id.in_(
                     select(CollectionOrm.id).where(CollectionOrm.orbit_id == orbit_id)
@@ -448,7 +457,12 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 )
 
             if search:
-                conditions.append(ArtifactOrm.name.ilike(f"%{search}%"))
+                conditions.append(
+                    or_(
+                        ArtifactOrm.name.icontains(search, autoescape=True),
+                        ArtifactOrm.file_name.icontains(search, autoescape=True),
+                    )
+                )
 
             result = await self.get_models_with_pagination(
                 session,
@@ -456,6 +470,9 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 *conditions,
                 pagination=pagination,
                 options=[
+                    defer(ArtifactOrm.manifest, raiseload=True),
+                    defer(ArtifactOrm.file_index, raiseload=True),
+                    undefer(ArtifactOrm.has_experiment_snapshot),
                     selectinload(ArtifactOrm.collection).load_only(
                         CollectionOrm.id,
                         CollectionOrm.name,
@@ -484,7 +501,8 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             )
 
             artifacts = [
-                orm_artifact.to_listed_artifact() for orm_artifact in db_models
+                ArtifactListedBase.model_validate(orm_artifact)
+                for orm_artifact in db_models
             ]
 
             return artifacts, cursor
@@ -493,6 +511,24 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             db_artifact = await self.get_model(session, ArtifactOrm, artifact_id)
             return db_artifact.to_artifact() if db_artifact else None
+
+    async def get_pending_upload_orbit(
+        self, bucket_secret_id: UUID, organization_id: UUID, bucket_location: str
+    ) -> UUID | None:
+        async with self._get_session() as session:
+            orbit_id: UUID | None = await session.scalar(
+                select(CollectionOrm.orbit_id)
+                .join(ArtifactOrm, ArtifactOrm.collection_id == CollectionOrm.id)
+                .join(OrbitOrm, CollectionOrm.orbit_id == OrbitOrm.id)
+                .where(
+                    ArtifactOrm.bucket_location == bucket_location,
+                    ArtifactOrm.status == ArtifactStatus.PENDING_UPLOAD.value,
+                    OrbitOrm.bucket_secret_id == bucket_secret_id,
+                    OrbitOrm.organization_id == organization_id,
+                )
+                .limit(1)
+            )
+            return orbit_id
 
     async def get_artifacts_by_ids_in_orbit(
         self,

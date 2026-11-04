@@ -2,7 +2,8 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, delete, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -12,9 +13,12 @@ from luml.infra.exceptions import (
     OrganizationDeleteError,
 )
 from luml.models import (
+    OrbitMembersOrm,
+    OrbitOrm,
     OrganizationInviteOrm,
     OrganizationMemberOrm,
     OrganizationOrm,
+    TokenBlackListOrm,
     UserOrm,
 )
 from luml.repositories.base import (
@@ -145,6 +149,32 @@ class UserRepository(RepositoryBase, CrudMixin):
             if changed:
                 await session.commit()
         return changed
+
+    async def update_password(
+        self,
+        email: EmailStr,
+        hashed_password: str,
+        *,
+        reset_token: tuple[str, int] | None = None,
+    ) -> bool:
+        async with self._get_session() as session, session.begin():
+            if reset_token is not None:
+                token, expire_at = reset_token
+                consumed = await session.scalar(
+                    insert(TokenBlackListOrm)
+                    .values(token=token, expire_at=expire_at)
+                    .on_conflict_do_nothing(constraint="uq_token_black_list_token")
+                    .returning(TokenBlackListOrm.id)
+                )
+                if consumed is None:
+                    return False
+            user_id = await session.scalar(
+                update(UserOrm)
+                .where(UserOrm.email == email)
+                .values(hashed_password=hashed_password)
+                .returning(UserOrm.id)
+            )
+            return user_id is not None
 
     async def create_organization(
         self,
@@ -334,16 +364,25 @@ class UserRepository(RepositoryBase, CrudMixin):
             return OrganizationMemberOrm.to_organization_members(db_members)
 
     async def update_organization_member(
-        self, member_id: UUID, member: UpdateOrganizationMember
+        self, organization_id: UUID, member_id: UUID, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
-        member.id = member_id
         async with self._get_session() as session:
-            db_member = await self.update_model(session, OrganizationMemberOrm, member)
+            db_member = await self.update_model_where(
+                session,
+                OrganizationMemberOrm,
+                member,
+                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.id == member_id,
+            )
             return db_member.to_organization_member() if db_member else None
 
-    async def delete_organization_member(self, member_id: UUID) -> None:
-        async with self._get_session() as session:
-            return await self.delete_model(session, OrganizationMemberOrm, member_id)
+    async def delete_organization_member(
+        self, organization_id: UUID, member_id: UUID
+    ) -> None:
+        return await self.delete_organization_member_where(
+            OrganizationMemberOrm.organization_id == organization_id,
+            OrganizationMemberOrm.id == member_id,
+        )
 
     async def delete_organization_member_where(self, *where_conditions: Any) -> None:  # noqa: ANN401
         async with self._get_session() as session:
@@ -353,6 +392,16 @@ class UserRepository(RepositoryBase, CrudMixin):
             member = result.scalar_one_or_none()
 
             if member:
+                await session.execute(
+                    delete(OrbitMembersOrm).where(
+                        OrbitMembersOrm.user_id == member.user_id,
+                        OrbitMembersOrm.orbit_id.in_(
+                            select(OrbitOrm.id).where(
+                                OrbitOrm.organization_id == member.organization_id
+                            )
+                        ),
+                    )
+                )
                 await session.delete(member)
                 await session.commit()
 
@@ -398,10 +447,15 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
 
     async def get_organization_member_by_id(
-        self, member_id: UUID
+        self, organization_id: UUID, member_id: UUID
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
-            db_member = await self.get_model(session, OrganizationMemberOrm, member_id)
+            db_member = await self.get_model_where(
+                session,
+                OrganizationMemberOrm,
+                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.id == member_id,
+            )
             return db_member.to_organization_member() if db_member else None
 
     async def get_organization_member_by_email(

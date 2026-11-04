@@ -541,7 +541,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         """
 
         response = self._client.post(
-            "/bucket-secrets/upload/multipart",
+            "/v1/bucket-secrets/upload/multipart",
             json=self._client.filter_none(
                 {
                     "bucket_id": bucket_id,
@@ -819,7 +819,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             ```
         """
         response = await self._client.post(
-            "/bucket-secrets/upload/multipart",
+            "/v1/bucket-secrets/upload/multipart",
             json=self._client.filter_none(
                 {
                     "bucket_id": bucket_id,

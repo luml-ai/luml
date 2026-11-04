@@ -47,7 +47,7 @@
 
 <script setup lang="ts">
 import type { LineageNodeData } from './lineage.interface'
-import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import type { Artifact, ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import { api } from '@/lib/api'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -73,7 +73,7 @@ const toast = useToast()
 const details = ref<Artifact | null>(null)
 let requestId = 0
 
-const artifact = computed<Artifact | null>(() => {
+const artifact = computed<ArtifactListed | null>(() => {
   if (!props.data || props.data.isDeleted) return null
   return details.value ?? props.data.data
 })

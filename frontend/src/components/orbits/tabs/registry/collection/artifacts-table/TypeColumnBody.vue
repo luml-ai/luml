@@ -10,12 +10,12 @@
 </template>
 
 <script setup lang="ts">
-import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import type { ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import { Tag } from 'primevue'
 import { ARTIFACT_TYPE_TAGS_CONFIG } from './models-table.data'
 
 interface Props {
-  data: Artifact
+  data: ArtifactListed
 }
 
 defineProps<Props>()

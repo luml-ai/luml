@@ -268,7 +268,7 @@ class ArtifactHandler:
             ArtifactCreate(
                 collection_id=collection_id,
                 file_name=artifact.file_name,
-                name=artifact.name,
+                name=artifact.name or artifact.file_name,
                 description=artifact.description,
                 extra_values=artifact.extra_values,
                 manifest=artifact.manifest,
@@ -279,7 +279,7 @@ class ArtifactHandler:
                 unique_identifier=unique_id,
                 tags=artifact.tags,
                 status=ArtifactStatus.PENDING_UPLOAD,
-                created_by_user=user.full_name,
+                created_by_user=user.full_name or user.email,
                 type=artifact_type,
             )
         )

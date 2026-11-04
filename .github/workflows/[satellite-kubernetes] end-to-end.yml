@@ -2,14 +2,14 @@ name: Kubernetes Satellite End-to-End
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging, production]
     paths:
       - 'satellite/kit/**'
       - 'satellite/implementations/kubernetes/**'
       - 'model_servers/default/**'
       - '.github/workflows/*satellite-kubernetes*end-to-end.yml'
   pull_request:
-    branches: [main]
+    branches: [main, staging, production]
     paths:
       - 'satellite/kit/**'
       - 'satellite/implementations/kubernetes/**'

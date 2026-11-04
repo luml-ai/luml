@@ -42,7 +42,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 180px' } }"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <NameColumnBody
                 :name="data.name"
                 :id="data.id"
@@ -57,7 +57,7 @@
             :show-filter-operator="true"
             :show-filter-menu="showTypeFilter"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <TypeColumnBody :data="data" />
             </template>
             <template #filterheader>
@@ -71,7 +71,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 180px' } }"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <div :style="columnBodyStyle + 'width: 180px'">
                 {{ new Date(data.created_at).toLocaleString() }}
               </div>
@@ -83,7 +83,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 203px' } }"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <div
                 v-if="data.description"
                 v-tooltip="data.description"
@@ -101,7 +101,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 150px' } }"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <StatusColumnBody :status="data.status" />
             </template>
           </Column>
@@ -110,7 +110,7 @@
             header="Tags"
             :pt="{ columnHeaderContent: { style: 'width: 203px' } }"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <TagsList v-if="data.tags" :tags="data.tags" />
             </template>
           </Column>
@@ -120,7 +120,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 100px' } }"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <div :style="columnBodyStyle + 'width: 100px'">
                 {{ getSizeText(data.size) }}
               </div>
@@ -134,7 +134,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 100px' } }"
           >
-            <template #body="{ data }: { data: Artifact }">
+            <template #body="{ data }: { data: ArtifactListed }">
               <div
                 v-if="data.extra_values"
                 v-tooltip="key in data.extra_values ? '' + data.extra_values[key] : null"
@@ -163,7 +163,7 @@ import { DataTable, Column } from 'primevue'
 import {
   ArtifactStatusEnum,
   type GetArtifactsListParams,
-  type Artifact,
+  type ArtifactListed,
 } from '@/lib/api/artifacts/interfaces'
 import { computed, onBeforeMount, onUnmounted, reactive, ref, watch } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
@@ -205,7 +205,7 @@ const {
   setTypesQuery,
 } = useArtifactsList()
 
-const selectedArtifacts = ref<Artifact[]>([])
+const selectedArtifacts = ref<ArtifactListed[]>([])
 const pickAll = ref(false)
 let selectionVersion = 0
 const allMetricsKeys = ref<string[]>([])
@@ -245,7 +245,7 @@ function resetSelectedArtifacts() {
   selectedArtifacts.value = []
 }
 
-function setSelectedArtifacts(artifacts: Artifact[]): void {
+function setSelectedArtifacts(artifacts: ArtifactListed[]): void {
   pickAll.value = false
   selectionVersion += 1
   selectedArtifacts.value = artifacts

@@ -10,6 +10,14 @@ if TYPE_CHECKING:
     from luml_api._client import AsyncLumlClient, LumlClient
 
 
+def _orbit_update_body(fields: dict[str, Any], clear_relay: bool) -> dict[str, Any]:
+    if not clear_relay:
+        return fields
+    if "relay_id" in fields:
+        raise ValueError("Pass either relay_id or clear_relay, not both")
+    return {**fields, "relay_id": None}
+
+
 class OrbitResourceBase(ABC):
     """Abstract Resource for managing Orbits."""
 
@@ -35,13 +43,17 @@ class OrbitResourceBase(ABC):
 
     @abstractmethod
     def create(
-        self, name: str, bucket_secret_id: str
+        self, name: str, bucket_secret_id: str, relay_id: str | None = None
     ) -> Orbit | Coroutine[Any, Any, Orbit]:
         raise NotImplementedError()
 
     @abstractmethod
     def update(
-        self, name: str | None = None, bucket_secret_id: str | None = None
+        self,
+        name: str | None = None,
+        bucket_secret_id: str | None = None,
+        relay_id: str | None = None,
+        clear_relay: bool = False,
     ) -> Orbit | Coroutine[Any, Any, Orbit]:
         raise NotImplementedError()
 
@@ -160,13 +172,17 @@ class OrbitResource(OrbitResourceBase):
             return []
         return [Orbit.model_validate(orbit) for orbit in response]
 
-    def create(self, name: str, bucket_secret_id: str) -> Orbit:
+    def create(
+        self, name: str, bucket_secret_id: str, relay_id: str | None = None
+    ) -> Orbit:
         """Create new orbit in the default organization.
 
         Args:
             name: Name of the orbit.
             bucket_secret_id: ID of the bucket secret.
                 The bucket secret must exist before orbit creation.
+            relay_id: ID of the relay that serves the orbit's sessions, an own
+                relay of the organization or a managed one. Optional.
 
         Returns:
             Orbit: Newly created orbit object with generated ID and timestamps.
@@ -201,13 +217,23 @@ class OrbitResource(OrbitResourceBase):
         """
         response = self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits",
-            json={"name": name, "bucket_secret_id": bucket_secret_id},
+            json=self._client.filter_none(
+                {
+                    "name": name,
+                    "bucket_secret_id": bucket_secret_id,
+                    "relay_id": relay_id,
+                }
+            ),
         )
 
         return Orbit.model_validate(response)
 
     def update(
-        self, name: str | None = None, bucket_secret_id: str | None = None
+        self,
+        name: str | None = None,
+        bucket_secret_id: str | None = None,
+        relay_id: str | None = None,
+        clear_relay: bool = False,
     ) -> Orbit:
         """
         Update default orbit configuration.
@@ -219,6 +245,10 @@ class OrbitResource(OrbitResourceBase):
             name: New name for the orbit. If None, name remains unchanged.
             bucket_secret_id: New bucket secret for storage configuration.
                 The bucket secret must exist. If None, bucket secret remains unchanged.
+            relay_id: New relay for the orbit's sessions. If None, the relay
+                remains unchanged.
+            clear_relay: Remove the orbit's relay; sessions already started keep
+                theirs.
 
         Returns:
             Orbit: Updated orbit object.
@@ -258,11 +288,15 @@ class OrbitResource(OrbitResourceBase):
         """
         response = self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}",
-            json=self._client.filter_none(
-                {
-                    "name": name,
-                    "bucket_secret_id": bucket_secret_id,
-                }
+            json=_orbit_update_body(
+                self._client.filter_none(
+                    {
+                        "name": name,
+                        "bucket_secret_id": bucket_secret_id,
+                        "relay_id": relay_id,
+                    }
+                ),
+                clear_relay,
             ),
         )
         return Orbit.model_validate(response)
@@ -422,13 +456,17 @@ class AsyncOrbitResource(OrbitResourceBase):
             return []
         return [Orbit.model_validate(orbit) for orbit in response]
 
-    async def create(self, name: str, bucket_secret_id: str) -> Orbit:
+    async def create(
+        self, name: str, bucket_secret_id: str, relay_id: str | None = None
+    ) -> Orbit:
         """Create new orbit in the default organization.
 
         Args:
             name: Name of the orbit.
             bucket_secret_id: ID of the bucket secret.
                 The bucket secret must exist before orbit creation.
+            relay_id: ID of the relay that serves the orbit's sessions, an own
+                relay of the organization or a managed one. Optional.
 
         Returns:
             Orbit: Newly created orbit object with generated ID and timestamps.
@@ -466,13 +504,23 @@ class AsyncOrbitResource(OrbitResourceBase):
         """
         response = await self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits",
-            json={"name": name, "bucket_secret_id": bucket_secret_id},
+            json=self._client.filter_none(
+                {
+                    "name": name,
+                    "bucket_secret_id": bucket_secret_id,
+                    "relay_id": relay_id,
+                }
+            ),
         )
 
         return Orbit.model_validate(response)
 
     async def update(
-        self, name: str | None = None, bucket_secret_id: str | None = None
+        self,
+        name: str | None = None,
+        bucket_secret_id: str | None = None,
+        relay_id: str | None = None,
+        clear_relay: bool = False,
     ) -> Orbit:
         """
         Update default orbit configuration.
@@ -484,6 +532,10 @@ class AsyncOrbitResource(OrbitResourceBase):
             name: New name for the orbit. If None, name remains unchanged.
             bucket_secret_id: New bucket secret for storage configuration.
                 The bucket secret must exist. If None, bucket secret remains unchanged.
+            relay_id: New relay for the orbit's sessions. If None, the relay
+                remains unchanged.
+            clear_relay: Remove the orbit's relay; sessions already started keep
+                theirs.
 
         Returns:
             Orbit: Updated orbit object.
@@ -526,11 +578,15 @@ class AsyncOrbitResource(OrbitResourceBase):
         """
         response = await self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}",
-            json=self._client.filter_none(
-                {
-                    "name": name,
-                    "bucket_secret_id": bucket_secret_id,
-                }
+            json=_orbit_update_body(
+                self._client.filter_none(
+                    {
+                        "name": name,
+                        "bucket_secret_id": bucket_secret_id,
+                        "relay_id": relay_id,
+                    }
+                ),
+                clear_relay,
             ),
         )
         return Orbit.model_validate(response)

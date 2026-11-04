@@ -1,6 +1,6 @@
 import type {
   GetArtifactsListParams,
-  Artifact,
+  ArtifactListed,
   ArtifactTypeEnum,
 } from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import { computed, ref, watch, type ComputedRef } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useDebounceFn } from '@vueuse/core'
+import { usePageLoading } from '@/hooks/usePageLoading'
 
 interface RequestInfo {
   organizationId: string
@@ -26,7 +27,7 @@ export const useArtifactsList = (
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
-  const isLoading = ref(false)
+  const { isLoading, invalidate, track } = usePageLoading()
   const sortData = ref<Pick<GetArtifactsListParams, 'sort_by' | 'order'>>({
     sort_by: undefined,
     order: undefined,
@@ -44,9 +45,9 @@ export const useArtifactsList = (
     searchQuery.value = query
   }
 
-  const list = ref<Artifact[]>([])
+  const list = ref<ArtifactListed[]>([])
 
-  function isVisible(artifact: Artifact): boolean {
+  function isVisible(artifact: ArtifactListed): boolean {
     return !excludedArtifactIds?.value?.includes(artifact.id)
   }
 
@@ -60,39 +61,30 @@ export const useArtifactsList = (
     requestInfo.value = info
   }
 
-  let loadId = 0
-
-  async function trackLoading(load: () => Promise<void>) {
-    const id = ++loadId
-    isLoading.value = true
-    try {
-      await load()
-    } finally {
-      if (id === loadId) isLoading.value = false
-    }
-  }
-
   async function getInitialPage() {
-    await trackLoading(async () => {
+    invalidate()
+    await track(async (isCurrent) => {
       const response = await getData(null)
+      if (!isCurrent()) return
       addItemsToList(response.items, true)
       savedCursors.value = [response.cursor]
-      if (!response.items.some(isVisible)) await loadUntilVisible()
+      if (!response.items.some(isVisible)) await loadUntilVisible(isCurrent)
     })
   }
 
   async function getNextPage() {
     if (!getNextPageCursor()) return
-    await trackLoading(loadUntilVisible)
+    await track(loadUntilVisible)
   }
 
   // Excluded artifacts are filtered on the client. A page made only of them
   // adds nothing visible, and the list cannot ask for more until it shows
   // something: keep loading until a page has a visible item or the list ends.
-  async function loadUntilVisible() {
+  async function loadUntilVisible(isCurrent: () => boolean) {
     let cursor = getNextPageCursor()
     while (cursor) {
       const response = await getData(cursor)
+      if (!isCurrent()) return
       addItemsToList(response.items)
       savedCursors.value.push(response.cursor)
       if (response.items.some(isVisible)) return
@@ -127,12 +119,13 @@ export const useArtifactsList = (
   const hasNextPage = computed(() => Boolean(getNextPageCursor()))
 
   function reset() {
+    invalidate()
     setList([])
     savedCursors.value = []
     requestInfo.value = null
   }
 
-  function addItemsToList(artifacts: Artifact[], reset = false) {
+  function addItemsToList(artifacts: ArtifactListed[], reset = false) {
     if (reset) {
       setList(artifacts)
     } else {
@@ -156,7 +149,7 @@ export const useArtifactsList = (
     }
   }
 
-  function setList(artifacts: Artifact[]) {
+  function setList(artifacts: ArtifactListed[]) {
     if (syncStore) {
       artifactsStore.setArtifactsList(artifacts)
     } else {

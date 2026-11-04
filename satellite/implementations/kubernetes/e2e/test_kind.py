@@ -465,6 +465,8 @@ def _assert_upgrade_keeps_sessions(
         "--namespace",
         namespace,
         "--reuse-values",
+        "--set-string",
+        "satellite.derivationKey=",
         "--wait",
         "--timeout",
         "10m",

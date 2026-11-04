@@ -13,7 +13,6 @@ import type {
 } from '@/interfaces/interfaces'
 import type {
   ArtifactInfo,
-  TraceInfo,
   ApiServiceInterface,
   ExperimentMetricHistory,
   SpanFromApi,
@@ -25,7 +24,6 @@ import type {
 } from '@/components/annotations/annotations.interface'
 
 export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider {
-  private traces: TraceInfo[] = []
   private _artifacts: ArtifactInfo[] | null = null
   private _datasetsCursors: Record<string, Array<string | null>> = {}
   private _tracesCursors: Record<string, Array<string | null>> = {}
@@ -96,14 +94,8 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
   }
 
   async getTraceId(params: SpansParams) {
-    return (
-      this.traces.find(
-        (item) =>
-          item.artifactId === params.modelId &&
-          item.datasetId === params.datasetId &&
-          item.evalId === params.evalId,
-      )?.tracesIds?.[0] || null
-    )
+    const evaluation = await this.apiService.getEvalById(params.modelId, params.evalId)
+    return evaluation.dataset_id === params.datasetId ? (evaluation.trace_ids[0] ?? null) : null
   }
 
   async getEvalsColumns(datasetId: string): Promise<TypedEvalsColumns> {

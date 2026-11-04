@@ -1,20 +1,26 @@
 from uuid import uuid4
 
 import pytest
+from luml.infra.encryption import decrypt
 from luml.infra.exceptions import DatabaseConstraintError
+from luml.models import BucketSecretOrm, CollectionOrm, OrbitOrm
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.schemas.bucket_secrets import (
+    AzureBucketSecretCreate,
     BucketSecretUpdate,
     S3BucketSecret,
     S3BucketSecretCreate,
     S3BucketSecretOut,
 )
 from luml.schemas.orbit import OrbitCreateIn
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from tests.support.bucket_secrets import CONNECTION_STRING, PUBLIC_ENDPOINT
 from tests.support.builders import create_sibling_organization
-from tests.support.seeds import OrganizationFixtureData
+from tests.support.seeds import CollectionFixtureData, OrganizationFixtureData
 
 
 @pytest.fixture
@@ -23,6 +29,122 @@ def repository(engine: AsyncEngine) -> BucketSecretRepository:
 
 
 class TestBucketSecretRepository:
+    async def test_azure_creation_and_updates_keep_credentials_encrypted(
+        self,
+        repository: BucketSecretRepository,
+        seeded_organization: OrganizationFixtureData,
+        engine: AsyncEngine,
+    ) -> None:
+        organization_id = seeded_organization.organization.id
+        created = await repository.create_bucket_secret(
+            AzureBucketSecretCreate(
+                organization_id=organization_id,
+                endpoint=CONNECTION_STRING,
+                bucket_name="azure-container",
+            )
+        )
+        endpoints = [
+            CONNECTION_STRING,
+            CONNECTION_STRING.replace(
+                "dGVzdC1vbmx5LWtleQ==", "cm90YXRlZC10ZXN0LWtleQ=="
+            ),
+        ]
+        for endpoint in endpoints:
+            updated = await repository.update_bucket_secret(
+                BucketSecretUpdate(id=created.id, endpoint=endpoint), organization_id
+            )
+            assert updated is not None
+            assert updated.endpoint == endpoint
+            fetched = await repository.get_bucket_secret(created.id, organization_id)
+            assert fetched is not None
+            assert fetched.endpoint == endpoint
+            details = await repository.get_bucket_secret_details(
+                created.id, organization_id
+            )
+            assert details is not None
+            assert details.endpoint == PUBLIC_ENDPOINT
+            listed = await repository.get_organization_bucket_secrets(organization_id)
+            public = next(secret for secret in listed if secret.id == created.id)
+            assert public.endpoint == PUBLIC_ENDPOINT
+            assert "AccountKey" not in public.model_dump_json()
+            async with engine.connect() as connection:
+                stored = await connection.scalar(
+                    text("SELECT endpoint FROM bucket_secrets WHERE id = :id"),
+                    {"id": created.id},
+                )
+            assert stored != endpoint
+            assert "AccountKey" not in stored
+            assert decrypt(stored) == endpoint
+
+        renamed = await repository.update_bucket_secret(
+            BucketSecretUpdate(
+                id=created.id,
+                endpoint=PUBLIC_ENDPOINT,
+                bucket_name="renamed-container",
+            ),
+            organization_id,
+        )
+        assert renamed is not None
+        assert renamed.endpoint == endpoints[-1]
+
+        partial = await repository.update_bucket_secret(
+            BucketSecretUpdate(id=created.id, bucket_name="partial-container"),
+            organization_id,
+        )
+        assert partial is not None
+        assert partial.endpoint == endpoints[-1]
+
+    async def test_azure_duplicate_detection_does_not_depend_on_account_key(
+        self,
+        repository: BucketSecretRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        data = AzureBucketSecretCreate(
+            organization_id=seeded_organization.organization.id,
+            endpoint=CONNECTION_STRING,
+            bucket_name="azure-container",
+        )
+        await repository.create_bucket_secret(data)
+        data.endpoint = CONNECTION_STRING.replace(
+            "dGVzdC1vbmx5LWtleQ==", "cm90YXRlZA=="
+        )
+        with pytest.raises(DatabaseConstraintError):
+            await repository.create_bucket_secret(data)
+
+    async def test_azure_update_rejects_duplicate_and_allows_own_endpoint(
+        self,
+        repository: BucketSecretRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        organization_id = seeded_organization.organization.id
+        first = await repository.create_bucket_secret(
+            AzureBucketSecretCreate(
+                organization_id=organization_id,
+                endpoint=CONNECTION_STRING,
+                bucket_name="first-container",
+            )
+        )
+        second = await repository.create_bucket_secret(
+            AzureBucketSecretCreate(
+                organization_id=organization_id,
+                endpoint=CONNECTION_STRING,
+                bucket_name="second-container",
+            )
+        )
+
+        with pytest.raises(DatabaseConstraintError):
+            await repository.update_bucket_secret(
+                BucketSecretUpdate(id=second.id, bucket_name=first.bucket_name),
+                organization_id,
+            )
+
+        updated = await repository.update_bucket_secret(
+            BucketSecretUpdate(id=first.id, endpoint=CONNECTION_STRING),
+            organization_id,
+        )
+        assert updated is not None
+        assert updated.endpoint == CONNECTION_STRING
+
     async def test_create_bucket_secret_stores_endpoint_without_protocol(
         self,
         repository: BucketSecretRepository,
@@ -435,4 +557,59 @@ class TestBucketSecretRepository:
                 seeded_organization.organization.id,
             )
             is not None
+        )
+
+    @pytest.mark.parametrize("raw_sql", [False, True])
+    async def test_sql_delete_rejects_used_secret_and_preserves_dependents(
+        self,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        raw_sql: bool,
+    ) -> None:
+        data = seeded_collection
+        statement = (
+            text("DELETE FROM bucket_secrets WHERE id = :secret_id").bindparams(
+                secret_id=data.bucket_secret.id
+            )
+            if raw_sql
+            else delete(BucketSecretOrm).where(
+                BucketSecretOrm.id == data.bucket_secret.id
+            )
+        )
+
+        with pytest.raises(IntegrityError):
+            async with engine.begin() as connection:
+                await connection.execute(statement)
+
+        async with engine.connect() as connection:
+            assert (
+                await connection.scalar(
+                    select(BucketSecretOrm.id).where(
+                        BucketSecretOrm.id == data.bucket_secret.id
+                    )
+                )
+                == data.bucket_secret.id
+            )
+            assert (
+                await connection.scalar(
+                    select(OrbitOrm.id).where(OrbitOrm.id == data.orbit.id)
+                )
+                == data.orbit.id
+            )
+            assert (
+                await connection.scalar(
+                    select(CollectionOrm.id).where(
+                        CollectionOrm.id == data.collection.id
+                    )
+                )
+                == data.collection.id
+            )
+
+    async def test_delete_bucket_secret_returns_false_when_missing(
+        self,
+        repository: BucketSecretRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        assert not await repository.delete_bucket_secret(
+            uuid4(), seeded_organization.organization.id
         )

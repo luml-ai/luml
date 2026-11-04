@@ -3,8 +3,10 @@ import re
 from abc import abstractmethod
 from typing import Any
 
-from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
+try:
+    from opentelemetry import trace
+except ImportError:
+    trace = None  # type: ignore[assignment]
 
 from luml.experiments.evaluation.scorers.base import (
     BaseScorer,
@@ -19,7 +21,7 @@ from luml.experiments.evaluation.scorers.builtin._prompts import CORRECTIVE_REMI
 from luml.experiments.evaluation.types import REASONING_SUFFIX
 from luml.llm import LLMClient, OpenAIClient
 
-_tracer = trace.get_tracer(__name__)
+_tracer = trace.get_tracer(__name__) if trace is not None else None
 
 
 def _try_parse(raw: str) -> dict[str, Any] | None:
@@ -164,6 +166,13 @@ def _run_traced_judge(
     system_prompt: str,
     user_prompt: str,
 ) -> dict[str, Any]:
+    if _tracer is None:
+        raise ImportError(
+            "LLM judge tracing requires opentelemetry. "
+            "Install with: pip install luml_sdk[tracing]"
+        )
+    from opentelemetry.trace import Status, StatusCode
+
     name = scorer.get_name()
     with _tracer.start_as_current_span("llm_judge") as span:
         span.set_attribute("eval.scorer.name", name)

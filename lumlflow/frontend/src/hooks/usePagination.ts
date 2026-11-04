@@ -12,8 +12,10 @@ export const usePagination = <T, P extends object>(
   const cursors = ref<Array<string | null>>([])
   const data = ref<T[]>([])
   const isLoading = ref(false)
+  let generation = 0
 
   function setParams(value: Partial<P>) {
+    reset()
     params.value = value
   }
 
@@ -31,21 +33,30 @@ export const usePagination = <T, P extends object>(
   }
 
   async function getNextPage() {
+    if (isLoading.value) return
     const cursor = getNextPageCursor()
     if (!cursor) return
     await loadData(cursor)
   }
 
   async function loadData(cursor: string | null) {
+    const requestGeneration = generation
     isLoading.value = true
-    const response = await method({ ...getParams(), cursor })
-    const currentData = data.value as T[]
-    data.value = [...currentData, ...response.items]
-    cursors.value.push(response.cursor)
-    isLoading.value = false
+    try {
+      const response = await method({ ...getParams(), cursor })
+      if (requestGeneration !== generation) return
+      const currentData = data.value as T[]
+      data.value = [...currentData, ...response.items]
+      cursors.value.push(response.cursor)
+    } finally {
+      if (requestGeneration === generation) {
+        isLoading.value = false
+      }
+    }
   }
 
   function reset() {
+    generation += 1
     if (data.value.length) {
       data.value = []
     }

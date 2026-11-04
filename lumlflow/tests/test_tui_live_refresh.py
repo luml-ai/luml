@@ -17,8 +17,9 @@ from pathlib import Path
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
+from lumlflow.schemas.models import UpdateModel
 from lumlflow.tui import LumlflowApp
-from lumlflow.tui.data import DataFacade
+from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.live_refresh import LiveRefreshScheduler
 from lumlflow.tui.screens.experiment_detail import ExperimentDetailScreen
 from lumlflow.tui.screens.experiments import ExperimentsScreen
@@ -35,6 +36,17 @@ def tracker(tmp_path: Path) -> ExperimentTracker:
 @pytest.fixture
 def facade(tracker: ExperimentTracker) -> DataFacade:
     return DataFacade(tracker=tracker)
+
+
+@pytest.fixture
+def linked_experiment(tracker: ExperimentTracker, tmp_path: Path) -> str:
+    tracker.create_group("models")
+    exp_id = tracker.start_experiment(name="run", group="models")
+    model_file = tmp_path / "model.luml"
+    model_file.write_bytes(b"model-data")
+    for name in ("first", "second", "third"):
+        tracker.backend.log_model(exp_id, str(model_file), name=name)
+    return exp_id
 
 
 def _make_app(facade: DataFacade, **kwargs) -> LumlflowApp:
@@ -364,6 +376,111 @@ class TestExperimentsRefresh:
 
 
 class TestExperimentDetailRefresh:
+    async def test_model_cursor_and_actions_survive_live_refresh(
+        self,
+        facade: DataFacade,
+        linked_experiment: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        app = _make_app(facade, auto_refresh=False)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = ExperimentDetailScreen(
+                facade=facade, experiment_id=linked_experiment
+            )
+            app.push_screen(screen)
+            await pilot.pause()
+            await pilot.pause()
+            table = screen.query_one("#overview-models-table", DataTable)
+            table.focus()
+            table.move_cursor(row=1)
+            await pilot.pause()
+            selected_id = _row_keys(table)[1]
+
+            screen.refresh_live()
+            await pilot.pause()
+            await pilot.pause()
+            assert _row_keys(table)[table.cursor_row] == selected_id
+
+            facade.update_model(selected_id, UpdateModel(name="renamed")).unwrap()
+            screen.refresh_live()
+            await pilot.pause()
+            await pilot.pause()
+            assert _row_keys(table)[table.cursor_row] == selected_id
+            assert table.get_row_at(table.cursor_row)[0].plain == "renamed"
+            screen._on_refresh_details_result(Result.failure(500, "refresh failed"))
+            assert _row_keys(table)[table.cursor_row] == selected_id
+
+            yanked: list[str] = []
+            deleted: list[str] = []
+            monkeypatch.setattr(
+                app, "yank_to_clipboard", lambda value, **kwargs: yanked.append(value)
+            )
+            monkeypatch.setattr(screen, "_run_model_delete", deleted.append)
+            screen.action_yank_focused_model()
+            screen.action_delete_focused_model()
+            await pilot.pause()
+            assert isinstance(app.screen, ConfirmDialog)
+            await pilot.press("enter")
+            await pilot.pause()
+            assert yanked == [selected_id]
+            assert deleted == [selected_id]
+
+    @pytest.mark.parametrize(
+        ("model_indexes", "expected_index"),
+        [
+            ([2, 1, 0], 1),
+            ([1, 0, 2], 0),
+            ([1, 2], 0),
+            ([0, 2], 1),
+            ([0], 0),
+            ([], None),
+        ],
+    )
+    async def test_model_cursor_tracks_identity_or_clamps_after_removal(
+        self,
+        facade: DataFacade,
+        linked_experiment: str,
+        model_indexes: list[int],
+        expected_index: int | None,
+    ) -> None:
+        app = _make_app(facade, auto_refresh=False)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = ExperimentDetailScreen(
+                facade=facade, experiment_id=linked_experiment
+            )
+            app.push_screen(screen)
+            await pilot.pause()
+            await pilot.pause()
+            table = screen.query_one("#overview-models-table", DataTable)
+            table.move_cursor(row=1)
+            details = facade.get_experiment(linked_experiment).unwrap()
+            models = details.models or []
+            updated = details.model_copy(
+                update={"models": [models[i] for i in model_indexes]}
+            )
+
+            screen._on_refresh_details_result(Result.success(updated))
+            await pilot.pause()
+            if expected_index is None:
+                assert table.cursor_type == "none"
+                assert _row_keys(table) == ["__no_models__"]
+                assert screen._focused_model_row() is None
+                screen._on_refresh_details_result(Result.success(details))
+                await pilot.pause()
+                assert table.cursor_type == "row"
+                assert table.cursor_row == 0
+            else:
+                assert table.cursor_row == expected_index
+                assert (
+                    _row_keys(table)[table.cursor_row]
+                    == models[model_indexes[expected_index]].id
+                )
+                focused = screen._focused_model_row()
+                assert focused is not None
+                assert focused.key == _row_keys(table)[table.cursor_row]
+
     async def test_new_metric_points_appear_on_refresh(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:

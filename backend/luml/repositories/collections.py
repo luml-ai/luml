@@ -56,11 +56,12 @@ class CollectionRepository(RepositoryBase, CrudMixin):
             conditions = [CollectionOrm.orbit_id == orbit_id]
 
             if search:
-                search_pattern = f"%{search}%"
                 conditions.append(
                     or_(
-                        CollectionOrm.name.ilike(search_pattern),
-                        cast(CollectionOrm.tags, String).ilike(search_pattern),
+                        CollectionOrm.name.icontains(search, autoescape=True),
+                        cast(CollectionOrm.tags, String).icontains(
+                            search, autoescape=True
+                        ),
                     )
                 )
 

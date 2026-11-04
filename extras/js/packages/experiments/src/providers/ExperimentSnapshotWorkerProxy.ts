@@ -17,15 +17,42 @@ import type {
 } from '../interfaces/interfaces'
 import type { Trace } from './ExperimentSnapshotApiProvider.interface'
 
-export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider {
-  constructor(private worker: Worker) {}
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000
 
-  private call<T>(method: string, args?: any[], signal?: AbortSignal): Promise<T> {
+export interface ExperimentSnapshotWorkerProxyOptions {
+  requestTimeoutMs?: number
+}
+
+export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider {
+  private readonly requestTimeoutMs: number
+  private readonly pendingRequests = new Set<(error: Error) => void>()
+  private terminated = false
+
+  constructor(
+    private worker: Worker,
+    options: ExperimentSnapshotWorkerProxyOptions = {},
+  ) {
+    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+  }
+
+  terminate() {
+    if (this.terminated) return
+    this.terminated = true
+    this.worker.terminate()
+    const error = new Error('Experiment snapshot worker was terminated')
+    this.pendingRequests.forEach((fail) => fail(error))
+  }
+
+  private request<T>(message: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
+    if (this.terminated) {
+      return Promise.reject(new Error('Experiment snapshot worker was terminated'))
+    }
     const requestId = crypto.randomUUID()
 
     return new Promise((resolve, reject) => {
       const handler = (e: MessageEvent) => {
-        if (e.data.requestId !== requestId) return
+        if (e.data?.requestId !== requestId) return
+        if (e.data.type !== 'error' && e.data.type !== 'result') return
         cleanup()
         if (e.data.type === 'error') {
           reject(e.data.error)
@@ -34,21 +61,49 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
         }
       }
 
-      const onAbort = () => {
+      const onError = (event: ErrorEvent) => {
         cleanup()
-        this.worker.postMessage({
-          type: 'cancel',
-          requestId,
-        })
-        reject(new DOMException('Aborted', 'AbortError'))
+        reject(new Error(event.message || 'Experiment snapshot worker failed'))
       }
+
+      const fail = (error: Error) => {
+        cleanup()
+        reject(error)
+      }
+
+      const onMessageError = () => {
+        cleanup()
+        reject(new Error('Experiment snapshot worker response could not be deserialized'))
+      }
+
+      const cancel = (error: Error) => {
+        cleanup()
+        reject(error)
+        try {
+          this.worker.postMessage({ type: 'cancel', requestId })
+        } catch {
+          return
+        }
+      }
+
+      const onAbort = () => cancel(new DOMException('Aborted', 'AbortError'))
+      const timeout = setTimeout(() => {
+        cancel(new Error('Experiment snapshot worker request timed out'))
+      }, this.requestTimeoutMs)
 
       const cleanup = () => {
+        clearTimeout(timeout)
         this.worker.removeEventListener('message', handler)
+        this.worker.removeEventListener('error', onError)
+        this.worker.removeEventListener('messageerror', onMessageError)
         signal?.removeEventListener('abort', onAbort)
+        this.pendingRequests.delete(fail)
       }
 
+      this.pendingRequests.add(fail)
       this.worker.addEventListener('message', handler)
+      this.worker.addEventListener('error', onError)
+      this.worker.addEventListener('messageerror', onMessageError)
 
       if (signal) {
         if (signal.aborted) {
@@ -58,16 +113,21 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
         signal.addEventListener('abort', onAbort)
       }
 
-      this.worker.postMessage({
-        type: 'call',
-        requestId,
-        payload: { method, args },
-      })
+      try {
+        this.worker.postMessage({ ...message, requestId })
+      } catch (error) {
+        cleanup()
+        reject(error)
+      }
     })
   }
 
-  init(data: any) {
-    return this.call<void>('init', [data])
+  private call<T>(method: string, args?: any[], signal?: AbortSignal): Promise<T> {
+    return this.request<T>({ type: 'call', payload: { method, args } }, signal)
+  }
+
+  init(data: any, signal?: AbortSignal) {
+    return this.request<void>({ type: 'init', payload: data }, signal)
   }
 
   getStaticParamsList(signal?: AbortSignal) {

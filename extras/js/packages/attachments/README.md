@@ -94,6 +94,7 @@ Run from inside `extras/js/packages/attachments/`, or use `--workspace=extras/js
 | `npm run build-only` | Vite build only — skips TypeScript checking |
 | `npm run preview` | Serves the last demo build locally |
 | `npm run type-check` | Runs `vue-tsc` for type checking only |
+| `npm test` | Runs SVG preview regression tests (requires `npx playwright install chromium`) |
 | `npm run lint` | Runs ESLint with auto-fix |
 | `npm run format` | Formats `src/` with Prettier |
 | `npm run style` | Regenerates demo theme CSS variables from design tokens in `tokens/` |
@@ -251,7 +252,7 @@ class MyProvider implements ModelAttachmentsProvider {
 | Category | Extensions | Preview method |
 |---|---|---|
 | Images | `png`, `jpg`, `jpeg` | `<img>` tag |
-| SVG | `svg` | `<object>` with script sanitization |
+| SVG | `svg` | `<img>` tag (scripting disabled) |
 | Audio | `mp3`, `wav`, `ogg` | Native `<audio>` controls |
 | Video | `mp4`, `webm`, `ogv` | Native `<video>` controls |
 | PDF | `pdf` | `<iframe>` embed |

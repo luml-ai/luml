@@ -294,7 +294,7 @@ class TrackResource(TrackResourceBase, ListedResource):
 
     def _get_by_name(self, name: str) -> Track | None:
         return find_by_value(
-            self.list().items,
+            list(self._auto_paginate(self.list, search=name)),
             name,
             condition=lambda t: t.name == name,
         )
@@ -998,9 +998,11 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
         return [str(tag) for tag in response]
 
     async def _get_by_name(self, name: str) -> Track | None:
-        tracks = await self.list()
         return find_by_value(
-            tracks.items,
+            [
+                track
+                async for track in self._auto_paginate_async(self.list, search=name)
+            ],
             name,
             condition=lambda t: t.name == name,
         )

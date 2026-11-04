@@ -233,21 +233,21 @@ class TestMigration002Down:
 
 def _register_experiment_in_meta(backend: SQLiteBackend, exp_id: str) -> None:
     """Insert a minimal experiment row into the meta DB without touching exp.db."""
-    meta_conn = backend._get_meta_connection()
-    # Ensure a default group exists
-    meta_conn.execute(
-        "INSERT OR IGNORE INTO experiment_groups (id, name) VALUES (?, ?)",
-        ("default-group-id", "default"),
-    )
-    group_row = meta_conn.execute(
-        "SELECT id FROM experiment_groups WHERE name = 'default'"
-    ).fetchone()
-    group_id = group_row[0]
-    meta_conn.execute(
-        "INSERT OR REPLACE INTO experiments (id, name, group_id) VALUES (?, ?, ?)",
-        (exp_id, exp_id, group_id),
-    )
-    meta_conn.commit()
+    with backend._get_meta_connection(write=True) as meta_conn:
+        # Ensure a default group exists
+        meta_conn.execute(
+            "INSERT OR IGNORE INTO experiment_groups (id, name) VALUES (?, ?)",
+            ("default-group-id", "default"),
+        )
+        group_row = meta_conn.execute(
+            "SELECT id FROM experiment_groups WHERE name = 'default'"
+        ).fetchone()
+        group_id = group_row[0]
+        meta_conn.execute(
+            "INSERT OR REPLACE INTO experiments (id, name, group_id) VALUES (?, ?, ?)",
+            (exp_id, exp_id, group_id),
+        )
+        meta_conn.commit()
 
 
 class TestGetExperimentDataTriggersMigration:

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 import DataQualityTab from './DataQualityTab.vue'
 import { SectionState, Severity, Window, type DataQualityResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
@@ -9,6 +9,7 @@ function mountTab(props: {
   dataQuality: DataQualityResponse | null
   status: LoadStatus
   window?: Window
+  focusFeature?: string | null
 }) {
   return mount(DataQualityTab, {
     props,
@@ -16,6 +17,8 @@ function mountTab(props: {
     global: { stubs: { apexchart: true, teleport: true } },
   })
 }
+
+enableAutoUnmount(afterEach)
 
 describe('DataQualityTab', () => {
   it('says so when the table describes a window from outside the selected range', () => {
@@ -153,4 +156,24 @@ describe('DataQualityTab', () => {
     expect(wrapper.find('[data-testid="state-error"]').exists()).toBe(true)
   })
 
+})
+
+
+it('consumes a focus request once, waits for rows, and keeps a dismissed drawer closed on refresh', async () => {
+  const wrapper = mountTab({ dataQuality: null, status: 'loading', focusFeature: 'region' })
+  try {
+    expect(wrapper.emitted('inspect')).toBeUndefined()
+    await wrapper.setProps({ dataQuality: makeDataQuality(), status: 'ready' })
+    expect(wrapper.emitted('inspect')).toEqual([['region']])
+    await wrapper.get('[data-testid="invalid-values-drawer-close"]').trigger('click')
+
+    await wrapper.setProps({ dataQuality: makeDataQuality() })
+
+    expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(false)
+    expect(wrapper.emitted('inspect')).toEqual([['region'], [null]])
+    await wrapper.setProps({ focusFeature: 'age' })
+    expect(wrapper.emitted('inspect')?.at(-1)).toEqual(['age'])
+  } finally {
+    wrapper.unmount()
+  }
 })

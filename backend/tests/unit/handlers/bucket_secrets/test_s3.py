@@ -9,6 +9,7 @@ from luml.infra.exceptions import (
 )
 from luml.schemas.bucket_secrets import (
     BucketSecretUpdate,
+    BucketSecretUpdateIn,
     BucketType,
     S3BucketSecret,
     S3BucketSecretCreateIn,
@@ -173,6 +174,33 @@ class TestBucketSecretS3:
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID, USER_ID, Resource.BUCKET_SECRET, Action.UPDATE
         )
+
+    @pytest.mark.parametrize("bucket_type", [None, BucketType.S3, BucketType.AZURE])
+    async def test_update_bucket_secret_preserves_existing_type_and_omitted_fields(
+        self,
+        mocks: CollaboratorMocks[BucketSecretHandler],
+        bucket_secret: S3BucketSecret,
+        bucket_type: BucketType | None,
+    ) -> None:
+        mocks.secret_repository.get_bucket_secret.return_value = bucket_secret
+        mocks.secret_repository.update_bucket_secret.return_value = bucket_secret
+
+        await mocks.handler.update_bucket_secret(
+            USER_ID,
+            ORGANIZATION_ID,
+            bucket_secret.id,
+            BucketSecretUpdateIn(type=bucket_type, region="eu-west-1"),
+        )
+
+        update, organization_id = (
+            mocks.secret_repository.update_bucket_secret.await_args.args
+        )
+        assert organization_id == ORGANIZATION_ID
+        assert update.model_dump(exclude_unset=True) == {
+            "id": bucket_secret.id,
+            "type": BucketType.S3,
+            "region": "eu-west-1",
+        }
 
     async def test_update_bucket_secret_raises_not_found_when_secret_is_missing(
         self, mocks: CollaboratorMocks[BucketSecretHandler]

@@ -5,13 +5,14 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Never
 
 from luml_api._exceptions import (
     ArtifactBatchDeleteError,
     ArtifactDeleteError,
     FileError,
-    FileUploadError,
+    NotFoundError,
 )
 from luml_api._types import (
     Artifact,
@@ -314,20 +315,29 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             return self._get_by_id(collection_id, artifact_value)
         return self._get_by_name(collection_id, artifact_value)
 
-    def _get_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
+    def _find_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
         return find_by_value(
-            self.list(collection_id=collection_id).items,
+            list(self.list_all(collection_id=collection_id, search=name)),
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
 
+    def _get_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
+        listed = self._find_by_name(collection_id, name)
+        if listed is None:
+            return None
+        return self._get_by_id(str(listed.collection_id), str(listed.id))
+
     def _get_by_id(
         self, collection_id: str | None, artifact_value: str
     ) -> Artifact | None:
-        for model in self.list(collection_id=collection_id).items:
-            if model.id == artifact_value:
-                return model
-        return None
+        try:
+            response = self._client.get(
+                f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_value}"
+            )
+        except NotFoundError:
+            return None
+        return Artifact.model_validate(response) if response is not None else None
 
     @validate_collection
     def list_all(
@@ -353,7 +363,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             Artifact objects from all pages.
@@ -424,7 +435,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             ArtifactList object.
@@ -714,7 +726,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
         ```
         """
-        return self._client.get(
+        return self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
         )
 
@@ -837,7 +849,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         """
         artifact_details = ModelFileHandler(file_path).artifact_details()
 
-        file_format = artifact_details.file_name.split(".")[1]
+        file_format = Path(artifact_details.file_name).suffix[1:]
         if file_format not in ["fnnx", "pyfnx", "dfs", "luml", "tar"]:
             raise FileError("File format error")
 
@@ -875,13 +887,13 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 if 200 <= response.status_code < 300
                 else ArtifactStatus.UPLOAD_FAILED
             )
-        except FileUploadError as error:
+        except Exception:
             self.update(
                 artifact_id=artifact.id,
                 status=ArtifactStatus.UPLOAD_FAILED,
                 collection_id=collection_id,
             )
-            raise error
+            raise
 
         return self.update(
             artifact_id=artifact.id,
@@ -903,7 +915,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         If collection_id is None, uses the default collection from client.
 
         Args:
-            artifact_id: ID of the artifact to download.
+            artifact_id: ID or exact name (name or file_name) of the artifact.
             file_path: Local path to save the downloaded file. If None,
                 uses the original file name.
             collection_id: ID of the collection containing the model. If not provided,
@@ -913,7 +925,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             None: File is saved to the specified path.
 
         Raises:
-            ValueError: If model with specified ID not found.
+            ValueError: If artifact with specified ID or name not found.
             ConfigurationError: If collection_id not provided and
                 no default collection set.
 
@@ -936,13 +948,17 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
         ```
         """
-        if file_path is None:
-            artifact = self._get_by_id(
-                collection_id=collection_id, artifact_value=artifact_id
+        if file_path is None or not is_uuid(artifact_id):
+            artifact = (
+                self._get_by_id(collection_id, artifact_id)
+                if is_uuid(artifact_id)
+                else self._find_by_name(collection_id, artifact_id)
             )
             if artifact is None:
                 raise ValueError(f"Artifact with id {artifact_id} not found")
-            file_path = artifact.file_name
+            artifact_id = artifact.id
+            if file_path is None:
+                file_path = artifact.file_name
 
         download_info = self.download_url(
             artifact_id=artifact_id, collection_id=collection_id
@@ -1555,22 +1571,38 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             return await self._get_by_id(collection_id, artifact_value)
         return await self._get_by_name(collection_id, artifact_value)
 
-    async def _get_by_name(
+    async def _find_by_name(
         self, collection_id: str | None, name: str
     ) -> Artifact | None:
         return find_by_value(
-            (await self.list(collection_id=collection_id)).items,
+            [
+                artifact
+                async for artifact in self.list_all(
+                    collection_id=collection_id, search=name
+                )
+            ],
             name,
             condition=lambda m: m.name == name or m.file_name == name,
         )
 
+    async def _get_by_name(
+        self, collection_id: str | None, name: str
+    ) -> Artifact | None:
+        listed = await self._find_by_name(collection_id, name)
+        if listed is None:
+            return None
+        return await self._get_by_id(str(listed.collection_id), str(listed.id))
+
     async def _get_by_id(
         self, collection_id: str | None, artifact_value: str
     ) -> Artifact | None:
-        for model in (await self.list(collection_id=collection_id)).items:
-            if model.id == artifact_value:
-                return model
-        return None
+        try:
+            response = await self._client.get(
+                f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_value}"
+            )
+        except NotFoundError:
+            return None
+        return Artifact.model_validate(response) if response is not None else None
 
     @validate_collection
     def list_all(
@@ -1596,7 +1628,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             Artifact objects from all pages.
@@ -1671,7 +1704,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
-            search: Filter by a case-insensitive substring of the artifact name.
+            search: Filter by a case-insensitive substring of the artifact name
+                or file name.
 
         Returns:
             ArtifactsList object.
@@ -1978,7 +2012,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
         ```
         """
-        return await self._client.get(
+        return await self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
         )
 
@@ -2269,8 +2303,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         """
         artifact_details = ModelFileHandler(file_path).artifact_details()
 
-        file_format = artifact_details.file_name.split(".")[1]
-        if file_format not in ["fnnx", "pyfnx", "dfs", "luml"]:
+        file_format = Path(artifact_details.file_name).suffix[1:]
+        if file_format not in ["fnnx", "pyfnx", "dfs", "luml", "tar"]:
             raise FileError("File format error")
 
         if name is None:
@@ -2307,13 +2341,13 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 if 200 <= response.status_code < 300
                 else ArtifactStatus.UPLOAD_FAILED
             )
-        except FileUploadError as error:
+        except Exception:
             await self.update(
                 artifact.id,
                 status=ArtifactStatus.UPLOAD_FAILED,
                 collection_id=collection_id,
             )
-            raise error
+            raise
 
         return await self.update(
             artifact.id, status=status, collection_id=collection_id
@@ -2334,7 +2368,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         If collection_id is None, uses the default collection from client.
 
         Args:
-            artifact_id: ID of the artifact to download.
+            artifact_id: ID or exact name (name or file_name) of the artifact.
             file_path: Local path to save the downloaded file. If None,
                 uses the original file name.
             collection_id: ID of the collection containing the model. If not provided,
@@ -2344,7 +2378,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             None: File is saved to the specified path.
 
         Raises:
-            ValueError: If model with specified ID not found.
+            ValueError: If artifact with specified ID or name not found.
             ConfigurationError: If collection_id not provided and
                 no default collection set.
 
@@ -2374,13 +2408,17 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
         ```
         """
-        if file_path is None:
-            artifact = await self._get_by_id(
-                collection_id=collection_id, artifact_value=artifact_id
+        if file_path is None or not is_uuid(artifact_id):
+            artifact = await (
+                self._get_by_id(collection_id, artifact_id)
+                if is_uuid(artifact_id)
+                else self._find_by_name(collection_id, artifact_id)
             )
             if artifact is None:
                 raise ValueError(f"Artifact with id {artifact_id} not found")
-            file_path = artifact.file_name
+            artifact_id = artifact.id
+            if file_path is None:
+                file_path = artifact.file_name
 
         download_info = await self.download_url(
             artifact_id=artifact_id, collection_id=collection_id

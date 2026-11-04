@@ -31,15 +31,21 @@
 </template>
 
 <script setup lang="ts">
+import { useToast } from 'primevue/usetoast'
+import { trainingErrorToast } from '@/lib/primevue/data/toasts'
+
 import type { BaseProviderInfo, ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces'
-import type { LocalStorageProviderSettings } from '@/utils/services/LocalStorageService.interfaces'
 import { Button } from 'primevue'
 import { Bolt } from 'lucide-vue-next'
 import { ProviderStatus, ProvidersEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import { computed, onBeforeMount, onUnmounted, ref } from 'vue'
-import { LocalStorageService } from '@/utils/services/LocalStorageService'
+import { saveProviderSettings } from '@/lib/promt-fusion/provider-settings.storage'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
-import { getProviders } from '@/lib/promt-fusion/prompt-fusion.data'
+import {
+  applySavedProviders,
+  getProviders,
+  loadProviders,
+} from '@/lib/promt-fusion/prompt-fusion.data'
 import ProviderSettings from '@/components/express-tasks/prompt-fusion/step-main/control-center/providers/ProviderSettings.vue'
 
 type Props = {
@@ -50,6 +56,7 @@ type Emits = {
   finish: []
 }
 
+const toast = useToast()
 const props = defineProps<Props>()
 defineEmits<Emits>()
 
@@ -72,12 +79,8 @@ function saveSettings(settings: ProviderSetting[]) {
   const newStatus = getStatus(settings)
   openedProvider.value.status = newStatus
   openedProvider.value.settings = settings
-  const settingsInStorage = LocalStorageService.get('providersSettings')
   promptFusionService.updateProviderSettings(openedProvider.value.id, settings)
-  const isNeedToSaveData = settingsInStorage?.saveApiKeys
-  if (isNeedToSaveData) {
-    saveSettingsInLocalStorage(settings, settingsInStorage, openedProvider.value.id)
-  }
+  saveProviderSettings(openedProvider.value.id, settings)
   openedProvider.value = null
   promptFusionService.closeProviderSettings()
 }
@@ -89,17 +92,10 @@ function getStatus(settings: ProviderSetting[]) {
   }, ProviderStatus.connected)
 }
 
-function saveSettingsInLocalStorage(
-  settings: ProviderSetting[],
-  settingsInStorage: LocalStorageProviderSettings | null,
-  provider: ProvidersEnum,
-) {
-  const oldSettings = settingsInStorage || {}
-  oldSettings[provider] = settings.reduce((acc: Record<string, string>, setting) => {
-    acc[setting.id] = setting.value
-    return acc
-  }, {})
-  LocalStorageService.set('providersSettings', oldSettings)
+async function restoreSavedProviders() {
+  const savedProviders = await loadProviders()
+  applySavedProviders(providers.value, savedProviders)
+  promptFusionService.restoreSavedProviders(savedProviders)
 }
 
 onBeforeMount(() => {
@@ -109,10 +105,13 @@ onBeforeMount(() => {
     currentProvider.value.settings,
   )
   promptFusionService.closeProviderSettings()
+  restoreSavedProviders()
 })
 
 onUnmounted(() => {
-  promptFusionService.resetState()
+  promptFusionService.resetState().catch((error) => {
+    toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
+  })
 })
 </script>
 

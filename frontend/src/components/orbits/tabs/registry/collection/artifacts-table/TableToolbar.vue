@@ -55,6 +55,7 @@
         variant="text"
         severity="secondary"
         v-tooltip="'Compare'"
+        aria-label="Compare"
         :disabled="loadingSelection || compareButtonDisabled"
         @click="compareClick"
       >
@@ -97,8 +98,11 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useOrbitsStore } from '@/stores/orbits'
 import { Bolt, Download, Repeat, Rocket, Trash2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import { ArtifactStatusEnum, ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
-import { FnnxService } from '@/lib/fnnx/FnnxService'
+import {
+  ArtifactStatusEnum,
+  ArtifactTypeEnum,
+  type ArtifactListed,
+} from '@/lib/api/artifacts/interfaces'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { Button, useConfirm, useToast } from 'primevue'
 import { useRouter } from 'vue-router'
@@ -117,14 +121,14 @@ const FAILED_DELETION_TEXT =
   'The file could not be deleted from the bucket last time. Try again, or force delete to remove the artifact from the registry and leave the file in the bucket. To force delete, type "delete" below.'
 
 type Props = {
-  selectedArtifacts: Artifact[]
+  selectedArtifacts: ArtifactListed[]
   metrics: string[]
   loadingSelection?: boolean
 }
 
 type Emits = {
   clearSelectedArtifacts: []
-  updateSelectedArtifacts: [artifacts: Artifact[]]
+  updateSelectedArtifacts: [artifacts: ArtifactListed[]]
 }
 
 const orbitsStore = useOrbitsStore()
@@ -141,7 +145,7 @@ const selectedMetrics = defineModel<string[] | null>('selectedMetrics')
 
 const loading = ref(false)
 const failedDeletionDialogVisible = ref(false)
-const modelForEdit = ref<Artifact | null>(null)
+const modelForEdit = ref<ArtifactListed | null>(null)
 const modelForDeployment = ref<string | null>(null)
 
 const downloadButtonDisabled = computed(() => !props.selectedArtifacts.length)
@@ -152,10 +156,9 @@ const compareButtonDisabled = computed(() => {
     (artifact) => artifact.status !== ArtifactStatusEnum.uploaded,
   )
   if (hasInvalidStatus) return true
-  const hasAllExperimentSnapshots = props.selectedArtifacts.every((selectedArtifact) => {
-    const archiveName = FnnxService.findExperimentSnapshotArchiveName(selectedArtifact.file_index)
-    return !!archiveName
-  })
+  const hasAllExperimentSnapshots = props.selectedArtifacts.every(
+    (artifact) => artifact.has_experiment_snapshot,
+  )
   return !hasAllExperimentSnapshots
 })
 
@@ -240,7 +243,10 @@ async function runDeletion(force: boolean): Promise<void> {
   }
 }
 
-function retainNotCompletedSelection(selectedArtifacts: Artifact[], notCompleted: string[]): void {
+function retainNotCompletedSelection(
+  selectedArtifacts: ArtifactListed[],
+  notCompleted: string[],
+): void {
   const notCompletedIds = new Set(notCompleted)
   const storedArtifacts = new Map(
     artifactsStore.artifactsList.map((artifact) => [artifact.id, artifact]),
@@ -253,7 +259,7 @@ function retainNotCompletedSelection(selectedArtifacts: Artifact[], notCompleted
   )
 }
 
-function showSuccessDeleteToast(deletedIds: string[], selectedArtifacts: Artifact[]): void {
+function showSuccessDeleteToast(deletedIds: string[], selectedArtifacts: ArtifactListed[]): void {
   const names = new Map(selectedArtifacts.map(({ id, name }) => [id, name]))
   const message =
     deletedIds.length === 1

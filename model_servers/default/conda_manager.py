@@ -2,8 +2,10 @@ import contextlib
 import json
 import logging
 import subprocess
+import tempfile
 import threading
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -31,12 +33,12 @@ class ModelCondaManager:
         self.process: subprocess.Popen | None = None
         self.port: int | None = 8080
         self.worker_script = Path(__file__).parent / "conda_worker.py"
-        self._error_output: list[str] = []
+        self._error_output: deque[str] = deque(maxlen=self.WORKER_LOGS_LINES)
         self._stderr_monitor_thread: threading.Thread | None = None
 
     @property
     def worker_url(self) -> str | None:
-        return f"http://0.0.0.0:{self.port}" if self.port else None
+        return f"http://127.0.0.1:{self.port}" if self.port else None
 
     def _monitor_stderr(self) -> None:
         if not self.process or not self.process.stderr:
@@ -47,7 +49,7 @@ class ModelCondaManager:
                 line = line.strip()
                 if line:
                     self._error_output.append(line)
-                    logger.error(f"[conda_worker] {line}")
+                    logger.info(f"[conda_worker] {line}")
 
             if self.process:
                 exit_code = self.process.poll()
@@ -65,11 +67,11 @@ class ModelCondaManager:
         if exit_code is not None and exit_code != 0:
             error_msg = f"Conda worker process exited with code {exit_code}"
             if self._error_output:
-                error_msg += "\n" + "\n".join(self._error_output[-self.WORKER_LOGS_LINES :])
+                error_msg += "\n" + "\n".join(self._error_output)
             raise RuntimeError(error_msg)
 
     def _wait_for_health_check(self, timeout: int = 90) -> None:
-        with httpx.Client() as client:
+        with httpx.Client(trust_env=False) as client:
             for _ in range(timeout):
                 self._check_process_status()
 
@@ -83,34 +85,37 @@ class ModelCondaManager:
         raise RuntimeError(f"Worker health check failed after {timeout}s")
 
     def start(self) -> subprocess.Popen:
-        cmd = [
-            self.env_manager._exe,
-            "run",
-            "-n",
-            self.env_name,
-            "python",
-            "-u",
-            str(self.worker_script),
-            self.extracted_path,
-            str(self.port),
-            json.dumps(self.model_data),
-        ]
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".json") as model_file:
+            json.dump(self.model_data, model_file)
+            model_file.flush()
+            cmd = [
+                self.env_manager._exe,
+                "run",
+                "-n",
+                self.env_name,
+                "python",
+                "-u",
+                str(self.worker_script),
+                self.extracted_path,
+                str(self.port),
+                model_file.name,
+            ]
 
-        self.process = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
-        )
+            self.process = subprocess.Popen(
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
+            )
 
-        self._stderr_monitor_thread = threading.Thread(target=self._monitor_stderr, daemon=True)
-        self._stderr_monitor_thread.start()
+            self._stderr_monitor_thread = threading.Thread(target=self._monitor_stderr, daemon=True)
+            self._stderr_monitor_thread.start()
 
-        try:
-            self._wait_for_health_check()
-            return self.process
-        except Exception as error:
-            if self.process:
-                self.process.terminate()
-                self.process.wait()
-            raise RuntimeError(f"Failed to start worker: {error}") from error
+            try:
+                self._wait_for_health_check()
+                return self.process
+            except Exception as error:
+                if self.process:
+                    self.process.terminate()
+                    self.process.wait()
+                raise RuntimeError(f"Failed to start worker: {error}") from error
 
     def stop(self) -> None:
         if self.process:

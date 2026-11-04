@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -160,6 +161,41 @@ class TestGreptimeQuery:
         assert e.trace_id == "t1"
         assert e.inputs == '{"x": 1}'
         await store.aclose()
+
+    @pytest.mark.parametrize("encoded", [False, True])
+    @pytest.mark.parametrize(
+        ("status", "stored_code", "expected_code"),
+        [
+            ("success", 201, 201),
+            ("success", 302, 302),
+            ("error", 422, 422),
+            ("error", 500, 500),
+            ("error", 504, 504),
+            ("error", "422", 422),
+            ("error", "504", 504),
+            ("success", None, 200),
+            ("error", None, 500),
+            ("success", "invalid", 200),
+            ("error", "invalid", 500),
+            ("error", {}, 500),
+        ],
+    )
+    def test_to_event_preserves_http_status_with_legacy_fallback(
+        self, status: str, stored_code: object, expected_code: int, encoded: bool
+    ) -> None:
+        attrs: dict[str, object] = {"inference.status": status}
+        if stored_code is not None:
+            attrs["inference.status_code"] = stored_code
+        record = {
+            "timestamp": 1_700_000_000_000_000_000,
+            "span_attributes": json.dumps(attrs) if encoded else attrs,
+        }
+
+        event = GreptimeQueryStore._to_event(_DEP, record)
+
+        assert event is not None
+        assert event.status == status
+        assert event.status_code == expected_code
 
     @respx.mock
     async def test_describe_deployment_uses_max_timestamp(self) -> None:

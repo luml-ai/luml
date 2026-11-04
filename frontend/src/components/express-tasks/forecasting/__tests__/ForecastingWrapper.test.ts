@@ -274,7 +274,7 @@ describe('ForecastingWrapper', () => {
   })
 
   it('reports a worker error via toast and stays on the setup step', async () => {
-    startTrainingMock.mockResolvedValue({ status: 'error', error_message: 'not enough data' })
+    startTrainingMock.mockRejectedValue(new Error('not enough data'))
 
     const wrapper = mountWrapper()
     await reachSetupStep(wrapper)

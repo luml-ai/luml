@@ -45,11 +45,11 @@ def frame_ancestors_csp(origins: list[str]) -> str:
 
 
 class FrameAncestorsMiddleware:
-    """Set ``Content-Security-Policy: frame-ancestors`` on monitoring responses.
+    """Set the monitoring Content-Security-Policy on monitoring responses.
 
     Restricts who may embed the dashboard in an iframe to the allowed Platform origin(s);
-    all other framing is refused by the browser. Pure ASGI so it does not buffer the static
-    bundle's responses.
+    all other framing is refused by the browser. Scripts must come from the same origin.
+    Pure ASGI so it does not buffer the static bundle's responses.
     """
 
     def __init__(self, app: ASGIApp, csp_value: str) -> None:
@@ -162,7 +162,10 @@ def register_monitoring(
         recording_source=recording_source,
     )
 
-    app.add_middleware(FrameAncestorsMiddleware, csp_value=frame_ancestors_csp(frame_ancestors))
+    app.add_middleware(
+        FrameAncestorsMiddleware,
+        csp_value=f"{frame_ancestors_csp(frame_ancestors)}; script-src 'self'",
+    )
     app.include_router(_build_router(introspect, cookie_secure=cookie_secure))
     app.include_router(build_query_router())
 

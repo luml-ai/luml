@@ -6,6 +6,8 @@ production adapter that reads ``inference_events`` / ``monitoring_results`` /
 implementation used by the Query API tests and as the default until the adapter is wired.
 """
 
+import math
+from collections import defaultdict
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
@@ -13,7 +15,13 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
-from luml_satellite.monitoring.dashboard.schemas import ProfileStatus
+from luml_satellite.monitoring.compute.models import InferenceEvent as WorkerInferenceEvent
+from luml_satellite.monitoring.dashboard.schemas import (
+    ProfileStatus,
+    SortOrder,
+    StatusBreakdownRow,
+    TraceSort,
+)
 
 
 class EventStatus(StrEnum):
@@ -58,6 +66,114 @@ class InferenceEvent:
     span_id: str | None = None
     inputs: str | None = None
     output: str | None = None
+
+
+@dataclass(frozen=True)
+class RuntimeSummary:
+    request_count: int
+    success_count: int
+    error_count: int
+    timeout_count: int
+    failed_inference_count: int
+    latency_p50_ms: float | None
+    latency_p95_ms: float | None
+    latency_max_ms: float | None
+    status_breakdown: tuple[StatusBreakdownRow, ...] = ()
+    first_ts: datetime | None = None
+    last_ts: datetime | None = None
+
+    @property
+    def error_rate(self) -> float:
+        return (
+            (self.request_count - self.success_count) / self.request_count
+            if self.request_count
+            else 0.0
+        )
+
+    @property
+    def success_rate(self) -> float:
+        """Kept beside ``error_rate`` rather than derived in the UI, which does no math.
+
+        An empty window is 0%, not 100%: nothing succeeded, and reading it as a perfect
+        window would be the wrong headline for a deployment nobody called.
+        """
+        return self.success_count / self.request_count if self.request_count else 0.0
+
+
+def _percentile(values: list[float], pct: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(1, math.ceil(pct / 100 * len(ordered)))
+    return ordered[min(rank, len(ordered)) - 1]
+
+
+def _outcome(event: InferenceEvent) -> WorkerInferenceEvent:
+    return WorkerInferenceEvent(
+        event_id=event.event_id,
+        deployment_id=str(event.deployment_id),
+        status=event.status,
+        status_code=event.status_code,
+    )
+
+
+def _rollup(events: list[InferenceEvent]) -> RuntimeSummary:
+    total = len(events)
+    outcomes = [_outcome(e) for e in events]
+    success = sum(1 for o in outcomes if o.is_success)
+    latencies = [e.latency_ms for e in events]
+    return RuntimeSummary(
+        request_count=total,
+        success_count=success,
+        error_count=total - success,
+        timeout_count=sum(1 for o in outcomes if o.is_timeout),
+        failed_inference_count=sum(1 for o in outcomes if o.is_failed_inference),
+        latency_p50_ms=_percentile(latencies, 50),
+        latency_p95_ms=_percentile(latencies, 95),
+        latency_max_ms=max(latencies) if latencies else None,
+        status_breakdown=_status_breakdown(events),
+        first_ts=min((e.ts for e in events), default=None),
+        last_ts=max((e.ts for e in events), default=None),
+    )
+
+
+def _status_breakdown(events: list[InferenceEvent]) -> tuple[StatusBreakdownRow, ...]:
+    """Group the window's calls by outcome and HTTP code, busiest row first.
+
+    Outcome and code are kept as separate columns rather than one label: the same code
+    carries different meaning per outcome (a 504 is a timeout, a 500 a failed inference),
+    and a reader scanning for what broke wants both.
+    """
+    counts: dict[tuple[str, int | None], int] = defaultdict(int)
+    for event in events:
+        counts[(str(event.status), event.status_code)] += 1
+    total = len(events)
+    rows = [
+        StatusBreakdownRow(
+            status=status,
+            status_code=code,
+            count=count,
+            share=count / total if total else 0.0,
+        )
+        for (status, code), count in counts.items()
+    ]
+    rows.sort(key=lambda row: (-row.count, row.status, row.status_code or 0))
+    return tuple(rows)
+
+
+@dataclass(frozen=True)
+class RuntimeBucket:
+    request_count: int
+    success_count: int
+    latency_p95_ms: float | None
+
+    @property
+    def error_rate(self) -> float | None:
+        return (
+            (self.request_count - self.success_count) / self.request_count
+            if self.request_count
+            else None
+        )
 
 
 @dataclass(frozen=True)
@@ -156,8 +272,36 @@ class MonitoringStore(Protocol):
     async def describe_deployment(self, deployment_id: UUID) -> DeploymentDescriptor | None: ...
 
     async def fetch_events(
-        self, deployment_id: UUID, start: datetime, end: datetime
+        self,
+        deployment_id: UUID,
+        start: datetime,
+        end: datetime,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        sort: TraceSort = TraceSort.TS,
+        order: SortOrder = SortOrder.DESC,
     ) -> list[InferenceEvent]: ...
+
+    async def count_events(self, deployment_id: UUID, start: datetime, end: datetime) -> int: ...
+
+    async def fetch_event(
+        self, deployment_id: UUID, start: datetime, end: datetime, event_id: str
+    ) -> InferenceEvent | None: ...
+
+    async def fetch_runtime_summary(
+        self, deployment_id: UUID, start: datetime, end: datetime
+    ) -> RuntimeSummary: ...
+
+    async def fetch_runtime_buckets(
+        self,
+        deployment_id: UUID,
+        start: datetime,
+        end: datetime,
+        series_start: datetime,
+        bucket_seconds: int,
+        n_buckets: int,
+    ) -> dict[int, RuntimeBucket]: ...
 
     async def fetch_spans(self, trace_id: str) -> list[SpanRecord]:
         """Every span of one trace. Callers must resolve ``trace_id`` from a
@@ -278,13 +422,77 @@ class InMemoryMonitoringStore:
             last_monitored_at=max(result_times, default=None),
         )
 
-    async def fetch_events(
+    def _matching_events(
         self, deployment_id: UUID, start: datetime, end: datetime
     ) -> list[InferenceEvent]:
         self._guard()
-        return [
-            e for e in self._events if e.deployment_id == deployment_id and start <= e.ts <= end
-        ]
+        return [e for e in self._events if e.deployment_id == deployment_id and start <= e.ts < end]
+
+    async def fetch_events(
+        self,
+        deployment_id: UUID,
+        start: datetime,
+        end: datetime,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        sort: TraceSort = TraceSort.TS,
+        order: SortOrder = SortOrder.DESC,
+    ) -> list[InferenceEvent]:
+        if not 1 <= limit <= 200 or offset < 0:
+            raise ValueError("invalid event page bounds")
+        sort, order = TraceSort(sort), SortOrder(order)
+        keys = {
+            TraceSort.TS: lambda e: (e.ts, e.event_id),
+            TraceSort.LATENCY: lambda e: (e.latency_ms, e.ts, e.event_id),
+            TraceSort.STATUS: lambda e: (e.status_code, e.ts, e.event_id),
+        }
+        events = sorted(
+            self._matching_events(deployment_id, start, end),
+            key=keys[sort],
+            reverse=order is SortOrder.DESC,
+        )
+        return events[offset : offset + limit]
+
+    async def count_events(self, deployment_id: UUID, start: datetime, end: datetime) -> int:
+        return len(self._matching_events(deployment_id, start, end))
+
+    async def fetch_event(
+        self, deployment_id: UUID, start: datetime, end: datetime, event_id: str
+    ) -> InferenceEvent | None:
+        return next(
+            (e for e in self._matching_events(deployment_id, start, end) if e.event_id == event_id),
+            None,
+        )
+
+    async def fetch_runtime_summary(
+        self, deployment_id: UUID, start: datetime, end: datetime
+    ) -> RuntimeSummary:
+        return _rollup(self._matching_events(deployment_id, start, end))
+
+    async def fetch_runtime_buckets(
+        self,
+        deployment_id: UUID,
+        start: datetime,
+        end: datetime,
+        series_start: datetime,
+        bucket_seconds: int,
+        n_buckets: int,
+    ) -> dict[int, RuntimeBucket]:
+        if bucket_seconds <= 0 or n_buckets <= 0:
+            raise ValueError("bucket size and count must be positive")
+        buckets: dict[int, list[InferenceEvent]] = defaultdict(list)
+        for event in self._matching_events(deployment_id, start, end):
+            index = math.floor((event.ts - series_start).total_seconds() / bucket_seconds)
+            buckets[min(max(index, 0), n_buckets - 1)].append(event)
+        return {
+            index: RuntimeBucket(
+                len(events),
+                sum(1 for e in events if _outcome(e).is_success),
+                _percentile([e.latency_ms for e in events], 95),
+            )
+            for index, events in buckets.items()
+        }
 
     async def fetch_spans(self, trace_id: str) -> list[SpanRecord]:
         self._guard()

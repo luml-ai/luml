@@ -17,6 +17,7 @@ from luml.infra.exceptions import (
 )
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.relays import RelayRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.orbit import (
     Orbit,
@@ -42,6 +43,7 @@ class OrbitHandler:
     __orbits_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
     __secret_repository = BucketSecretRepository(engine)
+    __relay_repository = RelayRepository(engine)
 
     def _set_user_orbits_permissions(self, orbits: list[Orbit]) -> list[Orbit]:
         for orbit in orbits:
@@ -87,6 +89,10 @@ class OrbitHandler:
         )
         if not secret:
             raise NotFoundError("Bucket secret not found")
+
+    async def _validate_relay(self, relay_id: UUID, organization_id: UUID) -> None:
+        if not await self.__relay_repository.get_relay(relay_id, organization_id):
+            raise NotFoundError("Relay not found")
 
     async def _validate_orbit_members(
         self,
@@ -145,6 +151,8 @@ class OrbitHandler:
 
         await self._check_organization_orbits_limit(organization_id)
         await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
+        if orbit.relay_id:
+            await self._validate_relay(orbit.relay_id, organization_id)
 
         if orbit.members:
             await self._validate_orbit_members(user_id, organization_id, orbit.members)
@@ -239,6 +247,20 @@ class OrbitHandler:
 
         if "bucket_secret_id" in orbit.model_fields_set:
             await self._validate_bucket_secret(orbit.bucket_secret_id, organization_id)
+            current_orbit = await self.__orbits_repository.get_orbit_simple(
+                orbit_id, organization_id
+            )
+            if not current_orbit:
+                raise OrbitNotFoundError()
+            if (
+                orbit.bucket_secret_id != current_orbit.bucket_secret_id
+                and current_orbit.total_artifacts
+            ):
+                raise OrbitError(
+                    "Cannot change bucket secret while orbit contains artifacts"
+                )
+        if orbit.relay_id:
+            await self._validate_relay(orbit.relay_id, organization_id)
 
         orbit_obj = await self.__orbits_repository.update_orbit(
             orbit_id, organization_id, orbit
@@ -307,7 +329,7 @@ class OrbitHandler:
         )
 
         try:
-            self.__email_handler.send_added_to_orbit_email(
+            await self.__email_handler.send_added_to_orbit_email(
                 created_member.user.full_name
                 if created_member.user and created_member.user.full_name
                 else "",
@@ -329,9 +351,12 @@ class OrbitHandler:
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
+        member_id: UUID,
         member: UpdateOrbitMember,
     ) -> OrbitMember:
-        member_obj = await self.__orbits_repository.get_orbit_member(member.id)
+        member_obj = await self.__orbits_repository.get_orbit_member(
+            member_id, orbit_id
+        )
 
         if not member_obj:
             raise OrbitMemberNotFoundError()
@@ -346,7 +371,9 @@ class OrbitHandler:
             Action.UPDATE,
             orbit_id,
         )
-        updated = await self.__orbits_repository.update_orbit_member(member)
+        updated = await self.__orbits_repository.update_orbit_member(
+            member_id, orbit_id, member
+        )
 
         if not updated:
             raise OrbitMemberNotFoundError()
@@ -360,7 +387,9 @@ class OrbitHandler:
         orbit_id: UUID,
         member_id: UUID,
     ) -> None:
-        member_obj = await self.__orbits_repository.get_orbit_member(member_id)
+        member_obj = await self.__orbits_repository.get_orbit_member(
+            member_id, orbit_id
+        )
 
         if not member_obj:
             raise OrbitMemberNotFoundError()
@@ -375,4 +404,4 @@ class OrbitHandler:
             Action.DELETE,
             orbit_id,
         )
-        return await self.__orbits_repository.delete_orbit_member(member_id)
+        return await self.__orbits_repository.delete_orbit_member(member_id, orbit_id)

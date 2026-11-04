@@ -111,10 +111,27 @@ class TestRuntimeHealth:
         assert signal.severity == Severity.WARNING
         assert signal.threshold == 1000.0
 
-    def test_applies_requires_events(self) -> None:
+    def test_applies_with_or_without_events(self) -> None:
         metric = RuntimeHealthMetric()
         with_events = DeploymentContext(deployment_id="dep", profile=None, has_events=True)
         without_events = DeploymentContext(deployment_id="dep", profile=None, has_events=False)
 
         assert metric.applies(with_events) is True
-        assert metric.applies(without_events) is False
+        assert metric.applies(without_events) is True
+
+    def test_empty_window_has_zero_values_and_no_signals(self) -> None:
+        result = _compute([])
+
+        assert result.values == {
+            "request_count": 0,
+            "success_count": 0,
+            "error_count": 0,
+            "error_rate": 0.0,
+            "latency_p50": 0.0,
+            "latency_p95": 0.0,
+            "latency_max": 0.0,
+            "failed_inference_count": 0,
+            "timeout_count": 0,
+        }
+        assert result.severity is Severity.NORMAL
+        assert result.signals == []

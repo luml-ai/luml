@@ -145,3 +145,50 @@ class TestInviteRepository:
         )
 
         assert len(invites) == 0
+
+    async def test_email_matching_and_deletion_ignore_case_and_keep_scope(
+        self,
+        repository: InviteRepository,
+        seeded_organization: OrganizationFixtureData,
+    ) -> None:
+        data = seeded_organization
+        other_org = await UserRepository(data.engine).create_organization(
+            data.user.id, OrganizationCreateIn(name="other organization")
+        )
+        invite_ids = []
+        for organization_id, email in [
+            (data.organization.id, "John_x@example.com"),
+            (data.organization.id, "JOHN_X@example.com"),
+            (data.organization.id, "johnax@example.com"),
+            (other_org.id, "John_x@example.com"),
+        ]:
+            created = await repository.create_organization_invite(
+                CreateOrganizationInvite(
+                    organization_id=organization_id,
+                    email=email,
+                    role=OrgRole.MEMBER,
+                    invited_by=data.user.id,
+                )
+            )
+            invite_ids.append(created.id)
+
+        listed = await repository.get_invites_by_user_email("john_x@example.com")
+        assert {invite.id for invite in listed} == {
+            invite_ids[0],
+            invite_ids[1],
+            invite_ids[3],
+        }
+        existing = await repository.get_organization_invite_by_email(
+            data.organization.id, "john_x@example.com"
+        )
+        assert existing is not None
+        assert existing.id in invite_ids[:2]
+
+        await repository.delete_organization_invites_for_user(
+            data.organization.id, "john_x@example.com"
+        )
+
+        assert await repository.get_invite(invite_ids[0]) is None
+        assert await repository.get_invite(invite_ids[1]) is None
+        assert await repository.get_invite(invite_ids[2]) is not None
+        assert await repository.get_invite(invite_ids[3]) is not None

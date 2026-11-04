@@ -128,7 +128,8 @@ class TestUserRepository:
         assert hasattr(fetched_user, "full_name")
         assert hasattr(fetched_user, "disabled")
         assert hasattr(fetched_user, "photo")
-        assert not hasattr(fetched_user, "hashed_password")
+        assert "hashed_password" not in fetched_user.model_dump()
+        assert "hashed_password" not in fetched_user.model_dump_json()
 
     async def test_delete_user_removes_user(
         self, repository: UserRepository, seeded_user: UserFixtureData

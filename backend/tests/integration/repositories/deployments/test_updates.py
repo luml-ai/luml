@@ -1,8 +1,9 @@
 import uuid
 
 import pytest
-from luml.infra.exceptions import InvalidStatusTransitionError
+from luml.infra.exceptions import InvalidStatusTransitionError, NotFoundError
 from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import (
     DeploymentCreate,
@@ -11,9 +12,11 @@ from luml.schemas.deployment import (
     DeploymentUpdate,
     MonitoringMode,
 )
+from luml.schemas.orbit_secret import OrbitSecretCreate
 from luml.schemas.satellite import SatelliteTaskType
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from tests.support.builders import create_sibling_orbit
 from tests.support.seeds import SatelliteFixtureData
 
 
@@ -283,10 +286,20 @@ class TestDeploymentRepositoryUpdates:
             )
         )
 
+        secret = await OrbitSecretRepository(
+            seeded_satellite.engine
+        ).create_orbit_secret(
+            OrbitSecretCreate(
+                name="token", value="secret", orbit_id=seeded_satellite.orbit.id
+            )
+        )
         details = DeploymentDetailsUpdate(
             name="my-deployment",
             description="some desc",
-            dynamic_attributes_secrets={"token": str(uuid.uuid7())},
+            dynamic_attributes_secrets={
+                "token": str(secret.id),
+                "alias": str(secret.id),
+            },
             tags=["one", "two"],
         )
 
@@ -301,6 +314,102 @@ class TestDeploymentRepositoryUpdates:
         assert updated.dynamic_attributes_secrets == details.dynamic_attributes_secrets
         assert updated.tags == details.tags
         assert updated.collection_id == seeded_satellite.model.collection_id
+
+    @pytest.mark.parametrize("invalid_secret", ["missing", "foreign"])
+    async def test_update_deployment_details_rejects_invalid_secrets_atomically(
+        self,
+        repository: DeploymentRepository,
+        seeded_satellite: SatelliteFixtureData,
+        invalid_secret: str,
+    ) -> None:
+        secrets = OrbitSecretRepository(seeded_satellite.engine)
+        existing = await secrets.create_orbit_secret(
+            OrbitSecretCreate(
+                name="token", value="secret", orbit_id=seeded_satellite.orbit.id
+            )
+        )
+        bindings = {"token": str(existing.id)}
+        created, _ = await repository.create_deployment(
+            DeploymentCreate(
+                name="original",
+                orbit_id=seeded_satellite.orbit.id,
+                satellite_id=seeded_satellite.satellite.id,
+                artifact_id=seeded_satellite.model.id,
+                dynamic_attributes_secrets=bindings,
+            )
+        )
+        invalid_id = uuid.uuid7()
+        if invalid_secret == "foreign":
+            sibling = await create_sibling_orbit(
+                seeded_satellite.engine,
+                seeded_satellite.organization.id,
+                seeded_satellite.bucket_secret.id,
+            )
+            foreign = await secrets.create_orbit_secret(
+                OrbitSecretCreate(name="token", value="secret", orbit_id=sibling.id)
+            )
+            invalid_id = foreign.id
+
+        with pytest.raises(NotFoundError, match="Orbit secret not found"):
+            await repository.update_deployment_details(
+                seeded_satellite.orbit.id,
+                created.id,
+                DeploymentDetailsUpdate(
+                    name="changed",
+                    monitoring_mode=MonitoringMode.FULL,
+                    dynamic_attributes_secrets={**bindings, "invalid": str(invalid_id)},
+                ),
+            )
+
+        unchanged = await repository.get_deployment(
+            created.id, seeded_satellite.orbit.id
+        )
+        assert unchanged is not None
+        assert unchanged.name == created.name
+        assert unchanged.dynamic_attributes_secrets == bindings
+        assert unchanged.monitoring_mode == MonitoringMode.OFF
+        tasks = await SatelliteRepository(seeded_satellite.engine).list_tasks(
+            seeded_satellite.satellite.id
+        )
+        assert [task.type for task in tasks] == [SatelliteTaskType.DEPLOY]
+
+    @pytest.mark.parametrize("clear_bindings", [False, True])
+    async def test_update_deployment_details_preserves_or_clears_secret_bindings(
+        self,
+        repository: DeploymentRepository,
+        seeded_satellite: SatelliteFixtureData,
+        clear_bindings: bool,
+    ) -> None:
+        secret = await OrbitSecretRepository(
+            seeded_satellite.engine
+        ).create_orbit_secret(
+            OrbitSecretCreate(
+                name="token", value="secret", orbit_id=seeded_satellite.orbit.id
+            )
+        )
+        bindings = {"token": str(secret.id)}
+        created, _ = await repository.create_deployment(
+            DeploymentCreate(
+                name="original",
+                orbit_id=seeded_satellite.orbit.id,
+                satellite_id=seeded_satellite.satellite.id,
+                artifact_id=seeded_satellite.model.id,
+                dynamic_attributes_secrets=bindings,
+            )
+        )
+        update = DeploymentDetailsUpdate(name="changed")
+        if clear_bindings:
+            update.dynamic_attributes_secrets = {}
+
+        updated = await repository.update_deployment_details(
+            seeded_satellite.orbit.id, created.id, update
+        )
+
+        assert updated is not None
+        assert updated.name == "changed"
+        assert updated.dynamic_attributes_secrets == (
+            {} if clear_bindings else bindings
+        )
 
     async def test_update_deployment_details_enqueues_reconcile_when_monitoring_changes(
         self,

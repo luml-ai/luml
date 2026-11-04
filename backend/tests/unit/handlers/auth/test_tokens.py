@@ -7,10 +7,28 @@ from jwt.exceptions import InvalidTokenError
 from luml.handlers.auth import AuthHandler
 from luml.infra.exceptions import AuthError
 from luml.schemas.auth import Token
-from luml.schemas.user import CreateUser, SignInUser, User
+from luml.schemas.user import CreateUser, CurrentUserOut, SignInUser, User
 
 from tests.support.mocks import CollaboratorMocks
 from tests.unit.handlers.auth.conftest import Passwords
+
+
+@pytest.fixture(autouse=True)
+def stored_user(mocks: CollaboratorMocks[AuthHandler], user: User) -> None:
+    mocks.user_repository.get_user.return_value = user
+
+
+def _current_user(user: User, hashed_password: str | None) -> CurrentUserOut:
+    return CurrentUserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        disabled=user.disabled,
+        photo=user.photo,
+        has_api_key=False,
+        auth_method=user.auth_method,
+        hashed_password=hashed_password,
+    )
 
 
 class TestAuthTokens:
@@ -37,6 +55,15 @@ class TestAuthTokens:
 
         assert access_payload["type"] == "access"
         assert refresh_payload["type"] == "refresh"
+        assert access_payload["jti"] != refresh_payload["jti"]
+        assert (
+            access_payload["jti"]
+            != jwt.decode(
+                mocks.handler._create_tokens("test@example.com").access_token,
+                mocks.handler.secret_key,
+                algorithms=[mocks.handler.algorithm],
+            )["jti"]
+        )
 
     def test_verify_token_returns_email(
         self, mocks: CollaboratorMocks[AuthHandler]
@@ -48,7 +75,7 @@ class TestAuthTokens:
 
             actual = mocks.handler._verify_token("token")
 
-        assert actual == email
+        assert actual == (email, None)
         mock_jwt_decode.assert_called_once()
 
     def test_verify_token_raises_when_email_missing(
@@ -97,7 +124,10 @@ class TestAuthTokens:
 
         signed_in_tokens = mocks.handler._create_tokens(email)
 
-        assert mocks.handler._verify_token(signed_in_tokens.access_token) == email
+        assert mocks.handler._verify_token(signed_in_tokens.access_token) == (
+            email,
+            mocks.handler._password_fingerprint(None),
+        )
 
     async def test_handle_refresh_token_returns_new_tokens(
         self,
@@ -127,7 +157,7 @@ class TestAuthTokens:
         mocks.token_black_list_repository.add_token.assert_awaited_once_with(
             tokens.refresh_token, ANY
         )
-        create_tokens.assert_called_once_with(user.email)
+        create_tokens.assert_called_once_with(user.email, user.hashed_password)
 
     async def test_handle_refresh_token_raises_when_token_type_is_not_refresh(
         self,
@@ -173,7 +203,9 @@ class TestAuthTokens:
         tokens: Token,
     ) -> None:
         mocks.token_black_list_repository.add_token.return_value = False
-        mocks.user_repository.get_user.return_value = Mock(email=new_user.email)
+        mocks.user_repository.get_user.return_value = Mock(
+            email=new_user.email, hashed_password=None
+        )
 
         assert tokens.refresh_token
 
@@ -255,11 +287,17 @@ class TestAuthTokens:
             SignInUser(email=user.email, password=passwords.password)
         )
         assert signin.token.refresh_token
-        assert mocks.handler._verify_token(signin.token.access_token) == user.email
+        assert mocks.handler._verify_token(signin.token.access_token) == (
+            user.email,
+            mocks.handler._password_fingerprint(user.hashed_password),
+        )
 
         refreshed = await mocks.handler.handle_refresh_token(signin.token.refresh_token)
         assert refreshed.refresh_token
-        assert mocks.handler._verify_token(refreshed.access_token) == user.email
+        assert mocks.handler._verify_token(refreshed.access_token) == (
+            user.email,
+            mocks.handler._password_fingerprint(user.hashed_password),
+        )
 
         await mocks.handler.handle_logout(
             refreshed.access_token, refreshed.refresh_token
@@ -283,3 +321,100 @@ class TestAuthTokens:
         mocks.token_black_list_repository.is_token_blacklisted.assert_awaited_once_with(
             token
         )
+
+    @pytest.mark.parametrize("fingerprint", [None, "claimed-fingerprint"])
+    def test_verify_token_returns_password_fingerprint_claim(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User, fingerprint: str | None
+    ) -> None:
+        payload: dict[str, object] = {"sub": user.email, "type": "access"}
+        if fingerprint is not None:
+            payload["pwh"] = fingerprint
+        token = mocks.handler._create_token(payload, 3600)
+
+        assert mocks.handler._verify_token(token) == (user.email, fingerprint)
+
+    async def test_current_user_rejects_stale_password_fingerprint(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
+    ) -> None:
+        mocks.user_repository.get_current_user.return_value = _current_user(
+            user, "replacement-hash"
+        )
+        stale = mocks.handler._password_fingerprint(user.hashed_password)
+
+        with pytest.raises(AuthError, match="revoked") as error:
+            await mocks.handler.handle_get_current_user(user.email, stale)
+
+        assert error.value.status_code == 401
+
+    @pytest.mark.parametrize("legacy", [True, False])
+    async def test_current_user_accepts_matching_or_legacy_fingerprint(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User, legacy: bool
+    ) -> None:
+        mocks.user_repository.get_current_user.return_value = _current_user(
+            user, user.hashed_password
+        )
+        fingerprint = (
+            None
+            if legacy
+            else mocks.handler._password_fingerprint(user.hashed_password)
+        )
+
+        current = await mocks.handler.handle_get_current_user(user.email, fingerprint)
+
+        assert current.email == user.email
+        assert "hashed_password" not in current.model_dump()
+
+    async def test_refresh_token_with_stale_password_fingerprint_is_rejected(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
+    ) -> None:
+        payload = {
+            "sub": user.email,
+            "type": "refresh",
+            "pwh": mocks.handler._password_fingerprint("previous-hash"),
+        }
+        token = mocks.handler._create_token(payload, 3600)
+
+        with pytest.raises(AuthError, match="revoked"):
+            await mocks.handler.handle_refresh_token(token)
+
+        mocks.token_black_list_repository.add_token.assert_not_awaited()
+
+    async def test_legacy_refresh_token_without_fingerprint_is_rotated(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
+    ) -> None:
+        mocks.token_black_list_repository.add_token.return_value = True
+        token = mocks.handler._create_token(
+            {"sub": user.email, "type": "refresh"}, 3600
+        )
+
+        refreshed = await mocks.handler.handle_refresh_token(token)
+
+        assert mocks.handler._verify_token(refreshed.access_token) == (
+            user.email,
+            mocks.handler._password_fingerprint(user.hashed_password),
+        )
+
+    def test_legacy_access_token_carries_no_fingerprint(
+        self, mocks: CollaboratorMocks[AuthHandler], user: User
+    ) -> None:
+        token = mocks.handler._create_token({"sub": user.email, "type": "access"}, 3600)
+
+        assert mocks.handler._verify_token(token) == (user.email, None)
+
+    async def test_signin_tokens_stop_matching_after_password_hash_changes(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        user: User,
+        passwords: Passwords,
+    ) -> None:
+        signin = await mocks.handler.handle_signin(
+            SignInUser(email=user.email, password=passwords.password)
+        )
+        email, fingerprint = mocks.handler._verify_token(signin.token.access_token)
+        assert fingerprint == mocks.handler._password_fingerprint(user.hashed_password)
+        mocks.user_repository.get_current_user.return_value = _current_user(
+            user, "replacement-hash"
+        )
+
+        with pytest.raises(AuthError, match="revoked"):
+            await mocks.handler.handle_get_current_user(email, fingerprint)

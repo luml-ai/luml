@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+import httpx
 import pytest
 
 from luml_satellite import (
@@ -17,7 +18,7 @@ from luml_satellite.testing import (
     FakeServingPlacement,
 )
 from luml_satellite.workload import StartResult, StartStatus, WorkloadObservation, WorkloadState
-from tests.helpers import deployment_record, task_record
+from tests.helpers import DEPLOYMENT_ID, TASK_ID, deployment_record, task_record
 
 
 def configuration(
@@ -271,6 +272,152 @@ async def test_runtime_reconciles_before_polling_without_an_http_application() -
         if request.path == "/satellites/v1/tasks" and request.query == {"status": ["pending"]}
     )
     assert deployment_listing < running_tasks < pending_tasks
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status_code", "failures", "expected_sleeps"),
+    [(502, 1, [1.0]), (503, 1, [1.0]), (503, 5, [1.0, 2.0, 4.0, 8.0, 8.0])],
+)
+async def test_runtime_retries_running_task_recovery_before_polling(
+    status_code: int,
+    failures: int,
+    expected_sleeps: list[float],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    platform = FakePlatform()
+    platform.add_deployment(deployment_record(status="active"))
+    platform.add_task(task_record(status="running", started_at="2026-01-01T00:00:00+00:00"))
+    platform.script_responses(
+        "GET",
+        "/satellites/v1/tasks",
+        *[(status_code, {"detail": "temporarily unavailable"})] * failures,
+    )
+    clock = FakeClock()
+    driver = FakeDriver()
+    driver.add_workload(
+        DEPLOYMENT_ID,
+        observation=WorkloadObservation(
+            WorkloadState.READY,
+            upstream_url="http://model",
+            launcher_protocol=driver.launcher_protocol,
+        ),
+    )
+    serving = FakeServingPlacement()
+    async with PlatformClient(
+        "http://platform",
+        platform.token,
+        transport=platform.transport,
+    ) as client:
+        runtime = ActualOnePassRuntime(
+            configuration(),
+            client,
+            driver,
+            serving=serving,
+            clock=clock,
+            jitter=lambda ceiling: ceiling,
+        )
+        await runtime.run_forever()
+
+    task_listings = [
+        request.query
+        for request in platform.requests
+        if request.method == "GET" and request.path == "/satellites/v1/tasks"
+    ]
+    assert task_listings == [{"status": ["running"]}] * (failures + 1) + [{"status": ["pending"]}]
+    assert clock.sleeps == expected_sleeps
+    assert platform.tasks[TASK_ID]["status"] == "done"
+    assert len(serving.register_calls) == 1
+    assert len(driver.sweep_calls) == 1
+    assert "could not resume running tasks during reconciliation; retrying" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_runtime_retries_running_task_timeout_with_fresh_backoff() -> None:
+    platform = FakePlatform()
+    platform.script_responses(
+        "GET", "/satellites/v1/deployments", (503, {"detail": "temporarily unavailable"})
+    )
+    transport = platform.transport
+    running_requests = 0
+
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        nonlocal running_requests
+        if request.url.path == "/satellites/v1/tasks" and request.url.params["status"] == "running":
+            running_requests += 1
+            if running_requests == 1:
+                raise httpx.ReadTimeout("running task listing timed out", request=request)
+        return await transport.handle_async_request(request)
+
+    clock = FakeClock()
+    async with PlatformClient(
+        "http://platform",
+        platform.token,
+        transport=httpx.MockTransport(handle_request),
+    ) as client:
+        runtime = ActualOnePassRuntime(
+            configuration(),
+            client,
+            FakeDriver(),
+            clock=clock,
+            jitter=lambda ceiling: ceiling,
+        )
+        await runtime.run_forever()
+
+    assert running_requests == 2
+    assert clock.sleeps == [1.0, 1.0]
+    assert platform.requests[-1].query == {"status": ["pending"]}
+
+
+@pytest.mark.asyncio
+async def test_running_task_recovery_stays_alive_and_can_be_cancelled() -> None:
+    class BlockingClock(FakeClock):
+        def __init__(self) -> None:
+            super().__init__()
+            self.sleeping = asyncio.Event()
+
+        async def sleep(self, seconds: float) -> None:
+            await super().sleep(seconds)
+            self.sleeping.set()
+            await asyncio.Event().wait()
+
+    platform = FakePlatform()
+    platform.script_responses(
+        "GET", "/satellites/v1/tasks", (503, {"detail": "temporarily unavailable"})
+    )
+    clock = BlockingClock()
+    driver = FakeDriver()
+    monitoring = FakeMonitoringBundle()
+    serving = CloseableServingPlacement()
+    async with PlatformClient(
+        "http://platform",
+        platform.token,
+        transport=platform.transport,
+    ) as client:
+        runtime = ActualOnePassRuntime(
+            configuration(monitoring=True),
+            client,
+            driver,
+            monitoring=monitoring,
+            serving=serving,
+            clock=clock,
+            jitter=lambda ceiling: ceiling,
+        )
+        runtime_task = asyncio.create_task(runtime.run_forever())
+        try:
+            await asyncio.wait_for(clock.sleeping.wait(), timeout=1)
+            assert not runtime_task.done()
+            assert driver.sweep_calls == []
+            assert monitoring.started is True
+            assert monitoring.closed is False
+            assert serving.closed is False
+        finally:
+            runtime_task.cancel()
+            result = await asyncio.gather(runtime_task, return_exceptions=True)
+
+    assert isinstance(result[0], asyncio.CancelledError)
+    assert monitoring.closed is True
+    assert serving.closed is True
 
 
 @pytest.mark.asyncio

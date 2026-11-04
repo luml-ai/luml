@@ -7,6 +7,7 @@ local-only escape hatch.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +20,12 @@ from typer.testing import CliRunner
 from tests.test_sync import FakeLumlClient
 
 runner = CliRunner()
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(text: str) -> str:
+    return _ANSI.sub("", text)
 
 
 @pytest.fixture
@@ -46,7 +53,7 @@ def test_cli_sync_requires_one_selector(store: LumlTrackingStore) -> None:
     result = runner.invoke(app, ["sync"])
     # typer.BadParameter exits with code 2 (UsageError).
     assert result.exit_code != 0
-    assert "exactly one of --run" in (result.stdout + result.stderr)
+    assert "exactly one of --run" in _plain(result.stdout + result.stderr)
 
 
 def test_cli_sync_selectors_are_mutually_exclusive(
@@ -55,7 +62,7 @@ def test_cli_sync_selectors_are_mutually_exclusive(
     run_id = _start_run(store)
     result = runner.invoke(app, ["sync", "--run", run_id, "--experiment", "fraud"])
     assert result.exit_code != 0
-    assert "mutually exclusive" in (result.stdout + result.stderr)
+    assert "mutually exclusive" in _plain(result.stdout + result.stderr)
 
 
 # ---------------------------------------------------------------- --run
@@ -198,3 +205,48 @@ def test_cli_force_re_syncs(store: LumlTrackingStore) -> None:
     assert result.exit_code == 0, result.stdout
     # Two uploads happened (once initial, once forced re-sync).
     assert len(fake_client.artifacts.upload_calls) == 2
+
+
+# ---------------------------------------------------------------- failures
+
+
+def test_cli_sync_failed_run_exits_nonzero(store: LumlTrackingStore) -> None:
+    run_id = _start_run(store)
+    fake_client = FakeLumlClient()
+    fake_client.artifacts.raise_on_upload = True
+
+    with patch("luml_mlflow.sync._build_client", return_value=fake_client):
+        result = runner.invoke(app, ["sync", "--run", run_id])
+
+    assert result.exit_code == 1
+    assert f"{run_id}: failed" in result.stderr
+    assert "simulated upload failure" in result.stderr
+
+
+def test_cli_status_reports_error_after_failed_sync(store: LumlTrackingStore) -> None:
+    run_id = _start_run(store)
+    fake_client = FakeLumlClient()
+    fake_client.artifacts.raise_on_upload = True
+
+    with patch("luml_mlflow.sync._build_client", return_value=fake_client):
+        runner.invoke(app, ["sync", "--run", run_id])
+
+    result = runner.invoke(app, ["status", "--run", run_id])
+
+    assert result.exit_code == 0, result.stdout
+    assert "status: failed" in result.stdout
+    assert "error: simulated upload failure" in result.stderr
+
+
+def test_cli_status_reports_collection_after_sync(store: LumlTrackingStore) -> None:
+    run_id = _start_run(store)
+    fake_client = FakeLumlClient()
+
+    with patch("luml_mlflow.sync._build_client", return_value=fake_client):
+        runner.invoke(app, ["sync", "--run", run_id])
+
+    result = runner.invoke(app, ["status", "--run", run_id])
+
+    assert result.exit_code == 0, result.stdout
+    assert "collection: col-1" in result.stdout
+    assert "artifact_ids: art-1" in result.stdout

@@ -33,10 +33,18 @@ Each chart version pins matching image versions, so installing or upgrading the 
 
 ## Install
 
+Generate a derivation key once and keep the file for future renders and upgrades:
+
+```bash
+umask 077
+openssl rand -hex 32 | tr -d '\n' > satellite-derivation-key
+```
+
 ```bash
 helm install my-satellite oci://ghcr.io/luml-ai/charts/luml-satellite-kubernetes \
   --namespace luml --create-namespace \
   --set-string satellite.token="$SATELLITE_TOKEN" \
+  --set-file satellite.derivationKey=./satellite-derivation-key \
   --set satellite.host=models.example.com \
   --set ingress.className=nginx \
   --set monitoring.frameAncestors=https://app.luml.ai
@@ -47,6 +55,7 @@ Without `--version`, Helm installs the latest chart. Pass `--version <x.y.z>` to
 | Value | Meaning |
 |---|---|
 | `satellite.token` | Token issued by Luml. Use `satellite.existingSecret` and `satellite.existingSecretKey` to read it from an existing Secret instead. |
+| `satellite.derivationKey` | Persistent key required on the first install and for GitOps or offline rendering. Reuse the same key on every render. |
 | `satellite.host` | Public host that routes to the chart's Ingress. |
 | `satellite.baseUrl` | Full public URL, if it differs from the one derived from the host. Without it the chart uses `https://` when a TLS Secret is configured, otherwise `http://`. |
 | `ingress.className`, `ingress.tls.secretName` | Ingress class and optional TLS Secret. |
@@ -87,7 +96,11 @@ Values missing from an older release fall back to the defaults of the new chart.
 
 ## Keys and secrets
 
-The chart keeps a derivation key in a separate Secret. Helm generates it on the first install and keeps it when you uninstall the release. Back it up before you uninstall.
+The chart keeps a derivation key in a separate Secret and retains it when you uninstall the release. Back it up before you uninstall. When `satellite.derivationKey` is empty, Helm reads the existing key from the cluster. Rendering fails if neither a configured key nor an existing nonempty key is available.
+
+Set `satellite.derivationKey` for GitOps, including Argo CD, and offline tools such as `helm template` and `helm diff` that cannot look up the Secret. Store the key in your GitOps secret-management configuration and reuse it on every render.
+
+For an existing release that previously generated its key, use the current Secret's decoded `derivation-key` value. Replacing it with a new key invalidates existing companion and artifact tokens. See the [chart's migration instructions](https://github.com/luml-ai/luml/blob/main/satellite/implementations/kubernetes/chart/README.md#secrets-and-rotation) for exporting the existing key.
 
 After you rotate the token in an existing Secret, restart the Satellite:
 

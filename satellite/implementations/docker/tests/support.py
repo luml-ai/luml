@@ -220,7 +220,7 @@ class FakeVolumes:
 
 class FakeImages:
     def __init__(self) -> None:
-        self.available: set[str] = {"alpine:latest"}
+        self.available: set[str] = {"alpine:3.22.1"}
         self.pulled: list[str] = []
 
     async def get(self, name: str) -> dict[str, str]:
@@ -239,6 +239,9 @@ class FakeNetwork:
         self.name = name
         self.config = config
         self.connected: list[dict[str, Any]] = []
+
+    async def show(self) -> dict[str, Any]:
+        return dict(self.config)
 
     async def connect(self, config: dict[str, Any]) -> None:
         container = self.owner.containers.containers.get(str(config.get("Container") or ""))

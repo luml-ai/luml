@@ -6,11 +6,10 @@ import pytest
 from luml.handlers.artifacts import ArtifactHandler
 from luml.infra.exceptions import ApplicationError, InvalidSortingError
 from luml.schemas.artifacts import (
-    ArtifactListed,
+    ArtifactListedBase,
     ArtifactsList,
     ArtifactStatus,
     ArtifactType,
-    Manifest,
 )
 from luml.schemas.deployment import DeploymentBase, DeploymentStatus
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
@@ -58,10 +57,9 @@ class TestArtifactListing:
         self,
         mocks: CollaboratorMocks[ArtifactHandler],
         check_access: AsyncMock,
-        manifest: Manifest,
     ) -> None:
         expected_models_list = [
-            ArtifactListed.model_validate(
+            ArtifactListedBase.model_validate(
                 {
                     "id": ARTIFACT_ID,
                     "collection_id": COLLECTION_ID,
@@ -69,9 +67,7 @@ class TestArtifactListing:
                     "file_name": "model1.pkl",
                     "name": "model1",
                     "extra_values": {"accuracy": 0.95},
-                    "manifest": manifest,
                     "file_hash": "hash1",
-                    "file_index": {},
                     "bucket_location": "loc1",
                     "size": 100,
                     "unique_identifier": "uid1",
@@ -80,6 +76,7 @@ class TestArtifactListing:
                     "created_at": datetime.now(),
                     "updated_at": None,
                     "type": ArtifactType.MODEL,
+                    "has_experiment_snapshot": False,
                     "deployments": [
                         DeploymentBase(
                             id=DEPLOYMENT_ID,
@@ -276,9 +273,9 @@ class TestArtifactListing:
         assert _pagination_arg(mocks.repository.get_collection_artifacts).cursor is None
 
     async def test_get_collection_artifacts_truncates_items_to_limit(
-        self, mocks: CollaboratorMocks[ArtifactHandler], manifest: Manifest
+        self, mocks: CollaboratorMocks[ArtifactHandler]
     ) -> None:
-        items = [_make_listed(manifest) for _ in range(3)]
+        items = [_make_listed() for _ in range(3)]
         mocks.repository.get_collection_artifacts.return_value = (items, None)
 
         result = await mocks.handler.get_collection_artifacts(
@@ -289,7 +286,7 @@ class TestArtifactListing:
         assert result.items == items[:2]
 
     async def test_get_collection_artifacts_returns_encoded_next_cursor(
-        self, mocks: CollaboratorMocks[ArtifactHandler], manifest: Manifest
+        self, mocks: CollaboratorMocks[ArtifactHandler]
     ) -> None:
         next_cursor = Cursor(
             id=uuid7(),
@@ -299,7 +296,7 @@ class TestArtifactListing:
             scope_id=uuid7(),
         )
         mocks.repository.get_collection_artifacts.return_value = (
-            [_make_listed(manifest)],
+            [_make_listed()],
             next_cursor,
         )
 

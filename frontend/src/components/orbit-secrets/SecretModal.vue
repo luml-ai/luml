@@ -2,9 +2,19 @@
   <Dialog v-model:visible="visible" header="Key" :pt="dialogPt" modal :draggable="false">
     <div>
       <InputGroup>
-        <InputText :value="loading ? 'Loading...' : secretValue" :disabled="loading" readonly />
+        <InputText
+          :value="loading ? 'Loading...' : secretValue || SECRET_MASK"
+          :disabled="loading"
+          readonly
+        />
         <InputGroupAddon>
-          <Button variant="text" severity="secondary" style="height: 100%" @click="copySecret">
+          <Button
+            variant="text"
+            severity="secondary"
+            style="height: 100%"
+            :disabled="!secretValue"
+            @click="copySecret"
+          >
             <Copy :size="14" />
           </Button>
         </InputGroupAddon>
@@ -22,6 +32,7 @@ import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts
 import type { OrbitSecret } from '@/lib/api/orbit-secrets/interfaces'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { useOrbitsStore } from '@/stores/orbits'
+import { SECRET_MASK } from './secretMask'
 
 interface Props {
   secret: OrbitSecret | null
@@ -34,10 +45,6 @@ const secretsStore = useSecretsStore()
 const orbitsStore = useOrbitsStore()
 const secretValue = ref('')
 const loading = ref(false)
-
-watch(visible, (val) => {
-  if (val && props.secret) loadSecretValue(props.secret.id)
-})
 
 const dialogPt: DialogPassThroughOptions = {
   mask: {
@@ -57,20 +64,34 @@ const dialogPt: DialogPassThroughOptions = {
   },
 }
 
-async function loadSecretValue(secretId: string) {
-  const orbit = orbitsStore.currentOrbitDetails
-  if (!orbit?.organization_id || !orbit?.id) return
-
-  try {
-    loading.value = true
-    const fullSecret = await secretsStore.getSecretById(orbit.organization_id, orbit.id, secretId)
-    secretValue.value = fullSecret?.value || ''
-  } catch {
-    toast.add(simpleErrorToast('You don’t have access to view this key.'))
-  } finally {
+watch(
+  [visible, () => props.secret?.id],
+  async ([isVisible, secretId], _, onCleanup) => {
+    secretValue.value = ''
     loading.value = false
-  }
-}
+    const orbit = orbitsStore.currentOrbitDetails
+    if (!isVisible || !secretId || !orbit?.organization_id || !orbit?.id) return
+
+    let active = true
+    onCleanup(() => {
+      active = false
+    })
+
+    try {
+      loading.value = true
+      const fullSecret = await secretsStore.getSecretById(orbit.organization_id, orbit.id, secretId)
+      if (active) secretValue.value = fullSecret?.value || ''
+    } catch {
+      if (active) {
+        secretValue.value = ''
+        toast.add(simpleErrorToast('You don’t have access to view this key.'))
+      }
+    } finally {
+      if (active) loading.value = false
+    }
+  },
+  { immediate: true },
+)
 
 async function copySecret() {
   if (!secretValue.value) return

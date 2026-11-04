@@ -6,7 +6,7 @@ Covers the rule documented in ``SPEC.md`` / ``meta.py``:
 * ``mlflow.*`` → stored on the ``metadata`` column silently; round-trips
   faithfully.
 * Flag-shaped (``"true"``/``""``) → flat SDK ``tags`` flags, lossless.
-* Other user tags → ``log_static`` + warning, no round-trip.
+* Other user tags → metadata, lossless tag round-trip.
 """
 
 from pathlib import Path
@@ -81,18 +81,16 @@ def test_flag_tag_lands_in_sdk_flat_tags(store: LumlTrackingStore) -> None:
 # ---------------------------------------------------------- non-flag user tag
 
 
-def test_non_flag_user_tag_becomes_static_param_with_warning(
+def test_non_flag_user_tag_round_trips_without_changing_params(
     store: LumlTrackingStore, caplog: pytest.LogCaptureFixture
 ) -> None:
     run_id = _start_run(store)
     with caplog.at_level("WARNING"):
         store.set_tag(run_id, RunTag("stage", "prod"))
-    assert any("stage" in r.message for r in caplog.records)
+    assert not caplog.records
     run = store.get_run(run_id)
-    # Stored as a param.
-    assert run.data.params.get("stage") == "prod"
-    # Does NOT round-trip as a tag.
-    assert "stage" not in run.data.tags
+    assert run.data.tags["stage"] == "prod"
+    assert "stage" not in run.data.params
 
 
 # ----------------------------------------------------------- mlflow.* tags
@@ -390,3 +388,177 @@ def test_local_only_marker_round_trips_as_luml_tag(temp_store: Path) -> None:
     )
     fetched = local.get_run(run.info.run_id)
     assert fetched.data.tags.get("luml.local_only") == "true"
+
+
+def _runs_with_accuracy(store: LumlTrackingStore, exp_id: str) -> dict[float, str]:
+    out: dict[float, str] = {}
+    for acc in (0.5, 0.9, 0.7):
+        run = store.create_run(
+            experiment_id=exp_id,
+            user_id="alice",
+            start_time=0,
+            tags=[],
+            run_name=f"acc-{acc}",
+        )
+        store.log_metric(run.info.run_id, Metric("acc", acc, 0, 0))
+        out[acc] = run.info.run_id
+    return out
+
+
+def test_search_runs_applies_filter_string(store: LumlTrackingStore) -> None:
+    exp_id = store.create_experiment("fraud")
+    by_acc = _runs_with_accuracy(store, exp_id)
+    runs = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="metrics.acc > 0.6",
+        run_view_type=1,
+        max_results=100,
+    )
+    assert {r.info.run_id for r in runs} == {by_acc[0.9], by_acc[0.7]}
+
+
+def test_search_runs_applies_order_by(store: LumlTrackingStore) -> None:
+    exp_id = store.create_experiment("fraud")
+    by_acc = _runs_with_accuracy(store, exp_id)
+    runs = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="",
+        run_view_type=1,
+        max_results=100,
+        order_by=["metrics.acc DESC"],
+    )
+    assert [r.info.run_id for r in runs] == [by_acc[0.9], by_acc[0.7], by_acc[0.5]]
+
+
+def test_search_runs_paginates(store: LumlTrackingStore) -> None:
+    exp_id = store.create_experiment("fraud")
+    by_acc = _runs_with_accuracy(store, exp_id)
+    first = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="",
+        run_view_type=1,
+        max_results=2,
+        order_by=["metrics.acc DESC"],
+    )
+    assert [r.info.run_id for r in first] == [by_acc[0.9], by_acc[0.7]]
+    assert first.token is not None
+    second = store.search_runs(
+        experiment_ids=[exp_id],
+        filter_string="",
+        run_view_type=1,
+        max_results=2,
+        order_by=["metrics.acc DESC"],
+        page_token=first.token,
+    )
+    assert [r.info.run_id for r in second] == [by_acc[0.5]]
+
+
+@pytest.mark.parametrize("prefix,value", [("mlflow.", "value"), ("", "true"), ("", "")])
+def test_concurrent_tags_are_retained(
+    store: LumlTrackingStore, prefix: str, value: str
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    run_id = _start_run(store)
+    tags = [RunTag(f"{prefix}tag{i}", value) for i in range(120)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda tag: store.set_tag(run_id, tag), tags))
+    actual = store.get_run(run_id).data.tags
+    assert all(actual[tag.key] == value for tag in tags)
+
+
+@pytest.mark.parametrize("values", [("true", "alice", ""), ("alice", "true", "bob")])
+def test_tag_value_transitions_and_delete(
+    store: LumlTrackingStore, values: tuple[str, ...]
+) -> None:
+    run_id = _start_run(store)
+    store.log_param(run_id, Param("owner", "original"))
+    for value in values:
+        store.set_tag(run_id, RunTag("owner", value))
+        assert store.get_run(run_id).data.tags["owner"] == value
+        assert store.get_run(run_id).data.params["owner"] == "original"
+    store.delete_tag(run_id, "owner")
+    store.delete_tag(run_id, "owner")
+    assert "owner" not in store.get_run(run_id).data.tags
+    assert store.get_run(run_id).data.params["owner"] == "original"
+
+
+def test_concurrent_metadata_namespaces_are_retained(store: LumlTrackingStore) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from luml_mlflow.meta import (
+        META_LUML_INTERNAL,
+        META_RUN_INFO,
+        write_luml_internal,
+        write_run_info_field,
+    )
+
+    run_id = _start_run(store)
+
+    def write(index: int) -> None:
+        store.set_tag(run_id, RunTag(f"mlflow.tag{index}", str(index)))
+        store.set_tag(run_id, RunTag(f"flag{index}", "true"))
+        write_run_info_field(store._tracker, run_id, f"field{index}", index)
+        write_luml_internal(store._tracker, run_id, {f"luml.key{index}": index})
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(write, range(40)))
+    meta = store._tracker.get_experiment_metadata(run_id)
+    tags = store.get_run(run_id).data.tags
+    for index in range(40):
+        assert tags[f"mlflow.tag{index}"] == str(index)
+        assert tags[f"flag{index}"] == "true"
+        assert meta[META_RUN_INFO][f"field{index}"] == index
+        assert meta[META_LUML_INTERNAL][f"luml.key{index}"] == index
+
+
+def test_concurrent_process_tags_are_retained(store: LumlTrackingStore) -> None:
+    import subprocess
+    import sys
+
+    run_id = _start_run(store)
+    script = """
+import sys
+from luml_mlflow.store import LumlTrackingStore
+from mlflow.entities import RunTag
+store = LumlTrackingStore('luml://org1/orbit1')
+for i in range(30):
+    store.set_tag(sys.argv[1], RunTag(f'mlflow.{sys.argv[2]}.{i}', str(i)))
+    store.set_tag(sys.argv[1], RunTag(f'flag.{sys.argv[2]}.{i}', 'true'))
+"""
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", script, run_id, str(worker)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for worker in range(4)
+    ]
+    for process in processes:
+        _, stderr = process.communicate(timeout=60)
+        assert process.returncode == 0, stderr
+    tags = store.get_run(run_id).data.tags
+    for worker in range(4):
+        for index in range(30):
+            assert tags[f"mlflow.{worker}.{index}"] == str(index)
+            assert tags[f"flag.{worker}.{index}"] == "true"
+
+
+def test_metadata_mutation_failure_rolls_back(store: LumlTrackingStore) -> None:
+    from typing import Any
+
+    from luml_mlflow._tracker import mutate_experiment
+
+    run_id = _start_run(store)
+    before = store._tracker.get_experiment_metadata(run_id)
+
+    def fail(metadata: dict[str, Any], flags: list[str]) -> None:
+        metadata["partial"] = True
+        flags.append("partial")
+        raise RuntimeError("failed mutation")
+
+    with pytest.raises(RuntimeError, match="failed mutation"):
+        mutate_experiment(store._tracker, run_id, fail)
+    assert store._tracker.get_experiment_metadata(run_id) == before
+    assert "partial" not in store.get_run(run_id).data.tags

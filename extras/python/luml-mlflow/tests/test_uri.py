@@ -94,3 +94,13 @@ def test_build_artifact_uri_round_trips_name_with_special_chars() -> None:
 def test_build_artifact_uri_without_name_is_unchanged() -> None:
     base = "luml://local/runs/r-1/artifacts"
     assert build_artifact_uri(base, None) == base
+
+
+def test_parse_artifact_uri_missing_org_raises() -> None:
+    with pytest.raises(ValueError, match="organization id"):
+        parse_artifact_uri("luml:///orbit1/runs/r1/artifacts")
+
+
+def test_parse_artifact_uri_missing_orbit_raises() -> None:
+    with pytest.raises(ValueError, match="orbit id"):
+        parse_artifact_uri("luml://org1")

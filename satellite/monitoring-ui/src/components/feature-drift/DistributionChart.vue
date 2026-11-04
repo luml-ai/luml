@@ -6,7 +6,7 @@
 import { computed } from 'vue'
 import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
-import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING } from '@/lib/charts'
+import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING, escapeChartLabel } from '@/lib/charts'
 import type { FeatureDistribution } from '@/api/types'
 
 const props = withDefaults(
@@ -34,7 +34,10 @@ const options = computed(() => ({
     categories: props.distribution.bins.map(({ label }) => {
       if (props.distribution.kind !== 'numeric') return label
       const edges = label.split('–')
-      if (edges.length !== 2 || edges.some((edge) => !edge.trim() || !Number.isFinite(Number(edge)))) {
+      if (
+        edges.length !== 2 ||
+        edges.some((edge) => !edge.trim() || !Number.isFinite(Number(edge)))
+      ) {
         return label
       }
       return edges.map((edge) => formatChartNumber(Number(edge))).join('–')
@@ -53,6 +56,11 @@ const options = computed(() => ({
       formatter: formatShare,
     },
   },
-  tooltip: { theme: chartTooltipTheme.value, y: { formatter: formatShare } },
+  tooltip: {
+    theme: chartTooltipTheme.value,
+    // categories use SVG text on the axis, but HTML in the tooltip
+    x: { formatter: (value: string | number) => escapeChartLabel(String(value)) },
+    y: { formatter: formatShare },
+  },
 }))
 </script>

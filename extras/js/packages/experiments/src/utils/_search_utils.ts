@@ -1124,7 +1124,8 @@ export class SearchEvalsUtils extends SearchUtils {
         params.push(...valueParams)
       } else if (keyType === SearchEvalsUtils._JSON_IDENTIFIER) {
         const col = (item as ComparisonDict).column!
-        const expr = `json_extract(${col}, '$.${key}')`
+        const expr = `json_extract(${col}, ?)`
+        params.push(`$.${key}`)
         if (comparator === 'ILIKE') {
           sqlParts.push(`UPPER(${expr}) LIKE UPPER(?)`)
           params.push(value)
@@ -1553,7 +1554,8 @@ export class SearchTracesUtils extends SearchUtils {
         params.push(...valueParams)
       } else {
         // _SPAN_ATTR_IDENTIFIER
-        const expr = `json_extract(attributes, '$."${key}"')`
+        const expr = 'json_extract(attributes, ?)'
+        params.push(`$."${key}"`)
         if (comparator === 'ILIKE') {
           sqlParts.push(
             `trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE UPPER(${expr}) LIKE UPPER(?))`,
@@ -1608,16 +1610,15 @@ export class SearchTracesUtils extends SearchUtils {
 
   static isAggregateFilter(filterString: string | null | undefined): boolean {
     const parsed = SearchTracesUtils.parseSearchFilter(filterString)
-    for (const node of parsed) {
-      if ('type' in node && 'key' in node) {
-        if (
+    const hasAggregate = (nodes: FilterNode[]): boolean =>
+      nodes.some((node) => {
+        if ('group' in node) return hasAggregate(node.group)
+        return (
+          'type' in node &&
           node.type === SearchTracesUtils._TRACE_COLUMN_IDENTIFIER &&
           this.TRACE_COLUMNS.has(node.key as string)
-        ) {
-          return true
-        }
-      }
-    }
-    return false
+        )
+      })
+    return hasAggregate(parsed)
   }
 }

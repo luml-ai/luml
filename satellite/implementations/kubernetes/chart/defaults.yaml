@@ -5,6 +5,7 @@ satellite:
   token: ""
   existingSecret: ""
   existingSecretKey: satellite-token
+  # required for initial installs, GitOps and offline rendering; reuse the same key.
   derivationKey: ""
   platformUrl: https://api.luml.ai
   host: satellite.example.com

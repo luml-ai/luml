@@ -29,6 +29,16 @@ describe('routeIdsMiddleware', () => {
     expect(next).toHaveBeenCalledWith()
   })
 
+  it('lets a live session identifier that is not a UUID through', () => {
+    const next = navigate(`/organization/${ORGANIZATION_ID}/orbit/${ORBIT_ID}/flow/k3j9x2`, {
+      organizationId: ORGANIZATION_ID,
+      id: ORBIT_ID,
+      sessionId: 'k3j9x2',
+    })
+
+    expect(next).toHaveBeenCalledWith()
+  })
+
   it('lets routes without id params through', () => {
     const next = navigate('/prompt-fusion/edit', { mode: 'edit' })
 

@@ -8,6 +8,41 @@ import pytest
 CHART_ROOT = Path(__file__).parents[1] / "chart"
 
 
+@pytest.mark.parametrize("upgrade", [False, True], ids=["install", "upgrade"])
+@pytest.mark.parametrize("configured_key", [False, True], ids=["missing-key", "explicit-key"])
+def test_offline_derivation_key_is_stable_or_required(upgrade: bool, configured_key: bool) -> None:
+    helm = shutil.which("helm")
+    if helm is None:
+        pytest.skip("helm is required for the offline derivation key regression")
+    command = [
+        helm,
+        "template",
+        "offline",
+        str(CHART_ROOT),
+        "--namespace",
+        "models",
+        "--set-string",
+        "satellite.token=test-token",
+    ]
+    if upgrade:
+        command.append("--is-upgrade")
+    if configured_key:
+        command.extend(["--set-string", "satellite.derivationKey=test-derivation-key"])
+
+    renders = [
+        subprocess.run(command, capture_output=True, text=True, check=False) for _ in range(2)
+    ]
+    if configured_key:
+        for render in renders:
+            assert render.returncode == 0, render.stderr
+        assert renders[0].stdout == renders[1].stdout
+        assert 'derivation-key: "test-derivation-key"' in renders[0].stdout
+    else:
+        for render in renders:
+            assert render.returncode != 0
+            assert "satellite.derivationKey is required" in render.stderr
+
+
 def test_packaged_upgrade_defaults_match_chart_defaults() -> None:
     assert (CHART_ROOT / "defaults.yaml").read_text() == (CHART_ROOT / "values.yaml").read_text()
 

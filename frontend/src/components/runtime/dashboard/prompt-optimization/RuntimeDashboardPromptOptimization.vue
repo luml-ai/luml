@@ -35,7 +35,7 @@ import {
 import { computed, onBeforeMount, onMounted, onUnmounted, ref } from 'vue'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { Skeleton } from 'primevue'
-import { LocalStorageService } from '@/utils/services/LocalStorageService'
+import { parseProviderSettingsToObject } from '@/helpers/helpers'
 import RuntimeDashboardPromptOptimizationHeader from './RuntimeDashboardPromptOptimizationHeader.vue'
 import PresentationArea from './PresentationArea.vue'
 import RuntimeDashboardPromptOptimizationPredict from './RuntimeDashboardPromptOptimizationPredict.vue'
@@ -95,7 +95,9 @@ function setDynamicAttributes() {
       return tag ? ProviderDynamicAttributesTagsEnum[tag] : null
     })
     .filter((attribute) => !!attribute)
-  const providerSettings = LocalStorageService.get('providersSettings')?.[providerId.value]
+  const providerSettings = parseProviderSettingsToObject(
+    promptFusionService.getProviderSettings(providerId.value),
+  )
   const entries = dynamicAttributesList.map((attribute) => {
     const value = providerSettings?.[attribute] || ''
     return [ProviderAttributesMap[attribute], value]

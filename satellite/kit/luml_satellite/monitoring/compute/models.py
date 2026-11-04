@@ -9,10 +9,10 @@ from luml_satellite.workload import (
     ProfileStatus,
 )
 
-_SUCCESS_STATUSES = frozenset({"success", "ok", "succeeded", "completed"})
-_ERROR_STATUSES = frozenset({"error", "failed", "failure"})
-_FAILED_INFERENCE_STATUSES = frozenset({"failed", "failure"})
-_TIMEOUT_STATUSES = frozenset({"timeout", "timed_out", "deadline_exceeded"})
+SUCCESS_STATUSES = frozenset({"success", "ok", "succeeded", "completed"})
+ERROR_STATUSES = frozenset({"error", "failed", "failure"})
+FAILED_INFERENCE_STATUSES = frozenset({"failed", "failure"})
+TIMEOUT_STATUSES = frozenset({"timeout", "timed_out", "deadline_exceeded"})
 
 
 class Severity(StrEnum):
@@ -69,9 +69,9 @@ class InferenceEvent:
     @property
     def is_success(self) -> bool:
         status = self._normalized_status()
-        if status in _SUCCESS_STATUSES:
+        if status in SUCCESS_STATUSES:
             return True
-        if status in _ERROR_STATUSES:
+        if status in ERROR_STATUSES:
             return False
         if self.status_code is not None:
             return 200 <= self.status_code < 400
@@ -84,7 +84,7 @@ class InferenceEvent:
     @property
     def is_timeout(self) -> bool:
         """A call that never came back in time, as opposed to one that returned an error."""
-        if self._normalized_status() in _TIMEOUT_STATUSES:
+        if self._normalized_status() in TIMEOUT_STATUSES:
             return True
         return self.status_code == 504
 
@@ -94,9 +94,9 @@ class InferenceEvent:
         if self.is_timeout:  # a call that never returned never completed either
             return True
         status = self._normalized_status()
-        if status in _FAILED_INFERENCE_STATUSES:
+        if status in FAILED_INFERENCE_STATUSES:
             return True
-        if status in _SUCCESS_STATUSES:
+        if status in SUCCESS_STATUSES:
             return False
         return self.status_code is not None and self.status_code >= 500
 

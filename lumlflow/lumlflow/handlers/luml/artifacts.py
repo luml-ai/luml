@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,9 +69,12 @@ class ArtifactHandler(BaseLumlHandler):
     def __init__(
         self,
         progress_store: ProgressStore | None = None,
+        *,
+        tracker_lock: AbstractContextManager | None = None,
     ):
         super().__init__()
         self.progress_store = progress_store or ProgressStore()
+        self._tracker_lock = tracker_lock if tracker_lock is not None else nullcontext()
 
     def _upload_model(
         self,
@@ -84,9 +88,11 @@ class ArtifactHandler(BaseLumlHandler):
             raise ApplicationError(
                 f"Model '{model.name}' has no file path", status_code=422
             )
+        with self._tracker_lock:
+            model_path = self.tracker.backend.base_path / model.path
         return self._upload_model_file(
             data,
-            self.tracker.backend.base_path / model.path,
+            model_path,
             name=model.name,
             embed=embed,
             on_progress=on_progress,
@@ -112,9 +118,10 @@ class ArtifactHandler(BaseLumlHandler):
                 os.close(fd)
                 shutil.copy2(model_path, temp_path)
 
-                self.tracker.link_to_model(
-                    ModelReference(temp_path), data.experiment_id
-                )
+                with self._tracker_lock:
+                    self.tracker.link_to_model(
+                        ModelReference(temp_path), data.experiment_id
+                    )
                 upload_path = temp_path
             else:
                 upload_path = str(model_path)
@@ -152,17 +159,19 @@ class ArtifactHandler(BaseLumlHandler):
                     luml, experiment_artifact_id
                 ):
                     raise
-                self.tracker.delete_remote_artifact(
-                    "experiment",
-                    data.experiment_id,
-                    data.orbit_id,
-                )
+                with self._tracker_lock:
+                    self.tracker.delete_remote_artifact(
+                        "experiment",
+                        data.experiment_id,
+                        data.orbit_id,
+                    )
                 artifact = upload(None)
 
             if model_id is not None:
-                self.tracker.set_remote_artifact(
-                    "model", model_id, data.orbit_id, artifact.id
-                )
+                with self._tracker_lock:
+                    self.tracker.set_remote_artifact(
+                        "model", model_id, data.orbit_id, artifact.id
+                    )
             return artifact
         finally:
             if temp_path:
@@ -185,24 +194,25 @@ class ArtifactHandler(BaseLumlHandler):
     ) -> str | None:
         if uploaded is not None:
             return uploaded
-        return self.tracker.get_remote_artifact(
-            "experiment", data.experiment_id, data.orbit_id
-        )
+        with self._tracker_lock:
+            return self.tracker.get_remote_artifact(
+                "experiment", data.experiment_id, data.orbit_id
+            )
 
     def _upload_experiment(
         self,
         data: UploadArtifactForm,
         on_progress: BaseProgressHandler,
     ) -> Artifact:
-        experiment = self.tracker.get_experiment_record(data.experiment_id)
-        if not experiment:
-            raise NotFound("Experiment not found")
-
         fd, output_path = tempfile.mkstemp(suffix=".luml")
         os.close(fd)
 
         try:
-            save_experiment(self.tracker, data.experiment_id, output_path)
+            with self._tracker_lock:
+                experiment = self.tracker.get_experiment_record(data.experiment_id)
+                if not experiment:
+                    raise NotFound("Experiment not found")
+                save_experiment(self.tracker, data.experiment_id, output_path)
             luml = self._get_luml_client(data.organization_id, data.orbit_id)
 
             artifact = luml.artifacts.upload(
@@ -213,9 +223,10 @@ class ArtifactHandler(BaseLumlHandler):
                 collection_id=data.collection_id,
                 on_progress=on_progress,
             )
-            self.tracker.set_remote_artifact(
-                "experiment", data.experiment_id, data.orbit_id, artifact.id
-            )
+            with self._tracker_lock:
+                self.tracker.set_remote_artifact(
+                    "experiment", data.experiment_id, data.orbit_id, artifact.id
+                )
             return artifact
         finally:
             Path(output_path).unlink(missing_ok=True)
@@ -295,7 +306,9 @@ class ArtifactHandler(BaseLumlHandler):
         data: UploadArtifactForm,
     ) -> None:
         try:
-            results = self._upload_all(data, job_id, models())
+            with self._tracker_lock:
+                chosen = models()
+            results = self._upload_all(data, job_id, chosen)
         except Exception as e:
             self.progress_store.set_error(job_id, str(e))
             return
@@ -312,7 +325,8 @@ class ArtifactHandler(BaseLumlHandler):
         """
 
         try:
-            models = self.tracker.get_models(data.experiment_id)
+            with self._tracker_lock:
+                models = self.tracker.get_models(data.experiment_id)
             model = next((m for m in models if m.id == data.model_id), None)
             if model is None:
                 raise NotFound(f"Model not found: {data.model_id}")

@@ -109,11 +109,34 @@ class TestArtifactCreation:
             ORGANIZATION_ID, USER_ID, Resource.ARTIFACT, Action.CREATE, ORBIT_ID
         )
 
+    @pytest.mark.parametrize(
+        ("full_name", "expected_creator"),
+        [
+            ("Artifact User", "Artifact User"),
+            (None, "user@example.com"),
+            ("", "user@example.com"),
+        ],
+        ids=["full-name", "no-full-name", "empty-full-name"],
+    )
+    @pytest.mark.parametrize(
+        ("name_fields", "expected_name"),
+        [
+            ({"name": "Named Artifact"}, "Named Artifact"),
+            ({}, "file.txt"),
+            ({"name": None}, "file.txt"),
+            ({"name": ""}, "file.txt"),
+        ],
+        ids=["named", "omitted-name", "null-name", "empty-name"],
+    )
     async def test_create_artifact_returns_pending_artifact_with_upload_details(
         self,
         mocks: CollaboratorMocks[ArtifactHandler],
         stubs: SimpleNamespace,
         manifest: Manifest,
+        full_name: str | None,
+        expected_creator: str,
+        name_fields: dict[str, str | None],
+        expected_name: str,
     ) -> None:
         bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8345")
         bucket_location = "orbit/collection/file_name"
@@ -153,18 +176,20 @@ class TestArtifactCreation:
         storage_client.create_upload.return_value = upload_data
         stubs.get_storage_client.return_value = storage_client
         mocks.user_repository.get_public_user_by_id.return_value = Mock(
-            full_name="user_full_name"
+            full_name=full_name, email="user@example.com"
         )
 
-        artifact_in = ArtifactCreateIn(
-            extra_values={},
-            manifest=manifest,
-            file_hash="hash",
-            file_index={},
-            size=1,
-            file_name="file.txt",
-            name=None,
-            tags=["tag"],
+        artifact_in = ArtifactCreateIn.model_validate(
+            {
+                "extra_values": {},
+                "manifest": manifest,
+                "file_hash": "hash",
+                "file_index": {},
+                "size": 1,
+                "file_name": "file.txt",
+                "tags": ["tag"],
+                **name_fields,
+            }
         )
         result = await mocks.handler.create_artifact(
             USER_ID,
@@ -184,6 +209,8 @@ class TestArtifactCreation:
         assert mocks.repository.create_artifact.await_args is not None
         create_model = mocks.repository.create_artifact.await_args.args[0]
         assert isinstance(create_model, ArtifactCreate)
+        assert create_model.name == expected_name
+        assert create_model.created_by_user == expected_creator
         assert "lineage_inputs" not in create_model.model_dump()
         mocks.repository.get_artifacts_by_ids_in_orbit.assert_not_awaited()
         mocks.lineage_handler.link_inputs.assert_not_awaited()

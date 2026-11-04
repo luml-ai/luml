@@ -6,12 +6,20 @@ and OpenShift.
 
 ## Install
 
-Install with a satellite token and the public host that routes to the chart's Ingress:
+Generate a derivation key once and keep the file for future renders and upgrades:
+
+```shell
+umask 077
+openssl rand -hex 32 | tr -d '\n' > satellite-derivation-key
+```
+
+Install with that key, a satellite token and the public host that routes to the chart's Ingress:
 
 ```shell
 helm install my-satellite ./chart \
   --namespace luml --create-namespace \
   --set-string satellite.token="$SATELLITE_TOKEN" \
+  --set-file satellite.derivationKey=./satellite-derivation-key \
   --set satellite.host=models.example.com
 ```
 
@@ -76,9 +84,26 @@ from an existing Secret. Otherwise the chart creates a token Secret from `satell
 The chart rolls the satellite, dashboard and worker when that value changes.
 
 The chart always keeps the derivation key in a separate Secret. Set `satellite.derivationKey`
-to supply one. When the value is empty, Helm generates a key on the first install and reads
-the existing key during upgrades. Helm keeps that Secret when you remove the release. Back it
-up before you uninstall.
+on the first install. When the value is empty, Helm reads the existing key from the cluster.
+Rendering fails if neither a configured key nor an existing nonempty key is available. Helm
+keeps that Secret when you remove the release. Back it up before you uninstall.
+
+`satellite.derivationKey` is mandatory for GitOps, including Argo CD, and offline tools such
+as `helm template` and `helm diff` that cannot look up the existing Secret. Generate the key
+once, store it in your GitOps secret-management configuration, and reuse it on every render.
+
+For an existing release that previously generated its key, copy the current Secret's
+`derivation-key` into that configuration before the next sync. Use the Secret referenced by
+the satellite Deployment's `DERIVATION_KEY` environment variable. For example:
+
+```shell
+umask 077
+kubectl -n <namespace> get secret <derivation-secret-name> \
+  -o jsonpath='{.data.derivation-key}' | base64 --decode > satellite-derivation-key
+```
+
+Supply the exact decoded value as `satellite.derivationKey`. Replacing it with a newly
+generated key rotates credentials and invalidates existing companion and artifact tokens.
 
 A rotation of the satellite token alone leaves the derivation key and the model pods
 unchanged. Helm cannot checksum an existing token Secret. After you rotate one, restart the

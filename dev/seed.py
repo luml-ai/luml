@@ -1,8 +1,9 @@
 """Idempotent dev-environment seed.
 
-Creates an activated admin user, an organization, a sample orbit, and a
-bucket secret pointing at the local MinIO instance — but only when each
-piece is missing. Re-running this script is safe.
+Creates an activated admin user, an organization, a sample orbit, a
+bucket secret pointing at the local MinIO instance, and the organization's
+own dev relay assigned to the orbit — but only when each piece is missing.
+Re-running this script is safe.
 """
 
 from __future__ import annotations
@@ -15,12 +16,21 @@ from uuid import UUID
 
 from argon2 import PasswordHasher
 
+from luml.handlers.relays import RelayHandler
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.relays import RelayRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import S3BucketSecretCreate
-from luml.schemas.orbit import OrbitCreateIn, OrbitMemberCreateSimple, OrbitRole
+from luml.schemas.orbit import (
+    Orbit,
+    OrbitCreateIn,
+    OrbitMemberCreateSimple,
+    OrbitRole,
+    OrbitUpdate,
+)
 from luml.schemas.organization import OrganizationCreateIn
+from luml.schemas.relay import RelayCreate
 from luml.schemas.user import (
     AuthProvider,
     CreateUser,
@@ -116,14 +126,14 @@ async def _ensure_orbit(
     org_id: UUID,
     user_id: UUID,
     bucket_secret_id: UUID,
-) -> UUID:
+) -> Orbit:
     orbit_name = _env("DEV_ORBIT_NAME")
 
     existing = await repo.get_organization_orbits(org_id, user_id)
     for orbit in existing:
         if orbit.name == orbit_name:
             log.info("Orbit %s already exists", orbit_name)
-            return orbit.id
+            return orbit
 
     log.info("Creating orbit %s", orbit_name)
     created = await repo.create_orbit(
@@ -138,7 +148,41 @@ async def _ensure_orbit(
     )
     if created is None:
         raise RuntimeError("Failed to create orbit")
+    return created
+
+
+async def _ensure_relay(repo: RelayRepository, org_id: UUID) -> UUID:
+    base_domain = _env("DEV_RELAY_BASE_DOMAIN")
+
+    for relay in await repo.list_usable_relays(org_id):
+        if relay.base_domain == base_domain:
+            log.info("Relay for %s already exists", base_domain)
+            return relay.id
+
+    log.info("Creating relay for %s", base_domain)
+    created = await repo.create_relay(
+        RelayCreate(
+            organization_id=org_id,
+            label=_env("DEV_RELAY_LABEL", "Dev relay"),
+            base_domain=base_domain,
+            agent_url=_env("DEV_RELAY_AGENT_URL"),
+            token_hash=RelayHandler().hash_token(_env("DEV_RELAY_TOKEN")),
+        )
+    )
     return created.id
+
+
+async def _ensure_orbit_relay(
+    repo: OrbitRepository, orbit: Orbit, relay_id: UUID
+) -> None:
+    if orbit.relay_id is not None:
+        log.info("Orbit %s already has a relay", orbit.name)
+        return
+
+    log.info("Assigning the relay to orbit %s", orbit.name)
+    await repo.update_orbit(
+        orbit.id, orbit.organization_id, OrbitUpdate(relay_id=relay_id)
+    )
 
 
 async def main() -> None:
@@ -147,11 +191,14 @@ async def main() -> None:
     user_repo = UserRepository(engine)
     bucket_repo = BucketSecretRepository(engine)
     orbit_repo = OrbitRepository(engine)
+    relay_repo = RelayRepository(engine)
 
     user_id = await _ensure_admin_user(user_repo)
     org_id = await _ensure_org(user_repo, user_id)
     bucket_id = await _ensure_bucket_secret(bucket_repo, org_id)
-    await _ensure_orbit(orbit_repo, org_id, user_id, bucket_id)
+    orbit = await _ensure_orbit(orbit_repo, org_id, user_id, bucket_id)
+    relay_id = await _ensure_relay(relay_repo, org_id)
+    await _ensure_orbit_relay(orbit_repo, orbit, relay_id)
 
     log.info("Seed complete.")
     log.info("  Login:    %s", os.environ["DEV_ADMIN_EMAIL"])

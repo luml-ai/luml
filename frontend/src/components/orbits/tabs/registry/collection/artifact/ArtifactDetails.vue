@@ -109,14 +109,14 @@
 import { computed, ref } from 'vue'
 import { useRoute, type RouteLocationRaw } from 'vue-router'
 import { Button, Tag } from 'primevue'
-import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import type { Artifact, ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import { getSizeText } from '@/helpers/helpers'
 import { STATUS_TAGS_CONFIG } from '../artifacts-table/models-table.data'
 import ModelManifestModal from '@/components/model/ModelManifestModal.vue'
 import ArtifactTracks from '@/components/tracks/ArtifactTracks.vue'
 
 interface Props {
-  artifact: Artifact
+  artifact: ArtifactListed & Partial<Pick<Artifact, 'manifest'>>
   /** Adds the "Manifest: Show" row; the details panel of the design has none. */
   withManifest?: boolean
 }

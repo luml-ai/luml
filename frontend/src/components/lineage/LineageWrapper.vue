@@ -30,7 +30,7 @@ import LineageHeading from './LineageHeading.vue'
 import { useLineageStore } from '@/stores/lineage'
 import { ProgressSpinner } from 'primevue'
 
-const isMaximized = defineModel('isMaximized', { default: false })
+const isMaximized = defineModel<boolean>('isMaximized', { default: false })
 const lineageStore = useLineageStore()
 </script>
 

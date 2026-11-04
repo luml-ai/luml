@@ -1,20 +1,33 @@
 networks:
   satellite-network:
     driver: bridge
+    labels:
+      df.model-access: "true"
+  store-network:
+    driver: bridge
+    internal: true
+  docker-control:
+    driver: bridge
+    internal: true
 
 volumes:
   greptimedb-data:
+  caddy-data:
+  caddy-config:
 
 services:
   greptimedb:
     image: greptime/greptimedb:v0.13.1
-    command: standalone start --http-addr=0.0.0.0:4000 --rpc-addr=0.0.0.0:4001
+    command:
+      - standalone
+      - start
+      - --http-addr=0.0.0.0:4000
+      - --rpc-addr=0.0.0.0:4001
+      - "--user-provider=static_user_provider:cmd:${GREPTIMEDB_USERNAME:?Set GREPTIMEDB_USERNAME in .env}=${GREPTIMEDB_PASSWORD:?Set GREPTIMEDB_PASSWORD in .env}"
     networks:
-      - satellite-network
+      - store-network
     volumes:
       - greptimedb-data:/tmp/greptimedb
-    ports:
-      - "4000:4000"
     restart: unless-stopped
 
   otel-collector:
@@ -22,6 +35,10 @@ services:
     command: ["--config=/etc/otel/config.yaml"]
     networks:
       - satellite-network
+      - store-network
+    environment:
+      GREPTIMEDB_USERNAME: ${GREPTIMEDB_USERNAME:?Set GREPTIMEDB_USERNAME in .env}
+      GREPTIMEDB_PASSWORD: ${GREPTIMEDB_PASSWORD:?Set GREPTIMEDB_PASSWORD in .env}
     volumes:
       - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
     depends_on:
@@ -37,6 +54,40 @@ services:
     networks:
       - satellite-network
 
+  reverse-proxy:
+    image: caddy:2.10.2-alpine
+    networks:
+      - satellite-network
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      SATELLITE_SITE: ${SATELLITE_DOMAIN:-:80}
+    ports:
+      - "${PROXY_BIND:-127.0.0.1}:80:80"
+      - "${PROXY_BIND:-127.0.0.1}:443:443"
+    depends_on:
+      - agent
+    restart: unless-stopped
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    networks:
+      - docker-control
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: "1"
+      IMAGES: "1"
+      NETWORKS: "1"
+      VOLUMES: "1"
+      POST: "1"
+      PING: "1"
+      VERSION: "1"
+      EVENTS: "0"
+    restart: unless-stopped
+
   agent:
     image: luml-satellite-agent:latest
     build:
@@ -48,7 +99,10 @@ services:
         # "agent" and "satellite-agent-1" resolve, and the URL they are given does not.
         aliases:
           - satellite-agent
+      store-network:
+      docker-control:
     environment:
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
       SATELLITE_TOKEN: ${SATELLITE_TOKEN:?Set SATELLITE_TOKEN in .env}
       PLATFORM_URL: ${PLATFORM_URL:-http://localhost:8000}
       BASE_URL: ${BASE_URL:-http://localhost}
@@ -57,15 +111,18 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       MONITORING_ENABLED: "true"
       GREPTIMEDB_HOST: greptimedb
+      GREPTIMEDB_USERNAME: ${GREPTIMEDB_USERNAME:?Set GREPTIMEDB_USERNAME in .env}
+      GREPTIMEDB_PASSWORD: ${GREPTIMEDB_PASSWORD:?Set GREPTIMEDB_PASSWORD in .env}
       MONITORING_FRAME_ANCESTORS: ${MONITORING_FRAME_ANCESTORS:-http://localhost:5173}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    user: "0:0"
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    ports:
-      - "80:8000"
     depends_on:
+      - docker-socket-proxy
       - model-image
       - otel-collector
     restart: unless-stopped

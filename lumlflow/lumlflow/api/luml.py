@@ -1,4 +1,4 @@
-import time
+import asyncio
 from typing import Annotated
 from uuid import uuid4
 
@@ -65,7 +65,7 @@ def upload_artifact(
 
 @luml_router.get("/artifact/{job_id}/progress", response_class=StreamingResponse)
 def upload_progress(job_id: str) -> StreamingResponse:
-    def event_stream():
+    async def event_stream():
         last_sent = None
         while True:
             job = progress_store.get(job_id)
@@ -79,7 +79,7 @@ def upload_progress(job_id: str) -> StreamingResponse:
             if job.status in ("complete", "error"):
                 progress_store.delete(job_id)
                 break
-            time.sleep(0.3)
+            await asyncio.sleep(0.3)
 
     return StreamingResponse(
         event_stream(),

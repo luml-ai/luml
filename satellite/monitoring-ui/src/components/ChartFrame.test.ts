@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 import ChartFrame from './ChartFrame.vue'
 
 function mountFrame() {
@@ -12,6 +12,8 @@ function mountFrame() {
     global: { stubs: { teleport: true } },
   })
 }
+
+enableAutoUnmount(afterEach)
 
 describe('ChartFrame', () => {
   afterEach(() => vi.unstubAllGlobals())

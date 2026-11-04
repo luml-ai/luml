@@ -52,17 +52,12 @@ class TestSatellites:
         assert len(matching_routes) == 1
 
     @patch(
-        "luml.api.satellites.satellite_handler.touch_last_seen",
-        new_callable=AsyncMock,
-    )
-    @patch(
         "luml.handlers.deployments.DeploymentHandler.delete_worker_deployment",
         new_callable=AsyncMock,
     )
     def test_delete_deployment_forwards_the_authenticated_satellite(
         self,
         mock_delete_worker_deployment: AsyncMock,
-        mock_touch_last_seen: AsyncMock,
         client: TestClient,
     ) -> None:
         response = client.delete(DEPLOYMENT_PATH)
@@ -79,17 +74,12 @@ class TestSatellites:
         indirect=True,
     )
     @patch(
-        "luml.api.satellites.satellite_handler.touch_last_seen",
-        new_callable=AsyncMock,
-    )
-    @patch(
         "luml.handlers.deployments.DeploymentHandler.delete_worker_deployment",
         new_callable=AsyncMock,
     )
     def test_delete_deployment_from_another_satellite_is_rejected(
         self,
         mock_delete_worker_deployment: AsyncMock,
-        mock_touch_last_seen: AsyncMock,
         client: TestClient,
     ) -> None:
         mock_delete_worker_deployment.side_effect = NotFoundError(

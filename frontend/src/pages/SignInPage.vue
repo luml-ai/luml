@@ -100,7 +100,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const initialValues = ref(signInInitialValues)
+const initialValues = ref({ ...signInInitialValues })
 const resolver = ref(signInResolver)
 
 const formRef = ref()

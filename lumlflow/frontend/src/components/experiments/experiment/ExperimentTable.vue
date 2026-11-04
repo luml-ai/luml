@@ -128,7 +128,7 @@
 <script setup lang="ts">
 import { DataTable, Column, type VirtualScrollerProps, type DataTableRowClickEvent } from 'primevue'
 import { useExperimentsStore } from '@/store/experiments'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { FileChartLine } from 'lucide-vue-next'
 import { dateToText, durationToText } from '@/helpers/date'
 import { CONSTANTS_COLUMNS, getStatusIconInfo } from './experiment.const'
@@ -150,7 +150,9 @@ const props = defineProps<Props>()
 const experimentsStore = useExperimentsStore()
 const router = useRouter()
 
-const loading = ref(true)
+const loading = computed(
+  () => experimentsStore.isLoading && experimentsStore.experiments.length === 0,
+)
 
 const virtualScrollerOptions = computed<VirtualScrollerProps>(() => ({
   lazy: true,
@@ -197,13 +199,6 @@ watch(
     })
   },
   { immediate: true },
-)
-
-watch(
-  () => experimentsStore.experiments,
-  () => {
-    loading.value = false
-  },
 )
 
 onBeforeUnmount(() => {

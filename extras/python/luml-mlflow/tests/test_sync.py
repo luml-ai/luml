@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from luml_mlflow.artifact_repo import LumlArtifactRepository
+from luml_mlflow.config import Settings
 from luml_mlflow.meta import (
     LUML_ARTIFACT_IDS,
     LUML_ARTIFACT_URLS,
@@ -29,6 +30,7 @@ from luml_mlflow.meta import (
     UPLOAD_STATUS_UPLOADED,
 )
 from luml_mlflow.store import LumlTrackingStore
+from luml_mlflow.uri import parse_tracking_uri
 
 # ``luml_mlflow.sync`` is also a public re-exported function, so resolve the
 # submodule explicitly to avoid shadowing.
@@ -188,6 +190,55 @@ def _log_model(
     model_dir = _make_mlflow_model_dir(tmp_path, name=name)
     repo = LumlArtifactRepository(store._artifact_uri_for_run(run_id))
     repo.log_artifacts(str(model_dir), artifact_path=name)
+
+
+@pytest.mark.parametrize(
+    ("web_url", "expected"),
+    [
+        (
+            None,
+            "https://app.luml.ai/organization/org1/orbit/orbit1"
+            "/collection/col-1/artifacts/art-1",
+        ),
+        (
+            "https://web.example.com",
+            "https://web.example.com/organization/org1/orbit/orbit1"
+            "/collection/col-1/artifacts/art-1",
+        ),
+        (
+            "https://web.example.com/",
+            "https://web.example.com/organization/org1/orbit/orbit1"
+            "/collection/col-1/artifacts/art-1",
+        ),
+    ],
+)
+def test_artifact_url_matches_web_route(
+    monkeypatch: pytest.MonkeyPatch, web_url: str | None, expected: str
+) -> None:
+    monkeypatch.delenv("LUML_ARTIFACT_URL_TEMPLATE", raising=False)
+    monkeypatch.delenv("LUML_WEB_URL", raising=False)
+    settings = Settings(_env_file=None)
+    if web_url is not None:
+        settings.LUML_WEB_URL = web_url
+
+    assert (
+        sync_mod._artifact_url(
+            settings, parse_tracking_uri("luml://org1/orbit1"), "col-1", "art-1"
+        )
+        == expected
+    )
+
+
+def test_artifact_url_uses_custom_template(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "LUML_ARTIFACT_URL_TEMPLATE",
+        "{web}/custom/{artifact_id}?org={org}&orbit={orbit}&collection={collection}",
+    )
+    settings = Settings(_env_file=None, LUML_WEB_URL="https://web.example.com/")
+
+    assert sync_mod._artifact_url(
+        settings, parse_tracking_uri("luml://org1/orbit1"), "col-1", "art-1"
+    ) == ("https://web.example.com/custom/art-1?org=org1&orbit=orbit1&collection=col-1")
 
 
 # ---------------------------------------------------------------- single-model
@@ -382,6 +433,18 @@ def test_already_uploaded_run_is_skipped(
     assert fake_client.artifacts.upload_calls == []
 
 
+def test_sync_skips_deleted_run(
+    store: LumlTrackingStore, fake_client: FakeLumlClient
+) -> None:
+    run_id = _start_run(store)
+    store.delete_run(run_id)
+
+    result = sync_mod.sync(run_id, client=fake_client)
+
+    assert result.skipped_reason == "run is deleted"
+    assert fake_client.artifacts.upload_calls == []
+
+
 def test_force_re_syncs(store: LumlTrackingStore, fake_client: FakeLumlClient) -> None:
     run_id = _start_run(store)
     sync_mod.sync(run_id, client=fake_client)
@@ -496,3 +559,172 @@ def test_public_api_exports_sync() -> None:
     assert luml_mlflow.sync is sync_mod.sync
     assert luml_mlflow.sync_experiment is sync_mod.sync_experiment
     assert luml_mlflow.status is sync_mod.status
+
+
+# ---------------------------------------------------------------- target resolution
+
+
+def _clear_artifact_uri(store: LumlTrackingStore, run_id: str) -> None:
+    from luml_mlflow.meta import RUN_ARTIFACT_URI, write_run_info_field
+
+    write_run_info_field(store._tracker, run_id, RUN_ARTIFACT_URI, None)
+
+
+def test_sync_without_resolvable_target_reports_error(
+    store: LumlTrackingStore, fake_client: FakeLumlClient
+) -> None:
+    run_id = _start_run(store)
+    _clear_artifact_uri(store, run_id)
+
+    result = sync_mod.sync(run_id, client=fake_client)
+
+    assert result.status == UPLOAD_STATUS_FAILED
+    assert result.error == "Unable to resolve a luml target for the run"
+    assert fake_client.artifacts.upload_calls == []
+
+
+def test_sync_falls_back_to_tracking_uri_without_stored_target(
+    store: LumlTrackingStore, fake_client: FakeLumlClient
+) -> None:
+    run_id = _start_run(store)
+    _clear_artifact_uri(store, run_id)
+
+    result = sync_mod.sync(
+        run_id, tracking_uri="luml://org2/orbit2", client=fake_client
+    )
+
+    assert result.status == UPLOAD_STATUS_UPLOADED
+    assert "/organization/org2/orbit/orbit2/" in result.artifact_urls[0]
+    internal = store._tracker.get_experiment_metadata(run_id)[META_LUML_INTERNAL]
+    assert internal[LUML_ORGANIZATION_ID] == "org2"
+    assert internal[LUML_ORBIT_ID] == "orbit2"
+
+
+def test_sync_warns_on_unparsable_stored_target_and_falls_back(
+    store: LumlTrackingStore,
+    fake_client: FakeLumlClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from luml_mlflow.meta import RUN_ARTIFACT_URI, write_run_info_field
+
+    run_id = _start_run(store)
+    write_run_info_field(store._tracker, run_id, RUN_ARTIFACT_URI, "luml://org1")
+
+    with caplog.at_level("WARNING", logger="luml_mlflow.sync"):
+        result = sync_mod.sync(
+            run_id, tracking_uri="luml://org2/orbit2", client=fake_client
+        )
+
+    assert result.status == UPLOAD_STATUS_UPLOADED
+    assert "could not parse artifact_uri" in caplog.text
+    assert "/organization/org2/orbit/orbit2/" in result.artifact_urls[0]
+
+
+def test_sync_honours_local_only_marker_without_stored_target(
+    store: LumlTrackingStore, fake_client: FakeLumlClient
+) -> None:
+    from luml_mlflow.meta import LUML_LOCAL_ONLY, write_luml_internal
+
+    run_id = _start_run(store)
+    _clear_artifact_uri(store, run_id)
+    write_luml_internal(store._tracker, run_id, {LUML_LOCAL_ONLY: "true"})
+
+    result = sync_mod.sync(
+        run_id, tracking_uri="luml://org2/orbit2", client=fake_client
+    )
+
+    assert result.skipped_reason == "local-only target"
+    assert fake_client.artifacts.upload_calls == []
+
+
+# ---------------------------------------------------------------- collections
+
+
+def test_collection_conflict_suffix_reuses_existing_mixed_collection(
+    store: LumlTrackingStore,
+    fake_client: FakeLumlClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from luml_mlflow import config as config_mod
+
+    monkeypatch.setenv("LUML_MLFLOW_COLLECTION_CONFLICT", "suffix")
+    config_mod.reset_settings_cache()
+    fake_client.collections.collections["x"] = FakeCollection(
+        id="x", name="fraud", type="model"
+    )
+    fake_client.collections.collections["y"] = FakeCollection(
+        id="y", name="fraud (mlflow)", type="mixed"
+    )
+    run_id = _start_run(store)
+
+    result = sync_mod.sync(run_id, client=fake_client)
+
+    assert result.collection_id == "y"
+    assert fake_client.collections.create_calls == []
+
+
+def test_sync_experiment_resolves_group_by_id(
+    store: LumlTrackingStore, fake_client: FakeLumlClient
+) -> None:
+    run_id = _start_run(store, "fraud")
+    exp_id = store.get_experiment_by_name("fraud").experiment_id
+
+    results = sync_mod.sync_experiment(exp_id, client=fake_client)
+
+    assert [r.run_id for r in results] == [run_id]
+
+
+def test_flag_tags_are_forwarded_as_artifact_tags(
+    store: LumlTrackingStore, fake_client: FakeLumlClient
+) -> None:
+    from mlflow.entities import RunTag
+
+    exp_id = store.create_experiment("fraud")
+    run = store.create_run(
+        exp_id,
+        user_id="alice",
+        start_time=0,
+        tags=[RunTag("baseline", "true"), RunTag("candidate", "")],
+        run_name="r",
+    )
+
+    sync_mod.sync(run.info.run_id, client=fake_client)
+
+    assert fake_client.artifacts.upload_calls[0]["tags"] == ["baseline", "candidate"]
+
+
+# ---------------------------------------------------------------- api key
+
+
+@pytest.fixture
+def no_keyring(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(importlib.import_module("sys").modules, "keyring", None)
+
+
+def test_api_key_read_from_luml_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_keyring: None
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    (tmp_path / ".luml.json").write_text('{"api_key": "from-file"}')
+
+    assert sync_mod._resolve_api_key(Settings(LUML_API_KEY=None)) == "from-file"
+
+
+def test_env_api_key_wins_over_luml_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_keyring: None
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    (tmp_path / ".luml.json").write_text('{"api_key": "from-file"}')
+
+    assert sync_mod._resolve_api_key(Settings(LUML_API_KEY="from-env")) == "from-env"
+
+
+def test_build_client_without_api_key_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_keyring: None
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    with pytest.raises(ValueError, match="No luml API key"):
+        sync_mod._build_client(
+            Settings(LUML_API_KEY=None), parse_tracking_uri("luml://org1/orbit1")
+        )

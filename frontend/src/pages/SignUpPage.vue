@@ -121,7 +121,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const initialValues = ref(signUpInitialValues)
+const initialValues = ref({ ...signUpInitialValues })
 
 const resolver = ref(signUpResolver)
 

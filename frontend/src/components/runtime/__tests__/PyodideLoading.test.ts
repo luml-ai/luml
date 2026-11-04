@@ -5,10 +5,11 @@ import PrimeVue from 'primevue/config'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 
-const { compute, addToast, training, deallocate } = vi.hoisted(() => ({
+const { compute, addToast, training, prediction, deallocate } = vi.hoisted(() => ({
   compute: vi.fn(),
   addToast: vi.fn(),
   training: vi.fn(),
+  prediction: vi.fn(),
   deallocate: vi.fn(),
 }))
 
@@ -21,6 +22,7 @@ vi.mock('@/lib/data-processing/DataProcessingWorker', () => ({
   DataProcessingWorker: {
     computePythonModel: compute,
     startTraining: training,
+    startPredict: prediction,
     deallocateModels: deallocate,
   },
 }))
@@ -148,4 +150,104 @@ describe('first-use loading feedback', () => {
     expect(addToast).toHaveBeenCalledWith(expect.objectContaining({ detail: 'Download failed' }))
     wrapper.unmount()
   })
+
+  it('clears express prediction loading and shows a toast when the worker rejects', async () => {
+    prediction.mockRejectedValue(new Error('Python failed'))
+    let hook!: ReturnType<typeof useModelTraining>
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          hook = useModelTraining('tabular')
+          return () => null
+        },
+      }),
+    )
+    const pending = hook.startPredict({ model_id: 'model', data: {} })
+    expect(hook.isLoading.value).toBe(true)
+    await expect(pending).resolves.toBeUndefined()
+    expect(hook.isLoading.value).toBe(false)
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: 'Python failed' }),
+    )
+    wrapper.unmount()
+  })
+})
+
+describe('runtime upload cleanup', () => {
+  it('keeps removal pending until cleanup succeeds and clears the uploaded file', async () => {
+    let resolve!: () => void
+    const removeCallback = vi.fn(
+      () =>
+        new Promise<void>((done) => {
+          resolve = done
+        }),
+    )
+    const wrapper = mount(UploadData, {
+      props: { uploadCallback: vi.fn(), removeCallback },
+      global,
+    })
+    wrapper.getComponent(FileInput).vm.$emit('select-file', new File(['model'], 'model.luml'))
+    await flushPromises()
+    wrapper.getComponent(FileInput).vm.$emit('remove-file')
+    await flushPromises()
+    expect(wrapper.getComponent(FileInput).props('loading')).toBe(true)
+    expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeDefined()
+    resolve()
+    await flushPromises()
+    expect(wrapper.getComponent(FileInput).props('file')).toEqual({})
+    expect(wrapper.getComponent(FileInput).props('loading')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('reports cleanup failures instead of discarding the file', async () => {
+    const wrapper = mount(UploadData, {
+      props: {
+        uploadCallback: vi.fn(),
+        removeCallback: vi.fn().mockRejectedValue(new Error('Cleanup failed')),
+      },
+      global,
+    })
+    wrapper.getComponent(FileInput).vm.$emit('select-file', new File(['model'], 'model.luml'))
+    await flushPromises()
+    wrapper.getComponent(FileInput).vm.$emit('remove-file')
+    await flushPromises()
+    expect(addToast).toHaveBeenCalledWith(expect.objectContaining({ detail: 'Cleanup failed' }))
+    expect(wrapper.getComponent(FileInput).props('file')).toEqual({ name: 'model.luml', size: 5 })
+    expect(wrapper.getComponent(FileInput).props('error')).toBe(true)
+    expect(wrapper.getComponent(FileInput).props('loading')).toBe(false)
+    wrapper.unmount()
+  })
+})
+
+it('ignores another upload while model creation is pending', async () => {
+  let resolve!: () => void
+  const uploadCallback = vi.fn(
+    () =>
+      new Promise<void>((done) => {
+        resolve = done
+      }),
+  )
+  const wrapper = mount(UploadData, { props: { uploadCallback, removeCallback: vi.fn() }, global })
+  wrapper.getComponent(FileInput).vm.$emit('select-file', new File(['first'], 'first.luml'))
+  await flushPromises()
+  wrapper.getComponent(FileInput).vm.$emit('select-file', new File(['second'], 'second.luml'))
+  await flushPromises()
+  expect(uploadCallback).toHaveBeenCalledTimes(1)
+  resolve()
+  await flushPromises()
+  wrapper.unmount()
+})
+
+it('disables continue after a replacement upload fails', async () => {
+  const uploadCallback = vi
+    .fn()
+    .mockResolvedValueOnce(undefined)
+    .mockRejectedValueOnce(new Error('Invalid model'))
+  const wrapper = mount(UploadData, { props: { uploadCallback, removeCallback: vi.fn() }, global })
+  wrapper.getComponent(FileInput).vm.$emit('select-file', new File(['first'], 'first.luml'))
+  await flushPromises()
+  wrapper.getComponent(FileInput).vm.$emit('select-file', new File(['invalid'], 'invalid.luml'))
+  await flushPromises()
+  expect(wrapper.findAll('button').at(-1)!.attributes('disabled')).toBeDefined()
+  wrapper.unmount()
 })

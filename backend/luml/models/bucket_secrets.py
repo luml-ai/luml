@@ -6,11 +6,15 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from luml.infra.encryption import decrypt, encrypt
 from luml.models.base import Base, TimestampMixin
 from luml.schemas.bucket_secrets import (
+    AzureBucketSecret,
+    AzureBucketSecretCreate,
     BucketSecret,
     BucketSecretCreate,
+    BucketSecretOut,
     S3BucketSecret,
     S3BucketSecretCreate,
     validate_bucket_secret,
+    validate_bucket_secret_out,
 )
 
 
@@ -64,7 +68,15 @@ class BucketSecretOrm(TimestampMixin, Base):
                 secret.secret_key = decrypt(secret.secret_key)
             if secret.session_token:
                 secret.session_token = decrypt(secret.session_token)
+        elif isinstance(secret, AzureBucketSecret):
+            secret.endpoint = decrypt(self.endpoint)
         return secret
+
+    def to_bucket_secret_out(self) -> BucketSecretOut:
+        secret = self.to_bucket_secret()
+        return validate_bucket_secret_out(
+            {**secret.model_dump(), "orbits": self.orbits}
+        )
 
     @classmethod
     def from_bucket_secret(cls, secret: BucketSecretCreate) -> BucketSecretOrm:
@@ -76,4 +88,6 @@ class BucketSecretOrm(TimestampMixin, Base):
                 data["secret_key"] = encrypt(secret.secret_key)
             if secret.session_token:
                 data["session_token"] = encrypt(secret.session_token)
+        elif isinstance(secret, AzureBucketSecretCreate):
+            data["endpoint"] = encrypt(secret.endpoint)
         return cls(**data)

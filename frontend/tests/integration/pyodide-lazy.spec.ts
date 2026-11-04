@@ -39,3 +39,32 @@ for (const path of ['/sign-in', '/classification', '/runtime']) {
     expect(requests).toEqual([])
   })
 }
+
+test('blocked Pyodide CDN shows a toast, clears training, and permits retry', async ({
+  page,
+  context,
+  apiMocks,
+}) => {
+  await apiMocks.get('**/v1/auth/users/me', USER_FIXTURE)
+  await apiMocks.get('**/v1/users/me/organizations', [])
+  await apiMocks.get('**/v1/users/me/invitations', [])
+  let downloads = 0
+  await context.route('https://cdn.jsdelivr.net/pyodide/**', (route) => {
+    downloads++
+    return route.abort('failed')
+  })
+  await page.goto('/regression')
+  await page.getByRole('button', { name: /use sample/i }).click()
+  await expect(page.getByText(/insurance\.csv/i)).toBeVisible()
+  await page.getByRole('button', { name: /continue/i }).click()
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await page.getByRole('button', { name: /continue/i }).click()
+    const toast = page.getByRole('alert').last()
+    await expect(toast).toContainText('Error', { timeout: 10_000 })
+    await expect(toast).toContainText(/importScripts|Webworker|fetch/i)
+    await expect(page.getByRole('heading', { name: 'Training in progress...' })).toBeHidden()
+    await expect(page.getByRole('button', { name: /continue/i })).toBeEnabled()
+    expect(downloads).toBe(attempt)
+    await toast.getByRole('button', { name: /close/i }).click()
+  }
+})

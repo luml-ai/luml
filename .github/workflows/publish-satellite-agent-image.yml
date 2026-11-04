@@ -20,6 +20,12 @@ env:
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-satellite-agent
 
 jobs:
+  tests:
+    uses: "./.github/workflows/[satellite-docker] tests-and-linters.yml"
+
+  kit-tests:
+    uses: "./.github/workflows/[satellite-kit] tests-and-linters.yml"
+
   # -------------------------------------------------------------------
   # Resolve image tag from branch or release tag
   # -------------------------------------------------------------------
@@ -64,7 +70,7 @@ jobs:
   # -------------------------------------------------------------------
 
   push-image:
-    needs: [resolve-image-tag]
+    needs: [resolve-image-tag, tests, kit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read

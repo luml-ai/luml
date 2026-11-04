@@ -1,0 +1,57 @@
+suite: missing derivation keys
+templates:
+  - templates/secret-derivation.yaml
+release:
+  name: absent
+  namespace: models
+  upgrade: true
+set:
+  satellite.token: test-token
+kubernetesProvider:
+  scheme:
+    "v1/Secret":
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: empty-luml-satellite-kubernetes-derivation-key
+        namespace: models
+      data:
+        derivation-key: ""
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: missing-luml-satellite-kubernetes-derivation-key
+        namespace: models
+      data:
+        other-key: dW51c2Vk
+tests:
+  - it: rejects an upgrade without a key or stored Secret
+    asserts:
+      - failedTemplate:
+          errorMessage: satellite.derivationKey is required when the existing derivation-key Secret cannot be read; set a persistent key for GitOps and offline rendering
+
+  - it: rejects an install without a key or stored Secret
+    release:
+      upgrade: false
+    asserts:
+      - failedTemplate:
+          errorMessage: satellite.derivationKey is required when the existing derivation-key Secret cannot be read; set a persistent key for GitOps and offline rendering
+
+  - it: rejects an empty stored key
+    release:
+      name: empty
+    asserts:
+      - failedTemplate:
+          errorMessage: satellite.derivationKey is required when the existing derivation-key Secret cannot be read; set a persistent key for GitOps and offline rendering
+
+  - it: rejects a stored Secret without the derivation key
+    release:
+      name: missing
+    asserts:
+      - failedTemplate:
+          errorMessage: satellite.derivationKey is required when the existing derivation-key Secret cannot be read; set a persistent key for GitOps and offline rendering

@@ -3,12 +3,13 @@ from starlette.requests import HTTPConnection
 
 from luml.handlers.api_keys import APIKeyHandler
 from luml.handlers.auth import AuthHandler
+from luml.handlers.relays import RELAY_TOKEN_PREFIX, RelayHandler
 from luml.handlers.satellites import SatelliteHandler
 from luml.infra.exceptions import AuthError
-from luml.models import AuthSatellite, AuthUser
+from luml.models import AuthRelay, AuthSatellite, AuthUser
 from luml.settings import config
 
-type AuthPrincipal = AuthUser | AuthSatellite
+type AuthPrincipal = AuthUser | AuthSatellite | AuthRelay
 
 
 class JWTAuthenticationBackend(AuthenticationBackend):
@@ -18,6 +19,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
         )
         self.api_key_handler = APIKeyHandler()
         self.satellite_handler = SatelliteHandler()
+        self.relay_handler = RelayHandler()
 
     async def _authenticate_with_api_key(
         self, token: str
@@ -38,9 +40,17 @@ class JWTAuthenticationBackend(AuthenticationBackend):
     ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         sat = await self.satellite_handler.authenticate_api_key(token)
         if sat:
-            await self.satellite_handler.touch_last_seen(sat.id)
+            await self.satellite_handler.touch_last_seen(sat)
             auth_sat = AuthSatellite(satellite_id=sat.id, orbit_id=sat.orbit_id)
             return AuthCredentials(["authenticated", "satellite"]), auth_sat
+        return None
+
+    async def _authenticate_with_relay_token(
+        self, token: str
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:
+        relay = await self.relay_handler.authenticate_token(token)
+        if relay:
+            return AuthCredentials(["authenticated", "relay"]), AuthRelay(relay.id)
         return None
 
     async def _authenticate_with_jwt_token(
@@ -49,8 +59,8 @@ class JWTAuthenticationBackend(AuthenticationBackend):
         if await self.auth_handler.is_token_blacklisted(token):
             return None
         try:
-            email = self.auth_handler._verify_token(token)
-            user = await self.auth_handler.handle_get_current_user(email)
+            email, fingerprint = self.auth_handler._verify_token(token)
+            user = await self.auth_handler.handle_get_current_user(email, fingerprint)
             auth_user = AuthUser(
                 user_id=user.id,
                 email=user.email,
@@ -84,6 +94,8 @@ class JWTAuthenticationBackend(AuthenticationBackend):
                 return await self._authenticate_with_api_key(token)
             if token.startswith("dfssat_"):
                 return await self._authenticate_with_satellite_key(token)
+            if token.startswith(RELAY_TOKEN_PREFIX):
+                return await self._authenticate_with_relay_token(token)
             return await self._authenticate_with_jwt_token(token)
 
         return None

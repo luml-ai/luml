@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 from luml.artifacts.experiment import save_experiment
 from luml.artifacts.model import ModelReference
 from luml_api._client import LumlClient
+from mlflow.entities import LifecycleStage
 
 from luml_mlflow._tracker import ThreadSafeTracker, get_tracker
 from luml_mlflow.config import Settings, get_settings
@@ -40,9 +41,11 @@ from luml_mlflow.meta import (
     META_LUML_INTERNAL,
     META_RUN_INFO,
     RUN_ARTIFACT_URI,
+    RUN_LIFECYCLE_STAGE,
     UPLOAD_STATUS_FAILED,
     UPLOAD_STATUS_UPLOADED,
     UPLOAD_STATUS_UPLOADING,
+    read_run_info_field,
     write_luml_internal,
 )
 from luml_mlflow.uri import LumlTarget, parse_artifact_uri, parse_tracking_uri
@@ -88,6 +91,19 @@ def sync(
     """
     tracker = get_tracker()
     settings = get_settings()
+    if (
+        tracker.get_experiment_record(run_id) is not None
+        and read_run_info_field(tracker, run_id, RUN_LIFECYCLE_STAGE)
+        == LifecycleStage.DELETED
+    ):
+        return SyncResult(
+            run_id=run_id,
+            status=tracker.get_experiment_upload_status(run_id),
+            artifact_ids=[],
+            artifact_urls=[],
+            collection_id=None,
+            skipped_reason="run is deleted",
+        )
     target = _resolve_target(tracker, run_id, tracking_uri)
     if target is None:
         return SyncResult(

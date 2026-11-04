@@ -1,11 +1,11 @@
 from uuid import UUID
 
-from luml.models import AuthSatellite, AuthUser
+from luml.models import AuthRelay, AuthSatellite, AuthUser
 from starlette.authentication import AuthCredentials
 
-from tests.support.ids import USER_ID
+from tests.support.ids import RELAY_ID, USER_ID
 
-type Principal = tuple[AuthCredentials, AuthUser | AuthSatellite] | None
+type Principal = tuple[AuthCredentials, AuthUser | AuthSatellite | AuthRelay] | None
 
 CALLER_EMAIL = "caller@example.com"
 
@@ -27,3 +27,7 @@ def satellite(satellite_id: UUID, orbit_id: UUID) -> Principal:
         AuthCredentials(["authenticated", "satellite"]),
         AuthSatellite(satellite_id=satellite_id, orbit_id=orbit_id),
     )
+
+
+def relay(relay_id: UUID = RELAY_ID) -> Principal:
+    return AuthCredentials(["authenticated", "relay"]), AuthRelay(relay_id)

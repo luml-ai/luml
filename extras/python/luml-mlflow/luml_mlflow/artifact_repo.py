@@ -161,7 +161,7 @@ class LumlArtifactRepository(ArtifactRepository):
             _emit_entry(rel, entry, record.size, seen_dirs, out, prefix)
 
         for model in models:
-            rel = _model_artifact_path(model.name, model.path)
+            rel = _model_artifact_path(model.name, model.path, model.id)
             entry = _path_relative_to(rel, prefix)
             if entry is None:
                 continue
@@ -215,9 +215,14 @@ def _slugify(value: str) -> str:
     return slug or "model"
 
 
-def _model_artifact_path(model_name: str, stored_path: str | None) -> str:
+def _model_artifact_path(
+    model_name: str, stored_path: str | None, model_id: str
+) -> str:
     if stored_path:
-        return Path(stored_path).name
+        path = Path(stored_path)
+        if path.parent.name == model_id:
+            return f"{model_id}/{path.name}"
+        return path.name
     return f"{model_name}{FNNX_SUFFIX}"
 
 
@@ -235,7 +240,7 @@ def _path_relative_to(full: str, prefix: str) -> str | None:
     if not prefix:
         return full
     if full == prefix:
-        return ""
+        return None
     pref = prefix + "/"
     if full.startswith(pref):
         return full[len(pref) :]
@@ -267,9 +272,11 @@ def _emit_entry(
 
 
 def _find_model_for_path(models: list[Any], remote_path: str) -> Any | None:
-    target = Path(remote_path).name
     for model in models:
-        if model.path and Path(model.path).name == target:
+        if (
+            model.path
+            and _model_artifact_path(model.name, model.path, model.id) == remote_path
+        ):
             return model
     return None
 

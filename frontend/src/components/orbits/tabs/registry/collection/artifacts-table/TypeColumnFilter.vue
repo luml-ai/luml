@@ -10,7 +10,7 @@
 import { ARTIFACT_TYPE_OPTIONS } from './models-table.data'
 import { Checkbox } from 'primevue'
 
-const modelValue = defineModel<string[] | null>('modelValue', { default: [] })
+const modelValue = defineModel<string[] | null>('modelValue', { default: () => [] })
 </script>
 
 <style scoped>

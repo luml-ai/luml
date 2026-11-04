@@ -2,21 +2,26 @@ name: Lumlflow Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'lumlflow/**'
+      - 'lumlflow/frontend/**'
+      - 'extras/js/packages/attachments/**'
+      - 'extras/js/packages/experiments/**'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'lumlflow/**'
-  workflow_dispatch:
+      - 'lumlflow/frontend/**'
+      - 'extras/js/packages/attachments/**'
+      - 'extras/js/packages/experiments/**'
+  workflow_call:
 
 jobs:
-  frontend:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -26,24 +31,44 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build frontend dependencies
+      - name: ESLint
+        working-directory: lumlflow/frontend
+        run: npm run lint
+
+      - name: Prettier check
+        working-directory: lumlflow/frontend
+        run: npm run format:check
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Install Linux Rollup binding
+        run: npm install @rollup/rollup-linux-x64-gnu --workspace=lumlflow/frontend
+
+      - name: Build workspace packages
         run: |
-          npm run build --workspace=@luml/experiments
-          npm run build --workspace=@luml/attachments
+          npm run build-only --workspace=@luml/attachments
+          npm run build-only --workspace=@luml/experiments
 
-      - name: Type checking
+      - name: Type check
         working-directory: lumlflow/frontend
-        run: npx vue-tsc --build
+        run: npm run type-check
 
-      - name: Linting
+      - name: Run unit tests
         working-directory: lumlflow/frontend
-        run: npx eslint .
+        run: npm run test:ci
 
-      - name: Running tests
-        working-directory: lumlflow/frontend
-        run: npx vitest run --config vitest.config.ts
-
-      - name: Build frontend
+      - name: Build
         working-directory: lumlflow/frontend
         run: npx vite build
 

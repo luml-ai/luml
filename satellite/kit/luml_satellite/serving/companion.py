@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from luml_satellite.authorization import AuthorizationVerdict, Authorizer
+from luml_satellite.authorization import AuthorizationVerdict, Authorizer, _VerdictCache
 from luml_satellite.tokens import TokenDeriver, TokenPurpose
 from luml_satellite.wire import InferenceAccessIn
 from luml_satellite.workload import DeploymentMetadata, LocalDeployment, RecordingPolicy
@@ -219,14 +219,18 @@ class CompanionAuthorizer:
         self._negative_ttl_seconds = negative_ttl_seconds
         self._clock = clock
         self._logger = logger or logging.getLogger("luml_satellite.serving.companion")
-        self._cache: dict[str, _AuthorizationCacheEntry] = {}
+        self._cache = _VerdictCache[_AuthorizationCacheEntry](1024)
+        self._denied_cache = _VerdictCache[_AuthorizationCacheEntry](64)
         self._refreshes: dict[str, asyncio.Task[None]] = {}
         self._unavailable_logged = False
 
     async def authorize(self, api_key: str) -> AuthorizationVerdict:
         cache_key = hashlib.sha256(api_key.encode()).hexdigest()
         now = self._clock()
-        cached = self._cache.get(cache_key)
+        cached = self._cache.get(cache_key, now)
+        denied = self._denied_cache.get(cache_key, now)
+        if cached is None:
+            cached = denied
         if cached is not None and cached.expires_at > now:
             if (
                 cached.verdict is AuthorizationVerdict.ALLOWED
@@ -265,7 +269,7 @@ class CompanionAuthorizer:
             if verdict is AuthorizationVerdict.ALLOWED
             else self._negative_ttl_seconds
         )
-        self._cache[cache_key] = _AuthorizationCacheEntry(
+        cached = _AuthorizationCacheEntry(
             verdict=verdict,
             expires_at=now + ttl,
             stale_until=(
@@ -274,6 +278,12 @@ class CompanionAuthorizer:
                 else now + ttl
             ),
         )
+        if verdict is AuthorizationVerdict.ALLOWED:
+            self._denied_cache.discard(cache_key)
+            self._cache.put(cache_key, cached, cached.stale_until)
+        else:
+            self._cache.discard(cache_key)
+            self._denied_cache.put(cache_key, cached, cached.stale_until)
         self._unavailable_logged = False
         return verdict
 

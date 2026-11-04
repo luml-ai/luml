@@ -30,8 +30,8 @@ export const useAuthStore = defineStore('auth', () => {
     AnalyticsService.identify(response.user_id, data.email)
   }
 
-  const loginWithGoogle = async (code: string) => {
-    const response = await api.googleLogin({ code })
+  const loginWithGoogle = async (code: string, state: string) => {
+    const response = await api.googleLogin({ code, state })
     authCheck = Promise.resolve()
     isAuth.value = true
     await usersStore.loadUser()
@@ -89,8 +89,8 @@ export const useAuthStore = defineStore('auth', () => {
     window.addEventListener('auth:logout', handleAuthLogout)
   }
 
-  const loginWithMicrosoft = async (code: string) => {
-    const response = await api.microsoftLogin({ code })
+  const loginWithMicrosoft = async (code: string, state: string) => {
+    const response = await api.microsoftLogin({ code, state })
     authCheck = Promise.resolve()
     isAuth.value = true
     await usersStore.loadUser()

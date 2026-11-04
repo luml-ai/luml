@@ -32,6 +32,7 @@ class RuntimeHealthMetric(Metric):
     """Request counts, error rate, latency percentiles and failed inferences.
 
     Derived from ``inference_events`` alone, so it needs no reference profile.
+    Empty windows materialize zero counts to advance progress and resolve runtime alerts.
     """
 
     metric = "runtime"
@@ -70,7 +71,7 @@ class RuntimeHealthMetric(Metric):
         return error_rate, latency
 
     def applies(self, context: DeploymentContext) -> bool:
-        return context.has_events
+        return True
 
     def compute(self, data: MetricInput) -> MetricComputation:
         events = data.events

@@ -3,24 +3,77 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from luml.infra.encryption import encrypt
+from luml.infra.encryption import decrypt, encrypt
 from luml.infra.exceptions import DatabaseConstraintError
 from luml.models import BucketSecretOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.bucket_secrets import (
+    AzureBucketSecretCreateIn,
     BucketSecret,
     BucketSecretCreate,
     BucketSecretOut,
     BucketSecretUpdate,
     BucketType,
-    validate_bucket_secret_out,
+    azure_public_endpoint,
 )
 
 
 class BucketSecretRepository(RepositoryBase, CrudMixin):
+    async def _check_azure_duplicate(
+        self,
+        session: AsyncSession,
+        organization_id: UUID,
+        bucket_name: str,
+        endpoint: str,
+        exclude_id: UUID | None = None,
+    ) -> None:
+        conditions: list[Any] = [
+            BucketSecretOrm.organization_id == organization_id,
+            BucketSecretOrm.type == BucketType.AZURE,
+            BucketSecretOrm.bucket_name == bucket_name,
+        ]
+        if exclude_id is not None:
+            conditions.append(BucketSecretOrm.id != exclude_id)
+        public_endpoint = azure_public_endpoint(endpoint)
+        for existing in await self.get_models_where(
+            session, BucketSecretOrm, *conditions
+        ):
+            if azure_public_endpoint(decrypt(existing.endpoint)) == public_endpoint:
+                raise DatabaseConstraintError()
+
+    async def _prepare_azure_update(
+        self,
+        session: AsyncSession,
+        db_secret: BucketSecretOrm,
+        update_data: dict[str, Any],
+    ) -> None:
+        endpoint = decrypt(db_secret.endpoint)
+        new_endpoint = update_data.get("endpoint")
+        if new_endpoint == azure_public_endpoint(endpoint):
+            update_data.pop("endpoint")
+        elif new_endpoint is not None:
+            AzureBucketSecretCreateIn(
+                endpoint=new_endpoint, bucket_name=db_secret.bucket_name
+            )
+            endpoint = new_endpoint
+            update_data["endpoint"] = encrypt(endpoint)
+        if "endpoint" in update_data or "bucket_name" in update_data:
+            await self._check_azure_duplicate(
+                session,
+                db_secret.organization_id,
+                update_data.get("bucket_name", db_secret.bucket_name),
+                endpoint,
+                exclude_id=db_secret.id,
+            )
+
     async def create_bucket_secret(self, secret: BucketSecretCreate) -> BucketSecret:
         async with self._get_session() as session:
+            if secret.type == BucketType.AZURE:
+                await self._check_azure_duplicate(
+                    session, secret.organization_id, secret.bucket_name, secret.endpoint
+                )
             orm_secret = BucketSecretOrm.from_bucket_secret(secret)
             session.add(orm_secret)
             try:
@@ -52,7 +105,7 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
                 BucketSecretOrm.id == secret_id,
                 BucketSecretOrm.organization_id == organization_id,
             )
-            return validate_bucket_secret_out(db_secret) if db_secret else None
+            return db_secret.to_bucket_secret_out() if db_secret else None
 
     async def get_organization_bucket_secrets(
         self, organization_id: UUID
@@ -63,7 +116,7 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
                 BucketSecretOrm,
                 BucketSecretOrm.organization_id == organization_id,
             )
-            return [validate_bucket_secret_out(secret) for secret in db_secrets]
+            return [secret.to_bucket_secret_out() for secret in db_secrets]
 
     async def update_bucket_secret(
         self, secret: BucketSecretUpdate, organization_id: UUID
@@ -82,12 +135,12 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
 
             update_data = secret.model_dump(exclude_unset=True, exclude={"type"})
             if db_secret.type == BucketType.S3:
-                if secret.access_key is not None:
-                    update_data["access_key"] = encrypt(secret.access_key)
-                if secret.secret_key is not None:
-                    update_data["secret_key"] = encrypt(secret.secret_key)
-                if secret.session_token is not None:
-                    update_data["session_token"] = encrypt(secret.session_token)
+                for field in ("access_key", "secret_key", "session_token"):
+                    value = getattr(secret, field)
+                    if value is not None:
+                        update_data[field] = encrypt(value)
+            elif db_secret.type == BucketType.AZURE:
+                await self._prepare_azure_update(session, db_secret, update_data)
             for field, value in update_data.items():
                 setattr(db_secret, field, value)
             try:
@@ -109,6 +162,8 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             )
             if not db_secret:
                 return False
+            if db_secret.orbits:
+                raise DatabaseConstraintError()
             await session.delete(db_secret)
             try:
                 await session.commit()

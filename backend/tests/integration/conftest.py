@@ -5,6 +5,7 @@ from uuid import UUID
 
 import asyncpg  # type: ignore[import-untyped]
 import pytest
+from luml.infra.auth_rate_limits import KEY_PREFIX, AuthRateLimiter
 from luml.models import OrganizationOrm
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
@@ -36,6 +37,7 @@ from luml.schemas.organization import (
 from luml.schemas.satellite import SatelliteCreate
 from luml.schemas.user import CreateUser
 from luml.settings import config
+from redis.asyncio import Redis
 from sqlalchemy import update
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
@@ -163,6 +165,28 @@ async def engine(
         yield engine
     finally:
         await engine.dispose()
+
+
+@pytest.fixture
+async def redis_client() -> AsyncGenerator[Redis]:
+    if not config.REDIS_URL:
+        pytest.fail("Integration tests require REDIS_URL to point at a test Redis")
+    client = Redis.from_url(config.REDIS_URL)
+    try:
+        async for key in client.scan_iter(f"{KEY_PREFIX}*"):
+            await client.delete(key)
+        yield client
+    finally:
+        await client.aclose()
+
+
+@pytest.fixture(autouse=True)
+def auth_rate_limiter(
+    redis_client: Redis, monkeypatch: pytest.MonkeyPatch
+) -> AuthRateLimiter:
+    limiter = AuthRateLimiter(redis_client)
+    monkeypatch.setattr("luml.infra.auth_rate_limits.limiter", limiter)
+    return limiter
 
 
 @pytest.fixture

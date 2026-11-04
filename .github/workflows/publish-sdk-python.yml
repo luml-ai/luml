@@ -8,6 +8,7 @@ on:
       - "lumlflow/v*"
       - "luml-prisma/v*"
       - "luml-mlflow/v*"
+      - "luml-relay/v*"
 
 jobs:
   publish:
@@ -58,6 +59,13 @@ jobs:
               echo "package_name=luml-mlflow" >> "$GITHUB_OUTPUT"
               echo "package_dir=extras/python/luml-mlflow" >> "$GITHUB_OUTPUT"
               echo "package_init=luml_mlflow/__init__.py" >> "$GITHUB_OUTPUT"
+              echo "requires_node=false" >> "$GITHUB_OUTPUT"
+              echo "version=${TAG##*/v}" >> "$GITHUB_OUTPUT"
+              ;;
+            luml-relay/v*)
+              echo "package_name=luml-relay" >> "$GITHUB_OUTPUT"
+              echo "package_dir=relay" >> "$GITHUB_OUTPUT"
+              echo "package_init=luml_relay/__init__.py" >> "$GITHUB_OUTPUT"
               echo "requires_node=false" >> "$GITHUB_OUTPUT"
               echo "version=${TAG##*/v}" >> "$GITHUB_OUTPUT"
               ;;

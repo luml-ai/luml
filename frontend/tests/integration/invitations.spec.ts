@@ -1,6 +1,14 @@
 import { test, expect } from './fixtures/test'
 import type { ApiMocks } from './fixtures/api-mocks'
-import { INVITE_ID, USER_FIXTURE, makeInvitation, makeOrganization } from './fixtures/data'
+import {
+  INVITE_ID,
+  ORG_ID,
+  USER_FIXTURE,
+  makeInvitation,
+  makeOrbit,
+  makeOrganization,
+  makeOrganizationDetails,
+} from './fixtures/data'
 
 const SIGNIN_SUCCESS = {
   detail: 'ok',
@@ -14,6 +22,8 @@ async function mockAuthenticatedInvitationPage(apiMocks: ApiMocks) {
   await apiMocks.get('**/v1/auth/users/me', USER_FIXTURE)
   await apiMocks.get('**/v1/users/me/organizations', [organization])
   await apiMocks.get('**/v1/users/me/invitations', [invitation])
+  await apiMocks.get(`**/v1/organizations/${ORG_ID}/orbits`, [makeOrbit()])
+  await apiMocks.get(`**/v1/organizations/${ORG_ID}`, makeOrganizationDetails())
 }
 
 test.describe('Invitation links', () => {
@@ -51,30 +61,40 @@ test.describe('Invitation links', () => {
     await expect(page).toHaveURL(/\/invitations$/)
   })
 
-  test('returns to invitations after Google sign-in', async ({ page, apiMocks }) => {
-    let userRequests = 0
-    await apiMocks.get('**/v1/auth/users/me', () => {
-      userRequests += 1
-      return userRequests === 1
-        ? { status: 401, body: { detail: 'Not authenticated' } }
-        : USER_FIXTURE
-    })
-    await apiMocks.get('**/v1/auth/google/callback**', SIGNIN_SUCCESS)
-    await apiMocks.get('**/v1/users/me/organizations', [makeOrganization()])
-    await apiMocks.get('**/v1/users/me/invitations', [])
-
-    await page.goto('/invitations')
-    const appOrigin = new URL(page.url()).origin
-    await page.route('**/v1/auth/google/login', async (route) => {
-      await route.fulfill({
-        status: 302,
-        headers: { location: `${appOrigin}/sign-in?code=oauth-code&state=google` },
+  for (const [provider, label] of [
+    ['google', 'Google'],
+    ['microsoft', 'Microsoft'],
+  ]) {
+    test(`returns to invitations after ${label} sign-in`, async ({ page, apiMocks }) => {
+      let userRequests = 0
+      await apiMocks.get('**/v1/auth/users/me', () => {
+        userRequests += 1
+        return userRequests === 1
+          ? { status: 401, body: { detail: 'Not authenticated' } }
+          : USER_FIXTURE
       })
-    })
-    await page.getByRole('button', { name: 'Sign in with Google' }).click()
+      await apiMocks.get(`**/v1/auth/${provider}/callback**`, SIGNIN_SUCCESS)
+      await apiMocks.get('**/v1/users/me/organizations', [makeOrganization()])
+      await apiMocks.get('**/v1/users/me/invitations', [])
 
-    await expect(page).toHaveURL(/\/invitations$/)
-  })
+      await page.goto('/invitations')
+      const appOrigin = new URL(page.url()).origin
+      const state = `${provider}.signed.state.token`
+      await page.route(`**/v1/auth/${provider}/login`, async (route) => {
+        await route.fulfill({
+          status: 302,
+          headers: { location: `${appOrigin}/sign-in?code=oauth-code&state=${state}` },
+        })
+      })
+      const callback = page.waitForRequest(`**/v1/auth/${provider}/callback**`)
+      await page.getByRole('button', { name: `Sign in with ${label}` }).click()
+
+      const params = new URL((await callback).url()).searchParams
+      expect(params.get('code')).toBe('oauth-code')
+      expect(params.get('state')).toBe(state)
+      await expect(page).toHaveURL(/\/invitations$/)
+    })
+  }
 
   test('preserves invitations through registration and email confirmation', async ({
     page,

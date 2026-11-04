@@ -2,6 +2,7 @@ import os
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +12,7 @@ class Settings(BaseSettings):
     AUTH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
     POSTGRESQL_DSN: str
+    REDIS_URL: str | None = None
 
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
@@ -39,7 +41,21 @@ class Settings(BaseSettings):
     TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL: str
     TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL: str
 
+    LIVE_SESSION_EXPOSE_TOKEN_LIFETIME_SECONDS: int = 600
+    LIVE_SESSION_VIEW_TOKEN_LIFETIME_SECONDS: int = 300
+    LIVE_SESSION_RELAY_TOKEN_OVERLAP_SECONDS: int = 600
+    # A session nobody has viewed for this long ends even while its agent
+    # heartbeats, so a forgotten process cannot hold a limit slot forever.
+    LIVE_SESSION_VIEWER_IDLE_SECONDS: int = 604800
+
     CORS_ORIGINS: str = "https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
+
+    LOGFIRE_TOKEN: SecretStr | None = None
+    LOGFIRE_ENVIRONMENT: Literal["dev", "staging", "prod"] = "dev"
+    LOGFIRE_SERVICE_VERSION: str = "0.1.0"
+    LOGFIRE_BASE_URL: Literal[
+        "https://logfire-us.pydantic.dev", "https://logfire-eu.pydantic.dev"
+    ] = "https://logfire-us.pydantic.dev"
 
     PLATFORM_ADMIN_EMAIL: str | None = None
     PLATFORM_ADMIN_AUTH_METHODS: str = "GOOGLE"

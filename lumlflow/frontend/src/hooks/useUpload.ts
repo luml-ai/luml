@@ -1,6 +1,6 @@
 import type { UploadArtifactPayload } from '@/components/upload/upload.interface'
 import { apiService } from '@/api/api.service'
-import { API_BASE_URL } from '@/api/client'
+import { api } from '@/api/client'
 import { errorToast } from '@/toasts'
 import { useToast } from 'primevue'
 import { ref } from 'vue'
@@ -22,7 +22,7 @@ export const useUpload = () => {
       loading.value = true
       error.value = null
       const response = await start()
-      initProgressWatch(response.job_id)
+      await initProgressWatch(response.job_id)
     } catch (err) {
       loading.value = false
       toast.add(errorToast(err))
@@ -35,11 +35,17 @@ export const useUpload = () => {
     complete.value = false
   }
 
-  function initProgressWatch(jobId: string) {
+  async function initProgressWatch(jobId: string) {
     reset()
-    const eventSource = new EventSource(`${API_BASE_URL}/luml/artifact/${jobId}/progress`)
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data)
+    const { data: stream } = await api.get<ReadableStream<Uint8Array>>(
+      `/luml/artifact/${jobId}/progress`,
+      { adapter: 'fetch', responseType: 'stream' },
+    )
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    function handleEvent(event: string) {
+      const data = JSON.parse(event.slice('data: '.length))
       if (data.type === 'progress') {
         progress.value = data.percent
       } else if (data.type === 'complete') {
@@ -48,22 +54,31 @@ export const useUpload = () => {
         }
         complete.value = true
         loading.value = false
-        eventSource.close()
         setTimeout(() => {
           reset()
         }, 3000)
       } else if (data.type === 'error') {
         error.value = data.message
         loading.value = false
-        eventSource.close()
       } else if (data.type === 'not_found') {
         error.value = 'Upload not found. Please try again.'
         loading.value = false
-        eventSource.close()
       }
     }
-    eventSource.onerror = () => {
-      eventSource.close()
+    try {
+      while (!complete.value && !error.value) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let boundary: number
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+          const event = buffer.slice(0, boundary)
+          buffer = buffer.slice(boundary + 2)
+          if (event.startsWith('data: ')) handleEvent(event)
+        }
+      }
+    } finally {
+      await reader.cancel()
       if (!complete.value) {
         error.value = error.value ?? 'Failed to receive upload progress. Please try again.'
         loading.value = false

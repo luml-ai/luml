@@ -314,7 +314,6 @@ class SatellitePair(BaseModel, BaseOrmConfig):
     openapi: dict[str, Any] | None = None
     kit_info: KitInfo | None = None
     paired: bool = True
-    last_seen_at: datetime
 
 
 class SatelliteContract(BaseModel):

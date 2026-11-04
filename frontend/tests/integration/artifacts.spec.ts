@@ -81,11 +81,26 @@ async function mockArtifactsBaseline(apiMocks: ApiMocks) {
 const collectionPageUrl = `/organization/${ORG_ID}/orbit/${ORBIT_ID}/collection/${COLLECTION_ID}`
 const artifactPageUrl = `${collectionPageUrl}/artifacts/${ARTIFACT_ID}`
 
-test.describe.configure({ mode: 'serial' })
-
 test.describe('Artifacts', () => {
   test.beforeEach(async ({ apiMocks }) => {
     await mockArtifactsBaseline(apiMocks)
+  })
+
+  test('enables compare from the snapshot flag of listed artifacts', async ({ page, apiMocks }) => {
+    const items = [makeArtifact(), makeArtifact({ id: ARTIFACT_ID_2, name: 'model-v2' })].map(
+      (artifact) => ({ ...artifact, manifest: {}, file_index: {}, has_experiment_snapshot: true }),
+    )
+    await apiMocks.get(
+      new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
+      { items, cursor: null },
+    )
+    await page.goto(collectionPageUrl)
+    await expect(page.getByText('model-v1', { exact: true })).toBeVisible()
+    const compare = page.getByRole('button', { name: 'Compare', exact: true })
+    await expect(compare).toBeDisabled()
+    await page.locator('.p-datatable-thead input[type="checkbox"]').first().check()
+    await expect(page.getByText('2 Selected')).toBeVisible()
+    await expect(compare).toBeEnabled()
   })
 
   test('Pick All selects all collection pages and keeps rows selected after scrolling', async ({

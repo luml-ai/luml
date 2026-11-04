@@ -10,9 +10,11 @@ Tag mapping, ``metadata`` column reads/writes, and run reconstruction live in
 :mod:`luml_mlflow.meta`; this file just composes those primitives.
 """
 
+import json
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from mlflow.entities import (
@@ -31,13 +33,17 @@ from mlflow.entities import (
 )
 from mlflow.store.entities import PagedList
 from mlflow.store.tracking.abstract_store import AbstractStore
+from mlflow.utils.search_utils import SearchExperimentsUtils, SearchUtils
+from mlflow.utils.time import get_current_time_millis
 
 from luml_mlflow import tracing as _tracing
-from luml_mlflow._tracker import get_tracker
+from luml_mlflow._tracker import delete_experiment_if, get_tracker, store_connection
 from luml_mlflow._unsupported import unsupported
 from luml_mlflow.meta import (
     LUML_LOCAL_ONLY,
+    META_RUN_INFO,
     RUN_ARTIFACT_URI,
+    RUN_DELETED_TIME,
     RUN_LIFECYCLE_STAGE,
     RUN_STATUS,
     RUN_USER_ID,
@@ -45,6 +51,7 @@ from luml_mlflow.meta import (
     reconstruct_run,
     write_luml_internal,
     write_run_info_field,
+    write_run_info_fields,
     write_tag,
     write_tags,
 )
@@ -53,6 +60,11 @@ from luml_mlflow.uri import LumlTarget, build_artifact_uri, parse_tracking_uri
 logger = logging.getLogger(__name__)
 
 DEFAULT_EXPERIMENT_NAME = "Default"
+
+
+def _is_deleted_metadata(metadata: dict[str, Any]) -> bool:
+    run_info = metadata.get(META_RUN_INFO) or {}
+    return run_info.get(RUN_LIFECYCLE_STAGE) == LifecycleStage.DELETED
 
 
 class LumlTrackingStore(AbstractStore):
@@ -69,7 +81,11 @@ class LumlTrackingStore(AbstractStore):
         self._store_uri = store_uri or ""
         self._target = self._parse_target(store_uri)
         self._tracker = get_tracker()
-        self._logged_models: dict[str, dict[str, Any]] = {}
+        with store_connection(self._tracker) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS mlflow_logged_models "
+                "(model_id TEXT PRIMARY KEY, record TEXT NOT NULL)"
+            )
         self._ensure_default_experiment()
 
     @staticmethod
@@ -174,13 +190,15 @@ class LumlTrackingStore(AbstractStore):
         order_by: list[str] | None = None,
         page_token: str | None = None,
     ) -> PagedList[Experiment]:
-        groups = self._tracker.list_groups()
-        if order_by:
-            groups = _apply_order_by(groups, order_by)
-        else:
-            groups = sorted(groups, key=lambda g: g.created_at, reverse=True)
-        experiments = [self._group_to_experiment(g) for g in groups]
-        return PagedList(experiments[:max_results], token=None)
+        experiments = [
+            self._group_to_experiment(g) for g in self._tracker.list_groups()
+        ]
+        filtered = SearchExperimentsUtils.filter(experiments, filter_string)
+        ordered = SearchExperimentsUtils.sort(
+            filtered, order_by or ["creation_time DESC", "experiment_id ASC"]
+        )
+        page, next_token = SearchUtils.paginate(ordered, page_token, max_results)
+        return PagedList(page, token=next_token)
 
     def delete_experiment(self, experiment_id: str) -> None:
         unsupported(
@@ -311,13 +329,62 @@ class LumlTrackingStore(AbstractStore):
             )
 
     def delete_run(self, run_id: str) -> None:
-        self._tracker.delete_experiment(run_id)
+        """Mark a run deleted without removing its data.
+
+        MLflow's ``delete_run`` is a soft delete: the run keeps its metadata,
+        metrics, and artifacts, but is hidden from default searches and can be
+        restored with :meth:`restore_run`. The lifecycle stage is stored in the
+        run's ``run_info`` metadata, which :func:`reconstruct_run` already reads.
+        """
+        self._set_lifecycle(
+            run_id,
+            {
+                RUN_LIFECYCLE_STAGE: LifecycleStage.DELETED,
+                RUN_DELETED_TIME: get_current_time_millis(),
+            },
+        )
 
     def restore_run(self, run_id: str) -> None:
-        unsupported(
-            f"restore_run({run_id!r}) is not supported by the luml store",
-            exception_factory=NotImplementedError,
+        """Reverse :meth:`delete_run` by marking the run active again."""
+        self._set_lifecycle(
+            run_id,
+            {RUN_LIFECYCLE_STAGE: LifecycleStage.ACTIVE, RUN_DELETED_TIME: None},
         )
+
+    def _set_lifecycle(self, run_id: str, updates: dict[str, Any]) -> None:
+        try:
+            write_run_info_fields(self._tracker, run_id, updates)
+        except ValueError as exc:
+            from mlflow.exceptions import MlflowException
+
+            raise MlflowException(f"Run {run_id!r} not found") from exc
+        self._require_run(run_id)
+
+    def _get_deleted_runs(self, older_than: int = 0) -> list[str]:
+        threshold = get_current_time_millis() - older_than
+        deleted: list[str] = []
+        for record in self._tracker.list_experiments():
+            run_info = (record.metadata or {}).get(META_RUN_INFO) or {}
+            if run_info.get(RUN_LIFECYCLE_STAGE) != LifecycleStage.DELETED:
+                continue
+            deleted_time = run_info.get(RUN_DELETED_TIME)
+            if deleted_time is None or int(deleted_time) <= threshold:
+                deleted.append(record.id)
+        return deleted
+
+    def _hard_delete_run(self, run_id: str) -> None:
+        if delete_experiment_if(self._tracker, run_id, _is_deleted_metadata):
+            return
+        self._require_run(run_id)
+        from mlflow.exceptions import MlflowException
+
+        raise MlflowException(f"Run {run_id!r} is not in the deleted lifecycle stage")
+
+    def _require_run(self, run_id: str) -> None:
+        if self._tracker.get_experiment_record(run_id) is None:
+            from mlflow.exceptions import MlflowException
+
+            raise MlflowException(f"Run {run_id!r} not found")
 
     # ---------------------------------------------------------- params/metrics
 
@@ -382,16 +449,26 @@ class LumlTrackingStore(AbstractStore):
     ) -> tuple[list[Run], str | None]:
         ids = set(experiment_ids or [])
         records = [r for r in self._tracker.list_experiments() if r.group_id in ids]
-        if order_by:
-            records = _apply_order_by(records, order_by)
-        else:
-            records = sorted(records, key=lambda r: r.created_at, reverse=True)
         runs: list[Run] = []
-        for record in records[:max_results]:
+        for record in records:
             run = reconstruct_run(self._tracker, record.id, self._artifact_uri_for_run)
             if run is not None:
                 runs.append(run)
-        return runs, None
+        if run_view_type == ViewType.ACTIVE_ONLY:
+            runs = [
+                run
+                for run in runs
+                if run.info.lifecycle_stage != LifecycleStage.DELETED
+            ]
+        elif run_view_type == ViewType.DELETED_ONLY:
+            runs = [
+                run
+                for run in runs
+                if run.info.lifecycle_stage == LifecycleStage.DELETED
+            ]
+        filtered = SearchUtils.filter(runs, filter_string)
+        ordered = SearchUtils.sort(filtered, order_by)
+        return SearchUtils.paginate(ordered, page_token, max_results)
 
     # ----------------------------------------------------------------- traces
 
@@ -429,7 +506,12 @@ class LumlTrackingStore(AbstractStore):
         locations: list[str] | None = None,
     ) -> tuple[list[TraceInfo], str | None]:
         return _tracing.search_traces(
-            self._tracker, experiment_ids, max_results=max_results
+            self._tracker,
+            locations if locations is not None else experiment_ids,
+            max_results=max_results,
+            filter_string=filter_string,
+            order_by=order_by,
+            page_token=page_token,
         )
 
     # --------------------------------------------------------- logged models
@@ -474,7 +556,11 @@ class LumlTrackingStore(AbstractStore):
             "tags": {t.key: t.value for t in tags or []},
             "params": {p.key: p.value for p in params or []},
         }
-        self._logged_models[model_id] = rec
+        with store_connection(self._tracker) as conn:
+            conn.execute(
+                "INSERT INTO mlflow_logged_models (model_id, record) VALUES (?, ?)",
+                (model_id, json.dumps(rec)),
+            )
         return self._to_logged_model(rec)
 
     def get_logged_model(
@@ -491,17 +577,16 @@ class LumlTrackingStore(AbstractStore):
         order_by: list[dict[str, Any]] | None = None,
         page_token: str | None = None,
     ) -> PagedList[LoggedModel]:
-        """Return logged models scoped to ``experiment_ids``.
-
-        The MLflow 3.x run-details page calls this to render its Models section,
-        so it must not raise (the base ``AbstractStore`` does). Logged models are
-        held in-process, so a fresh server process returns an empty page rather
-        than the models a separate training process logged.
-        """
+        """Return persisted logged models scoped to ``experiment_ids``."""
         wanted = set(experiment_ids or [])
+        with store_connection(self._tracker) as conn:
+            records = [
+                json.loads(row[0])
+                for row in conn.execute("SELECT record FROM mlflow_logged_models")
+            ]
         models = [
             self._to_logged_model(rec)
-            for rec in self._logged_models.values()
+            for rec in records
             if rec["experiment_id"] in wanted
         ]
         models.sort(key=lambda m: m.creation_timestamp, reverse=True)
@@ -512,21 +597,43 @@ class LumlTrackingStore(AbstractStore):
     def finalize_logged_model(
         self, model_id: str, status: LoggedModelStatus
     ) -> LoggedModel:
-        rec = self._require_logged_model(model_id)
-        rec["status"] = status
-        rec["last_updated_timestamp"] = self._now_ms()
-        return self._to_logged_model(rec)
+        def update(rec: dict[str, Any]) -> None:
+            rec["status"] = status
+
+        return self._to_logged_model(self._update_logged_model(model_id, update))
 
     def set_logged_model_tags(self, model_id: str, tags: list[Any]) -> None:
-        rec = self._require_logged_model(model_id)
-        for tag in tags or []:
-            rec["tags"][tag.key] = tag.value
-        rec["last_updated_timestamp"] = self._now_ms()
+        def update(rec: dict[str, Any]) -> None:
+            rec["tags"].update({tag.key: tag.value for tag in tags or []})
+
+        self._update_logged_model(model_id, update)
 
     def delete_logged_model_tag(self, model_id: str, key: str) -> None:
-        rec = self._require_logged_model(model_id)
-        rec["tags"].pop(key, None)
-        rec["last_updated_timestamp"] = self._now_ms()
+        def update(rec: dict[str, Any]) -> None:
+            rec["tags"].pop(key, None)
+
+        self._update_logged_model(model_id, update)
+
+    def _update_logged_model(
+        self, model_id: str, fn: Callable[[dict[str, Any]], None]
+    ) -> dict[str, Any]:
+        with store_connection(self._tracker) as conn:
+            row = conn.execute(
+                "SELECT record FROM mlflow_logged_models WHERE model_id = ?",
+                (model_id,),
+            ).fetchone()
+            if row is None:
+                from mlflow.exceptions import MlflowException
+
+                raise MlflowException(f"LoggedModel {model_id!r} not found")
+            rec = json.loads(row[0])
+            fn(rec)
+            rec["last_updated_timestamp"] = self._now_ms()
+            conn.execute(
+                "UPDATE mlflow_logged_models SET record = ? WHERE model_id = ?",
+                (json.dumps(rec), model_id),
+            )
+        return rec
 
     def log_outputs(self, run_id: str, models: list[Any]) -> None:
         # Records the run → LoggedModel linkage. The model artifacts are already
@@ -535,12 +642,16 @@ class LumlTrackingStore(AbstractStore):
         return None
 
     def _require_logged_model(self, model_id: str) -> dict[str, Any]:
-        rec = self._logged_models.get(model_id)
-        if rec is None:
+        with store_connection(self._tracker) as conn:
+            row = conn.execute(
+                "SELECT record FROM mlflow_logged_models WHERE model_id = ?",
+                (model_id,),
+            ).fetchone()
+        if row is None:
             from mlflow.exceptions import MlflowException
 
             raise MlflowException(f"LoggedModel {model_id!r} not found")
-        return rec
+        return json.loads(row[0])
 
     @staticmethod
     def _to_logged_model(rec: dict[str, Any]) -> LoggedModel:
@@ -553,7 +664,7 @@ class LumlTrackingStore(AbstractStore):
             last_updated_timestamp=rec["last_updated_timestamp"],
             model_type=rec["model_type"],
             source_run_id=rec["source_run_id"],
-            status=rec["status"],
+            status=LoggedModelStatus(rec["status"]),
             tags=dict(rec["tags"]),
             params=dict(rec["params"]),
         )
@@ -605,49 +716,6 @@ def _decode_group_tags(raw_tags: list[str]) -> dict[str, str]:
         key, sep, value = raw.partition("=")
         out[key] = value if sep else ""
     return out
-
-
-def _apply_order_by(items: list[Any], order_by: list[str]) -> list[Any]:
-    """Apply a minimal ``order_by`` clause list.
-
-    Supports the small set of keys real MLflow callers exercise on a tracking
-    store with no SQL filter engine: ``created_at`` / ``start_time`` /
-    ``last_modified`` / ``name`` with an optional ``ASC``/``DESC`` direction.
-    Unknown keys silently fall back to ``created_at`` order.
-    """
-    if not order_by:
-        return items
-
-    def parse(clause: str) -> tuple[str, bool]:
-        parts = clause.strip().split()
-        key = parts[0].lower()
-        direction = parts[1].upper() if len(parts) > 1 else "ASC"
-        return key, direction == "DESC"
-
-    sorted_items = items
-    for clause in reversed(order_by):
-        key, reverse = parse(clause)
-        if key in {"created_at", "creation_time", "start_time"}:
-            sorted_items = sorted(
-                sorted_items,
-                key=lambda item: item.created_at,
-                reverse=reverse,
-            )
-        elif key == "name":
-            sorted_items = sorted(
-                sorted_items,
-                key=lambda item: (item.name or "").lower(),
-                reverse=reverse,
-            )
-        elif key in {"last_modified", "last_update_time"}:
-            sorted_items = sorted(
-                sorted_items,
-                key=lambda item: (
-                    getattr(item, "last_modified", None) or item.created_at
-                ),
-                reverse=reverse,
-            )
-    return sorted_items
 
 
 __all__ = ["DEFAULT_EXPERIMENT_NAME", "LumlTrackingStore"]

@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
@@ -97,7 +98,43 @@ class _AzureBucketSecretBase(BaseModel):
     bucket_name: str
 
 
-class AzureBucketSecretCreateIn(_AzureBucketSecretBase): ...
+def azure_public_endpoint(connection_string: str) -> str:
+    fields = {
+        key.strip(): value.strip()
+        for part in connection_string.split(";")
+        for key, separator, value in [part.partition("=")]
+        if separator
+    }
+    return ";".join(
+        f"{key}={fields[key]}"
+        for key, pattern in (
+            ("AccountName", r"[a-z0-9]{3,24}"),
+            ("EndpointSuffix", r"[a-z0-9.-]+"),
+        )
+        if key in fields and re.fullmatch(pattern, fields[key])
+    )
+
+
+class AzureBucketSecretCreateIn(_AzureBucketSecretBase):
+    @field_validator("endpoint")
+    @classmethod
+    def validate_connection_string(cls, value: str) -> str:
+        fields: dict[str, str] = {}
+        for part in value.strip().rstrip(";").split(";"):
+            key, separator, field_value = part.partition("=")
+            key = key.strip()
+            if not separator or key in fields or not field_value.strip():
+                raise ValueError("Invalid Azure connection string")
+            fields[key] = field_value.strip()
+        if not fields.get("AccountName") or not fields.get("AccountKey"):
+            raise ValueError("Invalid Azure connection string")
+        if not re.fullmatch(r"[a-z0-9]{3,24}", fields["AccountName"]):
+            raise ValueError("Invalid Azure account name")
+        if "EndpointSuffix" in fields and not re.fullmatch(
+            r"[a-z0-9.-]+", fields["EndpointSuffix"]
+        ):
+            raise ValueError("Invalid Azure endpoint suffix")
+        return value
 
 
 class AzureBucketSecretCreate(AzureBucketSecretCreateIn):
@@ -120,6 +157,11 @@ class AzureBucketSecretOut(BaseModel, BaseOrmConfig):
     created_at: datetime
     updated_at: datetime | None = None
     orbits: list[OrbitBase] = []
+
+    @field_validator("endpoint")
+    @classmethod
+    def hide_connection_credentials(cls, value: str) -> str:
+        return azure_public_endpoint(value)
 
 
 BucketSecretCreateIn = Annotated[

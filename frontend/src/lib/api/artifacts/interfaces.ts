@@ -55,6 +55,10 @@ export interface Artifact {
   collection?: { id: string; name: string }
 }
 
+export type ArtifactListed = Omit<Artifact, 'manifest' | 'file_index'> & {
+  has_experiment_snapshot?: boolean
+}
+
 export interface ArtifactTrack {
   id: string
   name: string
@@ -132,7 +136,7 @@ export interface CreateArtifactResponse {
 
 export interface GetArtifactsListResponse {
   cursor: string | null
-  items: Artifact[]
+  items: ArtifactListed[]
 }
 
 export interface GetArtifactsListParams {

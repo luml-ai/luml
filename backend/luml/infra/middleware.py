@@ -3,7 +3,7 @@ from collections.abc import Awaitable, Callable
 from starlette.datastructures import Headers
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse, Response
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
@@ -63,3 +63,31 @@ class CrossOriginBlockMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_without_cors_headers)
+
+
+class CookieCSRFMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app: ASGIApp, allowed_origins: list[str]) -> None:
+        super().__init__(app)
+        self.allowed_origins = set(allowed_origins) - {"*", "null"}
+
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        uses_session_cookie = bool(
+            request.cookies.get("access_token") or request.cookies.get("refresh_token")
+        )
+        # refresh and logout use cookies even when an authorization header is present
+        uses_cookie_auth = uses_session_cookie and (
+            not request.headers.get("Authorization")
+            or request.url.path in {"/v1/auth/refresh", "/v1/auth/logout"}
+        )
+        if request.method not in {"GET", "HEAD", "OPTIONS"} and uses_cookie_auth:
+            origin = request.headers.get("Origin")
+            same_origin = f"{request.url.scheme}://{request.url.netloc}"
+            if origin != same_origin and origin not in self.allowed_origins:
+                return JSONResponse(
+                    {"detail": "CSRF origin check failed"}, status_code=403
+                )
+        return await call_next(request)

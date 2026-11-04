@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="100" onload="parent.document.documentElement.setAttribute('data-svg-onload', 'executed')">
+  <rect width="100" height="100" fill="green" />
+  <script>parent.document.documentElement.setAttribute('data-svg-xss', 'script')</script>
+  <set attributeName="onmouseover" to="parent.document.documentElement.setAttribute('data-svg-xss', 'set')" />
+  <a xlink:href="javascript:parent.document.documentElement.setAttribute('data-svg-xss', 'link')"><text y="20">click</text></a>
+  <foreignObject width="100" height="100"><body xmlns="http://www.w3.org/1999/xhtml"><img src="invalid:" onerror="parent.document.documentElement.setAttribute('data-svg-xss', 'foreignObject')" /></body></foreignObject>
+</svg>

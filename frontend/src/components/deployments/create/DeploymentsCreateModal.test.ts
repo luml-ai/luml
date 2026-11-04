@@ -2,6 +2,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import DeploymentsCreateModal from './DeploymentsCreateModal.vue'
+import { getInitialFormData } from '../deployments.const'
+import type { CreateDeploymentForm } from '../deployments.interfaces'
+import type { CreateDeploymentPayload } from '@/lib/api/deployments/interfaces'
 
 const deploymentsStore = {
   createDeployment: vi.fn(),
@@ -166,5 +169,55 @@ describe('DeploymentsCreateModal', () => {
     expect(deployButton().attributes('disabled')).toBeDefined()
 
     wrapper.unmount()
+  })
+})
+
+describe('DeploymentsCreateModal getPayload', () => {
+  function getPayload(form: CreateDeploymentForm) {
+    const wrapper = mountModal()
+    const payload = (
+      wrapper.vm as unknown as {
+        getPayload: (form: CreateDeploymentForm) => CreateDeploymentPayload
+      }
+    ).getPayload(form)
+    wrapper.unmount()
+    return payload
+  }
+
+  it('includes custom variables alongside manifest variables', () => {
+    const form = getInitialFormData()
+    form.notSecretEnvs = [{ key: 'FROM_MANIFEST', value: '1', label: 'Manifest variable' }]
+    form.customVariables = [{ key: 'LOG_LEVEL', value: 'debug' }]
+
+    expect(getPayload(form).env_variables).toEqual({ FROM_MANIFEST: '1', LOG_LEVEL: 'debug' })
+  })
+
+  it('omits incomplete custom rows and unset manifest variables', () => {
+    const form = getInitialFormData()
+    form.notSecretEnvs = [{ key: 'UNSET', value: null, label: 'Unset variable' }]
+    form.customVariables = [
+      { key: '', value: '' },
+      { key: '', value: 'orphan' },
+      { key: 'EMPTY', value: '' },
+      { key: 'NULL', value: null },
+      { key: 'ZERO', value: '0' },
+    ]
+
+    expect(getPayload(form).env_variables).toEqual({ ZERO: '0' })
+  })
+
+  it('uses custom values when a key also appears in the manifest', () => {
+    const form = getInitialFormData()
+    form.notSecretEnvs = [{ key: 'LOG_LEVEL', value: 'info', label: 'Log level' }]
+    form.customVariables = [{ key: 'LOG_LEVEL', value: 'debug' }]
+
+    expect(getPayload(form).env_variables).toEqual({ LOG_LEVEL: 'debug' })
+  })
+
+  it('keeps manifest variables when there are no custom variables', () => {
+    const form = getInitialFormData()
+    form.notSecretEnvs = [{ key: 'FROM_MANIFEST', value: '1', label: 'Manifest variable' }]
+
+    expect(getPayload(form).env_variables).toEqual({ FROM_MANIFEST: '1' })
   })
 })

@@ -1,4 +1,4 @@
-suite: generated derivation key upgrades
+suite: stored derivation key upgrades
 templates:
   - templates/secret-derivation.yaml
 release:
@@ -28,3 +28,11 @@ tests:
       - equal:
           path: stringData.derivation-key
           value: stable-generated-key
+
+  - it: uses an explicit key instead of the stored key for intentional rotation
+    set:
+      satellite.derivationKey: rotated-derivation-key
+    asserts:
+      - equal:
+          path: stringData.derivation-key
+          value: rotated-derivation-key

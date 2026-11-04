@@ -155,13 +155,47 @@ class TestMonitoringWorker:
         assert [result.metric for result in store.results] == ["runtime"]
         assert store.results[0].profile_status is ProfileStatus.ABSENT
 
-    async def test_no_events_produces_no_runtime_result(self) -> None:
+    async def test_no_events_materializes_an_empty_runtime_result(self) -> None:
         store = InMemoryMonitoringStore()
         worker = _worker(store, default_registry())
 
         await worker.tick(now=NOW)
 
-        assert store.results == []
+        assert [result.metric for result in store.results] == ["runtime"]
+        assert store.results[0].values["request_count"] == 0
+        assert await store.last_materialized_window("dep") == NOW
+
+    async def test_runtime_alerts_resolve_when_traffic_stops(self) -> None:
+        store = InMemoryMonitoringStore()
+        store.add_events(
+            "dep",
+            [
+                InferenceEvent(
+                    event_id="timeout",
+                    deployment_id="dep",
+                    status="timeout",
+                    status_code=504,
+                    latency_ms=2000.0,
+                    timestamp=datetime(2026, 1, 1, 11, 56, tzinfo=UTC),
+                )
+            ],
+        )
+        worker = _worker(store, default_registry())
+
+        await worker.tick(now=NOW)
+
+        assert {alert.metric for alert in await store.active_alerts("dep")} == {
+            "runtime:error_rate",
+            "runtime:latency_p95",
+            "runtime:timeout_count",
+        }
+
+        await worker.tick(now=LATER)
+
+        assert await store.active_alerts("dep") == []
+        assert all(alert.state is AlertState.RESOLVED for alert in store.alerts.values())
+        assert all(alert.last_seen == LATER for alert in store.alerts.values())
+        assert store.results[-1].values["request_count"] == 0
 
     async def test_results_and_alerts_are_materialized(self) -> None:
         store = InMemoryMonitoringStore()
@@ -298,14 +332,36 @@ class TestMonitoringWorker:
 
         assert store.results == []
 
-    async def test_storage_write_failure_is_isolated(self) -> None:
+    @pytest.mark.parametrize("has_events", [False, True])
+    async def test_storage_write_failure_is_isolated(self, has_events: bool) -> None:
         store = FailingWriteStore()
-        store.add_events("dep", [_ok_event()])
+        if has_events:
+            store.add_events("dep", [_ok_event()])
         worker = _worker(store, default_registry())
 
         await worker.tick(now=NOW)  # must not raise
 
         assert store.results == []
+        assert await store.last_materialized_window("dep") is None
+        assert worker.health.for_deployment("dep").failures[0].metric == "runtime"
+
+    async def test_empty_window_retries_after_a_failed_write(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        store = InMemoryMonitoringStore()
+        worker = _worker(store, default_registry())
+
+        with monkeypatch.context() as patch:
+            patch.setattr(store, "write_result", FailingWriteStore().write_result)
+            await worker.tick(now=NOW)
+
+        assert await store.last_materialized_window("dep") is None
+
+        await worker.tick(now=NOW)
+
+        assert await store.last_materialized_window("dep") == NOW
+        assert len(store.results) == 1
+        assert worker.health.for_deployment("dep").failures == ()
 
     async def test_window_recovers_after_transient_storage_failure(self) -> None:
         healthy = InMemoryMonitoringStore()

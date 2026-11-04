@@ -15,6 +15,7 @@
     "test:ci": "vitest run",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
+    "format:check": "prettier --check --experimental-cli src/",
     "style": "npx style-dictionary build --config style-dictionary.config.mjs"
   },
   "devDependencies": {
@@ -34,7 +35,7 @@
     "jiti": "^2.6.1",
     "npm-run-all2": "^8.0.4",
     "prettier": "3.7.4",
-    "style-dictionary": "^4.3.0",
+    "style-dictionary": "^5.4.4",
     "typescript": "~5.9.3",
     "vue-tsc": "^3.2.2"
   },
@@ -56,17 +57,17 @@
     "@primevue/themes": "^4.3.9",
     "@vueuse/core": "^14.2.1",
     "arquero": "^7.2.1",
-    "dompurify": "^3.2.7",
+    "dompurify": "^3.4.17",
     "github-markdown-css": "^5.8.1",
-    "js-yaml": "^5.1.0",
+    "js-yaml": "^5.4.1",
     "jszip": "^3.10.1",
     "lucide-vue-next": "^0.460.0",
-    "marked": "^16.2.0",
+    "marked": "^17.0.0",
     "pinia": ">=2.2.6",
     "plotly.js-dist": "^3.0.3",
     "primevue": "^4.4.1",
     "sql.js": "^1.13.0",
-    "uuid": "^14.0.0",
+    "uuid": "^14.0.3",
     "vue": "^3.5.12"
   }
 }

@@ -73,8 +73,8 @@ async function submit() {
   isLoading.value = true
   const data = getDataForTraining()
   try {
-    const result = (await props.predictCallback(data)) as object
-    downloadPredictBlob.value = convertObjectToCsvBlob(result)
+    const result = (await props.predictCallback(data)) as ArrayLike<string | number>
+    downloadPredictBlob.value = convertObjectToCsvBlob({ prediction: result })
   } catch (e) {
     toast.add(predictErrorToast(e as string))
     filePredictWithError.value = true

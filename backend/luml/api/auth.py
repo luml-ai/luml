@@ -1,6 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from starlette.responses import RedirectResponse
 
 from luml.clients.oauth_providers import (
@@ -8,6 +17,7 @@ from luml.clients.oauth_providers import (
     OAuthMicrosoftProvider,
 )
 from luml.handlers.auth import AuthHandler
+from luml.infra.auth_rate_limits import limit_auth_attempts
 from luml.infra.dependencies import UserAuthentication
 from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
@@ -70,12 +80,16 @@ def set_auth_cookies(response: Response, data: Token) -> None:
 
 
 @auth_router.post("/signup", response_model=DetailResponse)
-async def signup(create_user: CreateUserIn) -> dict[str, str]:
+async def signup(request: Request, create_user: CreateUserIn) -> dict[str, str]:
+    await limit_auth_attempts(request, create_user.email)
     return await auth_handler.handle_signup(create_user)
 
 
 @auth_router.post("/signin", response_model=SignInAPIResponse)
-async def signin(user: SignInUser, response: Response) -> SignInAPIResponse:
+async def signin(
+    request: Request, user: SignInUser, response: Response
+) -> SignInAPIResponse:
+    await limit_auth_attempts(request, user.email)
     signin_response = await auth_handler.handle_signin(user)
     set_auth_cookies(response, signin_response.token)
     return SignInAPIResponse(
@@ -85,12 +99,38 @@ async def signin(user: SignInUser, response: Response) -> SignInAPIResponse:
 
 @auth_router.get("/google/login")
 async def google_login() -> RedirectResponse:
-    return RedirectResponse(google_auth_handler.get_oauth_login_url())
+    state = google_auth_handler.create_oauth_state()
+    response = RedirectResponse(google_auth_handler.get_oauth_login_url(state))
+    response.set_cookie(
+        key="__Host-oauth_google_state",
+        value=state,
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+        max_age=300,
+    )
+    return response
 
 
 @auth_router.get("/google/callback", response_model=SignInAPIResponse)
-async def google_callback(code: str | None, response: Response) -> SignInAPIResponse:
+async def google_callback(
+    request: Request,
+    response: Response,
+    state: Annotated[str | None, Query(max_length=4096)] = None,
+    code: Annotated[str | None, Query(max_length=4096)] = None,
+) -> SignInAPIResponse:
+    google_auth_handler.validate_oauth_state(
+        state, request.cookies.get("__Host-oauth_google_state")
+    )
     signin_response = await google_auth_handler.handle_oauth(code)
+    response.delete_cookie(
+        "__Host-oauth_google_state",
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+    )
     set_auth_cookies(response, signin_response.token)
     return SignInAPIResponse(
         detail="Successfully authenticated with Google", user_id=signin_response.user_id
@@ -109,7 +149,8 @@ async def refresh(request: Request, response: Response) -> dict[str, str]:
 
 
 @auth_router.post("/forgot-password", response_model=DetailResponse)
-async def forgot_password(data: ForgotPasswordIn) -> dict[str, str]:
+async def forgot_password(request: Request, data: ForgotPasswordIn) -> dict[str, str]:
+    await limit_auth_attempts(request, data.email)
     await auth_handler.send_password_reset_email(data.email)
     return {"detail": "Password reset email has been sent"}
 
@@ -134,10 +175,12 @@ async def delete_account(
 @auth_router.post("/change-password", response_model=DetailResponse)
 async def change_password(
     request: Request,
+    response: Response,
     passwords: ChangePasswordIn,
     _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
-    await auth_handler.handle_change_password(request.user.email, passwords)
+    tokens = await auth_handler.handle_change_password(request.user.email, passwords)
+    set_auth_cookies(response, tokens)
     return {"detail": "Password changed successfully"}
 
 
@@ -185,21 +228,49 @@ async def confirm_email(
 
 @auth_router.post("/reset-password", response_model=DetailResponse)
 async def reset_password(
+    request: Request,
     reset_token: Annotated[str, Body()],
     new_password: Annotated[str, Body(min_length=8, max_length=128)],
 ) -> dict[str, str]:
+    await limit_auth_attempts(request, reset_token=reset_token)
     await auth_handler.handle_reset_password(reset_token, new_password)
     return {"detail": "Password reset successfully"}
 
 
 @auth_router.get("/microsoft/login")
 async def microsoft_login() -> RedirectResponse:
-    return RedirectResponse(microsoft_auth_handler.get_oauth_login_url())
+    state = microsoft_auth_handler.create_oauth_state()
+    response = RedirectResponse(microsoft_auth_handler.get_oauth_login_url(state))
+    response.set_cookie(
+        key="__Host-oauth_microsoft_state",
+        value=state,
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+        max_age=300,
+    )
+    return response
 
 
 @auth_router.get("/microsoft/callback")
-async def microsoft_callback(code: str | None, response: Response) -> SignInAPIResponse:
+async def microsoft_callback(
+    request: Request,
+    response: Response,
+    state: Annotated[str | None, Query(max_length=4096)] = None,
+    code: Annotated[str | None, Query(max_length=4096)] = None,
+) -> SignInAPIResponse:
+    microsoft_auth_handler.validate_oauth_state(
+        state, request.cookies.get("__Host-oauth_microsoft_state")
+    )
     signin_response = await microsoft_auth_handler.handle_oauth(code)
+    response.delete_cookie(
+        "__Host-oauth_microsoft_state",
+        httponly=True,
+        secure=True,
+        samesite=config.AUTH_COOKIE_SAMESITE,
+        path="/",
+    )
     set_auth_cookies(response, signin_response.token)
 
     return SignInAPIResponse(

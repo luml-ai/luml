@@ -147,7 +147,7 @@ class RunAttachScreen(BaseScreen):
             on_exit=self._on_exit,
         )
         # Kick off the subprocess; this is async because we need an event
-        # loop for `create_subprocess_exec`. The poll timer is started
+        # loop for log streaming. The poll timer is started
         # once the process has been kicked off (the snapshot must be
         # taken before any new experiment lands). `@work` makes this a
         # fire-and-forget Worker; no await is needed.
@@ -180,6 +180,10 @@ class RunAttachScreen(BaseScreen):
         if self._run is None:
             return
         await self._run.start()
+        if self._run.state.log_dir is not None:
+            self.query_one("#run-log", RunLogPane).append_status(
+                f"Logs: {self._run.state.log_dir}", level="info"
+            )
         # Once the process has been kicked off (or rejected), start the
         # attach poll loop. `@work` without `thread=True` runs the body
         # on the event loop, so we can schedule the timer directly.

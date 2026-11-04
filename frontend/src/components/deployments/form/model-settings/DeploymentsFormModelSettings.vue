@@ -114,16 +114,37 @@
         </div>
         <div class="custom-variables__content">
           <div v-for="(item, index) in customVariables" :key="index" class="custom-variables__item">
-            <FormField :name="`customVariables.${index}.key`">
-              <InputText v-model="item.key" placeholder="Enter key" size="small" fluid></InputText>
+            <FormField
+              v-slot="$field"
+              :name="`customVariables.${index}.key`"
+              :validate-on-blur="true"
+            >
+              <InputText
+                v-model="item.key"
+                :invalid="$field.invalid"
+                placeholder="Enter key"
+                size="small"
+                fluid
+              ></InputText>
+              <Message v-if="$field.invalid" severity="error" size="small" variant="simple">
+                {{ $field.error?.message }}
+              </Message>
             </FormField>
-            <FormField :name="`customVariables.${index}.value`">
+            <FormField
+              v-slot="$field"
+              :name="`customVariables.${index}.value`"
+              :validate-on-blur="true"
+            >
               <InputText
                 v-model="item.value"
+                :invalid="$field.invalid"
                 placeholder="Enter value"
                 size="small"
                 fluid
               ></InputText>
+              <Message v-if="$field.invalid" severity="error" size="small" variant="simple">
+                {{ $field.error?.message }}
+              </Message>
             </FormField>
             <Button
               severity="secondary"
@@ -175,6 +196,7 @@ import {
   AccordionHeader,
   AccordionContent,
   InputText,
+  Message,
   Button,
 } from 'primevue'
 import { computed, onBeforeMount, ref, watch } from 'vue'
@@ -212,19 +234,19 @@ const envAccordion = ref<string[]>([])
 const collectionId = defineModel<string | null>('collectionId')
 const modelId = defineModel<string | null>('modelId')
 const secretDynamicAttributes = defineModel<FieldInfo<string>[]>('secretDynamicAttributes', {
-  default: [],
+  default: () => [],
 })
 const secretEnvs = defineModel<FieldInfo<string>[]>('secretEnvs', {
-  default: [],
+  default: () => [],
 })
 const dynamicAttributes = defineModel<FieldInfo[]>('dynamicAttributes', {
-  default: [],
+  default: () => [],
 })
 const notSecretEnvs = defineModel<FieldInfo<string>[]>('notSecretEnvs', {
-  default: [],
+  default: () => [],
 })
 const customVariables = defineModel<Omit<FieldInfo<string>, 'label'>[]>('customVariables', {
-  default: [],
+  default: () => [],
 })
 
 const selectedModel = ref<ModelArtifact | null>(null)

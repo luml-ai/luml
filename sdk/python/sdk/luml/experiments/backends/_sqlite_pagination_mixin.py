@@ -74,10 +74,15 @@ class SQLitePaginationMixin:
             else:
                 cmp_col = sort_expr
                 cmp_val = "?"
-            clause = f"WHERE (({cmp_col} {op} {cmp_val}) OR ({cmp_col} = {cmp_val} AND {id_column} {op} ?))"
-            return clause, [cursor_value, cursor_value, cursor_id]
+            clause = f"(({cmp_col} {op} {cmp_val}) OR ({cmp_col} = {cmp_val} AND {id_column} {op} ?))"
+            if order == "desc":
+                clause = f"({clause} OR {sort_expr} IS NULL)"
+            return f"WHERE {clause}", [cursor_value, cursor_value, cursor_id]
 
-        return f"WHERE ({id_column} {op} ?)", [cursor_id]
+        clause = f"({sort_expr} IS NULL AND {id_column} {op} ?)"
+        if order != "desc":
+            clause = f"({clause} OR {sort_expr} IS NOT NULL)"
+        return f"WHERE {clause}", [cursor_id]
 
     def _execute_paginated_query(
         self,

@@ -1,8 +1,12 @@
 name: Repo Root Artifacts Check
 
 on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - ".github/**"
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
   workflow_dispatch:
 
 jobs:
@@ -19,3 +23,13 @@ jobs:
             echo "$offending"
             exit 1
           fi
+
+  release-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.14"
+      - name: Check release gates
+        run: uv run --with pyyaml python -m unittest discover -s .github/tests

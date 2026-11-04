@@ -385,3 +385,79 @@ async def test_companion_placement_reports_why_the_sidecar_is_unhealthy(
         await placement.aclose()
 
     assert health == HealthCheck(healthy=False, detail=detail)
+
+
+@pytest.mark.asyncio
+async def test_companion_authorizer_bounds_allowed_cache_and_evicts_least_recently_used() -> None:
+    companion = FakeCompanion(allowed={f"key-{index}": True for index in range(1025)})
+    authorizer = CompanionAuthorizer(companion, clock=FakeClock())
+
+    for index in range(1024):
+        assert await authorizer.authorize(f"key-{index}") is AuthorizationVerdict.ALLOWED
+    assert await authorizer.authorize("key-0") is AuthorizationVerdict.ALLOWED
+    assert await authorizer.authorize("key-1024") is AuthorizationVerdict.ALLOWED
+    assert await authorizer.authorize("key-0") is AuthorizationVerdict.ALLOWED
+    assert companion.authorization_calls.count("key-0") == 1
+    assert await authorizer.authorize("key-1") is AuthorizationVerdict.ALLOWED
+    assert companion.authorization_calls.count("key-1") == 2
+    assert len(authorizer._cache._entries) == 1024
+    await authorizer.aclose()
+
+
+@pytest.mark.asyncio
+async def test_companion_authorizer_bounds_denials_without_evicting_allowed_keys() -> None:
+    companion = FakeCompanion()
+    authorizer = CompanionAuthorizer(companion, clock=FakeClock())
+    assert await authorizer.authorize("key") is AuthorizationVerdict.ALLOWED
+
+    for index in range(10000):
+        assert await authorizer.authorize(f"denied-{index}") is AuthorizationVerdict.DENIED
+    assert len(authorizer._denied_cache._entries) == 64
+    assert await authorizer.authorize("denied-9999") is AuthorizationVerdict.DENIED
+    assert companion.authorization_calls.count("denied-9999") == 1
+    assert await authorizer.authorize("denied-0") is AuthorizationVerdict.DENIED
+    assert companion.authorization_calls.count("denied-0") == 2
+    assert await authorizer.authorize("key") is AuthorizationVerdict.ALLOWED
+    assert companion.authorization_calls.count("key") == 1
+    await authorizer.aclose()
+
+
+@pytest.mark.asyncio
+async def test_companion_authorizer_periodic_cleanup_preserves_only_usable_stale_entries() -> None:
+    clock = FakeClock()
+    companion = FakeCompanion()
+    authorizer = CompanionAuthorizer(companion, clock=clock)
+    await authorizer.authorize("key")
+    await authorizer.authorize("denied")
+    companion.failure = CompanionUnavailableError("satellite down")
+
+    clock.now = 60
+    assert await authorizer.authorize("unrelated-key") is AuthorizationVerdict.UNAVAILABLE
+    assert len(authorizer._cache._entries) == 1
+    assert not authorizer._denied_cache._entries
+    assert await authorizer.authorize("key") is AuthorizationVerdict.ALLOWED
+
+    clock.now = 660
+    assert await authorizer.authorize("unrelated-key") is AuthorizationVerdict.UNAVAILABLE
+    assert not authorizer._cache._entries
+    assert await authorizer.authorize("key") is AuthorizationVerdict.UNAVAILABLE
+    await authorizer.aclose()
+
+
+@pytest.mark.asyncio
+async def test_companion_authorizer_denial_refresh_removes_stale_allowed_verdict() -> None:
+    clock = FakeClock()
+    companion = FakeCompanion()
+    authorizer = CompanionAuthorizer(companion, clock=clock)
+    assert await authorizer.authorize("key") is AuthorizationVerdict.ALLOWED
+
+    companion.allowed["key"] = False
+    clock.now = 50
+    assert await authorizer.authorize("key") is AuthorizationVerdict.ALLOWED
+    await _finish_background_refresh()
+    assert await authorizer.authorize("key") is AuthorizationVerdict.DENIED
+
+    companion.failure = CompanionUnavailableError("satellite down")
+    clock.now = 60
+    assert await authorizer.authorize("key") is AuthorizationVerdict.UNAVAILABLE
+    await authorizer.aclose()

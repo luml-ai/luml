@@ -9,8 +9,9 @@
   >
     <div>
       <p class="text">
-        This will permanently remove all members and work data linked to the organization. This
-        action is final and cannot be undone.
+        This will permanently remove
+        <span class="name">{{ organizationStore.currentOrganization?.name }}</span> with all its
+        members, orbits and data. This action is final and cannot be undone.
       </p>
       <div class="flex items-center gap-2">
         <Checkbox v-model="accept" inputId="deleteAccept" binary />
@@ -48,25 +49,35 @@ const accept = ref(false)
 const loading = ref(false)
 
 async function deleteOrganization() {
-  if (!organizationStore.currentOrganization) return
+  const organizationId = organizationStore.currentOrganization?.id
+  if (!organizationId) return
+  loading.value = true
   try {
-    loading.value = true
-    await organizationStore.deleteOrganization(organizationStore.currentOrganization.id)
-    router.push({ name: 'home' })
-    organizationStore.resetCurrentOrganization()
-    toast.add(
-      simpleSuccessToast('The organization and all associated data have been permanently removed.'),
-    )
+    await organizationStore.deleteOrganization(organizationId)
   } catch (e: unknown) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not delete organization')))
+    const deleted = !organizationStore.availableOrganizations.some(
+      (organization) => organization.id === organizationId,
+    )
+    if (!deleted) {
+      toast.add(simpleErrorToast(getErrorMessage(e, 'Could not delete organization')))
+      return
+    }
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not load the next organization')))
   } finally {
     loading.value = false
   }
+  router.replace({ name: 'home' })
+  toast.add(
+    simpleSuccessToast('The organization and all associated data have been permanently removed.'),
+  )
 }
 </script>
 
 <style scoped>
 .text {
   margin-bottom: 14px;
+}
+.name {
+  font-weight: 600;
 }
 </style>

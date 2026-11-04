@@ -79,12 +79,10 @@ async def pyfunc_compute(model_id: str, inputs: dict, dynamic_attributes: dict) 
 
 def pyfunc_deinit(model_id: str) -> dict | None:
     try:
-        fnnx_pyfunc = Store.get(model_id)
-        if hasattr(fnnx_pyfunc, "model_path") and os.path.exists(
-            fnnx_pyfunc.model_path
-        ):
-            os.remove(fnnx_pyfunc.model_path)
-        Store.delete(model_id)
+        fnnx_pyfunc = Store.pop(model_id)
+        model_path = getattr(fnnx_pyfunc, "model_path", None)
+        if model_path and os.path.exists(model_path):
+            os.remove(model_path)
         return success()
     except Exception as e:
         raise RuntimeError(f"Failed to deinitialize model: {str(e)}")

@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from luml_satellite.monitoring.compute.metric import Metric, MetricInput
 from luml_satellite.monitoring.compute.models import (
     DeploymentContext,
@@ -9,8 +11,9 @@ from luml_satellite.monitoring.compute.models import (
     MetricComputation,
     MonitoredDeployment,
     Severity,
+    TimeWindow,
 )
-from luml_satellite.monitoring.compute.registry import MetricRegistry
+from luml_satellite.monitoring.compute.registry import MetricRegistry, default_registry
 from luml_satellite.monitoring.compute.worker import MonitoringWorker
 from luml_satellite.monitoring.storage.store import InMemoryMonitoringStore
 
@@ -67,6 +70,67 @@ def _store_with_events() -> InMemoryMonitoringStore:
 
 
 class TestBackfill:
+    @pytest.mark.parametrize("has_old_event", [False, True])
+    async def test_idle_windows_advance_progress_without_repeated_reads(
+        self, has_old_event: bool
+    ) -> None:
+        class _CountingStore(InMemoryMonitoringStore):
+            reads = 0
+
+            async def read_events(
+                self, deployment_id: str, window: TimeWindow
+            ) -> list[InferenceEvent]:
+                self.reads += 1
+                return await super().read_events(deployment_id, window)
+
+        store = _CountingStore()
+        if has_old_event:
+            store.add_events(
+                "dep",
+                [
+                    InferenceEvent(
+                        event_id="old",
+                        deployment_id="dep",
+                        status="success",
+                        timestamp=NOW - timedelta(minutes=4),
+                    )
+                ],
+            )
+        worker = MonitoringWorker(
+            store=store,
+            registry=default_registry(),
+            provider=lambda: [MonitoredDeployment("dep", profile={})],
+            window_seconds=WINDOW_SECONDS,
+            interval_seconds=60.0,
+            max_backfill_windows=12,
+        )
+
+        await worker.tick(now=NOW)
+        assert await store.last_materialized_window("dep") == datetime(
+            2026, 1, 1, 12, 0, tzinfo=UTC
+        )
+
+        after_gap = NOW + timedelta(hours=3)
+        await worker.tick(now=after_gap)
+
+        assert store.reads == 13
+        assert worker.health.for_deployment("dep").windows_processed == 13
+        assert await store.last_materialized_window("dep") == datetime(
+            2026, 1, 1, 15, 0, tzinfo=UTC
+        )
+
+        await worker.tick(now=after_gap + timedelta(seconds=60))
+        await worker.tick(now=after_gap + timedelta(seconds=120))
+        assert store.reads == 13
+        assert worker.health.for_deployment("dep").windows_processed == 13
+
+        await worker.tick(now=after_gap + timedelta(minutes=5))
+        assert store.reads == 14
+        assert worker.health.for_deployment("dep").windows_processed == 14
+        assert await store.last_materialized_window("dep") == datetime(
+            2026, 1, 1, 15, 5, tzinfo=UTC
+        )
+
     async def test_a_fresh_deployment_starts_from_the_present(self) -> None:
         """Nothing materialized yet must not mean replaying whatever history the database has."""
         metric = _CountingMetric()

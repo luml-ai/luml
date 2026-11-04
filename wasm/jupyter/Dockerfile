@@ -7,10 +7,10 @@ WORKDIR /app
 
 RUN jupyter lite build --output-dir dist
 
-COPY ./server.py ./dist/server.py
+COPY ./server.py ./server.py
 
 WORKDIR /app/dist
 
 EXPOSE 8000
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server:app", "--app-dir", "/app", "--host", "0.0.0.0", "--port", "8000"]

@@ -260,3 +260,21 @@ class BucketConnectionError(ApplicationError):
             message=message,
             status_code=status_code,
         )
+
+
+class LiveSessionEndedError(ApplicationError):
+    def __init__(self, message: str = "Live session has ended") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
+
+
+class RelayHasUnendedSessionsError(ApplicationError):
+    def __init__(self, action: str, unended_sessions: int) -> None:
+        sessions = (
+            "1 session that has"
+            if unended_sessions == 1
+            else f"{unended_sessions} sessions that have"
+        )
+        super().__init__(
+            f"Cannot {action}: the relay has {sessions} not ended",
+            status.HTTP_409_CONFLICT,
+        )

@@ -12,7 +12,11 @@ from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging._template import SKlearnPyFunc
 from luml.utils.deps import find_dependencies, has_dependency
 from luml.utils.imports import get_version
-from luml.utils.packaging import TABULAR_MONITORING_TAG, add_reference_profile
+from luml.utils.packaging import (
+    TABULAR_MONITORING_TAG,
+    add_reference_profile,
+    resolve_dtype,
+)
 from luml.utils.time import get_epoch
 
 if TYPE_CHECKING:
@@ -24,14 +28,6 @@ try:
     import pandas as pd  # type: ignore[import-untyped]
 except ImportError:
     pd = None  # type: ignore[assignment]
-
-
-def _resolve_dtype(dtype: np.dtype) -> str:
-    if np.issubdtype(dtype, np.floating):
-        return "float"
-    if np.issubdtype(dtype, np.integer):
-        return "int"
-    return "str"
 
 
 def _get_default_deps() -> list[str]:
@@ -61,7 +57,7 @@ def _add_io(
     if pd is not None and isinstance(inputs, pd.DataFrame):
         input_order = list(inputs.columns)
         for col in input_order:
-            dtype = _resolve_dtype(inputs[col].dtype)  # type: ignore
+            dtype = resolve_dtype(inputs[col].dtype)  # type: ignore
             input_dtypes[col] = dtype
             builder.add_input(
                 NDJSON(
@@ -81,7 +77,7 @@ def _add_io(
         if example.ndim == 2:
             input_order = [f"x{i}" for i in range(example.shape[1])]
             for i, name in enumerate(input_order):
-                col_dtype = _resolve_dtype(example[:, i].dtype)
+                col_dtype = resolve_dtype(example[:, i].dtype)
                 builder.add_input(
                     NDJSON(
                         name=name,
@@ -92,7 +88,7 @@ def _add_io(
                 )
         else:
             shape = ["batch"] + list(example.shape[1:])
-            dtype = _resolve_dtype(example.dtype)
+            dtype = resolve_dtype(example.dtype)
             builder.add_input(
                 NDJSON(
                     name="input",
@@ -113,7 +109,7 @@ def _add_io(
     y_pred = estimator.predict(x)  # type: ignore
     y_array = np.asarray(y_pred)
     y_shape = ["batch"] + list(y_array.shape[1:])
-    y_dtype = _resolve_dtype(y_array.dtype)
+    y_dtype = resolve_dtype(y_array.dtype)
 
     builder.add_output(
         NDJSON(

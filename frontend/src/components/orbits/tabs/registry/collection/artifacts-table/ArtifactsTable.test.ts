@@ -1,7 +1,7 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DataTable } from 'primevue'
-import type { Artifact, GetArtifactsListResponse } from '@/lib/api/artifacts/interfaces'
+import type { ArtifactListed, GetArtifactsListResponse } from '@/lib/api/artifacts/interfaces'
 import ArtifactsTable from './ArtifactsTable.vue'
 import TableToolbar from './TableToolbar.vue'
 import { CanceledError } from 'axios'
@@ -18,9 +18,9 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/stores/artifacts', async () => {
   const { reactive } = await import('vue')
   const store = reactive({
-    artifactsList: [] as Artifact[],
+    artifactsList: [] as ArtifactListed[],
     getArtifactsExtraValues: harness.getArtifactsExtraValues,
-    setArtifactsList: (artifacts: Artifact[]) => {
+    setArtifactsList: (artifacts: ArtifactListed[]) => {
       store.artifactsList = artifacts
     },
   })
@@ -57,8 +57,8 @@ vi.mock('./TableToolbar.vue', () => ({
   },
 }))
 
-function artifacts(start: number, count: number): Artifact[] {
-  return Array.from({ length: count }, (_, index) => ({ id: `${start + index}` }) as Artifact)
+function artifacts(start: number, count: number): ArtifactListed[] {
+  return Array.from({ length: count }, (_, index) => ({ id: `${start + index}` }) as ArtifactListed)
 }
 
 function abortablePage() {
@@ -93,7 +93,7 @@ describe('ArtifactsTable Pick All', () => {
 
   async function mountTable() {
     wrapper = shallowMount(ArtifactsTable, {
-      global: { stubs: { DataTable: false }, directives: { tooltip: vi.fn() } },
+      global: { stubs: { DataTable: false }, directives: { tooltip: () => {} } },
     })
     await flushPromises()
     return wrapper.findComponent(DataTable)
@@ -103,7 +103,7 @@ describe('ArtifactsTable Pick All', () => {
     return wrapper
       .findComponent(TableToolbar)
       .props('selectedArtifacts')
-      .map((artifact: Artifact) => artifact.id)
+      .map((artifact: ArtifactListed) => artifact.id)
   }
 
   it('selects every collection page and keeps appended artifacts selected', async () => {

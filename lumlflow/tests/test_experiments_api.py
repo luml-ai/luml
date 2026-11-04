@@ -23,7 +23,9 @@ def client(tracker: ExperimentTracker) -> TestClient:
 
     experiments_handler.tracker = tracker
     groups_handler.tracker = tracker
-    return TestClient(app)
+    return TestClient(
+        app, headers={"Authorization": f"Bearer {app.state.session_token}"}
+    )
 
 
 def test_lumlflow_metadata_is_served_on_experiment_payloads(

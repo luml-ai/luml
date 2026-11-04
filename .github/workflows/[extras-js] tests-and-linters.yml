@@ -1,0 +1,78 @@
+name: Extras JS Packages Tests and Linters
+
+on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - 'extras/js/**'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    branches: [main, staging, production]
+    paths:
+      - 'extras/js/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [attachments, experiments]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Get Playwright version
+        if: matrix.package == 'attachments'
+        id: pw-version
+        run: |
+          VERSION=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        if: matrix.package == 'attachments'
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: matrix.package == 'attachments' && steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: matrix.package == 'attachments' && steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: ESLint
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npx eslint .
+
+      - name: Prettier check
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run format:check
+
+      - name: Type check
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run type-check
+
+      - name: Run unit tests
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run test:ci
+
+      - name: Build
+        working-directory: extras/js/packages/${{ matrix.package }}
+        run: npm run build-only

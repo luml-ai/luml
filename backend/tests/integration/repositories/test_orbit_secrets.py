@@ -1,7 +1,7 @@
 from uuid import uuid7
 
 import pytest
-from luml.infra.exceptions import OrbitSecretInUseError
+from luml.infra.exceptions import DatabaseConstraintError, OrbitSecretInUseError
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
@@ -261,3 +261,28 @@ class TestOrbitSecretRepository:
 
         assert await repository.delete_orbit_secret(secret.id, orbit_id) is True
         assert await repository.get_orbit_secret(secret.id, orbit_id) is None
+
+
+async def test_update_orbit_secret_rejects_duplicate_name_without_changing_secret(
+    repository: OrbitSecretRepository, seeded_orbit: OrbitFixtureData
+) -> None:
+    await repository.create_orbit_secret(
+        OrbitSecretCreate(name="taken", value="first", orbit_id=seeded_orbit.orbit.id)
+    )
+    secret = await repository.create_orbit_secret(
+        OrbitSecretCreate(
+            name="original", value="second", orbit_id=seeded_orbit.orbit.id
+        )
+    )
+
+    with pytest.raises(DatabaseConstraintError):
+        await repository.update_orbit_secret(
+            secret.id,
+            seeded_orbit.orbit.id,
+            OrbitSecretUpdate(name="taken", value="changed"),
+        )
+
+    stored = await repository.get_orbit_secret(secret.id, seeded_orbit.orbit.id)
+    assert stored is not None
+    assert stored.name == "original"
+    assert stored.value == "second"

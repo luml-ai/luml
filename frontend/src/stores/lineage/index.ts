@@ -4,7 +4,7 @@ import type {
   LineageCanvasNode,
   LineageNodeData,
 } from '@/components/lineage/lineage.interface'
-import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import type { Artifact, ArtifactListed } from '@/lib/api/artifacts/interfaces'
 import { api } from '@/lib/api'
 import { useArtifactsStore } from '@/stores/artifacts'
 import {
@@ -247,7 +247,7 @@ export const useLineageStore = defineStore('lineage', () => {
     detailedArtifact.value = artifact
   }
 
-  function addArtifact(artifact: Artifact, position?: XYPosition): void {
+  function addArtifact(artifact: ArtifactListed, position?: XYPosition): void {
     if (!isEditable.value || usedArtifactsIds.value.includes(artifact.id)) return
     const state = snapshot()
     const anchor = state.nodes.find((node) => node.data.variant === 'main') ?? state.nodes[0]
@@ -268,7 +268,7 @@ export const useLineageStore = defineStore('lineage', () => {
     replaceCanvasWithEdit(state)
   }
 
-  function replaceArtifact(artifact: Artifact): void {
+  function replaceArtifact(artifact: ArtifactListed): void {
     const oldId = replaceableArtifactId.value
     if (!canRewire.value || !oldId || usedArtifactsIds.value.includes(artifact.id)) return
     const state = snapshot()

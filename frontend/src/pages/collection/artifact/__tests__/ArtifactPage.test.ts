@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { flushPromises, shallowMount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
 import type { ExperimentSnapshotProvider } from '@luml/experiments'
 import { ArtifactStatusEnum, ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
@@ -8,10 +8,14 @@ import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import ArtifactPage from '../index.vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 
+enableAutoUnmount(afterEach)
+
 const apiMocks = vi.hoisted(() => ({
   getArtifact: vi.fn(),
   getDownloadUrl: vi.fn(),
 }))
+
+const datasetsReset = vi.hoisted(() => vi.fn())
 
 const routerHarness = vi.hoisted(() => ({
   route: null as null | {
@@ -71,7 +75,7 @@ vi.mock('@/stores/collections', () => ({
 }))
 
 vi.mock('@/stores/datasets', () => ({
-  useDatasetsStore: () => ({ reset: vi.fn() }),
+  useDatasetsStore: () => ({ reset: datasetsReset }),
 }))
 
 vi.mock('@/components/orbits/tabs/registry/collection/artifact/ArtifactTabs.vue', async () => {
@@ -158,6 +162,13 @@ describe('artifact page', () => {
     apiMocks.getArtifact.mockReset()
     apiMocks.getDownloadUrl.mockReset()
     mockedAxios.get.mockReset()
+    datasetsReset.mockReset()
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static revokeObjectURL = vi.fn()
+      },
+    )
     routerHarness.replace.mockReset()
     routerHarness.push.mockReset()
     if (!routerHarness.route) throw new Error('Route harness was not initialized')
@@ -165,6 +176,10 @@ describe('artifact page', () => {
     routerHarness.route.params.artifactId = 'model'
     apiMocks.getArtifact.mockResolvedValue(model())
     apiMocks.getDownloadUrl.mockResolvedValue({ url: 'https://download.test/model' })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('enables the tab after reading a non-empty attachment index', async () => {
@@ -244,6 +259,56 @@ describe('artifact page', () => {
     expect(routerHarness.replace).not.toHaveBeenCalled()
   })
 
+  it.each(['success', 'failure'])(
+    'clears artifact state before a %s navigation completes',
+    async (result) => {
+      mockedAxios.get.mockResolvedValue({ data: {} })
+      const wrapper = mountPage()
+      await flushPromises()
+      const store = useArtifactsStore()
+      const releaseProvider = vi.fn()
+      store.setCurrentModelTag(FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1)
+      store.setCurrentModelMetadata({} as NonNullable<typeof store.currentModelMetadata>)
+      store.setCurrentModelHtmlBlobUrl('blob:model-a')
+      store.setExperimentSnapshotProvider({} as ExperimentSnapshotProvider, releaseProvider)
+      const resetsBeforeNavigation = datasetsReset.mock.calls.length
+      let resolveArtifact!: (artifact: Artifact) => void
+      let rejectArtifact!: (error: Error) => void
+      apiMocks.getArtifact.mockReturnValueOnce(
+        new Promise<Artifact>((resolve, reject) => {
+          resolveArtifact = resolve
+          rejectArtifact = reject
+        }),
+      )
+
+      if (!routerHarness.route) throw new Error('Route harness was not initialized')
+      routerHarness.route.params.artifactId = 'model-b'
+      await flushPromises()
+
+      expect(store.currentArtifact).toBeNull()
+      expect(store.currentModelTag).toBeNull()
+      expect(store.currentModelMetadata).toBeNull()
+      expect(store.currentModelHtmlBlobUrl).toBeNull()
+      expect(store.experimentSnapshotProvider).toBeNull()
+      expect(releaseProvider).toHaveBeenCalledOnce()
+      expect(datasetsReset).toHaveBeenCalledTimes(resetsBeforeNavigation + 1)
+      expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:model-a')
+      expect(store.attachmentsIndex).toBeNull()
+      expect(store.attachmentsStatus).toBe('idle')
+
+      if (result === 'success') resolveArtifact({ ...model(), id: 'model-b' })
+      else rejectArtifact(new Error('not found'))
+      await flushPromises()
+
+      expect(store.currentArtifact?.id ?? null).toBe(result === 'success' ? 'model-b' : null)
+      expect(store.currentModelMetadata).toBeNull()
+      expect(store.experimentSnapshotProvider).toBeNull()
+      wrapper.unmount()
+      expect(releaseProvider).toHaveBeenCalledOnce()
+      expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:model-a')
+    },
+  )
+
   it('retains cached card and snapshot state across tabs and clears it on teardown', async () => {
     mockedAxios.get.mockResolvedValue({ data: {} })
     const wrapper = mountPage()
@@ -272,6 +337,8 @@ describe('artifact page', () => {
       expect(releaseProvider).not.toHaveBeenCalled()
     }
     expect(apiMocks.getArtifact).toHaveBeenCalledTimes(1)
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+    const resetsBeforeUnmount = datasetsReset.mock.calls.length
 
     wrapper.unmount()
 
@@ -281,5 +348,7 @@ describe('artifact page', () => {
     expect(store.currentModelHtmlBlobUrl).toBeNull()
     expect(store.experimentSnapshotProvider).toBeNull()
     expect(releaseProvider).toHaveBeenCalledTimes(1)
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:card')
+    expect(datasetsReset).toHaveBeenCalledTimes(resetsBeforeUnmount + 1)
   })
 })

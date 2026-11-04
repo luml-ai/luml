@@ -80,7 +80,7 @@ export const SIDEBAR_SECTIONS = [
         id: 9,
         label: 'Flow',
         icon: ChartSpline,
-        route: 'flow',
+        route: 'orbit-flow',
         disabled: false,
         tooltipMessage: null,
         analyticsOption: 'flow',

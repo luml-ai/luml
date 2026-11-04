@@ -67,3 +67,103 @@ describe('FNNX first-use initialization', () => {
     expect(initialize).not.toHaveBeenCalled()
   })
 })
+
+describe('FNNX model cleanup', () => {
+  beforeEach(() => {
+    initialize.mockResolvedValue({ status: 'success', model_id: 'first' })
+    deinitialize.mockResolvedValue({ status: 'success' })
+  })
+
+  it('deinitializes the previous Python model before uploading a replacement', async () => {
+    const hook = useFnnxModel()
+    await hook.createModelFromFile(file)
+    initialize.mockResolvedValue({ status: 'success', model_id: 'second' })
+    await hook.createModelFromFile(file)
+    expect(deinitialize).toHaveBeenCalledExactlyOnceWith('first')
+    expect(deinitialize.mock.invocationCallOrder[0]).toBeLessThan(
+      initialize.mock.invocationCallOrder[1],
+    )
+    expect(hook.modelId.value).toBe('second')
+  })
+
+  it('clears the Python ID when switching to a non-Python model', async () => {
+    const hook = useFnnxModel()
+    await hook.createModelFromFile(file)
+    getManifest.mockReturnValue({ variant: 'onnx' })
+    await hook.createModelFromFile(file)
+    expect(deinitialize).toHaveBeenCalledWith('first')
+    expect(hook.modelId.value).toBeNull()
+    await hook.deinit()
+    expect(deinitialize).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes a model once and clears its state after deinitialization', async () => {
+    const hook = useFnnxModel()
+    await hook.createModelFromFile(file)
+    await hook.removeModel()
+    await hook.deinit()
+    expect(deinitialize).toHaveBeenCalledExactlyOnceWith('first')
+    expect(hook.modelId.value).toBeNull()
+    expect(hook.getModel.value).toBeNull()
+    expect(hook.currentTag.value).toBeNull()
+  })
+
+  it('shares simultaneous cleanup instead of deleting the same model twice', async () => {
+    const hook = useFnnxModel()
+    await hook.createModelFromFile(file)
+    let resolve!: () => void
+    deinitialize.mockReturnValue(
+      new Promise<void>((done) => {
+        resolve = done
+      }),
+    )
+    const first = hook.deinit()
+    const second = hook.removeModel()
+    expect(deinitialize).toHaveBeenCalledTimes(1)
+    resolve()
+    await Promise.all([first, second])
+    expect(hook.modelId.value).toBeNull()
+  })
+
+  it('keeps the old model available for retry if cleanup fails and does not initialize a replacement', async () => {
+    const hook = useFnnxModel()
+    await hook.createModelFromFile(file)
+    const previous = hook.getModel.value
+    deinitialize.mockRejectedValueOnce(new Error('Cleanup failed'))
+    await expect(hook.createModelFromFile(file)).rejects.toThrow('Cleanup failed')
+    expect(hook.modelId.value).toBe('first')
+    expect(hook.getModel.value).toBe(previous)
+    expect(initialize).toHaveBeenCalledTimes(1)
+    await hook.removeModel()
+    expect(deinitialize).toHaveBeenCalledTimes(2)
+    expect(hook.modelId.value).toBeNull()
+  })
+
+  it('does not remove a model when the replacement has an invalid extension', async () => {
+    const hook = useFnnxModel()
+    await hook.createModelFromFile(file)
+    await expect(hook.createModelFromFile(new File([], 'invalid.zip'))).rejects.toThrow(
+      'Incorrect file format',
+    )
+    expect(deinitialize).not.toHaveBeenCalled()
+    expect(hook.modelId.value).toBe('first')
+  })
+})
+
+it('deinitializes a model that finishes uploading after page cleanup was requested', async () => {
+  let resolve!: (value: unknown) => void
+  initialize.mockReturnValue(
+    new Promise((done) => {
+      resolve = done
+    }),
+  )
+  deinitialize.mockResolvedValue({ status: 'success' })
+  const hook = useFnnxModel()
+  const pending = hook.createModelFromFile(file)
+  await flushPromises()
+  await hook.deinit()
+  resolve({ status: 'success', model_id: 'late' })
+  await pending
+  expect(deinitialize).toHaveBeenCalledExactlyOnceWith('late')
+  expect(hook.modelId.value).toBeNull()
+})

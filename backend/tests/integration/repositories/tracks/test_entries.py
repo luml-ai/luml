@@ -21,7 +21,7 @@ from tests.integration.repositories.tracks.conftest import (
     _collect_pages,
     _seed_entries,
 )
-from tests.support.builders import create_artifact
+from tests.support.builders import create_artifact, create_sibling_orbit
 from tests.support.seeds import CollectionFixtureData
 
 
@@ -387,6 +387,50 @@ class TestTrackEntryRepository:
         assert updated is not None
         assert updated.stage_id == stage.id
 
+    async def test_update_entry_keeps_stage_when_stage_is_unset(
+        self,
+        repository: TrackRepository,
+        stage_repository: TrackStageRepository,
+        entry_repository: TrackEntryRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        artifact_template: ArtifactCreate,
+    ) -> None:
+        track = await repository.create_track(
+            TrackCreate(
+                orbit_id=seeded_collection.orbit.id,
+                name="unset-stage-entry-track",
+                artifact_type=ArtifactType.MODEL,
+            )
+        )
+        stage = await stage_repository.create_stage(
+            StageCreate(track_id=track.id, name="Production")
+        )
+        artifact = await create_artifact(
+            engine,
+            artifact_template,
+            seeded_collection.collection.id,
+            name=f"artifact-{uuid.uuid4().hex[:8]}",
+        )
+        entry = await entry_repository.create_entry(
+            TrackEntryCreate(
+                track_id=track.id,
+                artifact_id=artifact.id,
+                stage_id=stage.id,
+                added_by=seeded_collection.user.email,
+            )
+        )
+
+        untouched = await entry_repository.update_entry(entry.id, TrackEntryUpdate())
+        assert untouched is not None
+        assert untouched.stage_id == stage.id
+
+        cleared = await entry_repository.update_entry(
+            entry.id, TrackEntryUpdate(stage_id=None)
+        )
+        assert cleared is not None
+        assert cleared.stage_id is None
+
     async def test_delete_entry_removes_entry(
         self,
         repository: TrackRepository,
@@ -548,7 +592,9 @@ class TestTrackEntryRepository:
             )
         )
 
-        entries = await entry_repository.list_entries_for_artifact(artifact.id)
+        entries = await entry_repository.list_entries_for_artifact(
+            artifact.id, orbit_id=seeded_collection.orbit.id
+        )
         assert len(entries) == 2
         track_ids = {e.track_id for e in entries}
         assert track_ids == {track1.id, track2.id}
@@ -883,3 +929,38 @@ class TestTrackEntryRepository:
 
         assert entry.stage_id == stage.id
         assert entry.stage_name == "Production"
+
+
+async def test_artifact_entry_listing_excludes_tracks_outside_orbit(
+    repository: TrackRepository,
+    entry_repository: TrackEntryRepository,
+    seeded_collection: CollectionFixtureData,
+    artifact_template: ArtifactCreate,
+) -> None:
+    data = seeded_collection
+    sibling = await create_sibling_orbit(
+        data.engine, data.organization.id, data.bucket_secret.id
+    )
+    artifact = await create_artifact(
+        data.engine, artifact_template, data.collection.id, name="artifact"
+    )
+    own_track = await repository.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id, name="own", artifact_type=ArtifactType.MODEL
+        )
+    )
+    foreign_track = await repository.create_track(
+        TrackCreate(
+            orbit_id=sibling.id, name="foreign", artifact_type=ArtifactType.MODEL
+        )
+    )
+    for track in (own_track, foreign_track):
+        await entry_repository.create_entry(
+            TrackEntryCreate(
+                track_id=track.id, artifact_id=artifact.id, added_by=data.user.email
+            )
+        )
+    entries = await entry_repository.list_entries_for_artifact(
+        artifact.id, orbit_id=data.orbit.id
+    )
+    assert [entry.track_id for entry in entries] == [own_track.id]

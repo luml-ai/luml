@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@/api/monitoring', () => ({
   getHeader: vi.fn(),
@@ -53,6 +53,8 @@ function mountApp() {
   // drawers teleport to the body; keep them inline so assertions stay on the wrapper
   return mount(App, { global: { stubs: { apexchart: true, teleport: true } } })
 }
+
+enableAutoUnmount(afterEach)
 
 describe('App (dashboard shell)', () => {
   beforeEach(() => {
@@ -320,6 +322,30 @@ describe('App (dashboard shell)', () => {
     )
   })
 
+  it('reopens a data-quality feature when its banner is followed again after closing the drawer', async () => {
+    const [banner] = makeRuntime().alerts
+    getDataQuality.mockResolvedValue(
+      makeDataQuality({
+        alerts: [{ ...banner, group: 'data_quality', metric: 'data_quality:region', feature: 'region' }],
+      }),
+    )
+    const wrapper = mountApp()
+    await flushPromises()
+    await wrapper.get('[data-testid="tab-data-quality"]').trigger('click')
+    await flushPromises()
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await wrapper.get('[data-testid="alert-banner"]').trigger('click')
+      await wrapper.get('[data-testid="alert-show-feature"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(true)
+
+      await wrapper.get('[data-testid="invalid-values-drawer-close"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(false)
+    }
+  })
+
   it('switches to the Reference profile tab and shows the artifact document', async () => {
     const wrapper = mountApp()
     await flushPromises()
@@ -358,5 +384,34 @@ describe('App (dashboard shell)', () => {
     expect(wrapper.find('[data-testid="feature-detail"]').text()).toContain('age')
     expect(wrapper.find('[data-testid="session-expired"]').exists()).toBe(false)
     expect(postMessage).not.toHaveBeenCalled()
+  })
+  it('keeps the list and drawer visible with an inline error, then allows retry', async () => {
+    let rejectAcknowledge!: (reason: Error) => void
+    acknowledgeAlert.mockImplementationOnce(() => new Promise((_, reject) => {
+      rejectAcknowledge = reject
+    })).mockResolvedValue(makeAlerts())
+    const wrapper = mountApp()
+    try {
+      await flushPromises()
+      await wrapper.get('[data-testid="tab-alerts"]').trigger('click')
+      await flushPromises()
+      await wrapper.findAll('[data-testid="alert-row"]')[0].trigger('click')
+      await wrapper.get('[data-testid="alert-acknowledge"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.findAll('[data-testid="alert-row"]')).toHaveLength(2)
+      rejectAcknowledge(new Error('unavailable'))
+      await flushPromises()
+
+      expect(wrapper.findAll('[data-testid="alert-row"]')).toHaveLength(2)
+      expect(wrapper.find('[data-testid="alert-drawer"]').exists()).toBe(true)
+      expect(wrapper.get('[role="alert"]').text()).toContain('Could not acknowledge alert')
+
+      await wrapper.get('[data-testid="alert-acknowledge"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+      expect(wrapper.findAll('[data-testid="alert-row"]')).toHaveLength(2)
+    } finally {
+      wrapper.unmount()
+    }
   })
 })

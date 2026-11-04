@@ -15,5 +15,9 @@ class Store:
         return cls._store[key]
 
     @classmethod
+    def pop(cls, key):
+        return cls._store.pop(key, None)
+
+    @classmethod
     def delete(cls, key):
-        del cls._store[key]
+        cls.pop(key)

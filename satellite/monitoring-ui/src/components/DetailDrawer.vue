@@ -37,6 +37,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, watch } from 'vue'
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock'
 
 // The sliding panel shell: each tab supplies the header identity and the body itself.
 const props = defineProps<{
@@ -53,23 +54,19 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') emit('close')
 }
 
-// The panel covers the viewport, so the page behind it must not scroll away underneath.
-function lockPage(locked: boolean) {
-  document.body.style.overflow = locked ? 'hidden' : ''
-}
+useBodyScrollLock(() => props.open)
 
 watch(
   () => props.open,
   (open) => {
-    lockPage(open)
     if (open) document.addEventListener('keydown', onKeydown)
     else document.removeEventListener('keydown', onKeydown)
   },
+  { immediate: true },
 )
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown)
-  lockPage(false)
 })
 </script>
 

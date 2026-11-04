@@ -13,6 +13,7 @@ from luml_satellite.monitoring.dashboard.schemas import (
     SeverityFilter,
     Window,
 )
+from luml_satellite.monitoring.storage.greptime_query import GreptimeQueryStore
 from luml_satellite.monitoring.storage.query_store import (
     DeploymentDescriptor,
     EventStatus,
@@ -273,14 +274,101 @@ class TestQueryService:
         assert result.state is SectionState.OK
         assert result.request_count == 9
         assert result.success_count == 5
-        assert result.error_count == 2
+        assert result.error_count == 4
         assert result.timeout_count == 1
-        assert result.failed_inference_count == 1
+        assert result.failed_inference_count == 4
         assert result.error_rate == pytest.approx(4 / 9)
         assert result.success_rate == pytest.approx(5 / 9)
         assert result.latency_p50_ms == 50
         assert result.latency_p95_ms == 90
         assert result.latency_max_ms == 90
+
+    async def test_stored_http_failures_feed_runtime_counters_and_breakdown(self) -> None:
+        dep = uuid.uuid4()
+        store = InMemoryMonitoringStore()
+        for code in (422, 504):
+            event = GreptimeQueryStore._to_event(
+                dep,
+                {
+                    "timestamp": int(ago(100).timestamp() * 1_000_000_000),
+                    "span_attributes": {
+                        "inference.event_id": f"event-{code}",
+                        "inference.status": "error",
+                        "inference.status_code": code,
+                        "inference.latency_ms": 5.0,
+                    },
+                },
+            )
+            assert event is not None
+            store.add_event(event)
+
+        service = _service(store)
+        result = await service.runtime(dep, QueryDimensions())
+
+        assert result.request_count == result.error_count == 2
+        assert result.success_count == 0
+        assert result.timeout_count == result.failed_inference_count == 1
+        assert result.error_rate == 1.0
+        assert {(row.status, row.status_code): row.count for row in result.status_breakdown} == {
+            ("error", 422): 1,
+            ("error", 504): 1,
+        }
+        for code in (422, 504):
+            detail = await service.trace_detail(dep, QueryDimensions(), f"event-{code}")
+            assert detail.trace is not None
+            assert detail.trace.status_code == code
+
+    @pytest.mark.parametrize(
+        ("status", "code", "success", "timeouts", "failed"),
+        [
+            ("success", 201, 1, 0, 0),
+            ("success", 302, 1, 0, 0),
+            ("error", 422, 0, 0, 0),
+            ("error", 500, 0, 0, 1),
+            ("error", 504, 0, 1, 1),
+            ("timeout", 422, 0, 1, 1),
+            ("timed_out", 422, 0, 1, 1),
+            ("deadline_exceeded", 422, 0, 1, 1),
+            ("failed", 422, 0, 0, 1),
+            ("failure", 422, 0, 0, 1),
+            (" COMPLETED ", 200, 1, 0, 0),
+            ("", 204, 1, 0, 0),
+            ("", 422, 0, 0, 0),
+        ],
+    )
+    async def test_runtime_and_baseline_use_worker_outcome_classification(
+        self, status: str, code: int, success: int, timeouts: int, failed: int
+    ) -> None:
+        dep = uuid.uuid4()
+        store = InMemoryMonitoringStore()
+        for offset in (100, 30 * 3600):
+            store.add_event(
+                InferenceEvent(
+                    event_id=str(offset),
+                    deployment_id=dep,
+                    ts=ago(offset),
+                    status=status,
+                    status_code=code,
+                    latency_ms=5.0,
+                )
+            )
+
+        result = await _service(store).runtime(dep, QueryDimensions(compare=Compare.PREVIOUS))
+
+        assert result.request_count == 1
+        assert result.success_count == success
+        assert result.error_count == 1 - success
+        assert result.error_rate == 1 - success
+        assert result.timeout_count == timeouts
+        assert result.failed_inference_count == failed
+        assert result.baseline is not None
+        assert result.baseline.error_rate == 1 - success
+        assert result.baseline.timeout_count == timeouts
+        assert result.baseline.failed_inference_count == failed
+        rates = next(series for series in result.series if series.key == "error_rate")
+        assert [point.value for point in rates.points if point.value is not None] == [1 - success]
+        assert rates.baseline is not None
+        assert [point.value for point in rates.baseline if point.value is not None] == [1 - success]
 
     async def test_success_rate_of_an_empty_window_is_zero_not_perfect(self) -> None:
         """Nothing succeeded, so nothing is the answer — 100% would read as a healthy window."""

@@ -10,6 +10,15 @@
       <div class="views">
         <RouterView></RouterView>
       </div>
+      <section v-if="canDeleteOrganization" class="danger-zone">
+        <div>
+          <div class="danger-zone-title">Delete organization</div>
+          <p class="danger-zone-text">
+            Permanently remove this organization with all its members, orbits and data.
+          </p>
+        </div>
+        <OrganizationDelete></OrganizationDelete>
+      </section>
     </div>
   </div>
   <div v-else class="title">Organization {{ route.params.id }} not found...</div>
@@ -26,6 +35,8 @@ import OrganizationInfo from '@/components/organizations/OrganizationInfo.vue'
 import OrganizationLimits from '@/components/organizations/OrganizationLimits.vue'
 import OrganizationTabs from '@/components/organizations/OrganizationTabs.vue'
 import OrganizationLocked from '@/components/organizations/OrganizationLocked.vue'
+import OrganizationDelete from '@/components/organizations/OrganizationDelete.vue'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import type { ApiError } from '@/helpers/helpers'
 
@@ -42,6 +53,19 @@ const hasPermission = computed(() => {
   return true
 })
 
+const canDeleteOrganization = computed(
+  () =>
+    !!organizationStore.currentOrganization?.permissions?.organization?.includes(
+      PermissionEnum.delete,
+    ),
+)
+
+function isOrganizationUnavailable(organizationId: string) {
+  const organizations = organizationStore.availableOrganizations
+  if (organizationStore.availableOrganizationsRequest || !organizations.length) return false
+  return !organizations.some((organization) => organization.id === organizationId)
+}
+
 async function init() {
   const idParam = route.params.id
   const organizationId = Array.isArray(idParam) ? idParam[0] : idParam
@@ -53,8 +77,12 @@ async function init() {
     if (organizationStore.availableOrganizationsRequest && organizationStore.currentOrganization) {
       await organizationStore.availableOrganizationsRequest
     }
+    if (isOrganizationUnavailable(organizationId)) {
+      await router.replace({ name: 'home' })
+      return
+    }
     if (organizationStore.currentOrganization?.id === organizationId) {
-      organizationStore.getOrganizationDetails(organizationId)
+      if (hasPermission.value) await organizationStore.getOrganizationDetails(organizationId)
     } else {
       await organizationStore.switchOrganization(organizationId)
     }
@@ -101,5 +129,21 @@ watch(
 }
 .views {
   padding-top: 24px;
+}
+.danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 44px;
+  padding: 24px 0;
+  border-top: 1px solid var(--p-divider-border-color);
+}
+.danger-zone-title {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.danger-zone-text {
+  color: var(--p-text-muted-color);
 }
 </style>

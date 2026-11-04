@@ -38,6 +38,8 @@ let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let ws: WebSocket | null = null
 let resizeObserver: ResizeObserver | null = null
+let connectTimer: ReturnType<typeof setTimeout> | null = null
+let activateTimer: ReturnType<typeof setTimeout> | null = null
 
 function onWaitingForInput() {
   if (isIdle.value) return
@@ -63,10 +65,10 @@ async function loadReadonly() {
   if (!terminal || !props.nodeId) return
   try {
     const buf = await api.dataAgent.getSessionScrollback(props.nodeId, props.sessionId)
-    terminal.write(new Uint8Array(buf))
-    terminal.write('\r\n\x1b[33m[Session ended]\x1b[0m\r\n')
+    terminal?.write(new Uint8Array(buf))
+    terminal?.write('\r\n\x1b[33m[Session ended]\x1b[0m\r\n')
   } catch {
-    terminal.write('\x1b[31m[No scrollback available]\x1b[0m\r\n')
+    terminal?.write('\x1b[31m[No scrollback available]\x1b[0m\r\n')
   }
 }
 
@@ -158,7 +160,8 @@ onMounted(() => {
     })
     resizeObserver.observe(termRef.value)
 
-    setTimeout(() => {
+    connectTimer = setTimeout(() => {
+      connectTimer = null
       fitAddon?.fit()
       if (props.readonly) {
         loadReadonly()
@@ -174,7 +177,9 @@ watch(
   () => props.active,
   (isActive) => {
     if (isActive) {
-      setTimeout(() => {
+      if (activateTimer !== null) clearTimeout(activateTimer)
+      activateTimer = setTimeout(() => {
+        activateTimer = null
         fitAddon?.fit()
         sendResize()
       }, 50)
@@ -183,9 +188,14 @@ watch(
 )
 
 onUnmounted(() => {
+  if (connectTimer !== null) clearTimeout(connectTimer)
+  if (activateTimer !== null) clearTimeout(activateTimer)
   resizeObserver?.disconnect()
   ws?.close()
+  ws = null
   terminal?.dispose()
+  terminal = null
+  fitAddon = null
 })
 </script>
 

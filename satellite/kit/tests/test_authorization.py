@@ -32,7 +32,8 @@ async def test_platform_authorizer_caches_allowed_and_denied_verdicts_per_instan
     assert await first.authorize("denied-key") is AuthorizationVerdict.DENIED
     assert await second.authorize("allowed-key") is AuthorizationVerdict.DENIED
     assert platform.calls == ["allowed-key", "denied-key", "allowed-key"]
-    assert "allowed-key" not in repr(first._cache)
+    assert "allowed-key" not in repr(first._cache._entries)
+    assert "denied-key" not in repr(first._denied_cache._entries)
 
 
 @pytest.mark.asyncio
@@ -99,3 +100,50 @@ async def test_platform_authorizer_never_logs_the_api_key(
 def test_platform_authorizer_requires_a_positive_ttl() -> None:
     with pytest.raises(ValueError, match="ttl_seconds"):
         PlatformAuthorizer(AuthorizationPlatform(), ttl_seconds=0)
+
+
+@pytest.mark.asyncio
+async def test_platform_authorizer_bounds_allowed_cache_and_evicts_least_recently_used() -> None:
+    platform = AuthorizationPlatform(*([True] * 1027))
+    authorizer = PlatformAuthorizer(platform, clock=lambda: 0.0)
+
+    for index in range(1024):
+        assert await authorizer.authorize(f"key-{index}") is AuthorizationVerdict.ALLOWED
+    assert await authorizer.authorize("key-0") is AuthorizationVerdict.ALLOWED
+    assert await authorizer.authorize("key-1024") is AuthorizationVerdict.ALLOWED
+    assert await authorizer.authorize("key-0") is AuthorizationVerdict.ALLOWED
+    assert platform.calls.count("key-0") == 1
+    assert await authorizer.authorize("key-1") is AuthorizationVerdict.ALLOWED
+    assert platform.calls.count("key-1") == 2
+    assert len(authorizer._cache._entries) == 1024
+
+
+@pytest.mark.asyncio
+async def test_platform_authorizer_bounds_denials_without_evicting_allowed_keys() -> None:
+    platform = AuthorizationPlatform(True, *([False] * 10001))
+    authorizer = PlatformAuthorizer(platform, clock=lambda: 0.0)
+    assert await authorizer.authorize("allowed-key") is AuthorizationVerdict.ALLOWED
+
+    for index in range(10000):
+        assert await authorizer.authorize(f"denied-{index}") is AuthorizationVerdict.DENIED
+    assert len(authorizer._denied_cache._entries) == 64
+    assert await authorizer.authorize("denied-9999") is AuthorizationVerdict.DENIED
+    assert platform.calls.count("denied-9999") == 1
+    assert await authorizer.authorize("denied-0") is AuthorizationVerdict.DENIED
+    assert platform.calls.count("denied-0") == 2
+    assert await authorizer.authorize("allowed-key") is AuthorizationVerdict.ALLOWED
+    assert platform.calls.count("allowed-key") == 1
+
+
+@pytest.mark.asyncio
+async def test_platform_authorizer_periodically_removes_unrelated_expired_entries() -> None:
+    now = [0.0]
+    platform = AuthorizationPlatform(True, False, RuntimeError("unavailable"))
+    authorizer = PlatformAuthorizer(platform, clock=lambda: now[0])
+    await authorizer.authorize("allowed-key")
+    await authorizer.authorize("denied-key")
+
+    now[0] = 60.0
+    assert await authorizer.authorize("unrelated-key") is AuthorizationVerdict.UNAVAILABLE
+    assert not authorizer._cache._entries
+    assert not authorizer._denied_cache._entries

@@ -2,15 +2,23 @@ name: Frontend Tests and Linters
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'frontend/**'
+      - 'extras/js/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
-    branches: [ main ]
+    branches: [main, staging, production]
     paths:
       - 'frontend/**'
+      - 'extras/js/**'
+      - 'package.json'
+      - 'package-lock.json'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -29,7 +37,6 @@ jobs:
       - name: ESLint
         working-directory: frontend
         run: npm run lint
-        continue-on-error: true
 
       - name: Prettier check
         working-directory: frontend
@@ -47,9 +54,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --include=optional
-
-      - name: Install Linux Rollup binding
-        run: npm install @rollup/rollup-linux-x64-gnu --workspace=frontend
 
       - name: Build workspace packages
         run: |
@@ -73,9 +77,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --include=optional
-
-      - name: Install Linux Rollup binding
-        run: npm install @rollup/rollup-linux-x64-gnu --workspace=frontend
 
       - name: Get Playwright version
         id: pw-version

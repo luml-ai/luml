@@ -208,6 +208,7 @@ class TestTrackStageRepositorySyncStages:
             await repository.update_track(
                 track.id,
                 TrackUpdate(name="renamed"),
+                orbit_id=track.orbit_id,
                 stages=[StageUpsertIn(name="Brand")],
             )
         assert exc.value.status_code == 409
@@ -238,6 +239,7 @@ class TestTrackStageRepositorySyncStages:
         updated = await repository.update_track(
             track.id,
             TrackUpdate(name="combo-renamed"),
+            orbit_id=track.orbit_id,
             stages=[StageUpsertIn(id=old.id, name="New"), StageUpsertIn(name="Fresh")],
         )
 
@@ -271,6 +273,7 @@ class TestTrackStageRepositorySyncStages:
             await repository.update_track(
                 track.id,
                 TrackUpdate(name="renamed"),
+                orbit_id=track.orbit_id,
                 stages=[
                     StageUpsertIn(id=review.id, name="Review"),
                     StageUpsertIn(name="Canary"),
@@ -308,6 +311,7 @@ class TestTrackStageRepositorySyncStages:
         updated = await repository.update_track(
             track.id,
             TrackUpdate(),
+            orbit_id=track.orbit_id,
             stages=[
                 StageUpsertIn(id=review.id, name="Review"),
                 StageUpsertIn(name="Canary"),

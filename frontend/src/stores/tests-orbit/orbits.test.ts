@@ -38,6 +38,7 @@ const baseOrbit: Orbit = {
   created_at: new Date(),
   updated_at: null,
   bucket_secret_id: '0',
+  relay_id: null,
   total_collections: 0,
   role: OrbitRoleEnum.member,
   total_artifacts: 0,

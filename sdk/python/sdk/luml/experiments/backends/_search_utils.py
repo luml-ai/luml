@@ -667,8 +667,14 @@ class SearchExperimentsUtils(SearchUtils):
                     params.append(value)
 
             elif key_type == cls._TAG_IDENTIFIER:
-                # tags is a JSON array stored as text; match using LIKE on the serialized form
-                if comparator == "ILIKE":
+                if comparator in {"=", "!="}:
+                    negation = "NOT " if comparator == "!=" else ""
+                    sql_parts.append(
+                        f"{negation}EXISTS (SELECT 1 FROM json_each(tags) "
+                        "WHERE value = ?)"
+                    )
+                    params.append(value)
+                elif comparator == "ILIKE":
                     sql_parts.append("UPPER(tags) LIKE UPPER(?)")
                     params.append(value)
                 else:

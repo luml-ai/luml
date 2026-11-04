@@ -2,6 +2,38 @@ import { mount, flushPromises } from '@vue/test-utils'
 import OrbitCreator from './OrbitCreator.vue'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia } from 'pinia'
+import { RelayKindEnum, RelayStatusEnum, type Relay } from '@/lib/api/relays/interfaces'
+
+const ORGANIZATION_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+
+function makeRelay(id: string, kind: RelayKindEnum, status: RelayStatusEnum): Relay {
+  return {
+    id,
+    organization_id: kind === RelayKindEnum.own ? ORGANIZATION_ID : null,
+    label: id,
+    base_domain: `${id}.example.com`,
+    agent_url: `wss://agents.${id}.example.com`,
+    status,
+    kind,
+    online: true,
+    last_seen_at: null,
+    connected_agents: 0,
+    capabilities: {},
+    present_capabilities: [],
+    created_at: '2026-10-01T00:00:00Z',
+    updated_at: null,
+  }
+}
+
+const relaysStore = vi.hoisted(() => ({
+  relays: [] as Relay[],
+  getRelays: vi.fn(),
+}))
+const createOrbitMock = vi.hoisted(() => vi.fn().mockResolvedValue({}))
+
+vi.mock('@/stores/relays', () => ({
+  useRelaysStore: () => relaysStore,
+}))
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { organizationId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' } }),
@@ -37,7 +69,7 @@ vi.mock('@/stores/organization', () => ({
 
 vi.mock('@/stores/orbits', () => ({
   useOrbitsStore: () => ({
-    createOrbit: vi.fn().mockResolvedValue({}),
+    createOrbit: createOrbitMock,
     orbitsList: [],
   }),
 }))
@@ -72,10 +104,8 @@ describe('OrbitCreator', () => {
   let wrapper: ReturnType<typeof mount>
   const pinia = createPinia()
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-
-    wrapper = mount(OrbitCreator, {
+  function mountCreator() {
+    return mount(OrbitCreator, {
       global: {
         plugins: [pinia],
         stubs: {
@@ -114,7 +144,11 @@ describe('OrbitCreator', () => {
           },
 
           Select: {
-            template: '<select :id="id" :name="name"><slot name="footer"></slot></select>',
+            template:
+              '<div><select :id="id" :name="name" @change="$emit(\'update:modelValue\', $event.target.value || null)">' +
+              '<option value=""></option>' +
+              '<option v-for="opt in options" :key="opt[optionValue]" :value="opt[optionValue]">{{ opt[optionLabel] }}</option>' +
+              '</select><slot name="footer"></slot></div>',
             props: [
               'options',
               'optionLabel',
@@ -144,7 +178,7 @@ describe('OrbitCreator', () => {
           },
 
           RouterLink: {
-            template: '<a :to="to" :class="className"><slot></slot></a>',
+            template: '<a :data-route="to.name" :class="className"><slot></slot></a>',
             props: ['to', 'className'],
           },
 
@@ -165,9 +199,19 @@ describe('OrbitCreator', () => {
       },
       props: {
         visible: true,
-        organizationId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        organizationId: ORGANIZATION_ID,
       },
     })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    relaysStore.relays = [
+      makeRelay('lab', RelayKindEnum.own, RelayStatusEnum.enabled),
+      makeRelay('old', RelayKindEnum.own, RelayStatusEnum.draining),
+      makeRelay('eu', RelayKindEnum.managed, RelayStatusEnum.enabled),
+    ]
+    wrapper = mountCreator()
   })
   afterEach(() => {
     if (wrapper) {
@@ -240,5 +284,55 @@ describe('OrbitCreator', () => {
     await form.trigger('submit')
     await flushPromises()
     expect(form.exists()).toBe(true)
+  })
+
+  it('lists enabled relays by label with managed ones marked', async () => {
+    await flushPromises()
+    const options = wrapper.findAll('select#relay option').map((option) => option.text())
+    expect(options).toEqual(['', 'lab', 'eu (managed)'])
+  })
+
+  it('may be left without a relay', async () => {
+    await flushPromises()
+    await wrapper.find('input[name="name"]').setValue('Test Orbit')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(createOrbitMock).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      expect.objectContaining({ relay_id: null }),
+    )
+  })
+
+  it('creates the orbit with the chosen relay', async () => {
+    await flushPromises()
+    await wrapper.find('input[name="name"]').setValue('Test Orbit')
+    await wrapper.find('select#relay').setValue('eu')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(createOrbitMock).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      expect.objectContaining({ relay_id: 'eu' }),
+    )
+  })
+
+  it('loads relays when opened', async () => {
+    await wrapper.setProps({ visible: false })
+    await wrapper.setProps({ visible: true })
+    expect(relaysStore.getRelays).toHaveBeenCalledWith(ORGANIZATION_ID)
+  })
+
+  it('points to the relays tab when no relay can be used', async () => {
+    wrapper.unmount()
+    relaysStore.relays = [makeRelay('old', RelayKindEnum.own, RelayStatusEnum.draining)]
+    wrapper = mountCreator()
+    await flushPromises()
+    expect(wrapper.findAll('select#relay option')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Add a relay')
+    expect(wrapper.find('a[data-route="organization-relays"]').exists()).toBe(true)
+  })
+
+  it('shows no relays hint while a relay can be used', async () => {
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Add a relay')
   })
 })

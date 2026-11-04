@@ -112,7 +112,7 @@ export type UpdateAnnotationPayload = Omit<
 export interface GetLumlCollectionsParams {
   organization_id: string
   orbit_id: string
-  start_after: string | null
+  cursor: string | null
   limit?: number
   search?: string | null
 }

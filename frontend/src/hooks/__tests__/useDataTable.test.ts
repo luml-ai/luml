@@ -1,7 +1,8 @@
 import { mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDataTable } from '@/hooks/useDataTable'
+import { FilterType } from '@/lib/data-table/interfaces'
 
 vi.mock('primevue', () => ({ useToast: () => ({ add: vi.fn() }) }))
 
@@ -51,5 +52,92 @@ describe('useDataTable column types', () => {
     const csv = 'code,label\n001,first\nSKU-2,second'
 
     expect(await detectColumnTypes(csv)).toEqual({ code: 'string', label: 'string' })
+  })
+})
+
+describe('useDataTable state isolation', () => {
+  const wrappers: ReturnType<typeof mount>[] = []
+
+  function mountTable() {
+    let table: ReturnType<typeof useDataTable> | undefined
+    wrappers.push(
+      mount(
+        defineComponent({
+          setup() {
+            table = useDataTable(validator)
+            return () => null
+          },
+        }),
+      ),
+    )
+    return table!
+  }
+
+  afterEach(() => {
+    wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+  })
+
+  it('keeps grouping separate for existing and newly mounted tables', () => {
+    const first = mountTable()
+    const second = mountTable()
+
+    first.changeGroup('first_column')
+    expect(second.getGroup.value).toEqual([])
+    expect(mountTable().getGroup.value).toEqual([])
+
+    second.changeGroup('second_column')
+    expect(first.getGroup.value).toEqual(['first_column'])
+    expect(second.getGroup.value).toEqual(['second_column'])
+  })
+
+  it('keeps mutable defaults separate on creation and after a reset', () => {
+    const first = mountTable()
+    const second = mountTable()
+    const filter = { id: 1, column: 'feature', filterType: FilterType.Equals, parameter: '1' }
+
+    first.selectedColumns.value.push('feature')
+    first.getFilters.value.push(filter)
+    first.columnTypes.value.feature = 'number'
+    first.inputsOutputsColumns.value.push({ name: 'feature', variant: 'input' })
+
+    expect(second.selectedColumns.value).toEqual([])
+    expect(second.getFilters.value).toEqual([])
+    expect(second.columnTypes.value).toEqual({})
+    expect(second.inputsOutputsColumns.value).toEqual([])
+
+    first.onRemoveFile()
+    first.selectedColumns.value.push('other')
+    first.getFilters.value.push(filter)
+    first.columnTypes.value.other = 'string'
+    const third = mountTable()
+
+    for (const table of [second, third]) {
+      expect(table.selectedColumns.value).toEqual([])
+      expect(table.getFilters.value).toEqual([])
+      expect(table.columnTypes.value).toEqual({})
+      expect(table.inputsOutputsColumns.value).toEqual([])
+    }
+  })
+
+  it('clears grouping on file removal and keeps subsequent resets empty', () => {
+    const table = mountTable()
+    table.changeGroup('old_column')
+    table.onRemoveFile()
+    expect(table.getGroup.value).toEqual([])
+
+    table.changeGroup('new_column')
+    table.onRemoveFile()
+    expect(table.getGroup.value).toEqual([])
+    expect(mountTable().getGroup.value).toEqual([])
+  })
+
+  it('clears grouping when switching files', async () => {
+    const table = mountTable()
+    table.changeGroup('old_column')
+    const csv = 'feature,target\n1,2'
+    await table.onSelectFile({ name: 'new.csv', size: csv.length, text: async () => csv } as File)
+    await vi.waitFor(() => expect(table.isTableExist.value).toBe(true))
+
+    expect(table.getGroup.value).toEqual([])
   })
 })

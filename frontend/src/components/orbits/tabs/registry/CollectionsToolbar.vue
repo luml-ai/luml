@@ -76,8 +76,8 @@ import UiRichTagsSelect from '@/components/ui/UiRichTagsSelect.vue'
 const collectionsStore = useCollectionsStore()
 
 const search = defineModel<string>('search')
-const types = defineModel<OrbitCollectionTypeEnum[]>('types', { default: [] })
-const tags = defineModel<string[]>('tags', { default: [] })
+const types = defineModel<OrbitCollectionTypeEnum[]>('types', { default: () => [] })
+const tags = defineModel<string[]>('tags', { default: () => [] })
 
 function updateSearch(val: string | undefined) {
   search.value = val

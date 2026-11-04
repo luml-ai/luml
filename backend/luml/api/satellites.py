@@ -87,7 +87,6 @@ async def get_orbit_secret(request: Request, secret_id: UUID) -> OrbitSecret:
 async def list_tasks(
     request: Request, status: SatelliteTaskStatus | None = None
 ) -> list[SatelliteQueueTask]:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await satellite_handler.list_tasks(request.user.id, status)
 
 
@@ -99,7 +98,6 @@ async def list_tasks(
 async def update_task_status(
     request: Request, task_id: UUID, data: SatelliteTaskUpdateIn
 ) -> SatelliteQueueTask:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await satellite_handler.update_task_status(
         request.user.id,
         task_id,
@@ -114,7 +112,6 @@ async def update_task_status(
     response_model=list[Deployment],
 )
 async def list_deployments(request: Request) -> list[Deployment]:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await deployment_handler.list_worker_deployments(request.user.id)
 
 
@@ -124,7 +121,6 @@ async def list_deployments(request: Request) -> list[Deployment]:
     response_model=Deployment,
 )
 async def get_deployment(request: Request, deployment_id: UUID) -> Deployment:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await deployment_handler.get_worker_deployment(
         request.user.id, deployment_id
     )
@@ -138,7 +134,6 @@ async def get_deployment(request: Request, deployment_id: UUID) -> Deployment:
 async def update_deployment(
     request: Request, deployment_id: UUID, data: DeploymentUpdateIn
 ) -> Deployment:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await deployment_handler.update_worker_deployment(
         request.user.id, deployment_id, data
     )
@@ -152,7 +147,6 @@ async def update_deployment(
 async def update_deployment_status(
     request: Request, deployment_id: UUID, data: DeploymentStatusUpdateIn
 ) -> Deployment:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await deployment_handler.update_worker_deployment_status(
         request.user.id, deployment_id, data.status
     )
@@ -164,7 +158,6 @@ async def update_deployment_status(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_deployment(request: Request, deployment_id: UUID) -> None:
-    await satellite_handler.touch_last_seen(request.user.id)
     await deployment_handler.delete_worker_deployment(request.user.id, deployment_id)
 
 
@@ -176,7 +169,6 @@ async def delete_deployment(request: Request, deployment_id: UUID) -> None:
 async def authorize_inference_access(
     request: Request, data: InferenceAccessIn
 ) -> InferenceAccessOut:
-    await satellite_handler.touch_last_seen(request.user.id)
     authorized = await deployment_handler.verify_user_inference_access(
         request.user.orbit_id, data.api_key
     )
@@ -191,7 +183,6 @@ async def authorize_inference_access(
 async def introspect_monitoring_token(
     request: Request, data: MonitoringTokenIntrospectIn
 ) -> MonitoringTokenIntrospectOut:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await monitoring_handler.introspect_token(request.user.id, data.token)
 
 
@@ -202,7 +193,6 @@ async def introspect_monitoring_token(
 async def get_artifact_download_url(
     request: Request, artifact_id: UUID
 ) -> dict[str, Any]:
-    await satellite_handler.touch_last_seen(request.user.id)
     url = await artifacts_handler.request_satellite_download_url(
         request.user.orbit_id, artifact_id
     )
@@ -216,7 +206,6 @@ async def get_artifact_download_url(
 async def get_artifact(
     request: Request, artifact_id: UUID
 ) -> SatelliteArtifactResponse:
-    await satellite_handler.touch_last_seen(request.user.id)
     return await artifacts_handler.get_satellite_artifact(
         request.user.orbit_id, artifact_id
     )
@@ -230,7 +219,6 @@ async def get_artifact(
 async def get_model_artifact_download_url(
     request: Request, model_artifact_id: UUID
 ) -> dict[str, Any]:
-    await satellite_handler.touch_last_seen(request.user.id)
     url = await artifacts_handler.request_satellite_download_url(
         request.user.orbit_id, model_artifact_id
     )
@@ -245,7 +233,6 @@ async def get_model_artifact_download_url(
 async def get_model_artifact(
     request: Request, model_artifact_id: UUID
 ) -> SatelliteModelArtifactResponse:
-    await satellite_handler.touch_last_seen(request.user.id)
     result = await artifacts_handler.get_satellite_artifact(
         request.user.orbit_id, model_artifact_id
     )

@@ -2,7 +2,7 @@ name: Model Server Tests and Linters
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging, production]
     paths:
       - 'model_servers/default/**'
       - 'satellite/.env.example'
@@ -10,13 +10,14 @@ on:
       - '.github/workflows/publish-model-server-image.yml'
       - '.github/workflows/*model-server*tests-and-linters.yml'
   pull_request:
-    branches: [main]
+    branches: [main, staging, production]
     paths:
       - 'model_servers/default/**'
       - 'satellite/.env.example'
       - 'satellite/docker-compose.yml'
       - '.github/workflows/publish-model-server-image.yml'
       - '.github/workflows/*model-server*tests-and-linters.yml'
+  workflow_call:
   workflow_dispatch:
 
 jobs:

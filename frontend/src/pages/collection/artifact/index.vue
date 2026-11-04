@@ -209,7 +209,7 @@ async function downloadClick() {
 
 async function onArtifactIdChange(artifactId: string | string[] | null) {
   try {
-    artifactsStore.resetCurrentArtifact()
+    resetArtifactState()
     if (typeof artifactId !== 'string') return
     const requestInfo = {
       organizationId: route.params.organizationId as string,
@@ -235,14 +235,16 @@ async function onTracksChanged() {
 
 watch(() => route.params.artifactId, onArtifactIdChange, { immediate: true })
 
-onUnmounted(() => {
+function resetArtifactState() {
   artifactsStore.resetCurrentArtifact()
   artifactsStore.resetCurrentModelTag()
   artifactsStore.resetCurrentModelMetadata()
   artifactsStore.resetCurrentModelHtmlBlobUrl()
   artifactsStore.resetExperimentSnapshotProvider()
   datasetsStore.reset()
-})
+}
+
+onUnmounted(resetArtifactState)
 </script>
 
 <style scoped>

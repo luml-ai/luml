@@ -1,7 +1,7 @@
 import datetime
 import json
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from luml.handlers.satellites import SatelliteHandler
@@ -75,6 +75,7 @@ class TestSatellitePairing:
         assert pair_call is not None
         assert pair_call.args[0].openapi == openapi
         assert pair_call.args[0].kit_info is None
+        assert "last_seen_at" not in pair_call.args[0].model_fields_set
 
     async def test_pair_satellite_stores_kit_info_when_address_missing(
         self, mocks: CollaboratorMocks[SatelliteHandler]
@@ -449,12 +450,42 @@ class TestSatellitePairing:
         mocks.sat_repo.get_satellite.assert_awaited_once_with(SATELLITE_ID)
         mocks.sat_repo.pair_satellite.assert_awaited_once()
 
-    async def test_touch_last_seen_updates_satellite(
-        self, mocks: CollaboratorMocks[SatelliteHandler]
+    @pytest.mark.parametrize(
+        ("seconds_since_seen", "expected_write"),
+        [(None, True), (61, True), (60, True), (59, False), (0, False), (-1, False)],
+    )
+    async def test_touch_last_seen_writes_at_most_once_per_minute(
+        self,
+        mocks: CollaboratorMocks[SatelliteHandler],
+        seconds_since_seen: int | None,
+        expected_write: bool,
     ) -> None:
-        await mocks.handler.touch_last_seen(SATELLITE_ID)
+        now = datetime.datetime.now(datetime.UTC)
+        satellite = Satellite(
+            id=SATELLITE_ID,
+            orbit_id=ORBIT_ID,
+            name="test-satellite",
+            description=None,
+            base_url=None,
+            paired=False,
+            capabilities={},
+            created_at=now,
+            last_seen_at=(
+                now - datetime.timedelta(seconds=seconds_since_seen)
+                if seconds_since_seen is not None
+                else None
+            ),
+        )
+        with patch("luml.handlers.satellites.datetime") as clock:
+            clock.now.return_value = now
+            await mocks.handler.touch_last_seen(satellite)
 
-        mocks.sat_repo.touch_last_seen.assert_awaited_once_with(SATELLITE_ID)
+        if expected_write:
+            mocks.sat_repo.touch_last_seen.assert_awaited_once_with(
+                SATELLITE_ID, seen_before=now - datetime.timedelta(minutes=1)
+            )
+        else:
+            mocks.sat_repo.touch_last_seen.assert_not_awaited()
 
     async def test_authenticate_api_key_returns_satellite_by_key_hash(
         self, mocks: CollaboratorMocks[SatelliteHandler]

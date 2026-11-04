@@ -118,7 +118,7 @@ The plugin can also serve the standard MLflow web UI from the LUML store, but th
 mlflow ui --backend-store-uri luml://my-org/my-orbit
 ```
 
-The MLflow UI is supported only far enough to load runs, parameters, and metrics. Its other areas are partial. The model-registry pages stay empty, because the plugin does not map LUML's registry onto MLflow's registered-model model (see the limitations below). Logged models are held in memory by the process that logged them, so a separate `mlflow ui` process shows the run and its metrics but an empty Models section. Operations the plugin does not implement, such as deleting or renaming a run, fail when triggered from the UI. Treat `mlflow ui` as a last resort for an MLflow-native view you cannot get otherwise, and use [Flow](../../apps/lumlflow/lumlflow.md) for everything else.
+The MLflow UI is supported only far enough to load runs, parameters, and metrics. Its other areas are partial. The model-registry pages stay empty, because the plugin does not map LUML's registry onto MLflow's registered-model model (see the limitations below). Logged models are held in memory by the process that logged them, so a separate `mlflow ui` process shows the run and its metrics but an empty Models section. Operations the plugin does not implement, such as renaming a run, fail when triggered from the UI. Treat `mlflow ui` as a last resort for an MLflow-native view you cannot get otherwise, and use [Flow](../../apps/lumlflow/lumlflow.md) for everything else.
 
 ## Syncing from the command line
 
@@ -151,6 +151,18 @@ luml-mlflow status --run <run_id>
 ```
 
 The status is one of `not_uploaded`, `uploading`, `uploaded`, or `failed`, followed by the collection id and the artifact links once an upload has completed.
+
+## Deleting and restoring runs
+
+Deleting a run follows MLflow's soft-delete semantics. `MlflowClient.delete_run(run_id)` marks the run as deleted instead of removing its files: the run disappears from default searches, but its parameters, metrics, and artifacts stay on disk and remain readable. `MlflowClient.restore_run(run_id)` marks it active again. A deleted run keeps occupying local storage until it is garbage-collected with the standard MLflow command:
+
+```bash
+mlflow gc --backend-store-uri luml://my-org/my-orbit
+mlflow gc --backend-store-uri luml://my-org/my-orbit --older-than 30d
+mlflow gc --backend-store-uri luml://my-org/my-orbit --run-ids <run_id>
+```
+
+`mlflow gc` permanently removes the local record, parameters, metrics, attachments, and models of every run in the deleted stage, optionally only those deleted longer ago than `--older-than`. It needs `MLFLOW_TRACKING_URI` to be set (or `--tracking-uri`). Artifacts already published to LUML are not touched. The plugin does not hard-delete experiments or logged models, so `mlflow gc` prints a warning that it skips them.
 
 ## How MLflow concepts map to LUML
 
@@ -189,7 +201,7 @@ Configuration is read from environment variables, or from a `.env` file in the w
 
 ## Limitations
 
-Some MLflow operations have no LUML equivalent. By default they log a warning and continue; setting `LUML_MLFLOW_ON_UNSUPPORTED=raise` turns them into errors instead. This applies to deleting, restoring, and renaming experiments, restoring runs, logging dataset inputs, and linking traces to a run after the fact.
+Some MLflow operations have no LUML equivalent. By default they log a warning and continue; setting `LUML_MLFLOW_ON_UNSUPPORTED=raise` turns them into errors instead. This applies to deleting, restoring, and renaming experiments, logging dataset inputs, and linking traces to a run after the fact.
 
 LUML has a [Registry](../../documentation/Modules/Registry/registry.md), but it is organized around collections of artifacts rather than MLflow's registered models and their versions. The plugin does not bridge the two models, so the registry pages in the MLflow UI render empty rather than erroring. A run's model is published into the LUML Registry as an artifact in the orbit collection, not as an MLflow registered-model version.
 

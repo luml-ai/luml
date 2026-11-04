@@ -1,6 +1,11 @@
-import { flushPromises, shallowMount } from '@vue/test-utils'
+import { flushPromises, mount, shallowMount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import DeploymentsFormModelSettings from './DeploymentsFormModelSettings.vue'
+import { defineComponent, ref } from 'vue'
+import { Form } from '@primevue/forms'
+import PrimeVue from 'primevue/config'
+import { getInitialFormData } from '../../deployments.const'
+import { createDeploymentResolver } from '@/utils/forms/resolvers'
 
 const harness = vi.hoisted(() => ({
   getArtifact: vi.fn(),
@@ -70,5 +75,63 @@ describe('DeploymentsFormModelSettings', () => {
     expect(wrapper.emitted('update:dynamicAttributes')?.at(-1)).toEqual([
       [{ key: 'model-b-attribute', label: 'model-b-attribute', value: null }],
     ])
+  })
+})
+
+describe('DeploymentsFormModelSettings custom variable validation', () => {
+  it('shows errors for an empty row on blur and clears them after correction', async () => {
+    const wrapper = mount(
+      defineComponent({
+        components: { DeploymentForm: Form, DeploymentsFormModelSettings },
+        setup() {
+          const values = ref({
+            ...getInitialFormData(),
+            name: 'Deployment',
+            collectionId: 'collection-1',
+            modelId: 'model-1',
+            satelliteId: 'satellite-1',
+          })
+          return { values, resolver: createDeploymentResolver(values) }
+        },
+        template: `
+          <DeploymentForm ref="form" :initial-values="values" :resolver="resolver">
+            <DeploymentsFormModelSettings v-model:custom-variables="values.customVariables" />
+          </DeploymentForm>
+        `,
+      }),
+      {
+        global: {
+          plugins: [PrimeVue],
+          mocks: { $route: { params: { organizationId: 'org-1', id: 'orbit-1' } } },
+          stubs: { CollectionSelect: true, ModelSelect: true, SecretsSelect: true },
+        },
+      },
+    )
+    await flushPromises()
+    await wrapper.get('button').trigger('click')
+    await wrapper.get('input[placeholder="Enter key"]').trigger('blur')
+    await wrapper.get('input[placeholder="Enter value"]').trigger('blur')
+    await flushPromises()
+
+    const row = wrapper.get('.custom-variables__item')
+    expect(row.findAll('[data-pc-name="message"]').map((message) => message.text())).toEqual([
+      'Key is required',
+      'Value is required',
+    ])
+    expect(row.get('input[placeholder="Enter key"]').attributes('aria-invalid')).toBe('true')
+    expect(row.get('input[placeholder="Enter value"]').attributes('aria-invalid')).toBe('true')
+
+    await row.get('input[placeholder="Enter key"]').setValue('LOG_LEVEL')
+    await flushPromises()
+    expect(row.findAll('[data-pc-name="message"]').map((message) => message.text())).toEqual([
+      'Value is required',
+    ])
+
+    await row.get('input[placeholder="Enter value"]').setValue('debug')
+    await flushPromises()
+
+    expect(row.findAll('[data-pc-name="message"]')).toHaveLength(0)
+    expect(wrapper.getComponent(Form).vm).toHaveProperty('valid', true)
+    wrapper.unmount()
   })
 })

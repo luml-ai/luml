@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import axios, { type AxiosResponse } from 'axios'
 import { api } from '@/lib/api'
@@ -107,6 +107,31 @@ describe('artifacts store', () => {
     store = useArtifactsStore()
   })
 
+  it('keeps snapshot availability when editing a light list item', async () => {
+    const { manifest, file_index, ...artifact } = makeArtifact('edited')
+    store.setArtifactsList([{ ...artifact, has_experiment_snapshot: true }])
+    mockApi.artifacts.update.mockResolvedValueOnce(makeArtifact('edited', { name: 'renamed' }))
+
+    await store.updateArtifact({ id: artifact.id, name: 'renamed' })
+
+    expect(store.artifactsList[0]).toMatchObject({
+      name: 'renamed',
+      has_experiment_snapshot: true,
+    })
+  })
+
+  it('makes a newly uploaded snapshot available for comparison', async () => {
+    mockApi.artifacts.update.mockResolvedValueOnce(
+      makeArtifact('snapshot', {
+        file_index: { 'exp.db.zip': [0, 10] },
+      }),
+    )
+
+    await store.confirmArtifactUpload({ id: 'snapshot' })
+
+    expect(store.artifactsList[0].has_experiment_snapshot).toBe(true)
+  })
+
   it('adds an uploaded artifact to the open collection', async () => {
     const existing = makeArtifact('existing')
     const uploaded = makeArtifact('uploaded')
@@ -125,7 +150,7 @@ describe('artifacts store', () => {
     expect(mockApi.artifacts.update).toHaveBeenCalledWith(ORG, ORBIT, COLLECTION, uploaded.id, {
       id: uploaded.id,
     })
-    expect(store.artifactsList).toEqual([existing, uploaded])
+    expect(store.artifactsList).toEqual([existing, { ...uploaded, has_experiment_snapshot: false }])
   })
 
   it('adds an uploaded artifact when the destination comes from the current route', async () => {
@@ -137,7 +162,7 @@ describe('artifacts store', () => {
     expect(mockApi.artifacts.update).toHaveBeenCalledWith(ORG, ORBIT, COLLECTION, uploaded.id, {
       id: uploaded.id,
     })
-    expect(store.artifactsList).toEqual([uploaded])
+    expect(store.artifactsList).toEqual([{ ...uploaded, has_experiment_snapshot: false }])
   })
 
   it('leaves the open collection unchanged when uploading to another collection', async () => {
@@ -538,5 +563,38 @@ describe('artifacts store experiment snapshot provider', () => {
     store.resetExperimentSnapshotProvider()
 
     expect(release).toHaveBeenCalledOnce()
+  })
+})
+
+describe('artifacts store HTML card URL', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static revokeObjectURL = vi.fn()
+      },
+    )
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('revokes the current URL once when reset repeatedly', () => {
+    const store = useArtifactsStore()
+    store.setCurrentModelHtmlBlobUrl('blob:card')
+
+    store.resetCurrentModelHtmlBlobUrl()
+    store.resetCurrentModelHtmlBlobUrl()
+
+    expect(store.currentModelHtmlBlobUrl).toBeNull()
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:card')
+  })
+
+  it('does not revoke a URL when there is no HTML card', () => {
+    useArtifactsStore().resetCurrentModelHtmlBlobUrl()
+
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
   })
 })

@@ -121,6 +121,38 @@ def model_server_image(docker_cli: str) -> Iterator[str]:
         _run([docker_cli, "image", "rm", "--force", image], check=False, timeout=60)
 
 
+def test_default_command_starts_offline_without_installing_dev_dependencies(
+    docker_cli: str, model_server_image: str, tmp_path: Path
+) -> None:
+    probe = tmp_path / "main.py"
+    probe.write_text(
+        "from importlib.util import find_spec\n"
+        "import httpx, uvicorn\n"
+        "assert all(find_spec(name) is None for name in ('mypy', 'pytest', 'ruff'))\n"
+        "print('started')\n"
+    )
+
+    result = _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--env",
+            "UV_OFFLINE=1",
+            "--env",
+            "UV_CACHE_DIR=/tmp/empty-uv-cache",
+            "--mount",
+            f"type=bind,source={probe},target=/app/main.py,readonly",
+            model_server_image,
+        ],
+        timeout=120,
+    )
+
+    assert result.stdout.strip() == "started"
+
+
 def _make_archive(tmp_path: Path) -> Path:
     manifest = tmp_path / "manifest.json"
     manifest.write_text('{"name": "synthetic"}')

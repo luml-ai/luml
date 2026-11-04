@@ -67,7 +67,6 @@ async function mockDeploymentsBaseline(apiMocks: ApiMocks) {
 
 const deploymentsUrl = `/organization/${ORG_ID}/orbit/${ORBIT_ID}/deployments`
 
-test.describe.configure({ mode: 'serial' })
 
 test.describe('Deployments', () => {
   test.beforeEach(async ({ apiMocks }) => {

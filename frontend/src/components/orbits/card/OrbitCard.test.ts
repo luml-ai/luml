@@ -12,6 +12,7 @@ const mockData: Orbit = {
   created_at: new Date(),
   updated_at: null,
   bucket_secret_id: '00000000-0000-0000-0000-000000000000',
+  relay_id: null,
   total_collections: 5,
   role: OrbitRoleEnum.member,
   total_artifacts: 0,

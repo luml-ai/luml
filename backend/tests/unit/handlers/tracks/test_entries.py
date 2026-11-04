@@ -565,12 +565,21 @@ class TestTrackEntries:
     ) -> None:
         entries = [_make_entry()]
         mocks.entry_repository.list_entries_for_artifact.return_value = entries
+        mocks.artifact_repository.get_artifact.return_value = Mock(
+            collection_id=COLLECTION_ID
+        )
+        mocks.collection_repository.get_collection.return_value = Mock(
+            orbit_id=ORBIT_ID
+        )
 
         result = await mocks.handler.list_entries_for_artifact(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, ARTIFACT_ID
         )
 
         assert result == entries
+        mocks.entry_repository.list_entries_for_artifact.assert_awaited_once_with(
+            ARTIFACT_ID, orbit_id=ORBIT_ID
+        )
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID, USER_ID, Resource.TRACK, Action.READ, ORBIT_ID
         )
@@ -595,6 +604,48 @@ class TestTrackEntries:
 
         assert result == expected
         mocks.entry_repository.update_entry.assert_awaited_once()
+
+    async def test_update_entry_clears_stage_on_explicit_null(
+        self, mocks: CollaboratorMocks[TracksHandler]
+    ) -> None:
+        mocks.entry_repository.get_entry.return_value = _make_entry(stage_id=STAGE_ID)
+        expected = _make_entry()
+        mocks.entry_repository.update_entry.return_value = expected
+
+        result = await mocks.handler.update_entry(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            ENTRY_ID,
+            TrackEntryUpdateIn(stage_id=None),
+        )
+
+        assert result == expected
+        mocks.stage_repository.get_stage.assert_not_awaited()
+        update_data = mocks.entry_repository.update_entry.await_args.args[1]
+        assert update_data.stage_id is None
+        assert "stage_id" in update_data.model_fields_set
+
+    async def test_update_entry_keeps_stage_when_stage_is_not_provided(
+        self, mocks: CollaboratorMocks[TracksHandler]
+    ) -> None:
+        expected = _make_entry(stage_id=STAGE_ID)
+        mocks.entry_repository.get_entry.return_value = expected
+        mocks.entry_repository.update_entry.return_value = expected
+
+        result = await mocks.handler.update_entry(
+            USER_ID,
+            ORGANIZATION_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            ENTRY_ID,
+            TrackEntryUpdateIn(),
+        )
+
+        assert result == expected
+        update_data = mocks.entry_repository.update_entry.await_args.args[1]
+        assert "stage_id" not in update_data.model_fields_set
 
     async def test_update_entry_raises_conflict_when_stage_is_held_and_not_forced(
         self, mocks: CollaboratorMocks[TracksHandler]
@@ -798,3 +849,20 @@ class TestTrackEntries:
                 USER_ID, ORGANIZATION_ID, ORBIT_ID, TRACK_ID, [ENTRY_ID]
             )
         mocks.entry_repository.delete_entries.assert_not_awaited()
+
+
+@pytest.mark.parametrize("missing", [None, "artifact", "collection"])
+async def test_artifact_entries_reject_foreign_or_missing_artifact(
+    mocks: CollaboratorMocks[TracksHandler], missing: str | None
+) -> None:
+    mocks.artifact_repository.get_artifact.return_value = (
+        None if missing == "artifact" else Mock(collection_id=COLLECTION_ID)
+    )
+    mocks.collection_repository.get_collection.return_value = (
+        None if missing == "collection" else Mock(orbit_id=OTHER_ORBIT_ID)
+    )
+    with pytest.raises(NotFoundError, match="Artifact not found"):
+        await mocks.handler.list_entries_for_artifact(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, ARTIFACT_ID
+        )
+    mocks.entry_repository.list_entries_for_artifact.assert_not_awaited()

@@ -24,6 +24,7 @@ export function useUploadFlow() {
   const uploads = ref<Map<string, UploadEntry>>(new Map())
   const worktreesPendingMessage = ref<string | null>(null)
   const artifactContexts = new Map<string, ArtifactContext>()
+  const uploadReadyEvents = new Map<string, UploadReadyEvent>()
 
   const activeUploads = computed(() => Array.from(uploads.value.values()))
   const failedUploads = computed(() =>
@@ -37,6 +38,17 @@ export function useUploadFlow() {
   }
 
   async function _requestPresignedAndPost(event: UploadReadyEvent): Promise<void> {
+    if (!event.manifest || !event.file_index) {
+      _setUpload({
+        uploadId: event.upload_id,
+        runId: event.run_id,
+        nodeId: event.node_id,
+        status: 'failed',
+        error: 'Upload metadata is unavailable',
+      })
+      return
+    }
+
     _setUpload({
       uploadId: event.upload_id,
       runId: event.run_id,
@@ -106,6 +118,7 @@ export function useUploadFlow() {
   }
 
   function handleUploadReady(data: UploadReadyEvent): void {
+    uploadReadyEvents.set(data.upload_id, data)
     _setUpload({
       uploadId: data.upload_id,
       runId: data.run_id,
@@ -178,7 +191,9 @@ export function useUploadFlow() {
       data.message ?? 'Worktrees will be cleaned up after uploads complete'
   }
 
-  async function retryUpload(uploadId: string, event: UploadReadyEvent): Promise<void> {
+  async function retryUpload(uploadId: string): Promise<void> {
+    const event = uploadReadyEvents.get(uploadId)
+    if (!event) return
     await _requestPresignedAndPost(event)
   }
 

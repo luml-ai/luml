@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from luml.schemas.base import BaseOrmConfig
 from luml.schemas.user import UserOut
@@ -27,6 +27,7 @@ class Orbit(BaseModel, BaseOrmConfig):
     name: str
     organization_id: UUID
     bucket_secret_id: UUID
+    relay_id: UUID | None = None
     total_members: int | None = None
     total_collections: int | None = None
     total_satellites: int | None = None
@@ -46,11 +47,20 @@ class OrbitUpdate(BaseModel, BaseOrmConfig):
     id: UUID | None = None
     name: str | None = Field(default=None, max_length=100)
     bucket_secret_id: UUID | None = None
+    relay_id: UUID | None = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def reject_null_name(cls, value: Any) -> Any:  # noqa: ANN401
+        if value is None:
+            raise ValueError("name cannot be null; omit it instead")
+        return value
 
 
 class OrbitCreateIn(BaseModel, BaseOrmConfig):
     name: str = Field(max_length=100)
     bucket_secret_id: UUID
+    relay_id: UUID | None = None
     members: list[OrbitMemberCreateSimple] | None = None
     notify: bool = False
 
@@ -58,6 +68,7 @@ class OrbitCreateIn(BaseModel, BaseOrmConfig):
 class OrbitCreate(BaseModel, BaseOrmConfig):
     name: str
     bucket_secret_id: UUID
+    relay_id: UUID | None = None
     organization_id: UUID | None = None
 
 
