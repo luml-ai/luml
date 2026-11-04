@@ -86,6 +86,9 @@ class TestS3Proxy:
             ("mybucket", "../../canary.txt"),
             ("..", "canary.txt"),
             ("mybucket", ".."),
+            ("mybucket", "data/.."),
+            ("mybucket", "../otherbucket/file.txt"),
+            (".", "file.txt"),
         ],
     )
     def test_get_file_path_traversal_raises(
@@ -96,6 +99,17 @@ class TestS3Proxy:
 
     def test_get_escaping_path_returns_400(self, server: S3ProxyServer) -> None:
         _assert_invalid_argument(*_request(server, "GET", ESCAPING_KEY_PATH))
+
+    def test_get_bucket_root_path_returns_400(self, server: S3ProxyServer) -> None:
+        _assert_invalid_argument(*_request(server, "GET", "/mybucket/data%2F.."))
+
+    def test_get_directory_key_returns_404(
+        self, server: S3ProxyServer, storage_root: Path
+    ) -> None:
+        (storage_root / "mybucket" / "data").mkdir(parents=True)
+        resp, body = _request(server, "GET", "/mybucket/data")
+        assert resp.status == 404
+        assert "<Code>NoSuchKey</Code>" in body.decode("utf-8")
 
     def test_put_escaping_path_returns_400(self, server: S3ProxyServer) -> None:
         _assert_invalid_argument(*_request(server, "PUT", ESCAPING_KEY_PATH, b"test"))

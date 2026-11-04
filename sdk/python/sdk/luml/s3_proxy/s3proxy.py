@@ -199,11 +199,9 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
     def get_file_path(self, bucket: str, key: str) -> Path:
         storage_root = Path(self.storage_root).resolve()
-        file_path = (storage_root / bucket / key).resolve()
-        if (
-            os.path.commonpath([str(storage_root), str(file_path)]) != str(storage_root)
-            or file_path == storage_root
-        ):
+        bucket_root = (storage_root / bucket).resolve()
+        file_path = (bucket_root / key).resolve()
+        if bucket_root.parent != storage_root or bucket_root not in file_path.parents:
             raise ValueError("Invalid bucket or key path.")
         return file_path
 
@@ -257,7 +255,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         if file_path is None:
             return
 
-        if not file_path.exists():
+        if not file_path.is_file():
             self.send_error_response(
                 404, "NoSuchKey", "The specified key does not exist"
             )
