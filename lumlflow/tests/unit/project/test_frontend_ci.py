@@ -24,7 +24,7 @@ def test_frontend_ci_runs_required_checks_in_order() -> None:
     jobs = cast(dict[str, dict[str, object]], workflow["jobs"])
     assert _commands(jobs["lint"]) == [
         "npm ci",
-        "npm run lint",
+        "npx eslint .",
         "npm run format:check",
     ]
     assert _commands(jobs["unit"]) == [
