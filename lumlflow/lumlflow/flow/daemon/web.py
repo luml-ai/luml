@@ -41,12 +41,21 @@ logger = logging.getLogger(__name__)
 
 
 def build_app(
-    hub: Hub, api: Api, streams: Streams, *, token: str, static: Path | None = None
+    hub: Hub,
+    api: Api,
+    streams: Streams,
+    *,
+    token: str,
+    session_token: str,
+    static: Path | None = None,
 ) -> FastAPI:
     from lumlflow.server import SPAStaticFiles, get_static_dir
     from lumlflow.service import AppService
 
-    app = AppService()
+    app = AppService(
+        self_authenticated_paths=frozenset({RPC_PATH, STREAM_PATH, DOWNLOAD_PATH})
+    )
+    app.state.session_token = session_token
     app.include_router(_flow_router(hub, api, streams, token=token))
     directory = static if static is not None else get_static_dir()
     if (directory / "index.html").exists():

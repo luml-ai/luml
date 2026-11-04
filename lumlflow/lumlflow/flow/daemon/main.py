@@ -26,6 +26,7 @@ from lumlflow.flow.daemon.stream import Streams
 from lumlflow.flow.daemon.watcher import Watcher
 from lumlflow.flow.daemon.workspace import DaemonRecord
 from lumlflow.flow.errors import FlowError
+from lumlflow.session import session_token_for
 
 Announce = Callable[[DaemonRecord], None]
 Leases = set[tuple[str | None, str, str]]
@@ -71,6 +72,7 @@ class Daemon:
         )
         self.watcher = Watcher(self.hub)
         self.token = secrets.token_hex(16)
+        self.session_token = ""
         self.port = 0
         self.web_host = _DEFAULT_WEB_HOST
         self.web_port = 0
@@ -100,6 +102,7 @@ class Daemon:
         exact_web_port: bool = False,
         announce: Announce | None = None,
         report_attached: bool = False,
+        rotate_session_token: bool = False,
     ) -> int:
         daemon_log.configure()
         _install_signals(self.stop)
@@ -136,6 +139,9 @@ class Daemon:
             )
             workspace.write_record(record)
             self._record = record
+            self.session_token = session_token_for(
+                self.hub.tracker.store_path, rotate_session_token
+            )
             self._serve_web(listener)
             try:
                 self.watcher.start()
@@ -163,7 +169,13 @@ class Daemon:
         self.api.web = f"http://{self.web_host}:{self.web_port}"
         self._web = _WebServer(
             uvicorn.Config(
-                web.build_app(self.hub, self.api, self.streams, token=self.token),
+                web.build_app(
+                    self.hub,
+                    self.api,
+                    self.streams,
+                    token=self.token,
+                    session_token=self.session_token,
+                ),
                 log_config=None,
                 access_log=False,
             )
@@ -555,7 +567,12 @@ class _WebServer(uvicorn.Server):
 
 
 def serve_here(
-    directory: Path, *, web_host: str, web_port: int, announce: Announce
+    directory: Path,
+    *,
+    web_host: str,
+    web_port: int,
+    announce: Announce,
+    rotate_session_token: bool = False,
 ) -> int:
     daemon_log.configure()
     try:
@@ -566,6 +583,7 @@ def serve_here(
                 exact_web_port=True,
                 announce=announce,
                 report_attached=True,
+                rotate_session_token=rotate_session_token,
             )
         )
     except FlowError:

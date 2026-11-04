@@ -27,7 +27,9 @@ OPEN_API_PATHS = frozenset({"/api/auth/status"})
 
 
 class AppService(FastAPI):
-    def __init__(self, *args, **kwargs) -> None:  # type: ignore
+    def __init__(  # type: ignore
+        self, *args, self_authenticated_paths: frozenset[str] = frozenset(), **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
 
         self.state.session_token = (
@@ -39,6 +41,7 @@ class AppService(FastAPI):
             if (
                 request.url.path.startswith("/api/")
                 and request.url.path not in OPEN_API_PATHS
+                and request.url.path not in self_authenticated_paths
                 and request.method != "OPTIONS"
             ):
                 authorization = request.headers.get("Authorization", "")

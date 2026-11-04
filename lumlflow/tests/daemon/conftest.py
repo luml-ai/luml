@@ -6,12 +6,14 @@ from typing import Any
 import pytest
 from lumlflow.flow.daemon import client
 from lumlflow.flow.daemon.workspace import STATE_DIR_ENV
-from lumlflow.settings import get_tracker
+from lumlflow.settings import get_config, get_tracker
 from lumlflow.tracker import ThreadSafeTracker, TrackerProvider
 
 from tests.servers import reap, stop_recorded
 
 Reap = Callable[["subprocess.Popen[Any]"], None]
+
+SESSION_TOKEN = "the-session-token"
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +26,14 @@ def tracker(
     provider = get_tracker()
     with provider.bind(ThreadSafeTracker(f"sqlite://{store}")):
         yield provider
+
+
+@pytest.fixture(autouse=True)
+def session_token(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    monkeypatch.setenv("LUMLFLOW_SESSION_TOKEN", SESSION_TOKEN)
+    get_config.cache_clear()
+    yield SESSION_TOKEN
+    get_config.cache_clear()
 
 
 @pytest.fixture(autouse=True)

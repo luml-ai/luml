@@ -21,6 +21,7 @@ from starlette.testclient import WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
 from typer.testing import CliRunner
 
+from tests.daemon.conftest import SESSION_TOKEN
 from tests.daemon.helpers import SCORE_CELL, make_workspace, write_cell
 
 TOKEN = "the-workspace-token"
@@ -153,8 +154,10 @@ def served(tmp_path: Path, static: Path) -> Iterator[Served]:
     streams = Streams()
     hub = Hub(streams=streams)
     api = Api(hub, directory=root)
-    app = web.build_app(hub, api, streams, token=TOKEN, static=static)
-    with TestClient(app) as http:
+    app = web.build_app(
+        hub, api, streams, token=TOKEN, session_token=SESSION_TOKEN, static=static
+    )
+    with TestClient(app, headers={"Authorization": f"Bearer {SESSION_TOKEN}"}) as http:
         try:
             yield Served(http=http, root=root, hub=hub, api=api, streams=streams)
         finally:
@@ -232,14 +235,22 @@ def test_the_tracker_answers_the_calls_experiments_actually_makes(
     assert "SPA" in served.http.get("/experiments").text
 
 
-def test_the_flow_key_gates_the_flow_api_and_not_the_tracker(
+def test_the_flow_key_gates_the_flow_api_and_the_session_token_the_tracker(
     served: Served, tracker: TrackerProvider
 ):
-    unkeyed = served.http.get("/api/groups")
+    keyed = served.http.get("/api/groups")
+    unkeyed = served.http.get("/api/groups", headers={"Authorization": ""})
     refused = served.http.post(web.RPC_PATH, json={"method": "ping"})
+    flow_keyed = served.http.post(
+        web.RPC_PATH,
+        json={"method": "ping"},
+        headers={"Authorization": "", web.TOKEN_HEADER: TOKEN},
+    )
 
-    assert unkeyed.status_code == 200, unkeyed.text
+    assert keyed.status_code == 200, keyed.text
+    assert unkeyed.status_code == 401
     assert refused.status_code == 401
+    assert flow_keyed.status_code == 200, flow_keyed.text
 
 
 def test_every_tracker_router_uses_the_per_test_store(
@@ -423,11 +434,11 @@ def test_a_bad_numeric_parameter_is_a_json_refusal(
     answer = served.http.post(
         web.RPC_PATH,
         json={"method": "rewind", "params": {"flow": "churn", "to_step": "abc"}},
-        headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://workbench.test"},
+        headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://localhost:5173"},
     )
 
     assert answer.status_code == 400
-    assert answer.headers["access-control-allow-origin"] == "*"
+    assert answer.headers["access-control-allow-origin"] == "http://localhost:5173"
     assert answer.json() == {
         "error": {"kind": "FlowError", "message": "`to_step` must be an integer"}
     }
@@ -448,13 +459,13 @@ def test_an_unexpected_failure_is_json_and_logs_its_traceback(
         answer = served.http.post(
             web.RPC_PATH,
             json={"method": "test.fail"},
-            headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://workbench.test"},
+            headers={web.TOKEN_HEADER: TOKEN, "Origin": "http://localhost:5173"},
         )
     finally:
         daemon_log.close()
 
     assert answer.status_code == 500
-    assert answer.headers["access-control-allow-origin"] == "*"
+    assert answer.headers["access-control-allow-origin"] == "http://localhost:5173"
     assert answer.json() == {"error": {"message": "the store failed"}}
     assert "Traceback" not in answer.text
     captured = capsys.readouterr()
@@ -795,7 +806,7 @@ def test_journal_since_answers_the_same_history_over_plain_rpc(served: Served):
 
 
 def test_the_address_ui_prints_is_one_this_endpoint_takes(
-    served: Served, monkeypatch: pytest.MonkeyPatch
+    served: Served, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from lumlflow.cli import app
 
@@ -805,7 +816,7 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
         token=TOKEN,
         web_host="127.0.0.1",
         web_port=7777,
-        tracker_store="/tmp/experiments",
+        tracker_store=str((tmp_path / "experiments").resolve()),
     )
     monkeypatch.delenv("LUML_BACKEND_STORE_URI", raising=False)
     monkeypatch.setenv("BACKEND_STORE_URI", record.tracker_store)
@@ -827,6 +838,11 @@ def test_the_address_ui_prints_is_one_this_endpoint_takes(
         "directory": [str(Path.cwd())],
         "log": [str(workspace.log_path())],
     }
+    assert parse_qs(parsed.fragment) == {"session-token": [SESSION_TOKEN]}
+    keyed = served.http.get(
+        "/api/groups", headers={"Authorization": f"Bearer {SESSION_TOKEN}"}
+    )
+    assert keyed.status_code == 200, keyed.text
     with served.http.websocket_connect(
         f"{web.STREAM_PATH}?{urlparse(printed).query}"
     ) as socket:

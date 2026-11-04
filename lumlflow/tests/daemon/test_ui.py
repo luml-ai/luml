@@ -24,7 +24,7 @@ from lumlflow.flow.daemon.workspace import DaemonRecord
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from tests.daemon.conftest import Reap
+from tests.daemon.conftest import SESSION_TOKEN, Reap
 from tests.daemon.helpers import SCORE_CELL, make_workspace, write_cell
 
 Serve = Callable[..., "subprocess.Popen[str]"]
@@ -67,7 +67,9 @@ def test_the_default_port_is_5000_and_a_flag_is_what_changes_it(
     root = make_workspace(tmp_path / "project", flows=())
     asked: list[tuple[str, int]] = []
 
-    def note(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
+    def note(
+        root: Path, *, web_host: str, web_port: int, announce: Any, **_: Any
+    ) -> int:
         asked.append((web_host, web_port))
         return 0
 
@@ -117,7 +119,9 @@ def test_the_browser_is_opened_on_the_address_that_carries_the_key(
     record = _record()
     opened = _opens(monkeypatch)
 
-    def announcing(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
+    def announcing(
+        root: Path, *, web_host: str, web_port: int, announce: Any, **_: Any
+    ) -> int:
         announce(record)
         return 0
 
@@ -144,7 +148,9 @@ def test_ui_warns_only_for_a_non_loopback_bind(
 ) -> None:
     root = make_workspace(tmp_path / "project", flows=())
 
-    def announcing(root: Path, *, web_host: str, web_port: int, announce: Any) -> int:
+    def announcing(
+        root: Path, *, web_host: str, web_port: int, announce: Any, **_: Any
+    ) -> int:
         announce(
             DaemonRecord(
                 pid=1,
@@ -648,7 +654,8 @@ def _ui_url(record: DaemonRecord, directory: Path) -> str:
             "log": str(workspace.log_path()),
         }
     )
-    return f"http://{record.web_host}:{record.web_port}/workspaces?{query}"
+    session = urlencode({"session-token": SESSION_TOKEN})
+    return f"http://{record.web_host}:{record.web_port}/workspaces?{query}#{session}"
 
 
 def _served(root: Path, port: int) -> DaemonRecord:

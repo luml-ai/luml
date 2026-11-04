@@ -8,6 +8,7 @@ import typer
 
 from lumlflow.flow import cli as flow_cli
 from lumlflow.flow.daemon import workspace as daemon_workspace
+from lumlflow.session import session_token_for
 
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.workspace import DaemonRecord
@@ -47,6 +48,11 @@ def ui(
     no_browser: bool = typer.Option(
         False, "--no-browser", help="Do not open the browser."
     ),
+    rotate_token: bool = typer.Option(
+        False,
+        "--rotate-token",
+        help="Issue a new session token; links with the old one stop working",
+    ),
 ) -> None:
     """Open lumlflow on DIRECTORY's flows, starting the daemon when needed.
 
@@ -79,6 +85,7 @@ def ui(
                 port=port,
                 tracker_store=tracker_store,
                 no_browser=no_browser,
+                rotate_token=rotate_token,
             )
             return
         code = server.serve_here(
@@ -88,6 +95,7 @@ def ui(
             announce=lambda record: _serving(
                 record, directory=launch_directory, no_browser=no_browser
             ),
+            rotate_session_token=rotate_token,
         )
         if code == server.ALREADY_RUNNING:
             serving = client.discover()
@@ -99,6 +107,7 @@ def ui(
                     port=port,
                     tracker_store=tracker_store,
                     no_browser=no_browser,
+                    rotate_token=rotate_token,
                 )
                 return
     except FlowError as failure:
@@ -132,6 +141,7 @@ def _attach(
     port: int,
     tracker_store: str,
     no_browser: bool,
+    rotate_token: bool,
 ) -> None:
     from lumlflow.flow.daemon import client
     from lumlflow.flow.errors import FlowError
@@ -139,6 +149,11 @@ def _attach(
     mismatch = client.version_mismatch(record)
     if mismatch is not None:
         raise FlowError(mismatch)
+    if rotate_token:
+        raise FlowError(
+            "a running lumlflow keeps its session token. "
+            "run `lumlflow daemon stop` before rotating it"
+        )
     if record.tracker_store != tracker_store or record.web_host != host:
         raise FlowError(
             "lumlflow is already serving tracker store "
@@ -174,7 +189,10 @@ def _url(record: "DaemonRecord", directory: Path) -> str:
             "log": str(daemon_workspace.log_path()),
         }
     )
-    return f"http://{record.web_host}:{record.web_port}/workspaces?{query}"
+    session = urlencode(
+        {"session-token": session_token_for(Path(record.tracker_store))}
+    )
+    return f"http://{record.web_host}:{record.web_port}/workspaces?{query}#{session}"
 
 
 def _show_log_path() -> None:
