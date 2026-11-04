@@ -17,8 +17,7 @@ spec:
       labels:
         {{- include "luml.selectorLabels" (dict "root" . "component" "satellite") | nindent 8 }}
       annotations:
-        checksum/satellite-token: {{ include "luml.tokenChecksum" . | quote }}
-        checksum/derivation-key: {{ include "luml.derivationChecksum" . | quote }}
+        luml.ai/credentials-revision: {{ .Release.Revision | quote }}
     spec:
       serviceAccountName: {{ include "luml.serviceAccountName" . | quote }}
       securityContext:

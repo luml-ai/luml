@@ -55,8 +55,7 @@ class FileHandler:
                     )
                 elif response.status_code >= 400:
                     raise ValueError(
-                        f"HTTP {response.status_code} error downloading model artifact: "
-                        f"{response.reason_phrase}"
+                        f"HTTP {response.status_code} error downloading model artifact"
                     )
 
                 response.raise_for_status()
@@ -73,14 +72,14 @@ class FileHandler:
         except ArtifactAccessExpired:
             # kept distinct from the catch-all below: the caller retries this one
             raise
-        except httpx.TimeoutException as error:
-            raise ValueError(f"Download timeout: {str(error)}") from error
-        except httpx.ConnectError as error:
-            raise ValueError(f"Connection error: {str(error)}") from error
+        except httpx.TimeoutException:
+            raise ValueError("Download timeout") from None
+        except httpx.ConnectError:
+            raise ValueError("Connection error downloading model artifact") from None
         except OSError as error:
             raise ValueError(f"File system error: {str(error)}") from error
         except Exception as error:
-            raise ValueError(f"Download failed: {str(error)}") from error
+            raise ValueError(f"Download failed ({type(error).__name__})") from None
 
     def remove_file(self, file_path: str | Path) -> None:
         file_path = self._to_path_str(file_path)

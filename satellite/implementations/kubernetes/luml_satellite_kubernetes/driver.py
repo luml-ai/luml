@@ -170,7 +170,11 @@ class KubernetesDriver:
     async def observe(self, deployment_id: str) -> WorkloadObservation:
         name = deployment_object_name(deployment_id)
         workload = await self.api.get("Deployment", name)
-        if workload is None:
+        if (
+            workload is None
+            or _labels(workload).get(KUBERNETES_SATELLITE_LABEL)
+            != self.configuration.SATELLITE_NAME
+        ):
             return WorkloadObservation(WorkloadState.MISSING)
         pods = await self.api.list("Pod", self._deployment_selector(deployment_id))
         return await self._observation(deployment_id, workload, pods)
@@ -208,17 +212,31 @@ class KubernetesDriver:
 
     async def remove(self, deployment_id: str) -> RemoveResult:
         name = deployment_object_name(deployment_id)
-        workload = await self.api.get("Deployment", name)
+        resources = await asyncio.gather(*(self.api.get(kind, name) for kind in _REMOVAL_KINDS))
+        owned_kinds = [
+            kind
+            for kind, item in zip(_REMOVAL_KINDS, resources, strict=True)
+            if item is not None
+            and _labels(item).get(KUBERNETES_SATELLITE_LABEL) == self.configuration.SATELLITE_NAME
+        ]
+        workload = resources[_REMOVAL_KINDS.index("Deployment")]
         artifact_id = (
-            _labels(workload).get(KUBERNETES_ARTIFACT_LABEL) if workload is not None else None
+            _labels(workload).get(KUBERNETES_ARTIFACT_LABEL)
+            if workload is not None and "Deployment" in owned_kinds
+            else None
         )
-        results = await asyncio.gather(*(self.api.delete(kind, name) for kind in _REMOVAL_KINDS))
+        results = await asyncio.gather(*(self.api.delete(kind, name) for kind in owned_kinds))
         removed = any(results)
         deadline = self._monotonic() + self.configuration.REMOVAL_TIMEOUT_SEC
         while True:
             self.removal_rechecks += 1
-            remaining = await asyncio.gather(*(self.api.get(kind, name) for kind in _REMOVAL_KINDS))
-            if all(item is None for item in remaining):
+            remaining = await asyncio.gather(*(self.api.get(kind, name) for kind in owned_kinds))
+            if all(
+                item is None
+                or _labels(item).get(KUBERNETES_SATELLITE_LABEL)
+                != self.configuration.SATELLITE_NAME
+                for item in remaining
+            ):
                 return RemoveResult(removed=removed, verified=True, artifact_id=artifact_id)
             if self._monotonic() >= deadline:
                 return RemoveResult(removed=removed, verified=False, artifact_id=artifact_id)

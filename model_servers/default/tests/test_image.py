@@ -394,3 +394,38 @@ def test_pinned_micromamba_runs_offline_as_the_default_user(
         ]
     )
     assert result.stdout.strip() == _pinned_micromamba_version()
+
+
+@pytest.mark.parametrize("user", ["10001:0", f"{RANDOM_UID}:0"])
+def test_server_code_is_read_only_while_runtime_directories_are_writable(
+    docker_cli: str, model_server_image: str, user: str
+) -> None:
+    script = """
+from pathlib import Path
+for path in [Path('/app/main.py'), Path('/app/handlers/model_handler.py')]:
+    try:
+        with path.open('a'):
+            pass
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError(f'{path} is writable')
+for directory in ['/app/models', '/app/.micromamba', '/app/.cache/uv']:
+    path = Path(directory) / 'write-test'
+    path.touch()
+    path.unlink()
+"""
+    _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--user",
+            user,
+            "--entrypoint",
+            "/app/.venv/bin/python",
+            model_server_image,
+            "-c",
+            script,
+        ]
+    )

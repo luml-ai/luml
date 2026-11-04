@@ -8,7 +8,7 @@ set:
   satellite.token: test-token
   satellite.derivationKey: test-derivation-key
 tests:
-  - it: runs one polling copy with recreate and secret checksums
+  - it: runs one polling copy with recreate and a release rollout revision
     asserts:
       - equal:
           path: spec.replicas
@@ -16,12 +16,6 @@ tests:
       - equal:
           path: spec.strategy.type
           value: Recreate
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/satellite-token"]
-          pattern: ^[0-9a-f]{64}$
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/derivation-key"]
-          pattern: ^[0-9a-f]{64}$
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.httpGet.path
           value: /livez

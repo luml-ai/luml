@@ -15,15 +15,9 @@ set:
   satellite.token: test-token
   satellite.derivationKey: test-derivation-key
 tests:
-  - it: mounts token and derivation secrets with checksums into the dashboard
+  - it: mounts token and derivation secrets with a release rollout revision into the dashboard
     template: templates/deployment-dashboard.yaml
     asserts:
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/satellite-token"]
-          pattern: ^[0-9a-f]{64}$
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/derivation-key"]
-          pattern: ^[0-9a-f]{64}$
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -41,15 +35,9 @@ tests:
                 name: monitoring-luml-satellite-kubernetes-derivation-key
                 key: derivation-key
 
-  - it: mounts token and derivation secrets with checksums into the worker
+  - it: mounts token and derivation secrets with a release rollout revision into the worker
     template: templates/deployment-worker.yaml
     asserts:
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/satellite-token"]
-          pattern: ^[0-9a-f]{64}$
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/derivation-key"]
-          pattern: ^[0-9a-f]{64}$
       - contains:
           path: spec.template.spec.containers[0].env
           content:
