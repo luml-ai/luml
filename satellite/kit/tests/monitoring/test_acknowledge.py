@@ -4,9 +4,15 @@ import uuid
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 import respx
 
-from luml_satellite.monitoring import MonitoringQueryService, QueryDimensions
+from luml_satellite.monitoring import (
+    SESSION_COOKIE_NAME,
+    MonitoringQueryService,
+    MonitoringSessionStore,
+    QueryDimensions,
+)
 from luml_satellite.monitoring.compute.models import (
     Alert,
     AlertSignal,
@@ -21,7 +27,12 @@ from luml_satellite.monitoring.dashboard.schemas import SectionState, Severity, 
 from luml_satellite.monitoring.storage.greptime_query import GreptimeQueryStore
 from luml_satellite.monitoring.storage.query_store import InMemoryMonitoringStore, StoredAlert
 from luml_satellite.monitoring.storage.store import InMemoryMonitoringStore as WorkerStore
-from tests.support import FIXED_NOW, ago
+from luml_satellite.wire import (
+    MONITORING_READ_SCOPE,
+    MONITORING_WRITE_SCOPE,
+    MonitoringIntrospection,
+)
+from tests.support import FIXED_NOW, ago, build_app, client_for, introspect_returning
 
 _URL = "http://gt:4000/v1/sql"
 _DEP = uuid.UUID("019f46e3-3aa1-7672-96a9-8c6d98ab25cd")
@@ -48,6 +59,87 @@ def _service(store: InMemoryMonitoringStore) -> MonitoringQueryService:
 
 def alert_signal() -> AlertSignal:
     return AlertSignal("error_rate", 0.3, 0.05, WorkerSeverity.CRITICAL)
+
+
+class TestAcknowledgeAPI:
+    @pytest.mark.parametrize(
+        "scope",
+        [MONITORING_READ_SCOPE, "inference:write", "monitoring:write extra", ""],
+    )
+    async def test_non_write_session_cannot_acknowledge(self, scope: str) -> None:
+        store = InMemoryMonitoringStore()
+        store.add_alert(_stored())
+        sessions = MonitoringSessionStore()
+        session = sessions.create(_DEP, scope)
+        app = build_app(
+            introspect_returning(MonitoringIntrospection(active=False)),
+            session_store=sessions,
+            data_store=store,
+        )
+
+        async with client_for(app) as client:
+            response = await client.post(
+                "/monitoring/api/alerts/acknowledge",
+                json={"metric": "feature_drift:income"},
+                params={"window": "24h"},
+                headers={"cookie": f"{SESSION_COOKIE_NAME}={session.session_id}"},
+            )
+
+        assert response.status_code == 403
+        assert (await store.fetch_alerts(_DEP))[0].state == "open"
+
+    async def test_write_session_can_acknowledge(self) -> None:
+        store = InMemoryMonitoringStore()
+        store.add_alert(_stored())
+        sessions = MonitoringSessionStore()
+        session = sessions.create(_DEP, MONITORING_WRITE_SCOPE)
+        app = build_app(
+            introspect_returning(MonitoringIntrospection(active=False)),
+            session_store=sessions,
+            data_store=store,
+        )
+
+        async with client_for(app) as client:
+            response = await client.post(
+                "/monitoring/api/alerts/acknowledge",
+                json={"metric": "feature_drift:income"},
+                params={"window": "24h"},
+                headers={"cookie": f"{SESSION_COOKIE_NAME}={session.session_id}"},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["groups"][0]["alerts"][0]["state"] == "acknowledged"
+        assert (await store.fetch_alerts(_DEP))[0].state == "acknowledged"
+
+    @pytest.mark.parametrize("session_state", ["missing", "invalid", "expired"])
+    async def test_unauthenticated_request_cannot_acknowledge(self, session_state: str) -> None:
+        now = [0.0]
+        sessions = MonitoringSessionStore(ttl_seconds=60, clock=lambda: now[0])
+        session = sessions.create(_DEP, MONITORING_WRITE_SCOPE)
+        headers = {}
+        if session_state == "invalid":
+            headers["cookie"] = f"{SESSION_COOKIE_NAME}=invalid"
+        elif session_state == "expired":
+            headers["cookie"] = f"{SESSION_COOKIE_NAME}={session.session_id}"
+            now[0] = 60.0
+        store = InMemoryMonitoringStore()
+        store.add_alert(_stored())
+        app = build_app(
+            introspect_returning(MonitoringIntrospection(active=False)),
+            session_store=sessions,
+            data_store=store,
+        )
+
+        async with client_for(app) as client:
+            response = await client.post(
+                "/monitoring/api/alerts/acknowledge",
+                json={"metric": "feature_drift:income"},
+                params={"window": "24h"},
+                headers=headers,
+            )
+
+        assert response.status_code == 401
+        assert (await store.fetch_alerts(_DEP))[0].state == "open"
 
 
 class TestAcknowledge:
