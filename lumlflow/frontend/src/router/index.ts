@@ -11,6 +11,7 @@ import EvalsView from '@/pages/details/EvalsView.vue'
 import AttachmentsView from '@/pages/details/AttachmentsView.vue'
 import ExperimentsComparison from '@/pages/comparison/ExperimentsComparison.vue'
 import GroupsComparisonPage from '@/pages/comparison/GroupsComparisonPage.vue'
+import WorkspaceFlowPage from '@/pages/workspaces/WorkspaceFlowPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -23,6 +24,19 @@ const router = createRouter({
           name: ROUTE_NAMES.HOME,
           path: ROUTES[ROUTE_NAMES.HOME],
           component: HomePage,
+          redirect: { name: ROUTE_NAMES.EXPERIMENTS },
+          children: [
+            {
+              name: ROUTE_NAMES.EXPERIMENTS,
+              path: ROUTES[ROUTE_NAMES.EXPERIMENTS],
+              component: () => import('@/pages/experiments/ExperimentsPage.vue'),
+            },
+            {
+              name: ROUTE_NAMES.WORKSPACES,
+              path: ROUTES[ROUTE_NAMES.WORKSPACES],
+              component: () => import('@/pages/workspaces/WorkspacesPage.vue'),
+            },
+          ],
         },
         {
           name: ROUTE_NAMES.EXPERIMENT,
@@ -70,6 +84,11 @@ const router = createRouter({
           name: ROUTE_NAMES.EXPERIMENTS_COMPARISON,
           path: ROUTES[ROUTE_NAMES.EXPERIMENTS_COMPARISON],
           component: ExperimentsComparison,
+        },
+        {
+          name: ROUTE_NAMES.WORKSPACE_FLOW,
+          path: ROUTES[ROUTE_NAMES.WORKSPACE_FLOW],
+          component: WorkspaceFlowPage,
         },
       ],
     },

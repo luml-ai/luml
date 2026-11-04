@@ -48,10 +48,10 @@ The agent uses two LLM instances: one for generating answers (with a small amoun
 
 ```python
 llm_answerer = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-llm_judge    = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm_judge = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 ANSWERER_MODEL = "gpt-4o-mini"
-JUDGE_MODEL    = "gpt-4o-mini"
+JUDGE_MODEL = "gpt-4o-mini"
 REFINE_THRESHOLD = 6.0
 ```
 
@@ -59,13 +59,13 @@ The graph state is shared between all nodes. It carries the question, the expect
 
 ```python
 class AgentState(TypedDict):
-    question:      str
-    expected:      str
-    question_type: str     # "fact" | "explanation"
-    answer:        str
-    judge_output:  str
-    judge_score:   float
-    refined:       bool
+    question: str
+    expected: str
+    question_type: str  # "fact" | "explanation"
+    answer: str
+    judge_output: str
+    judge_score: float
+    refined: bool
 ```
 
 ## Graph Nodes
@@ -137,14 +137,14 @@ def should_refine(state: AgentState) -> str:
 
 workflow = StateGraph(AgentState)
 workflow.add_node("classify", classify_node)
-workflow.add_node("answer",   answer_node)
-workflow.add_node("judge",    judge_node)
-workflow.add_node("refine",   refine_node)
-workflow.add_edge(START,       "classify")
-workflow.add_edge("classify",  "answer")
-workflow.add_edge("answer",    "judge")
+workflow.add_node("answer", answer_node)
+workflow.add_node("judge", judge_node)
+workflow.add_node("refine", refine_node)
+workflow.add_edge(START, "classify")
+workflow.add_edge("classify", "answer")
+workflow.add_edge("answer", "judge")
 workflow.add_conditional_edges("judge", should_refine, {"refine": "refine", END: END})
-workflow.add_edge("refine",    END)
+workflow.add_edge("refine", END)
 graph = workflow.compile()
 
 model_ref = save_langgraph(
@@ -226,10 +226,12 @@ The tracker is created against a local SQLite database. Calling `enable_tracing(
 
 ```python
 def run_agent(inputs: dict) -> str:
-    result = graph.invoke({
-        "question": inputs["question"],
-        "expected": "",
-    })
+    result = graph.invoke(
+        {
+            "question": inputs["question"],
+            "expected": "",
+        }
+    )
     return result["answer"]
 
 
@@ -242,9 +244,9 @@ exp_id = tracker.start_experiment(
     tags=["llm-judge", "evals", "traces", "langgraph"],
 )
 try:
-    tracker.log_static("answerer_model",   ANSWERER_MODEL)
-    tracker.log_static("judge_model",      JUDGE_MODEL)
-    tracker.log_static("graph_nodes",      ["classify", "answer", "judge", "refine"])
+    tracker.log_static("answerer_model", ANSWERER_MODEL)
+    tracker.log_static("judge_model", JUDGE_MODEL)
+    tracker.log_static("graph_nodes", ["classify", "answer", "judge", "refine"])
     tracker.log_static("refine_threshold", REFINE_THRESHOLD)
 
     eval_results = evaluate(
@@ -301,21 +303,21 @@ LangchainInstrumentor().instrument()
 instrument_openai()
 
 llm_answerer = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-llm_judge    = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+llm_judge = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
 ANSWERER_MODEL = "gpt-4o-mini"
-JUDGE_MODEL    = "gpt-4o-mini"
+JUDGE_MODEL = "gpt-4o-mini"
 REFINE_THRESHOLD = 6.0
 
 
 class AgentState(TypedDict):
-    question:      str
-    expected:      str
+    question: str
+    expected: str
     question_type: str
-    answer:        str
-    judge_output:  str
-    judge_score:   float
-    refined:       bool
+    answer: str
+    judge_output: str
+    judge_score: float
+    refined: bool
 
 
 def classify_node(state: AgentState):
@@ -377,14 +379,14 @@ def should_refine(state: AgentState) -> str:
 
 workflow = StateGraph(AgentState)
 workflow.add_node("classify", classify_node)
-workflow.add_node("answer",   answer_node)
-workflow.add_node("judge",    judge_node)
-workflow.add_node("refine",   refine_node)
-workflow.add_edge(START,       "classify")
-workflow.add_edge("classify",  "answer")
-workflow.add_edge("answer",    "judge")
+workflow.add_node("answer", answer_node)
+workflow.add_node("judge", judge_node)
+workflow.add_node("refine", refine_node)
+workflow.add_edge(START, "classify")
+workflow.add_edge("classify", "answer")
+workflow.add_edge("answer", "judge")
 workflow.add_conditional_edges("judge", should_refine, {"refine": "refine", END: END})
-workflow.add_edge("refine",    END)
+workflow.add_edge("refine", END)
 graph = workflow.compile()
 
 model_ref = save_langgraph(
@@ -448,10 +450,12 @@ eval_dataset = [
 
 
 def run_agent(inputs: dict) -> str:
-    result = graph.invoke({
-        "question": inputs["question"],
-        "expected": "",
-    })
+    result = graph.invoke(
+        {
+            "question": inputs["question"],
+            "expected": "",
+        }
+    )
     return result["answer"]
 
 
@@ -464,9 +468,9 @@ exp_id = tracker.start_experiment(
     tags=["llm-judge", "evals", "traces", "langgraph"],
 )
 try:
-    tracker.log_static("answerer_model",   ANSWERER_MODEL)
-    tracker.log_static("judge_model",      JUDGE_MODEL)
-    tracker.log_static("graph_nodes",      ["classify", "answer", "judge", "refine"])
+    tracker.log_static("answerer_model", ANSWERER_MODEL)
+    tracker.log_static("judge_model", JUDGE_MODEL)
+    tracker.log_static("graph_nodes", ["classify", "answer", "judge", "refine"])
     tracker.log_static("refine_threshold", REFINE_THRESHOLD)
 
     eval_results = evaluate(

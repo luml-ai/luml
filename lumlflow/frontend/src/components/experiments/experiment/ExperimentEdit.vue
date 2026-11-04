@@ -57,7 +57,9 @@ const visible = ref(false)
 const isSubmitting = ref(false)
 
 function onDelete() {
-  confirm.require(deleteExperimentConfirmOptions(onDeleteConfirm))
+  const experiment = experimentsStore.editableExperiment
+  if (!experiment) return
+  confirm.require(deleteExperimentConfirmOptions(onDeleteConfirm, [experiment]))
 }
 
 async function onDeleteConfirm() {

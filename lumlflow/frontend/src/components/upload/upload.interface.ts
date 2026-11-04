@@ -1,5 +1,7 @@
-import type { Model } from '@/store/experiments/experiments.interface'
 import type { FormInstance } from '@primevue/forms'
+import type { ArtifactKind } from './collectionTypes'
+import type { ExperimentPublishOptions, PublishTarget } from '@/flow/api/types'
+import type { Model } from '@/store/experiments/experiments.interface'
 
 export enum UploadTypeEnum {
   AUTO = 'auto',
@@ -54,9 +56,24 @@ export interface UploadedArtifactInfo {
   tags: string[]
 }
 
+export type { PublishTarget } from '@/flow/api/types'
+
+export type PublishModel = (target: PublishTarget) => Promise<{ job_id: string }>
+
+export type PublishExperiment = (
+  target: PublishTarget,
+  options: ExperimentPublishOptions,
+) => Promise<{ job_id: string }>
+
 export interface UploadModalProps {
-  experimentId: string
-  models: Model[]
+  experimentId?: string
+  models?: Model[]
+  publish?: PublishModel
+  /** Publishes a flow cell's experiment with the models it returned, by `type`. */
+  publishExperiment?: PublishExperiment
+  /** How many models `publishExperiment` has when the tracker links none. */
+  modelCount?: number
+  defaultName?: string
 }
 
 export interface CollectionFieldProps {
@@ -64,6 +81,7 @@ export interface CollectionFieldProps {
   organizationId?: string | null
   orbitId?: string | null
   formRef: FormInstance | undefined
+  requiredKinds: ArtifactKind[]
 }
 
 export interface CollectionFieldEmits {

@@ -71,7 +71,7 @@
               <div v-else>-</div>
             </div>
           </div>
-          <UploadModal :experiment-id="experiment.id" :models="experiment.models || []" />
+          <UploadButton :experiment-id="experiment.id" />
         </template>
       </Card>
     </div>
@@ -81,7 +81,7 @@
 <script setup lang="ts">
 import { Card, Tag } from 'primevue'
 import { Copy, FileChartLine, Check, Timer, CircleX } from 'lucide-vue-next'
-import UploadModal from '@/components/upload/UploadModal.vue'
+import UploadButton from '@/components/upload/UploadButton.vue'
 import { dateToText, durationToText } from '@/helpers/date'
 import { cutStringOnMiddle } from '@/helpers/string'
 import { useExperimentStore } from '@/store/experiment'

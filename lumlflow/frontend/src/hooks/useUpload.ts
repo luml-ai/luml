@@ -14,10 +14,14 @@ export const useUpload = () => {
   const loading = ref<boolean>(false)
 
   async function upload(payload: UploadArtifactPayload) {
+    await follow(() => apiService.uploadArtifact(payload))
+  }
+
+  async function follow(start: () => Promise<{ job_id: string }>) {
     try {
       loading.value = true
       error.value = null
-      const response = await apiService.uploadArtifact(payload)
+      const response = await start()
       await initProgressWatch(response.job_id)
     } catch (err) {
       loading.value = false
@@ -82,5 +86,5 @@ export const useUpload = () => {
     }
   }
 
-  return { progress, error, upload, complete, loading }
+  return { progress, error, upload, follow, complete, loading }
 }

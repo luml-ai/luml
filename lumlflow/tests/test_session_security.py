@@ -34,10 +34,15 @@ def test_api_requires_session_token(client: TestClient) -> None:
 
 
 def test_status_is_open_to_every_origin_without_a_token(client: TestClient) -> None:
-    response = client.get("/api/auth/status", headers={"Origin": "https://app.luml.ai"})
+    response = client.get(
+        "/api/auth/status", headers={"Origin": "https://elsewhere.example"}
+    )
     assert response.status_code == 200
     assert isinstance(response.json()["has_key"], bool)
     assert response.headers["access-control-allow-origin"] == "*"
+    response = client.get("/api/auth/status", headers={"Origin": "https://app.luml.ai"})
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://app.luml.ai"
     response = client.get(
         "/api/auth/status", headers={"Origin": "http://localhost:5173"}
     )
@@ -112,6 +117,33 @@ def test_vite_cors_origin_is_allowed_but_needs_token(client: TestClient) -> None
         ).status_code
         == 401
     )
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://app.luml.ai",
+        "https://dev.luml.ai",
+        "https://app.dataforce.studio",
+        "https://dev.dataforce.studio",
+    ],
+)
+def test_platform_origins_are_allowed_any_request_but_need_token(
+    client: TestClient, origin: str
+) -> None:
+    response = client.options(
+        "/api/groups",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "PUT",
+            "Access-Control-Request-Headers": "authorization, x-lumlflow-token",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    response = client.get("/api/groups", headers={"Origin": origin})
+    assert response.status_code == 401
+    assert response.headers["access-control-allow-origin"] == origin
 
 
 @pytest.mark.parametrize("endpoint", ["content", "tree"])

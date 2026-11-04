@@ -1,9 +1,10 @@
+import sqlite3
 import threading
 from pathlib import Path
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
-from lumlflow.tracker import ThreadSafeTracker
+from lumlflow.tracker import ThreadSafeTracker, TrackerProvider
 
 
 @pytest.fixture
@@ -51,3 +52,24 @@ class TestThreadSafeTracker:
         assert not errors
         data = tracker.get_experiment(exp_id)
         assert len(data.static_params) == 4
+
+
+def test_provider_retries_a_busy_tracker_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = tmp_path / "experiments"
+    tracker = ThreadSafeTracker(f"sqlite://{store}")
+    provider = TrackerProvider(lambda: store)
+    attempts = 0
+
+    def flaky(_experiment_id: str) -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise sqlite3.OperationalError("database is locked")
+        return "record"
+
+    monkeypatch.setattr(tracker, "get_experiment_record", flaky)
+    with provider.bind(tracker):
+        assert provider.read_experiment("exp-1") == "record"
+    assert attempts == 2

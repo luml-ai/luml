@@ -125,9 +125,7 @@ def _diff_static_params(
             keys.update(exp.static_params.keys())
     rows: list[_ParamDiffRow] = []
     for key in sorted(keys):
-        raw_values = [
-            (exp.static_params or {}).get(key) for exp in experiments
-        ]
+        raw_values = [(exp.static_params or {}).get(key) for exp in experiments]
         differs = len({_stringify(v) for v in raw_values}) > 1
         rows.append(
             _ParamDiffRow(
@@ -260,9 +258,7 @@ class ComparisonScreen(BaseScreen):
     ) -> None:
         super().__init__(id=id)
         if len(experiments) < 2:
-            raise ValueError(
-                "ComparisonScreen requires at least 2 experiments"
-            )
+            raise ValueError("ComparisonScreen requires at least 2 experiments")
         self._facade = facade
         self._experiments = experiments
         self._metric_keys = _shared_metric_keys(experiments)
@@ -383,16 +379,12 @@ class ComparisonScreen(BaseScreen):
     def action_body_half_page_down(self) -> None:
         body = self._scroll_body()
         if body is not None:
-            body.scroll_relative(
-                y=max(1, body.size.height // 2), animate=False
-            )
+            body.scroll_relative(y=max(1, body.size.height // 2), animate=False)
 
     def action_body_half_page_up(self) -> None:
         body = self._scroll_body()
         if body is not None:
-            body.scroll_relative(
-                y=-max(1, body.size.height // 2), animate=False
-            )
+            body.scroll_relative(y=-max(1, body.size.height // 2), animate=False)
 
     # ----- facade -----
 
@@ -489,21 +481,11 @@ class ComparisonScreen(BaseScreen):
         view = self.query_one("#cmp-metric-list", ListView)
         view.clear()
         if not self._metric_keys:
-            view.append(
-                ListItem(
-                    Static("(no metrics)"), id="cmp-metric-none"
-                )
-            )
-            self._update_metric_status(
-                "No dynamic metrics on any selected experiment."
-            )
+            view.append(ListItem(Static("(no metrics)"), id="cmp-metric-none"))
+            self._update_metric_status("No dynamic metrics on any selected experiment.")
             return
         for key in self._metric_keys:
-            view.append(
-                ListItem(
-                    Static(key), id=_metric_list_item_id(key)
-                )
-            )
+            view.append(ListItem(Static(key), id=_metric_list_item_id(key)))
         view.index = 0
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
@@ -524,9 +506,7 @@ class ComparisonScreen(BaseScreen):
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         # Pressing Enter on the chooser also refreshes the chart; the
         # actual change is handled by the highlight handler.
-        self.on_list_view_highlighted(
-            ListView.Highlighted(event.list_view, event.item)
-        )
+        self.on_list_view_highlighted(ListView.Highlighted(event.list_view, event.item))
 
     def _refresh_metric_chart(self) -> None:
         if self._selected_metric is None:
@@ -555,12 +535,8 @@ class ComparisonScreen(BaseScreen):
         if facade is None:
             return
         for exp in self._experiments:
-            result = facade.get_metric_history(
-                exp.id, key, max_points=max_points
-            )
-            self.app.call_from_thread(
-                self._on_history_result, exp.id, key, result
-            )
+            result = facade.get_metric_history(exp.id, key, max_points=max_points)
+            self.app.call_from_thread(self._on_history_result, exp.id, key, result)
 
     @work(thread=True, exclusive=True, group="cmp-data")
     def _load_all_data(self) -> None:
@@ -582,29 +558,19 @@ class ComparisonScreen(BaseScreen):
         if key is not None:
             width = self._chart_max_points()
             for exp in self._experiments:
-                result = facade.get_metric_history(
-                    exp.id, key, max_points=width
-                )
-                self.app.call_from_thread(
-                    self._on_history_result, exp.id, key, result
-                )
+                result = facade.get_metric_history(exp.id, key, max_points=width)
+                self.app.call_from_thread(self._on_history_result, exp.id, key, result)
         # Eval scores follow the histories so the metric chart fills
         # in first (most likely to be visible above the fold).
         for exp in self._experiments:
             ds_result = facade.get_eval_dataset_ids(exp.id)
             if not ds_result.ok:
-                self.app.call_from_thread(
-                    self._on_dataset_ids_failure, exp.id
-                )
+                self.app.call_from_thread(self._on_dataset_ids_failure, exp.id)
                 continue
             dataset_ids = list(ds_result.unwrap() or [])
-            self.app.call_from_thread(
-                self._on_dataset_ids_result, exp.id, dataset_ids
-            )
+            self.app.call_from_thread(self._on_dataset_ids_result, exp.id, dataset_ids)
             for ds_id in dataset_ids:
-                avg_result = facade.get_eval_average_scores(
-                    exp.id, dataset_id=ds_id
-                )
+                avg_result = facade.get_eval_average_scores(exp.id, dataset_id=ds_id)
                 if not avg_result.ok:
                     continue
                 averages = dict(avg_result.unwrap() or {})
@@ -659,18 +625,14 @@ class ComparisonScreen(BaseScreen):
             plt.ylabel(self._selected_metric or "")
         chart.refresh()
         if not any_series:
-            self._update_metric_status(
-                "No data yet · waiting for series…"
-            )
+            self._update_metric_status("No data yet · waiting for series…")
             return
         if subsampled:
             self._update_metric_status(
                 f"{self._selected_metric} · subsampled to viewport width"
             )
         else:
-            self._update_metric_status(
-                f"{self._selected_metric}"
-            )
+            self._update_metric_status(f"{self._selected_metric}")
 
     def _update_metric_status(self, message: str) -> None:
         try:
@@ -735,9 +697,7 @@ class ComparisonScreen(BaseScreen):
         dataset_score_keys: dict[str, set[str]] = {}
         for per_exp in self._eval_scores.values():
             for ds_id, scores in per_exp.items():
-                dataset_score_keys.setdefault(ds_id, set()).update(
-                    scores.keys()
-                )
+                dataset_score_keys.setdefault(ds_id, set()).update(scores.keys())
         # Wipe rows but preserve columns.
         for existing_key in list(table.rows.keys()):
             try:
@@ -755,18 +715,12 @@ class ComparisonScreen(BaseScreen):
             for score_key in sorted(dataset_score_keys[ds_id]):
                 row_key = f"cmp-eval-{ds_id}-{score_key}"
                 cells: list[Text] = []
-                cells.append(
-                    Text(f"{ds_id} · {score_key}", style="dim")
-                )
+                cells.append(Text(f"{ds_id} · {score_key}", style="dim"))
                 values: list[float | None] = []
                 for exp in self._experiments:
-                    scores = self._eval_scores.get(exp.id, {}).get(
-                        ds_id, {}
-                    )
+                    scores = self._eval_scores.get(exp.id, {}).get(ds_id, {})
                     values.append(scores.get(score_key))
-                differs = (
-                    len({_score_repr(v) for v in values}) > 1
-                )
+                differs = len({_score_repr(v) for v in values}) > 1
                 for value in values:
                     text = _format_score_cell(value)
                     if differs and value is not None:

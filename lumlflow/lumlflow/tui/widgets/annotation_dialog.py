@@ -241,9 +241,9 @@ class AnnotationDialog(BaseDialog["AnnotationDialogResult | None"]):
             try:
                 hint = self.query_one("#annotation-value-hint", Static)
                 hint.update(self._value_hint())
-                self.query_one("#annotation-value", Input).placeholder = (
-                    self._value_hint()
-                )
+                self.query_one(
+                    "#annotation-value", Input
+                ).placeholder = self._value_hint()
             except Exception:
                 pass
             self._run_validation()

@@ -1,6 +1,7 @@
+import httpx
 from luml.experiments.tracker import ExperimentTracker
 from luml_api._client import LumlClient
-from luml_api._exceptions import ResourceNotFoundError
+from luml_api._exceptions import LumlAPIError, ResourceNotFoundError
 
 from lumlflow.handlers.auth import AuthHandler
 from lumlflow.infra.exceptions import ApplicationError
@@ -23,6 +24,7 @@ class BaseLumlHandler:
         if not creds.api_key:
             raise ApplicationError(status_code=401, message="API key not configured")
         try:
+            # The client validates its defaults against the API as it is
             return LumlClient(
                 base_url=config.LUML_BASE_URL,
                 api_key=creds.api_key,
@@ -32,3 +34,24 @@ class BaseLumlHandler:
             )
         except ResourceNotFoundError as e:
             raise ApplicationError(str(e), status_code=422) from e
+        except httpx.TransportError as e:
+            raise unreachable_luml(e) from e
+        except LumlAPIError as e:
+            raise luml_refused(e) from e
+
+
+def luml_refused(failure: LumlAPIError) -> ApplicationError:
+    return ApplicationError(
+        f"LUML at {config.LUML_BASE_URL} did not answer as expected: "
+        f"{failure.message if hasattr(failure, 'message') else failure}",
+        status_code=502,
+    )
+
+
+def unreachable_luml(failure: httpx.TransportError) -> ApplicationError:
+    reason = str(failure) or type(failure).__name__
+    return ApplicationError(
+        f"LUML at {config.LUML_BASE_URL} is not reachable ({reason}). "
+        "Check LUML_BASE_URL or start the LUML backend.",
+        status_code=503,
+    )

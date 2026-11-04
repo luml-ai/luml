@@ -115,6 +115,7 @@ class TestOrderedPublish:
         with (
             patch.object(handler, "_get_luml_client", return_value=client),
             patch("lumlflow.handlers.luml.artifacts.save_experiment"),
+            patch.object(tracker, "link_to_model"),
         ):
             handler.upload_artifact(
                 _artifact_form(experiment_id, UploadType.AUTO),
@@ -407,6 +408,7 @@ class TestLinkingFailures:
         with (
             patch.object(handler, "_get_luml_client", return_value=client),
             patch("lumlflow.handlers.luml.artifacts.save_experiment"),
+            patch.object(tracker, "link_to_model"),
         ):
             handler.upload_artifact(
                 _artifact_form(experiment_id, UploadType.AUTO),

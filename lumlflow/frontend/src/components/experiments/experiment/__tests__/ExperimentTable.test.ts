@@ -87,6 +87,7 @@ describe('ExperimentTable loading', () => {
       source: null,
       group_name: null,
       group_id: null,
+      metadata: {},
     }
     const method = vi
       .fn()

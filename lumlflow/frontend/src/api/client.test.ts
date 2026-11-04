@@ -14,6 +14,7 @@ describe('API base URL', () => {
     ['https://api.example.test/api', 'https://api.example.test/api/groups'],
     ['https://api.example.test/api/', 'https://api.example.test/api/groups'],
   ])('resolves group requests with API URL %s', async (baseURL, expectedURL) => {
+    vi.stubEnv('DEV', false)
     vi.stubEnv('VITE_API_URL', baseURL)
     const { api } = await import('./client')
 

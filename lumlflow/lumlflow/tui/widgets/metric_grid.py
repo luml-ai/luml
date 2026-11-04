@@ -48,9 +48,7 @@ def _sanitize_metric_key(key: str) -> str:
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in key)
 
 
-def _same_series(
-    a: ExperimentMetricHistory, b: ExperimentMetricHistory
-) -> bool:
+def _same_series(a: ExperimentMetricHistory, b: ExperimentMetricHistory) -> bool:
     """True when two histories plot identically (steps and values)."""
 
     if a.key != b.key or a.subsampled != b.subsampled:
@@ -222,9 +220,7 @@ class MetricCell(PanelFrame):
             empty = self.query_one(".metric-cell-empty", Static)
         except Exception:
             return
-        has_points = (
-            self._history is not None and bool(self._history.history)
-        )
+        has_points = self._history is not None and bool(self._history.history)
         chart.display = has_points
         empty.display = not has_points
 
@@ -437,9 +433,7 @@ class MetricGrid(VerticalScroll):
 
     # ----- Cell zoom request bubble-up -----
 
-    def on_metric_cell_zoom_requested(
-        self, event: MetricCell.ZoomRequested
-    ) -> None:
+    def on_metric_cell_zoom_requested(self, event: MetricCell.ZoomRequested) -> None:
         """Re-emit a cell zoom request at the grid level."""
 
         event.stop()
@@ -447,9 +441,7 @@ class MetricGrid(VerticalScroll):
 
     # ----- Arrow-key navigation between cells -----
 
-    def on_metric_cell_move_requested(
-        self, event: MetricCell.MoveRequested
-    ) -> None:
+    def on_metric_cell_move_requested(self, event: MetricCell.MoveRequested) -> None:
         event.stop()
         self.focus_neighbor(event.metric_key, event.direction)
 

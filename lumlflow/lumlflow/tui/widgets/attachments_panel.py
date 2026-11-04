@@ -83,13 +83,46 @@ _TEXT_MIME_TYPES: frozenset[str] = frozenset(
 )
 _TEXT_EXTENSIONS: frozenset[str] = frozenset(
     {
-        ".txt", ".md", ".markdown", ".rst", ".log",
-        ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
-        ".csv", ".tsv", ".tab",
-        ".py", ".pyi", ".js", ".ts", ".tsx", ".jsx", ".html", ".htm",
-        ".css", ".scss", ".rs", ".go", ".c", ".h", ".hpp", ".cpp",
-        ".cc", ".java", ".rb", ".php", ".sh", ".bash", ".zsh",
-        ".xml", ".svg",
+        ".txt",
+        ".md",
+        ".markdown",
+        ".rst",
+        ".log",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".csv",
+        ".tsv",
+        ".tab",
+        ".py",
+        ".pyi",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".jsx",
+        ".html",
+        ".htm",
+        ".css",
+        ".scss",
+        ".rs",
+        ".go",
+        ".c",
+        ".h",
+        ".hpp",
+        ".cpp",
+        ".cc",
+        ".java",
+        ".rb",
+        ".php",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".xml",
+        ".svg",
     }
 )
 
@@ -338,9 +371,7 @@ class AttachmentsPanel(Widget):
             # backends; fall back to the bare name.
             path = node.path or node.name
             if is_folder:
-                child = parent_node.add(
-                    label, expand=False, allow_expand=True
-                )
+                child = parent_node.add(label, expand=False, allow_expand=True)
             else:
                 child = parent_node.add_leaf(label)
             self._node_data[child.id] = _NodeData(
@@ -530,9 +561,7 @@ class AttachmentsPanel(Widget):
         if facade is None:
             return
         result = facade.get_attachment(self._experiment_id, file_path)
-        self.app.call_from_thread(
-            self._on_preview_result, result, file_path
-        )
+        self.app.call_from_thread(self._on_preview_result, result, file_path)
 
     def _on_preview_result(self, result: Result[Any], file_path: str) -> None:
         # Drop the result if the user has moved on to another file.

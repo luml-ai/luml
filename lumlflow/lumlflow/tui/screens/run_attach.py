@@ -220,9 +220,7 @@ class RunAttachScreen(BaseScreen):
             elif code == 0:
                 log.append_status("process exited 0", level="success")
             else:
-                log.append_status(
-                    f"process exited with code {code}", level="error"
-                )
+                log.append_status(f"process exited with code {code}", level="error")
         self._refresh_status_line()
         # The script has finished; surface the no-experiment outcome
         # immediately rather than waiting for the timeout.
@@ -352,9 +350,7 @@ class RunAttachScreen(BaseScreen):
         run = self._run
         if run is None or self._exited:
             return
-        self._lumlflow_app.show_toast(
-            "Stopping run…", severity="info", duration=1.5
-        )
+        self._lumlflow_app.show_toast("Stopping run…", severity="info", duration=1.5)
         # Schedule the async terminate on the loop.
         asyncio.create_task(run.terminate(), name="run-attach-terminate")
 

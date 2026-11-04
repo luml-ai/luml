@@ -16,8 +16,11 @@ export default defineConfig(({ mode }) => ({
     ...(mode === 'development' && {
       proxy: {
         '/api': {
-          target: 'http://localhost:5000',
+          // 127.0.0.1 rather than localhost: on macOS the latter resolves to
+          // ::1 first, where AirPlay Receiver answers port 5000 with a 403.
+          target: 'http://127.0.0.1:5000',
           changeOrigin: true,
+          ws: true,
         },
       },
     }),

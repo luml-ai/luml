@@ -1,85 +1,117 @@
 from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from lumlflow import __version__
 from lumlflow.cli import app
-from lumlflow.server import app as server_app
-from lumlflow.session import SESSION_TOKEN_FILE
+from lumlflow.flow.daemon import client
+from lumlflow.flow.daemon import main as server
+from lumlflow.flow.daemon.workspace import STATE_DIR_ENV, DaemonRecord
+from lumlflow.session import SESSION_TOKEN_FILE, session_token_for
 from lumlflow.settings import get_config
 from typer.testing import CliRunner
 
 
 @pytest.fixture(autouse=True)
 def store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    store = tmp_path / "experiments"
+    store = (tmp_path / "experiments").resolve()
     monkeypatch.setenv("BACKEND_STORE_URI", str(store))
     monkeypatch.delenv("LUML_BACKEND_STORE_URI", raising=False)
     monkeypatch.delenv("LUMLFLOW_SESSION_TOKEN", raising=False)
+    monkeypatch.setenv(STATE_DIR_ENV, str(tmp_path / "state"))
+    monkeypatch.chdir(tmp_path)
     get_config.cache_clear()
     yield store
     get_config.cache_clear()
 
 
+def _record(store: Path) -> DaemonRecord:
+    return DaemonRecord(
+        pid=1,
+        instance_id="instance",
+        port=1,
+        token="daemon-token",
+        web_host="127.0.0.1",
+        web_port=2,
+        tracker_store=str(store),
+        version=__version__,
+    )
+
+
+@pytest.fixture
+def serving(store: Path, monkeypatch: pytest.MonkeyPatch) -> list[bool]:
+    rotations: list[bool] = []
+
+    def serve_here(
+        root: Path, *, announce: Any, rotate_session_token: bool, **_: Any
+    ) -> int:
+        rotations.append(rotate_session_token)
+        session_token_for(store, rotate_session_token)
+        announce(_record(store))
+        return 0
+
+    monkeypatch.setattr(server, "serve_here", serve_here)
+    monkeypatch.setattr(client, "discover", lambda: None)
+    return rotations
+
+
 def _launch_token(*arguments: str) -> str:
-    with patch("lumlflow.cli.uvicorn.run"):
-        result = CliRunner().invoke(app, ["ui", "--no-browser", *arguments])
-    assert result.exit_code == 0
-    url = result.output.split("Lumlflow UI available at ", 1)[1].strip()
+    result = CliRunner().invoke(app, ["ui", "--no-browser", *arguments])
+    assert result.exit_code == 0, result.output
+    url = next(word for word in result.output.split() if word.startswith("http://"))
     return parse_qs(urlsplit(url).fragment)["session-token"][0]
 
 
-def test_no_browser_launch_url_matches_the_running_session() -> None:
-    with patch("lumlflow.cli.uvicorn.run") as run:
-        result = CliRunner().invoke(app, ["ui", "--no-browser"])
-    assert result.exit_code == 0
-    url = result.output.split("Lumlflow UI available at ", 1)[1].strip()
-    assert parse_qs(urlsplit(url).fragment)["session-token"] == [
-        server_app.state.session_token
-    ]
-    assert run.call_args.args[0] is server_app
-
-
-def test_automatic_browser_launch_uses_the_session_url() -> None:
-    with (
-        patch("lumlflow.cli.uvicorn.run"),
-        patch("lumlflow.cli.time.sleep"),
-        patch("lumlflow.cli.webbrowser.open") as browser,
-        patch("lumlflow.cli.threading.Thread") as thread,
-    ):
-        result = CliRunner().invoke(app, ["ui"])
-        thread.call_args.kwargs["target"]()
-    assert result.exit_code == 0
-    assert server_app.state.session_token not in result.output
-    url = browser.call_args.args[0]
-    assert parse_qs(urlsplit(url).fragment)["session-token"] == [
-        server_app.state.session_token
-    ]
-
-
-def test_session_token_survives_a_restart(store: Path) -> None:
-    first = _launch_token()
-    assert _launch_token() == first
+def test_launch_url_carries_the_stored_session_token(
+    store: Path, serving: list[bool]
+) -> None:
+    token = _launch_token()
     token_file = store / SESSION_TOKEN_FILE
-    assert token_file.read_text() == first
+    assert token_file.read_text() == token
     assert token_file.stat().st_mode & 0o777 == 0o600
+    assert serving == [False]
 
 
-def test_rotate_token_issues_a_new_session_token(store: Path) -> None:
+def test_session_token_survives_a_restart(serving: list[bool]) -> None:
+    assert _launch_token() == _launch_token()
+
+
+def test_rotate_token_issues_a_new_session_token(
+    store: Path, serving: list[bool]
+) -> None:
     first = _launch_token()
     rotated = _launch_token("--rotate-token")
     assert rotated != first
-    assert server_app.state.session_token == rotated
     assert (store / SESSION_TOKEN_FILE).read_text() == rotated
     assert _launch_token() == rotated
+    assert serving == [False, True, False]
 
 
 def test_session_token_from_the_environment_is_not_stored(
-    store: Path, monkeypatch: pytest.MonkeyPatch
+    store: Path, serving: list[bool], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("LUMLFLOW_SESSION_TOKEN", "given-by-the-launcher")
     get_config.cache_clear()
-    running = server_app.state.session_token
-    assert _launch_token() == running
+    assert _launch_token() == "given-by-the-launcher"
     assert not (store / SESSION_TOKEN_FILE).exists()
+
+
+def test_attaching_opens_the_running_daemon_with_its_session_token(
+    store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    running = session_token_for(store)
+    monkeypatch.setattr(client, "discover", lambda: _record(store))
+    assert _launch_token() == running
+
+
+def test_attaching_refuses_to_rotate_a_running_daemons_token(
+    store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    running = session_token_for(store)
+    monkeypatch.setattr(client, "discover", lambda: _record(store))
+    result = CliRunner().invoke(app, ["ui", "--no-browser", "--rotate-token"])
+    assert result.exit_code == 1
+    assert "lumlflow daemon stop" in result.output
+    assert (store / SESSION_TOKEN_FILE).read_text() == running

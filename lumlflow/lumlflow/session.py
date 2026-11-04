@@ -18,3 +18,9 @@ def stored_session_token(store: Path, rotate: bool = False) -> str:
         file.write(token)
     path.chmod(0o600)
     return token
+
+
+def session_token_for(store: Path, rotate: bool = False) -> str:
+    from lumlflow.settings import get_config
+
+    return get_config().LUMLFLOW_SESSION_TOKEN or stored_session_token(store, rotate)

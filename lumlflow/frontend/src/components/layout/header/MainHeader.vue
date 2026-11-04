@@ -2,9 +2,11 @@
   <header
     class="flex items-center justify-between px-4 py-3 bg-(--p-content-hover-background) border-b border-(--p-divider-border-color)"
   >
-    <router-link to="/">
-      <img :src="currentLogo" alt="Logo" class="w-[175px] h-7" />
-    </router-link>
+    <div class="flex items-center gap-6">
+      <router-link :to="{ path: '/', query: directoryQuery }">
+        <img :src="currentLogo" alt="Logo" class="w-[175px] h-7" />
+      </router-link>
+    </div>
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-2">
         <Button
@@ -39,6 +41,7 @@
 <script setup lang="ts">
 import { Github, File } from 'lucide-vue-next'
 import Button from 'primevue/button'
+import { useRoute } from 'vue-router'
 import logo from '@/assets/img/logo.svg'
 import logoDark from '@/assets/img/logo-dark.svg'
 import ApiKeyButton from './ApiKeyButton.vue'
@@ -48,6 +51,12 @@ import { THEME } from '@/store/theme/theme.const'
 import { computed } from 'vue'
 
 const themeStore = useThemeStore()
+const route = useRoute()
+
+const directoryQuery = computed(() => {
+  const directory = route.query.directory
+  return typeof directory === 'string' && directory ? { directory } : {}
+})
 
 const currentLogo = computed(() => {
   return themeStore.theme === THEME.DARK ? logo : logoDark

@@ -73,9 +73,7 @@ def _seed_experiment(
     if metric_series:
         for key, points in metric_series.items():
             for step, value in points:
-                tracker.log_dynamic(
-                    key, value, step=step, experiment_id=exp_id
-                )
+                tracker.log_dynamic(key, value, step=step, experiment_id=exp_id)
     if evals:
         for eval_id, dataset_id, inputs, outputs, refs, scores in evals:
             tracker.log_eval_sample(
@@ -240,14 +238,13 @@ class TestMultiSelection:
     async def test_space_toggles_selection(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        exp_id = _seed_experiment(
-            tracker, name="alpha", static_params={"lr": 0.01}
-        )
+        exp_id = _seed_experiment(tracker, name="alpha", static_params={"lr": 0.01})
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
             screen = ExperimentsScreen(
-                facade=facade, group_id=tracker.list_groups()[0].id,
+                facade=facade,
+                group_id=tracker.list_groups()[0].id,
                 group_name="g",
             )
             app.push_screen(screen)
@@ -317,7 +314,8 @@ class TestMultiSelection:
         async with app.run_test() as pilot:
             await pilot.pause()
             screen = ExperimentsScreen(
-                facade=facade, group_id=tracker.list_groups()[0].id,
+                facade=facade,
+                group_id=tracker.list_groups()[0].id,
                 group_name="g",
             )
             app.push_screen(screen)
@@ -332,17 +330,14 @@ class TestMultiSelection:
     async def test_compare_opens_with_selection(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        _seed_experiment(
-            tracker, name="alpha", static_params={"lr": 0.01}
-        )
-        _seed_experiment(
-            tracker, name="beta", static_params={"lr": 0.001}
-        )
+        _seed_experiment(tracker, name="alpha", static_params={"lr": 0.01})
+        _seed_experiment(tracker, name="beta", static_params={"lr": 0.001})
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
             screen = ExperimentsScreen(
-                facade=facade, group_id=tracker.list_groups()[0].id,
+                facade=facade,
+                group_id=tracker.list_groups()[0].id,
                 group_name="g",
             )
             app.push_screen(screen)
@@ -392,12 +387,10 @@ class TestStaticParamDiff:
             table = screen.query_one("#cmp-params-table", DataTable)
             # Two rows: batch (same), lr (diff). Order is sorted by key.
             keys = list(table.rows.keys())
-            assert any(
-                k.value == "cmp-param-lr" for k in keys
-            ), f"expected lr row, got {[k.value for k in keys]}"
-            assert any(
-                k.value == "cmp-param-batch" for k in keys
+            assert any(k.value == "cmp-param-lr" for k in keys), (
+                f"expected lr row, got {[k.value for k in keys]}"
             )
+            assert any(k.value == "cmp-param-batch" for k in keys)
             # Inspect the diff style on the `lr` row's key cell.
             lr_cell = table.get_cell("cmp-param-lr", "cmp-param-key")
             assert "diff-changed" in str(lr_cell.style)
@@ -512,10 +505,7 @@ class TestMetricOverlay:
                 both_loaded = (
                     ea in screen._metric_histories
                     and eb in screen._metric_histories
-                    and all(
-                        screen._metric_histories[k] is not None
-                        for k in (ea, eb)
-                    )
+                    and all(screen._metric_histories[k] is not None for k in (ea, eb))
                 )
                 if both_loaded:
                     break
@@ -577,9 +567,7 @@ class TestEvalScoreCompare:
                     break
             table = screen.query_one("#cmp-evals-table", DataTable)
             row_keys = [k.value for k in table.rows.keys()]
-            assert any(
-                rk and "ds-1" in rk and "accuracy" in rk for rk in row_keys
-            )
+            assert any(rk and "ds-1" in rk and "accuracy" in rk for rk in row_keys)
 
     async def test_handles_no_evals(
         self,
@@ -723,12 +711,8 @@ class TestComparisonLegend:
         """Wrapping the sections in panel frames must not regress the
         diff-row coloring on the static-params table."""
 
-        ea = _seed_experiment(
-            tracker, name="alpha", static_params={"lr": 0.01}
-        )
-        eb = _seed_experiment(
-            tracker, name="beta", static_params={"lr": 0.001}
-        )
+        ea = _seed_experiment(tracker, name="alpha", static_params={"lr": 0.01})
+        eb = _seed_experiment(tracker, name="beta", static_params={"lr": 0.001})
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()

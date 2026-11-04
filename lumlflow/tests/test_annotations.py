@@ -7,6 +7,8 @@ from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.infra.exceptions import ApplicationError, NotFound
 from lumlflow.schemas.annotations import (
     Annotation,
+    AnnotationKind,
+    AnnotationValueType,
     CreateAnnotation,
     UpdateAnnotation,
 )
@@ -62,8 +64,8 @@ class TestEvalAnnotationHandler:
 
         body = CreateAnnotation(
             name="accuracy",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
         )
@@ -88,8 +90,8 @@ class TestEvalAnnotationHandler:
 
         body = CreateAnnotation(
             name="accuracy",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
             rationale="The answer is correct",
@@ -109,8 +111,8 @@ class TestEvalAnnotationHandler:
 
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
         )
@@ -128,8 +130,8 @@ class TestEvalAnnotationHandler:
 
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="string",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.STRING,
             value="bad",
             user="alice",
         )
@@ -146,8 +148,8 @@ class TestSpanAnnotationHandler:
 
         body = CreateAnnotation(
             name="latency",
-            annotation_kind="expectation",
-            value_type="int",
+            annotation_kind=AnnotationKind.EXPECTATION,
+            value_type=AnnotationValueType.INT,
             value=42,
             user="bob",
         )
@@ -170,8 +172,8 @@ class TestSpanAnnotationHandler:
 
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=False,
             user="carol",
         )
@@ -196,8 +198,8 @@ class TestAnnotationCountInTrace:
 
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
         )
@@ -211,8 +213,8 @@ class TestHandlerExperimentNotFound:
     def test_create_eval_annotation_404(self, handler: AnnotationsHandler) -> None:
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
         )
@@ -226,8 +228,8 @@ class TestHandlerExperimentNotFound:
     def test_create_span_annotation_404(self, handler: AnnotationsHandler) -> None:
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
         )
@@ -257,8 +259,8 @@ class TestEvalAnnotationSummary:
             eval_id,
             CreateAnnotation(
                 name="accuracy",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=True,
                 user="a",
             ),
@@ -269,8 +271,8 @@ class TestEvalAnnotationSummary:
             eval_id,
             CreateAnnotation(
                 name="accuracy",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=False,
                 user="b",
             ),
@@ -281,8 +283,8 @@ class TestEvalAnnotationSummary:
             eval_id,
             CreateAnnotation(
                 name="relevance",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=True,
                 user="c",
             ),
@@ -293,8 +295,8 @@ class TestEvalAnnotationSummary:
             eval_id,
             CreateAnnotation(
                 name="score",
-                annotation_kind="expectation",
-                value_type="int",
+                annotation_kind=AnnotationKind.EXPECTATION,
+                value_type=AnnotationValueType.INT,
                 value=5,
                 user="d",
             ),
@@ -331,8 +333,8 @@ class TestEvalAnnotationSummary:
             "eval-1",
             CreateAnnotation(
                 name="accuracy",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=True,
                 user="a",
             ),
@@ -343,8 +345,8 @@ class TestEvalAnnotationSummary:
             "eval-2",
             CreateAnnotation(
                 name="accuracy",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=False,
                 user="b",
             ),
@@ -390,8 +392,8 @@ class TestTraceAnnotationSummary:
             span_id,
             CreateAnnotation(
                 name="quality",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=True,
                 user="a",
             ),
@@ -402,8 +404,8 @@ class TestTraceAnnotationSummary:
             "span-2",
             CreateAnnotation(
                 name="quality",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=False,
                 user="b",
             ),
@@ -414,8 +416,8 @@ class TestTraceAnnotationSummary:
             "span-2",
             CreateAnnotation(
                 name="latency",
-                annotation_kind="expectation",
-                value_type="int",
+                annotation_kind=AnnotationKind.EXPECTATION,
+                value_type=AnnotationValueType.INT,
                 value=100,
                 user="c",
             ),
@@ -442,8 +444,8 @@ class TestAutoUser:
 
         body = CreateAnnotation(
             name="accuracy",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
         )
         result = handler.create_eval_annotation(exp_id, dataset_id, eval_id, body)
@@ -458,8 +460,8 @@ class TestAutoUser:
 
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
         )
         result = handler.create_span_annotation(exp_id, trace_id, span_id, body)
@@ -474,8 +476,8 @@ class TestAutoUser:
 
         body = CreateAnnotation(
             name="accuracy",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="explicit-user",
         )
@@ -492,8 +494,8 @@ class TestUpdateAnnotation:
 
         body = CreateAnnotation(
             name="accuracy",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
         )
@@ -518,8 +520,8 @@ class TestUpdateAnnotation:
 
         body = CreateAnnotation(
             name="quality",
-            annotation_kind="feedback",
-            value_type="bool",
+            annotation_kind=AnnotationKind.FEEDBACK,
+            value_type=AnnotationValueType.BOOL,
             value=True,
             user="alice",
         )
@@ -556,8 +558,8 @@ class TestAllTracesAnnotationSummary:
             span_id,
             CreateAnnotation(
                 name="quality",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=True,
                 user="a",
             ),
@@ -568,8 +570,8 @@ class TestAllTracesAnnotationSummary:
             "span-2",
             CreateAnnotation(
                 name="quality",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=False,
                 user="b",
             ),
@@ -594,8 +596,8 @@ class TestTraceSummaryInTraceResponse:
             span_id,
             CreateAnnotation(
                 name="quality",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=True,
                 user="a",
             ),
@@ -619,8 +621,8 @@ class TestTraceSummaryInTraceResponse:
             span_id,
             CreateAnnotation(
                 name="quality",
-                annotation_kind="feedback",
-                value_type="bool",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value_type=AnnotationValueType.BOOL,
                 value=True,
                 user="a",
             ),
