@@ -41,11 +41,23 @@ class LumlflowCITests(unittest.TestCase):
 
     def test_jobs_install_from_the_lockfile_without_extra_installs(self):
         jobs = load("[lumlflow] tests-and-linters.yml")["jobs"]
+        node_jobs = {
+            name: job
+            for name, job in jobs.items()
+            if any(
+                step.get("uses", "").startswith("actions/setup-node")
+                for step in job["steps"]
+            )
+        }
+        self.assertLessEqual({"lint", "unit"}, set(node_jobs))
         for name, job in jobs.items():
             commands = [step.get("run", "") for step in job["steps"]]
             with self.subTest(job=name):
-                self.assertTrue(any(command.startswith("npm ci") for command in commands))
                 self.assertFalse(any("npm install" in command for command in commands))
+                if name in node_jobs:
+                    self.assertTrue(
+                        any(command.startswith("npm ci") for command in commands)
+                    )
         unit_commands = [step.get("run", "") for step in jobs["unit"]["steps"]]
         self.assertIn("npm ci --include=optional", unit_commands)
 
