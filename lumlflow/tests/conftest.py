@@ -25,7 +25,7 @@ def settled_tui_apps(monkeypatch: pytest.MonkeyPatch) -> None:
     from textual.app import App
     from textual.pilot import Pilot
 
-    from tests.tui_helpers import settle_workers
+    from tests.helpers.tui import settle_workers
 
     run_test = App.run_test
 
