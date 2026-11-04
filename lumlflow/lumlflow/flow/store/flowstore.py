@@ -382,7 +382,7 @@ class FlowStore:
         root = self.index.root_branch()
         if root is None:
             return
-        mirrored = {
+        mirrored: dict[str, object] = {
             uid: _order_text(key)
             for uid, key in sorted(
                 self.effective_order(root.branch_id).items(),
