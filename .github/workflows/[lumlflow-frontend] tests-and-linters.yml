@@ -1,4 +1,4 @@
-name: Lumlflow Frontend Tests and Linters
+name: Lumlflow Frontend
 
 on:
   push:
