@@ -1,15 +1,6 @@
 name: Kubernetes Satellite Tests and Linters
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'satellite/implementations/kubernetes/**'
-      - 'satellite/kit/**'
-      - 'frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts'
-      - '.github/workflows/publish-kubernetes-satellite-image.yml'
-      - '.github/workflows/publish-kubernetes-satellite-chart.yml'
-      - '.github/workflows/*satellite-kubernetes*tests-and-linters.yml'
   pull_request:
     branches: [main, staging, production]
     paths:

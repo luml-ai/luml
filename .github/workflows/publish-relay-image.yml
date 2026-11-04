@@ -6,10 +6,7 @@ on:
     tags:
       - "luml-relay/image/v*"
     paths:
-      - relay/Dockerfile
-      - relay/pyproject.toml
-      - relay/uv.lock
-      - relay/luml_relay/**
+      - relay/**
   workflow_dispatch:
 
 concurrency:
