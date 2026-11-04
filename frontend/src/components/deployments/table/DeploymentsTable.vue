@@ -2,7 +2,7 @@
   <div>
     <DataTable :value="data" v-model:filters="filters" v-model:selection="selection" data-key="id">
       <template #header>
-        <div class="toolbar">
+        <div v-if="canDelete" class="toolbar">
           <div class="counter">{{ selection.length }} Selected</div>
           <Button
             variant="text"
@@ -39,7 +39,7 @@
         </IconField>
       </template>
       <template #empty>Deployments not found...</template>
-      <Column selection-mode="multiple" />
+      <Column v-if="canDelete" selection-mode="multiple" />
       <Column header="Deployment name" field="name">
         <template #body="{ data }">
           <div class="cell cell--name">{{ data.name }}</div>
@@ -151,7 +151,13 @@
             <span v-else v-tooltip.top="'Monitoring is off'" class="icon-link icon-link--disabled">
               <Activity :size="16" />
             </span>
-            <Button severity="secondary" variant="text" @click="onSettingsClick(data)">
+            <Button
+              v-if="canEdit"
+              aria-label="Deployment settings"
+              severity="secondary"
+              variant="text"
+              @click="onSettingsClick(data)"
+            >
               <template #icon>
                 <Bolt :size="14"></Bolt>
               </template>
@@ -161,6 +167,7 @@
       </Column>
     </DataTable>
     <ForceDeleteConfirmDialog
+      v-if="canDelete"
       v-model:visible="forceVisible"
       :title="
         selection.length > 1
@@ -190,9 +197,10 @@
       </template>
     </Dialog>
     <DeploymentsEditor
-      v-if="editableDeployment"
+      v-if="canEdit && editableDeployment"
       :visible="!!editableDeployment"
       :data="editableDeployment"
+      :delete-available="canDelete"
       @update:visible="onUpdateEditorVisible"
     ></DeploymentsEditor>
   </div>
@@ -219,6 +227,8 @@ import {
 } from 'primevue'
 import type { DialogPassThroughOptions } from 'primevue'
 import { FilterMatchMode } from '@primevue/core/api'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { computed, onBeforeMount, ref, watch } from 'vue'
 import { Search, Bolt, TriangleAlert, Braces, Activity, CircleStop, Trash2 } from 'lucide-vue-next'
 import {
@@ -248,6 +258,13 @@ type Props = {
 }
 
 const props = defineProps<Props>()
+const orbitsStore = useOrbitsStore()
+const canEdit = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.deployment?.includes(PermissionEnum.update),
+)
+const canDelete = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.deployment?.includes(PermissionEnum.delete),
+)
 const route = useRoute()
 const router = useRouter()
 
@@ -295,14 +312,14 @@ watch(
 )
 
 function onStopClick() {
-  if (loading.value || !selection.value.length) return
+  if (!canDelete.value || loading.value || !selection.value.length) return
   confirm.require(
     stopDeploymentsConfirmOptions(() => runBatchAction('undeploy'), selection.value.length),
   )
 }
 
 async function runBatchAction(action: DeploymentBatchAction) {
-  if (loading.value || !selection.value.length) return
+  if (!canDelete.value || loading.value || !selection.value.length) return
   const selected = [...selection.value]
   const names = new Map(selected.map(({ id, name }) => [id, name]))
   const organizationId = route.params.organizationId as string
@@ -352,6 +369,7 @@ const initFilters = () => {
 }
 
 function onSettingsClick(deployment: Deployment) {
+  if (!canEdit.value) return
   editableDeployment.value = deployment
 }
 
@@ -363,7 +381,7 @@ function showProgressNote(deployment: Deployment) {
 }
 
 function checkDeploymentInQuery() {
-  if (!route.query.deployment) return
+  if (!canEdit.value || !route.query.deployment) return
   const deployment = props.data.find((d) => d.id === route.query.deployment)
   if (!deployment) return
   editableDeployment.value = deployment

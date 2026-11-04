@@ -2,12 +2,13 @@
   <div v-if="!loading" class="list">
     <SecretsList
       :organization-id="orbitsStore.currentOrbitDetails!.organization_id"
-      :edit-available="true"
-      :copy-available="true"
+      :edit-available="canEditSecret"
+      :copy-available="canReadSecret"
     />
   </div>
 
   <SecretCreator
+    v-if="canCreateSecret"
     :organization-id="orbitsStore.currentOrbitDetails!.organization_id"
     :orbit-id="orbitsStore.currentOrbitDetails!.id"
     v-model:visible="secretsStore.creatorVisible"
@@ -16,8 +17,9 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeMount, ref } from 'vue'
+import { computed, onBeforeMount, ref } from 'vue'
 import { useToast } from 'primevue'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -26,6 +28,15 @@ import SecretCreator from '@/components/orbit-secrets/SecretCreator.vue'
 
 const orbitsStore = useOrbitsStore()
 const secretsStore = useSecretsStore()
+const canCreateSecret = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.orbit_secret?.includes(PermissionEnum.create),
+)
+const canEditSecret = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.orbit_secret?.includes(PermissionEnum.update),
+)
+const canReadSecret = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.orbit_secret?.includes(PermissionEnum.read),
+)
 const toast = useToast()
 
 const loading = ref(false)
