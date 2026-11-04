@@ -314,6 +314,57 @@ class TestRememberedExperiment:
         assert job is not None
         assert job.status == "complete"
 
+    def test_stale_fallback_preserves_republished_experiment_mapping(
+        self,
+        handler: ArtifactHandler,
+        tracker: ExperimentTracker,
+        tmp_path: Path,
+    ) -> None:
+        experiment_id, models = _seed_experiment(tracker, tmp_path, ["model"])
+        tracker.set_remote_artifact(
+            "experiment", experiment_id, "orbit-1", "stale-artifact"
+        )
+        client = MagicMock()
+        client.artifacts.upload.side_effect = [
+            _not_found_error(),
+            _uploaded_artifact("model-artifact"),
+            _uploaded_artifact("next-model-artifact"),
+        ]
+
+        def republish_during_lookup(*args: object, **kwargs: object) -> None:
+            tracker.set_remote_artifact(
+                "experiment", experiment_id, "orbit-1", "new-experiment-artifact"
+            )
+            raise _not_found_error(method="GET")
+
+        client.artifacts.get_lineage.side_effect = republish_during_lookup
+        _start_job(handler, "job-stale-republished")
+        _start_job(handler, "job-next-model")
+
+        with patch.object(handler, "_get_luml_client", return_value=client):
+            handler.upload_model(
+                _model_form(experiment_id, models[0].id), "job-stale-republished"
+            )
+            assert (
+                tracker.get_remote_artifact("experiment", experiment_id, "orbit-1")
+                == "new-experiment-artifact"
+            )
+            handler.upload_model(
+                _model_form(experiment_id, models[0].id), "job-next-model"
+            )
+
+        calls = client.artifacts.upload.call_args_list
+        assert [call.kwargs["lineage_inputs"] for call in calls] == [
+            ["stale-artifact"],
+            None,
+            ["new-experiment-artifact"],
+        ]
+        client.artifacts.get_lineage.assert_called_once_with("stale-artifact", depth=1)
+        for job_id in ["job-stale-republished", "job-next-model"]:
+            job = handler.progress_store.get(job_id)
+            assert job is not None
+            assert job.status == "complete"
+
     def test_mapping_from_another_orbit_is_ignored(
         self,
         handler: ArtifactHandler,

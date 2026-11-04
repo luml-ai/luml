@@ -1371,16 +1371,23 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             return row[0] if row is not None else None
 
     def delete_remote_artifact(
-        self, local_type: str, local_id: str, orbit_id: str
+        self,
+        local_type: str,
+        local_id: str,
+        orbit_id: str,
+        *,
+        expected_artifact_id: str | None = None,
     ) -> None:
+        query = """
+            DELETE FROM remote_artifacts
+            WHERE local_type = ? AND local_id = ? AND orbit_id = ?
+        """
+        params: tuple[str, ...] = (local_type, local_id, orbit_id)
+        if expected_artifact_id is not None:
+            query += " AND artifact_id = ?"
+            params += (expected_artifact_id,)
         with self._get_meta_connection(write=True) as conn:
-            conn.execute(
-                """
-                DELETE FROM remote_artifacts
-                WHERE local_type = ? AND local_id = ? AND orbit_id = ?
-                """,
-                (local_type, local_id, orbit_id),
-            )
+            conn.execute(query, params)
             conn.commit()
 
     def create_group(
