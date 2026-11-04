@@ -14,14 +14,19 @@ AUTH_HEADER = {
         "SignedHeaders=host, Signature=test"
     )
 }
+ESCAPING_KEY_PATH = "/test-bucket/..%2F..%2Fcanary.txt"
 
 
 @pytest.fixture
-def proxy_server(tmp_path: Path) -> Generator[tuple[str, int, Path], None, None]:
-    storage_root = tmp_path / "s3_storage"
-    storage_root.mkdir()
+def storage_root(tmp_path: Path) -> Path:
+    root = tmp_path / "s3_storage"
+    root.mkdir()
+    return root
 
-    server = S3ProxyServer(
+
+@pytest.fixture
+def server(storage_root: Path) -> Generator[S3ProxyServer, None, None]:
+    proxy = S3ProxyServer(
         ("127.0.0.1", 0),
         S3ProxyHandler,
         storage_root=str(storage_root),
@@ -29,187 +34,106 @@ def proxy_server(tmp_path: Path) -> Generator[tuple[str, int, Path], None, None]
         cors_enabled=False,
         debug=False,
     )
-
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=proxy.serve_forever, daemon=True)
     thread.start()
-
-    host, port = server.server_address[:2]
     try:
-        yield host, port, storage_root
+        yield proxy
     finally:
-        server.shutdown()
-        server.server_close()
+        proxy.shutdown()
+        proxy.server_close()
         thread.join(timeout=2)
 
 
-def test_get_file_path_valid(tmp_path: Path) -> None:
-    handler = S3ProxyHandler.__new__(S3ProxyHandler)
-    handler.storage_root = str(tmp_path)
-
-    expected = (tmp_path / "mybucket" / "data" / "file.txt").resolve()
-    assert handler.get_file_path("mybucket", "data/file.txt") == expected
-
-
-def test_get_file_path_traversal_raises(tmp_path: Path) -> None:
-    handler = S3ProxyHandler.__new__(S3ProxyHandler)
-    handler.storage_root = str(tmp_path)
-
-    with pytest.raises(ValueError, match="Invalid bucket or key path."):
-        handler.get_file_path("mybucket", "../../canary.txt")
-
-    with pytest.raises(ValueError, match="Invalid bucket or key path."):
-        handler.get_file_path("..", "canary.txt")
-
-    # Path resolving to storage_root itself
-    with pytest.raises(ValueError, match="Invalid bucket or key path."):
-        handler.get_file_path("mybucket", "..")
-
-
-def test_get_escaping_path_returns_400_invalid_argument(
-    proxy_server: tuple[str, int, Path],
-) -> None:
-    host, port, _ = proxy_server
-    conn = http.client.HTTPConnection(host, port)
-    conn.request("GET", "/test-bucket/..%2F..%2Fcanary.txt", headers=AUTH_HEADER)
-    resp = conn.getresponse()
-    body = resp.read().decode("utf-8")
-    conn.close()
-
-    assert resp.status == 400
-    assert "<Code>InvalidArgument</Code>" in body
-    assert "<Message>Invalid bucket or key path.</Message>" in body
-
-
-def test_put_escaping_path_returns_400_invalid_argument(
-    proxy_server: tuple[str, int, Path],
-) -> None:
-    host, port, _ = proxy_server
-    conn = http.client.HTTPConnection(host, port)
-    headers = {**AUTH_HEADER, "Content-Length": "4"}
-    conn.request(
-        "PUT",
-        "/test-bucket/..%2F..%2Fcanary.txt",
-        body=b"test",
-        headers=headers,
-    )
-    resp = conn.getresponse()
-    body = resp.read().decode("utf-8")
-    conn.close()
-
-    assert resp.status == 400
-    assert "<Code>InvalidArgument</Code>" in body
-    assert "<Message>Invalid bucket or key path.</Message>" in body
-
-
-def test_delete_escaping_path_returns_400_invalid_argument(
-    proxy_server: tuple[str, int, Path],
-) -> None:
-    host, port, _ = proxy_server
-    conn = http.client.HTTPConnection(host, port)
-    conn.request("DELETE", "/test-bucket/..%2F..%2Fcanary.txt", headers=AUTH_HEADER)
-    resp = conn.getresponse()
-    body = resp.read().decode("utf-8")
-    conn.close()
-
-    assert resp.status == 400
-    assert "<Code>InvalidArgument</Code>" in body
-    assert "<Message>Invalid bucket or key path.</Message>" in body
-
-
-def test_initiate_multipart_escaping_path_returns_400_invalid_argument(
-    proxy_server: tuple[str, int, Path],
-) -> None:
-    host, port, _ = proxy_server
-    conn = http.client.HTTPConnection(host, port)
-    conn.request(
-        "POST",
-        "/test-bucket/..%2F..%2Fcanary.txt?uploads",
-        headers=AUTH_HEADER,
-    )
-    resp = conn.getresponse()
-    body = resp.read().decode("utf-8")
-    conn.close()
-
-    assert resp.status == 400
-    assert "<Code>InvalidArgument</Code>" in body
-    assert "<Message>Invalid bucket or key path.</Message>" in body
-
-
-def test_complete_multipart_escaping_path_returns_400_invalid_argument(
-    tmp_path: Path,
-) -> None:
-    storage_root = tmp_path / "s3_storage"
-    storage_root.mkdir()
-
-    server = S3ProxyServer(
-        ("127.0.0.1", 0),
-        S3ProxyHandler,
-        storage_root=str(storage_root),
-        credentials={},
-        cors_enabled=False,
-        debug=False,
-    )
-    # Register an active multipart upload
-    upload_id = "test_upload_id"
-    server.multipart_uploads[upload_id] = MultipartUpload(
-        bucket="test-bucket",
-        key="../../canary.txt",
-    )
-
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-
+def _request(
+    server: S3ProxyServer, method: str, path: str, body: bytes | None = None
+) -> tuple[http.client.HTTPResponse, bytes]:
     host, port = server.server_address[:2]
+    headers = dict(AUTH_HEADER)
+    if body is not None:
+        headers["Content-Length"] = str(len(body))
+    conn = http.client.HTTPConnection(str(host), port)
     try:
-        conn = http.client.HTTPConnection(host, port)
-        headers = {**AUTH_HEADER, "Content-Length": "0"}
-        conn.request(
-            "POST",
-            f"/test-bucket/..%2F..%2Fcanary.txt?uploadId={upload_id}",
-            body=b"",
-            headers=headers,
-        )
+        conn.request(method, path, body=body, headers=headers)
         resp = conn.getresponse()
-        body = resp.read().decode("utf-8")
+        return resp, resp.read()
+    finally:
         conn.close()
 
-        assert resp.status == 400
-        assert "<Code>InvalidArgument</Code>" in body
-        assert "<Message>Invalid bucket or key path.</Message>" in body
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
+
+def _handler(storage_root: Path) -> S3ProxyHandler:
+    handler = S3ProxyHandler.__new__(S3ProxyHandler)
+    handler.storage_root = str(storage_root)
+    return handler
 
 
-def test_valid_crud_flow(proxy_server: tuple[str, int, Path]) -> None:
-    host, port, storage_root = proxy_server
+def _assert_invalid_argument(resp: http.client.HTTPResponse, body: bytes) -> None:
+    text = body.decode("utf-8")
+    assert resp.status == 400
+    assert "<Code>InvalidArgument</Code>" in text
+    assert "<Message>Invalid bucket or key path.</Message>" in text
 
-    # 1. PUT an object
-    conn = http.client.HTTPConnection(host, port)
-    content = b"hello s3 proxy"
-    headers = {**AUTH_HEADER, "Content-Length": str(len(content))}
-    conn.request("PUT", "/mybucket/hello.txt", body=content, headers=headers)
-    put_resp = conn.getresponse()
-    assert put_resp.status == 200
-    assert "ETag" in put_resp.headers
-    conn.close()
 
-    assert (storage_root / "mybucket" / "hello.txt").read_bytes() == content
+class TestS3Proxy:
+    def test_get_file_path_valid(self, storage_root: Path) -> None:
+        expected = (storage_root / "mybucket" / "data" / "file.txt").resolve()
+        assert _handler(storage_root).get_file_path("mybucket", "data/file.txt") == (
+            expected
+        )
 
-    # 2. GET the object
-    conn = http.client.HTTPConnection(host, port)
-    conn.request("GET", "/mybucket/hello.txt", headers=AUTH_HEADER)
-    get_resp = conn.getresponse()
-    assert get_resp.status == 200
-    assert get_resp.read() == content
-    conn.close()
+    @pytest.mark.parametrize(
+        ("bucket", "key"),
+        [
+            ("mybucket", "../../canary.txt"),
+            ("..", "canary.txt"),
+            ("mybucket", ".."),
+        ],
+    )
+    def test_get_file_path_traversal_raises(
+        self, storage_root: Path, bucket: str, key: str
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid bucket or key path."):
+            _handler(storage_root).get_file_path(bucket, key)
 
-    # 3. DELETE the object
-    conn = http.client.HTTPConnection(host, port)
-    conn.request("DELETE", "/mybucket/hello.txt", headers=AUTH_HEADER)
-    del_resp = conn.getresponse()
-    assert del_resp.status == 204
-    conn.close()
+    def test_get_escaping_path_returns_400(self, server: S3ProxyServer) -> None:
+        _assert_invalid_argument(*_request(server, "GET", ESCAPING_KEY_PATH))
 
-    assert not (storage_root / "mybucket" / "hello.txt").exists()
+    def test_put_escaping_path_returns_400(self, server: S3ProxyServer) -> None:
+        _assert_invalid_argument(*_request(server, "PUT", ESCAPING_KEY_PATH, b"test"))
+
+    def test_delete_escaping_path_returns_400(self, server: S3ProxyServer) -> None:
+        _assert_invalid_argument(*_request(server, "DELETE", ESCAPING_KEY_PATH))
+
+    def test_initiate_multipart_escaping_path_returns_400(
+        self, server: S3ProxyServer
+    ) -> None:
+        resp, body = _request(server, "POST", f"{ESCAPING_KEY_PATH}?uploads")
+        _assert_invalid_argument(resp, body)
+        assert server.multipart_uploads == {}
+
+    def test_complete_multipart_escaping_path_returns_400(
+        self, server: S3ProxyServer
+    ) -> None:
+        upload_id = "test_upload_id"
+        server.multipart_uploads[upload_id] = MultipartUpload(
+            bucket="test-bucket", key="../../canary.txt"
+        )
+        _assert_invalid_argument(
+            *_request(server, "POST", f"{ESCAPING_KEY_PATH}?uploadId={upload_id}", b"")
+        )
+
+    def test_valid_crud_flow(self, server: S3ProxyServer, storage_root: Path) -> None:
+        content = b"hello s3 proxy"
+        stored = storage_root / "mybucket" / "hello.txt"
+
+        put_resp, _ = _request(server, "PUT", "/mybucket/hello.txt", content)
+        assert put_resp.status == 200
+        assert "ETag" in put_resp.headers
+        assert stored.read_bytes() == content
+
+        get_resp, get_body = _request(server, "GET", "/mybucket/hello.txt")
+        assert get_resp.status == 200
+        assert get_body == content
+
+        del_resp, _ = _request(server, "DELETE", "/mybucket/hello.txt")
+        assert del_resp.status == 204
+        assert not stored.exists()
