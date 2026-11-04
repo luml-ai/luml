@@ -1,4 +1,4 @@
-name: Luml MLflow Tests and Linters
+name: Luml MLflow
 
 on:
   push:

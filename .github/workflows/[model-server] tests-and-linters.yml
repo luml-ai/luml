@@ -1,4 +1,4 @@
-name: Model Server Tests and Linters
+name: Model Server
 
 on:
   push:
