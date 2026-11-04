@@ -148,7 +148,7 @@ const router = createRouter({
         {
           path: 'secrets',
           name: 'orbit-secrets',
-          component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
+          component: () => import('../pages/orbits/OrbitSecretsView.vue'),
         },
         {
           path: 'flow',

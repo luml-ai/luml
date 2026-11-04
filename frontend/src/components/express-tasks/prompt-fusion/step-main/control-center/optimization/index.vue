@@ -131,8 +131,10 @@ async function runOptimization() {
   switch (promptFusionService.evaluationMode) {
     case EvaluationModesEnum.exactMatch:
       evaluation_metrics = 'exact_match'
+      break
     case EvaluationModesEnum.llmBased:
       evaluation_metrics = 'llm_based'
+      break
     default:
       evaluation_metrics = 'none'
   }

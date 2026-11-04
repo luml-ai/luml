@@ -73,6 +73,9 @@
         <template #body="{ data }">
           <div class="cell">
             <Tag v-if="data.status === DeploymentStatusEnum.active" severity="success">Active</Tag>
+            <Tag v-if="data.status === DeploymentStatusEnum.deletion_failed" severity="danger">
+              Deletion failed
+            </Tag>
             <Tag v-if="data.status === DeploymentStatusEnum.pending" severity="warn"> Pending </Tag>
             <div v-if="data.status === DeploymentStatusEnum.failed" class="tag-with-icon">
               <Tag severity="danger">Failed</Tag>

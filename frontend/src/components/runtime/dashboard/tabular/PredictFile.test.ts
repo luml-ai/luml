@@ -3,6 +3,8 @@ import { fromCSV } from 'arquero'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import PredictFile from './PredictFile.vue'
 
+let uploadWithErrors = false
+
 const { toastAdd, getDataForTraining } = vi.hoisted(() => ({
   toastAdd: vi.fn(),
   getDataForTraining: vi.fn(),
@@ -13,7 +15,7 @@ vi.mock('@/hooks/useDataTable', async () => {
   const { ref } = await import('vue')
   return {
     useDataTable: () => ({
-      isUploadWithErrors: ref(false),
+      isUploadWithErrors: ref(uploadWithErrors),
       fileData: ref({ name: 'inputs.csv', size: 12 }),
       onSelectFile: vi.fn(),
       getDataForTraining,
@@ -124,4 +126,12 @@ describe('runtime tabular file predictions', () => {
     )
     wrapper.unmount()
   })
+})
+
+it('disables prediction when the uploaded file has validation errors', () => {
+  uploadWithErrors = true
+  const wrapper = mountPredictFile(vi.fn())
+  expect(wrapper.get('button').attributes('disabled')).toBeDefined()
+  wrapper.unmount()
+  uploadWithErrors = false
 })
