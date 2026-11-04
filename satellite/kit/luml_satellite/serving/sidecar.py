@@ -371,7 +371,7 @@ def create_sidecar_internal_application(
         credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
     ) -> None:
         supplied = credentials.credentials if credentials is not None else ""
-        if not hmac.compare_digest(supplied, companion_token):
+        if not hmac.compare_digest(supplied.encode(), companion_token.encode()):
             raise HTTPException(status_code=403, detail="Invalid companion token")
 
     dependencies = [Depends(verify_token)]

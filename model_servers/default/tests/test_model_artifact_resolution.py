@@ -270,3 +270,37 @@ class TestModelArtifactResolution:
         assert Path(extracted) == cache / ARTIFACT_ID
         assert (Path(extracted) / "manifest.json").exists()
         assert not list(cache.glob(".*partial"))
+
+
+@pytest.mark.parametrize("failure", [False, True])
+@respx.mock
+def test_download_directories_are_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: bool
+) -> None:
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    _artifact_route(return_value=_ok_response())
+    respx.get(DOWNLOAD_URL).mock(
+        return_value=httpx.Response(500 if failure else 200, content=_make_archive(tmp_path))
+    )
+    cache = tmp_path / "models"
+    cache.mkdir()
+    if failure:
+        with pytest.raises(ValueError):
+            _handler(cache)._get_or_extract_model()
+    else:
+        _handler(cache)._get_or_extract_model()
+    assert not list(tmp_path.glob("dfs_model_download_*"))
+
+
+@respx.mock
+def test_download_failure_traceback_does_not_disclose_signed_url(tmp_path: Path) -> None:
+    import traceback
+
+    from handlers.file_handler import FileHandler
+
+    respx.get(DOWNLOAD_URL).mock(side_effect=httpx.ReadError(f"failed fetching {DOWNLOAD_URL}"))
+    with pytest.raises(ValueError) as caught:
+        FileHandler().download_file(DOWNLOAD_URL, tmp_path / "model.tar")
+    formatted = "".join(traceback.format_exception(caught.value))
+    assert "X-Amz-Signature" not in formatted
+    assert "fresh" not in formatted
