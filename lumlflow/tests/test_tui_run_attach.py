@@ -331,7 +331,7 @@ Path({str(done)!r}).touch()
             if pid_file.exists():
                 try:
                     os.killpg(int(pid_file.read_text()), signal.SIGKILL)
-                except ProcessLookupError:
+                except (ProcessLookupError, PermissionError):
                     pass
 
     async def test_unwritable_log_directory_reports_failure(
