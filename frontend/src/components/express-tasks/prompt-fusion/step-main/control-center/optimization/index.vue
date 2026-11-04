@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { SlidersHorizontal, X } from 'lucide-vue-next'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
@@ -119,9 +120,8 @@ function onRunOptimizationClick() {
     promptFusionService.checkIsOptimizationAvailable()
     confirm.require(runOptimizationConfirmOptions(runOptimization))
   } catch (e: unknown) {
-    const error = e as Error
     promptFusionService.endTraining()
-    toast.add(trainingErrorToast(error.message as string))
+    toast.add(trainingErrorToast(getErrorMessage(e, 'Training failed')))
   }
 }
 async function runOptimization() {
@@ -146,7 +146,7 @@ async function runOptimization() {
     await promptFusionService.runOptimization()
     toast.add(simpleSuccessToast('Your model is successfully trained'))
   } catch (e) {
-    toast.add(trainingErrorToast(e as string))
+    toast.add(trainingErrorToast(getErrorMessage(e, 'Training failed')))
   }
 }
 

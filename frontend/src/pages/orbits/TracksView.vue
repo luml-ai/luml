@@ -82,7 +82,7 @@ async function getFirstPage() {
     setRequestInfo({ organizationId: organizationId.value, orbitId: orbitId.value })
     await getInitialPage()
   } catch {
-    toast.add(simpleErrorToast('Failed to load collections'))
+    toast.add(simpleErrorToast('Failed to load tracks'))
   } finally {
     initialLoading.value = false
   }

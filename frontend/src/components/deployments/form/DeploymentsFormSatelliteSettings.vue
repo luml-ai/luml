@@ -254,7 +254,7 @@ async function getSatellites() {
     const list = await satellitesStore.loadSatellites(organizationId, orbitId)
     satellitesStore.setList(list)
   } catch (e) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load collections')))
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load satellites')))
   }
 }
 
