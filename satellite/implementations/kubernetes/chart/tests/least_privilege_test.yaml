@@ -1,0 +1,54 @@
+suite: credential metadata and permissions
+templates:
+  - templates/rbac.yaml
+  - templates/deployment-satellite.yaml
+  - templates/deployment-worker.yaml
+  - templates/deployment-dashboard.yaml
+release:
+  name: secure
+  namespace: models
+  revision: 7
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: grants only used secret operations
+    template: templates/rbac.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "patch", "delete"]
+  - it: uses the release revision for credential rollouts without secret fingerprints
+    template: templates/deployment-satellite.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: "7"
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+
+  - it: rolls credential consumers on upgrades with an operator-managed token
+    set:
+      satellite.existingSecret: operator-token
+    release:
+      revision: 8
+      upgrade: true
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: "8"
+        template: templates/deployment-satellite.yaml
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: "8"
+        template: templates/deployment-worker.yaml
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: "8"
+        template: templates/deployment-dashboard.yaml

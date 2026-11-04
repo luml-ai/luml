@@ -136,3 +136,30 @@ async def test_post_accepts_complete_body(
 
     assert send.call_args_list[0].args[0]["status"] == 200
     handler.assert_awaited_once_with(expected)
+
+
+@pytest.mark.parametrize("body", [b"{not json", b"\xff\xfe\x00"])
+async def test_malformed_request_returns_400(
+    post_app: tuple[UvicornService, AsyncMock], body: bytes
+) -> None:
+    app, handler = post_app
+    receive = AsyncMock(return_value={"type": "http.request", "body": body})
+    send = AsyncMock()
+    await app({"type": "http", "method": "POST", "path": "/compute"}, receive, send)
+    assert send.call_args_list[0].args[0]["status"] == 400
+    handler.assert_not_awaited()
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+async def test_nonfinite_response_returns_valid_json_error(
+    post_app: tuple[UvicornService, AsyncMock], value: float
+) -> None:
+    import json
+
+    app, handler = post_app
+    handler.return_value = {"prediction": value}
+    receive = AsyncMock(return_value={"type": "http.request", "body": b"{}"})
+    send = AsyncMock()
+    await app({"type": "http", "method": "POST", "path": "/compute"}, receive, send)
+    assert send.call_args_list[0].args[0]["status"] == 500
+    assert "error" in json.loads(send.call_args_list[1].args[0]["body"])

@@ -23,8 +23,9 @@ ENV HOME=/app \
 COPY --from=ghcr.io/astral-sh/uv:0.11.8 /uv /bin/uv
 
 RUN mkdir -p /app/.cache/uv /app/.micromamba /app/models \
-    && chown -R 10001:0 /app \
-    && chmod -R g=u /app
+    && chown -R root:0 /app \
+    && chmod -R a-w /app \
+    && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models
 
 COPY pyproject.toml uv.lock /app/
 
@@ -33,8 +34,9 @@ RUN --mount=type=cache,target=/app/.cache/uv \
 
 COPY . /app/
 
-RUN chown -R 10001:0 /app \
-    && chmod -R g=u /app
+RUN chown -R root:0 /app \
+    && chmod -R a-w /app \
+    && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models
 
 ENV PYTHONPATH=/app
 

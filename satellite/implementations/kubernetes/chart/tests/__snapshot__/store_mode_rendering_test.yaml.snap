@@ -177,8 +177,7 @@ changes only the external store boundary:
       template:
         metadata:
           annotations:
-            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
-            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+            luml.ai/credentials-revision: "0"
           labels:
             app.kubernetes.io/component: dashboard
             app.kubernetes.io/instance: store-mode
@@ -310,8 +309,7 @@ changes only the external store boundary:
       template:
         metadata:
           annotations:
-            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
-            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+            luml.ai/credentials-revision: "0"
           labels:
             app.kubernetes.io/component: worker
             app.kubernetes.io/instance: store-mode
@@ -635,8 +633,7 @@ matches the standalone store rendering:
       template:
         metadata:
           annotations:
-            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
-            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+            luml.ai/credentials-revision: "0"
           labels:
             app.kubernetes.io/component: dashboard
             app.kubernetes.io/instance: store-mode
@@ -758,8 +755,7 @@ matches the standalone store rendering:
       template:
         metadata:
           annotations:
-            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
-            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+            luml.ai/credentials-revision: "0"
           labels:
             app.kubernetes.io/component: worker
             app.kubernetes.io/instance: store-mode

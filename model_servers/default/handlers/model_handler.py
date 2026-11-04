@@ -68,10 +68,14 @@ class ModelHandler:
                 self._get_model_data_for_worker(),
             )
             self.conda_worker.start()
-        except Exception as error:
-            logger.error(
-                f"Model handler initialization failed: {error}\nTraceback: {traceback.format_exc()}"
-            )
+        except BaseException as error:
+            if self.conda_worker is not None:
+                self.conda_worker.stop()
+            if isinstance(error, Exception):
+                logger.error(
+                    f"Model handler initialization failed: {error}\n"
+                    f"Traceback: {traceback.format_exc()}"
+                )
             raise
 
     @log_success("Model data for worker generated successfully.")
@@ -119,12 +123,19 @@ class ModelHandler:
         parsed_url = urlparse(url)
         filename = Path(parsed_url.path).name.split("?")[0] or "model.dfs"
         model_archive_path = Path(temp_dir) / filename
-        self._file_handler.download_file(url, model_archive_path)
-        return model_archive_path
+        try:
+            self._file_handler.download_file(url, model_archive_path)
+            return model_archive_path
+        except BaseException:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
 
     @log_success("Model archive removed successfully.")
     def _clean_model_archive(self, file_path: Path) -> None:
-        self._file_handler.remove_file(file_path)
+        try:
+            self._file_handler.remove_file(file_path)
+        finally:
+            shutil.rmtree(file_path.parent, ignore_errors=True)
 
     @log_success("Model unpacked successfully.")
     def _unpack_model_archive(self, model_archive_path: Path, extraction_dir: Path) -> str:
@@ -369,7 +380,15 @@ class ModelHandler:
             env_manager = CondaLikeEnvManager(env_config)
             env_name = f"fnnx-{env_manager.env_id}"
             try:
-                env_path = env_manager.ensure()
+                existing = env_manager._env_exists(env_name)
+                if existing and not (Path(existing) / ".luml-complete").is_file():
+                    self._discard_env(env_manager, env_name)
+                    if env_manager._env_exists(env_name):
+                        raise RuntimeError("Could not remove incomplete conda environment")
+                env_path = env_manager.ensure() or env_manager._env_path
+                if not env_path:
+                    raise RuntimeError("Conda environment prefix was not created")
+                (Path(env_path) / ".luml-complete").touch()
             except Exception:
                 self._discard_env(env_manager, env_name)
                 raise

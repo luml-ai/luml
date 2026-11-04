@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol
+from weakref import WeakValueDictionary
 
 from luml_satellite.declaration import SettingsValidationError, parse_settings
 from luml_satellite.wire import (
@@ -176,7 +177,7 @@ class Convergence:
         self.logger = logger or logging.getLogger("luml_satellite.convergence")
         self.max_relaunch_attempts = max_relaunch_attempts
         self._driver_slots = asyncio.Semaphore(max_parallel)
-        self._deployment_locks: dict[str, asyncio.Lock] = {}
+        self._deployment_locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
         self._in_progress: dict[str, InProgressDeployment] = {}
         self._relaunch_failures: dict[str, int] = {}
         self._relaunch_logs: dict[str, str] = {}
