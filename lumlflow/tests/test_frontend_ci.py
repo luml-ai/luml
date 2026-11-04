@@ -21,26 +21,32 @@ def test_frontend_ci_runs_required_checks_in_order() -> None:
     paths = cast(list[str], pull_request["paths"])
     assert "lumlflow/**" in paths
 
-    jobs = cast(dict[str, object], workflow["jobs"])
-    frontend = cast(dict[str, object], jobs["frontend"])
-    steps = cast(list[dict[str, object]], frontend["steps"])
+    jobs = cast(dict[str, dict[str, object]], workflow["jobs"])
+    assert _commands(jobs["lint"]) == [
+        "npm ci",
+        "npm run lint",
+        "npm run format:check",
+    ]
+    assert _commands(jobs["unit"]) == [
+        "npm ci --include=optional",
+        "npm install @rollup/rollup-linux-x64-gnu --workspace=lumlflow/frontend",
+        "npm run build-only --workspace=@luml/attachments",
+        "npm run build-only --workspace=@luml/experiments",
+        "npm run type-check",
+        "npm run test:ci",
+        "npx vite build",
+    ]
+    unit_steps = cast(list[dict[str, object]], jobs["unit"]["steps"])
+    assert all("continue-on-error" not in step for step in unit_steps)
+    assert all(
+        step.get("working-directory") == "lumlflow/frontend" for step in unit_steps[-3:]
+    )
 
+
+def _commands(job: dict[str, object]) -> list[str]:
     commands: list[str] = []
-    for step in steps:
+    for step in cast(list[dict[str, object]], job["steps"]):
         run = step.get("run")
         if isinstance(run, str):
             commands.extend(line.strip() for line in run.splitlines() if line.strip())
-
-    assert commands == [
-        "npm ci",
-        "npm run build --workspace=@luml/experiments",
-        "npm run build --workspace=@luml/attachments",
-        "npx vue-tsc --build",
-        "npx eslint .",
-        "npx vitest run --config vitest.config.ts",
-        "npx vite build",
-    ]
-    assert all("continue-on-error" not in step for step in steps)
-    assert all(
-        step.get("working-directory") == "lumlflow/frontend" for step in steps[-4:]
-    )
+    return commands
