@@ -101,14 +101,19 @@ const inputValue = computed(() => {
   }
 })
 
-function copy() {
+async function copy() {
   if (!currentApiKey.value) return
-  navigator.clipboard.writeText(currentApiKey.value)
-  toast.add(simpleSuccessToast('API key copied to clipboard.'))
-  isCopied.value = true
-  setTimeout(() => {
+  try {
+    await navigator.clipboard.writeText(currentApiKey.value)
+    toast.add(simpleSuccessToast('API key copied to clipboard.'))
+    isCopied.value = true
+    setTimeout(() => {
+      isCopied.value = false
+    }, 1000)
+  } catch {
     isCopied.value = false
-  }, 1000)
+    toast.add(simpleErrorToast('Failed to copy to clipboard'))
+  }
 }
 
 async function generate() {

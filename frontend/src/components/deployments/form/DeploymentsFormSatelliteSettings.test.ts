@@ -124,9 +124,11 @@ vi.mock('@/stores/satellites', () => ({
   useSatellitesStore: () => satellitesStore,
 }))
 
+const addToast = vi.fn()
+
 vi.mock('primevue', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
-  return { ...actual, useToast: () => ({ add: vi.fn() }) }
+  return { ...actual, useToast: () => ({ add: addToast }) }
 })
 
 const SELECTED_MODEL = modelWithTags([])
@@ -188,6 +190,15 @@ function monitoringSections(wrapper: ReturnType<typeof mountForm>): string {
 describe('DeploymentsFormSatelliteSettings', () => {
   beforeEach(() => {
     satellitesStore.satellitesList = [MONITORED, PLAIN, RAW_DEPLOY_ONLY]
+  })
+
+  it('names satellites when their initial load fails', async () => {
+    satellitesStore.loadSatellites.mockRejectedValueOnce({ response: { status: 500 } })
+    mountForm()
+    await flushPromises()
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: 'Failed to load satellites' }),
+    )
   })
 
   it('offers only satellites with a present deploy capability', () => {

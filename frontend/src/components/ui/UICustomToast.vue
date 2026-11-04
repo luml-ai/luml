@@ -33,10 +33,14 @@ function handleLinkClick(event: MouseEvent) {
     const routeName = target.getAttribute('data-route')
     const routeParams = target.getAttribute('data-params')
     if (routeName) {
-      router.push({
-        name: routeName,
-        params: routeParams ? JSON.parse(routeParams) : {},
-      })
+      let params
+      try {
+        params = routeParams ? JSON.parse(routeParams) : {}
+      } catch {
+        return
+      }
+      if (!params || typeof params !== 'object' || Array.isArray(params)) return
+      router.push({ name: routeName, params })
     }
   }
 }

@@ -90,7 +90,7 @@ onBeforeMount(async () => {
     await loadOrbits(organizationId, true)
     await organizationStore.getOrganizationDetails(organizationId)
   } catch (e: unknown) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load orbits')))
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load organization details')))
   } finally {
     loading.value = false
   }

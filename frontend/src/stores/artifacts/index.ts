@@ -221,6 +221,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
   async function downloadArtifact(id: string, name: string) {
     const url = await getDownloadUrl(id)
     const response = await fetch(url)
+    if (!response.ok) throw new Error('Failed to download artifact')
     const blob = await response.blob()
     downloadFileFromBlob(blob, name)
   }
