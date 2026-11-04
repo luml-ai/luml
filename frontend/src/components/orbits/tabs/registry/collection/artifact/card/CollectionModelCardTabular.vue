@@ -9,7 +9,7 @@
     ></ModelTabularPerformance>
     <div class="features card">
       <header class="card-header">
-        <h3 class="card-title">Top {{ features.length + 1 }} features</h3>
+        <h3 class="card-title">Top {{ features.length }} features</h3>
       </header>
       <ol class="features-list">
         <li v-for="(feature, index) in features" :key="feature.feature_name" class="feature">
