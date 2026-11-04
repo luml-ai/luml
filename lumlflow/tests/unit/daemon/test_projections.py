@@ -669,6 +669,9 @@ async def test_rewinding_an_off_disk_branch_keeps_the_brief_on_disk(
 async def test_a_mixed_case_cell_file_is_replaced_by_its_slug_file(
     tmp_path: Path,
 ) -> None:
+    (tmp_path / "Probe").touch()
+    if (tmp_path / "probe").exists():
+        pytest.skip("the filesystem folds case")
     root = make_workspace(tmp_path / "project")
     flow = root / "churn.flow"
     write_cell(flow, "Features", SCORE_CELL)
