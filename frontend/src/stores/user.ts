@@ -6,6 +6,10 @@ import type { IPostChangePasswordRequest, IUpdateUserRequest } from '@/lib/api/a
 import { useAuthStore } from './auth'
 import { useOrganizationStore } from './organization'
 import { useInvitationsStore } from './invitations'
+import { useCollectionsStore } from './collections'
+import { useTracksStore } from './tracks'
+import { useDeploymentsStore } from './deployments'
+import { useSecretsStore } from './orbit-secrets'
 
 export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
@@ -14,6 +18,7 @@ export const useUserStore = defineStore('user', () => {
 
   const user = ref<IUser | null>(null)
   const isPasswordHasBeenChanged = ref(false)
+  let userRequestId = 0
 
   const getUserEmail = computed(() => user.value?.email)
   const getUserFullName = computed(() => user.value?.full_name)
@@ -24,8 +29,9 @@ export const useUserStore = defineStore('user', () => {
   const isUserApiKeyExist = computed(() => !!user.value?.has_api_key)
 
   const loadUser = async () => {
+    const requestId = ++userRequestId
     const data = await api.getMe()
-    user.value = data
+    if (requestId === userRequestId) user.value = data
   }
 
   const changePassword = async (data: IPostChangePasswordRequest) => {
@@ -39,7 +45,15 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const resetUser = () => {
+    userRequestId++
     user.value = null
+    isPasswordHasBeenChanged.value = false
+    invitationsStore.reset()
+    organizationStore.reset()
+    useCollectionsStore().reset()
+    useTracksStore().reset()
+    useDeploymentsStore().reset()
+    useSecretsStore().reset()
   }
 
   const resetPassword = async (reset_token: string, new_password: string) => {
@@ -69,13 +83,16 @@ export const useUserStore = defineStore('user', () => {
 
   watch(
     () => user.value?.id,
-    async (id) => {
+    async (id, _previousId, onCleanup) => {
+      let stale = false
+      onCleanup(() => {
+        stale = true
+      })
       if (id) {
         await invitationsStore.getInvitations().catch(() => undefined)
-        await organizationStore.getAvailableOrganizations()
-      } else {
-        invitationsStore.reset()
-        organizationStore.reset()
+        if (!stale && user.value?.id === id) {
+          await organizationStore.getAvailableOrganizations()
+        }
       }
     },
   )

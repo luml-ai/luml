@@ -33,6 +33,7 @@ export const useDeploymentsStore = defineStore('deployments', () => {
 
   function reset() {
     deployments.value = []
+    creatorVisible.value = false
   }
 
   function showCreator() {

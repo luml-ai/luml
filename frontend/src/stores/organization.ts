@@ -18,6 +18,7 @@ export const useOrganizationStore = defineStore('organization', () => {
   const organizationDetails = ref<OrganizationDetails | null>(null)
   const currentOrganizationId = ref<string | null>(null)
   const loading = ref(false)
+  let organizationsRequestId = 0
   let organizationRequestId = 0
   let detailsRequestId = 0
 
@@ -35,13 +36,15 @@ export const useOrganizationStore = defineStore('organization', () => {
 
   async function getAvailableOrganizations() {
     if (availableOrganizationsRequest.value) return availableOrganizationsRequest.value
+    const requestId = ++organizationsRequestId
     availableOrganizationsRequest.value = (async () => {
       try {
         const response = await api.getOrganizations()
+        if (requestId !== organizationsRequestId) return
         availableOrganizations.value = response
         await setInitialOrganization()
       } finally {
-        availableOrganizationsRequest.value = null
+        if (requestId === organizationsRequestId) availableOrganizationsRequest.value = null
       }
     })()
 
@@ -209,6 +212,8 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   function reset() {
+    organizationsRequestId++
+    availableOrganizationsRequest.value = null
     availableOrganizations.value = []
     resetCurrentOrganization()
   }
