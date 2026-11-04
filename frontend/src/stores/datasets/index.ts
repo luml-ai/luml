@@ -10,7 +10,8 @@ import {
 } from '@/lib/api/artifacts/interfaces'
 import { ModelDownloader } from '@/lib/bucket-service'
 import { ParquetHandler } from '@/utils/ParquetHandler'
-import { from, fromCSV } from 'arquero'
+import { from } from 'arquero'
+import { parseCSV } from '@/lib/data-table/csv'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -182,7 +183,7 @@ export const useDatasetsStore = defineStore('datasets', () => {
     arrayBuffer: ArrayBuffer,
   ): Promise<{ columns: string[]; rows: Record<string, unknown>[] }> {
     const text = await new TextDecoder().decode(arrayBuffer)
-    const table = fromCSV(text)
+    const table = parseCSV(text)
     const columns = table.columnNames()
     return { columns, rows: table.objects() as Record<string, unknown>[] }
   }

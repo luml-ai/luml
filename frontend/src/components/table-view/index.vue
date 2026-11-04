@@ -86,8 +86,11 @@
 </template>
 
 <script lang="ts">
+import { dateOnlyCSVValues } from '@/lib/data-table/csv'
+
 export function formatCellValue(value: unknown): unknown {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return value
+  if (dateOnlyCSVValues.has(value)) return value.toISOString().slice(0, 10)
   const pad = (part: number) => String(part).padStart(2, '0')
   const day = `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
   const midnight =

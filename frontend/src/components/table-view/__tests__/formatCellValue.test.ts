@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { formatCellValue } from '../index.vue'
+import { DataTableArquero } from '@/lib/data-table/DataTableArquero'
 
 describe('formatCellValue', () => {
   it('renders local-midnight dates as a bare day', () => {
@@ -19,6 +20,24 @@ describe('formatCellValue', () => {
     expect(formatCellValue('2020-01-01')).toBe('2020-01-01')
     expect(formatCellValue(42)).toBe(42)
     expect(formatCellValue(null)).toBeNull()
+  })
+
+  it('preserves date-only CSV days alongside offset-less datetimes', async () => {
+    const table = new DataTableArquero()
+    await table.createFormCSV({
+      name: 'dates.csv',
+      size: 100,
+      text: async () => 'date\n2024-01-01\n2024-01-01T20:00\n2024-01-01T00:00\n2023-12-31T19:00',
+    } as File)
+
+    const dates = table.getObjects().map((row) => (row as { date: Date }).date)
+    expect(dates.map(formatCellValue)).toEqual([
+      '2024-01-01',
+      '2024-01-01 20:00',
+      '2024-01-01',
+      '2023-12-31 19:00',
+    ])
+    expect(dates[0].toISOString()).toBe('2024-01-01T00:00:00.000Z')
   })
 })
 

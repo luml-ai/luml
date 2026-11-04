@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useDatasetsStore } from '@/stores/datasets'
 import { ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
+import { formatCellValue } from '@/components/table-view/index.vue'
 
 vi.mock('@/lib/api', () => ({ api: {} }))
 vi.mock('axios', () => ({ default: { get: vi.fn() } }))
@@ -44,6 +45,17 @@ beforeEach(() => {
   vi.mocked(axios.get).mockReset()
 })
 describe('dataset paging', () => {
+  it('preserves date-only CSV days when rendering downloaded dataset rows', async () => {
+    vi.mocked(axios.get).mockResolvedValue(csv('2024-01-01\n2023-12-31T19:00'))
+    const { store } = await setup()
+    store.setCurrentPage(0)
+    await flushPromises()
+
+    expect(store.tableRows.map((row) => formatCellValue(row.col))).toEqual([
+      '2024-01-01',
+      '2023-12-31 19:00',
+    ])
+  })
   it('refreshes the presigned URL for subsequent chunks', async () => {
     vi.mocked(axios.get).mockResolvedValue(csv('value'))
     const { store, getDownloadUrl } = await setup()
