@@ -1,16 +1,6 @@
 name: Docker Satellite Tests and Linters
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'satellite/implementations/docker/**'
-      - 'satellite/kit/**'
-      - 'satellite/.env.example'
-      - 'satellite/docker-compose.yml'
-      - 'satellite/Caddyfile'
-      - '.github/workflows/publish-satellite-agent-image.yml'
-      - '.github/workflows/*satellite-docker*tests-and-linters.yml'
   pull_request:
     branches: [main, staging, production]
     paths:

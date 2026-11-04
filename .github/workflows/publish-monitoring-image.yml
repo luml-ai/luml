@@ -10,6 +10,7 @@ on:
       - satellite/kit/pyproject.toml
       - satellite/kit/uv.lock
       - satellite/kit/luml_satellite/**
+      - satellite/monitoring-ui/**
   workflow_dispatch:
 
 concurrency:

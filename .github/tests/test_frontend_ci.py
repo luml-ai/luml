@@ -4,7 +4,11 @@ run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 """
 
 import fnmatch
+import os
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 from test_release_gates import load
 
@@ -12,7 +16,7 @@ from test_release_gates import load
 class FrontendCITests(unittest.TestCase):
     def test_shared_sources_and_dependency_manifests_trigger_checks_and_deploy(self):
         workflows = {
-            "[frontend] tests-and-linters.yml": ("push", "pull_request"),
+            "[frontend] tests-and-linters.yml": ("pull_request",),
             "deploy-frontend.yml": ("push",),
         }
         for name, events in workflows.items():
@@ -41,6 +45,22 @@ class FrontendCITests(unittest.TestCase):
             )
         )
 
+    def test_main_deploys_shared_package_changes_to_dev(self):
+        workflow = load("deploy-frontend.yml")
+        self.assertIn("main", workflow["on"]["push"]["branches"])
+        command = workflow["jobs"]["resolve-env"]["steps"][0]["run"]
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "output"
+            result = subprocess.run(
+                ["bash", "-e", "-c", command.replace("${{ github.ref_name }}", "main")],
+                env={**os.environ, "GITHUB_OUTPUT": str(output)},
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_text().strip(), "environment=dev")
+
     def test_eslint_failure_blocks_the_job(self):
         job = load("[frontend] tests-and-linters.yml")["jobs"]["lint"]
         self.assertNotIn("continue-on-error", job)
@@ -65,20 +85,18 @@ class FrontendCITests(unittest.TestCase):
         )
 
     def test_extras_checks_trigger_on_workspace_sources_and_manifests(self):
-        workflow = load("[extras-js] tests-and-linters.yml")
-        for event in ("push", "pull_request"):
-            paths = workflow["on"][event]["paths"]
-            for changed in (
-                "extras/js/packages/attachments/src/index.ts",
-                "extras/js/packages/experiments/src/index.ts",
-                "extras/js/packages/new-package/src/index.ts",
-                "package.json",
-                "package-lock.json",
-            ):
-                with self.subTest(event=event, changed=changed):
-                    self.assertTrue(
-                        any(fnmatch.fnmatchcase(changed, path) for path in paths)
-                    )
+        paths = load("[extras-js] tests-and-linters.yml")["on"]["pull_request"]["paths"]
+        for changed in (
+            "extras/js/packages/attachments/src/index.ts",
+            "extras/js/packages/experiments/src/index.ts",
+            "extras/js/packages/new-package/src/index.ts",
+            "package.json",
+            "package-lock.json",
+        ):
+            with self.subTest(changed=changed):
+                self.assertTrue(
+                    any(fnmatch.fnmatchcase(changed, path) for path in paths)
+                )
 
     def test_extras_eslint_does_not_autofix_in_ci(self):
         steps = load("[extras-js] tests-and-linters.yml")["jobs"]["checks"]["steps"]

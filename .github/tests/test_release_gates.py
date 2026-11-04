@@ -3,6 +3,7 @@
 run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 """
 
+import fnmatch
 import os
 import subprocess
 import tempfile
@@ -48,7 +49,36 @@ IMAGE_TAGS = {
 }
 RELEASE_COVERED_SUITES = {
     "[backend] tests-and-linters.yml",
+    "[frontend] tests-and-linters.yml",
+    "[lumlflow] tests-and-linters.yml",
+    "[extras-js] tests-and-linters.yml",
+    "[model-server] tests-and-linters.yml",
+    "[relay] tests-and-linters.yml",
+    "[satellite-docker] tests-and-linters.yml",
     "[satellite-kit] tests-and-linters.yml",
+    "[satellite-kubernetes] tests-and-linters.yml",
+    "[satellite-monitoring-ui] tests-and-linters.yml",
+}
+# pr checks also cover separate artifacts, contracts, and user-side files
+PR_ONLY_PATHS = {
+    "[frontend] tests-and-linters.yml": {
+        "satellite/implementations/kubernetes/tests/snapshots/settings_fields.json",
+    },
+    "[lumlflow] tests-and-linters.yml": {"lumlflow/frontend/**"},
+    "[model-server] tests-and-linters.yml": {
+        "satellite/.env.example",
+        "satellite/docker-compose.yml",
+    },
+    "[relay] tests-and-linters.yml": {"sdk/python/api/**"},
+    "[satellite-docker] tests-and-linters.yml": {
+        "satellite/.env.example",
+        "satellite/docker-compose.yml",
+        "satellite/Caddyfile",
+    },
+    "[satellite-kubernetes] tests-and-linters.yml": {
+        "frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts",
+        ".github/workflows/publish-kubernetes-satellite-chart.yml",
+    },
 }
 SUITE_TESTS = {
     "[backend] tests-and-linters.yml": (
@@ -81,6 +111,24 @@ def ancestors(jobs, name):
 
 
 class ReleaseGateTests(unittest.TestCase):
+    def test_every_called_suite_runs_once_per_release_workflow(self):
+        called = set()
+        for path in WORKFLOWS.glob("*.yml"):
+            if not path.name.startswith(("deploy-", "publish-")):
+                continue
+            suites = [
+                job["uses"].removeprefix("./.github/workflows/")
+                for job in load(path.name)["jobs"].values()
+                if job.get("uses", "").endswith("tests-and-linters.yml")
+            ]
+            with self.subTest(workflow=path.name):
+                self.assertEqual(len(suites), len(set(suites)))
+            called.update(suites)
+        self.assertEqual(called, RELEASE_COVERED_SUITES)
+        for suite in called:
+            with self.subTest(suite=suite):
+                self.assertNotIn("push", load(suite)["on"])
+
     def test_checks_run_on_all_release_branches(self):
         paths = list(WORKFLOWS.glob("*tests-and-linters.yml"))
         paths.append(WORKFLOWS / "[satellite-kubernetes] end-to-end.yml")
@@ -108,13 +156,58 @@ class ReleaseGateTests(unittest.TestCase):
             with self.subTest(suite=suite):
                 self.assertIn(suite, callers)
                 suite_paths = set(load(suite)["on"]["pull_request"]["paths"])
+                suite_paths -= PR_ONLY_PATHS.get(suite, set())
                 suite_paths -= {
                     path for path in suite_paths if path.startswith(".github/")
                 }
                 covered = set()
                 for name in callers[suite]:
                     covered |= set(load(name)["on"]["push"]["paths"])
-                self.assertTrue(suite_paths <= covered, suite_paths - covered)
+                uncovered = {
+                    path
+                    for path in suite_paths
+                    if path not in covered
+                    and not any(
+                        pattern.endswith("/**") and path.startswith(pattern[:-2])
+                        for pattern in covered
+                    )
+                }
+                self.assertFalse(uncovered, uncovered)
+
+    def test_nonshipping_paths_keep_pr_checks_without_triggering_releases(self):
+        for suite, paths in PR_ONLY_PATHS.items():
+            with self.subTest(suite=suite):
+                self.assertTrue(
+                    paths <= set(load(suite)["on"]["pull_request"]["paths"])
+                )
+                for name, required in RELEASES.items():
+                    if suite not in required.values():
+                        continue
+                    release_paths = load(name)["on"]["push"]["paths"]
+                    for path in paths:
+                        self.assertFalse(
+                            any(
+                                fnmatch.fnmatchcase(path, pattern)
+                                for pattern in release_paths
+                            ),
+                            (name, path),
+                        )
+
+    def test_monitoring_ui_sources_trigger_image_publishing(self):
+        workflow = load("publish-monitoring-image.yml")
+        self.assertIn("main", workflow["on"]["push"]["branches"])
+        for changed in (
+            "satellite/monitoring-ui/src/App.vue",
+            "satellite/monitoring-ui/package-lock.json",
+            "satellite/monitoring-ui/vite.config.ts",
+        ):
+            with self.subTest(changed=changed):
+                self.assertTrue(
+                    any(
+                        fnmatch.fnmatchcase(changed, pattern)
+                        for pattern in workflow["on"]["push"]["paths"]
+                    )
+                )
 
     def test_releases_require_the_relevant_checks(self):
         for name, required in RELEASES.items():
@@ -259,8 +352,7 @@ class ReleaseGateTests(unittest.TestCase):
 
     def test_flow_frontend_gate_builds_the_bundle(self):
         workflow = load("[lumlflow] tests-and-linters.yml")
-        for event in ("push", "pull_request"):
-            self.assertIn("lumlflow/frontend/**", workflow["on"][event]["paths"])
+        self.assertIn("lumlflow/frontend/**", workflow["on"]["pull_request"]["paths"])
         steps = workflow["jobs"]["unit"]["steps"]
         self.assertTrue(
             any(

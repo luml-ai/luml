@@ -1,12 +1,6 @@
 name: Lumlflow Tests and Linters
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'lumlflow/frontend/**'
-      - 'extras/js/packages/attachments/**'
-      - 'extras/js/packages/experiments/**'
   pull_request:
     branches: [main, staging, production]
     paths:
