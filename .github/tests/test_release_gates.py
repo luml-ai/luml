@@ -3,6 +3,7 @@
 run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 """
 
+import json
 import os
 import subprocess
 import tempfile
@@ -47,6 +48,21 @@ IMAGE_TAGS = {
     "publish-serving-image.yml": "satellite/serving/v*",
     "publish-relay-image.yml": "luml-relay/image/v*",
 }
+PACKAGE_GATES = {
+    "sdk-python/api/v*": {"api-client-tests": "[api-client] tests-and-linters.yml"},
+    "sdk-python/sdk/v*": {"sdk-tests": "[sdk] tests-and-linters.yml"},
+    "lumlflow/v*": {
+        "lumlflow-tests": "[lumlflow] tests-and-linters.yml",
+        "lumlflow-frontend-tests": "[lumlflow-frontend] tests-and-linters.yml",
+    },
+    "luml-prisma/v*": {},
+    "luml-mlflow/v*": {"luml-mlflow-tests": "[luml-mlflow] tests-and-linters.yml"},
+    "luml-relay/v*": {"relay-tests": "[relay] tests-and-linters.yml"},
+}
+CHART_GATES = {
+    "tests": "[satellite-kubernetes] tests-and-linters.yml",
+    "end-to-end": "[satellite-kubernetes] end-to-end.yml",
+}
 RELEASE_COVERED_SUITES = {
     "[backend] tests-and-linters.yml",
     "[satellite-kit] tests-and-linters.yml",
@@ -83,6 +99,30 @@ def ancestors(jobs, name):
     for parent in tuple(result):
         result |= ancestors(jobs, parent)
     return result
+
+
+def run_step(script, env):
+    with tempfile.TemporaryDirectory() as directory:
+        output = Path(directory) / "output"
+        result = subprocess.run(
+            ["bash", "-e", "-c", script],
+            env={**os.environ, "GITHUB_OUTPUT": str(output), **env},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        values = {}
+        if output.exists():
+            for line in output.read_text().splitlines():
+                key, _, value = line.partition("=")
+                values[key] = value
+        return result, values
+
+
+def named_step(job, name):
+    steps = [step for step in job["steps"] if step.get("name") == name]
+    assert len(steps) == 1, name
+    return steps[0]
 
 
 class ReleaseGateTests(unittest.TestCase):
@@ -271,6 +311,84 @@ class ReleaseGateTests(unittest.TestCase):
                 and "vite build" in step.get("run", "")
                 for step in steps
             )
+        )
+
+    def test_each_python_package_tag_requires_its_own_checks(self):
+        workflow = load("publish-sdk-python.yml")
+        jobs = workflow["jobs"]
+        self.assertEqual(set(workflow["on"]["push"]["tags"]), set(PACKAGE_GATES))
+        script = jobs["resolve"]["steps"][0]["run"]
+        for pattern, gates in PACKAGE_GATES.items():
+            tag = pattern.replace("*", "1.2.3rc0")
+            with self.subTest(tag=tag):
+                result, values = run_step(script, {"GITHUB_REF_NAME": tag})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(set(values["gates"].split()), set(gates))
+                self.assertEqual(values["version"], "1.2.3rc0")
+                for gate, suite in gates.items():
+                    self.assertEqual(jobs[gate]["uses"], f"./.github/workflows/{suite}")
+                    self.assertIn("workflow_call", load(suite)["on"])
+                    self.assertEqual(
+                        jobs[gate]["if"],
+                        f"startsWith(github.ref_name, '{pattern[:-1]}')",
+                    )
+        result, _ = run_step(script, {"GITHUB_REF_NAME": "unrelated/v1.2.3"})
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_a_python_package_publishes_only_after_its_checks_succeed(self):
+        jobs = load("publish-sdk-python.yml")["jobs"]
+        publish = jobs["publish"]
+        gates = {gate for gates in PACKAGE_GATES.values() for gate in gates}
+        self.assertEqual(dependencies(jobs, "publish"), gates | {"resolve"})
+        self.assertNotIn("continue-on-error", publish)
+        self.assertEqual(publish["steps"][0]["name"], "Require the package's checks")
+        script = publish["steps"][0]["run"]
+        cases = [
+            ({"sdk-tests": "success"}, "sdk-tests", 0),
+            ({"sdk-tests": "failure"}, "sdk-tests", 1),
+            ({"sdk-tests": "skipped"}, "sdk-tests", 1),
+            ({"sdk-tests": "cancelled"}, "sdk-tests", 1),
+            (
+                {"lumlflow-tests": "success", "lumlflow-frontend-tests": "failure"},
+                "lumlflow-tests lumlflow-frontend-tests",
+                1,
+            ),
+            ({}, "", 0),
+        ]
+        for results, required, expected in cases:
+            with self.subTest(results=results):
+                needs = {gate: {"result": value} for gate, value in results.items()}
+                result, _ = run_step(
+                    script, {"GATES": required, "RESULTS": json.dumps(needs)}
+                )
+                self.assertEqual(result.returncode != 0, bool(expected), result.stderr)
+
+    def test_a_python_package_is_installed_from_the_index_before_it_is_published(
+        self,
+    ):
+        steps = load("publish-sdk-python.yml")["jobs"]["publish"]["steps"]
+        names = [step.get("name") for step in steps]
+        check = names.index("Install the wheel from the public index")
+        self.assertLess(names.index("Build"), check)
+        self.assertLess(check, names.index("Publish"))
+        command = steps[check]["run"]
+        self.assertIn("--no-sources", command)
+        self.assertIn("Provides-Extra", command)
+        self.assertIn("import $IMPORT_NAME", command)
+        self.assertNotIn("continue-on-error", steps[check])
+        self.assertNotIn("if", steps[check])
+
+    def test_the_chart_publishes_only_after_the_kubernetes_checks(self):
+        jobs = load("publish-kubernetes-satellite-chart.yml")["jobs"]
+        for gate, suite in CHART_GATES.items():
+            with self.subTest(gate=gate):
+                self.assertEqual(jobs[gate]["uses"], f"./.github/workflows/{suite}")
+                self.assertIn("workflow_call", load(suite)["on"])
+                self.assertNotIn("if", jobs[gate])
+                self.assertIn(gate, ancestors(jobs, "publish-chart"))
+        self.assertIn(
+            jobs["publish-chart"].get("if", "success()"),
+            ("success()", "${{ success() }}"),
         )
 
     def test_gate_acceptance_checks_run_in_ci(self):

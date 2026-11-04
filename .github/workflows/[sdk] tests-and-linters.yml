@@ -10,6 +10,7 @@ on:
     paths:
       - 'sdk/python/sdk/**'
   workflow_dispatch:
+  workflow_call:
 
 defaults:
   run:

@@ -12,6 +12,7 @@ on:
       - 'sdk/python/api/**'
       - 'satellite/implementations/docker/tests/snapshots/static_openapi.json'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   checks:
