@@ -361,6 +361,35 @@ describe('Forecasting evaluate — re-forecast', () => {
     },
   )
 
+  it('lets a new horizon be forecast while a superseded request is still pending', async () => {
+    const { wrapper, predict } = mountEvaluate()
+    let resolveStale!: (result: ForecastingPredictSuccess) => void
+    let resolveFresh!: (result: ForecastingPredictSuccess) => void
+    predict
+      .mockReturnValueOnce(new Promise((done) => (resolveStale = done)))
+      .mockReturnValueOnce(new Promise((done) => (resolveFresh = done)))
+    await setEndDate(wrapper, new Date('2020-06-01'))
+    await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+    expect(wrapper.find('[data-testid="forecast-status"]').exists()).toBe(true)
+
+    await setEndDate(wrapper, new Date('2020-09-01'))
+    expect(wrapper.find('[data-testid="forecast-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="run-forecast"]').attributes('disabled')).toBeUndefined()
+
+    await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+    expect(predict.mock.calls[1][0].horizon).toBe(6)
+    resolveStale({ status: 'success', forecast: baseForecast })
+    await flushPromises()
+    const chart = wrapper.findComponent({ name: 'ForecastChart' })
+    expect(chart.props('prediction')).toBeNull()
+    expect(wrapper.find('[data-testid="forecast-status"]').exists()).toBe(true)
+
+    resolveFresh({ status: 'success', forecast: baseForecast })
+    await flushPromises()
+    expect(chart.props('prediction')).not.toBeNull()
+    expect(wrapper.find('[data-testid="forecast-status"]').exists()).toBe(false)
+  })
+
   it('discards a pending forecast after editing its known-future inputs', async () => {
     const { wrapper, predict } = mountEvaluate({
       modelConfig: { ...baseConfig, aux_cols: ['promo'], known_future_cols: ['promo'] },

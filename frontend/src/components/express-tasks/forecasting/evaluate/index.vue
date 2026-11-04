@@ -293,7 +293,12 @@ const supplied = computed<Record<string, ForecastPoint[]> | null>(() => {
 // horizon does — otherwise the chart overlay and download keep the old inputs.
 function onFutureChange(state: { complete: boolean; future: ForecastingRecord[] }): void {
   futureState.value = state
+  invalidateForecast()
+}
+
+function invalidateForecast(): void {
   forecastVersion++
+  isForecasting.value = false
   rawForecast.value = []
   rawFuture.value = []
 }
@@ -314,7 +319,7 @@ async function runForecast(): Promise<void> {
     rawForecast.value = result.forecast
     rawFuture.value = request.future ?? []
   } finally {
-    isForecasting.value = false
+    if (version === forecastVersion) isForecasting.value = false
   }
 }
 
@@ -342,15 +347,7 @@ function finishConfirm(): void {
 }
 
 // A changed horizon invalidates any prior forecast.
-watch(
-  endDate,
-  () => {
-    forecastVersion++
-    rawForecast.value = []
-    rawFuture.value = []
-  },
-  { flush: 'sync' },
-)
+watch(endDate, invalidateForecast, { flush: 'sync' })
 </script>
 
 <style scoped>
