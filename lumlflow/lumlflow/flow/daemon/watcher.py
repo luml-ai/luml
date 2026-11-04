@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.utils import UnsupportedLibcError, platform
 
 from lumlflow.flow.dsl.accept import CELL_SUFFIX
 from lumlflow.flow.dsl.tree import WorkspaceExclusions
@@ -116,7 +117,7 @@ class Watcher:
 
     def start(self) -> None:
         self._loop = asyncio.get_running_loop()
-        self._observer = Observer()
+        self._observer = _observer()
         self._observer.start()
         self.hub.watches.observe = self._schedule
         self.hub.watches.forget = self._unschedule
@@ -217,3 +218,12 @@ class _Handler(FileSystemEventHandler):
         for path in (event.src_path, getattr(event, "dest_path", None)):
             if path:
                 self._post(str(path))
+
+
+def _observer() -> Any:
+    if platform.is_linux():
+        with contextlib.suppress(UnsupportedLibcError):
+            from lumlflow.flow.daemon.inotify import TolerantInotifyObserver
+
+            return TolerantInotifyObserver()
+    return Observer()
