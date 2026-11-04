@@ -11,7 +11,7 @@ export const dPreset = definePreset(Aura, {
     colorScheme: {
       light: {
         primary: {
-          color: '{blue.550}',
+          color: '{primary.600}',
           50: '{blue.50}',
           100: '{blue.100}',
           200: '{blue.200}',
@@ -24,10 +24,10 @@ export const dPreset = definePreset(Aura, {
           900: '{blue.900}',
           950: '{blue.950}',
           hover: {
-            color: '{primary.600}',
+            color: '{primary.700}',
           },
           active: {
-            color: '{primary.700}',
+            color: '{primary.800}',
           },
         },
         surface: {
