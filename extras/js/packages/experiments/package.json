@@ -12,7 +12,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "test": "vitest",
-    "test:ci": "vitest run",
+    "test:ci": "node --test ../../tests/package.test.mjs && vitest run",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
     "format:check": "prettier --check --experimental-cli src/",
@@ -47,11 +47,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/luml-experiments.es.js",
-      "require": "./dist/luml-experiments.umd.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/luml-experiments.umd.js"
     },
     "./style.css": "./dist/experiments.css"
+  },
+  "dependencies": {
+    "axios": "^1.20.0"
   },
   "peerDependencies": {
     "@primevue/themes": "^4.3.9",

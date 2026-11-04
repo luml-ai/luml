@@ -3,6 +3,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import dts from 'vite-plugin-dts'
+import { dependencies, peerDependencies } from './package.json'
+
+const externals = [...Object.keys(peerDependencies), ...Object.keys(dependencies)]
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -28,11 +31,24 @@ export default defineConfig({
       fileName: (format) => `luml-experiments.${format}.js`,
     },
     rollupOptions: {
-      external: ['vue', 'plotly.js-dist', 'primevue', 'pinia'],
+      external: (id) =>
+        !id.endsWith('.css') && externals.some((name) => id === name || id.startsWith(`${name}/`)),
       output: {
         globals: {
           vue: 'Vue',
+          primevue: 'PrimeVue',
+          pinia: 'Pinia',
+          'lucide-vue-next': 'LucideVueNext',
+          arquero: 'aq',
+          dompurify: 'DOMPurify',
+          marked: 'marked',
+          '@vueuse/core': 'VueUse',
+          'js-yaml': 'jsyaml',
+          jszip: 'JSZip',
+          'sql.js': 'initSqlJs',
+          uuid: 'uuid',
           'plotly.js-dist': 'Plotly',
+          axios: 'axios',
         },
       },
     },
