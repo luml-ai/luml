@@ -14,6 +14,7 @@ and fast — no real filesystem store, no wall-clock waits.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,8 @@ from lumlflow.tui.widgets.evals_panel import (
 )
 from textual.widgets import DataTable, Input, ListView, Static
 
+from tests.tui_helpers import settle_workers
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -72,8 +75,8 @@ def _make_app(facade: DataFacade) -> LumlflowApp:
     return LumlflowApp(facade=facade)
 
 
-async def _wait_until(pilot, predicate, *, max_pauses: int = 80) -> bool:
-    """Wait until `predicate()` is true or up to `max_pauses` pause cycles.
+async def _wait_until(pilot, predicate, *, timeout: float = 10.0) -> bool:
+    """Wait until `predicate()` is true or `timeout` seconds have passed.
 
     Returns the final truthiness of the predicate. Worker threads in
     Textual settle asynchronously; a fixed number of pauses is a
@@ -84,7 +87,8 @@ async def _wait_until(pilot, predicate, *, max_pauses: int = 80) -> bool:
     worker has had a chance to make progress.
     """
 
-    for _ in range(max_pauses):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
         try:
             if predicate():
                 return True
@@ -455,6 +459,8 @@ class TestEvalsDatasetSelector:
             screen.action_jump_tab("evals")
             panel = screen.query_one("#pane-evals-panel", EvalsPanel)
             assert await _wait_until(pilot, lambda: len(panel._rows) == 3)
+            assert await _wait_until(pilot, lambda: len(panel._dataset_ids) == 2)
+            await settle_workers(pilot)
             panel._selected_dataset = "ds-2"
             panel.load_first_page()
             assert await _wait_until(
