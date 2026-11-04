@@ -128,7 +128,6 @@ class UserRepository(RepositoryBase, CrudMixin):
                     .with_for_update()
                 )
             )
-            # match the organization-then-user lock order used by membership creation.
             await session.scalar(
                 select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
             )
