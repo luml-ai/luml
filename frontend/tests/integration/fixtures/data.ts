@@ -50,6 +50,34 @@ export const ORB_FULL_PERMISSIONS = {
     Permission.update,
     Permission.delete,
   ],
+  track: [
+    Permission.list,
+    Permission.read,
+    Permission.create,
+    Permission.update,
+    Permission.delete,
+  ],
+  deployment: [
+    Permission.list,
+    Permission.read,
+    Permission.create,
+    Permission.update,
+    Permission.delete,
+  ],
+  satellite: [
+    Permission.list,
+    Permission.read,
+    Permission.create,
+    Permission.update,
+    Permission.delete,
+  ],
+  orbit_secret: [
+    Permission.list,
+    Permission.read,
+    Permission.create,
+    Permission.update,
+    Permission.delete,
+  ],
 }
 
 export const ORG_ID = '11111111-1111-1111-1111-111111111111'

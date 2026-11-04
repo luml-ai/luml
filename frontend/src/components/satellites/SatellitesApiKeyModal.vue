@@ -33,7 +33,7 @@
       </div>
     </div>
     <template #footer>
-      <Button label="Regenerate key" :loading="loading" @click="generate" />
+      <Button v-if="canRegenerate" label="Regenerate key" :loading="loading" @click="generate" />
     </template>
   </Dialog>
 </template>
@@ -44,6 +44,8 @@ import { Dialog, InputText, InputGroup, InputGroupAddon, Button, useToast } from
 import { Copy, CopyCheck } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useSatellitesStore } from '@/stores/satellites'
 import { useRoute } from 'vue-router'
 
@@ -70,6 +72,10 @@ const dialogPt: DialogPassThroughOptions = {
 const toast = useToast()
 const route = useRoute()
 const satellitesStore = useSatellitesStore()
+const orbitsStore = useOrbitsStore()
+const canRegenerate = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.satellite?.includes(PermissionEnum.update),
+)
 
 const props = defineProps<Props>()
 const visible = defineModel<boolean>('visible')
@@ -112,6 +118,7 @@ function copy() {
 }
 
 async function generate() {
+  if (!canRegenerate.value) return
   const requestId = ++generationId
   try {
     loading.value = true
