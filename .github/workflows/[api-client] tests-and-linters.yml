@@ -1,4 +1,4 @@
-name: Api Client Tests and Linters
+name: Api Client
 
 on:
   push:

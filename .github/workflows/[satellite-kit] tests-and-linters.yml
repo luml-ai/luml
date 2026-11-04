@@ -1,4 +1,4 @@
-name: Satellite Kit Tests and Linters
+name: Satellite Kit
 
 on:
   pull_request:

@@ -486,7 +486,7 @@ Run this before calling any UI work done.
 - [ ] **Vocabulary clean.** `grep -rn " — " src/flow` returns only comments, and
       the glossary's banned words appear only as identifiers. The sweeps that
       hold this are `GIT_WORDS` in `tests/flow-workbench-ui.spec.ts` over
-      rendered text, and `no_git_words` in `tests/daemon/helpers.py` over the
+      rendered text, and `no_git_words` in `tests/helpers/daemon.py` over the
       CLI, `AGENTS.md`, the connect prompt, the handoff payloads and the MCP
       tool list. A new surface that renders copy gets added to one of them.
 - [ ] **Guide quotes in sync**: `docs/user-guide.md` names sections, buttons and command

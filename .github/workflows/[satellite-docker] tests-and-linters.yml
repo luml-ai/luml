@@ -1,4 +1,4 @@
-name: Docker Satellite Tests and Linters
+name: Docker Satellite
 
 on:
   push:

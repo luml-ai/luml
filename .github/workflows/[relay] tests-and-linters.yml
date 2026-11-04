@@ -1,4 +1,4 @@
-name: Relay Tests and Linters
+name: Relay
 
 on:
   push:

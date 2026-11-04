@@ -1,4 +1,4 @@
-name: Satellite Monitoring UI Tests and Linters
+name: Satellite Monitoring UI
 
 on:
   push:

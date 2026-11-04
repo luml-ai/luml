@@ -1,76 +1,19 @@
-name: Lumlflow Tests and Linters
+name: Lumlflow
 
 on:
   push:
     branches: [main, staging, production]
     paths:
       - 'lumlflow/**'
-      - 'lumlflow/frontend/**'
-      - 'extras/js/**'
-      - 'package.json'
-      - 'package-lock.json'
+      - '!lumlflow/frontend/**'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'lumlflow/**'
-      - 'lumlflow/frontend/**'
-      - 'extras/js/**'
-      - 'package.json'
-      - 'package-lock.json'
+      - '!lumlflow/frontend/**'
   workflow_call:
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: ./package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: ESLint
-        working-directory: lumlflow/frontend
-        run: npx eslint .
-
-      - name: Prettier check
-        working-directory: lumlflow/frontend
-        run: npm run format:check
-
-  unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: ./package-lock.json
-
-      - name: Install dependencies
-        run: npm ci --include=optional
-
-      - name: Build workspace packages
-        run: |
-          npm run build-only --workspace=@luml/attachments
-          npm run build-only --workspace=@luml/experiments
-
-      - name: Type check
-        working-directory: lumlflow/frontend
-        run: npm run type-check
-
-      - name: Run unit tests
-        working-directory: lumlflow/frontend
-        run: npm run test:ci
-
-      - name: Build
-        working-directory: lumlflow/frontend
-        run: npx vite build
-
   checks:
     runs-on: ubuntu-latest
     defaults:
@@ -79,15 +22,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: lumlflow/pyproject.toml
 
       - name: Install dependencies with uv
-        run: |
-          python -m pip install --upgrade uv
-          uv sync --group dev
+        run: uv sync --group dev
 
       - name: Check formatting
         run: uv run ruff format --check lumlflow lumlflow_kernel lumlflow_typing tests
@@ -98,8 +41,50 @@ jobs:
       - name: Type checking
         run: uv run mypy lumlflow/flow lumlflow_kernel lumlflow_typing
 
-      - name: Running tests
-        run: uv run pytest
+  unit-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: lumlflow/pyproject.toml
+
+      - name: Install dependencies with uv
+        run: uv sync --group dev
+
+      - name: Running unit tests
+        run: uv run pytest tests/unit
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lumlflow
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: lumlflow/pyproject.toml
+
+      - name: Install dependencies with uv
+        run: uv sync --group dev
+
+      - name: Running integration tests
+        run: uv run pytest tests/integration -n auto -m "not default_port"
+
+      - name: Running default port tests
+        run: uv run pytest tests/integration -m default_port
 
   # Portability is a v1 requirement, not a port at the end. The store and the
   # watcher are where the platform's differences land — atomic replace, sharing
@@ -112,18 +97,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: lumlflow/pyproject.toml
 
       - name: Install dependencies with uv
-        run: |
-          python -m pip install --upgrade uv
-          uv sync --group dev
+        run: uv sync --group dev
 
       - name: Running store and watcher tests
-        run: uv run pytest tests/flow tests/daemon/test_watcher.py
+        run: uv run pytest tests/unit/flow tests/integration/flow tests/integration/daemon/test_watcher.py
 
   # The kernel is path-injected into the workspace venv, whose floor is 3.10 —
   # so it is tested on 3.10, with no project install, exactly as it ships.
@@ -135,8 +120,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        run: python -m pip install --upgrade uv
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: lumlflow/pyproject.toml
 
       - name: Running kernel tests under the venv floor
-        run: uv run --python 3.10 --no-project --with pytest pytest tests/kernel
+        run: uv run --python 3.10 --no-project --with pytest pytest tests/unit/kernel tests/integration/kernel

@@ -1,4 +1,4 @@
-name: Kubernetes Satellite Tests and Linters
+name: Kubernetes Satellite
 
 on:
   push:

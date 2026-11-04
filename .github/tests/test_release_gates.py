@@ -19,6 +19,7 @@ RELEASES = {
     "deploy-frontend.yml": {
         "tests": "[frontend] tests-and-linters.yml",
         "flow-tests": "[lumlflow] tests-and-linters.yml",
+        "flow-frontend-tests": "[lumlflow-frontend] tests-and-linters.yml",
         "extras-tests": "[extras-js] tests-and-linters.yml",
     },
     "deploy-docs.yml": {"tests": None},
@@ -56,7 +57,11 @@ SUITE_TESTS = {
         "pytest tests/integration",
     ),
     "[frontend] tests-and-linters.yml": ("npm run test:ci", "npm run test:integration"),
-    "[lumlflow] tests-and-linters.yml": ("npm run test:ci", "vite build"),
+    "[lumlflow] tests-and-linters.yml": (
+        "pytest tests/unit",
+        "pytest tests/integration",
+    ),
+    "[lumlflow-frontend] tests-and-linters.yml": ("npm run test:ci", "vite build"),
     "[extras-js] tests-and-linters.yml": ("npm run test:ci", "npm run build-only"),
     "[satellite-monitoring-ui] tests-and-linters.yml": ("npm test", "npm run build"),
 }
@@ -84,8 +89,6 @@ class ReleaseGateTests(unittest.TestCase):
     def test_checks_run_on_all_release_branches(self):
         paths = list(WORKFLOWS.glob("*tests-and-linters.yml"))
         paths.append(WORKFLOWS / "[satellite-kubernetes] end-to-end.yml")
-        paths.append(WORKFLOWS / "[sdk] tests.yml")
-        paths.append(WORKFLOWS / "[sdk] linters.yml")
         for path in paths:
             workflow = load(path.name)
             with self.subTest(workflow=path.name, event="pull_request"):
@@ -258,7 +261,7 @@ class ReleaseGateTests(unittest.TestCase):
                                 )
 
     def test_flow_frontend_gate_builds_the_bundle(self):
-        workflow = load("[lumlflow] tests-and-linters.yml")
+        workflow = load("[lumlflow-frontend] tests-and-linters.yml")
         for event in ("push", "pull_request"):
             self.assertIn("lumlflow/frontend/**", workflow["on"][event]["paths"])
         steps = workflow["jobs"]["unit"]["steps"]

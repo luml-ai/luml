@@ -1,4 +1,4 @@
-name: JupyterLite Server Tests and Linters
+name: JupyterLite Server
 
 on:
   push:

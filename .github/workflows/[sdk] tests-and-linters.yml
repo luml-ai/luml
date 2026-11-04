@@ -1,0 +1,77 @@
+name: SDK
+
+on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - 'sdk/python/sdk/**'
+  pull_request:
+    branches: [main, staging, production]
+    paths:
+      - 'sdk/python/sdk/**'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: sdk/python/sdk
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: sdk/python/sdk/pyproject.toml
+
+      - name: Install dependencies with uv
+        run: uv sync --group dev
+
+      - name: Check formatting
+        run: uv run ruff format --check luml tests
+
+      - name: Linting
+        run: uv run ruff check luml tests
+
+      - name: Type checking
+        run: uv run mypy luml
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: sdk/python/sdk/pyproject.toml
+
+      - name: Install dependencies with uv
+        run: uv sync --group dev
+
+      - name: Run unit tests
+        run: uv run pytest tests --ignore=tests/integrations
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: sdk/python/sdk/pyproject.toml
+
+      - name: Install dependencies with uv
+        run: uv sync --group dev
+
+      - name: Run integration tests
+        run: uv run pytest tests/integrations

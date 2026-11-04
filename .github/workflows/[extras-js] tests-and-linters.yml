@@ -1,4 +1,4 @@
-name: Extras JS Packages Tests and Linters
+name: Extras JS Packages
 
 on:
   push:
