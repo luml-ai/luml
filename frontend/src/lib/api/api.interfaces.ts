@@ -234,6 +234,9 @@ export interface OrbitPermissions {
   artifact: PermissionEnum
   collection: PermissionEnum
   track: PermissionEnum
+  deployment?: PermissionEnum[]
+  satellite?: PermissionEnum[]
+  orbit_secret?: PermissionEnum[]
 }
 
 export enum PermissionEnum {

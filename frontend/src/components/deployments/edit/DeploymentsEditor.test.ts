@@ -617,3 +617,14 @@ describe('DeploymentsEditor saves', () => {
     expect(wrapper.emitted('update:visible')).toEqual([[false]])
   })
 })
+
+it('only exposes stop and delete actions when deletion is permitted', async () => {
+  const wrapper = mountEditor()
+  await flushPromises()
+  expect(wrapper.text()).not.toContain('Stop deployment')
+  await wrapper.setProps({ deleteAvailable: true })
+  expect(wrapper.text()).toContain('Stop deployment')
+  await wrapper.setProps({ deleteAvailable: false })
+  expect(wrapper.text()).not.toContain('Stop deployment')
+  wrapper.unmount()
+})

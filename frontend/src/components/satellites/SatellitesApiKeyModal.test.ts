@@ -1,5 +1,6 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactive } from 'vue'
 import PrimeVue from 'primevue/config'
 import { Dialog } from 'primevue'
 import SatellitesApiKeyModal from './SatellitesApiKeyModal.vue'
@@ -8,6 +9,9 @@ const { regenerateApiKey, addToast } = vi.hoisted(() => ({
   regenerateApiKey: vi.fn(),
   addToast: vi.fn(),
 }))
+
+const orbitStore = reactive({ getCurrentOrbitPermissions: { satellite: ['update'] as string[] } })
+vi.mock('@/stores/orbits', () => ({ useOrbitsStore: () => orbitStore }))
 
 vi.mock('@/stores/satellites', () => ({
   useSatellitesStore: () => ({ regenerateApiKey }),
@@ -41,6 +45,7 @@ function mountModal(apiKey: string | null = null) {
 
 describe('SatellitesApiKeyModal', () => {
   beforeEach(() => {
+    orbitStore.getCurrentOrbitPermissions = { satellite: ['update'] }
     addToast.mockReset()
     regenerateApiKey.mockReset().mockResolvedValue({ key: 'test-satellite-key' })
     vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
@@ -193,5 +198,18 @@ describe('SatellitesApiKeyModal', () => {
     expect(addToast).toHaveBeenCalledWith(
       expect.objectContaining({ severity: 'error', detail: 'Failed to generate API Key' }),
     )
+  })
+
+  it('allows a creator to copy the new key without granting key regeneration', async () => {
+    orbitStore.getCurrentOrbitPermissions = { satellite: ['create'] }
+    const wrapper = mountModal('test-initial-key')
+    expect(wrapper.text()).not.toContain('Regenerate key')
+    await wrapper.get('button').trigger('click')
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('test-initial-key')
+    expect(regenerateApiKey).not.toHaveBeenCalled()
+    orbitStore.getCurrentOrbitPermissions = { satellite: ['update'] }
+    await flushPromises()
+    expect(wrapper.text()).toContain('Regenerate key')
+    wrapper.unmount()
   })
 })
