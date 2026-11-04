@@ -74,6 +74,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useToast } from 'primevue'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { ExternalLink, X, Check } from 'lucide-vue-next'
 import CSVIcon from '@/assets/img/icons/csv.svg'
 import FileInput from '@/components/ui/FileInput.vue'
@@ -100,6 +102,7 @@ type Emits = {
   removeFile: []
 }
 
+const toast = useToast()
 const emit = defineEmits<Emits>()
 const props = defineProps<Props>()
 
@@ -113,11 +116,16 @@ const hasError = computed(() => {
 })
 
 async function selectSample() {
-  const fileUrl = `/data/${props.sampleFileName}`
-  const response = await fetch(fileUrl)
-  const text = await response.text()
-  const file = new File([text], props.sampleFileName, { type: 'text/csv' })
-  if (file) emit('selectFile', file)
+  try {
+    const fileUrl = `/data/${props.sampleFileName}`
+    const response = await fetch(fileUrl)
+    if (!response.ok) throw new Error('Failed to load sample dataset')
+    const text = await response.text()
+    const file = new File([text], props.sampleFileName, { type: 'text/csv' })
+    emit('selectFile', file)
+  } catch {
+    toast.add(simpleErrorToast('Failed to load sample dataset'))
+  }
 }
 </script>
 

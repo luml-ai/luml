@@ -50,6 +50,21 @@ describe('SatellitesApiKeyModal', () => {
     vi.unstubAllGlobals()
   })
 
+  it('reports a denied clipboard write without success feedback', async () => {
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+      new DOMException('Denied', 'NotAllowedError'),
+    )
+    const wrapper = mountModal('test-initial-key')
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.lucide-copy-check-icon').exists()).toBe(false)
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: 'Failed to copy to clipboard' }),
+    )
+    expect(addToast).not.toHaveBeenCalledWith(expect.objectContaining({ severity: 'success' }))
+  })
+
   it('uses the existing satellite header and correct API key placeholder', () => {
     const wrapper = mountModal()
 
@@ -80,7 +95,7 @@ describe('SatellitesApiKeyModal', () => {
     expect(wrapper.get('input').element.value).not.toContain('test-satellite-key')
     expect(wrapper.text()).toContain('For security reasons, this key is no longer visible.')
     expect(wrapper.get('button').text()).toBe('Regenerate key')
-    expect(wrapper.find('.lucide-copy-check').exists()).toBe(false)
+    expect(wrapper.find('.lucide-copy-check-icon').exists()).toBe(false)
     expect(navigator.clipboard.writeText).toHaveBeenCalledTimes(1)
   })
 

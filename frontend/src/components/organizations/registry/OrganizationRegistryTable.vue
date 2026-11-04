@@ -1,6 +1,7 @@
 <template>
   <div class="table-wrapper">
-    <div class="table">
+    <UiPageLoader v-if="loading" />
+    <div v-else class="table">
       <div class="simple-table__header">
         <div class="simple-table__row">
           <div>Name</div>
@@ -10,7 +11,8 @@
         </div>
       </div>
       <div class="simple-table__rows">
-        <div v-if="!bucketsStore.buckets.length" class="simple-table__placeholder">
+        <div v-if="loadError" class="simple-table__placeholder">Failed to load buckets.</div>
+        <div v-else-if="!bucketsStore.buckets.length" class="simple-table__placeholder">
           No buckets created for this organization.
         </div>
         <div v-for="bucket in bucketsStore.buckets" :key="bucket.id" class="simple-table__row">
@@ -34,19 +36,28 @@
 import { useBucketsStore } from '@/stores/buckets'
 import { useOrganizationStore } from '@/stores/organization'
 import { onMounted, ref } from 'vue'
+import { useToast } from 'primevue'
+import { getErrorMessage } from '@/helpers/helpers'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import BucketSettings from './BucketSettings.vue'
 
 const bucketsStore = useBucketsStore()
 const organizationStore = useOrganizationStore()
 
-const loading = ref()
+const toast = useToast()
+const loading = ref(false)
+const loadError = ref(false)
 
 onMounted(async () => {
   try {
     const organizationId = organizationStore.currentOrganization?.id
     if (!organizationId) return
+    loading.value = true
     await bucketsStore.getBuckets(organizationId)
-  } catch {
+  } catch (e) {
+    loadError.value = true
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load buckets')))
   } finally {
     loading.value = false
   }

@@ -40,14 +40,17 @@
 </template>
 
 <script setup lang="ts">
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import 'github-markdown-css/github-markdown.css'
 import { computed, ref } from 'vue'
-import { Select, Button } from 'primevue'
+import { Select, Button, useToast } from 'primevue'
 import { Copy, CopyCheck } from 'lucide-vue-next'
 import { marked } from 'marked'
 import { isYamlLike, jsonToYaml, tryParseJson } from '@/helpers/helpers'
 import DOMPurify from 'dompurify'
 import { ContentTypeEnum, type Props } from './interfaces'
+
+const toast = useToast()
 
 const props = withDefaults(defineProps<Props>(), {
   initialType: ContentTypeEnum.raw,
@@ -84,14 +87,19 @@ const yamlText = computed(() => {
   return jsonToYaml(val)
 })
 
-function copy() {
-  navigator.clipboard.writeText(
-    typeof props.text === 'object' ? JSON.stringify(props.text) : `${props.text}`,
-  )
-  copied.value = true
-  setTimeout(() => {
+async function copy() {
+  try {
+    await navigator.clipboard.writeText(
+      typeof props.text === 'object' ? JSON.stringify(props.text) : `${props.text}`,
+    )
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 1000)
+  } catch {
     copied.value = false
-  }, 1000)
+    toast.add(simpleErrorToast('Failed to copy to clipboard'))
+  }
 }
 </script>
 

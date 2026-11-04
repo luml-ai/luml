@@ -88,7 +88,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Users, ChevronDown, Plus, Bolt } from 'lucide-vue-next'
-import { Popover, Avatar, Dialog } from 'primevue'
+import { Popover, Avatar, Dialog, useToast } from 'primevue'
+import { getErrorMessage } from '@/helpers/helpers'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useOrganizationStore } from '@/stores/organization'
 import { useOrbitsStore } from '@/stores/orbits'
 import OrganizationCreator from './OrganizationCreator.vue'
@@ -98,6 +100,7 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useRouter, useRoute } from 'vue-router'
 import { ROUTE_TO_TAB, TAB_TO_ROUTE } from '@/constants/orbit-navigation'
 
+const toast = useToast()
 const router = useRouter()
 const route = useRoute()
 
@@ -126,33 +129,37 @@ function onCreateClick() {
 }
 
 async function onOrganizationClick(organizationId: string) {
-  await organizationStore.switchOrganization(organizationId)
+  try {
+    await organizationStore.switchOrganization(organizationId)
 
-  const currentName = route.name as string
-  const isOnOrgPage = route.matched.some((r) => r.name === 'organization')
-  const hasOrgInUrl = !!route.params.organizationId
+    const currentName = route.name as string
+    const isOnOrgPage = route.matched.some((r) => r.name === 'organization')
+    const hasOrgInUrl = !!route.params.organizationId
 
-  if (isOnOrgPage) {
-    await router.push({
-      name: currentName,
-      params: { id: organizationId },
-    })
-  } else if (hasOrgInUrl) {
-    const firstOrbit = orbitsStore.orbitsList[0]
-    const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
-    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-collections'
-
-    if (firstOrbit) {
+    if (isOnOrgPage) {
       await router.push({
-        name: targetRoute,
-        params: { organizationId, id: firstOrbit.id },
+        name: currentName,
+        params: { id: organizationId },
       })
-    } else {
-      await router.push({ name: 'setup', query: { tab } })
-    }
-  }
+    } else if (hasOrgInUrl) {
+      const firstOrbit = orbitsStore.orbitsList[0]
+      const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
+      const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-collections'
 
-  popover.value.hide()
+      if (firstOrbit) {
+        await router.push({
+          name: targetRoute,
+          params: { organizationId, id: firstOrbit.id },
+        })
+      } else {
+        await router.push({ name: 'setup', query: { tab } })
+      }
+    }
+
+    popover.value.hide()
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to switch organization')))
+  }
 }
 </script>
 

@@ -61,7 +61,7 @@ async function onRequestInfoChange() {
   try {
     reset()
     if (props.initialCollectionId) {
-      addInitialCollectionToList(props.initialCollectionId)
+      await addInitialCollectionToList(props.initialCollectionId)
     }
     setRequestInfo({
       organizationId: props.organizationId,

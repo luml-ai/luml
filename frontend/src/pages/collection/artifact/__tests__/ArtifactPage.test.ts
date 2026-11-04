@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
+import { Button } from 'primevue'
 import type { ExperimentSnapshotProvider } from '@luml/experiments'
 import { ArtifactStatusEnum, ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
@@ -16,6 +17,7 @@ const apiMocks = vi.hoisted(() => ({
 }))
 
 const datasetsReset = vi.hoisted(() => vi.fn())
+const addToast = vi.hoisted(() => vi.fn())
 
 const routerHarness = vi.hoisted(() => ({
   route: null as null | {
@@ -63,7 +65,7 @@ vi.mock('vue-router', async (importOriginal) => {
 
 vi.mock('primevue', async (importOriginal) => {
   const actual = await importOriginal<typeof import('primevue')>()
-  return { ...actual, useToast: () => ({ add: vi.fn() }) }
+  return { ...actual, useToast: () => ({ add: addToast }) }
 })
 
 vi.mock('@/stores/orbits', () => ({
@@ -157,6 +159,23 @@ function tabsProps(wrapper: ReturnType<typeof mountPage>) {
 }
 
 describe('artifact page', () => {
+  it('shows an error toast when downloading an artifact returns a non-OK response', async () => {
+    apiMocks.getArtifact.mockResolvedValue({
+      ...model(),
+      type: ArtifactTypeEnum.dataset,
+      file_index: {},
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403 }))
+    const wrapper = mountPage()
+    await flushPromises()
+    wrapper.findAllComponents(Button).at(-1)!.vm.$emit('click')
+    await flushPromises()
+
+    expect(addToast).toHaveBeenCalledWith(
+      expect.objectContaining({ severity: 'error', detail: 'Failed to download artifact' }),
+    )
+  })
+
   beforeEach(() => {
     setActivePinia(createPinia())
     apiMocks.getArtifact.mockReset()

@@ -63,7 +63,7 @@ async function onRequestInfoChange() {
   try {
     reset()
     if (props.initialModelId) {
-      addInitialModelToList(props.initialModelId)
+      await addInitialModelToList(props.initialModelId)
     }
     if (!props.collectionId) return
     setRequestInfo({
