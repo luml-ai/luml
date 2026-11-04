@@ -6,15 +6,17 @@ on:
     paths:
       - 'lumlflow/**'
       - 'lumlflow/frontend/**'
-      - 'extras/js/packages/attachments/**'
-      - 'extras/js/packages/experiments/**'
+      - 'extras/js/**'
+      - 'package.json'
+      - 'package-lock.json'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'lumlflow/**'
       - 'lumlflow/frontend/**'
-      - 'extras/js/packages/attachments/**'
-      - 'extras/js/packages/experiments/**'
+      - 'extras/js/**'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_call:
 
 jobs:
@@ -33,7 +35,7 @@ jobs:
 
       - name: ESLint
         working-directory: lumlflow/frontend
-        run: npm run lint
+        run: npx eslint .
 
       - name: Prettier check
         working-directory: lumlflow/frontend
@@ -51,9 +53,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --include=optional
-
-      - name: Install Linux Rollup binding
-        run: npm install @rollup/rollup-linux-x64-gnu --workspace=lumlflow/frontend
 
       - name: Build workspace packages
         run: |
