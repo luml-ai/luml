@@ -207,6 +207,13 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             raise ValueError("Invalid bucket or key path.")
         return file_path
 
+    def _resolve_file_path(self, req: S3Request) -> Path | None:
+        try:
+            return self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
+        except ValueError as e:
+            self.send_error_response(400, "InvalidArgument", str(e))
+            return None
+
     def check_auth(self) -> bool:
         try:
             self.server.get_auth().validate_request(  # type: ignore[attr-defined]
@@ -246,10 +253,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             )
             return
 
-        try:
-            file_path = self.get_file_path(req.bucket, req.key)
-        except ValueError as e:
-            self.send_error_response(400, "InvalidArgument", str(e))
+        file_path = self._resolve_file_path(req)
+        if file_path is None:
             return
 
         if not file_path.exists():
@@ -322,10 +327,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             return
         content = self.rfile.read(content_length)
 
-        try:
-            file_path = self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
-        except ValueError as e:
-            self.send_error_response(400, "InvalidArgument", str(e))
+        file_path = self._resolve_file_path(req)
+        if file_path is None:
             return
 
         if not self._safe_write_file(file_path, content):
@@ -377,10 +380,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             self._handle_abort_multipart(req)
             return
 
-        try:
-            file_path = self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
-        except ValueError as e:
-            self.send_error_response(400, "InvalidArgument", str(e))
+        file_path = self._resolve_file_path(req)
+        if file_path is None:
             return
 
         if not self._safe_delete_file(file_path):
@@ -399,10 +400,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         return md5_hash.hexdigest()
 
     def _handle_initiate_multipart(self, req: S3Request) -> None:
-        try:
-            self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
-        except ValueError as e:
-            self.send_error_response(400, "InvalidArgument", str(e))
+        if self._resolve_file_path(req) is None:
             return
 
         upload_id = os.urandom(16).hex()
@@ -470,10 +468,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         content_length = self._get_content_length()
         self.rfile.read(content_length).decode("utf-8")
 
-        try:
-            file_path = self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
-        except ValueError as e:
-            self.send_error_response(400, "InvalidArgument", str(e))
+        file_path = self._resolve_file_path(req)
+        if file_path is None:
             return
 
         try:
