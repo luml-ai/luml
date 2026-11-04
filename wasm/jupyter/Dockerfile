@@ -1,9 +1,13 @@
-
 FROM python:3.12-slim
 
-RUN pip install --no-cache-dir "jupyterlite==0.5.1" "jupyterlite-pyodide-kernel==0.5.2" "fastapi==0.115.12" "uvicorn==0.34.3"
+COPY --from=ghcr.io/astral-sh/uv:0.11.8 /uv /bin/uv
 
 WORKDIR /app
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-cache
 
 RUN jupyter lite build --output-dir dist
 
