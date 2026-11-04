@@ -38,7 +38,7 @@ tests:
       satellite.existingSecret: operator-token
     release:
       revision: 8
-      isUpgrade: true
+      upgrade: true
     asserts:
       - equal:
           path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
