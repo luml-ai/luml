@@ -7,7 +7,7 @@ WORKFLOW = (
     Path(__file__).resolve().parents[4]
     / ".github"
     / "workflows"
-    / "[lumlflow] tests-and-linters.yml"
+    / "[lumlflow-frontend] tests-and-linters.yml"
 )
 
 
@@ -19,7 +19,7 @@ def test_frontend_ci_runs_required_checks_in_order() -> None:
     triggers = cast(dict[str, object], workflow["on"])
     pull_request = cast(dict[str, object], triggers["pull_request"])
     paths = cast(list[str], pull_request["paths"])
-    assert "lumlflow/**" in paths
+    assert "lumlflow/frontend/**" in paths
 
     jobs = cast(dict[str, dict[str, object]], workflow["jobs"])
     assert _commands(jobs["lint"]) == [

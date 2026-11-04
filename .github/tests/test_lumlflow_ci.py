@@ -11,7 +11,7 @@ from test_release_gates import load
 
 class LumlflowCITests(unittest.TestCase):
     def test_shared_sources_and_dependency_manifests_trigger_checks(self):
-        workflow = load("[lumlflow] tests-and-linters.yml")
+        workflow = load("[lumlflow-frontend] tests-and-linters.yml")
         for event in ("push", "pull_request"):
             paths = workflow["on"][event]["paths"]
             for changed in (
@@ -29,7 +29,7 @@ class LumlflowCITests(unittest.TestCase):
                     )
 
     def test_eslint_checks_without_autofix_and_blocks_on_errors(self):
-        job = load("[lumlflow] tests-and-linters.yml")["jobs"]["lint"]
+        job = load("[lumlflow-frontend] tests-and-linters.yml")["jobs"]["lint"]
         self.assertNotIn("continue-on-error", job)
         self.assertNotIn("if", job)
         lint_steps = [step for step in job["steps"] if step.get("name") == "ESLint"]
@@ -40,7 +40,7 @@ class LumlflowCITests(unittest.TestCase):
         self.assertNotIn("if", lint_steps[0])
 
     def test_jobs_install_from_the_lockfile_without_extra_installs(self):
-        jobs = load("[lumlflow] tests-and-linters.yml")["jobs"]
+        jobs = load("[lumlflow-frontend] tests-and-linters.yml")["jobs"]
         node_jobs = {
             name: job
             for name, job in jobs.items()
