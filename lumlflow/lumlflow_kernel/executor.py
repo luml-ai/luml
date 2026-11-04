@@ -132,8 +132,8 @@ class Executor:
         tracker_sdk_warning: str | None = None
         identity = self._experiment_identity(request, version, ctx_info, run_id)
         with self._claim(run_id) as cell_returned:
-            self._emit("started", {"run_id": run_id, "slug": version.slug})
             try:
+                self._emit("started", {"run_id": run_id, "slug": version.slug})
                 with _restored():
                     scratch.mkdir(parents=True, exist_ok=True)
                     try:
