@@ -51,6 +51,7 @@ export const useUserStore = defineStore('user', () => {
     invitationsStore.reset()
     organizationStore.reset()
     useCollectionsStore().reset()
+    useCollectionsStore().resetCurrentCollection()
     useTracksStore().reset()
     useDeploymentsStore().reset()
     useSecretsStore().reset()
