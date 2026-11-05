@@ -47,6 +47,15 @@ function flowLink(wrapper: ReturnType<typeof mountSidebar>) {
   return link
 }
 
+describe('LayoutSidebar GitHub entry', () => {
+  it('opens the canonical repository in a new tab', () => {
+    const link = mountSidebar().get('a.menu-link--github')
+
+    expect(link.attributes('href')).toBe('https://github.com/luml-ai/luml')
+    expect(link.attributes('target')).toBe('_blank')
+  })
+})
+
 describe('LayoutSidebar Flow entry', () => {
   beforeEach(() => {
     route.name = 'home'
