@@ -29,6 +29,7 @@ const markerSize = computed(() => (measured.value > 0 && measured.value <= 3 ? 4
 const chartSeries = computed(() =>
   props.series.map((entry) => ({
     name: escapeChartLabel(entry.label),
+    legendName: escapeChartLabel(truncateChartLabel(entry.label)),
     data: entry.points.map((point) => ({
       x: new Date(point.t).getTime(),
       y: point.value,
@@ -53,8 +54,10 @@ const options = computed(() => ({
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
   legend: {
     ...CHART_LEGEND,
-    formatter: (_name: string, { seriesIndex }: { seriesIndex: number }) =>
-      escapeChartLabel(truncateChartLabel(props.series[seriesIndex].label)),
+    formatter: (
+      _name: string,
+      { seriesIndex, w }: { seriesIndex: number; w: { config: { series: { legendName: string }[] } } },
+    ) => w.config.series[seriesIndex].legendName,
   },
   grid: { borderColor: chartGridColor.value, strokeDashArray: 4, padding: CHART_GRID_PADDING },
   xaxis: {

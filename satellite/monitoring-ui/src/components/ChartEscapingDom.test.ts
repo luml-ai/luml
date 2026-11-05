@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import VueApexCharts from 'vue3-apexcharts'
+import type ApexCharts from 'apexcharts'
 import ClassShareChart from './output-drift/ClassShareChart.vue'
 import DistributionChart from './feature-drift/DistributionChart.vue'
 
@@ -25,7 +26,10 @@ type RenderedChart = {
 }
 
 describe('ApexCharts label HTML sinks', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
 
   function prepareChart() {
     vi.stubGlobal(
@@ -94,6 +98,60 @@ describe('ApexCharts label HTML sinks', () => {
         ttItems: wrapper.element.querySelectorAll('.apexcharts-tooltip-series-group'),
       })
       expect(wrapper.get('.apexcharts-tooltip-title').text()).toBe(payload)
+      expect(wrapper.find('img').exists()).toBe(false)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('refreshes class legends without errors when marker size changes and classes are removed', async () => {
+    prepareChart()
+    const wrapper = mount(ClassShareChart, {
+      props: {
+        series: ['first class', 'second class', 'third class'].map((label) => ({
+          key: label,
+          label,
+          points,
+        })),
+      },
+      global,
+      attachTo: document.body,
+    })
+    try {
+      await flushPromises()
+      await vi.waitFor(() => expect(wrapper.findAll('.apexcharts-legend-text')).toHaveLength(3))
+      const chart = (wrapper.getComponent(VueApexCharts).vm as unknown as { chart: ApexCharts })
+        .chart
+      const updateOptions = vi.spyOn(chart, 'updateOptions')
+      const updateSeries = vi.spyOn(chart, 'updateSeries')
+      await wrapper.setProps({
+        series: [payload, '&'.repeat(20)].map((label) => ({
+          key: label,
+          label,
+          points: [
+            ...points,
+            { t: '2026-08-18T16:00:00Z', value: 0.3 },
+            { t: '2026-08-18T17:00:00Z', value: 0.2 },
+          ],
+        })),
+      })
+      expect(updateOptions).toHaveBeenCalled()
+      expect(updateSeries).toHaveBeenCalled()
+      await Promise.all(
+        [...updateOptions.mock.results, ...updateSeries.mock.results].map((result) => result.value),
+      )
+      expect(wrapper.findAll('.apexcharts-legend-text').map((legend) => legend.text())).toEqual([
+        '<img src=x oner…',
+        '&'.repeat(15) + '…',
+      ])
+      const renderedChart = chart as unknown as RenderedChart
+      renderedChart.tooltip.tooltipLabels.drawSeriesTexts({
+        i: 0,
+        j: 0,
+        shared: false,
+        ttItems: wrapper.element.querySelectorAll('.apexcharts-tooltip-series-group'),
+      })
+      expect(wrapper.get('.apexcharts-tooltip-text-y-label').text()).toBe(`${payload}:`)
       expect(wrapper.find('img').exists()).toBe(false)
     } finally {
       wrapper.unmount()

@@ -54,14 +54,16 @@ describe('chart label truncation', () => {
     })
     const chart = wrapper.getComponent(ApexStub)
     let options = chart.props('options')
-    expect(options.legend.formatter(label, { seriesIndex: 0 })).toBe('abcdefghijklmno…')
-    expect(options.legend.formatter('A &amp; B', { seriesIndex: 1 })).toBe('A &amp; B')
+    let w = { config: { series: chart.props('series') } }
+    expect(options.legend.formatter(label, { seriesIndex: 0, w })).toBe('abcdefghijklmno…')
+    expect(options.legend.formatter('A &amp; B', { seriesIndex: 1, w })).toBe('A &amp; B')
     expect(chart.props('series')[0].name).toBe(label)
     expect(chart.props('series')[0].data[0].y).toBe(0.5)
 
     await wrapper.setProps({ series: [{ ...series, label: '&'.repeat(20) }] })
     options = chart.props('options')
-    expect(options.legend.formatter('&amp;'.repeat(20), { seriesIndex: 0 })).toBe('&amp;'.repeat(15) + '…')
+    w = { config: { series: chart.props('series') } }
+    expect(options.legend.formatter('&amp;'.repeat(20), { seriesIndex: 0, w })).toBe('&amp;'.repeat(15) + '…')
     expect(chart.props('series')[0].name).toBe('&amp;'.repeat(20))
     expect(series.label).toBe(label)
     wrapper.unmount()
