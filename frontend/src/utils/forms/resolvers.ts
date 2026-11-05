@@ -9,11 +9,16 @@ import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 type Resolver = ReturnType<typeof zodResolver>
 
 const tagsSchema = z.array(z.string().max(64)).max(50)
+const passwordLengthMessage = 'Password must be between 8 and 128 characters'
+const passwordSchema = z
+  .string()
+  .min(8, { message: passwordLengthMessage })
+  .max(128, { message: passwordLengthMessage })
 
 export const signInResolver: Resolver = zodResolver(
   z.object({
     email: z.string().email({ message: 'Email is incorrect' }),
-    password: z.string().min(8, { message: 'Minimum password length 8 characters' }),
+    password: passwordSchema,
   }),
 )
 
@@ -21,7 +26,7 @@ export const signUpResolver: Resolver = zodResolver(
   z.object({
     username: z.string().min(3, { message: 'Username is required.' }),
     email: z.string().email('Email incorrect'),
-    password: z.string().min(8, { message: 'Minimum password length 8 characters' }),
+    password: passwordSchema,
   }),
 )
 
@@ -34,10 +39,8 @@ export const forgotPasswordResolver: Resolver = zodResolver(
 export const resetPasswordResolver: Resolver = zodResolver(
   z
     .object({
-      password: z.string().min(8, { message: 'The password must be more than 8 characters' }),
-      password_confirm: z
-        .string()
-        .min(8, { message: 'The password must be more than 8 characters' }),
+      password: passwordSchema,
+      password_confirm: passwordSchema,
     })
     .refine((data) => data.password === data.password_confirm, {
       message: 'Passwords must match',
@@ -55,13 +58,9 @@ export const userSettingResolver: Resolver = zodResolver(
 export const userChangePasswordResolver: Resolver = zodResolver(
   z
     .object({
-      current_password: z
-        .string()
-        .min(8, { message: 'The password must be more than 8 characters' }),
-      new_password: z.string().min(8, { message: 'The password must be more than 8 characters' }),
-      confirmPassword: z
-        .string()
-        .min(8, { message: 'The password must be more than 8 characters' }),
+      current_password: passwordSchema,
+      new_password: passwordSchema,
+      confirmPassword: passwordSchema,
     })
     .refine((data) => data.new_password === data.confirmPassword, {
       message: 'Passwords must match',
