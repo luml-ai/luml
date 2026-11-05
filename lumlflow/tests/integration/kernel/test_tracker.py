@@ -988,3 +988,57 @@ def test_a_metric_logged_over_steps_keeps_its_curve_in_the_record(
     snapshot = json.loads(stored_value(kernel, record, "experiment"))["snapshot"]
     assert snapshot["metrics"] == {"loss": 0.2, "auc": 0.91}
     assert snapshot["history"] == {"loss": [0.9, 0.5, 0.2]}
+
+
+def test_an_experiment_cell_logs_a_model_and_an_attachment_to_its_experiment(
+    tmp_path: Path, tracker_store: Path
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            from luml.artifacts.model import ModelReference
+
+            path = ctx.tempdir() / "churn.luml"
+            path.write_bytes(b"weights")
+            ctx.tracker.log_model(ModelReference(str(path)), name="churn-model")
+            ctx.tracker.log_attachment("notes.txt", "trained overnight")
+            ctx.tracker.log_metric("auc", 0.91)
+            return {"run": ctx.tracker.record}
+        """,
+        produces={"run": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    tracker = ExperimentTracker(f"sqlite://{tracker_store}")
+    experiment = _only_experiment(tracker)
+    assert record["state"] == "succeeded"
+    assert experiment.status == "completed"
+    assert [model.name for model in tracker.list_experiment_models(experiment.id)] == [
+        "churn-model"
+    ]
+    assert tracker.get_attachment("notes.txt", experiment.id) == b"trained overnight"
+
+
+def test_an_experiment_cell_cannot_end_its_own_experiment(
+    tmp_path: Path, tracker_store: Path
+) -> None:
+    kernel, _ = make_kernel(tmp_path)
+
+    record = run(
+        kernel,
+        """
+        def materialize(self, ctx):
+            ctx.tracker.end_experiment()
+            return {"run": ctx.tracker.record}
+        """,
+        produces={"run": "experiment"},
+        identity=_identity(kernel),
+    )
+
+    assert record["state"] == "failed"
+    assert "`ctx.tracker.end_experiment` is unavailable" in record["error"]["message"]
+    experiment = _only_experiment(ExperimentTracker(f"sqlite://{tracker_store}"))
+    assert experiment.status == "error"

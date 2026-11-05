@@ -34,13 +34,25 @@ checked-out lane.
   numbers (`{"auc": 0.91}`). An `eval` is a list of same-keyed row dicts with
   at least one numeric or boolean score per row.
 - `ctx.tracker` records directly to the Experiments tracker through
-  `log_param(s)` and `log_metric(s)`. Return `ctx.tracker.record` as an
+  `log_param(s)` and `log_metric(s)`. Every other luml SDK tracker method
+  (`log_model`, `log_attachment`, `log_span`, `log_eval_sample`, ...) is on it
+  too, already bound to this run's experiment. Return `ctx.tracker.record` as an
   `experiment` output; it returns a reference to the tracker experiment, not
   the logged numbers.
+- Track everything a run can tell you: params, metrics, evals, traces and
+  files. Log every trained model with `ctx.tracker.log_model`.
 - Cells are non-interactive. `input()` fails immediately. Take values through
   `params`.
 - Each run gets a scratch working directory. Return every file you want kept as
   a declared output.
+
+## Lanes
+
+Unlike a regular notebook, a flow keeps alternatives side by side as lanes.
+To try several approaches, such as other features, models or params, start a
+lane per approach with `new-lane` instead of adding cells for each one to the
+same lane. A new lane starts from where its lane stands, and `diff` compares
+two lanes.
 
 ## Workspace files
 

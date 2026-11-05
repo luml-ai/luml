@@ -43,6 +43,10 @@ class Tracker(Protocol):
     @property
     def record(self) -> ExperimentRef: ...
 
+    # Every other `luml.experiments.tracker.ExperimentTracker` method, bound to
+    # this run's experiment: `log_model`, `log_attachment`, `log_span`, ...
+    def __getattr__(self, name: str) -> Any: ...
+
 
 class Ctx(Protocol):
     """What a cell is handed. Reading `branch` or `step` marks the run

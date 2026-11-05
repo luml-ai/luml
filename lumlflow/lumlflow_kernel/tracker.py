@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import functools
+import inspect
 import os
 import sqlite3
 import sys
@@ -13,6 +15,18 @@ _DAEMON_SDK_VERSION_ENV = "LUMLFLOW_DAEMON_SDK_VERSION"
 
 # Every attempt keeps the SDK's default five-second SQLite wait.
 SQLITE_BUSY_RETRIES = 1
+
+# The kernel owns the experiment's lifecycle and identity, and the raw writers
+# would bypass the snapshot an `experiment` output carries.
+_KERNEL_OWNED: dict[str, str] = {
+    "start_experiment": "the kernel starts this run's experiment",
+    "end_experiment": "the kernel completes this run's experiment",
+    "fail_experiment": "the kernel fails this run's experiment",
+    "delete_experiment": "a run cannot delete its own experiment",
+    "set_experiment_metadata": "use `update_experiment_metadata` instead",
+    "log_static": "use `log_param` instead",
+    "log_dynamic": "use `log_metric` instead",
+}
 
 
 class TrackerError(RuntimeError):
@@ -146,6 +160,7 @@ class SdkTrackerClient:
         if not callable(attribute):
             return attribute
 
+        @functools.wraps(attribute)
         def write(*args: Any, **kwargs: Any) -> Any:
             return _sdk_call(
                 lambda: attribute(*args, **kwargs), self.store, self.sdk_version
@@ -248,6 +263,36 @@ class Tracker:
             store=store,
             params=params,
         )
+
+    def __getattr__(self, name: str) -> Any:
+        """Any other SDK tracker method, bound to this run's experiment.
+
+        Methods that take an `experiment_id` get this run's unless the caller
+        passes one, so new SDK methods reach cells without a wrapper here.
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if name in _KERNEL_OWNED:
+            raise AttributeError(
+                f"`ctx.tracker.{name}` is unavailable: {_KERNEL_OWNED[name]}"
+            )
+        attribute = getattr(self._client, name)
+        if not callable(attribute):
+            return attribute
+        try:
+            signature = inspect.signature(attribute)
+        except (TypeError, ValueError):
+            return attribute
+        if "experiment_id" not in signature.parameters:
+            return attribute
+
+        @functools.wraps(attribute)
+        def bound(*args: Any, **kwargs: Any) -> Any:
+            if "experiment_id" not in signature.bind_partial(*args, **kwargs).arguments:
+                kwargs["experiment_id"] = self.experiment_id
+            return attribute(*args, **kwargs)
+
+        return bound
 
     @property
     def event_fields(self) -> dict[str, str]:
