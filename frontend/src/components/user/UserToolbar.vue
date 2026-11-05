@@ -77,7 +77,8 @@
 <script setup lang="ts">
 import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import UserSettings from './UserSettings.vue'
 import UserChangePassword from './UserChangePassword.vue'
 import { ChevronDown } from 'lucide-vue-next'
@@ -88,6 +89,8 @@ import UserInvitations from './UserInvitations.vue'
 import ApiKeyModal from './ApiKeyModal.vue'
 
 const userStore = useUserStore()
+const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 
@@ -100,7 +103,7 @@ const { getUserEmail, getUserFullName, getUserAvatar } = storeToRefs(userStore)
 const mainButtonLabel = computed(() => getUserFullName.value || 'Account')
 
 const isDialogVisible = ref(false)
-const isApiKeyVisible = ref(false)
+const isApiKeyVisible = ref(route.name === 'api-key')
 const menuItems = ref([
   {
     label: 'Account',
@@ -129,6 +132,21 @@ const menuItems = ref([
     },
   },
 ])
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'api-key') {
+      isApiKeyVisible.value = true
+    }
+  },
+)
+
+watch(isApiKeyVisible, (isVisible) => {
+  if (!isVisible && route.name === 'api-key') {
+    router.replace({ name: 'home' })
+  }
+})
 
 const isSettingsPopupVisible = ref(false)
 const isChangePasswordPopupVisible = ref(false)

@@ -24,7 +24,7 @@
           <template v-else>
             There are no collections in this orbit yet. Create your first collection in
           </template>
-          <a target="_blank" :href="lmlUrl" class="text-primary font-medium hover:underline">
+          <a target="_blank" :href="LUML_APP_URL" class="text-primary font-medium hover:underline">
             LUML.
           </a>
         </div>
@@ -42,8 +42,7 @@ import { computed, watch } from 'vue'
 import { Select, type SelectChangeEvent } from 'primevue'
 import { FormField } from '@primevue/forms'
 import { collectionAccepts } from './collectionTypes'
-
-const lmlUrl = import.meta.env.VITE_LUML_URL
+import { LUML_APP_URL } from '@/helpers/luml'
 
 const props = defineProps<CollectionFieldProps>()
 

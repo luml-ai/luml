@@ -315,6 +315,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/api-key',
+      name: 'api-key',
+      component: HomePage,
+      meta: {
+        requireAuth: true,
+        redirectToSignIn: true,
+      },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: '404',
       component: () => import('../pages/404Page.vue'),

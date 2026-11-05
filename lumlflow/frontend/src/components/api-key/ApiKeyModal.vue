@@ -31,8 +31,7 @@ import { getErrorMessage } from '@/helpers/errors'
 import { apiService } from '@/api/api.service'
 import z from 'zod'
 import { successToast } from '@/toasts'
-
-const lmlUrl = import.meta.env.VITE_LUML_URL
+import { LUML_API_KEY_URL } from '@/helpers/luml'
 
 const authStore = useAuthStore()
 const toast = useToast()
@@ -48,7 +47,7 @@ const textContent = computed(() => {
   } else {
     return `
       It looks like you haven't provided your API key yet. You can generate one in your
-      <a href="${lmlUrl}" target="_blank" class="text-primary underline">LUML account settings</a>
+      <a href="${LUML_API_KEY_URL}" target="_blank" class="text-primary underline">LUML account settings</a>
     `
   }
 })
