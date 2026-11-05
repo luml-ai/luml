@@ -1,11 +1,5 @@
 <template>
   <div class="content">
-    <!--<ImageInput
-      shape="square"
-      :image="Placeholder"
-      class="photo"
-      @on-image-change="onImageChange"
-    />-->
     <Avatar size="xlarge" :label="avatarLabel" />
     <Form :initialValues :resolver @submit="onFormSubmit" class="body">
       <label for="name" class="label">Name</label>
@@ -69,9 +63,6 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
 </script>
 
 <style scoped>
-.photo {
-  margin-bottom: 20px;
-}
 .body {
   display: flex;
   flex-direction: column;
