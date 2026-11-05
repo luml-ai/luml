@@ -17,8 +17,12 @@ pip install luml-sdk
 With optional extras:
 
 ```bash
-pip install luml-sdk[tracing]   # LLM tracing via OpenTelemetry
-pip install luml-sdk[datasets]  # pandas / pyarrow support
+pip install "luml-sdk[tracing]"          # LLM tracing via OpenTelemetry
+pip install "luml-sdk[datasets]"         # pandas / pyarrow support
+pip install "luml-sdk[datasets-hf]"      # Hugging Face datasets
+pip install "luml-sdk[datasets-polars]"  # polars
+pip install "luml-sdk[llm]"              # OpenAI-compatible LLM client
+pip install "luml-sdk[flow]"             # expose a running Flow through a LUML relay
 ```
 
 ## Getting your API key
@@ -29,7 +33,7 @@ To upload experiments to the LUML platform you need an API key.
 2. Open **Settings** → **API Keys**
 3. Click **Generate new key** and copy it
 
-![API key settings page](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/api_key.webp)
+![API key settings page](https://raw.githubusercontent.com/luml-ai/luml/main/sdk/python/api/docs/images/api_key.webp)
 
 Set it as an environment variable:
 
