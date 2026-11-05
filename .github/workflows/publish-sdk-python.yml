@@ -58,7 +58,7 @@ jobs:
               echo "package_init=src/luml_prisma/version.py" >> "$GITHUB_OUTPUT"
               echo "import_name=luml_prisma" >> "$GITHUB_OUTPUT"
               echo "requires_node=false" >> "$GITHUB_OUTPUT"
-              echo "gates=" >> "$GITHUB_OUTPUT"
+              echo "gates=prisma-tests" >> "$GITHUB_OUTPUT"
               ;;
             luml-mlflow/v*)
               echo "package_name=luml-mlflow" >> "$GITHUB_OUTPUT"
@@ -103,6 +103,11 @@ jobs:
     if: startsWith(github.ref_name, 'lumlflow/v')
     uses: "./.github/workflows/[lumlflow-frontend] tests-and-linters.yml"
 
+  prisma-tests:
+    needs: resolve
+    if: startsWith(github.ref_name, 'luml-prisma/v')
+    uses: "./.github/workflows/[prisma] tests-and-linters.yml"
+
   luml-mlflow-tests:
     needs: resolve
     if: startsWith(github.ref_name, 'luml-mlflow/v')
@@ -120,6 +125,7 @@ jobs:
       - sdk-tests
       - lumlflow-tests
       - lumlflow-frontend-tests
+      - prisma-tests
       - luml-mlflow-tests
       - relay-tests
     if: ${{ !cancelled() && needs.resolve.result == 'success' }}
