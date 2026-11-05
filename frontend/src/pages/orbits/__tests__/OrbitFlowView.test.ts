@@ -163,8 +163,8 @@ describe('OrbitFlowView', () => {
 
   it('shows local flows first and marks each card local or relayed', async () => {
     saveLocalFlows([
-      { name: 'first', address: 'localhost', port: 5000 },
-      { name: 'second', address: 'localhost', port: 5001 },
+      { name: 'first', address: '127.0.0.1', port: 5000 },
+      { name: 'second', address: '127.0.0.1', port: 5001 },
     ])
     reachablePorts = new Set([5000, 5001, 5002])
     flowsApi.getList.mockResolvedValue([relayedFlow()])
@@ -180,13 +180,13 @@ describe('OrbitFlowView', () => {
       'Local',
       'Relayed',
     ])
-    expect(localCards(wrapper)[2]!.text()).toContain('localhost:5002')
+    expect(localCards(wrapper)[2]!.text()).toContain('127.0.0.1:5002')
 
     await openAddDialog(wrapper)
     await addLocalFlow(wrapper, 5000)
 
     expect(wrapper.get('[data-testid="local-error"]').text()).toBe(
-      'localhost:5000 is already added as "first".',
+      '127.0.0.1:5000 is already added as "first".',
     )
     expect(wrapper.findAll('[data-testid^="flow-card-"]')).toHaveLength(4)
   })
@@ -198,16 +198,26 @@ describe('OrbitFlowView', () => {
     await openAddDialog(wrapper)
     await addLocalFlow(wrapper, 5000)
 
-    expect(fetch).toHaveBeenCalledWith('http://localhost:5000/api/auth/status', expect.anything())
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:5000/api/auth/status', expect.anything())
     expect(JSON.parse(localStorage.getItem('localFlows')!)).toEqual([
-      { name: 'localhost:5000', address: 'localhost', port: 5000 },
+      { name: '127.0.0.1:5000', address: '127.0.0.1', port: 5000 },
     ])
     const card = localCards(wrapper)[0]!
     expect(card.get('.status').classes()).toContain('status--success')
     const openLink = card.get('[data-testid="open-flow"]')
-    expect(openLink.attributes('href')).toBe('http://localhost:5000')
+    expect(openLink.attributes('href')).toBe('http://127.0.0.1:5000')
     expect(openLink.attributes('target')).toBe('_blank')
     expect(wrapper.find('.dialog').exists()).toBe(false)
+  })
+
+  it('suggests 127.0.0.1 and opening the lumlflow launch link first', async () => {
+    const wrapper = await mountView()
+
+    await openAddDialog(wrapper)
+    await wrapper.get('[data-testid="choice-local"]').trigger('click')
+
+    expect((wrapper.get('#flow-address').element as HTMLInputElement).value).toBe('127.0.0.1')
+    expect(wrapper.get('[data-testid="local-hint"]').text()).toContain('lumlflow ui')
   })
 
   it('shows the local flows saved in the browser', async () => {
@@ -225,7 +235,7 @@ describe('OrbitFlowView', () => {
     await addLocalFlow(wrapper, 5000)
 
     expect(wrapper.get('[data-testid="local-error"]').text()).toBe(
-      'No Flow at localhost:5000. This page can reach only localhost.',
+      'No Flow at 127.0.0.1:5000. This page can reach only localhost.',
     )
     expect(localStorage.getItem('localFlows')).toBeNull()
     expect(localCards(wrapper)).toHaveLength(0)
