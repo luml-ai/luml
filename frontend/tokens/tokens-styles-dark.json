@@ -212,9 +212,11 @@
             "$type": "color"
           },
           "width": {
+            "$value": 0,
             "$type": "number"
           },
           "offset": {
+            "$value": 0,
             "$type": "number"
           }
         }
