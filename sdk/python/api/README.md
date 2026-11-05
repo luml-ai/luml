@@ -19,7 +19,7 @@ pip install luml-api
 2. Open **Settings** → **API Keys**
 3. Click **Generate new key** and copy it
 
-![API key settings page](https://raw.githubusercontent.com/luml-ai/luml/fix/LM-570-review-readme-across-all-projects/sdk/python/api/docs/images/api_key.webp)
+![API key settings page](https://raw.githubusercontent.com/luml-ai/luml/main/sdk/python/api/docs/images/api_key.webp)
 
 Set it as an environment variable:
 
