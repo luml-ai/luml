@@ -16,6 +16,7 @@ on:
       - 'sdk/python/api/**'
       - '.github/workflows/*luml-mlflow*tests-and-linters.yml'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   checks:

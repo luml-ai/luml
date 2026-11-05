@@ -16,6 +16,7 @@ on:
       - 'model_servers/default/**'
       - '.github/workflows/*satellite-kubernetes*end-to-end.yml'
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   kind:

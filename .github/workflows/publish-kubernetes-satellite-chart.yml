@@ -16,7 +16,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  tests:
+    uses: "./.github/workflows/[satellite-kubernetes] tests-and-linters.yml"
+
+  end-to-end:
+    uses: "./.github/workflows/[satellite-kubernetes] end-to-end.yml"
+
   publish-chart:
+    needs: [tests, end-to-end]
     runs-on: ubuntu-latest
     permissions:
       contents: read
