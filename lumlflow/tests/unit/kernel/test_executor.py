@@ -523,6 +523,44 @@ def test_a_cancel_arriving_after_the_cell_is_refused_and_the_record_survives(
     assert link.names()[-1] == "materialized"
 
 
+def test_a_cancel_landing_as_the_run_announces_its_start_records_it_as_cancelled(
+    tmp_path, monkeypatch
+):
+    kernel, _ = make_kernel(tmp_path)
+    emit = kernel.executor._emit
+    refused: list[dict] = []
+
+    def cancels_on_start(event: str, params: dict[str, Any]) -> None:
+        emit(event, params)
+        if event == "started":
+            canceller = threading.Thread(
+                target=lambda: refused.append(
+                    kernel.cancel({"run_id": params["run_id"]})
+                )
+            )
+            canceller.start()
+            canceller.join(DEADLINE_S)
+
+    monkeypatch.setattr(kernel.executor, "_emit", cancels_on_start)
+    finished: list[dict] = []
+    failures: list[BaseException] = []
+
+    def runs() -> None:
+        try:
+            finished.append(run(kernel, _RETURNS_NOTE, produces={"probe": "asset"}))
+        except BaseException as failure:
+            failures.append(failure)
+
+    worker = threading.Thread(target=runs)
+    worker.start()
+    worker.join(timeout=DEADLINE_S)
+
+    assert refused == [{"cancelled": True}]
+    assert failures == []
+    assert finished[0]["state"] == "cancelled"
+    assert finished[0]["outputs"] == {}
+
+
 def test_a_run_that_prints_nothing_stores_no_log_artifact(tmp_path):
     kernel, _ = make_kernel(tmp_path)
     record = run(kernel, "def materialize(self, ctx):\n    return {}")
