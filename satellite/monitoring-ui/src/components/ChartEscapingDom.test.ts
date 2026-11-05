@@ -53,7 +53,7 @@ describe('ApexCharts label HTML sinks', () => {
     try {
       await flushPromises()
       await vi.waitFor(() => expect(wrapper.find('.apexcharts-legend-text').exists()).toBe(true))
-      expect(wrapper.get('.apexcharts-legend-text').text()).toBe(payload)
+      expect(wrapper.get('.apexcharts-legend-text').text()).toBe('<img src=x oner…')
       const chart = (wrapper.getComponent(VueApexCharts).vm as unknown as { chart: RenderedChart })
         .chart
       chart.tooltip.tooltipLabels.drawSeriesTexts({
@@ -84,7 +84,7 @@ describe('ApexCharts label HTML sinks', () => {
     try {
       await flushPromises()
       await vi.waitFor(() => expect(wrapper.find('.apexcharts-xaxis-label').exists()).toBe(true))
-      expect(wrapper.get('.apexcharts-xaxis-label tspan').text()).toBe(payload)
+      expect(wrapper.get('.apexcharts-xaxis-label tspan').text()).toBe('<img src=x oner…')
       const chart = (wrapper.getComponent(VueApexCharts).vm as unknown as { chart: RenderedChart })
         .chart
       chart.tooltip.tooltipLabels.drawSeriesTexts({

@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { escapeChartLabel } from './charts'
+import { escapeChartLabel, truncateChartLabel } from './charts'
+
+describe('truncateChartLabel', () => {
+  it.each([
+    ['', ''],
+    ['north – 東京', 'north – 東京'],
+    ['abcdefghijklmnop', 'abcdefghijklmnop'],
+    ['abcdefghijklmnopq', 'abcdefghijklmno…'],
+    ['😀'.repeat(17), '😀'.repeat(15) + '…'],
+  ])('shortens %j to at most 16 characters', (value, expected) => {
+    expect(truncateChartLabel(value)).toBe(expected)
+  })
+
+  it('shortens multikilobyte labels', () => {
+    expect(truncateChartLabel('x'.repeat(8192))).toBe('xxxxxxxxxxxxxxx…')
+  })
+})
 
 describe('escapeChartLabel', () => {
   it.each([

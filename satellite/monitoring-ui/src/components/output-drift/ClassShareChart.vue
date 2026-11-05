@@ -6,7 +6,13 @@
 import { computed } from 'vue'
 import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
-import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING, escapeChartLabel } from '@/lib/charts'
+import {
+  CHART_HEIGHT,
+  CHART_LEGEND,
+  CHART_GRID_PADDING,
+  escapeChartLabel,
+  truncateChartLabel,
+} from '@/lib/charts'
 import type { Series } from '@/api/types'
 
 /** Each drifted class's live share across the windows — one line per class. */
@@ -45,7 +51,11 @@ const options = computed(() => ({
   dataLabels: { enabled: false },
   stroke: { curve: 'smooth', width: 2 },
   markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 3 } },
-  legend: CHART_LEGEND,
+  legend: {
+    ...CHART_LEGEND,
+    formatter: (_name: string, { seriesIndex }: { seriesIndex: number }) =>
+      escapeChartLabel(truncateChartLabel(props.series[seriesIndex].label)),
+  },
   grid: { borderColor: chartGridColor.value, strokeDashArray: 4, padding: CHART_GRID_PADDING },
   xaxis: {
     type: 'datetime',
