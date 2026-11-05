@@ -2,6 +2,7 @@
 name = "luml-relay"
 version = "0.1.0"
 description = "Relay and agent that expose local web services through LUML"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1,<1.0.0",

@@ -12,6 +12,7 @@ COPY pyproject.toml uv.lock /app/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra server --no-install-project
 
+COPY README.md /app/README.md
 COPY luml_relay /app/luml_relay
 
 RUN --mount=type=cache,target=/root/.cache/uv \
