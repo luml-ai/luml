@@ -2,7 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
@@ -439,6 +439,51 @@ class UserRepository(RepositoryBase, CrudMixin):
                 OrganizationMemberOrm.id == member_id,
             )
             return db_member.to_organization_member() if db_member else None
+
+    async def transfer_organization_ownership(
+        self, organization_id: UUID, owner_user_id: UUID, member_id: UUID
+    ) -> OrganizationMember | None:
+        async with self._get_session() as session, session.begin():
+            await session.scalar(
+                select(OrganizationOrm.id)
+                .where(OrganizationOrm.id == organization_id)
+                .with_for_update()
+            )
+            members = list(
+                await session.scalars(
+                    select(OrganizationMemberOrm)
+                    .where(
+                        OrganizationMemberOrm.organization_id == organization_id,
+                        or_(
+                            OrganizationMemberOrm.user_id == owner_user_id,
+                            OrganizationMemberOrm.id == member_id,
+                        ),
+                    )
+                    .order_by(OrganizationMemberOrm.id)
+                    .with_for_update()
+                )
+            )
+            owner = next(
+                (member for member in members if member.user_id == owner_user_id),
+                None,
+            )
+            successor = next(
+                (member for member in members if member.id == member_id), None
+            )
+            if (
+                owner is None
+                or successor is None
+                or owner is successor
+                or owner.role != OrgRole.OWNER
+                or successor.role == OrgRole.OWNER
+            ):
+                return None
+
+            owner.role = OrgRole.ADMIN
+            successor.role = OrgRole.OWNER
+            await session.flush()
+            await session.refresh(successor)
+            return successor.to_organization_member()
 
     async def delete_organization_member(
         self, organization_id: UUID, member_id: UUID

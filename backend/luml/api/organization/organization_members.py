@@ -40,6 +40,15 @@ async def update_organization_member(
     )
 
 
+@members_router.post("/{member_id}/transfer-ownership", responses=endpoint_responses)
+async def transfer_organization_ownership(
+    request: Request, organization_id: UUID, member_id: UUID
+) -> OrganizationMember:
+    return await organization_handler.transfer_organization_ownership(
+        request.user.id, organization_id, member_id
+    )
+
+
 @members_router.delete(
     "/{member_id}", responses=endpoint_responses, status_code=status.HTTP_204_NO_CONTENT
 )

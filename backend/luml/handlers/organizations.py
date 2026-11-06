@@ -357,6 +357,45 @@ class OrganizationHandler:
             organization_id, member_id, member
         )
 
+    async def transfer_organization_ownership(
+        self, user_id: UUID, organization_id: UUID, member_id: UUID
+    ) -> OrganizationMember:
+        await self.__permissions_handler.check_permissions(
+            organization_id, user_id, Resource.ORGANIZATION_USER, Action.UPDATE
+        )
+        user_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
+        if user_role != OrgRole.OWNER:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can transfer ownership."
+            )
+
+        successor = await self.__user_repository.get_organization_member_by_id(
+            organization_id, member_id
+        )
+        if not successor:
+            raise OrganizationMemberNotFoundError()
+
+        if successor.user.id == user_id:
+            raise InsufficientPermissionsError(
+                "You can not transfer ownership to yourself."
+            )
+
+        if successor.role == OrgRole.OWNER:
+            raise InsufficientPermissionsError(
+                "Member is already an Organization Owner."
+            )
+
+        new_owner = await self.__user_repository.transfer_organization_ownership(
+            organization_id, user_id, member_id
+        )
+        if new_owner is None:
+            raise InsufficientPermissionsError(
+                "Ownership could not be transferred. Please try again."
+            )
+        return new_owner
+
     async def delete_organization_member_by_id(
         self, user_id: UUID, organization_id: UUID, member_id: UUID
     ) -> None:

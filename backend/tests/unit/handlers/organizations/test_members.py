@@ -1,6 +1,11 @@
+from uuid import uuid7
+
 import pytest
 from luml.handlers.organizations import OrganizationHandler
-from luml.infra.exceptions import InsufficientPermissionsError
+from luml.infra.exceptions import (
+    InsufficientPermissionsError,
+    OrganizationMemberNotFoundError,
+)
 from luml.schemas.organization import (
     OrganizationMember,
     OrgRole,
@@ -237,3 +242,119 @@ class TestOrganizationMembers:
         mocks.user_repository.delete_organization_member.assert_awaited_once_with(
             member_to_delete.organization_id, member_to_delete.id
         )
+
+    async def test_transfer_organization_ownership_returns_new_owner(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+        organization_member: OrganizationMember,
+    ) -> None:
+        successor = organization_member.model_copy(update={"role": OrgRole.MEMBER})
+        new_owner = organization_member.model_copy(update={"role": OrgRole.OWNER})
+        mocks.user_repository.get_organization_member_role.return_value = OrgRole.OWNER
+        mocks.user_repository.get_organization_member_by_id.return_value = successor
+        mocks.user_repository.transfer_organization_ownership.return_value = new_owner
+
+        actual = await mocks.handler.transfer_organization_ownership(
+            USER_ID, successor.organization_id, successor.id
+        )
+
+        assert actual == new_owner
+        mocks.user_repository.transfer_organization_ownership.assert_awaited_once_with(
+            successor.organization_id, USER_ID, successor.id
+        )
+        mocks.permissions_handler.check_permissions.assert_awaited_once_with(
+            successor.organization_id,
+            USER_ID,
+            Resource.ORGANIZATION_USER,
+            Action.UPDATE,
+        )
+
+    @pytest.mark.parametrize("caller_role", [OrgRole.ADMIN, OrgRole.MEMBER])
+    async def test_transfer_organization_ownership_raises_when_caller_is_not_owner(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+        organization_member: OrganizationMember,
+        caller_role: OrgRole,
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = caller_role
+
+        with pytest.raises(
+            InsufficientPermissionsError,
+            match="Only Organization Owner can transfer ownership.",
+        ):
+            await mocks.handler.transfer_organization_ownership(
+                USER_ID, organization_member.organization_id, organization_member.id
+            )
+
+        mocks.user_repository.transfer_organization_ownership.assert_not_awaited()
+
+    async def test_transfer_organization_ownership_raises_when_member_missing(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = OrgRole.OWNER
+        mocks.user_repository.get_organization_member_by_id.return_value = None
+
+        with pytest.raises(OrganizationMemberNotFoundError):
+            await mocks.handler.transfer_organization_ownership(
+                USER_ID, uuid7(), uuid7()
+            )
+
+        mocks.user_repository.transfer_organization_ownership.assert_not_awaited()
+
+    async def test_transfer_organization_ownership_raises_when_target_is_self(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+        organization_member: OrganizationMember,
+    ) -> None:
+        user = organization_member.user.model_copy(update={"id": USER_ID})
+        member = organization_member.model_copy(
+            update={"role": OrgRole.OWNER, "user": user}
+        )
+        mocks.user_repository.get_organization_member_role.return_value = OrgRole.OWNER
+        mocks.user_repository.get_organization_member_by_id.return_value = member
+
+        with pytest.raises(
+            InsufficientPermissionsError,
+            match="You can not transfer ownership to yourself.",
+        ):
+            await mocks.handler.transfer_organization_ownership(
+                USER_ID, member.organization_id, member.id
+            )
+
+        mocks.user_repository.transfer_organization_ownership.assert_not_awaited()
+
+    async def test_transfer_organization_ownership_raises_when_target_is_owner(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+        organization_member: OrganizationMember,
+    ) -> None:
+        mocks.user_repository.get_organization_member_role.return_value = OrgRole.OWNER
+        mocks.user_repository.get_organization_member_by_id.return_value = (
+            organization_member
+        )
+
+        with pytest.raises(
+            InsufficientPermissionsError,
+            match="Member is already an Organization Owner.",
+        ):
+            await mocks.handler.transfer_organization_ownership(
+                USER_ID, organization_member.organization_id, organization_member.id
+            )
+
+        mocks.user_repository.transfer_organization_ownership.assert_not_awaited()
+
+    async def test_transfer_organization_ownership_raises_when_transfer_refused(
+        self,
+        mocks: CollaboratorMocks[OrganizationHandler],
+        organization_member: OrganizationMember,
+    ) -> None:
+        successor = organization_member.model_copy(update={"role": OrgRole.MEMBER})
+        mocks.user_repository.get_organization_member_role.return_value = OrgRole.OWNER
+        mocks.user_repository.get_organization_member_by_id.return_value = successor
+        mocks.user_repository.transfer_organization_ownership.return_value = None
+
+        with pytest.raises(InsufficientPermissionsError, match="try again"):
+            await mocks.handler.transfer_organization_ownership(
+                USER_ID, successor.organization_id, successor.id
+            )
