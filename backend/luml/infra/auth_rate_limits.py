@@ -42,18 +42,12 @@ class AuthRateLimiter:
         return retry_after
 
 
-limiter: AuthRateLimiter | None = (
-    AuthRateLimiter(redis_client) if redis_client is not None else None
-)
-if limiter is None:
-    logger.warning("REDIS_URL is not set, authentication rate limits are disabled")
+limiter = AuthRateLimiter(redis_client)
 
 
 async def limit_auth_attempts(
     request: Request, email: str | None = None, *, reset_token: str | None = None
 ) -> None:
-    if limiter is None:
-        return
     if reset_token is not None:
         try:
             payload = jwt.decode(
