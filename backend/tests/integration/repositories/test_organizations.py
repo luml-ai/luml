@@ -60,3 +60,20 @@ class TestOrganizationRepository:
         assert hasattr(fetched_organization, "logo")
         assert isinstance(fetched_organization.members, list)
         assert isinstance(fetched_organization.invites, list)
+
+    async def test_get_organization_details_returns_invites_with_inviter(
+        self,
+        repository: UserRepository,
+        seeded_organization_with_members: OrganizationWithMembersFixtureData,
+    ) -> None:
+        data = seeded_organization_with_members
+
+        fetched_organization = await repository.get_organization_details(
+            data.organization.id
+        )
+
+        assert fetched_organization
+        assert len(fetched_organization.invites) == len(data.invites)
+        for invite in fetched_organization.invites:
+            assert invite.invited_by_user is not None
+            assert invite.invited_by_user.id == data.user.id

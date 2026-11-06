@@ -394,6 +394,9 @@ class UserRepository(RepositoryBase, CrudMixin):
                     joinedload(OrganizationOrm.invites).joinedload(
                         OrganizationInviteOrm.organization
                     ),
+                    joinedload(OrganizationOrm.invites).joinedload(
+                        OrganizationInviteOrm.invited_by_user
+                    ),
                     joinedload(OrganizationOrm.orbits),
                 )
                 .where(OrganizationOrm.id == organization_id)
