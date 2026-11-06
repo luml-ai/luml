@@ -4,7 +4,7 @@ from promptopt.optimizers._base import BaseOptimizer
 from promptopt.dataclasses import Example, LLMExample
 from promptopt.graph import Graph
 from promptopt.trace import Trace
-from promptopt.llm import LLM
+from promptopt.llm import LLM, InvalidLLMResponseError
 from promptopt.optimizers._utils import split_dataset, freeze_graph_ids
 from promptopt.optimizers._instruction_proposal import propose_instructions
 from promptopt.optimizers._eval import BaseMetric
@@ -50,12 +50,18 @@ class JEDIOptimizer(BaseOptimizer):
 
     async def _collect_examples(self, training_examples: list[Example]) -> Trace:
         trace = Trace()
-        await asyncio.gather(
+        results = await asyncio.gather(
             *[
                 self.graph.run(example.input, self.teacher, trace)
                 for example in training_examples
-            ]
+            ],
+            return_exceptions=True,
         )
+        for result in results:
+            if isinstance(result, BaseException) and not isinstance(
+                result, InvalidLLMResponseError
+            ):
+                raise result
         return trace
 
     def _generate_demo_sets(
@@ -154,8 +160,8 @@ class JEDIOptimizer(BaseOptimizer):
         space = self._generate_optuna_distributions(
             demo_sets=demo_sets, instruction_proposals=instruction_proposals
         )
-        best_score = 0
-        best_params = {}
+        best_score = float("-inf")
+        best_params = None
         for trial_num in range(self.n_trials):
             trial = study.ask(space)
             graph_copy = deepcopy(self.graph)
@@ -165,19 +171,24 @@ class JEDIOptimizer(BaseOptimizer):
                 demo_sets=demo_sets,
             )
 
-            score = await self._evaluate(
-                val=val,
-                graph=graph_copy,
-            )
+            try:
+                score = await self._evaluate(
+                    val=val,
+                    graph=graph_copy,
+                )
+            except InvalidLLMResponseError:
+                study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                continue
 
-            if score > best_score:
+            if best_params is None or score > best_score:
                 best_score = score
                 best_params = trial.params
             study.tell(trial, score)
         print(f"Best score: {best_score}")
         print(f"Best params: {best_params}")
-        self._select_params(
-            graph=self.graph,
-            params=best_params,
-            demo_sets=demo_sets,
-        )
+        if best_params is not None:
+            self._select_params(
+                graph=self.graph,
+                params=best_params,
+                demo_sets=demo_sets,
+            )

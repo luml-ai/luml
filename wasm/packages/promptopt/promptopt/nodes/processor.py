@@ -8,7 +8,7 @@ from promptopt.dataclasses import (
     NodeOutput,
 )
 from promptopt.templates import NODE_SYSTEM_PROMPT_TEMPLATE
-from promptopt.llm import LLM
+from promptopt.llm import LLM, generate_validated
 from promptopt.variadic import VariadicList
 from promptopt.dataclasses import LLMExample
 from promptopt.trace import Trace
@@ -114,12 +114,12 @@ class Processor(BaseNode):
 
         messages.append({"role": "user", "content": inputs_json})
 
-        output_str = await llm.generate(messages, out_schema=self._output_schema)
+        output_str, output = await generate_validated(
+            llm, messages, self._output_schema
+        )
 
         if trace is not None:
             trace.add_example(self, inputs_json, output_str)
-
-        output = json.loads(output_str)
 
         sockets_to_trigger = []
         fields_to_write = {}
