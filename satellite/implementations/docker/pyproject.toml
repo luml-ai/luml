@@ -30,6 +30,7 @@ dev = [
     "pyyaml>=6.0.2,<7.0.0",
     "respx>=0.22.0,<1.0.0",
     "ruff>=0.14.5,<1.0.0",
+    "types-pyyaml>=6.0.12,<7.0.0",
 ]
 
 [tool.pytest.ini_options]
