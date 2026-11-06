@@ -42,7 +42,11 @@
           <template #empty>
             <div class="max-w-[423px] w-full">
               There are no orbits in this organization yet. Create your first orbit in
-              <a target="_blank" :href="lmlUrl" class="text-primary font-medium hover:underline">
+              <a
+                target="_blank"
+                :href="LUML_APP_URL"
+                class="text-primary font-medium hover:underline"
+              >
                 LUML.
               </a>
             </div>
@@ -129,6 +133,7 @@ import UiTagsSelect from '../ui/UiTagsSelect.vue'
 import CollectionField from './CollectionField.vue'
 import { requiredArtifactKinds } from './collectionTypes'
 import type { Model } from '@/store/experiments/experiments.interface'
+import { LUML_APP_URL } from '@/helpers/luml'
 
 const props = defineProps<UploadModalProps>()
 
@@ -174,8 +179,6 @@ const requiredKinds = computed(() =>
         models.value.length || (props.modelCount ?? 0),
       ),
 )
-
-const lmlUrl = import.meta.env.VITE_LUML_URL
 
 async function getOrganizations() {
   try {
