@@ -133,6 +133,9 @@ watch(
 
 <style scoped>
 .organization-page {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100svh - var(--layout-header-height, 0px) - 60px);
   padding-top: 30px;
 }
 .info {
@@ -146,12 +149,13 @@ watch(
 }
 .views {
   padding-top: 24px;
+  padding-bottom: 44px;
 }
 .danger-zone {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  margin-top: 44px;
+  margin-top: auto;
   padding: 24px 0;
   border-top: 1px solid var(--p-divider-border-color);
 }
