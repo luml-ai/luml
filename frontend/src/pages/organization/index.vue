@@ -14,7 +14,8 @@
         <div>
           <div class="danger-zone-title">Delete organization</div>
           <p class="danger-zone-text">
-            Permanently remove this organization with all its members, orbits and data.
+            Permanently remove this organization with all its orbits and data. Remove the other
+            members first.
           </p>
         </div>
         <OrganizationDelete></OrganizationDelete>

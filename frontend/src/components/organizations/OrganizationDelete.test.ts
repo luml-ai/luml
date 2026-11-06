@@ -1,7 +1,7 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, expect, it, vi } from 'vitest'
-import type { Organization } from '@/lib/api/api.interfaces'
+import type { Organization, OrganizationDetails } from '@/lib/api/api.interfaces'
 import { useOrganizationStore } from '@/stores/organization'
 import OrganizationDelete from './OrganizationDelete.vue'
 
@@ -94,5 +94,20 @@ it('stays on the page when the deletion itself fails', async () => {
   expect(harness.routerReplace).not.toHaveBeenCalled()
   expect(harness.toastAdd).toHaveBeenCalledOnce()
   expect(harness.toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
+  wrapper.unmount()
+})
+
+it('blocks deletion while other members remain', async () => {
+  const store = selectFirstOf([{ id: 'organization-a', name: 'A' } as Organization])
+  store.organizationDetails = {
+    members: [{ id: 'owner' }, { id: 'member-1' }, { id: 'member-2' }],
+  } as OrganizationDetails
+  vi.spyOn(store, 'deleteOrganization')
+
+  const wrapper = await confirmDeletion()
+
+  expect(wrapper.text()).toContain('Remove the other 2 members')
+  expect(wrapper.findAll('button')[2].attributes('disabled')).toBeDefined()
+  expect(store.deleteOrganization).not.toHaveBeenCalled()
   wrapper.unmount()
 })
