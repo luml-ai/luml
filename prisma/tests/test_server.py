@@ -1,4 +1,5 @@
 import asyncio
+import os
 import shutil
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -29,6 +30,16 @@ def tmp_config(tmp_path: Path) -> AppConfig:
 @pytest.fixture
 def db() -> Database:
     return Database()
+
+
+@pytest.fixture
+def fake_agent_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_agent = bin_dir / "claude"
+    fake_agent.write_text("#!/bin/sh\nsleep 30\n")
+    fake_agent.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
 
 
 @pytest.fixture
@@ -393,6 +404,7 @@ async def test_open_terminal_agent_mode(
     db: Database,
     pty: PtyManager,
     tmp_path: Path,
+    fake_agent_cli: None,
 ) -> None:
     repo = db.add_repository("p", "/tmp")
     worktree = tmp_path / "worktree"
@@ -425,6 +437,7 @@ async def test_open_terminal_default_is_agent(
     db: Database,
     pty: PtyManager,
     tmp_path: Path,
+    fake_agent_cli: None,
 ) -> None:
     repo = db.add_repository("p", "/tmp")
     worktree = tmp_path / "worktree"
@@ -595,6 +608,13 @@ async def test_list_branches(
         cwd=str(repo),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "t@t.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "t@t.com",
+        },
     )
     await proc.communicate()
     proc = await asyncio.create_subprocess_exec(

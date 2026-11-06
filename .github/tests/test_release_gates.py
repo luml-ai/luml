@@ -55,7 +55,7 @@ PACKAGE_GATES = {
         "lumlflow-tests": "[lumlflow] tests-and-linters.yml",
         "lumlflow-frontend-tests": "[lumlflow-frontend] tests-and-linters.yml",
     },
-    "luml-prisma/v*": {},
+    "luml-prisma/v*": {"prisma-tests": "[prisma] tests-and-linters.yml"},
     "luml-mlflow/v*": {"luml-mlflow-tests": "[luml-mlflow] tests-and-linters.yml"},
     "luml-relay/v*": {"relay-tests": "[relay] tests-and-linters.yml"},
 }
