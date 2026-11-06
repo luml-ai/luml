@@ -117,6 +117,7 @@ describe('DeleteAccountModal', () => {
 
     const items = wrapper.findAll('li').map((item) => item.text())
     expect(items[0]).toContain('will be deleted')
+    expect(items[1]).toContain('will be deleted')
     expect(items[1]).toContain('Transfer ownership')
     expect(items[2]).toContain('You will be removed')
     expect(items[2]).not.toContain('Transfer ownership')

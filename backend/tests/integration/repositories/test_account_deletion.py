@@ -123,9 +123,37 @@ class TestAccountDeletion:
         ]
         assert len(await repository.get_user_organizations(owner.id)) == 1
 
-    @pytest.mark.parametrize("successor_role", [OrgRole.MEMBER, OrgRole.ADMIN])
-    async def test_delete_account_transfers_shared_ownership(
-        self, engine: AsyncEngine, new_user: CreateUser, successor_role: OrgRole
+    @pytest.mark.parametrize("member_role", [OrgRole.MEMBER, OrgRole.ADMIN])
+    async def test_delete_account_deletes_shared_organization_it_alone_owns(
+        self, engine: AsyncEngine, new_user: CreateUser, member_role: OrgRole
+    ) -> None:
+        repository = UserRepository(engine)
+        owner = await repository.create_user(new_user)
+        member = await repository.create_user(
+            new_user.model_copy(update={"email": f"member_{uuid.uuid4()}@example.com"})
+        )
+        organization = (await repository.get_user_organizations(owner.id))[0]
+        member_organization = (await repository.get_user_organizations(member.id))[0]
+        await repository.create_organization_member(
+            OrganizationMemberCreate(
+                user_id=member.id,
+                organization_id=organization.id,
+                role=member_role,
+            )
+        )
+
+        await repository.delete_user(owner.email)
+
+        assert await repository.get_user(owner.email) is None
+        assert await repository.get_user(member.email) is not None
+        assert [
+            org.id for org in await repository.get_user_organizations(member.id)
+        ] == [member_organization.id]
+        async with AsyncSession(engine) as session:
+            assert await session.get(OrganizationOrm, organization.id) is None
+
+    async def test_delete_account_keeps_organization_transferred_before_deletion(
+        self, engine: AsyncEngine, new_user: CreateUser
     ) -> None:
         repository = UserRepository(engine)
         owner = await repository.create_user(new_user)
@@ -135,23 +163,26 @@ class TestAccountDeletion:
             )
         )
         organization = (await repository.get_user_organizations(owner.id))[0]
-        await repository.create_organization_member(
+        successor_member = await repository.create_organization_member(
             OrganizationMemberCreate(
                 user_id=successor.id,
                 organization_id=organization.id,
-                role=successor_role,
+                role=OrgRole.MEMBER,
             )
+        )
+        assert successor_member is not None
+        await repository.transfer_organization_ownership(
+            organization.id, owner.id, successor_member.id
         )
 
         await repository.delete_user(owner.email)
 
-        assert await repository.get_user(owner.email) is None
         members = await repository.get_organization_members(organization.id)
         assert [(member.user.id, member.role) for member in members] == [
             (successor.id, OrgRole.OWNER)
         ]
 
-    async def test_delete_account_rolls_back_cleanup_and_transfer_on_failure(
+    async def test_delete_account_rolls_back_cleanup_on_failure(
         self, engine: AsyncEngine, new_user: CreateUser
     ) -> None:
         repository = UserRepository(engine)
@@ -189,36 +220,6 @@ class TestAccountDeletion:
             await repository.get_organization_member_role(shared.id, successor.id)
             == OrgRole.MEMBER
         )
-
-    @pytest.mark.parametrize("later_role", [OrgRole.MEMBER, OrgRole.ADMIN])
-    async def test_delete_account_prefers_admin_then_oldest_member(
-        self, engine: AsyncEngine, new_user: CreateUser, later_role: OrgRole
-    ) -> None:
-        repository = UserRepository(engine)
-        owner = await repository.create_user(new_user)
-        organization = (await repository.get_user_organizations(owner.id))[0]
-        members = []
-        for role in (OrgRole.MEMBER, later_role):
-            user = await repository.create_user(
-                new_user.model_copy(
-                    update={"email": f"member_{uuid.uuid4()}@example.com"}
-                )
-            )
-            members.append(
-                await repository.create_organization_member(
-                    OrganizationMemberCreate(
-                        user_id=user.id, organization_id=organization.id, role=role
-                    )
-                )
-            )
-
-        await repository.delete_user(owner.email)
-
-        expected = members[1] if later_role == OrgRole.ADMIN else members[0]
-        remaining = await repository.get_organization_members(organization.id)
-        assert [member.id for member in remaining if member.role == OrgRole.OWNER] == [
-            expected.id
-        ]
 
     async def test_delete_account_refuses_new_membership_during_cleanup(
         self, engine: AsyncEngine, new_user: CreateUser

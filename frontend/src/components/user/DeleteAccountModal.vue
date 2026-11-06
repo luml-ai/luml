@@ -126,7 +126,7 @@ function getNote(row: OrganizationRow) {
     return 'You are the only member. The organization will be deleted with all its orbits, collections, models, satellites, deployments and bucket secrets.'
   }
   if (row.kind === 'transfer') {
-    return 'You are the only owner. Transfer ownership to a member of your choice, otherwise it will pass to an admin or the longest-standing member.'
+    return 'You are the only owner. The organization will be deleted with all its orbits, collections, models, satellites, deployments and bucket secrets, and its other members will lose access. Transfer ownership to keep it.'
   }
   if (row.kind === 'transferred' && row.newOwner) {
     return `Ownership transferred to ${getMemberLabel(row.newOwner)}. You will be removed from this organization.`

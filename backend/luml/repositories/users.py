@@ -142,38 +142,24 @@ class UserRepository(RepositoryBase, CrudMixin):
                 members = (
                     await session.execute(
                         select(
-                            OrganizationMemberOrm.id,
                             OrganizationMemberOrm.user_id,
                             OrganizationMemberOrm.role,
                         )
                         .where(OrganizationMemberOrm.organization_id == organization.id)
-                        .order_by(
-                            case(
-                                (OrganizationMemberOrm.role == OrgRole.ADMIN, 0),
-                                else_=1,
-                            ),
-                            OrganizationMemberOrm.created_at,
-                            OrganizationMemberOrm.id,
-                        )
+                        .order_by(OrganizationMemberOrm.id)
                         .with_for_update()
                     )
                 ).all()
                 remaining = [member for member in members if member.user_id != user_id]
-                if members and not remaining:
-                    await session.delete(organization)
-                elif (
-                    remaining
-                    and any(
-                        member.user_id == user_id and member.role == OrgRole.OWNER
-                        for member in members
-                    )
+                is_owner = any(
+                    member.user_id == user_id and member.role == OrgRole.OWNER
+                    for member in members
+                )
+                if (members and not remaining) or (
+                    is_owner
                     and not any(member.role == OrgRole.OWNER for member in remaining)
                 ):
-                    await session.execute(
-                        update(OrganizationMemberOrm)
-                        .where(OrganizationMemberOrm.id == remaining[0].id)
-                        .values(role=OrgRole.OWNER)
-                    )
+                    await session.delete(organization)
 
             await session.flush()
             await session.execute(delete(UserOrm).where(UserOrm.id == user_id))
