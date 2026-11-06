@@ -10,15 +10,26 @@
       <div class="views">
         <RouterView></RouterView>
       </div>
-      <section v-if="canDeleteOrganization" class="danger-zone">
-        <div>
-          <div class="danger-zone-title">Delete organization</div>
-          <p class="danger-zone-text">
-            Permanently remove this organization with all its orbits and data. Remove the other
-            members first.
-          </p>
+      <section v-if="isOwner || canDeleteOrganization" class="danger-zone">
+        <div v-if="isOwner" class="danger-zone-row">
+          <div>
+            <div class="danger-zone-title">Transfer ownership</div>
+            <p class="danger-zone-text">
+              Make another member the owner of this organization. You stay in it as an admin.
+            </p>
+          </div>
+          <OrganizationTransferOwnership></OrganizationTransferOwnership>
         </div>
-        <OrganizationDelete></OrganizationDelete>
+        <div v-if="canDeleteOrganization" class="danger-zone-row">
+          <div>
+            <div class="danger-zone-title">Delete organization</div>
+            <p class="danger-zone-text">
+              Permanently remove this organization with all its orbits and data. Remove the other
+              members first.
+            </p>
+          </div>
+          <OrganizationDelete></OrganizationDelete>
+        </div>
       </section>
     </div>
   </div>
@@ -37,6 +48,7 @@ import OrganizationLimits from '@/components/organizations/OrganizationLimits.vu
 import OrganizationTabs from '@/components/organizations/OrganizationTabs.vue'
 import OrganizationLocked from '@/components/organizations/OrganizationLocked.vue'
 import OrganizationDelete from '@/components/organizations/OrganizationDelete.vue'
+import OrganizationTransferOwnership from '@/components/organizations/OrganizationTransferOwnership.vue'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import type { ApiError } from '@/helpers/helpers'
@@ -53,6 +65,10 @@ const hasPermission = computed(() => {
   if (!userRole || userRole === OrganizationRoleEnum.member) return false
   return true
 })
+
+const isOwner = computed(
+  () => organizationStore.currentOrganization?.role === OrganizationRoleEnum.owner,
+)
 
 const canDeleteOrganization = computed(
   () =>
@@ -133,12 +149,17 @@ watch(
 }
 .danger-zone {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 24px;
   margin-top: 44px;
   padding: 24px 0;
   border-top: 1px solid var(--p-divider-border-color);
+}
+.danger-zone-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 .danger-zone-title {
   font-weight: 500;
