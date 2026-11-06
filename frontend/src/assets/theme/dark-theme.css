@@ -29,7 +29,7 @@
   --p-primary-color: #1d4ed8;
   --p-primary-contrast-color: #ffffff;
   --p-primary-hover-color: #2563eb;
-  --p-primary-active-color: #2673fd;
+  --p-primary-active-color: #2563eb;
   --p-highlight-background: #2673fd40;
   --p-highlight-focus-background: #2673fd4d;
   --p-highlight-focus-color: #ffffffde;
@@ -73,7 +73,7 @@
   --p-text-hover-color: #ffffff;
   --p-text-hover-muted-color: #d4d4d8;
   --p-text-muted-color: #a1a1aa;
-  --p-text-link-color: #2563eb;
+  --p-text-link-color: #60a5fa;
   --p-overlay-select-background: #18181b;
   --p-overlay-select-border-color: #3f3f46;
   --p-overlay-select-border-radius: 6px;
@@ -125,8 +125,8 @@
   --p-button-primary-hover-background: #2563eb;
   --p-button-primary-hover-border-color: #2563eb;
   --p-button-primary-hover-color: #ffffff;
-  --p-button-primary-active-background: #2673fd;
-  --p-button-primary-active-border-color: #2673fd;
+  --p-button-primary-active-background: #2563eb;
+  --p-button-primary-active-border-color: #2563eb;
   --p-button-primary-active-color: #ffffff;
   --p-button-primary-border-color: #1d4ed8;
   --p-button-primary-color: #ffffff;
