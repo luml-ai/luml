@@ -1,8 +1,49 @@
+import re
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 SATELLITE_ROOT = REPOSITORY_ROOT / "satellite"
 WORKFLOWS_ROOT = REPOSITORY_ROOT / ".github" / "workflows"
+GUIDE = REPOSITORY_ROOT / "docs" / "docs" / "guides" / "satellite.md"
+GUIDE_AGENT_IMAGE = "ghcr.io/luml-ai/luml-satellite-agent:latest"
+GUIDE_MODEL_IMAGE = "ghcr.io/luml-ai/luml-model-server:latest"
+GUIDE_ENVIRONMENT_DEFAULTS = {
+    "PLATFORM_URL": "${PLATFORM_URL:-https://api.luml.ai}",
+    "MODEL_IMAGE": f"${{MODEL_IMAGE:-{GUIDE_MODEL_IMAGE}}}",
+    "MONITORING_FRAME_ANCESTORS": "${MONITORING_FRAME_ANCESTORS:-https://app.luml.ai}",
+}
+
+
+def guide_file(name: str) -> str:
+    match = re.search(
+        rf"^\*\*\d+\. Create `{re.escape(name)}`\*\*.*?\n```\w*\n(.*?)^```",
+        GUIDE.read_text(),
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert match, f"guide has no step creating {name}"
+    return match.group(1)
+
+
+def compose_as_published(compose: dict[str, Any]) -> dict[str, Any]:
+    services = compose["services"]
+    model_image = services.pop("model-image")
+    services["model-server"] = {
+        "image": GUIDE_MODEL_IMAGE,
+        "platform": "linux/amd64",
+        "command": model_image["command"],
+        "restart": model_image["restart"],
+    }
+    agent = services["agent"]
+    del agent["build"]
+    agent["image"] = GUIDE_AGENT_IMAGE
+    agent["environment"].update(GUIDE_ENVIRONMENT_DEFAULTS)
+    agent["depends_on"] = [
+        "model-server" if service == "model-image" else service for service in agent["depends_on"]
+    ]
+    return {"name": "satellite", **compose}
 
 
 def test_compose_store_has_no_published_ports_and_an_isolated_network() -> None:
@@ -125,3 +166,26 @@ def test_reverse_proxy_is_the_only_agent_http_host_binding() -> None:
     assert "{$SATELLITE_SITE} {" in caddyfile
     assert "reverse_proxy agent:8000 {" in caddyfile
     assert "flush_interval -1" in caddyfile
+
+
+def test_guide_compose_matches_the_repository_compose() -> None:
+    repository = yaml.safe_load((SATELLITE_ROOT / "docker-compose.yml").read_text())
+    guide = yaml.safe_load(guide_file("docker-compose.yml"))
+
+    assert guide == compose_as_published(repository)
+
+
+def test_guide_collector_and_proxy_configs_match_the_repository() -> None:
+    assert (
+        guide_file("otel-collector-config.yaml")
+        == (SATELLITE_ROOT / "otel-collector-config.yaml").read_text()
+    )
+    assert guide_file("Caddyfile") == (SATELLITE_ROOT / "Caddyfile").read_text()
+
+
+def test_guide_env_sets_every_required_compose_variable() -> None:
+    required = set(re.findall(r"\$\{(\w+):\?", (SATELLITE_ROOT / "docker-compose.yml").read_text()))
+    configured = set(re.findall(r"^(\w+)=\S", guide_file(".env"), flags=re.MULTILINE))
+
+    assert required
+    assert required <= configured
