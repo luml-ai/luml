@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { FolderDot, Folders, User } from 'lucide-vue-next'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
+import { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { useAuthStore } from '@/stores/auth'
 import { useBucketsStore } from '@/stores/buckets'
 import { useOrbitsStore } from '@/stores/orbits'
@@ -39,7 +40,9 @@ export const useQuickStart = () => {
 
   const isBucketDialogVisible = ref(false)
   const isCollectionDialogVisible = ref(false)
-  const isBucketsLoaded = ref(false)
+  const isBucketsSettled = ref(false)
+  const bucketsOrganizationId = ref<string | null>(null)
+  let bucketsRequestId = 0
 
   const organizationId = computed(() => organizationStore.currentOrganization?.id ?? null)
 
@@ -48,12 +51,23 @@ export const useQuickStart = () => {
       !!organizationStore.currentOrganization?.permissions?.orbit?.includes(PermissionEnum.create),
   )
 
+  const canManageBuckets = computed(() => {
+    const role = organizationStore.currentOrganization?.role
+    return role === OrganizationRoleEnum.owner || role === OrganizationRoleEnum.admin
+  })
+
+  const isBucketsLoaded = computed(
+    () => !!organizationId.value && bucketsOrganizationId.value === organizationId.value,
+  )
+
+  const organizationBuckets = computed(() => (isBucketsLoaded.value ? bucketsStore.buckets : []))
+
   const collectionOrbit = computed(
     () => orbitsStore.currentOrbit ?? orbitsStore.orbitsList[0] ?? null,
   )
 
   const hasBucket = computed(
-    () => bucketsStore.buckets.length > 0 || orbitsStore.orbitsList.length > 0,
+    () => organizationBuckets.value.length > 0 || orbitsStore.orbitsList.length > 0,
   )
 
   const hasCollection = computed(() =>
@@ -62,8 +76,10 @@ export const useQuickStart = () => {
 
   const activeStep = computed<QuickStartStepEnum | null>(() => {
     if (!authStore.isAuth) return QuickStartStepEnum.account
-    if (!organizationId.value || !isBucketsLoaded.value) return null
-    if (!hasBucket.value) return QuickStartStepEnum.bucket
+    if (!organizationId.value || !isBucketsSettled.value) return null
+    if (!hasBucket.value) {
+      return canManageBuckets.value && isBucketsLoaded.value ? QuickStartStepEnum.bucket : null
+    }
     if (!hasCollection.value && (collectionOrbit.value || canCreateOrbit.value)) {
       return QuickStartStepEnum.collection
     }
@@ -90,7 +106,7 @@ export const useQuickStart = () => {
   }
 
   async function createDefaultOrbit(orgId: string) {
-    const bucket = isBucketsLoaded.value ? bucketsStore.buckets[0] : undefined
+    const bucket = organizationBuckets.value[0]
     if (!bucket) throw new Error('Storage bucket not found')
     const orbit = await orbitsStore.createOrbit(orgId, {
       name: DEFAULT_ORBIT_NAME,
@@ -124,19 +140,26 @@ export const useQuickStart = () => {
     orbitsStore.loadOrbitsList(requestInfo.organizationId)
   }
 
-  async function loadBuckets(id: string | null) {
-    isBucketsLoaded.value = false
+  async function loadBuckets([id, canListBuckets]: [string | null, boolean]) {
+    const requestId = ++bucketsRequestId
+    isBucketsSettled.value = false
+    bucketsOrganizationId.value = null
     if (!id || !authStore.isAuth) return
+    if (!canListBuckets) {
+      isBucketsSettled.value = true
+      return
+    }
     try {
       await bucketsStore.getBuckets(id)
+      if (requestId === bucketsRequestId) bucketsOrganizationId.value = id
     } catch (e) {
       console.warn('Failed to load buckets', e)
     } finally {
-      if (id === organizationId.value) isBucketsLoaded.value = true
+      if (requestId === bucketsRequestId) isBucketsSettled.value = true
     }
   }
 
-  watch(organizationId, loadBuckets, { immediate: true })
+  watch([organizationId, canManageBuckets], loadBuckets, { immediate: true })
 
   return {
     steps,
