@@ -14,20 +14,6 @@ export const dashboardFinishConfirmOptions = (accept: () => void): ConfirmationO
   accept,
 })
 
-export const deleteAccountConfirmOptions = (accept: () => void): ConfirmationOptions => ({
-  message: 'Deleting your account is permanent and irreversible. ',
-  header: 'Are you sure?',
-  rejectProps: {
-    label: 'Cancel',
-  },
-  acceptProps: {
-    label: 'Delete account',
-    severity: 'warn',
-    outlined: true,
-  },
-  accept,
-})
-
 export const runOptimizationConfirmOptions = (accept: () => void): ConfirmationOptions => ({
   message: "Please confirm that you've reviewed all settings before proceeding.",
   header: 'Ready to start optimization?',
