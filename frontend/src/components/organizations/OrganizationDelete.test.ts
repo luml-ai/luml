@@ -14,15 +14,20 @@ vi.mock('primevue', async (importOriginal) => ({
 }))
 vi.mock('@/lib/api', () => ({ api: {} }))
 
-async function confirmDeletion() {
-  const wrapper = shallowMount(OrganizationDelete, {
+function mountDelete() {
+  return shallowMount(OrganizationDelete, {
     global: {
+      directives: { tooltip: () => undefined },
       stubs: {
-        Button: { template: '<button><slot /></button>' },
+        Button: { template: '<button :disabled="$attrs.disabled"><slot /></button>' },
         Dialog: { template: '<div><slot /><slot name="footer" /></div>' },
       },
     },
   })
+}
+
+async function confirmDeletion() {
+  const wrapper = mountDelete()
   await wrapper.findComponent({ name: 'Checkbox' }).vm.$emit('update:modelValue', true)
   await wrapper.findAll('button')[2].trigger('click')
   await flushPromises()
@@ -98,7 +103,10 @@ it('stays on the page when the deletion itself fails', async () => {
 })
 
 it('blocks deletion while other members remain', async () => {
-  const store = selectFirstOf([{ id: 'organization-a', name: 'A' } as Organization])
+  const store = selectFirstOf([
+    { id: 'organization-a', name: 'A' } as Organization,
+    { id: 'organization-b', name: 'B' } as Organization,
+  ])
   store.organizationDetails = {
     members: [{ id: 'owner' }, { id: 'member-1' }, { id: 'member-2' }],
   } as OrganizationDetails
@@ -109,5 +117,28 @@ it('blocks deletion while other members remain', async () => {
   expect(wrapper.text()).toContain('Remove the other 2 members')
   expect(wrapper.findAll('button')[2].attributes('disabled')).toBeDefined()
   expect(store.deleteOrganization).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('disables deleting the only organization', async () => {
+  const store = selectFirstOf([{ id: 'organization-a', name: 'A' } as Organization])
+  vi.spyOn(store, 'deleteOrganization')
+
+  const wrapper = mountDelete()
+
+  expect(wrapper.findAll('button')[0].attributes('disabled')).toBeDefined()
+  expect(store.deleteOrganization).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('allows deleting an organization when another one remains', async () => {
+  selectFirstOf([
+    { id: 'organization-a', name: 'A' } as Organization,
+    { id: 'organization-b', name: 'B' } as Organization,
+  ])
+
+  const wrapper = mountDelete()
+
+  expect(wrapper.findAll('button')[0].attributes('disabled')).toBeUndefined()
   wrapper.unmount()
 })

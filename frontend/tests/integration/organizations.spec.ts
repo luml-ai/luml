@@ -227,9 +227,23 @@ test.describe('Organizations', () => {
 
 
   test.describe('Delete organization', () => {
+    test('delete button is disabled for the only organization', async ({ page }) => {
+      await page.goto(`/organization/${ORG_ID}`)
+
+      const deleteButton = page.getByRole('button', { name: /delete organization/i })
+      await expect(deleteButton).toBeDisabled()
+      await deleteButton.hover({ force: true })
+      await expect(page.getByText('This is your only organization')).toBeVisible()
+    })
+
     test('delete button is disabled until the confirmation checkbox is checked', async ({
       page,
+      apiMocks,
     }) => {
+      await apiMocks.get('**/v1/users/me/organizations', [
+        makeOrganization(),
+        makeOrganization({ id: ORG_ID_2, name: 'Second Org' }),
+      ])
       await page.goto(`/organization/${ORG_ID}`)
       await page.getByRole('button', { name: /delete organization/i }).click()
 
@@ -246,6 +260,10 @@ test.describe('Organizations', () => {
       page,
       apiMocks,
     }) => {
+      await apiMocks.get('**/v1/users/me/organizations', [
+        makeOrganization(),
+        makeOrganization({ id: ORG_ID_2, name: 'Second Org' }),
+      ])
       let deleteCalled = false
       await apiMocks.delete(`**/v1/organizations/${ORG_ID}`, () => {
         deleteCalled = true

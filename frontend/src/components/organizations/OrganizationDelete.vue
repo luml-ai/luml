@@ -1,5 +1,12 @@
 <template>
-  <Button severity="warn" variant="outlined" @click="visible = true">Delete organization</Button>
+  <Button
+    severity="warn"
+    variant="outlined"
+    :disabled="isOnlyOrganization"
+    v-tooltip.top="deleteButtonTooltip"
+    @click="visible = true"
+    >Delete organization</Button
+  >
   <Dialog
     v-model:visible="visible"
     modal
@@ -55,6 +62,12 @@ const accept = ref(false)
 const loading = ref(false)
 const otherMembersCount = computed(() =>
   Math.max((organizationStore.organizationDetails?.members.length ?? 1) - 1, 0),
+)
+const isOnlyOrganization = computed(() => organizationStore.availableOrganizations.length <= 1)
+const deleteButtonTooltip = computed(() =>
+  isOnlyOrganization.value
+    ? 'This is your only organization. Create another one first, or delete your account instead.'
+    : null,
 )
 
 async function deleteOrganization() {
