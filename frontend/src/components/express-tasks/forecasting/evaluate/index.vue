@@ -217,6 +217,7 @@ const EXPORT_ITEMS = [
 
 const endDate = ref<Date | null>(null)
 const isForecasting = ref(false)
+let forecastVersion = 0
 const rawForecast = ref<ForecastPredictedRecord[]>([])
 const rawFuture = ref<ForecastingRecord[]>([])
 const futureState = ref<{ complete: boolean; future: ForecastingRecord[] }>({
@@ -292,12 +293,19 @@ const supplied = computed<Record<string, ForecastPoint[]> | null>(() => {
 // horizon does — otherwise the chart overlay and download keep the old inputs.
 function onFutureChange(state: { complete: boolean; future: ForecastingRecord[] }): void {
   futureState.value = state
+  invalidateForecast()
+}
+
+function invalidateForecast(): void {
+  forecastVersion++
+  isForecasting.value = false
   rawForecast.value = []
   rawFuture.value = []
 }
 
 async function runForecast(): Promise<void> {
   if (!canForecast.value || isForecasting.value) return
+  const version = forecastVersion
   const request: ForecastingPredictRequest = {
     model_id: props.modelId,
     history: props.history,
@@ -307,11 +315,11 @@ async function runForecast(): Promise<void> {
   isForecasting.value = true
   try {
     const result = await props.predict(request)
-    if (!result) return
+    if (!result || version !== forecastVersion) return
     rawForecast.value = result.forecast
-    rawFuture.value = hasKnownFuture.value ? futureState.value.future : []
+    rawFuture.value = request.future ?? []
   } finally {
-    isForecasting.value = false
+    if (version === forecastVersion) isForecasting.value = false
   }
 }
 
@@ -339,10 +347,7 @@ function finishConfirm(): void {
 }
 
 // A changed horizon invalidates any prior forecast.
-watch(endDate, () => {
-  rawForecast.value = []
-  rawFuture.value = []
-})
+watch(endDate, invalidateForecast, { flush: 'sync' })
 </script>
 
 <style scoped>
