@@ -24,7 +24,7 @@ export const SIDEBAR_SECTIONS = [
         id: 1,
         label: 'Express tasks',
         icon: Zap,
-        route: 'home',
+        route: 'express-tasks',
         disabled: false,
         tooltipMessage: null,
         analyticsOption: 'express_tasks',

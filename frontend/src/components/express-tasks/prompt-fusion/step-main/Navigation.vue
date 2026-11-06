@@ -34,7 +34,7 @@ function onBackClick() {
 }
 function onFinishClick() {
   AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'prompt_optimization' })
-  router.push({ name: 'home' })
+  router.push({ name: 'express-tasks' })
 }
 </script>
 
