@@ -84,6 +84,16 @@ describe('SetupPage first card', () => {
     expect(card.find('.actions').exists()).toBe(true)
   })
 
+  it('offers to create an orbit when there is no organization', async () => {
+    state.isAuth = true
+    const wrapper = mount(SetupPage, {
+      global: { stubs: { DButton: true, OrbitCreator: true, UiPageLoader: true } },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.card')[0]!.find('.title').text()).toBe('Create an Orbit')
+  })
+
   it('asks members who cannot create orbits to be added to one', async () => {
     const card = await firstCard(['list'])
 

@@ -101,10 +101,11 @@ const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 
 const isCreateOrbitMode = ref(false)
-const canCreateOrbit = computed(
-  () =>
-    !!organizationStore.currentOrganization?.permissions?.orbit?.includes(PermissionEnum.create),
-)
+const canCreateOrbit = computed(() => {
+  const organization = organizationStore.currentOrganization
+  if (!organization) return true
+  return !!organization.permissions?.orbit?.includes(PermissionEnum.create)
+})
 const isLoading = ref(true)
 
 onMounted(() => {
