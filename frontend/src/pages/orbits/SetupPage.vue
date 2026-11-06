@@ -30,7 +30,7 @@
             </div>
           </template>
 
-          <template v-else>
+          <template v-else-if="canCreateOrbit">
             <div class="content">
               <div class="title">Create an Orbit</div>
               <p class="text">
@@ -39,6 +39,13 @@
             </div>
             <div class="actions">
               <d-button label="Create orbit" @click="isCreateOrbitMode = true" />
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="content">
+              <div class="title">No orbits yet</div>
+              <p class="text">Ask your organization's owner or admin to add you to an orbit.</p>
             </div>
           </template>
         </div>
@@ -79,7 +86,7 @@ import { useOrganizationStore } from '@/stores/organization'
 import { useOrbitsStore } from '@/stores/orbits'
 import OrbitCreator from '@/components/orbits/creator/OrbitCreator.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
-import type { Orbit } from '@/lib/api/api.interfaces'
+import { PermissionEnum, type Orbit } from '@/lib/api/api.interfaces'
 import { TAB_TO_ROUTE } from '@/constants/orbit-navigation'
 import {
   LOCAL_FLOW_COMMANDS,
@@ -94,6 +101,11 @@ const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 
 const isCreateOrbitMode = ref(false)
+const canCreateOrbit = computed(() => {
+  const organization = organizationStore.currentOrganization
+  if (!organization) return true
+  return !!organization.permissions?.orbit?.includes(PermissionEnum.create)
+})
 const isLoading = ref(true)
 
 onMounted(() => {

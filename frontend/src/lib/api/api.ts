@@ -245,8 +245,15 @@ export class ApiClass {
   }
 
   public async getOrganizationMembers(organizationId: string) {
-    const { data: responseData } = await this.api.get<Member>(
+    const { data: responseData } = await this.api.get<Member[]>(
       `/v1/organizations/${organizationId}/members`,
+    )
+    return responseData
+  }
+
+  public async transferOrganizationOwnership(organizationId: string, memberId: string) {
+    const { data: responseData } = await this.api.post<Member>(
+      `/v1/organizations/${organizationId}/members/${memberId}/transfer-ownership`,
     )
     return responseData
   }

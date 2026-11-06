@@ -258,3 +258,85 @@ class TestOrganizationMemberRepository:
             OrgRole.ADMIN,
             *([OrgRole.MEMBER] * (len(seeded_organization_with_members.members) - 2)),
         ]
+
+    async def test_transfer_organization_ownership_swaps_owner_and_successor(
+        self,
+        repository: UserRepository,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
+    ) -> None:
+        organization_id = seeded_organization.organization.id
+        successor_user = await repository.create_user(
+            new_user.model_copy(
+                update={"email": f"successor_{uuid.uuid4()}@example.com"}
+            )
+        )
+        successor = await repository.create_organization_member(
+            OrganizationMemberCreate(
+                user_id=successor_user.id,
+                organization_id=organization_id,
+                role=OrgRole.MEMBER,
+            )
+        )
+
+        new_owner = await repository.transfer_organization_ownership(
+            organization_id, seeded_organization.user.id, successor.id
+        )
+
+        assert new_owner is not None
+        assert new_owner.id == successor.id
+        assert new_owner.role == OrgRole.OWNER
+        assert new_owner.user.id == successor_user.id
+        assert (
+            await repository.get_organization_member_role(
+                organization_id, seeded_organization.user.id
+            )
+            == OrgRole.ADMIN
+        )
+
+    async def test_transfer_organization_ownership_refuses_invalid_transfers(
+        self,
+        repository: UserRepository,
+        seeded_organization: OrganizationFixtureData,
+        new_user: CreateUser,
+    ) -> None:
+        organization_id = seeded_organization.organization.id
+        member_user = await repository.create_user(
+            new_user.model_copy(update={"email": f"member_{uuid.uuid4()}@example.com"})
+        )
+        member = await repository.create_organization_member(
+            OrganizationMemberCreate(
+                user_id=member_user.id,
+                organization_id=organization_id,
+                role=OrgRole.MEMBER,
+            )
+        )
+        foreign_user = await repository.create_user(
+            new_user.model_copy(update={"email": f"foreign_{uuid.uuid4()}@example.com"})
+        )
+        foreign_organization = (
+            await repository.get_user_organizations(foreign_user.id)
+        )[0]
+        foreign_member = await repository.get_organization_member(
+            foreign_organization.id, foreign_user.id
+        )
+        assert foreign_member is not None
+
+        for owner_user_id, member_id in (
+            (member_user.id, seeded_organization.member.id),
+            (seeded_organization.user.id, seeded_organization.member.id),
+            (seeded_organization.user.id, foreign_member.id),
+            (seeded_organization.user.id, uuid.uuid4()),
+        ):
+            assert (
+                await repository.transfer_organization_ownership(
+                    organization_id, owner_user_id, member_id
+                )
+                is None
+            )
+
+        members = await repository.get_organization_members(organization_id)
+        assert {(item.id, item.role) for item in members} == {
+            (seeded_organization.member.id, OrgRole.OWNER),
+            (member.id, OrgRole.MEMBER),
+        }

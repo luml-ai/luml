@@ -106,7 +106,7 @@ async function reject(organizationId: string, inviteId: string) {
   border-radius: 8px;
 }
 .table {
-  min-width: 858px;
+  min-width: 720px;
 }
 .table-header {
   font-weight: 500;
@@ -122,7 +122,7 @@ async function reject(organizationId: string, inviteId: string) {
 }
 .table-row {
   display: grid;
-  grid-template-columns: 263px 120px 150px 150px auto;
+  grid-template-columns: minmax(160px, 1fr) 120px 150px 150px auto;
   align-items: center;
   gap: 24px;
 }

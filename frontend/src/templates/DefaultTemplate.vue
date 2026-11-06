@@ -1,7 +1,11 @@
 <template>
   <div
     class="wrapper"
-    :style="{ paddingLeft: sidebarWidth + 'px', paddingTop: headerSizes.height + 'px' }"
+    :style="{
+      paddingLeft: sidebarWidth + 'px',
+      paddingTop: headerSizes.height + 'px',
+      '--layout-header-height': headerSizes.height + 'px',
+    }"
   >
     <UiClosablePlug
       v-if="plugStore.visible"

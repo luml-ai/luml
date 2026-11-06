@@ -10,14 +10,29 @@
       <div class="views">
         <RouterView></RouterView>
       </div>
-      <section v-if="canDeleteOrganization" class="danger-zone">
-        <div>
-          <div class="danger-zone-title">Delete organization</div>
-          <p class="danger-zone-text">
-            Permanently remove this organization with all its members, orbits and data.
-          </p>
+      <section v-if="isOwner || canDeleteOrganization" class="danger-zone">
+        <h2 class="danger-zone-heading">Danger zone</h2>
+        <div class="danger-zone-box">
+          <div v-if="isOwner" class="danger-zone-row">
+            <div>
+              <div class="danger-zone-title">Transfer ownership</div>
+              <p class="danger-zone-text">
+                Make another member the owner of this organization. You stay in it as an admin.
+              </p>
+            </div>
+            <OrganizationTransferOwnership></OrganizationTransferOwnership>
+          </div>
+          <div v-if="canDeleteOrganization" class="danger-zone-row">
+            <div>
+              <div class="danger-zone-title">Delete organization</div>
+              <p class="danger-zone-text">
+                Permanently remove this organization with all its orbits and data. Remove the other
+                members first.
+              </p>
+            </div>
+            <OrganizationDelete></OrganizationDelete>
+          </div>
         </div>
-        <OrganizationDelete></OrganizationDelete>
       </section>
     </div>
   </div>
@@ -36,6 +51,7 @@ import OrganizationLimits from '@/components/organizations/OrganizationLimits.vu
 import OrganizationTabs from '@/components/organizations/OrganizationTabs.vue'
 import OrganizationLocked from '@/components/organizations/OrganizationLocked.vue'
 import OrganizationDelete from '@/components/organizations/OrganizationDelete.vue'
+import OrganizationTransferOwnership from '@/components/organizations/OrganizationTransferOwnership.vue'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import type { ApiError } from '@/helpers/helpers'
@@ -52,6 +68,10 @@ const hasPermission = computed(() => {
   if (!userRole || userRole === OrganizationRoleEnum.member) return false
   return true
 })
+
+const isOwner = computed(
+  () => organizationStore.currentOrganization?.role === OrganizationRoleEnum.owner,
+)
 
 const canDeleteOrganization = computed(
   () =>
@@ -116,6 +136,9 @@ watch(
 
 <style scoped>
 .organization-page {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100svh - var(--layout-header-height, 0px) - 60px);
   padding-top: 30px;
 }
 .info {
@@ -129,15 +152,31 @@ watch(
 }
 .views {
   padding-top: 24px;
+  padding-bottom: 44px;
 }
 .danger-zone {
+  margin-top: auto;
+  padding: 24px 0;
+}
+.danger-zone-heading {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.danger-zone-box {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-button-outlined-warn-border-color);
+  border-radius: 8px;
+}
+.danger-zone-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 44px;
-  padding: 24px 0;
-  border-top: 1px solid var(--p-divider-border-color);
+  padding: 16px 20px;
+}
+.danger-zone-row + .danger-zone-row {
+  border-top: 1px solid var(--p-content-border-color);
 }
 .danger-zone-title {
   font-weight: 500;

@@ -1,5 +1,12 @@
 <template>
-  <Button severity="warn" variant="outlined" @click="visible = true">Delete organization</Button>
+  <Button
+    severity="warn"
+    variant="outlined"
+    :disabled="isOnlyOrganization"
+    v-tooltip.top="deleteButtonTooltip"
+    @click="visible = true"
+    >Delete organization</Button
+  >
   <Dialog
     v-model:visible="visible"
     modal
@@ -8,13 +15,19 @@
     :style="{ width: '350px' }"
   >
     <div>
-      <p class="text">
+      <p v-if="otherMembersCount" class="text">
+        Remove the other
+        {{ otherMembersCount === 1 ? 'member' : `${otherMembersCount} members` }} from
+        <span class="name">{{ organizationStore.currentOrganization?.name }}</span> before deleting
+        it.
+      </p>
+      <p v-else class="text">
         This will permanently remove
         <span class="name">{{ organizationStore.currentOrganization?.name }}</span> with all its
-        members, orbits and data. This action is final and cannot be undone.
+        orbits and data. This action is final and cannot be undone.
       </p>
       <div class="flex items-center gap-2">
-        <Checkbox v-model="accept" inputId="deleteAccept" binary />
+        <Checkbox v-model="accept" inputId="deleteAccept" binary :disabled="!!otherMembersCount" />
         <label for="deleteAccept"> Yes, delete this organization. </label>
       </div>
     </div>
@@ -23,7 +36,7 @@
       <Button
         severity="warn"
         outlined
-        :disabled="!accept"
+        :disabled="!accept || !!otherMembersCount"
         :loading="loading"
         @click="deleteOrganization"
         >Delete</Button
@@ -34,7 +47,7 @@
 
 <script setup lang="ts">
 import { getErrorMessage } from '@/helpers/helpers'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Checkbox, Button, Dialog, useToast } from 'primevue'
 import { useOrganizationStore } from '@/stores/organization'
 import { useRouter } from 'vue-router'
@@ -47,6 +60,15 @@ const router = useRouter()
 const visible = ref(false)
 const accept = ref(false)
 const loading = ref(false)
+const otherMembersCount = computed(() =>
+  Math.max((organizationStore.organizationDetails?.members.length ?? 1) - 1, 0),
+)
+const isOnlyOrganization = computed(() => organizationStore.availableOrganizations.length <= 1)
+const deleteButtonTooltip = computed(() =>
+  isOnlyOrganization.value
+    ? 'This is your only organization. Create another one first, or delete your account instead.'
+    : null,
+)
 
 async function deleteOrganization() {
   const organizationId = organizationStore.currentOrganization?.id

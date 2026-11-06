@@ -1,7 +1,7 @@
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, expect, it, vi } from 'vitest'
-import type { Organization } from '@/lib/api/api.interfaces'
+import type { Organization, OrganizationDetails } from '@/lib/api/api.interfaces'
 import { useOrganizationStore } from '@/stores/organization'
 import OrganizationDelete from './OrganizationDelete.vue'
 
@@ -14,15 +14,20 @@ vi.mock('primevue', async (importOriginal) => ({
 }))
 vi.mock('@/lib/api', () => ({ api: {} }))
 
-async function confirmDeletion() {
-  const wrapper = shallowMount(OrganizationDelete, {
+function mountDelete() {
+  return shallowMount(OrganizationDelete, {
     global: {
+      directives: { tooltip: () => undefined },
       stubs: {
-        Button: { template: '<button><slot /></button>' },
+        Button: { template: '<button :disabled="$attrs.disabled"><slot /></button>' },
         Dialog: { template: '<div><slot /><slot name="footer" /></div>' },
       },
     },
   })
+}
+
+async function confirmDeletion() {
+  const wrapper = mountDelete()
   await wrapper.findComponent({ name: 'Checkbox' }).vm.$emit('update:modelValue', true)
   await wrapper.findAll('button')[2].trigger('click')
   await flushPromises()
@@ -94,5 +99,46 @@ it('stays on the page when the deletion itself fails', async () => {
   expect(harness.routerReplace).not.toHaveBeenCalled()
   expect(harness.toastAdd).toHaveBeenCalledOnce()
   expect(harness.toastAdd).toHaveBeenCalledWith(expect.objectContaining({ severity: 'error' }))
+  wrapper.unmount()
+})
+
+it('blocks deletion while other members remain', async () => {
+  const store = selectFirstOf([
+    { id: 'organization-a', name: 'A' } as Organization,
+    { id: 'organization-b', name: 'B' } as Organization,
+  ])
+  store.organizationDetails = {
+    members: [{ id: 'owner' }, { id: 'member-1' }, { id: 'member-2' }],
+  } as OrganizationDetails
+  vi.spyOn(store, 'deleteOrganization')
+
+  const wrapper = await confirmDeletion()
+
+  expect(wrapper.text()).toContain('Remove the other 2 members')
+  expect(wrapper.findAll('button')[2].attributes('disabled')).toBeDefined()
+  expect(store.deleteOrganization).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('disables deleting the only organization', async () => {
+  const store = selectFirstOf([{ id: 'organization-a', name: 'A' } as Organization])
+  vi.spyOn(store, 'deleteOrganization')
+
+  const wrapper = mountDelete()
+
+  expect(wrapper.findAll('button')[0].attributes('disabled')).toBeDefined()
+  expect(store.deleteOrganization).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('allows deleting an organization when another one remains', async () => {
+  selectFirstOf([
+    { id: 'organization-a', name: 'A' } as Organization,
+    { id: 'organization-b', name: 'B' } as Organization,
+  ])
+
+  const wrapper = mountDelete()
+
+  expect(wrapper.findAll('button')[0].attributes('disabled')).toBeUndefined()
   wrapper.unmount()
 })

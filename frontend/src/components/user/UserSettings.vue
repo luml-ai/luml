@@ -88,10 +88,11 @@
         label="Delete account"
         severity="warn"
         variant="outlined"
-        @click="deleteAccountConfirm"
+        @click="isDeleteAccountVisible = true"
       />
       <d-button label="Save changes" type="submit" :disabled="userStore.isUserDisabled" />
     </div>
+    <DeleteAccountModal v-model:show="isDeleteAccountVisible" />
   </d-form>
 </template>
 
@@ -101,22 +102,18 @@ import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useInputIcon } from '@/hooks/useInputIcon'
 import { useUserStore } from '@/stores/user'
-import { useConfirm } from 'primevue/useconfirm'
-import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 
 import type { IUpdateUserRequest } from '@/lib/api/api.interfaces'
 import { userSettingResolver } from '@/utils/forms/resolvers'
 import { userProfileUpdateSuccessToast } from '@/lib/primevue/data/toasts'
 import { storeToRefs } from 'pinia'
-import { deleteAccountConfirmOptions } from '@/lib/primevue/data/confirm'
 import { getErrorMessage } from '@/helpers/helpers'
+import DeleteAccountModal from './DeleteAccountModal.vue'
 
 const userStore = useUserStore()
 const { getUserFullName, getUserEmail, isUserLoggedWithSSO } = storeToRefs(userStore)
 
-const confirm = useConfirm()
-const router = useRouter()
 const toast = useToast()
 
 type Emits = {
@@ -143,19 +140,11 @@ const { getCurrentInputIcon, onIconClick } = useInputIcon(
 )
 
 const newAvatar = ref<File | null>(null)
+const isDeleteAccountVisible = ref(false)
 const formResponseError = ref('')
 
 const showSuccess = (detail?: string) => {
   toast.add(userProfileUpdateSuccessToast(detail))
-}
-
-const deleteAccountConfirm = () => {
-  const accept = async () => {
-    await userStore.deleteAccount()
-    router.push({ name: 'sign-up' })
-  }
-
-  confirm.require(deleteAccountConfirmOptions(accept))
 }
 
 const onFormSubmit = async ({ valid }: FormSubmitEvent) => {

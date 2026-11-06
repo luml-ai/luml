@@ -2,12 +2,13 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
 from luml.infra.exceptions import (
+    AccountDeleteError,
     DatabaseConstraintError,
     NotFoundError,
     OrganizationDeleteError,
@@ -109,10 +110,59 @@ class UserRepository(RepositoryBase, CrudMixin):
             return db_user.to_public_user() if db_user else None
 
     async def delete_user(self, email: EmailStr) -> None:
-        async with self._get_session() as session:
-            return await self.delete_model_where(
-                session, UserOrm, UserOrm.email == email
+        async with self._get_session() as session, session.begin():
+            user_id = await session.scalar(
+                select(UserOrm.id).where(UserOrm.email == email)
             )
+            if user_id is None:
+                return
+
+            organization_ids = select(OrganizationMemberOrm.organization_id).where(
+                OrganizationMemberOrm.user_id == user_id
+            )
+            organizations = list(
+                await session.scalars(
+                    select(OrganizationOrm)
+                    .where(OrganizationOrm.id.in_(organization_ids))
+                    .order_by(OrganizationOrm.id)
+                    .with_for_update()
+                )
+            )
+            await session.scalar(
+                select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
+            )
+            current_ids = set(await session.scalars(organization_ids))
+            if not current_ids.issubset({org.id for org in organizations}):
+                raise AccountDeleteError(
+                    "Organization membership changed. "
+                    "Please retry deleting your account."
+                )
+
+            for organization in organizations:
+                members = (
+                    await session.execute(
+                        select(
+                            OrganizationMemberOrm.user_id,
+                            OrganizationMemberOrm.role,
+                        )
+                        .where(OrganizationMemberOrm.organization_id == organization.id)
+                        .order_by(OrganizationMemberOrm.id)
+                        .with_for_update()
+                    )
+                ).all()
+                remaining = [member for member in members if member.user_id != user_id]
+                is_owner = any(
+                    member.user_id == user_id and member.role == OrgRole.OWNER
+                    for member in members
+                )
+                if (members and not remaining) or (
+                    is_owner
+                    and not any(member.role == OrgRole.OWNER for member in remaining)
+                ):
+                    await session.delete(organization)
+
+            await session.flush()
+            await session.execute(delete(UserOrm).where(UserOrm.id == user_id))
 
     async def delete_signup(self, user_id: UUID) -> None:
         async with self._get_session() as session, session.begin():
@@ -330,6 +380,9 @@ class UserRepository(RepositoryBase, CrudMixin):
                     joinedload(OrganizationOrm.invites).joinedload(
                         OrganizationInviteOrm.organization
                     ),
+                    joinedload(OrganizationOrm.invites).joinedload(
+                        OrganizationInviteOrm.invited_by_user
+                    ),
                     joinedload(OrganizationOrm.orbits),
                 )
                 .where(OrganizationOrm.id == organization_id)
@@ -375,6 +428,51 @@ class UserRepository(RepositoryBase, CrudMixin):
                 OrganizationMemberOrm.id == member_id,
             )
             return db_member.to_organization_member() if db_member else None
+
+    async def transfer_organization_ownership(
+        self, organization_id: UUID, owner_user_id: UUID, member_id: UUID
+    ) -> OrganizationMember | None:
+        async with self._get_session() as session, session.begin():
+            await session.scalar(
+                select(OrganizationOrm.id)
+                .where(OrganizationOrm.id == organization_id)
+                .with_for_update()
+            )
+            members = list(
+                await session.scalars(
+                    select(OrganizationMemberOrm)
+                    .where(
+                        OrganizationMemberOrm.organization_id == organization_id,
+                        or_(
+                            OrganizationMemberOrm.user_id == owner_user_id,
+                            OrganizationMemberOrm.id == member_id,
+                        ),
+                    )
+                    .order_by(OrganizationMemberOrm.id)
+                    .with_for_update()
+                )
+            )
+            owner = next(
+                (member for member in members if member.user_id == owner_user_id),
+                None,
+            )
+            successor = next(
+                (member for member in members if member.id == member_id), None
+            )
+            if (
+                owner is None
+                or successor is None
+                or owner is successor
+                or owner.role != OrgRole.OWNER
+                or successor.role == OrgRole.OWNER
+            ):
+                return None
+
+            owner.role = OrgRole.ADMIN
+            successor.role = OrgRole.OWNER
+            await session.flush()
+            await session.refresh(successor)
+            return successor.to_organization_member()
 
     async def delete_organization_member(
         self, organization_id: UUID, member_id: UUID
