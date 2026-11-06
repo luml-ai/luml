@@ -1,7 +1,9 @@
 <template>
   <div class="home">
     <div class="intro">
-      <HomeWelcome class="welcome" :show-quick-start="!!activeStep" @quick-start="runActiveStep" />
+      <!-- TODO: restore Quick start on the home page -->
+      <!-- <HomeWelcome class="welcome" :show-quick-start="!!activeStep" @quick-start="runActiveStep" /> -->
+      <HomeWelcome class="welcome" :show-quick-start="false" />
       <HomeAgentOnboarding class="onboarding" />
     </div>
     <div class="products">
@@ -18,16 +20,19 @@
           class="connector right"
         />
       </div>
-      <HomeCoreCard :steps="steps" @run-step="runStep" />
+      <!-- TODO: restore Quick start on the home page -->
+      <!-- <HomeCoreCard :steps="steps" @run-step="runStep" /> -->
+      <HomeCoreCard :steps="steps" />
     </div>
-    <OrganizationBucketDialog v-model:visible="isBucketDialogVisible" show-info-block />
+    <!-- TODO: restore Quick start on the home page -->
+    <!-- <OrganizationBucketDialog v-model:visible="isBucketDialogVisible" show-info-block />
     <CollectionCreator
       v-if="organizationId"
       v-model:visible="isCollectionDialogVisible"
       :show-default-orbit-info="!collectionOrbit"
       :resolve-request-info="resolveCollectionRequestInfo"
       :after-create="onCollectionCreated"
-    />
+    /> -->
   </div>
 </template>
 
@@ -47,10 +52,12 @@ import HomeWelcome from '@/components/home/HomeWelcome.vue'
 import HomeAgentOnboarding from '@/components/home/HomeAgentOnboarding.vue'
 import HomeProductCard, { type HomeProduct } from '@/components/home/HomeProductCard.vue'
 import HomeCoreCard from '@/components/home/HomeCoreCard.vue'
-import OrganizationBucketDialog from '@/components/organizations/registry/OrganizationBucketDialog.vue'
-import CollectionCreator from '@/components/orbits/tabs/registry/CollectionCreator.vue'
+// TODO: restore Quick start on the home page
+// import OrganizationBucketDialog from '@/components/organizations/registry/OrganizationBucketDialog.vue'
+// import CollectionCreator from '@/components/orbits/tabs/registry/CollectionCreator.vue'
 
-import { useQuickStart } from '@/hooks/useQuickStart'
+// import { useQuickStart } from '@/hooks/useQuickStart'
+import { STEPS_CONFIG } from '@/hooks/useQuickStart'
 
 import { useUserStore } from '@/stores/user'
 import { passwordResetSuccessToast } from '@/lib/primevue/data/toasts'
@@ -91,18 +98,20 @@ const products: HomeProduct[] = [
   },
 ]
 
-const {
-  steps,
-  activeStep,
-  runStep,
-  runActiveStep,
-  organizationId,
-  collectionOrbit,
-  isBucketDialogVisible,
-  isCollectionDialogVisible,
-  resolveCollectionRequestInfo,
-  onCollectionCreated,
-} = useQuickStart()
+// TODO: restore Quick start on the home page
+// const {
+//   steps,
+//   activeStep,
+//   runStep,
+//   runActiveStep,
+//   organizationId,
+//   collectionOrbit,
+//   isBucketDialogVisible,
+//   isCollectionDialogVisible,
+//   resolveCollectionRequestInfo,
+//   onCollectionCreated,
+// } = useQuickStart()
+const steps = STEPS_CONFIG.map((step) => ({ ...step, active: false }))
 
 const userStore = useUserStore()
 const toast = useToast()

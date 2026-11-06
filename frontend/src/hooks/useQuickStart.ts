@@ -25,7 +25,7 @@ export interface QuickStartStep {
 
 const DEFAULT_ORBIT_NAME = 'Default Orbit'
 
-const STEPS_CONFIG: Omit<QuickStartStep, 'active'>[] = [
+export const STEPS_CONFIG: Omit<QuickStartStep, 'active'>[] = [
   { id: QuickStartStepEnum.account, label: 'Create an account', icon: User },
   { id: QuickStartStepEnum.bucket, label: 'Link a storage bucket', icon: FolderDot },
   { id: QuickStartStepEnum.collection, label: 'Create a collection', icon: Folders },
