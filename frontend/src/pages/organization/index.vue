@@ -11,24 +11,27 @@
         <RouterView></RouterView>
       </div>
       <section v-if="isOwner || canDeleteOrganization" class="danger-zone">
-        <div v-if="isOwner" class="danger-zone-row">
-          <div>
-            <div class="danger-zone-title">Transfer ownership</div>
-            <p class="danger-zone-text">
-              Make another member the owner of this organization. You stay in it as an admin.
-            </p>
+        <h2 class="danger-zone-heading">Danger zone</h2>
+        <div class="danger-zone-box">
+          <div v-if="isOwner" class="danger-zone-row">
+            <div>
+              <div class="danger-zone-title">Transfer ownership</div>
+              <p class="danger-zone-text">
+                Make another member the owner of this organization. You stay in it as an admin.
+              </p>
+            </div>
+            <OrganizationTransferOwnership></OrganizationTransferOwnership>
           </div>
-          <OrganizationTransferOwnership></OrganizationTransferOwnership>
-        </div>
-        <div v-if="canDeleteOrganization" class="danger-zone-row">
-          <div>
-            <div class="danger-zone-title">Delete organization</div>
-            <p class="danger-zone-text">
-              Permanently remove this organization with all its orbits and data. Remove the other
-              members first.
-            </p>
+          <div v-if="canDeleteOrganization" class="danger-zone-row">
+            <div>
+              <div class="danger-zone-title">Delete organization</div>
+              <p class="danger-zone-text">
+                Permanently remove this organization with all its orbits and data. Remove the other
+                members first.
+              </p>
+            </div>
+            <OrganizationDelete></OrganizationDelete>
           </div>
-          <OrganizationDelete></OrganizationDelete>
         </div>
       </section>
     </div>
@@ -152,18 +155,28 @@ watch(
   padding-bottom: 44px;
 }
 .danger-zone {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
   margin-top: auto;
   padding: 24px 0;
-  border-top: 1px solid var(--p-divider-border-color);
+}
+.danger-zone-heading {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.danger-zone-box {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-button-outlined-warn-border-color);
+  border-radius: 8px;
 }
 .danger-zone-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 16px 20px;
+}
+.danger-zone-row + .danger-zone-row {
+  border-top: 1px solid var(--p-content-border-color);
 }
 .danger-zone-title {
   font-weight: 500;
