@@ -10,6 +10,7 @@ import type {
 export const useSecretsStore = defineStore('secrets', () => {
   const secretsList = ref<OrbitSecret[]>([])
   const creatorVisible = ref(false)
+  let secretsRequestId = 0
 
   const existingTags = computed((): string[] => {
     const tagsSet = secretsList.value.reduce((acc: Set<string>, item) => {
@@ -28,7 +29,9 @@ export const useSecretsStore = defineStore('secrets', () => {
   }
 
   async function loadSecrets(organizationId: string, orbitId: string) {
-    secretsList.value = await api.orbitSecrets.getSecrets(organizationId, orbitId)
+    const requestId = ++secretsRequestId
+    const secrets = await api.orbitSecrets.getSecrets(organizationId, orbitId)
+    if (requestId === secretsRequestId) secretsList.value = secrets
   }
 
   async function addSecret(organizationId: string, orbitId: string, payload: CreateSecretPayload) {
@@ -55,6 +58,7 @@ export const useSecretsStore = defineStore('secrets', () => {
   }
 
   function reset() {
+    secretsRequestId++
     secretsList.value = []
     creatorVisible.value = false
   }
