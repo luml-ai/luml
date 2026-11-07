@@ -1,0 +1,36 @@
+name: PR Labeler
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr-numbers:
+        description: Pull request numbers to label, separated by spaces or commas
+        required: true
+
+permissions: {}
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Collect pull request numbers
+        id: prs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PR_NUMBERS: ${{ inputs.pr-numbers }}
+        run: |
+          {
+            echo "list<<EOF"
+            echo "$PR_NUMBERS" | tr ', ' '\n\n' | grep -E '^[0-9]+$'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/labeler@v7
+        with:
+          pr-number: ${{ steps.prs.outputs.list }}

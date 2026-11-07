@@ -1,0 +1,98 @@
+backend:
+  - changed-files:
+      - any-glob-to-any-file: "backend/**"
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: ["frontend/**", "package.json", "package-lock.json"]
+
+extras-js:
+  - changed-files:
+      - any-glob-to-any-file: "extras/js/**"
+
+luml-mlflow:
+  - changed-files:
+      - any-glob-to-any-file: "extras/python/luml-mlflow/**"
+
+Lumlflow:
+  - changed-files:
+      - all-globs-to-any-file: ["lumlflow/**", "!lumlflow/frontend/**"]
+
+lumlflow-frontend:
+  - changed-files:
+      - any-glob-to-any-file: "lumlflow/frontend/**"
+
+model-server:
+  - changed-files:
+      - any-glob-to-any-file: "model_servers/**"
+
+prisma:
+  - changed-files:
+      - any-glob-to-any-file: "prisma/**"
+
+relay:
+  - changed-files:
+      - any-glob-to-any-file: "relay/**"
+
+sdk-api:
+  - changed-files:
+      - any-glob-to-any-file: "sdk/python/api/**"
+
+SDK:
+  - changed-files:
+      - any-glob-to-any-file: "sdk/python/sdk/**"
+
+satellite:
+  - changed-files:
+      - all-globs-to-any-file:
+          - "satellite/**"
+          - "!satellite/kit/**"
+          - "!satellite/implementations/**"
+          - "!satellite/monitoring-ui/**"
+
+satellite-kit:
+  - changed-files:
+      - any-glob-to-any-file: "satellite/kit/**"
+
+satellite-docker:
+  - changed-files:
+      - any-glob-to-any-file: "satellite/implementations/docker/**"
+
+satellite-kubernetes:
+  - changed-files:
+      - any-glob-to-any-file: "satellite/implementations/kubernetes/**"
+
+satellite-monitoring-ui:
+  - changed-files:
+      - any-glob-to-any-file: "satellite/monitoring-ui/**"
+
+wasm:
+  - changed-files:
+      - all-globs-to-any-file:
+          - "wasm/**"
+          - "!wasm/jupyter/**"
+          - "!wasm/packages/**"
+
+wasm-jupyter:
+  - changed-files:
+      - any-glob-to-any-file: "wasm/jupyter/**"
+
+wasm-promptopt:
+  - changed-files:
+      - any-glob-to-any-file: "wasm/packages/promptopt/**"
+
+wasm-webworker:
+  - changed-files:
+      - any-glob-to-any-file: "wasm/packages/dfs_webworker/**"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "README.md", ".agents-onboarding/**"]
+
+dev:
+  - changed-files:
+      - any-glob-to-any-file: "dev/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ".github/**"
