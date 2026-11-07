@@ -159,3 +159,40 @@ class TestCtrlVPaste:
                 await pilot.press("ctrl+v")
                 await pilot.pause()
                 assert key_input.value == ""
+
+
+async def test_clipboard_read_does_not_block_ui(tmp_path, monkeypatch):
+    import asyncio
+    import threading
+
+    app = _make_app(tmp_path)
+    entered = threading.Event()
+    release = threading.Event()
+    loop_thread = threading.get_ident()
+    threads = []
+
+    def read():
+        threads.append(threading.get_ident())
+        entered.set()
+        release.wait(2)
+        return "key"
+
+    monkeypatch.setattr("lumlflow.tui.app.read_system_clipboard", read)
+    with patch.object(app.facade.auth, "has_api_key", return_value=False):
+        async with app.run_test() as pilot:
+            key_input = await _publish_screen_with_key_input(app, pilot)
+            try:
+                await pilot.press("ctrl+v")
+                for _ in range(100):
+                    if entered.is_set():
+                        break
+                    await asyncio.sleep(0.01)
+                assert entered.is_set()
+                assert threads[0] != loop_thread
+            finally:
+                release.set()
+            for _ in range(100):
+                if key_input.value:
+                    break
+                await asyncio.sleep(0.01)
+            assert key_input.value == "key"

@@ -16,8 +16,10 @@ export const durationToText = (seconds: number) => {
   return rest ? `${minutes}m ${rest}s` : `${minutes}m`
 }
 
-export const dateToText = (dataString: string) => {
+export const dateToText = (dataString: string | null | undefined) => {
+  if (!dataString) return '-'
   const date = new Date(dataString)
+  if (!Number.isFinite(date.getTime())) return '-'
   const pad = (n: number) => String(n).padStart(2, '0')
 
   return (

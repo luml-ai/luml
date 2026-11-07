@@ -32,6 +32,7 @@ All data fetching runs on Textual worker threads via the
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
@@ -478,6 +479,8 @@ class ExperimentDetailScreen(BaseScreen):
         # zoom view owns the pane.
         self._metric_keys: list[str] = []
         self._metric_history: dict[str, ExperimentMetricHistory] = {}
+        self._pending_metrics: dict[str, int] = {}
+        self._metric_loading = False
         self._zoomed_metric: str | None = None
 
     # ----- composition -----
@@ -772,15 +775,30 @@ class ExperimentDetailScreen(BaseScreen):
         ):
             grid.focus_first_cell()
 
-    @work(thread=True, group="experiment-metric")
     def _fetch_metric_history(self, key: str, *, max_points: int) -> None:
-        facade = self.facade
-        if facade is None:
-            return
-        result = facade.get_metric_history(
-            self._experiment_id, key, max_points=max_points
-        )
-        self.app.call_from_thread(self._on_metric_result, result, key)
+        self._pending_metrics[key] = max_points
+        if not self._metric_loading:
+            self._metric_loading = True
+            self._drain_metric_requests()
+
+    @work(group="experiment-metric")
+    async def _drain_metric_requests(self) -> None:
+        try:
+            while self._pending_metrics:
+                key = next(iter(self._pending_metrics))
+                max_points = self._pending_metrics.pop(key)
+                facade = self.facade
+                if facade is None:
+                    continue
+                result = await asyncio.to_thread(
+                    facade.get_metric_history,
+                    self._experiment_id,
+                    key,
+                    max_points=max_points,
+                )
+                self._on_metric_result(result, key)
+        finally:
+            self._metric_loading = False
 
     def _on_metric_result(self, result: Result[Any], key: str) -> None:
         if not result.ok:
