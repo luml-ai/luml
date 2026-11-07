@@ -90,6 +90,10 @@ untrusted origins return 403. Browsers send this header automatically; configure
 `CORS_ORIGINS` for the frontend origin in cross-origin deployments, including when
 `AUTH_COOKIE_SAMESITE=none`.
 
+The same-origin comparison uses the ASGI scope's scheme and server address.
+When a proxy exposes a different public API origin, include that origin in
+`CORS_ORIGINS` as well. The `Host` header does not select a trusted origin.
+
 Bearer JWT, API key, and satellite key requests use the `Authorization` header and
 do not require this check. Refresh and logout always use cookies and remain
 protected even if an `Authorization` header is supplied.
@@ -168,6 +172,9 @@ HMAC digests of the endpoint and the scope, so Redis never stores addresses or
 emails in clear text, and they expire with the window. When Redis is unreachable
 the limiter logs the failure and lets the request through, so a Redis outage
 degrades to the previous unthrottled behaviour instead of blocking sign-in.
+
+Endpoint keys use the ASGI scope's routed path, so changing `Host` cannot create
+additional rate-limit buckets.
 
 `REDIS_URL` is optional for now: when it is not set the backend starts, logs a
 warning and applies no authentication rate limits. This is a transition step
