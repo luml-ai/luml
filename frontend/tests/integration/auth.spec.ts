@@ -180,7 +180,7 @@ test.describe('Auth — Sign in', () => {
       await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 
       await expect(page.getByText('Email is incorrect')).toBeVisible()
-      await expect(page.getByText('Minimum password length 8 characters')).toBeVisible()
+      await expect(page.getByText('Password must be between 8 and 128 characters')).toBeVisible()
       expect(signinCalled).toBe(false)
     })
 
@@ -195,7 +195,7 @@ test.describe('Auth — Sign in', () => {
       await page.goto('/sign-in')
       await page.locator('#password input').fill('short')
       await page.getByLabel('Email').click()
-      await expect(page.getByText('Minimum password length 8 characters')).toBeVisible()
+      await expect(page.getByText('Password must be between 8 and 128 characters')).toBeVisible()
     })
 
     test('does not call signin API when validation fails on submit', async ({
