@@ -187,7 +187,7 @@
             :key="entry.label"
             class="shift"
           >
-            <span class="mono shift-label">{{ entry.label }}</span>
+            <span class="mono shift-label" :title="entry.label">{{ entry.label }}</span>
             <span class="shift-move">
               mean p {{ entry.mean == null ? '—' : entry.mean.toFixed(2) }}
             </span>
@@ -216,7 +216,7 @@
           <p class="section-subtitle">share of predictions vs the training reference</p>
           <ul class="shifts">
             <li v-for="shift in outputDrift.top_changed" :key="shift.label" class="shift">
-              <span class="mono shift-label">{{ shift.label }}</span>
+              <span class="mono shift-label" :title="shift.label">{{ shift.label }}</span>
               <span class="shift-move">
                 {{ formatRate(shift.reference) }} → {{ formatRate(shift.current) }}
               </span>
@@ -358,13 +358,21 @@ function psiTone(psi: number): string {
   border-bottom: none;
 }
 .shift-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-weight: 500;
   color: var(--luml-fg-strong);
 }
 .shift-move {
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--luml-fg-muted);
 }
 .shift-delta {
+  flex-shrink: 0;
+  white-space: nowrap;
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }

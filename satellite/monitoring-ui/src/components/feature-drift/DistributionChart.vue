@@ -6,7 +6,13 @@
 import { computed } from 'vue'
 import { chartGridColor, chartTextColor, chartSeriesColors, chartTooltipTheme } from '@/lib/theme'
 import { formatChartNumber } from '@/lib/format'
-import { CHART_HEIGHT, CHART_LEGEND, CHART_GRID_PADDING, escapeChartLabel } from '@/lib/charts'
+import {
+  CHART_HEIGHT,
+  CHART_LEGEND,
+  CHART_GRID_PADDING,
+  escapeChartLabel,
+  truncateChartLabel,
+} from '@/lib/charts'
 import type { FeatureDistribution } from '@/api/types'
 
 const props = withDefaults(
@@ -46,6 +52,8 @@ const options = computed(() => ({
       style: { colors: chartTextColor.value, fontSize: '11px' },
       rotate: 0,
       hideOverlappingLabels: true,
+      formatter: (value: string) =>
+        props.distribution.kind === 'categorical' ? truncateChartLabel(value) : value,
     },
     axisBorder: { show: false },
     axisTicks: { show: false },

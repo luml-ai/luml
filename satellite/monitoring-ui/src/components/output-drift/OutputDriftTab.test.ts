@@ -86,6 +86,25 @@ describe('OutputDriftTab', () => {
     expect(wrapper.text()).toContain('Class share over time')
   })
 
+  it('keeps long class names whole in the hover title of both class lists', () => {
+    const label = 'approved_with_manual_underwriting_review_required_by_policy_team'
+    const wrapper = mountTab({
+      outputDrift: makeOutputDrift({
+        kind: 'categorical',
+        trend: [],
+        top_changed: [{ label, reference: 0.3, current: 0.2, delta: -0.1 }],
+        probabilities: { per_class: [{ label, psi: 0.42, mean: 0.61 }], near_threshold: null },
+      }),
+      status: 'ready',
+    })
+
+    for (const testid of ['top-changed-classes', 'probability-drift']) {
+      const name = wrapper.find(`[data-testid="${testid}"] .shift-label`)
+      expect(name.text()).toBe(label)
+      expect(name.attributes('title')).toBe(label)
+    }
+  })
+
   it('shows the confidence early warning when the artifact reports scores', () => {
     const wrapper = mountTab({
       outputDrift: makeOutputDrift({

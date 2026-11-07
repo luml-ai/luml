@@ -1,5 +1,10 @@
 import type { Series } from '@/api/types'
 
+export function truncateChartLabel(value: string): string {
+  const characters = Array.from(value)
+  return characters.length > 16 ? characters.slice(0, 15).join('') + '…' : value
+}
+
 // apexcharts inserts legend names and tooltip labels as HTML
 export function escapeChartLabel(value: string): string {
   return value
