@@ -59,7 +59,8 @@ class BaseDialog[DialogResult](ModalScreen[DialogResult]):
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel", show=False),
-        Binding("enter", "confirm", "Confirm", show=False),
+        Binding("enter", "accept_default", "Default", show=False),
+        Binding("ctrl+y", "confirm", "Confirm", show=False),
     ]
 
     confirm_label: str = "OK"
@@ -86,6 +87,7 @@ class BaseDialog[DialogResult](ModalScreen[DialogResult]):
             self.destructive = destructive
 
     def compose(self) -> Iterable:  # type: ignore[override]
+        confirm_key = "Ctrl+Y" if self.destructive else "Enter"
         with Vertical():
             yield Label(self.title_text, id="dialog-title")
             if self.message is not None:
@@ -97,7 +99,7 @@ class BaseDialog[DialogResult](ModalScreen[DialogResult]):
                 # text instead of being parsed as Rich markup tags (which
                 # would silently drop the bracketed portion).
                 yield Static(
-                    f"[Enter] {self.confirm_label}",
+                    f"[{confirm_key}] {self.confirm_label}",
                     id="dialog-confirm-key",
                     markup=False,
                 )
@@ -117,8 +119,6 @@ class BaseDialog[DialogResult](ModalScreen[DialogResult]):
         # dialog is a ModalScreen and not in the regular widget tree's
         # bubble path that the app's `on_dialog_*` handlers expect.
         self.app.post_message(DialogOpened())
-        if self.destructive:
-            self._focus_cancel_default()
 
     def on_unmount(self) -> None:
         # `on_unmount` fires when the dialog is detached after dismiss. By
@@ -131,14 +131,11 @@ class BaseDialog[DialogResult](ModalScreen[DialogResult]):
             # If the app is mid-teardown, dropping the message is fine.
             pass
 
-    def _focus_cancel_default(self) -> None:
-        """For destructive dialogs the spec asks Cancel to be the default."""
-
-        # The default focus on a dialog without inputs is the screen itself;
-        # we leave focus on the screen so Enter still confirms via binding
-        # but the visual affordance highlights Cancel — `destructive` is
-        # rendered via the cancel-key affordance label.
-        return
+    def action_accept_default(self) -> None:
+        if self.destructive:
+            self.action_cancel()
+        else:
+            self.action_confirm()
 
     def set_error(self, message: str | None) -> None:
         """Show a non-fatal inline error inside the dialog."""

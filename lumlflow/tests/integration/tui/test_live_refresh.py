@@ -421,7 +421,7 @@ class TestExperimentDetailRefresh:
             screen.action_delete_focused_model()
             await pilot.pause()
             assert isinstance(app.screen, ConfirmDialog)
-            await pilot.press("enter")
+            await pilot.press("ctrl+y")
             await pilot.pause()
             assert yanked == [selected_id]
             assert deleted == [selected_id]

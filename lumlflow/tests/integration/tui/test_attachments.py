@@ -518,7 +518,7 @@ class TestSaveToDisk:
             )
             assert app.screen.confirm_label == "Overwrite"
             assert target.read_bytes() == b"original content"
-            await pilot.press("enter" if confirm else "escape")
+            await pilot.press("ctrl+y" if confirm else "escape")
             await app.workers.wait_for_complete()
             await pilot.pause()
             assert not isinstance(app.screen, ConfirmDialog)
