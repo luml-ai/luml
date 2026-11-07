@@ -53,3 +53,21 @@ def test_rejects_paths_outside_root(client: TestClient, path: str) -> None:
 def test_missing_file_is_404(client: TestClient) -> None:
     response = client.get("/missing.json")
     assert response.status_code == 404
+
+
+def test_host_header_does_not_change_file_lookup(client: TestClient) -> None:
+    response = client.get("/index.html", headers={"host": "untrusted.example"})
+    assert response.status_code == 200
+    assert response.content == b"<html></html>"
+
+
+def test_range_header_is_ignored(client: TestClient) -> None:
+    response = client.get("/index.html", headers={"range": "bytes=0-1"})
+    assert response.status_code == 200
+    assert response.content == b"<html></html>"
+
+
+@pytest.mark.parametrize("method", ["POST", "DELETE", "__init__"])
+def test_unsupported_methods_are_rejected(client: TestClient, method: str) -> None:
+    response = client.request(method, "/index.html")
+    assert response.status_code == 405

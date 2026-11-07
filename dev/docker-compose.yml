@@ -35,7 +35,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: df_studio
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -47,7 +47,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -61,8 +61,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -118,7 +118,7 @@ services:
       - --reload-dir
       - /app/luml
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   # Browsers resolve every name under localhost to this machine, so sessions
   # are served at http://<session>.sessions.localhost:8080 without DNS. The seed
@@ -133,7 +133,7 @@ services:
       LUML_RELAY_TOKEN: dfsrelay_dev-relay-token
       LUML_RELAY_COOKIE_SECRET: dev-relay-cookie-secret
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       backend:
         condition: service_started
@@ -221,7 +221,7 @@ services:
         EOF
         exec npx vite --host 0.0.0.0 --port 5173
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     depends_on:
       npm-install:
         condition: service_completed_successfully
