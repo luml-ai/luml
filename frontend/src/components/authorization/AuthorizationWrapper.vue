@@ -49,6 +49,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { onBeforeMount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getErrorMessage } from '@/helpers/helpers'
 import {
   clearStoredAuthRedirect,
   getStoredAuthRedirect,
@@ -109,7 +110,7 @@ onBeforeMount(async () => {
     clearStoredAuthRedirect()
     router.push(redirect || { name: 'home' })
   } catch (e) {
-    console.error(e)
+    servicesError.value = getErrorMessage(e, 'Unable to sign in. Please try again.')
   }
 })
 </script>

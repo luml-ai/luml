@@ -72,7 +72,8 @@ import { useUserStore } from '@/stores/user'
 
 import { resetPasswordInitialValues } from '@/utils/forms/initialValues'
 import { resetPasswordResolver } from '@/utils/forms/resolvers'
-import { passwordResetSuccessToast } from '@/lib/primevue/data/toasts'
+import { passwordResetSuccessToast, simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const userStore = useUserStore()
 const toast = useToast()
@@ -91,7 +92,9 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
     toast.add(passwordResetSuccessToast)
     router.push({ name: 'sign-in' })
   } catch (error) {
-    console.error(error)
+    toast.add(
+      simpleErrorToast(getErrorMessage(error, 'Unable to reset password. Please try again.')),
+    )
   }
 }
 

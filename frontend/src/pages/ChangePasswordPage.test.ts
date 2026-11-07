@@ -113,19 +113,31 @@ describe('ChangePasswordPage', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
-  it('does not report success or navigate when the reset request fails', async () => {
-    window.history.replaceState({}, '', '/change-password?token=test-reset-link')
-    resetPassword.mockRejectedValueOnce(new Error('Reset failed'))
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    wrapper = mountPage()
+  it.each([
+    { error: new Error('Token expired'), message: 'Token expired' },
+    {
+      error: { response: { data: { detail: 'Reset link has expired' } } },
+      message: 'Reset link has expired',
+    },
+    { error: undefined, message: 'Unable to reset password. Please try again.' },
+  ])(
+    'shows an error without navigating when the reset fails: $message',
+    async ({ error, message }) => {
+      window.history.replaceState({}, '', '/change-password?token=test-reset-link')
+      resetPassword.mockRejectedValueOnce(error)
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      wrapper = mountPage()
 
-    await wrapper.get('input[name="password"]').setValue('new-password')
-    await wrapper.get('input[name="password_confirm"]').setValue('new-password')
-    await wrapper.get('form').trigger('submit')
-    await flushPromises()
+      await wrapper.get('input[name="password"]').setValue('new-password')
+      await wrapper.get('input[name="password_confirm"]').setValue('new-password')
+      await wrapper.get('form').trigger('submit')
+      await flushPromises()
 
-    expect(resetPassword).toHaveBeenCalledExactlyOnceWith('test-reset-link', 'new-password')
-    expect(addToast).not.toHaveBeenCalled()
-    expect(push).not.toHaveBeenCalled()
-  })
+      expect(resetPassword).toHaveBeenCalledExactlyOnceWith('test-reset-link', 'new-password')
+      expect(addToast).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ severity: 'error', detail: message }),
+      )
+      expect(push).not.toHaveBeenCalled()
+    },
+  )
 })
