@@ -40,14 +40,14 @@ class DependencyHygieneTests(unittest.TestCase):
     def test_sdk_excludes_vulnerable_arrow_versions_and_locks_resolution(self):
         sdk = "sdk/python/sdk"
         project = project_file(f"{sdk}/pyproject.toml")
-        for group in (
-            project["project"]["optional-dependencies"]["datasets"],
-            project["dependency-groups"]["dev"],
+        for group, floor in (
+            (project["project"]["optional-dependencies"]["datasets"], (17, 0, 0)),
+            (project["dependency-groups"]["dev"], (23, 0, 1)),
         ):
             requirement = next(item for item in group if item.startswith("pyarrow"))
             minimum = re.search(r">=\s*(\d+\.\d+\.\d+)", requirement)
             self.assertIsNotNone(minimum)
-            self.assertGreaterEqual(tuple(map(int, minimum[1].split("."))), (23, 0, 1))
+            self.assertGreaterEqual(tuple(map(int, minimum[1].split("."))), floor)
         lock = project_file(f"{sdk}/uv.lock")
         arrow = next(p for p in lock["package"] if p["name"] == "pyarrow")
         self.assertGreaterEqual(

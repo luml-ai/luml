@@ -1624,7 +1624,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", marker = "extra == 'tracing'", specifier = ">=1.36.0" },
     { name = "pandas", marker = "extra == 'datasets'", specifier = ">=2.0.0,<3.0.0" },
     { name = "polars", marker = "extra == 'datasets-polars'", specifier = ">=1.0.0,<2.0.0" },
-    { name = "pyarrow", marker = "extra == 'datasets'", specifier = ">=23.0.1,<27.0.0" },
+    { name = "pyarrow", marker = "extra == 'datasets'", specifier = ">=17.0.0,<27.0.0" },
     { name = "pydantic", specifier = ">=2.11.7,<3.0.0" },
     { name = "pyfnx-utils", specifier = ">=0.0.1,<1.0.0" },
     { name = "sqlparse", specifier = ">=0.4.4,<1.0.0" },
