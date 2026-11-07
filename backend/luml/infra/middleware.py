@@ -81,12 +81,22 @@ class CookieCSRFMiddleware(BaseHTTPMiddleware):
         # refresh and logout use cookies even when an authorization header is present
         uses_cookie_auth = uses_session_cookie and (
             not request.headers.get("Authorization")
-            or request.url.path in {"/v1/auth/refresh", "/v1/auth/logout"}
+            or request.scope["path"] in {"/v1/auth/refresh", "/v1/auth/logout"}
         )
         if request.method not in {"GET", "HEAD", "OPTIONS"} and uses_cookie_auth:
             origin = request.headers.get("Origin")
-            same_origin = f"{request.url.scheme}://{request.url.netloc}"
-            if origin != same_origin and origin not in self.allowed_origins:
+            server = request.scope.get("server")
+            same_origin = None
+            if server is not None:
+                host, port = server
+                host = f"[{host}]" if ":" in host else host
+                scheme = request.scope["scheme"]
+                if port is not None and port != {"http": 80, "https": 443}.get(scheme):
+                    host = f"{host}:{port}"
+                same_origin = f"{scheme}://{host}"
+            if not origin or (
+                origin != same_origin and origin not in self.allowed_origins
+            ):
                 return JSONResponse(
                     {"detail": "CSRF origin check failed"}, status_code=403
                 )

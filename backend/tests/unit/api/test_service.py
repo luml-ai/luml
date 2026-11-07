@@ -9,6 +9,29 @@ WAITLIST_PAYLOAD = {"email": "waitlist@example.com", "description": "landing"}
 
 
 class TestService:
+    def test_openapi_preserves_metadata_and_authentication_after_route_changes(
+        self, app: AppService
+    ) -> None:
+        def endpoint() -> dict[str, str]:
+            return {"status": "ok"}
+
+        for register_route in [False, True]:
+            if register_route:
+                app.add_api_route("/schema-regression", endpoint)
+            schema = app.openapi()
+            assert schema["info"] == {
+                "title": "LUML AI API",
+                "version": "1.0.0",
+                "description": "API docs for LUML AI",
+            }
+            assert schema["components"]["securitySchemes"]["BearerAuth"] == {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+            assert schema["security"] == [{"BearerAuth": []}]
+            assert ("/schema-regression" in schema["paths"]) == register_route
+
     @pytest.mark.parametrize("principal", [ANONYMOUS], indirect=True)
     def test_stats_email_send_is_not_routed_for_an_anonymous_caller(
         self, client: TestClient
