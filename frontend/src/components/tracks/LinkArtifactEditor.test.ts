@@ -240,4 +240,25 @@ describe('LinkArtifactEditor stage removal', () => {
     )
     expect(store.entriesList).toEqual([updatedEntry])
   })
+
+  it('ignores a response from the same stage in a previously edited track', async () => {
+    let resolveOld!: (value: TrackEntry) => void
+    mocks.getEntryByStage.mockReturnValueOnce(
+      new Promise<TrackEntry>((resolve) => {
+        resolveOld = resolve
+      }),
+    )
+    const { wrapper, store } = await mountEditor()
+    store.showEditor({ ...entry, id: 'new-entry', track_id: 'track-2' })
+    mocks.getEntryByStage.mockResolvedValue({
+      ...entry,
+      id: 'latest',
+      track_id: 'track-2',
+      artifact_name: 'Latest model',
+    })
+    await flushPromises()
+    resolveOld({ ...entry, id: 'old-occupied' })
+    await flushPromises()
+    expect(wrapper.getComponent(StageWarning).props('artifact').id).toBe('latest')
+  })
 })

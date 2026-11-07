@@ -29,3 +29,9 @@ describe('flow routes', () => {
     expect(route.path).toBe(`/organization/${ORGANIZATION_ID}/orbits-list`)
   })
 })
+
+it('loads the orbit secrets view for the secrets route', async () => {
+  const route = router.getRoutes().find((route) => route.name === 'orbit-secrets')!
+  const load = route.components!.default as () => Promise<{ default: { __file: string } }>
+  expect((await load()).default.__file).toContain('OrbitSecretsView.vue')
+})
