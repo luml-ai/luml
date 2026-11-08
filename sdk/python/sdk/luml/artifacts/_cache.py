@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import shutil
-import sys
 import tarfile
 import time
 from pathlib import Path
@@ -66,37 +66,16 @@ def extract_archive_cached(
             ready_marker.write_text(archive_hash + "\n", encoding="utf-8")
             return
         finally:
-            same_file = _is_same_lock(lock_path, lock_fd)
-            os.close(lock_fd)
+            same_file = False
+            try:
+                same_file = lock_path.stat().st_ino == os.fstat(lock_fd).st_ino
+            except OSError:
+                pass
+            finally:
+                os.close(lock_fd)
             if same_file:
-                _unlink_lock_with_retry(lock_path)
-
-
-def _is_same_lock(lock_path: Path, lock_fd: int) -> bool:
-    try:
-        fstat_ino = os.fstat(lock_fd).st_ino
-        stat_ino = lock_path.stat().st_ino
-        if fstat_ino != 0 and stat_ino != 0:
-            return fstat_ino == stat_ino
-        return lock_path.read_text(encoding="ascii").strip() == str(os.getpid())
-    except OSError:
-        return False
-
-
-def _unlink_lock_with_retry(lock_path: Path, retries: int = 5) -> None:
-    for attempt in range(retries):
-        try:
-            lock_path.unlink()
-            return
-        except FileNotFoundError:
-            return
-        except OSError:
-            if attempt < retries - 1:
-                time.sleep(0.02)
-            else:
-                if not lock_path.exists():
-                    return
-                raise
+                with contextlib.suppress(OSError):
+                    lock_path.unlink()
 
 
 def _acquire_lock_file(lock_path: Path) -> int | None:
@@ -111,37 +90,6 @@ def _acquire_lock_file(lock_path: Path) -> int | None:
     return lock_fd
 
 
-def _is_process_alive(pid: int) -> bool:
-    if pid <= 0 or pid > 0xFFFFFFFF:
-        return False
-    if sys.platform == "win32":
-        import ctypes
-
-        try:
-            kernel32 = ctypes.windll.kernel32
-            process_query_limited_information = 0x1000
-            still_active = 259
-            handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
-        except (OverflowError, TypeError, ValueError, ctypes.ArgumentError):
-            return False
-        if not handle:
-            return bool(kernel32.GetLastError() == 5)  # ERROR_ACCESS_DENIED
-        try:
-            exit_code = ctypes.c_ulong()
-            if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-                return bool(exit_code.value == still_active)
-            return True
-        finally:
-            kernel32.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)
-    except (ProcessLookupError, OverflowError):
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
 def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
     try:
         lock_stat = lock_path.stat()
@@ -151,22 +99,25 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
             owner_pid = int(lock_path.read_text(encoding="ascii"))
         except (ValueError, UnicodeError):
             owner_pid = 0
-        if owner_pid > 0 and _is_process_alive(owner_pid):
-            return False
+        if owner_pid > 0:
+            try:
+                os.kill(owner_pid, 0)
+            except (ProcessLookupError, OverflowError, OSError):
+                pass
+            except PermissionError:
+                return False
+            else:
+                return False
         current_stat = lock_path.stat()
         if (
             current_stat.st_ino == lock_stat.st_ino
             and current_stat.st_mtime_ns == lock_stat.st_mtime_ns
         ):
-            try:
-                _unlink_lock_with_retry(lock_path, retries=3)
-            except OSError:
-                return False
+            with contextlib.suppress(OSError):
+                lock_path.unlink()
         return True
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         return True
-    except PermissionError:
-        return False
 
 
 def _clear_cache_dir(cache_dir: Path, lock_file_name: str) -> None:
