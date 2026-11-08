@@ -32,7 +32,7 @@ from luml_satellite.wire import (
     MONITORING_WRITE_SCOPE,
     MonitoringIntrospection,
 )
-from tests.support import FIXED_NOW, ago, build_app, client_for, introspect_returning
+from tests.support import FIXED_NOW, ago, build_app, client_for, introspect_returning, make_claims
 
 _URL = "http://gt:4000/v1/sql"
 _DEP = uuid.UUID("019f46e3-3aa1-7672-96a9-8c6d98ab25cd")
@@ -62,6 +62,43 @@ def alert_signal() -> AlertSignal:
 
 
 class TestAcknowledgeAPI:
+    @pytest.mark.parametrize(
+        ("scope", "expected_status", "expected_state"),
+        [
+            (MONITORING_READ_SCOPE, 403, "open"),
+            (MONITORING_WRITE_SCOPE, 200, "acknowledged"),
+        ],
+    )
+    async def test_launched_session_can_only_acknowledge_with_write_scope(
+        self, scope: str, expected_status: int, expected_state: str
+    ) -> None:
+        store = InMemoryMonitoringStore()
+        store.add_alert(_stored())
+        claims = make_claims(deployment_id=_DEP, scope=scope)
+        app = build_app(
+            introspect_returning(MonitoringIntrospection(active=True, claims=claims)),
+            data_store=store,
+            cookie_secure=False,
+        )
+
+        async with client_for(app) as client:
+            launch = await client.get(
+                "/monitoring/launch", params={"token": "launch-token"}, follow_redirects=False
+            )
+            assert launch.status_code == 303
+            session = await client.get("/monitoring/api/session")
+            assert session.json() == {"deployment_id": str(_DEP), "scope": scope}
+            alerts = await client.get("/monitoring/api/alerts", params={"window": "24h"})
+            assert alerts.status_code == 200
+            response = await client.post(
+                "/monitoring/api/alerts/acknowledge",
+                json={"metric": "feature_drift:income"},
+                params={"window": "24h"},
+            )
+
+        assert response.status_code == expected_status
+        assert (await store.fetch_alerts(_DEP))[0].state == expected_state
+
     @pytest.mark.parametrize(
         "scope",
         [MONITORING_READ_SCOPE, "inference:write", "monitoring:write extra", ""],

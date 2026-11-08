@@ -1,9 +1,15 @@
 import uuid
 from http.cookies import SimpleCookie
 
+import pytest
+
 from luml_satellite.monitoring import SESSION_COOKIE_NAME
 from luml_satellite.monitoring.dashboard.app import MONITORING_APP_PATH
-from luml_satellite.wire import MONITORING_READ_SCOPE, MonitoringIntrospection
+from luml_satellite.wire import (
+    MONITORING_READ_SCOPE,
+    MONITORING_WRITE_SCOPE,
+    MonitoringIntrospection,
+)
 from tests.support import (
     build_app,
     client_for,
@@ -20,8 +26,9 @@ def _session_id(set_cookie: str) -> str:
 
 
 class TestLaunch:
-    async def test_valid_token_issues_session_and_clean_redirect(self) -> None:
-        claims = make_claims()
+    @pytest.mark.parametrize("scope", [MONITORING_READ_SCOPE, MONITORING_WRITE_SCOPE])
+    async def test_valid_token_issues_session_and_clean_redirect(self, scope: str) -> None:
+        claims = make_claims(scope=scope)
         app = build_app(introspect_returning(MonitoringIntrospection(active=True, claims=claims)))
 
         async with client_for(app) as client:
@@ -41,9 +48,10 @@ class TestLaunch:
         assert "path=/monitoring" in set_cookie
         assert _session_id(resp.headers["set-cookie"])
 
-    async def test_session_cookie_resolves_to_token_deployment(self) -> None:
+    @pytest.mark.parametrize("scope", [MONITORING_READ_SCOPE, MONITORING_WRITE_SCOPE])
+    async def test_session_cookie_resolves_to_token_deployment(self, scope: str) -> None:
         deployment_id = uuid.uuid4()
-        claims = make_claims(deployment_id=deployment_id)
+        claims = make_claims(deployment_id=deployment_id, scope=scope)
         app = build_app(introspect_returning(MonitoringIntrospection(active=True, claims=claims)))
 
         async with client_for(app) as client:
@@ -59,7 +67,7 @@ class TestLaunch:
         assert resp.status_code == 200
         body = resp.json()
         assert body["deployment_id"] == str(deployment_id)
-        assert body["scope"] == MONITORING_READ_SCOPE
+        assert body["scope"] == scope
 
     async def test_invalid_or_expired_token_is_denied(self) -> None:
         app = build_app(introspect_returning(MonitoringIntrospection(active=False)))
@@ -82,8 +90,9 @@ class TestLaunch:
         assert resp.status_code == 403
         assert "set-cookie" not in resp.headers
 
-    async def test_wrong_scope_is_denied(self) -> None:
-        claims = make_claims(scope="inference:write")
+    @pytest.mark.parametrize("scope", ["inference:write", "monitoring:write extra", ""])
+    async def test_wrong_scope_is_denied(self, scope: str) -> None:
+        claims = make_claims(scope=scope)
         app = build_app(introspect_returning(MonitoringIntrospection(active=True, claims=claims)))
 
         async with client_for(app) as client:

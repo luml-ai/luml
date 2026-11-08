@@ -26,6 +26,7 @@ from luml_satellite.monitoring.dashboard.session import (
 from luml_satellite.monitoring.storage.query_store import InMemoryMonitoringStore, MonitoringStore
 from luml_satellite.wire import (
     MONITORING_READ_SCOPE,
+    MONITORING_WRITE_SCOPE,
     MonitoringIntrospection,
     MonitoringSessionInfo,
 )
@@ -107,7 +108,11 @@ def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
             return _unavailable_response()
 
         claims = introspection.claims
-        if not introspection.active or claims is None or claims.scope != MONITORING_READ_SCOPE:
+        if (
+            not introspection.active
+            or claims is None
+            or claims.scope not in (MONITORING_READ_SCOPE, MONITORING_WRITE_SCOPE)
+        ):
             return _denied_response()
 
         store: MonitoringSessionStore = request.app.state.monitoring_sessions

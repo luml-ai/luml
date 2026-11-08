@@ -1,6 +1,6 @@
 import time
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 from uuid import UUID, uuid7
 
 import jwt
@@ -14,6 +14,7 @@ from luml.infra.exceptions import (
 from luml.schemas.deployment import MonitoringMode
 from luml.schemas.monitoring import (
     MONITORING_READ_SCOPE,
+    MONITORING_WRITE_SCOPE,
     MonitoringIneligibilityReason,
 )
 from luml.schemas.permissions import Action, Resource
@@ -214,20 +215,28 @@ class TestMonitoringHandler:
 
         mocks.satellite_repo.get_satellite.assert_awaited_once_with(SATELLITE_ID)
 
+    @pytest.mark.parametrize("can_update", [True, False])
     async def test_mint_launch_token_returns_token_with_scope_claims_and_expiry(
-        self, mocks: CollaboratorMocks[MonitoringHandler]
+        self, mocks: CollaboratorMocks[MonitoringHandler], can_update: bool
     ) -> None:
         mocks.deployment_repo.get_deployment.return_value = _deployment(
             MonitoringMode.FULL
         )
         mocks.satellite_repo.get_satellite.return_value = _satellite()
 
+        if not can_update:
+            mocks.permissions_handler.check_permissions.side_effect = [
+                None,
+                InsufficientPermissionsError(),
+            ]
+        expected_scope = MONITORING_WRITE_SCOPE if can_update else MONITORING_READ_SCOPE
+
         result = await mocks.handler.mint_launch_token(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
         )
 
         decoded = jwt.decode(result.token, SECRET, algorithms=[ALGORITHM])
-        assert decoded["scope"] == MONITORING_READ_SCOPE
+        assert decoded["scope"] == expected_scope
         assert decoded["deployment_id"] == str(DEPLOYMENT_ID)
         assert decoded["satellite_id"] == str(SATELLITE_ID)
         assert decoded["user_id"] == str(USER_ID)
@@ -238,6 +247,32 @@ class TestMonitoringHandler:
         assert result.launch_url == (
             f"{BASE_URL}/monitoring/launch?token={result.token}"
         )
+        assert mocks.permissions_handler.check_permissions.await_args_list == [
+            call(ORGANIZATION_ID, USER_ID, Resource.DEPLOYMENT, Action.READ, ORBIT_ID),
+            call(
+                ORGANIZATION_ID, USER_ID, Resource.DEPLOYMENT, Action.UPDATE, ORBIT_ID
+            ),
+        ]
+        mocks.launch_token_repo.consume.return_value = True
+        introspection = await mocks.handler.introspect_token(SATELLITE_ID, result.token)
+        assert introspection.active is True
+        assert introspection.claims is not None
+        assert introspection.claims.scope == expected_scope
+
+    async def test_mint_launch_token_propagates_update_permission_check_errors(
+        self, mocks: CollaboratorMocks[MonitoringHandler]
+    ) -> None:
+        mocks.deployment_repo.get_deployment.return_value = _deployment()
+        mocks.satellite_repo.get_satellite.return_value = _satellite()
+        mocks.permissions_handler.check_permissions.side_effect = [
+            None,
+            RuntimeError("permission check unavailable"),
+        ]
+
+        with pytest.raises(RuntimeError, match="permission check unavailable"):
+            await mocks.handler.mint_launch_token(
+                USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
+            )
 
     async def test_mint_launch_token_raises_insufficient_permissions_when_access_denied(
         self, mocks: CollaboratorMocks[MonitoringHandler]
@@ -332,13 +367,14 @@ class TestMonitoringHandler:
             f"{BASE_URL}/monitoring/launch?token={result.token}"
         )
 
+    @pytest.mark.parametrize("scope", [MONITORING_READ_SCOPE, MONITORING_WRITE_SCOPE])
     async def test_introspect_token_returns_active_claims_when_token_valid(
-        self, mocks: CollaboratorMocks[MonitoringHandler]
+        self, mocks: CollaboratorMocks[MonitoringHandler], scope: str
     ) -> None:
         mocks.launch_token_repo.consume.return_value = True
         jti = uuid7()
         exp = int(time.time()) + 300
-        token = _make_token(jti=jti, exp=exp)
+        token = _make_token(jti=jti, exp=exp, scope=scope)
 
         result = await mocks.handler.introspect_token(SATELLITE_ID, token)
 
@@ -347,11 +383,12 @@ class TestMonitoringHandler:
         assert result.claims.deployment_id == DEPLOYMENT_ID
         assert result.claims.satellite_id == SATELLITE_ID
         assert result.claims.user_id == USER_ID
-        assert result.claims.scope == MONITORING_READ_SCOPE
+        assert result.claims.scope == scope
         mocks.launch_token_repo.consume.assert_awaited_once_with(jti, exp)
 
+    @pytest.mark.parametrize("scope", [MONITORING_READ_SCOPE, MONITORING_WRITE_SCOPE])
     async def test_introspect_token_returns_inactive_when_token_reused(
-        self, mocks: CollaboratorMocks[MonitoringHandler]
+        self, mocks: CollaboratorMocks[MonitoringHandler], scope: str
     ) -> None:
         consumed: set[UUID] = set()
 
@@ -362,7 +399,7 @@ class TestMonitoringHandler:
             return True
 
         mocks.launch_token_repo.consume.side_effect = fake_consume
-        token = _make_token()
+        token = _make_token(scope=scope)
 
         first = await mocks.handler.introspect_token(SATELLITE_ID, token)
         second = await mocks.handler.introspect_token(SATELLITE_ID, token)
@@ -371,10 +408,11 @@ class TestMonitoringHandler:
         assert second.active is False
         assert second.claims is None
 
+    @pytest.mark.parametrize("scope", [MONITORING_READ_SCOPE, MONITORING_WRITE_SCOPE])
     async def test_introspect_token_returns_inactive_when_token_expired(
-        self, mocks: CollaboratorMocks[MonitoringHandler]
+        self, mocks: CollaboratorMocks[MonitoringHandler], scope: str
     ) -> None:
-        token = _make_token(exp=int(time.time()) - 10)
+        token = _make_token(exp=int(time.time()) - 10, scope=scope)
 
         result = await mocks.handler.introspect_token(SATELLITE_ID, token)
 
@@ -395,10 +433,11 @@ class TestMonitoringHandler:
         assert result.active is False
         mocks.launch_token_repo.consume.assert_not_awaited()
 
+    @pytest.mark.parametrize("scope", ["inference:write", "monitoring:write extra", ""])
     async def test_introspect_token_returns_inactive_when_scope_wrong(
-        self, mocks: CollaboratorMocks[MonitoringHandler]
+        self, mocks: CollaboratorMocks[MonitoringHandler], scope: str
     ) -> None:
-        token = _make_token(scope="inference:write")
+        token = _make_token(scope=scope)
 
         result = await mocks.handler.introspect_token(SATELLITE_ID, token)
 
