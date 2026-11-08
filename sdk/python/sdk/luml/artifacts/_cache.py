@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import os
 import shutil
@@ -67,16 +66,37 @@ def extract_archive_cached(
             ready_marker.write_text(archive_hash + "\n", encoding="utf-8")
             return
         finally:
-            same_file = False
-            try:
-                same_file = lock_path.stat().st_ino == os.fstat(lock_fd).st_ino
-            except (FileNotFoundError, OSError):
-                pass
-            finally:
-                os.close(lock_fd)
+            same_file = _is_same_lock(lock_path, lock_fd)
+            os.close(lock_fd)
             if same_file:
-                with contextlib.suppress(FileNotFoundError, OSError):
-                    lock_path.unlink()
+                _unlink_lock_with_retry(lock_path)
+
+
+def _is_same_lock(lock_path: Path, lock_fd: int) -> bool:
+    try:
+        fstat_ino = os.fstat(lock_fd).st_ino
+        stat_ino = lock_path.stat().st_ino
+        if fstat_ino != 0 and stat_ino != 0:
+            return fstat_ino == stat_ino
+        return lock_path.read_text(encoding="ascii").strip() == str(os.getpid())
+    except OSError:
+        return False
+
+
+def _unlink_lock_with_retry(lock_path: Path, retries: int = 5) -> None:
+    for attempt in range(retries):
+        try:
+            lock_path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except OSError:
+            if attempt < retries - 1:
+                time.sleep(0.02)
+            else:
+                if not lock_path.exists():
+                    return
+                raise
 
 
 def _acquire_lock_file(lock_path: Path) -> int | None:
@@ -105,12 +125,12 @@ def _is_process_alive(pid: int) -> bool:
         except (OverflowError, TypeError, ValueError, ctypes.ArgumentError):
             return False
         if not handle:
-            return False
+            return bool(kernel32.GetLastError() == 5)  # ERROR_ACCESS_DENIED
         try:
             exit_code = ctypes.c_ulong()
             if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
                 return bool(exit_code.value == still_active)
-            return False
+            return True
         finally:
             kernel32.CloseHandle(handle)
     try:
@@ -139,8 +159,8 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
             and current_stat.st_mtime_ns == lock_stat.st_mtime_ns
         ):
             try:
-                lock_path.unlink()
-            except (FileNotFoundError, PermissionError):
+                _unlink_lock_with_retry(lock_path, retries=3)
+            except OSError:
                 return False
         return True
     except FileNotFoundError:
