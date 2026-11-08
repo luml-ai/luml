@@ -17,7 +17,7 @@ spec:
       labels:
         {{- include "luml.selectorLabels" (dict "root" . "component" "satellite") | nindent 8 }}
       annotations:
-        luml.ai/credentials-revision: {{ .Release.Revision | quote }}
+        luml.ai/credentials-revision: {{ default .Release.Revision .Values.satellite.credentialsRevision | quote }}
     spec:
       serviceAccountName: {{ include "luml.serviceAccountName" . | quote }}
       securityContext:

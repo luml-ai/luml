@@ -205,7 +205,7 @@ def _extract_with_image(
 
 def _assert_writable_models_directory(payload: dict[str, object]) -> None:
     assert payload["uid"] == RANDOM_UID
-    assert payload["models_uid"] == 10001
+    assert payload["models_uid"] == 0
     assert payload["models_gid"] == 0
     mode = payload["models_mode"]
     assert isinstance(mode, int)

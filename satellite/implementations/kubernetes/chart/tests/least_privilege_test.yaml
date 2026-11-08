@@ -21,7 +21,7 @@ tests:
           content:
             apiGroups: [""]
             resources: ["secrets"]
-            verbs: ["get", "patch", "delete"]
+            verbs: ["get", "create", "patch", "delete"]
   - it: uses the release revision for credential rollouts without secret fingerprints
     template: templates/deployment-satellite.yaml
     asserts:
@@ -51,4 +51,74 @@ tests:
       - equal:
           path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
           value: "8"
+        template: templates/deployment-dashboard.yaml
+
+  - it: uses explicit credential revision rotation-1 with a fixed Helm release revision
+    set:
+      satellite.credentialsRevision: rotation-1
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: rotation-1
+        template: templates/deployment-satellite.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+        template: templates/deployment-satellite.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+        template: templates/deployment-satellite.yaml
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: rotation-1
+        template: templates/deployment-worker.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+        template: templates/deployment-worker.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+        template: templates/deployment-worker.yaml
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: rotation-1
+        template: templates/deployment-dashboard.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+        template: templates/deployment-dashboard.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+        template: templates/deployment-dashboard.yaml
+
+  - it: uses explicit credential revision rotation-2 with a fixed Helm release revision
+    set:
+      satellite.credentialsRevision: rotation-2
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: rotation-2
+        template: templates/deployment-satellite.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+        template: templates/deployment-satellite.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+        template: templates/deployment-satellite.yaml
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: rotation-2
+        template: templates/deployment-worker.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+        template: templates/deployment-worker.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+        template: templates/deployment-worker.yaml
+      - equal:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+          value: rotation-2
+        template: templates/deployment-dashboard.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+        template: templates/deployment-dashboard.yaml
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
         template: templates/deployment-dashboard.yaml

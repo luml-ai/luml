@@ -81,7 +81,8 @@ requirements.
 
 Set `satellite.existingSecret` and `satellite.existingSecretKey` to read the satellite token
 from an existing Secret. Otherwise the chart creates a token Secret from `satellite.token`.
-The chart rolls the satellite, dashboard and worker when that value changes.
+Helm install and upgrade use the release revision to roll the satellite, dashboard and
+worker. Pod annotations contain no credential fingerprints.
 
 The chart always keeps the derivation key in a separate Secret. Set `satellite.derivationKey`
 on the first install. When the value is empty, Helm reads the existing key from the cluster.
@@ -91,6 +92,10 @@ keeps that Secret when you remove the release. Back it up before you uninstall.
 `satellite.derivationKey` is mandatory for GitOps, including Argo CD, and offline tools such
 as `helm template` and `helm diff` that cannot look up the existing Secret. Generate the key
 once, store it in your GitOps secret-management configuration, and reuse it on every render.
+Set `satellite.credentialsRevision` to a non-secret string, such as `rotation-1`, and change
+it whenever you rotate either credential. Offline renders keep a fixed Helm release revision;
+changing this value rolls all three credential consumers on the next sync. Do not use a
+credential or its hash as the revision.
 
 For an existing release that previously generated its key, copy the current Secret's
 `derivation-key` into that configuration before the next sync. Use the Secret referenced by
@@ -106,15 +111,16 @@ Supply the exact decoded value as `satellite.derivationKey`. Replacing it with a
 generated key rotates credentials and invalidates existing companion and artifact tokens.
 
 A rotation of the satellite token alone leaves the derivation key and the model pods
-unchanged. Helm cannot checksum an existing token Secret. After you rotate one, restart the
-three Deployments:
+unchanged. After rotating an existing token Secret, change `satellite.credentialsRevision`
+and apply the chart, or restart the three Deployments:
 
 ```shell
 kubectl rollout restart deployment -l luml.ai/satellite-id=my-satellite
 ```
 
 To rotate a compromised derivation key, set `--set-string satellite.derivationKey=...` on
-purpose. The chart workloads restart. Reconciliation then replaces the owned model pods whose
+purpose. For GitOps, also change `satellite.credentialsRevision` before syncing. The chart
+workloads restart. Reconciliation then replaces the owned model pods whose
 derivation-key fingerprint is stale. Sidecars continue to serve cached authorization and
 secrets during the restart allowance.
 
