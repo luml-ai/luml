@@ -150,7 +150,7 @@ export class ApiClass {
 
   public async getMe(): Promise<IGetUserResponse> {
     const { data: responseData } = await this.api.get('/v1/auth/users/me', {
-      skipInterceptors: true,
+      sessionCheck: true,
     })
 
     return responseData

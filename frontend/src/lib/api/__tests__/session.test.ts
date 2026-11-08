@@ -2,14 +2,18 @@ import axios, { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig }
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClass } from '../api'
 
-function unauthorized(config: InternalAxiosRequestConfig) {
+function unauthorized(
+  config: InternalAxiosRequestConfig,
+  detail = 'Not authenticated',
+  status = 401,
+) {
   return Promise.reject(
     new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined, {
       config,
-      status: 401,
+      status,
       statusText: 'Unauthorized',
       headers: {},
-      data: {},
+      data: { detail },
     }),
   )
 }
@@ -47,6 +51,135 @@ describe('session request interception', () => {
     await expect(api.getMe()).rejects.toMatchObject({ response: { status: 401 } })
 
     expect(requests).toEqual(['GET /v1/auth/users/me'])
+    expect(logout).not.toHaveBeenCalled()
+    expect(console.error).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a returning session and retries the session check', async () => {
+    const user = { id: 'user-id' }
+    respond = async (config) => {
+      if (requests.length === 1) return unauthorized(config, 'Session refresh required')
+      return { config, status: 200, statusText: 'OK', headers: {}, data: user }
+    }
+
+    await expect(api.getMe()).resolves.toEqual(user)
+
+    expect(requests).toEqual([
+      'GET /v1/auth/users/me',
+      'POST /v1/auth/refresh',
+      'GET /v1/auth/users/me',
+    ])
+    expect(logout).not.toHaveBeenCalled()
+    expect(console.error).not.toHaveBeenCalled()
+  })
+
+  it.each([400, 401, 500])('ends a failed session refresh quietly (%s)', async (status) => {
+    respond = (config) =>
+      config.url === '/v1/auth/refresh'
+        ? unauthorized(config, 'Invalid refresh token', status)
+        : unauthorized(config, 'Session refresh required')
+
+    await expect(api.getMe()).rejects.toMatchObject({ response: { status } })
+
+    expect(requests).toEqual(['GET /v1/auth/users/me', 'POST /v1/auth/refresh'])
+    expect(logout).not.toHaveBeenCalled()
+    expect(console.error).not.toHaveBeenCalled()
+  })
+
+  it('does not refresh a session check again when its retry is unauthorized', async () => {
+    respond = async (config) => {
+      if (config.url !== '/v1/auth/refresh') {
+        return unauthorized(config, 'Session refresh required')
+      }
+      return { config, status: 200, statusText: 'OK', headers: {}, data: {} }
+    }
+
+    await expect(api.getMe()).rejects.toMatchObject({ response: { status: 401 } })
+
+    expect(requests).toEqual([
+      'GET /v1/auth/users/me',
+      'POST /v1/auth/refresh',
+      'GET /v1/auth/users/me',
+    ])
+    expect(logout).not.toHaveBeenCalled()
+    expect(console.error).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])(
+    'shares a successful refresh with a concurrent protected request (session first: %s)',
+    async (sessionFirst) => {
+      let finishRefresh!: () => void
+      const refreshing = new Promise<void>((resolve) => {
+        finishRefresh = resolve
+      })
+      const attempts = new Map<string, number>()
+      respond = async (config) => {
+        if (config.url === '/v1/auth/refresh') {
+          await refreshing
+        } else {
+          const attempt = (attempts.get(config.url!) ?? 0) + 1
+          attempts.set(config.url!, attempt)
+          if (attempt === 1) return unauthorized(config, 'Session refresh required')
+        }
+        return { config, status: 200, statusText: 'OK', headers: {}, data: {} }
+      }
+      const results = sessionFirst
+        ? [api.getMe(), api.getOrganizations()]
+        : [api.getOrganizations(), api.getMe()]
+      const settled = Promise.allSettled(results)
+      await vi.waitFor(() => expect(requests).toHaveLength(3))
+      finishRefresh()
+
+      expect((await settled).every((result) => result.status === 'fulfilled')).toBe(true)
+      expect(requests.filter((request) => request === 'POST /v1/auth/refresh')).toHaveLength(1)
+      expect(logout).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([false, true])(
+    'logs out once when concurrent protected requests share a failed session refresh (session first: %s)',
+    async (sessionFirst) => {
+      let finishRefresh!: () => void
+      const refreshing = new Promise<void>((resolve) => {
+        finishRefresh = resolve
+      })
+      respond = async (config) => {
+        if (config.url === '/v1/auth/refresh') await refreshing
+        return unauthorized(config, 'Session refresh required')
+      }
+      const results = sessionFirst
+        ? [api.getMe(), api.getOrganizations(), api.getOrganizations()]
+        : [api.getOrganizations(), api.getMe(), api.getOrganizations()]
+      const settled = Promise.allSettled(results)
+      await vi.waitFor(() => expect(requests).toHaveLength(4))
+      finishRefresh()
+
+      expect((await settled).every((result) => result.status === 'rejected')).toBe(true)
+      expect(requests.filter((request) => request === 'POST /v1/auth/refresh')).toHaveLength(1)
+      expect(logout).toHaveBeenCalledOnce()
+      expect(console.error).toHaveBeenCalledOnce()
+    },
+  )
+
+  it('does not refresh again when concurrent session retries remain unauthorized', async () => {
+    let finishRefresh!: () => void
+    const refreshing = new Promise<void>((resolve) => {
+      finishRefresh = resolve
+    })
+    respond = async (config) => {
+      if (config.url === '/v1/auth/refresh') {
+        await refreshing
+        return { config, status: 200, statusText: 'OK', headers: {}, data: {} }
+      }
+      return unauthorized(config, 'Session refresh required')
+    }
+    const settled = Promise.allSettled([api.getMe(), api.getMe()])
+    await vi.waitFor(() => expect(requests).toHaveLength(3))
+    finishRefresh()
+
+    expect((await settled).every((result) => result.status === 'rejected')).toBe(true)
+    expect(requests.filter((request) => request === 'POST /v1/auth/refresh')).toHaveLength(1)
+    expect(requests.filter((request) => request === 'GET /v1/auth/users/me')).toHaveLength(4)
     expect(logout).not.toHaveBeenCalled()
     expect(console.error).not.toHaveBeenCalled()
   })

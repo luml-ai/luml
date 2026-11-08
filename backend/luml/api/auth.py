@@ -156,10 +156,12 @@ async def forgot_password(request: Request, data: ForgotPasswordIn) -> dict[str,
 
 
 @auth_router.get("/users/me", response_model=CurrentUserOut)
-async def get_current_user_info(
-    request: Request,
-    _: Annotated[None, Depends(is_user_authenticated)],
-) -> CurrentUserOut:
+async def get_current_user_info(request: Request) -> CurrentUserOut:
+    if not request.user.is_authenticated and request.cookies.get("refresh_token"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session refresh required"
+        )
+    is_user_authenticated(request)
     return await auth_handler.handle_get_current_user(request.user.email)
 
 
