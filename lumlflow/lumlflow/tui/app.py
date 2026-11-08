@@ -444,7 +444,9 @@ class LumlflowApp(App[None]):
         focused = self.focused
         if focused is None or not _is_text_input(focused):
             return
-        text = self._clipboard or await asyncio.to_thread(read_system_clipboard)
+        text: str | None = self._clipboard or await asyncio.to_thread(
+            read_system_clipboard
+        )
         if text and focused is self.focused and focused.is_mounted:
             from textual.events import Paste
 
