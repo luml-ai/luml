@@ -24,6 +24,8 @@ export const useTracksStore = defineStore('tracks', () => {
     stages: TrackStage[]
   } | null>(null)
   const trackStages = ref<TrackStage[]>([])
+  let currentTrackRequest = 0
+  let stagesRequest = 0
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -103,18 +105,25 @@ export const useTracksStore = defineStore('tracks', () => {
   }
 
   async function setCurrentTrack(trackId: string) {
+    const requestId = ++currentTrackRequest
     resetTrackStages()
-    currentTrack.value = await getTrackById(trackId)
+    const track = await getTrackById(trackId)
+    if (requestId !== currentTrackRequest) return
+    currentTrack.value = track
     await listStages(trackId)
   }
 
   function resetCurrentTrack() {
+    currentTrackRequest++
     currentTrack.value = null
   }
 
   function reset() {
     tracksList.value = []
     resetCurrentTrack()
+    resetTrackStages()
+    creatorVisible.value = false
+    editableTrack.value = null
   }
 
   function showCreator() {
@@ -137,11 +146,13 @@ export const useTracksStore = defineStore('tracks', () => {
   }
 
   async function listStages(trackId: string) {
-    trackStages.value = await api.orbitTracks.listStages(
+    const requestId = ++stagesRequest
+    const stages = await api.orbitTracks.listStages(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       trackId,
     )
+    if (requestId === stagesRequest) trackStages.value = stages
   }
 
   async function updateStage(trackId: string, stageId: string, payload: TrackStageUpdateIn) {
@@ -165,6 +176,7 @@ export const useTracksStore = defineStore('tracks', () => {
   }
 
   function resetTrackStages() {
+    stagesRequest++
     trackStages.value = []
   }
 

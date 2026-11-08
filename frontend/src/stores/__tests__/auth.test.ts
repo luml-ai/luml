@@ -96,7 +96,10 @@ describe('authentication session check', () => {
       redirectToSignIn: true,
     })
 
-    expect(next).toHaveBeenCalledWith({ name: 'home' })
+    expect(next).toHaveBeenCalledWith({
+      name: 'sign-in',
+      query: { redirect: '/dashboard' },
+    })
     expect(invitationNext).toHaveBeenCalledWith({
       name: 'sign-in',
       query: { redirect: '/invitations' },
