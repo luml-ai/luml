@@ -98,11 +98,11 @@ Values missing from an older release fall back to the defaults of the new chart.
 
 The chart keeps a derivation key in a separate Secret and retains it when you uninstall the release. Back it up before you uninstall. When `satellite.derivationKey` is empty, Helm reads the existing key from the cluster. Rendering fails if neither a configured key nor an existing nonempty key is available.
 
-Set `satellite.derivationKey` for GitOps, including Argo CD, and offline tools such as `helm template` and `helm diff` that cannot look up the Secret. Store the key in your GitOps secret-management configuration and reuse it on every render.
+Set `satellite.derivationKey` for GitOps, including Argo CD, and offline tools such as `helm template` and `helm diff` that cannot look up the Secret. Store the key in your GitOps secret-management configuration and reuse it on every render. Set `satellite.credentialsRevision` to a non-secret string, such as `rotation-1`, and change it whenever you rotate the token or derivation key. This rolls the Satellite, dashboard and worker even when the renderer keeps a fixed Helm release revision. Do not use a credential or its hash as the revision.
 
 For an existing release that previously generated its key, use the current Secret's decoded `derivation-key` value. Replacing it with a new key invalidates existing companion and artifact tokens. See the [chart's migration instructions](https://github.com/luml-ai/luml/blob/main/satellite/implementations/kubernetes/chart/README.md#secrets-and-rotation) for exporting the existing key.
 
-After you rotate the token in an existing Secret, restart the Satellite:
+Helm install and upgrade roll the credential consumers using the release revision by default. After you rotate the token in an existing Secret, change `satellite.credentialsRevision` and apply the chart, or restart the Deployments:
 
 ```bash
 kubectl -n luml rollout restart deployment -l luml.ai/satellite-id=my-satellite
