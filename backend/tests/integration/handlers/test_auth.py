@@ -53,15 +53,18 @@ class TestSessionRecovery:
         self, client: AsyncClient, new_user: CreateUser, access_cookie: str
     ) -> None:
         _, refresh = await signin(client, new_user.email, PASSWORD)
-        client.cookies.clear()
-        client.cookies.set("refresh_token", refresh)
+        client.cookies.delete("access_token")
         if access_cookie == "expired":
             expired = AuthHandler(
                 secret_key=config.AUTH_SECRET_KEY, access_token_expire=-1
             )._create_tokens(new_user.email, new_user.hashed_password)
-            client.cookies.set("access_token", expired.access_token)
+            client.cookies.set(
+                "access_token", expired.access_token, domain="testserver.local"
+            )
         elif access_cookie == "invalid":
-            client.cookies.set("access_token", "invalid-access-token")
+            client.cookies.set(
+                "access_token", "invalid-access-token", domain="testserver.local"
+            )
 
         response = await client.get("/v1/auth/users/me")
 
