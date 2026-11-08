@@ -1,24 +1,9 @@
 import type { AxiosInstance } from 'axios'
 
-let isRefreshing = false
-let failedQueue: Array<{
-  resolve: (value?: unknown) => void
-  reject: (reason?: unknown) => void
-}> = []
-
-const processQueue = (error: unknown = null) => {
-  failedQueue.forEach((promise) => {
-    if (error) {
-      promise.reject(error)
-    } else {
-      promise.resolve()
-    }
-  })
-
-  failedQueue = []
-}
-
 export const installInterceptors = (api: AxiosInstance) => {
+  let refreshRequest: Promise<unknown> | undefined
+  let logoutDispatched = false
+
   api.defaults.withCredentials = true
   api.interceptors.request.use(
     (config) => config,
@@ -35,41 +20,41 @@ export const installInterceptors = (api: AxiosInstance) => {
         !originalRequest.url?.includes('/auth/refresh') &&
         !originalRequest.url?.includes('/auth/signin') &&
         !originalRequest.url?.includes('/auth/signup') &&
-        !originalRequest.skipInterceptors
+        !originalRequest.skipInterceptors &&
+        (!originalRequest.sessionCheck ||
+          error.response.data?.detail === 'Session refresh required')
       ) {
-        if (isRefreshing) {
-          return new Promise((resolve, reject) => {
-            failedQueue.push({ resolve, reject })
-          })
-            .then(() => api.request(originalRequest))
-            .catch((err) => Promise.reject(err))
+        originalRequest._retry = true
+
+        if (!refreshRequest) {
+          logoutDispatched = false
+          refreshRequest = api
+            .post(
+              '/v1/auth/refresh',
+              {},
+              {
+                skipInterceptors: true,
+                withCredentials: true,
+              },
+            )
+            .finally(() => {
+              refreshRequest = undefined
+            })
         }
 
-        originalRequest._retry = true
-        isRefreshing = true
-
         try {
-          await api.post(
-            '/v1/auth/refresh',
-            {},
-            {
-              skipInterceptors: true,
-              withCredentials: true,
-            },
-          )
-
-          processQueue()
-          isRefreshing = false
-
-          return api.request(originalRequest)
+          await refreshRequest
         } catch (refreshError) {
-          processQueue(refreshError)
-          isRefreshing = false
-          console.error('Token refresh failed, logging out')
-          window.dispatchEvent(new CustomEvent('auth:logout'))
+          if (!originalRequest.sessionCheck && !logoutDispatched) {
+            logoutDispatched = true
+            console.error('Token refresh failed, logging out')
+            window.dispatchEvent(new CustomEvent('auth:logout'))
+          }
 
           return Promise.reject(refreshError)
         }
+
+        return api.request(originalRequest)
       }
       return Promise.reject(error)
     },
