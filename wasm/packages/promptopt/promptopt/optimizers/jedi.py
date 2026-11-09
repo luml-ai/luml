@@ -122,9 +122,17 @@ class JEDIOptimizer(BaseOptimizer):
         if len(val) > self.max_validation_batch_size:
             val = random.sample(val, self.max_validation_batch_size)
 
-        predictions = await asyncio.gather(
-            *[graph.run(example.input, self.student) for example in val]
-        )
+        async def predict(example: Example) -> dict:
+            try:
+                return await graph.run(example.input, self.student)
+            except InvalidLLMResponseError:
+                return {}
+
+        predictions = await asyncio.gather(*[predict(example) for example in val])
+        if not any(predictions):
+            raise InvalidLLMResponseError(
+                "The LLM returned no valid structured response for any validation example."
+            )
 
         scores = await asyncio.gather(
             *[

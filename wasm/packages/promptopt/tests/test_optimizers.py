@@ -6,7 +6,7 @@ import pytest
 
 from promptopt.dataclasses import Example, Field, LLMExample
 from promptopt.graph import Graph
-from promptopt.llm import LLM
+from promptopt.llm import LLM, InvalidLLMResponseError
 from promptopt.nodes.gate import Gate
 from promptopt.nodes.io import InputNode, OutputNode
 from promptopt.nodes.processor import Processor
@@ -280,3 +280,47 @@ def test_jedi_continues_after_malformed_trial(all_fail: bool) -> None:
 
     assert node._instruction == ("original" if all_fail else "candidate")
     assert llm.calls == (6 if all_fail else 4)
+
+
+def row(text: str) -> Example:
+    return Example(input={"text": text}, output={"summary": "valid"})
+
+
+def test_jedi_evaluate_scores_exhausted_rows_as_empty_predictions() -> None:
+    graph, _ = processor_graph()
+    llm = PartiallyMalformedLLM()
+    metric = RecordingMetric()
+    val = [row("bad"), row("good")]
+
+    exact = JEDIOptimizer(graph, llm, llm, [ExactMatch()])
+    score = asyncio.run(exact._evaluate(val, graph))
+    recording = JEDIOptimizer(graph, llm, llm, [metric])
+    asyncio.run(recording._evaluate(val, graph))
+
+    assert score == 0.5
+    assert metric.predictions == [{}, {"summary": "valid"}]
+
+
+def test_jedi_evaluate_raises_when_every_row_is_exhausted() -> None:
+    graph, _ = processor_graph()
+    llm = PartiallyMalformedLLM()
+    optimizer = JEDIOptimizer(graph, llm, llm, [ExactMatch()])
+
+    with pytest.raises(InvalidLLMResponseError, match="any validation example"):
+        asyncio.run(optimizer._evaluate([row("bad"), row("bad")], graph))
+
+
+def test_jedi_applies_candidate_despite_persistently_malformed_row() -> None:
+    graph, node = processor_graph()
+    freeze_graph_ids(graph)
+    node.set_instruction("original")
+    llm = PartiallyMalformedLLM()
+    optimizer = JEDIOptimizer(graph, llm, llm, [ExactMatch()], n_trials=2)
+
+    asyncio.run(
+        optimizer._optimize_optuna(
+            [row("bad"), row("good")], {id(node): ["candidate"]}, {}
+        )
+    )
+
+    assert node._instruction == "candidate"
