@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 MONITORING_READ_SCOPE = "monitoring:read"
+MONITORING_WRITE_SCOPE = "monitoring:write"
 
 
 class MonitoringIneligibilityReason(StrEnum):

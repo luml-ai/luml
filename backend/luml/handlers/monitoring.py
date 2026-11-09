@@ -11,13 +11,18 @@ from pydantic import ValidationError
 
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
-from luml.infra.exceptions import ApplicationError, NotFoundError
+from luml.infra.exceptions import (
+    ApplicationError,
+    InsufficientPermissionsError,
+    NotFoundError,
+)
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.monitoring import MonitoringLaunchTokenRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import Deployment, MonitoringMode
 from luml.schemas.monitoring import (
     MONITORING_READ_SCOPE,
+    MONITORING_WRITE_SCOPE,
     MonitoringEligibility,
     MonitoringIneligibilityReason,
     MonitoringLaunchToken,
@@ -138,12 +143,26 @@ class MonitoringHandler:
                 status.HTTP_409_CONFLICT,
             )
 
+        scope = MONITORING_READ_SCOPE
+        try:
+            await self.__permissions_handler.check_permissions(
+                organization_id,
+                user_id,
+                Resource.DEPLOYMENT,
+                Action.UPDATE,
+                orbit_id,
+            )
+        except InsufficientPermissionsError:
+            pass
+        else:
+            scope = MONITORING_WRITE_SCOPE
+
         expires_at = int(time.time()) + self.launch_token_expire
         claims = {
             "deployment_id": str(deployment_id),
             "satellite_id": str(deployment.satellite_id),
             "user_id": str(user_id),
-            "scope": MONITORING_READ_SCOPE,
+            "scope": scope,
             "jti": str(uuid.uuid7()),
             "exp": expires_at,
         }
@@ -165,7 +184,7 @@ class MonitoringHandler:
         except InvalidTokenError:
             return MonitoringTokenIntrospectOut(active=False)
 
-        if payload.get("scope") != MONITORING_READ_SCOPE:
+        if payload.get("scope") not in (MONITORING_READ_SCOPE, MONITORING_WRITE_SCOPE):
             return MonitoringTokenIntrospectOut(active=False)
 
         try:
