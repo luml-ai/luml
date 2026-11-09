@@ -7,7 +7,7 @@
       :tag="tag"
       grid-metrics
     ></ModelTabularPerformance>
-    <div class="features card">
+    <div v-if="features.length" class="features card">
       <header class="card-header">
         <h3 class="card-title">{{ getTopFeaturesTitle(features.length) }}</h3>
       </header>

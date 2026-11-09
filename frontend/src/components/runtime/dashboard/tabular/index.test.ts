@@ -54,4 +54,19 @@ describe('RuntimeDashboardTabular', () => {
     expect(wrapper.findComponent(ModelTopFeatures).exists()).toBe(true)
     wrapper.unmount()
   })
+
+  it.each([
+    { name: 'no importances', model: createModel(0) },
+    {
+      name: 'no metrics',
+      model: { getManifest: () => ({ inputs: [] }), getMetadata: () => [] } as unknown as Model,
+    },
+  ])('hides the features card for a model with $name', ({ model }) => {
+    const wrapper = mountWithModel(model)
+    const titles = wrapper.findAll('.card-title').map((title) => title.text())
+
+    expect(titles.some((title) => title.startsWith('Top'))).toBe(false)
+    expect(wrapper.findComponent(ModelTopFeatures).exists()).toBe(false)
+    wrapper.unmount()
+  })
 })

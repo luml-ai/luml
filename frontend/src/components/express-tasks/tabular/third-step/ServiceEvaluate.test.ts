@@ -43,4 +43,11 @@ describe('ServiceEvaluate', () => {
     expect(wrapper.get('.features .card-title').text()).toBe(heading)
     wrapper.unmount()
   })
+
+  it('hides the features card when there are no features', () => {
+    const wrapper = mountWithFeatures(0)
+
+    expect(wrapper.find('.features').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })

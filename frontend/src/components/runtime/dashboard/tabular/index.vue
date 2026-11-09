@@ -34,7 +34,7 @@
           <predict-file :predict-callback="predict" v-else />
         </div>
       </div>
-      <div class="card">
+      <div v-if="features.length" class="card">
         <h2 class="card-title">{{ getTopFeaturesTitle(features.length) }}</h2>
         <model-top-features :features="features" />
       </div>

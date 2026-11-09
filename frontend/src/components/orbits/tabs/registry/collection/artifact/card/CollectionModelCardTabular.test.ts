@@ -18,9 +18,17 @@ function createMetrics(featureCount: number): TabularMetrics {
   }
 }
 
+function mountWithFeatures(featureCount: number) {
+  return shallowMount(CollectionModelCardTabular, {
+    props: {
+      tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1,
+      metrics: createMetrics(featureCount),
+    },
+  })
+}
+
 describe('CollectionModelCardTabular', () => {
   it.each([
-    { featureCount: 0, heading: 'Top 0 features', renderedCount: 0 },
     { featureCount: 1, heading: 'Top 1 feature', renderedCount: 1 },
     { featureCount: 3, heading: 'Top 3 features', renderedCount: 3 },
     { featureCount: 5, heading: 'Top 5 features', renderedCount: 5 },
@@ -28,16 +36,18 @@ describe('CollectionModelCardTabular', () => {
   ])(
     'shows "$heading" for $featureCount importances',
     ({ featureCount, heading, renderedCount }) => {
-      const wrapper = shallowMount(CollectionModelCardTabular, {
-        props: {
-          tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1,
-          metrics: createMetrics(featureCount),
-        },
-      })
+      const wrapper = mountWithFeatures(featureCount)
 
       expect(wrapper.get('.features .card-title').text()).toBe(heading)
       expect(wrapper.findAll('.features-list > li')).toHaveLength(renderedCount)
       wrapper.unmount()
     },
   )
+
+  it('hides the features card when there are no importances', () => {
+    const wrapper = mountWithFeatures(0)
+
+    expect(wrapper.find('.features').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })

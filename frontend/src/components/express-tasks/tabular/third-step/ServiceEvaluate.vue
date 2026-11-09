@@ -40,7 +40,7 @@
         :tag="producedTag"
         class="performance"
       ></ModelTabularPerformance>
-      <div class="features card">
+      <div v-if="features.length" class="features card">
         <header class="card-header">
           <h3 class="card-title">{{ getTopFeaturesTitle(features.length) }}</h3>
           <info
