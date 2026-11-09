@@ -14,6 +14,7 @@ vi.mock('primevue', async (importOriginal) => ({
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
 
 enableAutoUnmount(afterEach)
+const copiedIcon = '.lucide-copy-check-icon, .lucide-check-icon'
 const button = {
   template:
     '<button @click="$emit(\'click\', $event)"><slot /><slot name="icon" />{{ label }}</button>',
@@ -60,7 +61,7 @@ describe('clipboard feedback', () => {
       })
       await wrapper.get('button').trigger('click')
       await flushPromises()
-      expect(wrapper.find('.lucide-copy-check-icon').exists()).toBe(false)
+      expect(wrapper.find(copiedIcon).exists()).toBe(false)
       expect(mocks.toast).toHaveBeenCalledWith(
         expect.objectContaining({ severity: 'error', detail: 'Failed to copy to clipboard' }),
       )
@@ -80,10 +81,10 @@ describe('clipboard feedback', () => {
     })
     const wrapper = mount(UiCopyButton, { props: { text: 'text' }, global })
     await wrapper.get('button').trigger('click')
-    expect(wrapper.find('.lucide-copy-check-icon').exists()).toBe(false)
+    expect(wrapper.find(copiedIcon).exists()).toBe(false)
     finish()
     await flushPromises()
-    expect(wrapper.find('.lucide-copy-check-icon').exists()).toBe(true)
+    expect(wrapper.find(copiedIcon).exists()).toBe(true)
   })
 })
 
