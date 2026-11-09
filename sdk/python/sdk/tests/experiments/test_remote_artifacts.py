@@ -48,6 +48,7 @@ class TestRemoteArtifacts:
             ("a2", "a1", "a2"),
             (None, "a1", None),
             ("", "", None),
+            ("a2", "", "a2"),
         ],
     )
     def test_conditional_delete_only_removes_expected_artifact(
