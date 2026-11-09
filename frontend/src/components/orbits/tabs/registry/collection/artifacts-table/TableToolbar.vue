@@ -30,6 +30,7 @@
       <Button
         variant="text"
         severity="secondary"
+        aria-label="Download"
         v-tooltip="'Download'"
         :disabled="loadingSelection || downloadButtonDisabled"
         @click="downloadClick"
@@ -300,8 +301,8 @@ async function downloadClick(): Promise<void> {
   try {
     const artifact = props.selectedArtifacts[0]
     await artifactsStore.downloadArtifact(artifact.id, artifact.file_name)
-  } catch {
-    toast.add(simpleErrorToast('Failed to load artifacts'))
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to download artifact')))
   } finally {
     emits('clearSelectedArtifacts')
     loading.value = false
