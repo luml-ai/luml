@@ -1425,11 +1425,13 @@ Return the remembered platform artifact for a local object and orbit.
 def delete_remote_artifact(
         local_type: str,
         local_id: str,
-        orbit_id: str
+        orbit_id: str,
+        *,
+        expected_artifact_id: str | None = None
 ) -> None
 ```
 
-Forget the platform artifact for a local object in an orbit.
+Forget the mapping, optionally only if it still matches the expected ID.
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_eval_annotations"></a>
 
