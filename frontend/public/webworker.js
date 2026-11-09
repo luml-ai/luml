@@ -11,6 +11,18 @@ const MESSAGES = {
     LOAD_PYODIDE: "LOAD_PYODIDE",
 };
 
+const activeRequests = new Set();
+const nativeFetch = self.fetch;
+
+self.fetch = (input, init = {}) => {
+    const request = new AbortController();
+    const signal = init.signal ? AbortSignal.any([init.signal, request.signal]) : request.signal;
+    activeRequests.add(request);
+    return nativeFetch
+        .call(self, input, { ...init, signal })
+        .finally(() => activeRequests.delete(request));
+};
+
 async function initPyWorker() {
     importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js");
     // if (DRY_RUN) {
@@ -84,18 +96,20 @@ self.pyodideReadyPromise = initPyWorker().catch((error) => ({
     error: error instanceof Error ? error.message : String(error),
 }));
 
-let interruptBuffer;
-
 async function invokeRoute(route, data) {
-    if (interruptBuffer) interruptBuffer[0] = 0;
+    const dfw = self.pyodide.pyimport("dfs_webworker");
     try {
-        const dfw = self.pyodide.pyimport("dfs_webworker");
         const response = await dfw.invoke(route, data);
         // store deletion returns none on success
         const res = response == null ? null : response.toJs();
         return JSON.parse(JSON.stringify(res));
-    } finally {
-        if (interruptBuffer) interruptBuffer[0] = 0;
+    } catch (error) {
+        if (error.type !== "CancelledError") throw error;
+        return {
+            status: "error",
+            error_type: "KeyboardInterrupt",
+            error_message: "Execution interrupted by user",
+        };
     }
 }
 
@@ -147,9 +161,8 @@ self.onmessage = async (event) => {
                 self.postMessage({ message: m.message, id: m.id, payload: result });
                 break;
             case "interrupt":
-                interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
-                interruptBuffer[0] = 2;
-                self.pyodide.setInterruptBuffer(interruptBuffer);
+                for (const task of self.pyodide.pyimport("asyncio").all_tasks()) task.cancel();
+                for (const request of [...activeRequests].reverse()) request.abort();
                 self.postMessage({ message: m.message, id: m.id, payload: true });
                 break;
             default:
