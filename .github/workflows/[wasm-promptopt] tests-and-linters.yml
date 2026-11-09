@@ -1,0 +1,38 @@
+name: Promptopt
+
+on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - 'wasm/packages/promptopt/**'
+      - '.github/workflows/*wasm-promptopt*tests-and-linters.yml'
+  pull_request:
+    branches: [main, staging, production]
+    paths:
+      - 'wasm/packages/promptopt/**'
+      - '.github/workflows/*wasm-promptopt*tests-and-linters.yml'
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wasm/packages/promptopt
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies with uv
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --frozen --group dev
+
+      - name: Test
+        run: uv run --frozen pytest
