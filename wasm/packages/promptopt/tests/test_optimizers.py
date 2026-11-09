@@ -11,7 +11,7 @@ from promptopt.nodes.gate import Gate
 from promptopt.nodes.io import InputNode, OutputNode
 from promptopt.nodes.processor import Processor
 from promptopt.optimizers._base import BaseOptimizer
-from promptopt.optimizers._eval import BaseMetric, ExactMatch
+from promptopt.optimizers._eval import BaseMetric, ExactMatch, LLMJudge
 from promptopt.optimizers._instruction_proposal import propose_instructions
 from promptopt.optimizers._utils import freeze_graph_ids
 from promptopt.optimizers.few_shot import RandomFewShotOptimizer
@@ -171,33 +171,58 @@ class PartiallyMalformedLLM(DummyLLM):
         return '{"summary": "valid"}'
 
 
-@pytest.mark.parametrize("optimizer_kind", ["few_shot", "jedi"])
 @pytest.mark.parametrize("texts", [["bad", "good"], ["bad", "bad"]])
-def test_collect_examples_skips_exhausted_responses(
-    optimizer_kind: str, texts: list[str]
-) -> None:
+def test_jedi_collect_examples_skips_exhausted_responses(texts: list[str]) -> None:
     graph, node = processor_graph()
     llm = PartiallyMalformedLLM()
     examples = [
         Example(input={"text": text}, output={"summary": "valid"}) for text in texts
     ]
+    optimizer = JEDIOptimizer(graph, llm, llm, [ExactMatch()])
+
+    trace = asyncio.run(optimizer._collect_examples(examples))
+
+    assert [example.output for example in trace._examples.get(id(node), [])] == [
+        '{"summary": "valid"}'
+    ] * texts.count("good")
+
+
+def test_few_shot_skips_exhausted_responses() -> None:
+    graph, node = processor_graph()
+    llm = PartiallyMalformedLLM()
+    examples = [
+        Example(input={"text": text}, output={"summary": "valid"})
+        for text in ["bad", "good"]
+    ]
+
+    asyncio.run(RandomFewShotOptimizer(graph, 10, 2, llm).optimize(examples))
+
+    assert [example.output for example in node._examples] == ['{"summary": "valid"}']
+
+
+def test_few_shot_raises_when_every_example_is_exhausted() -> None:
+    graph, node = processor_graph()
+    original = [LLMExample('{"text": "original"}', '{"summary": "original"}')]
+    node.set_examples(original)
+    llm = PartiallyMalformedLLM()
+    examples = [
+        Example(input={"text": "bad"}, output={"summary": "valid"}) for _ in range(2)
+    ]
+
+    with pytest.raises(InvalidLLMResponseError, match="any training example"):
+        asyncio.run(RandomFewShotOptimizer(graph, 10, 2, llm).optimize(examples))
+
+    assert node._examples == original
+
+
+def test_few_shot_without_examples_keeps_the_graph() -> None:
+    graph, node = processor_graph()
     original = [LLMExample('{"text": "original"}', '{"summary": "original"}')]
     node.set_examples(original)
 
-    if optimizer_kind == "few_shot":
-        optimizer = RandomFewShotOptimizer(graph, 10, 2, llm)
-        asyncio.run(optimizer.optimize(examples))
-        captured = node._examples if "good" in texts else []
-        if "good" not in texts:
-            assert node._examples == original
-    else:
-        optimizer = JEDIOptimizer(graph, llm, llm, [ExactMatch()])
-        trace = asyncio.run(optimizer._collect_examples(examples))
-        captured = trace._examples.get(id(node), [])
+    asyncio.run(RandomFewShotOptimizer(graph, 10, 2, DummyLLM()).optimize([]))
 
-    assert [example.output for example in captured] == [
-        '{"summary": "valid"}'
-    ] * texts.count("good")
+    assert node._examples == original
 
 
 @pytest.mark.parametrize("optimizer_kind", ["few_shot", "jedi"])
@@ -257,29 +282,68 @@ def test_jedi_applies_best_trial_including_nonpositive_scores(scores: list[float
     assert node._examples is not None
 
 
-@pytest.mark.parametrize("all_fail", [False, True])
-def test_jedi_continues_after_malformed_trial(all_fail: bool) -> None:
-    class TrialLLM(DummyLLM):
-        def __init__(self):
-            self.calls = 0
+class TrialLLM(DummyLLM):
+    def __init__(self, malformed_calls: float) -> None:
+        self.calls = 0
+        self.malformed_calls = malformed_calls
 
-        async def generate(self, messages: list, out_schema: Any) -> str:
-            self.calls += 1
-            if all_fail or self.calls <= 3:
-                return "malformed"
-            return '{"summary": "valid"}'
+    async def generate(self, messages: list, out_schema: Any) -> str:
+        self.calls += 1
+        if self.calls <= self.malformed_calls:
+            return "malformed"
+        return '{"summary": "valid"}'
 
+
+def test_jedi_continues_after_malformed_trial() -> None:
     graph, node = processor_graph()
     freeze_graph_ids(graph)
     node.set_instruction("original")
-    llm = TrialLLM()
+    llm = TrialLLM(malformed_calls=3)
     optimizer = JEDIOptimizer(graph, llm, llm, [ExactMatch()], n_trials=2)
     val = [Example(input={"text": "example"}, output={"summary": "valid"})]
 
     asyncio.run(optimizer._optimize_optuna(val, {id(node): ["candidate"]}, {}))
 
-    assert node._instruction == ("original" if all_fail else "candidate")
-    assert llm.calls == (6 if all_fail else 4)
+    assert node._instruction == "candidate"
+    assert llm.calls == 4
+
+
+def test_jedi_raises_when_no_trial_completes() -> None:
+    graph, node = processor_graph()
+    freeze_graph_ids(graph)
+    node.set_instruction("original")
+    llm = TrialLLM(malformed_calls=float("inf"))
+    optimizer = JEDIOptimizer(graph, llm, llm, [ExactMatch()], n_trials=2)
+    val = [Example(input={"text": "example"}, output={"summary": "valid"})]
+
+    with pytest.raises(InvalidLLMResponseError, match="any trial"):
+        asyncio.run(optimizer._optimize_optuna(val, {id(node): ["candidate"]}, {}))
+
+    assert node._instruction == "original"
+    assert llm.calls == 6
+
+
+def test_jedi_raises_when_the_judge_never_returns_a_valid_score() -> None:
+    class BrokenJudge(DummyLLM):
+        async def generate(self, messages: list, out_schema: Any) -> str:
+            return "malformed"
+
+    graph, node = processor_graph()
+    freeze_graph_ids(graph)
+    node.set_instruction("original")
+    optimizer = JEDIOptimizer(
+        graph,
+        TrialLLM(malformed_calls=0),
+        BrokenJudge(),
+        [LLMJudge("accuracy")],
+        n_trials=2,
+    )
+    val = [Example(input={"text": "example"}, output={"summary": "valid"})]
+
+    with pytest.raises(InvalidLLMResponseError, match="any trial"):
+        asyncio.run(optimizer._optimize_optuna(val, {id(node): ["candidate"]}, {}))
+
+    assert node._instruction == "original"
 
 
 def row(text: str) -> Example:

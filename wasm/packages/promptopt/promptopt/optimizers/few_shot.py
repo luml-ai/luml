@@ -3,7 +3,7 @@ from promptopt.optimizers._utils import run_examples
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
 from promptopt.trace import Trace
-from promptopt.llm import LLM
+from promptopt.llm import LLM, InvalidLLMResponseError
 
 import random
 
@@ -29,7 +29,14 @@ class RandomFewShotOptimizer(BaseOptimizer):
             training_examples = examples[:]
 
         trace = Trace()
-        await run_examples(self.graph, training_examples, self.llm, trace)
+        completed = await run_examples(
+            self.graph, training_examples, self.llm, trace
+        )
+        if training_examples and not completed:
+            raise InvalidLLMResponseError(
+                "Optimization failed: the LLM returned no valid structured response "
+                "for any training example."
+            )
 
         for node in self.graph.nodes.values():
             if id(node) in trace._examples:

@@ -183,9 +183,13 @@ class JEDIOptimizer(BaseOptimizer):
             study.tell(trial, score)
         print(f"Best score: {best_score}")
         print(f"Best params: {best_params}")
-        if best_params is not None:
-            self._select_params(
-                graph=self.graph,
-                params=best_params,
-                demo_sets=demo_sets,
+        if best_params is None:
+            raise InvalidLLMResponseError(
+                "Optimization failed: the LLM returned no valid structured response "
+                "in any trial."
             )
+        self._select_params(
+            graph=self.graph,
+            params=best_params,
+            demo_sets=demo_sets,
+        )
