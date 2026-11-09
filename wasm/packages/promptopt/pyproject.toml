@@ -39,3 +39,8 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"promptopt/templates.py" = ["E501"]
+"promptopt/optimizers/_instruction_proposal.py" = ["E501", "W291"]
+"promptopt/optimizers/_eval.py" = ["E501"]

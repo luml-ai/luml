@@ -160,7 +160,7 @@ def test_instruction_proposals_use_graph_names_and_keep_internal_keys() -> None:
         id(processor): ["instruction"] * 2,
         id(gate): ["instruction"] * 2,
     }
-    for prompt, name in zip(prompts, ["summarizer", "gate_3"]):
+    for prompt, name in zip(prompts, ["summarizer", "gate_3"], strict=True):
         assert graph.llm_repr() in prompt
         assert f"You are generating the instruction for node {name}." in prompt
 

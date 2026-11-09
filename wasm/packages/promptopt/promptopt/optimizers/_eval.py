@@ -34,7 +34,8 @@ class ExactMatch(BaseMetric):
             raise ValueError("Prediction and target lists must have the same length.")
 
         exact_matches = [
-            1 if pred == tgt else 0 for pred, tgt in zip(predictions, targets)
+            1 if pred == tgt else 0
+            for pred, tgt in zip(predictions, targets, strict=True)
         ]
         return sum(exact_matches) / len(exact_matches)
 
@@ -60,7 +61,10 @@ class LLMJudge(BaseMetric):
             return result["score"]
 
         scores = await asyncio.gather(
-            *[get_score(pred, tgt) for pred, tgt in zip(predictions, targets)]
+            *[
+                get_score(pred, tgt)
+                for pred, tgt in zip(predictions, targets, strict=True)
+            ]
         )
 
         return sum(scores) / len(scores)

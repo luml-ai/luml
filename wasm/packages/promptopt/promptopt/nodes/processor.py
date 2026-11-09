@@ -42,17 +42,17 @@ class Processor(BaseNode):
 
         self._input_field_to_socket_map = {
             field.name: socket
-            for field, socket in zip(self._inputs, self._input_sockets)
+            for field, socket in zip(self._inputs, self._input_sockets, strict=True)
         }
 
         self._reads = [
             StateDescriptor(socket.id, field.type, field.is_variadic)
-            for field, socket in zip(self._inputs, self._input_sockets)
+            for field, socket in zip(self._inputs, self._input_sockets, strict=True)
         ]
 
         self._input_field_to_state_descriptor_map = {
             field.name: state_descriptor
-            for field, state_descriptor in zip(self._inputs, self._reads)
+            for field, state_descriptor in zip(self._inputs, self._reads, strict=True)
         }
 
         self._is_lazy = any(field.is_variadic for field in self._inputs)
@@ -126,7 +126,7 @@ class Processor(BaseNode):
         fields_to_write = {}
 
         for out_field, (out_connection, out_spec) in zip(
-            self._outputs, self._output_connections.items()
+            self._outputs, self._output_connections.items(), strict=False
         ):
             output_value = output.get(out_field.name)
 

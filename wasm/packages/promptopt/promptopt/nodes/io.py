@@ -109,17 +109,17 @@ class OutputNode(IONode):
         ]
         self._reads = [
             StateDescriptor(socket.id, field.type, field.is_variadic)
-            for field, socket in zip(self._fields, self._input_sockets)
+            for field, socket in zip(self._fields, self._input_sockets, strict=True)
         ]
 
         self._input_field_to_socket_map = {
             field.name: socket
-            for field, socket in zip(passthrough, self._input_sockets)
+            for field, socket in zip(passthrough, self._input_sockets, strict=True)
         }
 
         self._input_field_to_state_descriptor_map = {
             field.name: state_descriptor
-            for field, state_descriptor in zip(self._fields, self._reads)
+            for field, state_descriptor in zip(self._fields, self._reads, strict=True)
         }
 
     @property

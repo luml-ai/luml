@@ -162,7 +162,7 @@ class JEDIOptimizer(BaseOptimizer):
         )
         best_score = float("-inf")
         best_params = None
-        for trial_num in range(self.n_trials):
+        for _ in range(self.n_trials):
             trial = study.ask(space)
             graph_copy = deepcopy(self.graph)
             self._select_params(
