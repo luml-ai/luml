@@ -38,12 +38,12 @@ async def propose_instructions(
 
     proposals = {}
 
-    for node in graph.nodes.values():
+    for node_name, node in graph.nodes.items():
         if isinstance(node, IONode):
             continue
         proposal_prompt = INSTRUCTION_PROPOSAL_PROMPT_TEMPLATE.format(
             graph=graph_repr,
-            node_id=id(node),
+            node_id=node_name,
             task_description=f"\nTask description:\n`{task_description}`\n"
             if task_description
             else "",

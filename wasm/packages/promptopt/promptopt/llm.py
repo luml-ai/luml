@@ -1,6 +1,14 @@
 import asyncio
-import httpx
+import json
 from abc import ABC, abstractmethod
+
+import httpx
+
+from promptopt.dataclasses import JsonModel
+
+
+class InvalidLLMResponseError(ValueError):
+    pass
 
 
 class LLM(ABC):
@@ -28,6 +36,26 @@ class LLM(ABC):
         **kwargs,
     ) -> dict[str, str]:
         raise NotImplementedError()
+
+
+async def generate_validated(
+    llm: LLM, messages: list, out_schema: JsonModel
+) -> tuple[str, dict]:
+    for attempt in range(3):
+        output_str = await llm.generate(messages, out_schema=out_schema)
+        try:
+            if not isinstance(output_str, str):
+                raise ValueError("Expected a JSON string.")
+            output = json.loads(output_str)
+            if not isinstance(output, dict):
+                raise ValueError("Expected a JSON object.")
+            out_schema.validate(output)
+            return output_str, output
+        except ValueError as error:
+            if attempt == 2:
+                raise InvalidLLMResponseError(
+                    "Failed to get a valid structured response after 3 attempts."
+                ) from error
 
 
 class OpenAIProvider(LLM):

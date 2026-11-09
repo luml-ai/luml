@@ -1,16 +1,18 @@
 import asyncio
-from typing import Sequence
-from promptopt.optimizers._base import BaseOptimizer
+import random
+from collections.abc import Sequence
+from copy import deepcopy
+
+import optuna
+
 from promptopt.dataclasses import Example, LLMExample
 from promptopt.graph import Graph
-from promptopt.trace import Trace
-from promptopt.llm import LLM
-from promptopt.optimizers._utils import split_dataset, freeze_graph_ids
-from promptopt.optimizers._instruction_proposal import propose_instructions
+from promptopt.llm import LLM, InvalidLLMResponseError
+from promptopt.optimizers._base import BaseOptimizer
 from promptopt.optimizers._eval import BaseMetric
-from copy import deepcopy
-import random
-import optuna
+from promptopt.optimizers._instruction_proposal import propose_instructions
+from promptopt.optimizers._utils import freeze_graph_ids, run_examples, split_dataset
+from promptopt.trace import Trace
 
 
 class JEDIOptimizer(BaseOptimizer):
@@ -50,12 +52,7 @@ class JEDIOptimizer(BaseOptimizer):
 
     async def _collect_examples(self, training_examples: list[Example]) -> Trace:
         trace = Trace()
-        await asyncio.gather(
-            *[
-                self.graph.run(example.input, self.teacher, trace)
-                for example in training_examples
-            ]
-        )
+        await run_examples(self.graph, training_examples, self.teacher, trace)
         return trace
 
     def _generate_demo_sets(
@@ -127,9 +124,18 @@ class JEDIOptimizer(BaseOptimizer):
         if len(val) > self.max_validation_batch_size:
             val = random.sample(val, self.max_validation_batch_size)
 
-        predictions = await asyncio.gather(
-            *[graph.run(example.input, self.student) for example in val]
-        )
+        async def predict(example: Example) -> dict:
+            try:
+                return await graph.run(example.input, self.student)
+            except InvalidLLMResponseError:
+                return {}
+
+        predictions = await asyncio.gather(*[predict(example) for example in val])
+        if not any(predictions):
+            raise InvalidLLMResponseError(
+                "The LLM returned no valid structured response "
+                "for any validation example."
+            )
 
         scores = await asyncio.gather(
             *[
@@ -154,9 +160,9 @@ class JEDIOptimizer(BaseOptimizer):
         space = self._generate_optuna_distributions(
             demo_sets=demo_sets, instruction_proposals=instruction_proposals
         )
-        best_score = 0
-        best_params = {}
-        for trial_num in range(self.n_trials):
+        best_score = float("-inf")
+        best_params = None
+        for _ in range(self.n_trials):
             trial = study.ask(space)
             graph_copy = deepcopy(self.graph)
             self._select_params(
@@ -165,17 +171,26 @@ class JEDIOptimizer(BaseOptimizer):
                 demo_sets=demo_sets,
             )
 
-            score = await self._evaluate(
-                val=val,
-                graph=graph_copy,
-            )
+            try:
+                score = await self._evaluate(
+                    val=val,
+                    graph=graph_copy,
+                )
+            except InvalidLLMResponseError:
+                study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                continue
 
-            if score > best_score:
+            if best_params is None or score > best_score:
                 best_score = score
                 best_params = trial.params
             study.tell(trial, score)
         print(f"Best score: {best_score}")
         print(f"Best params: {best_params}")
+        if best_params is None:
+            raise InvalidLLMResponseError(
+                "Optimization failed: the LLM returned no valid structured response "
+                "in any trial."
+            )
         self._select_params(
             graph=self.graph,
             params=best_params,

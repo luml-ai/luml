@@ -1,16 +1,17 @@
-from typing import Any
 import asyncio
 from dataclasses import dataclass
+from typing import Any
+from uuid import uuid4
+
+from promptopt.dataclasses import NodeOutput, Socket, StateDescriptor
+from promptopt.llm import LLM
 from promptopt.nodes._base import BaseNode
-from promptopt.dataclasses import Socket, StateDescriptor, NodeOutput
+from promptopt.nodes.gate import Gate
 from promptopt.nodes.io import InputNode, OutputNode
 from promptopt.nodes.processor import Processor
-from promptopt.nodes.gate import Gate
-from promptopt.variadic import VariadicList
-from promptopt.templates import NODE_LLM_REPR_TEMPLATE, GRAPH_LLM_REPR_TEMPLATE
+from promptopt.templates import GRAPH_LLM_REPR_TEMPLATE, NODE_LLM_REPR_TEMPLATE
 from promptopt.trace import Trace
-from promptopt.llm import LLM
-from uuid import uuid4
+from promptopt.variadic import VariadicList
 
 
 @dataclass
@@ -140,7 +141,9 @@ class Graph:
     def _get_node_inputs(self, node: BaseNode, state: GraphState):
         return {
             field_name: state.states[state_descriptor]
-            for field_name, state_descriptor in zip(node.input_names, node.reads)
+            for field_name, state_descriptor in zip(
+                node.input_names, node.reads, strict=True
+            )
         }
 
     async def run(
@@ -179,7 +182,7 @@ class Graph:
                 *(task for _, task in tasks)
             )
 
-            for (node, _), node_output in zip(tasks, results):
+            for (node, _), node_output in zip(tasks, results, strict=True):
                 state.reset_socket_counts(node.listens_to)
                 state.apply_node_output(node_output)
 
@@ -218,9 +221,9 @@ class Graph:
             )
 
         for edge in self._edges:
-            edges_repr.append(
-                f"{edge.lhs_node._injected_node_name}.{edge.lhs_field_name} -> {edge.rhs_node._injected_node_name}.{edge.rhs_field_name}"
-            )
+            lhs = f"{edge.lhs_node._injected_node_name}.{edge.lhs_field_name}"
+            rhs = f"{edge.rhs_node._injected_node_name}.{edge.rhs_field_name}"
+            edges_repr.append(f"{lhs} -> {rhs}")
 
         return GRAPH_LLM_REPR_TEMPLATE.format(
             nodes="\n".join(nodes_repr), edges="\n".join(edges_repr)

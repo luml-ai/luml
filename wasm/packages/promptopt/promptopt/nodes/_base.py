@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from promptopt.dataclasses import Socket, StateDescriptor, NodeOutput, LLMExample
-from uuid import uuid4
+
+from promptopt.dataclasses import LLMExample, NodeOutput, Socket, StateDescriptor
 
 
 class BaseNode(ABC):

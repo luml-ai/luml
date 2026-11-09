@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
+
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
-from abc import ABC, abstractmethod
 
 
 class BaseOptimizer(ABC):

@@ -1,11 +1,11 @@
-import asyncio
-from promptopt.optimizers._base import BaseOptimizer
+import random
+
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
+from promptopt.llm import LLM, InvalidLLMResponseError
+from promptopt.optimizers._base import BaseOptimizer
+from promptopt.optimizers._utils import run_examples
 from promptopt.trace import Trace
-from promptopt.llm import LLM
-
-import random
 
 
 class RandomFewShotOptimizer(BaseOptimizer):
@@ -29,13 +29,12 @@ class RandomFewShotOptimizer(BaseOptimizer):
             training_examples = examples[:]
 
         trace = Trace()
-
-        async def process_example(example: Example):
-            return await self.graph.run(example.input, self.llm, trace)
-
-        await asyncio.gather(
-            *(process_example(example) for example in training_examples)
-        )
+        completed = await run_examples(self.graph, training_examples, self.llm, trace)
+        if training_examples and not completed:
+            raise InvalidLLMResponseError(
+                "Optimization failed: the LLM returned no valid structured response "
+                "for any training example."
+            )
 
         for node in self.graph.nodes.values():
             if id(node) in trace._examples:

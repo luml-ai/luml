@@ -1,8 +1,9 @@
 import asyncio
-from abc import ABC, abstractmethod
 import json
-from promptopt.llm import LLM
+from abc import ABC, abstractmethod
+
 from promptopt.dataclasses import Field, JsonModel
+from promptopt.llm import LLM, generate_validated
 
 METRIC_MODEL = JsonModel([Field("score", "integer")])
 
@@ -33,7 +34,8 @@ class ExactMatch(BaseMetric):
             raise ValueError("Prediction and target lists must have the same length.")
 
         exact_matches = [
-            1 if pred == tgt else 0 for pred, tgt in zip(predictions, targets)
+            1 if pred == tgt else 0
+            for pred, tgt in zip(predictions, targets, strict=True)
         ]
         return sum(exact_matches) / len(exact_matches)
 
@@ -55,12 +57,14 @@ class LLMJudge(BaseMetric):
                 true_value=json.dumps(tgt),
             )
             messages = [{"role": "user", "content": template}]
-            return json.loads(await llm.generate(messages, out_schema=METRIC_MODEL))[
-                "score"
-            ]
+            _, result = await generate_validated(llm, messages, METRIC_MODEL)
+            return result["score"]
 
         scores = await asyncio.gather(
-            *[get_score(pred, tgt) for pred, tgt in zip(predictions, targets)]
+            *[
+                get_score(pred, tgt)
+                for pred, tgt in zip(predictions, targets, strict=True)
+            ]
         )
 
         return sum(scores) / len(scores)

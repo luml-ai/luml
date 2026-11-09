@@ -1,19 +1,20 @@
-from promptopt.nodes._base import BaseNode
+import json
+from uuid import uuid4
+
 from promptopt.dataclasses import (
     Field,
+    JsonModel,
+    LLMExample,
+    NodeOutput,
+    OutputSpec,
     Socket,
     StateDescriptor,
-    JsonModel,
-    OutputSpec,
-    NodeOutput,
 )
+from promptopt.llm import LLM, generate_validated
+from promptopt.nodes._base import BaseNode
 from promptopt.templates import NODE_SYSTEM_PROMPT_TEMPLATE
-from promptopt.llm import LLM
-from promptopt.variadic import VariadicList
-from promptopt.dataclasses import LLMExample
 from promptopt.trace import Trace
-from uuid import uuid4
-import json
+from promptopt.variadic import VariadicList
 
 
 class Processor(BaseNode):
@@ -41,17 +42,17 @@ class Processor(BaseNode):
 
         self._input_field_to_socket_map = {
             field.name: socket
-            for field, socket in zip(self._inputs, self._input_sockets)
+            for field, socket in zip(self._inputs, self._input_sockets, strict=True)
         }
 
         self._reads = [
             StateDescriptor(socket.id, field.type, field.is_variadic)
-            for field, socket in zip(self._inputs, self._input_sockets)
+            for field, socket in zip(self._inputs, self._input_sockets, strict=True)
         ]
 
         self._input_field_to_state_descriptor_map = {
             field.name: state_descriptor
-            for field, state_descriptor in zip(self._inputs, self._reads)
+            for field, state_descriptor in zip(self._inputs, self._reads, strict=True)
         }
 
         self._is_lazy = any(field.is_variadic for field in self._inputs)
@@ -114,18 +115,18 @@ class Processor(BaseNode):
 
         messages.append({"role": "user", "content": inputs_json})
 
-        output_str = await llm.generate(messages, out_schema=self._output_schema)
+        output_str, output = await generate_validated(
+            llm, messages, self._output_schema
+        )
 
         if trace is not None:
             trace.add_example(self, inputs_json, output_str)
-
-        output = json.loads(output_str)
 
         sockets_to_trigger = []
         fields_to_write = {}
 
         for out_field, (out_connection, out_spec) in zip(
-            self._outputs, self._output_connections.items()
+            self._outputs, self._output_connections.items(), strict=False
         ):
             output_value = output.get(out_field.name)
 
