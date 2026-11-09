@@ -37,7 +37,8 @@ export const useCollectionsStore = defineStore('collections', () => {
       payload,
     )
     setCollectionsList([collection, ...collectionsList.value])
-    await getCollectionsTags()
+    await getCollectionsTags(info)
+    return collection
   }
 
   async function updateCollection(collectionId: string, payload: OrbitCollectionCreator) {
@@ -104,11 +105,9 @@ export const useCollectionsStore = defineStore('collections', () => {
     )
   }
 
-  async function getCollectionsTags() {
-    const tags = await api.orbitCollections.getCollectionsTags(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-    )
+  async function getCollectionsTags(requestData?: typeof requestInfo.value) {
+    const info = requestData ?? requestInfo.value
+    const tags = await api.orbitCollections.getCollectionsTags(info.organizationId, info.orbitId)
     collectionsTags.value = tags
   }
 

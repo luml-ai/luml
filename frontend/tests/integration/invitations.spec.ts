@@ -141,7 +141,9 @@ test.describe('Invitation links', () => {
     await page.goto('/invitations')
 
     await expect(page).toHaveURL(/\/invitations$/)
-    await expect(page.getByRole('heading', { name: 'Pick a Machine Learning Task' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'The agent-native MLOps platform' }),
+    ).toBeVisible()
     await expect(
       page.getByRole('dialog').getByRole('heading', { name: 'invitation center' }),
     ).toBeVisible()

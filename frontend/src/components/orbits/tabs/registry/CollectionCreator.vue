@@ -56,6 +56,13 @@
         </div>
       </div>
 
+      <UiInfoBlock
+        v-if="showDefaultOrbitInfo"
+        title="A default Orbit will be created for this collection."
+        text="The collection will be added to your Registry. Manage your Orbits in Organization settings."
+        class="info-block"
+      />
+
       <Button type="submit" fluid rounded :loading="loading">Create</Button>
     </Form>
   </Dialog>
@@ -69,16 +76,26 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { computed, ref, watch } from 'vue'
 import {
   OrbitCollectionTypeEnum,
+  type OrbitCollection,
   type OrbitCollectionCreator,
 } from '@/lib/api/orbit-collections/interfaces'
 import { useCollectionsStore } from '@/stores/collections'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { collectionCreatorResolver } from '@/utils/forms/resolvers'
 import { COLLECTION_CREATOR_DIALOG_PT, COLLECTION_TYPE_OPTIONS } from './collection.const'
+import UiInfoBlock from '@/components/ui/UiInfoBlock.vue'
+
+interface CollectionRequestInfo {
+  organizationId: string
+  orbitId: string
+}
 
 type Props = {
   organizationId?: string
   orbitId?: string
+  showDefaultOrbitInfo?: boolean
+  resolveRequestInfo?: () => Promise<CollectionRequestInfo>
+  afterCreate?: (collection: OrbitCollection, requestInfo: CollectionRequestInfo) => Promise<void>
 }
 
 const props = defineProps<Props>()
@@ -114,7 +131,8 @@ function searchTags(event: AutoCompleteCompleteEvent) {
   ]
 }
 
-function getRequestInfo() {
+async function getRequestInfo(): Promise<CollectionRequestInfo | undefined> {
+  if (props.resolveRequestInfo) return props.resolveRequestInfo()
   if (props.organizationId && props.orbitId) {
     return { organizationId: props.organizationId, orbitId: props.orbitId }
   }
@@ -124,9 +142,11 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
   try {
     loading.value = true
-    await collectionsStore.createCollection({ ...formData.value }, getRequestInfo())
-    visible.value = false
+    const requestInfo = await getRequestInfo()
+    const collection = await collectionsStore.createCollection({ ...formData.value }, requestInfo)
     toast.add(simpleSuccessToast('Collection created'))
+    if (props.afterCreate && requestInfo) await props.afterCreate(collection, requestInfo)
+    visible.value = false
   } catch (e: unknown) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create collection')))
   } finally {
@@ -152,6 +172,9 @@ watch(visible, (value) => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.info-block {
+  margin-bottom: 28px;
 }
 .field {
   display: flex;

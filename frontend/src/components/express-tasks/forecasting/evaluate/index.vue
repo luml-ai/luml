@@ -343,7 +343,7 @@ function onDownloadClick(): void {
 
 function finishConfirm(): void {
   AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'forecasting' })
-  router.push({ name: 'home' })
+  router.push({ name: 'express-tasks' })
 }
 
 // A changed horizon invalidates any prior forecast.

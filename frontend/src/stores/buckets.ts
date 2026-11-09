@@ -36,9 +36,13 @@ export class BucketValidationError extends Error {
 
 export const useBucketsStore = defineStore('buckets', () => {
   const buckets = ref<BucketSecret[]>([])
+  let bucketsRequestId = 0
 
   async function getBuckets(organizationId: string) {
-    buckets.value = await api.bucketSecrets.getBucketSecretsList(organizationId)
+    const requestId = ++bucketsRequestId
+    const list = await api.bucketSecrets.getBucketSecretsList(organizationId)
+    if (requestId !== bucketsRequestId) return
+    buckets.value = list
   }
 
   async function createBucket(organizationId: string, data: BucketFormData) {
