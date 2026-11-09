@@ -34,8 +34,8 @@
           <predict-file :predict-callback="predict" v-else />
         </div>
       </div>
-      <div class="card">
-        <h2 class="card-title">Top {{ features.length }} features</h2>
+      <div v-if="features.length" class="card">
+        <h2 class="card-title">{{ getTopFeaturesTitle(features.length) }}</h2>
         <model-top-features :features="features" />
       </div>
     </div>
@@ -56,6 +56,7 @@ import PredictFile from './PredictFile.vue'
 import ModelPerformance from './ModelPerformance.vue'
 import ModelTopFeatures from './ModelTopFeatures.vue'
 import { getMetricsCards } from '@/helpers/helpers'
+import { getTopFeaturesTitle } from '@/helpers/text'
 import { Model } from '@fnnx-ai/web'
 import { ArrayDType, NDArray } from '@fnnx-ai/common'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
