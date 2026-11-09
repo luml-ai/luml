@@ -1,5 +1,6 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { WebworkerInterruptedError } from '@/lib/data-processing/DataProcessingWorker'
 import Optimization from './index.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -70,6 +71,12 @@ it.each([new Error('Training failed'), { response: { status: 500 } }])(
     )
   },
 )
+it('shows no toast when the user cancelled the training', async () => {
+  mocks.run.mockRejectedValueOnce(new WebworkerInterruptedError('Execution interrupted by user'))
+  await openOptimization()
+  await mocks.confirm.mock.calls[0][0].accept()
+  expect(mocks.toast).not.toHaveBeenCalled()
+})
 it('uses a useful fallback for a non-Error preparation rejection', async () => {
   mocks.prepare.mockImplementationOnce(() => {
     throw { status: 500 }

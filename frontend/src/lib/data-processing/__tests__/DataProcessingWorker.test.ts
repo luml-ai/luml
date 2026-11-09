@@ -315,3 +315,34 @@ describe('model cleanup contracts', () => {
     await rejected
   })
 })
+
+describe('interrupted routes', () => {
+  it('rejects an interrupted route with a dedicated error', async () => {
+    const { WebworkerInterruptedError } = await import('../DataProcessingWorker')
+    const pending = entries[0][1]()
+    const rejected = expect(pending).rejects.toBeInstanceOf(WebworkerInterruptedError)
+    await flushPromises()
+    workers[0].respond(true)
+    await flushPromises()
+    workers[0].respond({
+      status: 'error',
+      error_type: 'KeyboardInterrupt',
+      error_message: 'Execution interrupted by user',
+    })
+    await rejected
+    await expect(pending).rejects.toThrow('Execution interrupted by user')
+  })
+
+  it('keeps the plain error for a route that failed by itself', async () => {
+    const { WebworkerInterruptedError } = await import('../DataProcessingWorker')
+    const pending = entries[0][1]()
+    const failure = pending.catch((error: unknown) => error)
+    await flushPromises()
+    workers[0].respond(true)
+    await flushPromises()
+    workers[0].respond({ status: 'error', error_type: 'ValueError', error_message: 'Bad data' })
+    const error = await failure
+    expect(error).not.toBeInstanceOf(WebworkerInterruptedError)
+    expect(error).toMatchObject({ message: 'Bad data' })
+  })
+})
