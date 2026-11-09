@@ -110,6 +110,9 @@ const description = ref(promptFusionService.taskDescription)
 
 const helpLink = computed(() => `${import.meta.env.VITE_DOCS_URL}/task-guides/prompt-optimization`)
 
+function getTrainingErrorMessage(e: unknown) {
+  return typeof e === 'string' && e ? e : getErrorMessage(e, 'Training failed')
+}
 function onChangeOptimizationState(isOpen: boolean) {
   visible.value = isOpen
 }
@@ -121,7 +124,7 @@ function onRunOptimizationClick() {
     confirm.require(runOptimizationConfirmOptions(runOptimization))
   } catch (e: unknown) {
     promptFusionService.endTraining()
-    toast.add(trainingErrorToast(getErrorMessage(e, 'Training failed')))
+    toast.add(trainingErrorToast(getTrainingErrorMessage(e)))
   }
 }
 async function runOptimization() {
@@ -146,7 +149,7 @@ async function runOptimization() {
     await promptFusionService.runOptimization()
     toast.add(simpleSuccessToast('Your model is successfully trained'))
   } catch (e) {
-    toast.add(trainingErrorToast(getErrorMessage(e, 'Training failed')))
+    toast.add(trainingErrorToast(getTrainingErrorMessage(e)))
   }
 }
 
