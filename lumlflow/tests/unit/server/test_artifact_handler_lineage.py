@@ -376,7 +376,7 @@ class TestRememberedExperiment:
         calls = client.artifacts.upload.call_args_list
         assert [call.kwargs["lineage_inputs"] for call in calls] == [
             ["stale-artifact"],
-            None,
+            ["new-experiment-artifact"],
             ["new-experiment-artifact"],
         ]
         client.artifacts.get_lineage.assert_called_once_with("stale-artifact", depth=1)

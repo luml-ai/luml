@@ -168,7 +168,10 @@ class ArtifactHandler(BaseLumlHandler):
                     raise
                 with self._tracker_lock:
                     self._forget_experiment_artifact(data, experiment_artifact_id)
-                artifact = upload(None)
+                    republished = self.tracker.get_remote_artifact(
+                        "experiment", data.experiment_id, data.orbit_id
+                    )
+                artifact = upload([republished] if republished is not None else None)
 
             if model_id is not None:
                 with self._tracker_lock:
