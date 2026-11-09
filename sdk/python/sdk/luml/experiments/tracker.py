@@ -1570,6 +1570,9 @@ class ExperimentTracker:
         expected_artifact_id: str | None = None,
     ) -> None:
         """Forget the mapping, optionally only if it still matches the expected ID."""
+        if expected_artifact_id is None:
+            self.backend.delete_remote_artifact(local_type, local_id, orbit_id)
+            return
         self.backend.delete_remote_artifact(
             local_type, local_id, orbit_id, expected_artifact_id=expected_artifact_id
         )

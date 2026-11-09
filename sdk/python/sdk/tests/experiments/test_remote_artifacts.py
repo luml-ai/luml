@@ -75,6 +75,21 @@ class TestRemoteArtifacts:
             tracker.get_remote_artifact("experiment", "other", "orbit-1") == expected_id
         )
 
+    def test_unconditional_delete_works_with_backend_without_expected_id(
+        self, tracker: ExperimentTracker, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        delete = tracker.backend.delete_remote_artifact
+
+        def legacy_delete(local_type: str, local_id: str, orbit_id: str) -> None:
+            delete(local_type, local_id, orbit_id)
+
+        monkeypatch.setattr(tracker.backend, "delete_remote_artifact", legacy_delete)
+        tracker.set_remote_artifact("experiment", "L", "orbit-1", "a1")
+
+        tracker.delete_remote_artifact("experiment", "L", "orbit-1")
+
+        assert tracker.get_remote_artifact("experiment", "L", "orbit-1") is None
+
 
 class TestRemoteArtifactsMigration:
     def test_rollback_removes_table_and_restores_version_5(
