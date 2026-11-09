@@ -201,14 +201,23 @@ def test_collect_examples_skips_exhausted_responses(
 
 
 @pytest.mark.parametrize("optimizer_kind", ["few_shot", "jedi"])
-def test_collect_examples_does_not_hide_unrelated_errors(optimizer_kind: str) -> None:
-    class BrokenLLM(DummyLLM):
+def test_collect_examples_raises_unrelated_errors_without_waiting_for_other_rows(
+    optimizer_kind: str,
+) -> None:
+    class FailsThenHangsLLM(DummyLLM):
+        def __init__(self) -> None:
+            self.calls = 0
+
         async def generate(self, messages: list, out_schema: Any) -> str:
-            raise RuntimeError("provider unavailable")
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("provider unavailable")
+            await asyncio.Event().wait()
+            return "{}"
 
     graph, _ = processor_graph()
-    llm = BrokenLLM()
-    examples = [Example(input={"text": "example"}, output={})]
+    llm = FailsThenHangsLLM()
+    examples = [Example(input={"text": str(row)}, output={}) for row in range(3)]
     if optimizer_kind == "few_shot":
         optimizer = RandomFewShotOptimizer(graph, 10, 2, llm)
         operation = optimizer.optimize(examples)
@@ -217,7 +226,7 @@ def test_collect_examples_does_not_hide_unrelated_errors(optimizer_kind: str) ->
         operation = optimizer._collect_examples(examples)
 
     with pytest.raises(RuntimeError, match="provider unavailable"):
-        asyncio.run(operation)
+        asyncio.run(asyncio.wait_for(operation, timeout=1))
 
 
 @pytest.mark.parametrize(

@@ -5,7 +5,7 @@ from promptopt.dataclasses import Example, LLMExample
 from promptopt.graph import Graph
 from promptopt.trace import Trace
 from promptopt.llm import LLM, InvalidLLMResponseError
-from promptopt.optimizers._utils import split_dataset, freeze_graph_ids
+from promptopt.optimizers._utils import freeze_graph_ids, run_examples, split_dataset
 from promptopt.optimizers._instruction_proposal import propose_instructions
 from promptopt.optimizers._eval import BaseMetric
 from copy import deepcopy
@@ -50,18 +50,7 @@ class JEDIOptimizer(BaseOptimizer):
 
     async def _collect_examples(self, training_examples: list[Example]) -> Trace:
         trace = Trace()
-        results = await asyncio.gather(
-            *[
-                self.graph.run(example.input, self.teacher, trace)
-                for example in training_examples
-            ],
-            return_exceptions=True,
-        )
-        for result in results:
-            if isinstance(result, BaseException) and not isinstance(
-                result, InvalidLLMResponseError
-            ):
-                raise result
+        await run_examples(self.graph, training_examples, self.teacher, trace)
         return trace
 
     def _generate_demo_sets(

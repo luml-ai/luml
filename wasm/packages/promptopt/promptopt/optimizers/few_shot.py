@@ -1,9 +1,9 @@
-import asyncio
 from promptopt.optimizers._base import BaseOptimizer
+from promptopt.optimizers._utils import run_examples
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
 from promptopt.trace import Trace
-from promptopt.llm import LLM, InvalidLLMResponseError
+from promptopt.llm import LLM
 
 import random
 
@@ -29,19 +29,7 @@ class RandomFewShotOptimizer(BaseOptimizer):
             training_examples = examples[:]
 
         trace = Trace()
-
-        async def process_example(example: Example):
-            return await self.graph.run(example.input, self.llm, trace)
-
-        results = await asyncio.gather(
-            *(process_example(example) for example in training_examples),
-            return_exceptions=True,
-        )
-        for result in results:
-            if isinstance(result, BaseException) and not isinstance(
-                result, InvalidLLMResponseError
-            ):
-                raise result
+        await run_examples(self.graph, training_examples, self.llm, trace)
 
         for node in self.graph.nodes.values():
             if id(node) in trace._examples:

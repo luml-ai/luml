@@ -2,8 +2,23 @@ from promptopt.optimizers._base import BaseOptimizer
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
 from promptopt.trace import Trace
-from promptopt.llm import LLM
+from promptopt.llm import LLM, InvalidLLMResponseError
+import asyncio
 import random
+
+
+async def run_examples(
+    graph: Graph, examples: list[Example], llm: LLM, trace: Trace
+) -> int:
+    async def run_example(example: Example) -> bool:
+        try:
+            await graph.run(example.input, llm, trace)
+        except InvalidLLMResponseError:
+            return False
+        return True
+
+    results = await asyncio.gather(*(run_example(example) for example in examples))
+    return sum(results)
 
 
 def split_dataset(
