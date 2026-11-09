@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { SlidersHorizontal, X } from 'lucide-vue-next'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
@@ -109,6 +110,9 @@ const description = ref(promptFusionService.taskDescription)
 
 const helpLink = computed(() => `${import.meta.env.VITE_DOCS_URL}/task-guides/prompt-optimization`)
 
+function getTrainingErrorMessage(e: unknown) {
+  return typeof e === 'string' && e ? e : getErrorMessage(e, 'Training failed')
+}
 function onChangeOptimizationState(isOpen: boolean) {
   visible.value = isOpen
 }
@@ -119,9 +123,8 @@ function onRunOptimizationClick() {
     promptFusionService.checkIsOptimizationAvailable()
     confirm.require(runOptimizationConfirmOptions(runOptimization))
   } catch (e: unknown) {
-    const error = e as Error
     promptFusionService.endTraining()
-    toast.add(trainingErrorToast(error.message as string))
+    toast.add(trainingErrorToast(getTrainingErrorMessage(e)))
   }
 }
 async function runOptimization() {
@@ -146,7 +149,7 @@ async function runOptimization() {
     await promptFusionService.runOptimization()
     toast.add(simpleSuccessToast('Your model is successfully trained'))
   } catch (e) {
-    toast.add(trainingErrorToast(e instanceof Error ? e.message : String(e)))
+    toast.add(trainingErrorToast(getTrainingErrorMessage(e)))
   }
 }
 

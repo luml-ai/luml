@@ -12,9 +12,12 @@
 </template>
 
 <script setup lang="ts">
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { ref } from 'vue'
 import { Check, Copy } from 'lucide-vue-next'
-import { Button } from 'primevue'
+import { Button, useToast } from 'primevue'
+
+const toast = useToast()
 
 type Props = {
   text: string
@@ -25,12 +28,17 @@ const props = withDefaults(defineProps<Props>(), { iconSize: 12 })
 
 const copied = ref(false)
 
-function copy() {
-  copied.value = true
-  navigator.clipboard.writeText(props.text)
-  setTimeout(() => {
+async function copy() {
+  try {
+    await navigator.clipboard.writeText(props.text)
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch {
     copied.value = false
-  }, 2000)
+    toast.add(simpleErrorToast('Failed to copy to clipboard'))
+  }
 }
 </script>
 

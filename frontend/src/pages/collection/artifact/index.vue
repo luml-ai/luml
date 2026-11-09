@@ -203,7 +203,7 @@ async function downloadClick() {
       artifactsStore.currentArtifact.file_name,
     )
   } catch (e) {
-    console.error('Download failed', e)
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to download artifact')))
   }
 }
 

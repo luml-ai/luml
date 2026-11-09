@@ -70,15 +70,19 @@ const virtualScrollerOptions = computed(() => {
 const modelValue = defineModel<string | null>()
 
 async function addInitialCollectionToList(collectionId: string) {
-  const collection = await collectionsStore.getCollection(collectionId)
-  addCollectionsToList([collection])
+  try {
+    const collection = await collectionsStore.getCollection(collectionId)
+    addCollectionsToList([collection])
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load the selected collection')))
+  }
 }
 
 async function onRequestInfoChange() {
   try {
     reset()
     if (props.initialCollectionId) {
-      addInitialCollectionToList(props.initialCollectionId)
+      await addInitialCollectionToList(props.initialCollectionId)
     }
     setRequestInfo({
       organizationId: props.organizationId,
