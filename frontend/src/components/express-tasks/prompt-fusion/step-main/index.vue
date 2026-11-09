@@ -15,11 +15,14 @@
 <script setup lang="ts">
 import type { PromptNode } from '../interfaces'
 import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
+import { useToast } from 'primevue'
 import { useVueFlow, type GraphNode } from '@vue-flow/core'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker'
 import { useRouteLeaveConfirm } from '@/hooks/useRouteLeaveConfirm'
 import { leavePageConfirmOptions } from '@/lib/primevue/data/confirm'
+import { trainingErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 import PresentationArea from '@/components/express-tasks/prompt-fusion/step-main/PresentationArea.vue'
 import Sidebar from '@/components/express-tasks/prompt-fusion/step-main/sidebar/index.vue'
 import Navigation from '@/components/express-tasks/prompt-fusion/step-main/Navigation.vue'
@@ -39,6 +42,7 @@ defineProps<Props>()
 defineEmits<Emits>()
 
 const { onNodeClick, onPaneClick } = useVueFlow()
+const toast = useToast()
 
 const { setGuard } = useRouteLeaveConfirm(leavePageConfirmOptions(() => {}))
 
@@ -49,8 +53,12 @@ function closeSidebar() {
   activeNode.value = null
 }
 async function cancelTraining() {
-  DataProcessingWorker.interrupt()
-  promptFusionService.endTraining()
+  try {
+    await DataProcessingWorker.interrupt()
+    promptFusionService.endTraining()
+  } catch (e) {
+    toast.add(trainingErrorToast(getErrorMessage(e, 'Failed to cancel training')))
+  }
 }
 function onChangeTrainingState(value: boolean) {
   isTrainingActive.value = value

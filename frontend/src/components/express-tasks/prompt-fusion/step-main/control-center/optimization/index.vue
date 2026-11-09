@@ -84,6 +84,7 @@ import { getErrorMessage } from '@/helpers/helpers'
 import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { SlidersHorizontal, X } from 'lucide-vue-next'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
+import { WebworkerInterruptedError } from '@/lib/data-processing/DataProcessingWorker'
 import { EvaluationModesEnum, ModelTypeEnum } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import { useConfirm, useToast } from 'primevue'
 import { runOptimizationConfirmOptions } from '@/lib/primevue/data/confirm'
@@ -149,6 +150,7 @@ async function runOptimization() {
     await promptFusionService.runOptimization()
     toast.add(simpleSuccessToast('Your model is successfully trained'))
   } catch (e) {
+    if (e instanceof WebworkerInterruptedError) return
     toast.add(trainingErrorToast(getTrainingErrorMessage(e)))
   }
 }

@@ -18,7 +18,9 @@
             10 minutes.
           </div>
           <progress-bar mode="indeterminate" style="height: 6px" />
-          <d-button v-if="isCancelAvailable" label="cancel" @click="$emit('cancel')" />
+          <div v-if="isCancelAvailable" class="actions">
+            <d-button label="cancel" @click="$emit('cancel')" />
+          </div>
         </div>
       </div>
     </template>
@@ -61,6 +63,11 @@ defineProps<Props>()
   margin-bottom: 28px;
   color: var(--p-text-muted-color);
   line-height: 1.18;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 40px;
 }
 @media (max-width: 992px) {
   .wrapper {

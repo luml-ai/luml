@@ -8,6 +8,8 @@ import {
   type TaskPayload,
 } from './interfaces'
 
+export class WebworkerInterruptedError extends Error {}
+
 class DataProcessingWorkerClass {
   private worker?: Worker
   private initialization: Promise<void> | null = null
@@ -55,7 +57,9 @@ class DataProcessingWorkerClass {
           const message = event.data
           const callback = this.callbacks.get(message.id)
           this.callbacks.delete(message.id)
-          if (message.error !== undefined || message.payload?.status === 'error') {
+          if (message.payload?.error_type === 'KeyboardInterrupt') {
+            callback?.reject(new WebworkerInterruptedError(message.payload.error_message))
+          } else if (message.error !== undefined || message.payload?.status === 'error') {
             callback?.reject(
               new Error(
                 message.error || message.payload?.error_message || 'Webworker request failed',
