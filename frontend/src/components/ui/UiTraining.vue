@@ -67,7 +67,7 @@ defineProps<Props>()
 .actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 28px;
+  margin-top: 40px;
 }
 @media (max-width: 992px) {
   .wrapper {
