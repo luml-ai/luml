@@ -29,9 +29,7 @@ class RandomFewShotOptimizer(BaseOptimizer):
             training_examples = examples[:]
 
         trace = Trace()
-        completed = await run_examples(
-            self.graph, training_examples, self.llm, trace
-        )
+        completed = await run_examples(self.graph, training_examples, self.llm, trace)
         if training_examples and not completed:
             raise InvalidLLMResponseError(
                 "Optimization failed: the LLM returned no valid structured response "

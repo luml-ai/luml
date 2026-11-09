@@ -131,7 +131,8 @@ class JEDIOptimizer(BaseOptimizer):
         predictions = await asyncio.gather(*[predict(example) for example in val])
         if not any(predictions):
             raise InvalidLLMResponseError(
-                "The LLM returned no valid structured response for any validation example."
+                "The LLM returned no valid structured response "
+                "for any validation example."
             )
 
         scores = await asyncio.gather(
