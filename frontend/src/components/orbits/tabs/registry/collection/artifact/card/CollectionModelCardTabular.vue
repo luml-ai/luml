@@ -9,7 +9,7 @@
     ></ModelTabularPerformance>
     <div class="features card">
       <header class="card-header">
-        <h3 class="card-title">Top {{ features.length }} features</h3>
+        <h3 class="card-title">{{ getTopFeaturesTitle(features.length) }}</h3>
       </header>
       <ol class="features-list">
         <li v-for="(feature, index) in features" :key="feature.feature_name" class="feature">
@@ -31,6 +31,7 @@ import type {
   TabularMetrics,
 } from '@/lib/data-processing/interfaces'
 import { FnnxService, type FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
+import { getTopFeaturesTitle } from '@/helpers/text'
 import { computed } from 'vue'
 import ModelTabularPerformance from '@/components/model/ModelTabularPerformance.vue'
 

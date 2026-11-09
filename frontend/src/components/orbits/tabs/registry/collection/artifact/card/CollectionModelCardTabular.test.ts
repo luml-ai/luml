@@ -21,7 +21,7 @@ function createMetrics(featureCount: number): TabularMetrics {
 describe('CollectionModelCardTabular', () => {
   it.each([
     { featureCount: 0, heading: 'Top 0 features', renderedCount: 0 },
-    { featureCount: 1, heading: 'Top 1 features', renderedCount: 1 },
+    { featureCount: 1, heading: 'Top 1 feature', renderedCount: 1 },
     { featureCount: 3, heading: 'Top 3 features', renderedCount: 3 },
     { featureCount: 5, heading: 'Top 5 features', renderedCount: 5 },
     { featureCount: 7, heading: 'Top 5 features', renderedCount: 5 },

@@ -42,7 +42,7 @@
       ></ModelTabularPerformance>
       <div class="features card">
         <header class="card-header">
-          <h3 class="card-title">Top {{ features.length }} features</h3>
+          <h3 class="card-title">{{ getTopFeaturesTitle(features.length) }}</h3>
           <info
             width="20"
             height="20"
@@ -81,6 +81,7 @@ import { Tasks, type TrainingImportance } from '@/lib/data-processing/interfaces
 import { computed, onBeforeMount, ref } from 'vue'
 import { WandSparkles, Info, LogOut } from 'lucide-vue-next'
 import { getBarOptions } from '@/lib/apex-charts/apex-charts'
+import { getTopFeaturesTitle } from '@/helpers/text'
 import { table } from 'arquero'
 import { useRouter } from 'vue-router'
 import DetailedTable from './DetailedTable.vue'
