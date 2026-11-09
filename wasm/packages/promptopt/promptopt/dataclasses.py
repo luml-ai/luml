@@ -134,7 +134,10 @@ class JsonModel:
                         f"Field {field.name} must be of type {field.type}."
                     )
 
-                if field.allowed_values is not None and item not in field.allowed_values:
+                if (
+                    field.allowed_values is not None
+                    and item not in field.allowed_values
+                ):
                     raise ValueError(
                         f"Field {field.name} must be one of {field.allowed_values}."
                     )

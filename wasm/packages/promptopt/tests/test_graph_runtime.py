@@ -80,7 +80,9 @@ class RelayNode(BaseNode):
             raise ValueError(f"No field named {field_name}")
         return self._input_socket, self._read
 
-    async def generate(self, inputs: dict[str, Any], llm: Any, trace: Any) -> NodeOutput:
+    async def generate(
+        self, inputs: dict[str, Any], llm: Any, trace: Any
+    ) -> NodeOutput:
         if self._call_log is not None:
             self._call_log.append(self._label)
 
@@ -126,6 +128,7 @@ def test_active_batch_runs_before_lazy_batch() -> None:
 
     graph = Graph()
     input_node = InputNode([Field("x", "str")])
+
     def _normalize(value: Any) -> str:
         if isinstance(value, list):
             return str(value[0])

@@ -49,7 +49,9 @@ class TraceGraph:
         self.nodes = {"node": node}
         self.node = node
 
-    async def run(self, inputs: dict[str, Any], llm: LLM, trace: Any = None) -> dict[str, Any]:
+    async def run(
+        self, inputs: dict[str, Any], llm: LLM, trace: Any = None
+    ) -> dict[str, Any]:
         if trace is not None:
             trace.add_example(self.node, str(inputs["id"]), str(inputs["id"]))
         return {"id": inputs["id"]}
@@ -59,7 +61,9 @@ class EvalGraph:
     def __init__(self) -> None:
         self.nodes: dict[str, Any] = {}
 
-    async def run(self, inputs: dict[str, Any], llm: LLM, trace: Any = None) -> dict[str, Any]:
+    async def run(
+        self, inputs: dict[str, Any], llm: LLM, trace: Any = None
+    ) -> dict[str, Any]:
         return {"prediction": inputs["value"] * 10}
 
 
@@ -97,10 +101,7 @@ def test_random_few_shot_limits_examples_per_node() -> None:
         llm=DummyLLM(),
     )
 
-    examples = [
-        Example(input={"id": idx}, output={"id": idx})
-        for idx in range(6)
-    ]
+    examples = [Example(input={"id": idx}, output={"id": idx}) for idx in range(6)]
 
     asyncio.run(optimizer.optimize(examples))
 
@@ -257,7 +258,9 @@ def test_collect_examples_raises_unrelated_errors_without_waiting_for_other_rows
 @pytest.mark.parametrize(
     "scores", [[0.0, 0.0, 0.0], [-3.0, -1.0, -2.0], [0.0, 0.5, 0.25]]
 )
-def test_jedi_applies_best_trial_including_nonpositive_scores(scores: list[float]) -> None:
+def test_jedi_applies_best_trial_including_nonpositive_scores(
+    scores: list[float],
+) -> None:
     graph, node = processor_graph()
     freeze_graph_ids(graph)
     optimizer = JEDIOptimizer(graph, DummyLLM(), DummyLLM(), [ExactMatch()], n_trials=3)
