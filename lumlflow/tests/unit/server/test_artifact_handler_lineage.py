@@ -28,6 +28,24 @@ def handler(tracker: ExperimentTracker) -> ArtifactHandler:
     return artifact_handler
 
 
+@pytest.fixture(params=["current", "legacy"])
+def sdk(
+    request: pytest.FixtureRequest,
+    tracker: ExperimentTracker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if request.param == "legacy":
+        delete = tracker.delete_remote_artifact
+
+        def legacy_delete(local_type: str, local_id: str, orbit_id: str) -> None:
+            delete(local_type, local_id, orbit_id)
+
+        monkeypatch.setattr(tracker, "delete_remote_artifact", legacy_delete)
+        monkeypatch.setattr(
+            "lumlflow.handlers.luml.artifacts._CONDITIONAL_REMOTE_DELETE", False
+        )
+
+
 def _seed_experiment(
     tracker: ExperimentTracker, tmp_path: Path, model_names: list[str]
 ) -> tuple[str, list[DbModel]]:
@@ -278,6 +296,7 @@ class TestRememberedExperiment:
         assert client.artifacts.upload.call_args.kwargs.get("lineage_inputs") is None
         assert [item[0] for item in client.artifacts.method_calls] == ["upload"]
 
+    @pytest.mark.usefixtures("sdk")
     def test_stale_mapping_is_deleted_and_upload_retried_without_lineage(
         self,
         handler: ArtifactHandler,
@@ -314,6 +333,7 @@ class TestRememberedExperiment:
         assert job is not None
         assert job.status == "complete"
 
+    @pytest.mark.usefixtures("sdk")
     def test_stale_fallback_preserves_republished_experiment_mapping(
         self,
         handler: ArtifactHandler,
