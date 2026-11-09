@@ -93,6 +93,116 @@ class Deployment(BaseModel)
 
 A model deployment on a Satellite, as the Platform records it.
 
+<a id="luml_api._types.LiveSessionStatus"></a>
+
+## LiveSessionStatus Objects
+
+```python
+class LiveSessionStatus(StrEnum)
+```
+
+Options: "live", "disconnected", "ended".
+
+<a id="luml_api._types.LiveSessionVisibility"></a>
+
+## LiveSessionVisibility Objects
+
+```python
+class LiveSessionVisibility(StrEnum)
+```
+
+Options: "owner".
+
+<a id="luml_api._types.LiveSession"></a>
+
+## LiveSession Objects
+
+```python
+class LiveSession(BaseModel)
+```
+
+A service exposed through a relay, as the Platform records it.
+
+<a id="luml_api._types.LiveSessionStart"></a>
+
+## LiveSessionStart Objects
+
+```python
+class LiveSessionStart(BaseModel)
+```
+
+What an agent needs to connect a newly started session to its relay.
+
+<a id="luml_api._types.LiveSessionHeartbeat"></a>
+
+## LiveSessionHeartbeat Objects
+
+```python
+class LiveSessionHeartbeat(BaseModel)
+```
+
+Answer to a heartbeat; carries a renewed `expose` token when one is due.
+
+<a id="luml_api._types.Flow"></a>
+
+## Flow Objects
+
+```python
+class Flow(BaseModel)
+```
+
+A named entry on an orbit's Flow page, pointing at its current session.
+
+<a id="luml_api._types.FlowExposed"></a>
+
+## FlowExposed Objects
+
+```python
+class FlowExposed(BaseModel)
+```
+
+The exposed flow, what its agent needs to connect, and the Flow page.
+
+<a id="luml_api._types.RelayStatus"></a>
+
+## RelayStatus Objects
+
+```python
+class RelayStatus(StrEnum)
+```
+
+Options: "enabled", "draining".
+
+<a id="luml_api._types.RelayKind"></a>
+
+## RelayKind Objects
+
+```python
+class RelayKind(StrEnum)
+```
+
+Options: "managed", "own".
+
+<a id="luml_api._types.Relay"></a>
+
+## Relay Objects
+
+```python
+class Relay(BaseModel)
+```
+
+A relay sessions are served through; managed relays have no organization.
+
+<a id="luml_api._types.RelayWithToken"></a>
+
+## RelayWithToken Objects
+
+```python
+class RelayWithToken(BaseModel)
+```
+
+A relay with its plaintext token, answered once when the token is issued.
+
 <a id="luml_api._types.Satellite"></a>
 
 ## Satellite Objects

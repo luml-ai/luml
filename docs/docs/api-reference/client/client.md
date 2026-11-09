@@ -132,6 +132,39 @@ def satellites() -> "AsyncSatelliteResource"
 
 Satellites and their advertised operations.
 
+<a id="luml_api._client.AsyncLumlClient.live_sessions"></a>
+
+#### live_sessions
+
+```python
+@cached_property
+def live_sessions() -> "AsyncLiveSessionResource"
+```
+
+Live sessions exposed through a relay.
+
+<a id="luml_api._client.AsyncLumlClient.flows"></a>
+
+#### flows
+
+```python
+@cached_property
+def flows() -> "AsyncFlowResource"
+```
+
+Flows on the orbit's Flow page, each served through a live session.
+
+<a id="luml_api._client.AsyncLumlClient.relays"></a>
+
+#### relays
+
+```python
+@cached_property
+def relays() -> "AsyncRelayResource"
+```
+
+Relays that serve live sessions.
+
 <a id="luml_api._client.LumlClient"></a>
 
 ## LumlClient Objects
@@ -227,4 +260,37 @@ def satellites() -> "SatelliteResource"
 ```
 
 Satellites and their advertised operations.
+
+<a id="luml_api._client.LumlClient.live_sessions"></a>
+
+#### live_sessions
+
+```python
+@cached_property
+def live_sessions() -> "LiveSessionResource"
+```
+
+Live sessions exposed through a relay.
+
+<a id="luml_api._client.LumlClient.flows"></a>
+
+#### flows
+
+```python
+@cached_property
+def flows() -> "FlowResource"
+```
+
+Flows on the orbit's Flow page, each served through a live session.
+
+<a id="luml_api._client.LumlClient.relays"></a>
+
+#### relays
+
+```python
+@cached_property
+def relays() -> "RelayResource"
+```
+
+Relays that serve live sessions.
 

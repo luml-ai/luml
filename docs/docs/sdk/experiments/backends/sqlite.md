@@ -35,6 +35,11 @@ Initializes an experiment by associating it with a group and storing its metadat
 - `tags` - Optional list of tags associated with the experiment.
 - `description` - Optional description of the experiment.
 - `source` - Path of the script or file that created the experiment.
+  
+
+**Raises**:
+
+- `ValueError` - If an experiment with the given ID already exists.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_static"></a>
 
@@ -394,10 +399,11 @@ Deletes a specified experiment from the database and cleans up associated files
 from the filesystem.
 
 This method performs the following actions:
-1. Deletes the experiment record from the database.
-2. Marks the experiment as inactive in the experiment pool.
-3. Deletes all associated files and directories for the experiment if they
+1. Marks the experiment as inactive in the connection pool and closes its
+database connection, so the files are not held open during removal.
+2. Deletes all associated files and directories for the experiment if they
 exist on the filesystem.
+3. Deletes the experiment record from the database.
 
 **Arguments**:
 
@@ -621,13 +627,13 @@ model
   name="resnet50_v1",
   created_at=datetime(2024, 6, 1, 12, 0, 0),
   tags=["production", "v1"],
-  path="/storage/exp-001/models/resnet50_v1.pt",
+  path="/storage/exp-001/models/model-abc/resnet50.pt",
   experiment_id="exp-001",
   )
 ```python
 dest_path
 ```
-  "/storage/exp-001/models/resnet50_v1.pt"
+  "/storage/exp-001/models/model-abc/resnet50.pt"
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_models"></a>
 

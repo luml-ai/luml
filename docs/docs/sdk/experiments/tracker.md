@@ -61,6 +61,11 @@ the experiment's metadata.
 - `str` - The experiment ID.
   
 
+**Raises**:
+
+- `ValueError` - If an experiment with the given ID already exists.
+  
+
 **Example**:
 
 ```python
