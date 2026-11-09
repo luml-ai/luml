@@ -40,9 +40,13 @@ export const useBucketsStore = defineStore('buckets', () => {
 
   async function getBuckets(organizationId: string) {
     const requestId = ++bucketsRequestId
-    const list = await api.bucketSecrets.getBucketSecretsList(organizationId)
-    if (requestId !== bucketsRequestId) return
-    buckets.value = list
+    try {
+      const list = await api.bucketSecrets.getBucketSecretsList(organizationId)
+      if (requestId === bucketsRequestId) buckets.value = list
+    } catch (e) {
+      if (requestId === bucketsRequestId) buckets.value = []
+      throw e
+    }
   }
 
   async function createBucket(organizationId: string, data: BucketFormData) {
