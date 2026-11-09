@@ -34,5 +34,11 @@ jobs:
           python -m pip install --upgrade uv
           uv sync --frozen --group dev
 
+      - name: Check formatting
+        run: uv run --frozen ruff format --check .
+
+      - name: Lint
+        run: uv run --frozen ruff check .
+
       - name: Test
         run: uv run --frozen pytest
