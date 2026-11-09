@@ -1,14 +1,15 @@
+from uuid import uuid4
+
 from promptopt.dataclasses import (
     Field,
+    JsonModel,
+    NodeOutput,
+    OutputSpec,
     Socket,
     StateDescriptor,
-    NodeOutput,
-    JsonModel,
-    OutputSpec,
 )
 from promptopt.nodes._base import BaseNode
 from promptopt.variadic import VariadicList
-from uuid import uuid4
 
 
 class IONode(BaseNode):

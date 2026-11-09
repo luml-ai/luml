@@ -1,16 +1,17 @@
-from typing import Any
 import asyncio
 from dataclasses import dataclass
+from typing import Any
+from uuid import uuid4
+
+from promptopt.dataclasses import NodeOutput, Socket, StateDescriptor
+from promptopt.llm import LLM
 from promptopt.nodes._base import BaseNode
-from promptopt.dataclasses import Socket, StateDescriptor, NodeOutput
+from promptopt.nodes.gate import Gate
 from promptopt.nodes.io import InputNode, OutputNode
 from promptopt.nodes.processor import Processor
-from promptopt.nodes.gate import Gate
-from promptopt.variadic import VariadicList
-from promptopt.templates import NODE_LLM_REPR_TEMPLATE, GRAPH_LLM_REPR_TEMPLATE
+from promptopt.templates import GRAPH_LLM_REPR_TEMPLATE, NODE_LLM_REPR_TEMPLATE
 from promptopt.trace import Trace
-from promptopt.llm import LLM
-from uuid import uuid4
+from promptopt.variadic import VariadicList
 
 
 @dataclass

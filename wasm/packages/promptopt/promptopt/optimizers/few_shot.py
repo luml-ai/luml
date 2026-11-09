@@ -1,11 +1,11 @@
-from promptopt.optimizers._base import BaseOptimizer
-from promptopt.optimizers._utils import run_examples
+import random
+
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
-from promptopt.trace import Trace
 from promptopt.llm import LLM, InvalidLLMResponseError
-
-import random
+from promptopt.optimizers._base import BaseOptimizer
+from promptopt.optimizers._utils import run_examples
+from promptopt.trace import Trace
 
 
 class RandomFewShotOptimizer(BaseOptimizer):

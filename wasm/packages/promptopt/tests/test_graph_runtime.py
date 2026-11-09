@@ -1,5 +1,6 @@
 import asyncio
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from uuid import uuid4
 
 from promptopt.dataclasses import Field, NodeOutput, OutputSpec, Socket, StateDescriptor

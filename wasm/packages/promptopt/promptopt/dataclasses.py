@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Type, Any
+from typing import Any
 
 
 @dataclass
@@ -13,7 +13,7 @@ class Socket:
 @dataclass
 class StateDescriptor:
     name: str
-    type: Type | str
+    type: type | str
     is_variadic: bool = False
 
     def __hash__(self) -> int:

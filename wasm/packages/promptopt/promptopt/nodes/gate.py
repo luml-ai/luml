@@ -1,17 +1,18 @@
+import json
+from uuid import uuid4
+
 from promptopt.dataclasses import (
     Field,
+    JsonModel,
+    LLMExample,
+    NodeOutput,
+    OutputSpec,
     Socket,
     StateDescriptor,
-    NodeOutput,
-    JsonModel,
-    OutputSpec,
 )
-from promptopt.nodes._base import BaseNode
 from promptopt.llm import generate_validated
+from promptopt.nodes._base import BaseNode
 from promptopt.templates import NODE_SYSTEM_PROMPT_TEMPLATE
-from promptopt.dataclasses import LLMExample
-from uuid import uuid4
-import json
 
 
 class Gate(BaseNode):

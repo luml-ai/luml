@@ -1,5 +1,5 @@
-import os
 import argparse
+import os
 
 
 def collect_python_files(root_dir):
@@ -20,7 +20,7 @@ def package_to_single_file(root_dir, output_file):
         for file in files:
             rel_path = os.path.relpath(file, root_dir)
             out.write(f"\n# ==== File: {rel_path} ====\n")
-            with open(file, "r", encoding="utf-8") as f:
+            with open(file, encoding="utf-8") as f:
                 out.write(f.read())
                 out.write("\n")
     print(f"Package compressed into {output_file} with {len(files)} files.")

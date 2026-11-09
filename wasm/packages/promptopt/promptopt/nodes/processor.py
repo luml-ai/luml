@@ -1,19 +1,20 @@
-from promptopt.nodes._base import BaseNode
+import json
+from uuid import uuid4
+
 from promptopt.dataclasses import (
     Field,
+    JsonModel,
+    LLMExample,
+    NodeOutput,
+    OutputSpec,
     Socket,
     StateDescriptor,
-    JsonModel,
-    OutputSpec,
-    NodeOutput,
 )
-from promptopt.templates import NODE_SYSTEM_PROMPT_TEMPLATE
 from promptopt.llm import LLM, generate_validated
-from promptopt.variadic import VariadicList
-from promptopt.dataclasses import LLMExample
+from promptopt.nodes._base import BaseNode
+from promptopt.templates import NODE_SYSTEM_PROMPT_TEMPLATE
 from promptopt.trace import Trace
-from uuid import uuid4
-import json
+from promptopt.variadic import VariadicList
 
 
 class Processor(BaseNode):

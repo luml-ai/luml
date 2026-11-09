@@ -1,16 +1,18 @@
 import asyncio
-from typing import Sequence
-from promptopt.optimizers._base import BaseOptimizer
+import random
+from collections.abc import Sequence
+from copy import deepcopy
+
+import optuna
+
 from promptopt.dataclasses import Example, LLMExample
 from promptopt.graph import Graph
-from promptopt.trace import Trace
 from promptopt.llm import LLM, InvalidLLMResponseError
-from promptopt.optimizers._utils import freeze_graph_ids, run_examples, split_dataset
-from promptopt.optimizers._instruction_proposal import propose_instructions
+from promptopt.optimizers._base import BaseOptimizer
 from promptopt.optimizers._eval import BaseMetric
-from copy import deepcopy
-import random
-import optuna
+from promptopt.optimizers._instruction_proposal import propose_instructions
+from promptopt.optimizers._utils import freeze_graph_ids, run_examples, split_dataset
+from promptopt.trace import Trace
 
 
 class JEDIOptimizer(BaseOptimizer):

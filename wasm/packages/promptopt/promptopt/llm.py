@@ -1,7 +1,9 @@
 import asyncio
-import httpx
 import json
 from abc import ABC, abstractmethod
+
+import httpx
+
 from promptopt.dataclasses import JsonModel
 
 

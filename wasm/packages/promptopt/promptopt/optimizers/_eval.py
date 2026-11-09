@@ -1,8 +1,9 @@
 import asyncio
-from abc import ABC, abstractmethod
 import json
-from promptopt.llm import LLM, generate_validated
+from abc import ABC, abstractmethod
+
 from promptopt.dataclasses import Field, JsonModel
+from promptopt.llm import LLM, generate_validated
 
 METRIC_MODEL = JsonModel([Field("score", "integer")])
 

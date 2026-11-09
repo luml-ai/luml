@@ -1,8 +1,8 @@
-from promptopt.optimizers._base import BaseOptimizer
-from promptopt.optimizers._instruction_proposal import propose_instructions
 from promptopt.dataclasses import Example
 from promptopt.graph import Graph
 from promptopt.llm import LLM
+from promptopt.optimizers._base import BaseOptimizer
+from promptopt.optimizers._instruction_proposal import propose_instructions
 
 
 class ZeroShotOptimizer(BaseOptimizer):

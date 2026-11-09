@@ -1,10 +1,10 @@
-from promptopt.optimizers._base import BaseOptimizer
-from promptopt.dataclasses import Example
-from promptopt.graph import Graph
-from promptopt.trace import Trace
-from promptopt.llm import LLM, InvalidLLMResponseError
 import asyncio
 import random
+
+from promptopt.dataclasses import Example
+from promptopt.graph import Graph
+from promptopt.llm import LLM, InvalidLLMResponseError
+from promptopt.trace import Trace
 
 
 async def run_examples(
