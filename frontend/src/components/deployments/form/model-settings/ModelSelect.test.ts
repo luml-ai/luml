@@ -80,6 +80,27 @@ it('displays the initial model without a collection', async () => {
   expect(wrapper.get('[data-pc-section="label"]').text()).toBe(initialModel.name)
 })
 
+it('loads the first page and reports a failed initial model load', async () => {
+  mocks.getArtifact.mockRejectedValueOnce(new Error('Model unavailable'))
+  mocks.getOrbitArtifacts.mockResolvedValue({ items: firstPage, cursor: 'next' })
+  const wrapper = mountSelect()
+  await flushPromises()
+
+  expect(wrapper.getComponent(Select).props('options')).toEqual(firstPage)
+  expect(mocks.toast).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ severity: 'error', detail: 'Model unavailable' }),
+  )
+})
+
+it('shows the selected model from the first page when its own request fails', async () => {
+  mocks.getArtifact.mockRejectedValueOnce(new Error('Model unavailable'))
+  mocks.getOrbitArtifacts.mockResolvedValue({ items: [initialModel], cursor: null })
+  const wrapper = mountSelect()
+  await flushPromises()
+
+  expect(wrapper.get('[data-pc-section="label"]').text()).toBe(initialModel.name)
+})
+
 it('keeps the initial model and reports a failed first page load', async () => {
   mocks.getOrbitArtifacts.mockRejectedValue(new Error('Models unavailable'))
   const wrapper = mountSelect()

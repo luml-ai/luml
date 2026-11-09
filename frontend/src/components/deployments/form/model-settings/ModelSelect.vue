@@ -55,9 +55,14 @@ const props = defineProps<Props>()
 const modelValue = defineModel<string | null>('modelValue')
 
 async function addInitialModelToList(modelId: string) {
-  const model = await artifactsStore.getArtifact(modelId)
-  addItemsToList([model])
-  return model
+  try {
+    const model = await artifactsStore.getArtifact(modelId)
+    addItemsToList([model])
+    return model
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load the selected model')))
+    return null
+  }
 }
 
 async function onRequestInfoChange() {
