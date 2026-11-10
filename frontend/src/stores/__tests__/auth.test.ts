@@ -74,7 +74,6 @@ describe('authentication session check', () => {
     const publicNavigation = navigate('/')
     const protectedNavigation = navigate('/invitations', {
       requireAuth: true,
-      redirectToSignIn: true,
     })
     expect(userStore.loadUser).toHaveBeenCalledOnce()
 
@@ -93,7 +92,6 @@ describe('authentication session check', () => {
     const next = await navigate('/dashboard', { requireAuth: true })
     const invitationNext = await navigate('/invitations', {
       requireAuth: true,
-      redirectToSignIn: true,
     })
 
     expect(next).toHaveBeenCalledWith({

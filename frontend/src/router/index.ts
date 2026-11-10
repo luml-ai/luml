@@ -316,7 +316,6 @@ const router = createRouter({
       component: HomePage,
       meta: {
         requireAuth: true,
-        redirectToSignIn: true,
       },
     },
     {
@@ -325,7 +324,6 @@ const router = createRouter({
       component: HomePage,
       meta: {
         requireAuth: true,
-        redirectToSignIn: true,
       },
     },
     {

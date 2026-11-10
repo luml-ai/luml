@@ -24,7 +24,7 @@ describe('authMiddleware invitation redirect', () => {
     const next = vi.fn() as NavigationGuardNext
     const to = {
       fullPath: '/invitations',
-      meta: { requireAuth: true, redirectToSignIn: true },
+      meta: { requireAuth: true },
     } as RouteLocationNormalized
 
     await authMiddleware(to, from, next)
@@ -41,7 +41,7 @@ describe('authMiddleware invitation redirect', () => {
     const next = vi.fn() as NavigationGuardNext
     const to = {
       fullPath: '/invitations',
-      meta: { requireAuth: true, redirectToSignIn: true },
+      meta: { requireAuth: true },
     } as RouteLocationNormalized
 
     await authMiddleware(to, from, next)
