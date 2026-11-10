@@ -1,12 +1,6 @@
 name: Extras JS Packages
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'extras/js/**'
-      - 'package.json'
-      - 'package-lock.json'
   pull_request:
     branches: [main, staging, production]
     paths:

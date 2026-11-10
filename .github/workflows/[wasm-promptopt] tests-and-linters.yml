@@ -2,7 +2,7 @@ name: Promptopt
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'wasm/packages/promptopt/**'
       - '.github/workflows/*wasm-promptopt*tests-and-linters.yml'

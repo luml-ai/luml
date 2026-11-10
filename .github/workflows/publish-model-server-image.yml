@@ -2,11 +2,14 @@ name: Publish Model Server Image
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     tags:
       - "satellite/model-server/v*"
     paths:
       - model_servers/default/**
+      - satellite/.env.example
+      - satellite/docker-compose.yml
+      - .github/workflows/publish-model-server-image.yml
   workflow_dispatch:
 
 concurrency:
@@ -20,10 +23,6 @@ env:
 jobs:
   tests:
     uses: "./.github/workflows/[model-server] tests-and-linters.yml"
-
-  # -------------------------------------------------------------------
-  # Resolve image tag from branch or release tag
-  # -------------------------------------------------------------------
 
   resolve-image-tag:
     runs-on: ubuntu-latest
@@ -48,21 +47,11 @@ jobs:
             main)
               echo "image_tag=dev" >> "$GITHUB_OUTPUT"
               ;;
-            staging)
-              echo "image_tag=staging" >> "$GITHUB_OUTPUT"
-              ;;
-            production)
-              echo "image_tag=latest" >> "$GITHUB_OUTPUT"
-              ;;
             *)
-              echo "Unsupported publish branch: ${{ github.ref_name }}" >&2
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
               exit 1
               ;;
           esac
-
-  # -------------------------------------------------------------------
-  # Publish image
-  # -------------------------------------------------------------------
 
   push-image:
     needs: [resolve-image-tag, tests]

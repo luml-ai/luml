@@ -1,4 +1,4 @@
-"""acceptance checks for test-gated deployments and image publishing.
+"""acceptance checks for test-gated deployments, image publishing and promotion.
 
 run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 """
@@ -15,39 +15,39 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github/workflows"
 BRANCHES = {"main", "staging", "production"}
-RELEASES = {
+PROMOTION_BRANCHES = {"staging", "production"}
+DEPLOYS = {
     "deploy-backend.yml": {"tests": "[backend] tests-and-linters.yml"},
     "deploy-frontend.yml": {
         "tests": "[frontend] tests-and-linters.yml",
-        "flow-tests": "[lumlflow] tests-and-linters.yml",
-        "flow-frontend-tests": "[lumlflow-frontend] tests-and-linters.yml",
         "extras-tests": "[extras-js] tests-and-linters.yml",
     },
     "deploy-docs.yml": {"tests": None},
-    "publish-satellite-agent-image.yml": {
-        "tests": "[satellite-docker] tests-and-linters.yml",
+}
+PUBLISHERS = {
+    "publish-satellite-images.yml": {
         "kit-tests": "[satellite-kit] tests-and-linters.yml",
-    },
-    "publish-kubernetes-satellite-image.yml": {
-        "tests": "[satellite-kubernetes] tests-and-linters.yml",
-        "kit-tests": "[satellite-kit] tests-and-linters.yml",
-    },
-    "publish-model-server-image.yml": {"tests": "[model-server] tests-and-linters.yml"},
-    "publish-monitoring-image.yml": {
-        "tests": "[satellite-kit] tests-and-linters.yml",
+        "docker-tests": "[satellite-docker] tests-and-linters.yml",
+        "kubernetes-tests": "[satellite-kubernetes] tests-and-linters.yml",
         "ui-tests": "[satellite-monitoring-ui] tests-and-linters.yml",
     },
     "publish-relay-image.yml": {"tests": "[relay] tests-and-linters.yml"},
-    "publish-serving-image.yml": {"tests": "[satellite-kit] tests-and-linters.yml"},
+    "publish-model-server-image.yml": {"tests": "[model-server] tests-and-linters.yml"},
 }
+RELEASES = {**DEPLOYS, **PUBLISHERS}
 IMAGE_TAGS = {
-    "publish-satellite-agent-image.yml": "satellite/agent/v*",
-    "publish-kubernetes-satellite-image.yml": "satellite/kubernetes/v*",
-    "publish-model-server-image.yml": "satellite/model-server/v*",
-    "publish-monitoring-image.yml": "satellite/monitoring/v*",
-    "publish-serving-image.yml": "satellite/serving/v*",
-    "publish-relay-image.yml": "luml-relay/image/v*",
+    "publish-satellite-images.yml": {
+        "satellite/agent/v*": "luml-satellite-agent",
+        "satellite/kubernetes/v*": "luml-satellite-kubernetes",
+        "satellite/monitoring/v*": "luml-satellite-monitoring",
+        "satellite/serving/v*": "luml-satellite-serving",
+    },
+    "publish-relay-image.yml": {"luml-relay/image/v*": "luml-relay"},
+    "publish-model-server-image.yml": {
+        "satellite/model-server/v*": "luml-model-server"
+    },
 }
+PROMOTION = "promote-images.yml"
 PACKAGE_GATES = {
     "sdk-python/api/v*": {"api-client-tests": "[api-client] tests-and-linters.yml"},
     "sdk-python/sdk/v*": {"sdk-tests": "[sdk] tests-and-linters.yml"},
@@ -65,7 +65,14 @@ CHART_GATES = {
 }
 RELEASE_COVERED_SUITES = {
     "[backend] tests-and-linters.yml",
+    "[frontend] tests-and-linters.yml",
+    "[extras-js] tests-and-linters.yml",
     "[satellite-kit] tests-and-linters.yml",
+    "[satellite-docker] tests-and-linters.yml",
+    "[satellite-kubernetes] tests-and-linters.yml",
+    "[satellite-monitoring-ui] tests-and-linters.yml",
+    "[model-server] tests-and-linters.yml",
+    "[relay] tests-and-linters.yml",
 }
 SUITE_TESTS = {
     "[backend] tests-and-linters.yml": (
@@ -101,12 +108,19 @@ def ancestors(jobs, name):
     return result
 
 
-def run_step(script, env):
+def run_step(script, env, cwd=None):
     with tempfile.TemporaryDirectory() as directory:
         output = Path(directory) / "output"
+        summary = Path(directory) / "summary"
         result = subprocess.run(
             ["bash", "-e", "-c", script],
-            env={**os.environ, "GITHUB_OUTPUT": str(output), **env},
+            env={
+                **os.environ,
+                "GITHUB_OUTPUT": str(output),
+                "GITHUB_STEP_SUMMARY": str(summary),
+                **env,
+            },
+            cwd=cwd,
             capture_output=True,
             text=True,
             check=False,
@@ -125,8 +139,35 @@ def named_step(job, name):
     return steps[0]
 
 
+def resolve_script(name):
+    return load(name)["jobs"]["resolve-image-tag"]["steps"][0]["run"]
+
+
+def render(script, ref_type, ref_name):
+    return script.replace("${{ github.ref_type }}", ref_type).replace(
+        "${{ github.ref_name }}", ref_name
+    )
+
+
+def git(cwd, *args):
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=True,
+        env={
+            **os.environ,
+            "GIT_AUTHOR_NAME": "ci",
+            "GIT_AUTHOR_EMAIL": "ci@example.com",
+            "GIT_COMMITTER_NAME": "ci",
+            "GIT_COMMITTER_EMAIL": "ci@example.com",
+        },
+    ).stdout.strip()
+
+
 class ReleaseGateTests(unittest.TestCase):
-    def test_checks_run_on_all_release_branches(self):
+    def test_checks_run_on_pull_requests_to_every_release_branch(self):
         paths = list(WORKFLOWS.glob("*tests-and-linters.yml"))
         paths.append(WORKFLOWS / "[satellite-kubernetes] end-to-end.yml")
         for path in paths:
@@ -139,7 +180,7 @@ class ReleaseGateTests(unittest.TestCase):
                 if path.name in RELEASE_COVERED_SUITES:
                     self.assertNotIn("push", workflow["on"])
                 else:
-                    self.assertEqual(set(workflow["on"]["push"]["branches"]), BRANCHES)
+                    self.assertEqual(set(workflow["on"]["push"]["branches"]), {"main"})
 
     def test_release_covered_suites_are_gates_with_matching_paths(self):
         callers = {}
@@ -217,35 +258,46 @@ class ReleaseGateTests(unittest.TestCase):
                             )
                             self.assertNotIn("continue-on-error", jobs[job])
 
-    def test_tags_and_manual_runs_use_the_same_gates_and_revision(self):
-        for name in RELEASES:
+    def test_deploys_run_on_every_release_branch(self):
+        for name in DEPLOYS:
             workflow = load(name)
             with self.subTest(workflow=name):
                 self.assertIn("workflow_dispatch", workflow["on"])
-                self.assertEqual(set(workflow["on"]["push"]["branches"]), BRANCHES)
                 self.assertNotIn("workflow_run", workflow["on"])
-                if name in IMAGE_TAGS:
-                    self.assertIn(IMAGE_TAGS[name], workflow["on"]["push"]["tags"])
-                    publish = workflow["jobs"]["push-image"]
-                    checkouts = [
-                        step
-                        for step in publish["steps"]
-                        if step.get("uses", "").startswith("actions/checkout@")
-                    ]
-                    self.assertEqual(len(checkouts), 1)
-                    self.assertNotIn("ref", checkouts[0].get("with", {}))
-                    builds = [
-                        step
-                        for step in publish["steps"]
-                        if step.get("uses", "").startswith("docker/build-push-action@")
-                    ]
-                    self.assertEqual(len(builds), 1)
-                    self.assertEqual(builds[0]["with"]["push"], "true")
-                    self.assertIn("${{ github.sha }}", builds[0]["with"]["tags"])
-                    self.assertIn(
-                        "${{ needs.resolve-image-tag.outputs.image_tag }}",
-                        builds[0]["with"]["tags"],
-                    )
+                self.assertEqual(set(workflow["on"]["push"]["branches"]), BRANCHES)
+
+    def test_images_are_built_once_on_main_and_on_release_tags(self):
+        for name, tags in IMAGE_TAGS.items():
+            workflow = load(name)
+            with self.subTest(workflow=name):
+                self.assertIn(name, PUBLISHERS)
+                self.assertIn("workflow_dispatch", workflow["on"])
+                self.assertNotIn("workflow_run", workflow["on"])
+                self.assertEqual(set(workflow["on"]["push"]["branches"]), {"main"})
+                self.assertEqual(set(workflow["on"]["push"]["tags"]), set(tags))
+                self.assertIn(
+                    f".github/workflows/{name}", workflow["on"]["push"]["paths"]
+                )
+                publish = workflow["jobs"]["push-image"]
+                checkouts = [
+                    step
+                    for step in publish["steps"]
+                    if step.get("uses", "").startswith("actions/checkout@")
+                ]
+                self.assertEqual(len(checkouts), 1)
+                self.assertNotIn("ref", checkouts[0].get("with", {}))
+                builds = [
+                    step
+                    for step in publish["steps"]
+                    if step.get("uses", "").startswith("docker/build-push-action@")
+                ]
+                self.assertEqual(len(builds), 1)
+                self.assertEqual(builds[0]["with"]["push"], "true")
+                self.assertIn("${{ github.sha }}", builds[0]["with"]["tags"])
+                self.assertIn(
+                    "${{ needs.resolve-image-tag.outputs.image_tag }}",
+                    builds[0]["with"]["tags"],
+                )
 
     def test_docs_checks_validate_the_production_build(self):
         jobs = load("deploy-docs.yml")["jobs"]
@@ -259,46 +311,201 @@ class ReleaseGateTests(unittest.TestCase):
             self.assertNotIn("if", step)
             self.assertNotIn("continue-on-error", step)
 
-    def test_image_tag_resolution_preserves_branch_and_release_tags(self):
-        for name, pattern in IMAGE_TAGS.items():
+    def test_image_tag_resolution_builds_main_and_release_tags_only(self):
+        for name, tags in IMAGE_TAGS.items():
+            script = resolve_script(name)
             cases = [
-                ("branch", "main", "dev"),
-                ("branch", "staging", "staging"),
-                ("branch", "production", "latest"),
-                ("tag", pattern.replace("*", "1.2.3"), "v1.2.3"),
-                ("tag", pattern.replace("*", "1.2.3-rc.1"), "v1.2.3-rc.1"),
-                ("branch", "feature/unapproved", None),
-                ("tag", pattern.replace("*", "invalid"), None),
-                ("tag", "unrelated/v1.2.3", None),
+                ("branch", "main", "dev", set(tags.values())),
+                ("branch", "staging", None, None),
+                ("branch", "production", None, None),
+                ("branch", "feature/unapproved", None, None),
+                ("tag", "unrelated/v1.2.3", None, None),
             ]
-            command = load(name)["jobs"]["resolve-image-tag"]["steps"][0]["run"]
+            for pattern, image in tags.items():
+                cases += [
+                    ("tag", pattern.replace("*", "1.2.3"), "v1.2.3", {image}),
+                    ("tag", pattern.replace("*", "1.2.3-rc.1"), "v1.2.3-rc.1", {image}),
+                    ("tag", pattern.replace("*", "invalid"), None, None),
+                ]
             for event in ("push", "workflow_dispatch"):
-                for ref_type, ref_name, expected in cases:
+                for ref_type, ref_name, expected, images in cases:
                     with self.subTest(workflow=name, event=event, ref=ref_name):
-                        script = command.replace(
-                            "${{ github.ref_type }}", ref_type
-                        ).replace("${{ github.ref_name }}", ref_name)
-                        with tempfile.TemporaryDirectory() as directory:
-                            output = Path(directory) / "output"
-                            result = subprocess.run(
-                                ["bash", "-e", "-c", script],
-                                env={
-                                    **os.environ,
-                                    "GITHUB_OUTPUT": str(output),
-                                    "GITHUB_EVENT_NAME": event,
-                                },
-                                capture_output=True,
-                                text=True,
-                                check=False,
+                        result, values = run_step(
+                            render(script, ref_type, ref_name),
+                            {"GITHUB_EVENT_NAME": event},
+                        )
+                        if expected is None:
+                            self.assertNotEqual(result.returncode, 0)
+                            self.assertEqual(values, {})
+                            continue
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(values["image_tag"], expected)
+                        if "images" in values:
+                            matrix = json.loads(values["images"])
+                            self.assertEqual(
+                                {entry["name"] for entry in matrix["include"]}, images
                             )
-                            if expected is None:
-                                self.assertNotEqual(result.returncode, 0)
-                                self.assertFalse(output.exists())
-                            else:
-                                self.assertEqual(result.returncode, 0, result.stderr)
-                                self.assertEqual(
-                                    output.read_text().strip(), f"image_tag={expected}"
+                            for entry in matrix["include"]:
+                                self.assertTrue((ROOT / entry["file"]).is_file(), entry)
+                                self.assertTrue(
+                                    (ROOT / entry["file"]).is_relative_to(
+                                        ROOT / entry["context"]
+                                    ),
+                                    entry,
                                 )
+                        else:
+                            self.assertEqual(len(images), 1)
+
+    def test_satellite_images_build_as_a_matrix_from_the_resolved_revision(self):
+        workflow = load("publish-satellite-images.yml")
+        publish = workflow["jobs"]["push-image"]
+        self.assertEqual(
+            publish["strategy"]["matrix"],
+            "${{ fromJSON(needs.resolve-image-tag.outputs.images) }}",
+        )
+        build = next(
+            step
+            for step in publish["steps"]
+            if step.get("uses", "").startswith("docker/build-push-action@")
+        )
+        self.assertEqual(build["with"]["context"], "${{ matrix.context }}")
+        self.assertEqual(build["with"]["file"], "${{ matrix.file }}")
+        self.assertIn("${{ matrix.name }}:${{ github.sha }}", build["with"]["tags"])
+
+    def test_promotion_retags_the_main_build_instead_of_rebuilding(self):
+        workflow = load(PROMOTION)
+        self.assertEqual(set(workflow["on"]["push"]["branches"]), PROMOTION_BRANCHES)
+        self.assertIn("workflow_dispatch", workflow["on"])
+        self.assertNotIn("workflow_run", workflow["on"])
+        self.assertNotIn("tags", workflow["on"]["push"])
+        jobs = workflow["jobs"]
+        promote = jobs["promote"]
+        self.assertIn("resolve-image-tag", ancestors(jobs, "promote"))
+        self.assertEqual(promote.get("if", "success()"), "success()")
+        self.assertNotIn("continue-on-error", promote)
+        steps_text = "\n".join(step.get("run", "") for step in promote["steps"])
+        self.assertNotIn("build-push-action", json.dumps(promote["steps"]))
+        self.assertIn("docker manifest inspect", steps_text)
+        self.assertIn("docker buildx imagetools create", steps_text)
+        self.assertIn("--first-parent", steps_text)
+        checkouts = [
+            step
+            for step in promote["steps"]
+            if step.get("uses", "").startswith("actions/checkout@")
+        ]
+        self.assertEqual(len(checkouts), 1)
+        self.assertEqual(checkouts[0]["with"]["fetch-depth"], "0")
+        self.assertNotIn("ref", checkouts[0]["with"])
+
+        images = {}
+        for pattern_to_image in IMAGE_TAGS.values():
+            for name, image in pattern_to_image.items():
+                images[image] = next(
+                    workflow
+                    for workflow, patterns in IMAGE_TAGS.items()
+                    if name in patterns
+                )
+        entries = {
+            entry["name"]: entry for entry in promote["strategy"]["matrix"]["include"]
+        }
+        self.assertEqual(set(entries), set(images))
+        promoted_paths = set()
+        for image, publisher in images.items():
+            with self.subTest(image=image):
+                entry = entries[image]
+                self.assertEqual(entry["built-by"], publisher)
+                publisher_paths = set(load(publisher)["on"]["push"]["paths"])
+                self.assertEqual(set(entry["paths"].split()), publisher_paths)
+                promoted_paths |= publisher_paths
+        promoted_paths.add(f".github/workflows/{PROMOTION}")
+        self.assertEqual(set(workflow["on"]["push"]["paths"]), promoted_paths)
+
+    def test_promotion_tag_resolution_accepts_promotion_branches_only(self):
+        script = resolve_script(PROMOTION)
+        cases = [
+            ("staging", "staging"),
+            ("production", "latest"),
+            ("main", None),
+            ("feature/unapproved", None),
+        ]
+        for ref_name, expected in cases:
+            with self.subTest(ref=ref_name):
+                result, values = run_step(render(script, "branch", ref_name), {})
+                if expected is None:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(values, {})
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(values, {"image_tag": expected})
+
+    def test_promotion_finds_the_last_commit_that_touched_the_image_inputs(self):
+        promote = load(PROMOTION)["jobs"]["promote"]
+        script = named_step(promote, "Find the build of this revision")["run"]
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / "repo"
+            repo.mkdir()
+            git(repo, "init", "-q", "-b", "main")
+
+            def commit(path, message):
+                target = repo / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(message)
+                git(repo, "add", path)
+                git(repo, "commit", "-q", "-m", message)
+                return git(repo, "rev-parse", "HEAD")
+
+            commit("relay/luml_relay/app.py", "relay 1")
+            built = commit("sdk/python/api/client.py", "api change")
+            head = commit("backend/app.py", "unrelated")
+
+            bin_dir = Path(directory) / "bin"
+            bin_dir.mkdir()
+            inspected = Path(directory) / "inspected"
+            docker = bin_dir / "docker"
+            docker.write_text(
+                "#!/bin/bash\n"
+                f'echo "$*" >> "{inspected}"\n'
+                '[[ "$3" == "$EXISTING_IMAGE" ]]\n'
+            )
+            docker.chmod(0o755)
+            env = {
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "IMAGE": "ghcr.io/example/luml-relay",
+                "PATHS": "relay/**\nsdk/python/api/**\n",
+                "BUILT_BY": "publish-relay-image.yml",
+                "IMAGE_TAG": "staging",
+            }
+            rendered = script.replace("${{ github.sha }}", head)
+
+            result, values = run_step(
+                rendered,
+                {**env, "EXISTING_IMAGE": f"ghcr.io/example/luml-relay:{built}"},
+                cwd=repo,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(values, {"image": env["IMAGE"], "source": built})
+            self.assertEqual(
+                inspected.read_text().strip(),
+                f"manifest inspect ghcr.io/example/luml-relay:{built}",
+            )
+
+            inspected.unlink()
+            result, values = run_step(
+                rendered, {**env, "EXISTING_IMAGE": "none"}, cwd=repo
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(values, {})
+            self.assertIn("not in the registry", result.stderr)
+
+            inspected.unlink()
+            result, values = run_step(
+                rendered,
+                {**env, "PATHS": "model_servers/**\n", "EXISTING_IMAGE": "none"},
+                cwd=repo,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(values, {})
+            self.assertFalse(inspected.exists())
 
     def test_flow_frontend_gate_builds_the_bundle(self):
         workflow = load("[lumlflow-frontend] tests-and-linters.yml")

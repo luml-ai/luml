@@ -12,7 +12,7 @@ from test_release_gates import load
 class FrontendCITests(unittest.TestCase):
     def test_shared_sources_and_dependency_manifests_trigger_checks_and_deploy(self):
         workflows = {
-            "[frontend] tests-and-linters.yml": ("push", "pull_request"),
+            "[frontend] tests-and-linters.yml": ("pull_request",),
             "deploy-frontend.yml": ("push",),
         }
         for name, events in workflows.items():
@@ -66,7 +66,7 @@ class FrontendCITests(unittest.TestCase):
 
     def test_extras_checks_trigger_on_workspace_sources_and_manifests(self):
         workflow = load("[extras-js] tests-and-linters.yml")
-        for event in ("push", "pull_request"):
+        for event in ("pull_request",):
             paths = workflow["on"][event]["paths"]
             for changed in (
                 "extras/js/packages/attachments/src/index.ts",

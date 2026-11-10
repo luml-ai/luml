@@ -2,7 +2,7 @@ name: Luml MLflow
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'extras/python/luml-mlflow/**'
       - 'sdk/python/sdk/**'

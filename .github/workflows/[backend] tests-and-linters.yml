@@ -15,6 +15,12 @@ defaults:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    env:
+      PYTEST_VERSION: '1'
+      POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
+      REDIS_URL: redis://localhost:6379/0
+      AUTH_SECRET_KEY: test_secret_key_for_ci
+      BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
     steps:
       - uses: actions/checkout@v4
 
@@ -36,27 +42,6 @@ jobs:
 
       - name: Type checking
         run: uv run mypy luml utils tests
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    env:
-      PYTEST_VERSION: '1'
-      POSTGRESQL_DSN: postgresql+asyncpg://test_user:test_password@localhost:5432/df_studio_test
-      REDIS_URL: redis://localhost:6379/0
-      AUTH_SECRET_KEY: test_secret_key_for_ci
-      BUCKET_SECRET_KEY: 03MWDoMHorc-Ir2qX0F4KT9wrL3V7m5d3KRtwKEhaO0=
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.14'
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-
-      - name: Install dependencies with uv
-        run: uv sync --locked --group dev
 
       - name: Run unit tests
         run: uv run pytest tests/unit

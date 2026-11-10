@@ -2,7 +2,7 @@ name: Repo Root Artifacts Check
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - ".github/**"
   pull_request:

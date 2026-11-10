@@ -1,18 +1,6 @@
 name: Docker Satellite
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'satellite/implementations/docker/**'
-      - 'satellite/kit/**'
-      - 'satellite/.env.example'
-      - 'satellite/docker-compose.yml'
-      - 'satellite/otel-collector-config.yaml'
-      - 'docs/docs/guides/satellite.md'
-      - 'satellite/Caddyfile'
-      - '.github/workflows/publish-satellite-agent-image.yml'
-      - '.github/workflows/*satellite-docker*tests-and-linters.yml'
   pull_request:
     branches: [main, staging, production]
     paths:
@@ -23,7 +11,7 @@ on:
       - 'satellite/otel-collector-config.yaml'
       - 'docs/docs/guides/satellite.md'
       - 'satellite/Caddyfile'
-      - '.github/workflows/publish-satellite-agent-image.yml'
+      - '.github/workflows/publish-satellite-images.yml'
       - '.github/workflows/*satellite-docker*tests-and-linters.yml'
   workflow_call:
   workflow_dispatch:

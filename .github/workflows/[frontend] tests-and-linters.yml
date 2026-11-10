@@ -1,14 +1,6 @@
 name: Frontend
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'frontend/**'
-      - 'extras/js/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
     branches: [main, staging, production]
     paths:
