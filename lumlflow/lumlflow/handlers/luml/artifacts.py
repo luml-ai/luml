@@ -1,3 +1,4 @@
+import inspect
 import os
 import shutil
 import tempfile
@@ -9,6 +10,7 @@ from pathlib import Path
 from luml.artifacts.experiment import save_experiment
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends.data_types import Model as DbModel
+from luml.experiments.tracker import ExperimentTracker
 from luml_api import LumlClient
 from luml_api._exceptions import NotFoundError
 from luml_api.utils.progress import BaseProgressHandler
@@ -22,6 +24,11 @@ from lumlflow.schemas.luml import (
     UploadFileForm,
     UploadModelForm,
     UploadType,
+)
+
+_CONDITIONAL_REMOTE_DELETE = (
+    "expected_artifact_id"
+    in inspect.signature(ExperimentTracker.delete_remote_artifact).parameters
 )
 
 
@@ -160,12 +167,11 @@ class ArtifactHandler(BaseLumlHandler):
                 ):
                     raise
                 with self._tracker_lock:
-                    self.tracker.delete_remote_artifact(
-                        "experiment",
-                        data.experiment_id,
-                        data.orbit_id,
+                    self._forget_experiment_artifact(data, experiment_artifact_id)
+                    republished = self.tracker.get_remote_artifact(
+                        "experiment", data.experiment_id, data.orbit_id
                     )
-                artifact = upload(None)
+                artifact = upload([republished] if republished is not None else None)
 
             if model_id is not None:
                 with self._tracker_lock:
@@ -176,6 +182,25 @@ class ArtifactHandler(BaseLumlHandler):
         finally:
             if temp_path:
                 Path(temp_path).unlink(missing_ok=True)
+
+    def _forget_experiment_artifact(
+        self, data: UploadArtifactForm | UploadModelForm, artifact_id: str | None
+    ) -> None:
+        if _CONDITIONAL_REMOTE_DELETE:
+            self.tracker.delete_remote_artifact(
+                "experiment",
+                data.experiment_id,
+                data.orbit_id,
+                expected_artifact_id=artifact_id,
+            )
+            return
+        current = self.tracker.get_remote_artifact(
+            "experiment", data.experiment_id, data.orbit_id
+        )
+        if current == artifact_id:
+            self.tracker.delete_remote_artifact(
+                "experiment", data.experiment_id, data.orbit_id
+            )
 
     @staticmethod
     def _artifact_is_gone(luml: LumlClient, artifact_id: str | None) -> bool:

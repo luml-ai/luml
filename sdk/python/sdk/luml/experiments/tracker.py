@@ -1562,10 +1562,20 @@ class ExperimentTracker:
         return self.backend.get_remote_artifact(local_type, local_id, orbit_id)
 
     def delete_remote_artifact(
-        self, local_type: str, local_id: str, orbit_id: str
+        self,
+        local_type: str,
+        local_id: str,
+        orbit_id: str,
+        *,
+        expected_artifact_id: str | None = None,
     ) -> None:
-        """Forget the platform artifact for a local object in an orbit."""
-        self.backend.delete_remote_artifact(local_type, local_id, orbit_id)
+        """Forget the mapping, optionally only if it still matches the expected ID."""
+        if expected_artifact_id is None:
+            self.backend.delete_remote_artifact(local_type, local_id, orbit_id)
+            return
+        self.backend.delete_remote_artifact(
+            local_type, local_id, orbit_id, expected_artifact_id=expected_artifact_id
+        )
 
     def get_eval_annotations(
         self, experiment_id: str, dataset_id: str, eval_id: str

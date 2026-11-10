@@ -664,7 +664,7 @@ If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `artifact_id` - ID of the artifact to download.
+- `artifact_id` - ID or exact name (name or file_name) of the artifact.
 - `file_path` - Local path to save the downloaded file. If None, uses the original file name.
 - `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
@@ -676,7 +676,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ValueError` - If model with specified ID not found.
+- `ValueError` - If artifact with specified ID or name not found.
 - `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
@@ -1908,7 +1908,7 @@ If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `artifact_id` - ID of the artifact to download.
+- `artifact_id` - ID or exact name (name or file_name) of the artifact.
 - `file_path` - Local path to save the downloaded file. If None, uses the original file name.
 - `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
@@ -1920,7 +1920,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ValueError` - If model with specified ID not found.
+- `ValueError` - If artifact with specified ID or name not found.
 - `ConfigurationError` - If collection_id not provided and no default collection set.
   
 

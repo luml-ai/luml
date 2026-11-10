@@ -117,7 +117,11 @@ orgs = luml.orbits.list()
 #### create
 
 ```python
-def create(name: str, bucket_secret_id: str) -> Orbit
+def create(
+        name: str,
+        bucket_secret_id: str,
+        relay_id: str | None = None
+) -> Orbit
 ```
 
 Create new orbit in the default organization.
@@ -126,6 +130,7 @@ Create new orbit in the default organization.
 
 - `name` - Name of the orbit.
 - `bucket_secret_id` - ID of the bucket secret. The bucket secret must exist before orbit creation.
+- `relay_id` - ID of the relay that serves the orbit's sessions, an own relay of the organization or a managed one. Optional.
   
 
 **Returns**:
@@ -169,7 +174,9 @@ Orbit(
 ```python
 def update(
         name: str | None = None,
-        bucket_secret_id: str | None = None
+        bucket_secret_id: str | None = None,
+        relay_id: str | None = None,
+        clear_relay: bool = False
 ) -> Orbit
 ```
 
@@ -182,6 +189,8 @@ parameters will be updated, others remain unchanged.
 
 - `name` - New name for the orbit. If None, name remains unchanged.
 - `bucket_secret_id` - New bucket secret for storage configuration. The bucket secret must exist. If None, bucket secret remains unchanged.
+- `relay_id` - New relay for the orbit's sessions. If None, the relay remains unchanged.
+- `clear_relay` - Remove the orbit's relay; sessions already started keep theirs.
   
 
 **Returns**:
@@ -390,7 +399,11 @@ async def main():
 #### create
 
 ```python
-async def create(name: str, bucket_secret_id: str) -> Orbit
+async def create(
+        name: str,
+        bucket_secret_id: str,
+        relay_id: str | None = None
+) -> Orbit
 ```
 
 Create new orbit in the default organization.
@@ -399,6 +412,7 @@ Create new orbit in the default organization.
 
 - `name` - Name of the orbit.
 - `bucket_secret_id` - ID of the bucket secret. The bucket secret must exist before orbit creation.
+- `relay_id` - ID of the relay that serves the orbit's sessions, an own relay of the organization or a managed one. Optional.
   
 
 **Returns**:
@@ -445,7 +459,9 @@ Orbit(
 ```python
 async def update(
         name: str | None = None,
-        bucket_secret_id: str | None = None
+        bucket_secret_id: str | None = None,
+        relay_id: str | None = None,
+        clear_relay: bool = False
 ) -> Orbit
 ```
 
@@ -458,6 +474,8 @@ parameters will be updated, others remain unchanged.
 
 - `name` - New name for the orbit. If None, name remains unchanged.
 - `bucket_secret_id` - New bucket secret for storage configuration. The bucket secret must exist. If None, bucket secret remains unchanged.
+- `relay_id` - New relay for the orbit's sessions. If None, the relay remains unchanged.
+- `clear_relay` - Remove the orbit's relay; sessions already started keep theirs.
   
 
 **Returns**:
