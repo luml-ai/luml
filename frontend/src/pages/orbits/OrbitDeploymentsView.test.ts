@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import OrbitDeploymentsView from './OrbitDeploymentsView.vue'
-import OrbitSecretsView from './OrbitSecretsView.vue'
 
 const authStore = reactive({ isAuth: true })
 const deploymentsStore = reactive({
@@ -46,7 +45,7 @@ async function mountRoute(name = 'orbit-secrets') {
       {
         path: '/organization/:organizationId/orbit/:id/secrets',
         name: 'orbit-secrets',
-        component: OrbitSecretsView,
+        component: OrbitDeploymentsView,
       },
     ],
   })
@@ -75,10 +74,29 @@ async function mountRoute(name = 'orbit-secrets') {
   return { wrapper, router }
 }
 
-describe('orbit secrets navigation', () => {
+describe('orbit deployments and secrets tabs', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     authStore.isAuth = true
     secretsStore.creatorVisible = false
+  })
+
+  it('switches between the tabs without reloading or resetting the page', async () => {
+    const { wrapper, router } = await mountRoute('orbit-deployments')
+    expect(deploymentsStore.getDeployments).toHaveBeenCalledOnce()
+    expect(secretsStore.loadSecrets).toHaveBeenCalledOnce()
+
+    for (const index of [1, 0, 1]) {
+      await wrapper.findAll('button.tab')[index].trigger('click')
+      await flushPromises()
+      expect(wrapper.find('.p-skeleton').exists()).toBe(false)
+    }
+
+    expect(router.currentRoute.value.name).toBe('orbit-secrets')
+    expect(deploymentsStore.getDeployments).toHaveBeenCalledOnce()
+    expect(secretsStore.loadSecrets).toHaveBeenCalledOnce()
+    expect(deploymentsStore.reset).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 
   it('keeps secret creation and return navigation after opening the Secrets tab', async () => {

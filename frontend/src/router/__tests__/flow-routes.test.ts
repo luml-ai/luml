@@ -30,8 +30,14 @@ describe('flow routes', () => {
   })
 })
 
-it('loads the orbit secrets view for the secrets route', async () => {
-  const route = router.getRoutes().find((route) => route.name === 'orbit-secrets')!
-  const load = route.components!.default as () => Promise<{ default: { __file: string } }>
-  expect((await load()).default.__file).toContain('OrbitSecretsView.vue')
+it('serves the deployments and secrets tabs from one view', async () => {
+  const load = (name: string) => {
+    const route = router.getRoutes().find((route) => route.name === name)!
+    return (route.components!.default as () => Promise<{ default: unknown }>)()
+  }
+  const deployments = (await load('orbit-deployments')).default
+  const secrets = (await load('orbit-secrets')).default
+
+  expect(secrets).toBe(deployments)
+  expect((secrets as { __file: string }).__file).toContain('OrbitDeploymentsView.vue')
 })
