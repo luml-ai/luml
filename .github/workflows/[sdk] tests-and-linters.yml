@@ -5,10 +5,12 @@ on:
     branches: [main, staging, production]
     paths:
       - 'sdk/python/sdk/**'
+      - '.github/workflows/\[sdk\] tests-and-linters.yml'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'sdk/python/sdk/**'
+      - '.github/workflows/\[sdk\] tests-and-linters.yml'
   workflow_dispatch:
   workflow_call:
 
@@ -29,8 +31,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: sdk/python/sdk/uv.lock
 
+      - name: Check dependency resolution without local sources
+        run: uv lock --no-sources --dry-run
+
       - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
+        run: uv sync --frozen --all-extras --all-groups
 
       - name: Check formatting
         run: uv run --frozen ruff format --check luml tests
@@ -54,7 +59,7 @@ jobs:
           cache-dependency-glob: sdk/python/sdk/uv.lock
 
       - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
+        run: uv sync --frozen --all-extras --all-groups
 
       - name: Run unit tests
         run: uv run --frozen pytest tests --ignore=tests/integrations
@@ -72,7 +77,7 @@ jobs:
           cache-dependency-glob: sdk/python/sdk/uv.lock
 
       - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
+        run: uv sync --frozen --all-extras --all-groups
 
       - name: Run integration tests
         run: uv run --frozen pytest tests/integrations
