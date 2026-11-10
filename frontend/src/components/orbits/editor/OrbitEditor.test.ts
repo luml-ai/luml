@@ -271,6 +271,14 @@ describe('OrbitSettingsDialog', () => {
     expect(deleteButton.attributes().label).toBe('Delete Orbit')
   })
 
+  it('renders without the delete action when the orbit has no permissions', async () => {
+    await wrapper.setProps({ orbit: { ...orbit, permissions: null } })
+    await flushPromises()
+
+    expect(wrapper.find('input#name').exists()).toBe(true)
+    expect(wrapper.find('button[severity="warn"]').exists()).toBe(false)
+  })
+
   it('handles delete orbit action', async () => {
     await flushPromises()
     const deleteButton = wrapper.find('button[severity="warn"]')
