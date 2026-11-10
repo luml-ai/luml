@@ -103,6 +103,7 @@ const saveLoading = ref(false)
 const stagesLoading = ref(false)
 
 const artifactWithSelectedStage = ref<TrackEntry | null>(null)
+let stageRequest = 0
 
 const initialValues = computed(() => {
   return {
@@ -157,10 +158,13 @@ async function onSubmit({ valid, values }: FormSubmitEvent) {
 }
 
 async function getArtifactWithSelectedStage(trackId: string, stageId: string) {
+  const request = ++stageRequest
+  artifactWithSelectedStage.value = null
   try {
-    artifactWithSelectedStage.value = await artifactLinksStore.getEntryByStage(trackId, stageId)
+    const artifact = await artifactLinksStore.getEntryByStage(trackId, stageId)
+    if (request === stageRequest) artifactWithSelectedStage.value = artifact
   } catch {
-    artifactWithSelectedStage.value = null
+    if (request === stageRequest) artifactWithSelectedStage.value = null
   }
 }
 
@@ -183,6 +187,7 @@ watch(visible, (value) => {
 })
 
 watchEffect(() => {
+  stageRequest++
   const trackId = formRef.value?.getFieldState('track_id')?.value
   const stageId = formRef.value?.getFieldState('stage_id')?.value
   if (!trackId || !stageId) {
@@ -193,6 +198,7 @@ watchEffect(() => {
 })
 
 onBeforeUnmount(() => {
+  stageRequest++
   tracksStore.reset()
 })
 </script>

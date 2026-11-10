@@ -157,7 +157,7 @@ const duplicatedFieldsIds = computed(() => {
       item.value &&
       self.find((searchedItem) => searchedItem.value === item.value && searchedItem.id !== item.id),
   )
-  const outputDuplicates = inputFields.value.filter(
+  const outputDuplicates = outputFields.value.filter(
     (item, index, self) =>
       item.value &&
       self.find((searchedItem) => searchedItem.value === item.value && searchedItem.id !== item.id),

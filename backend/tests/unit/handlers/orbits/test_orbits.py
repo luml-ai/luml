@@ -255,6 +255,44 @@ class TestOrbits:
             expected.id,
         )
 
+    @pytest.mark.parametrize(
+        ("org_role", "orbit_role", "can_delete"),
+        [
+            (OrgRole.OWNER, None, True),
+            (OrgRole.MEMBER, OrbitRole.ADMIN, True),
+            (OrgRole.MEMBER, OrbitRole.MEMBER, False),
+        ],
+    )
+    async def test_update_orbit_returns_permissions_of_the_caller(
+        self,
+        mocks: CollaboratorMocks[OrbitHandler],
+        orbit: Orbit,
+        org_role: OrgRole,
+        orbit_role: OrbitRole | None,
+        can_delete: bool,
+    ) -> None:
+        mocks.orbits_repository.update_orbit.return_value = orbit
+        mocks.user_repository.get_organization_member_role.return_value = org_role
+        mocks.orbits_repository.get_orbit_member_role.return_value = orbit_role
+        mocks.permissions_handler.get_orbit_permissions_by_role.side_effect = (
+            PermissionsHandler().get_orbit_permissions_by_role
+        )
+
+        result = await mocks.handler.update_orbit(
+            USER_ID, orbit.organization_id, orbit.id, OrbitUpdate(name="new_name")
+        )
+
+        assert result.permissions == PermissionsHandler().get_orbit_permissions_by_role(
+            org_role, orbit_role
+        )
+        assert ("delete" in result.permissions["orbit"]) is can_delete
+        mocks.user_repository.get_organization_member_role.assert_awaited_once_with(
+            orbit.organization_id, USER_ID
+        )
+        mocks.orbits_repository.get_orbit_member_role.assert_awaited_once_with(
+            orbit.id, USER_ID
+        )
+
     async def test_update_orbit_raises_not_found_when_orbit_missing(
         self, mocks: CollaboratorMocks[OrbitHandler]
     ) -> None:
