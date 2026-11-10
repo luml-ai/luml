@@ -27,19 +27,19 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Install dependencies with uv
-        run: uv sync --group dev
+        run: uv sync --frozen --group dev
 
       - name: Check formatting
-        run: uv run ruff format --check lumlflow lumlflow_kernel lumlflow_typing tests
+        run: uv run --frozen ruff format --check lumlflow lumlflow_kernel lumlflow_typing tests
 
       - name: Linting
-        run: uv run ruff check lumlflow lumlflow_kernel lumlflow_typing tests
+        run: uv run --frozen ruff check lumlflow lumlflow_kernel lumlflow_typing tests
 
       - name: Type checking
-        run: uv run mypy lumlflow/flow lumlflow_kernel lumlflow_typing
+        run: uv run --frozen mypy lumlflow/flow lumlflow_kernel lumlflow_typing
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -54,13 +54,13 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Install dependencies with uv
-        run: uv sync --group dev
+        run: uv sync --frozen --group dev
 
       - name: Running unit tests
-        run: uv run pytest tests/unit
+        run: uv run --frozen pytest tests/unit
 
   integration-tests:
     runs-on: ubuntu-latest
@@ -75,16 +75,16 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Install dependencies with uv
-        run: uv sync --group dev
+        run: uv sync --frozen --group dev
 
       - name: Running integration tests
-        run: uv run pytest tests/integration -n auto -m "not default_port"
+        run: uv run --frozen pytest tests/integration -n auto -m "not default_port"
 
       - name: Running default port tests
-        run: uv run pytest tests/integration -m default_port
+        run: uv run --frozen pytest tests/integration -m default_port
 
   # Portability is a v1 requirement, not a port at the end. The store and the
   # watcher are where the platform's differences land — atomic replace, sharing
@@ -102,13 +102,13 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Install dependencies with uv
-        run: uv sync --group dev
+        run: uv sync --frozen --group dev
 
       - name: Running store and watcher tests
-        run: uv run pytest tests/unit/flow tests/integration/flow tests/integration/daemon/test_watcher.py
+        run: uv run --frozen pytest tests/unit/flow tests/integration/flow tests/integration/daemon/test_watcher.py
 
   # The kernel is path-injected into the workspace venv, whose floor is 3.10 —
   # so it is tested on 3.10, with no project install, exactly as it ships.
@@ -124,7 +124,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Running kernel tests under the venv floor
-        run: uv run --python 3.10 --no-project --with pytest pytest tests/unit/kernel tests/integration/kernel
+        run: uv run --frozen --python 3.10 --no-project --with pytest pytest tests/unit/kernel tests/integration/kernel
