@@ -5,14 +5,13 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-from promptopt.dataclasses import Field
-from promptopt.graph import Graph, InputNode, OutputNode, Processor
-from promptopt.llm import InvalidLLMResponseError
-
 from dfs_webworker import invoke
 from dfs_webworker.prompt_optimization import StoredGraph
 from dfs_webworker.store import Store
 from dfs_webworker.types import FakeJsProxy
+from promptopt.dataclasses import Field
+from promptopt.graph import Graph, InputNode, OutputNode, Processor
+from promptopt.llm import InvalidLLMResponseError
 
 
 @pytest.fixture
@@ -178,3 +177,82 @@ def test_malformed_response_exhausts_retries_without_losing_valid_rows():
         None,
     ]
     assert llm.generate.await_count == 7
+
+
+@pytest.mark.parametrize("sibling_result", ["success", "timeout", "unauthorized"])
+def test_malformed_processor_does_not_hide_sibling_provider_error(sibling_result):
+    graph = Graph()
+    input_node = InputNode([Field("text", "str")])
+    output_node = OutputNode([Field("a", "str"), Field("b", "str")])
+    graph.add_node(input_node, "input")
+    graph.add_node(output_node, "output")
+    for field in ["a", "b"]:
+        processor = Processor([Field("text", "str")], [Field(field, "str")])
+        graph.add_node(processor, field)
+        graph.connect(input_node, "text", processor, "text")
+        graph.connect(processor, field, output_node, field)
+
+    cancelled = []
+    attempts = []
+
+    async def scenario():
+        malformed = asyncio.Event()
+
+        async def generate(messages, out_schema):
+            text = json.loads(messages[-1]["content"])["text"]
+            field = out_schema.fields[0].name
+            if text == "bad" and field == "a":
+                attempts.append(field)
+                if len(attempts) == 3:
+                    malformed.set()
+                return "malformed"
+            if text == "bad":
+                await malformed.wait()
+                await asyncio.sleep(0)
+                if sibling_result == "timeout":
+                    raise httpx.ReadTimeout("Timed out")
+                if sibling_result == "unauthorized":
+                    raise httpx.HTTPStatusError(
+                        "Unauthorized",
+                        request=httpx.Request("POST", "https://example.com"),
+                        response=httpx.Response(401),
+                    )
+            else:
+                try:
+                    await asyncio.sleep(0.05)
+                except asyncio.CancelledError:
+                    cancelled.append(field)
+                    raise
+            return json.dumps({field: text})
+
+        llm = SimpleNamespace(generate=AsyncMock(side_effect=generate))
+        model_id = Store.save(StoredGraph(graph=graph, llm=llm))
+        try:
+            result = await invoke(
+                "/prompt_optimization/predict",
+                FakeJsProxy({"model_id": model_id, "data": {"text": ["bad", "good"]}}),
+            )
+            if sibling_result != "success":
+                assert sorted(cancelled) == ["a", "b"]
+            return result
+        finally:
+            Store.delete(model_id)
+
+    result = asyncio.run(scenario())
+
+    assert len(attempts) == 3
+    if sibling_result == "success":
+        assert result["status"] == "success"
+        assert result["predictions"] == [None, {"a": "good", "b": "good"}]
+        assert result["prediction_errors"] == [
+            "Failed to get a valid structured response after 3 attempts.",
+            None,
+        ]
+        assert cancelled == []
+    else:
+        assert result["status"] == "error"
+        assert result["error_type"] == (
+            "ReadTimeout" if sibling_result == "timeout" else "HTTPStatusError"
+        )
+        assert "predictions" not in result
+        assert sorted(cancelled) == ["a", "b"]
