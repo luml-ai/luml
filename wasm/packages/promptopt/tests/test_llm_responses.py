@@ -1,10 +1,16 @@
 import asyncio
+import json
 from typing import Any
 
 import pytest
 
 from promptopt.dataclasses import Field, Socket, StateDescriptor
-from promptopt.llm import LLM
+from promptopt.llm import (
+    LLM,
+    InvalidLLMResponseError,
+    OllamaProvider,
+    OpenAIProvider,
+)
 from promptopt.nodes.gate import Gate
 from promptopt.nodes.processor import Processor
 from promptopt.optimizers._eval import LLMJudge
@@ -90,3 +96,68 @@ def test_llm_judge_retries_malformed_scores() -> None:
 
     assert score == 4
     assert llm.calls == 2
+
+
+@pytest.mark.parametrize("score", [1, 2, 3, 4, 5])
+def test_llm_judge_accepts_scores_in_range(score: int) -> None:
+    llm = SequenceLLM([json.dumps({"score": score})])
+
+    result = asyncio.run(LLMJudge("accuracy").score([{}], [{}], llm=llm))
+
+    assert result == score
+    assert llm.calls == 1
+
+
+@pytest.mark.parametrize("provider_kind", ["openai", "ollama"])
+@pytest.mark.parametrize("score", [100, 0, -5])
+def test_llm_judge_providers_constrain_and_retry_out_of_range_scores(
+    provider_kind: str, score: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if provider_kind == "openai":
+        llm = OpenAIProvider(api_key="test-key")
+    else:
+        llm = OllamaProvider()
+    responses = iter([json.dumps({"score": score}), '{"score": 4}'])
+    schemas = []
+
+    async def chat(*, response_format, **kwargs):
+        if provider_kind == "openai":
+            assert response_format["type"] == "json_schema"
+            assert response_format["json_schema"]["strict"] is True
+            schemas.append(response_format["json_schema"]["schema"])
+            return {"choices": [{"message": {"content": next(responses)}}]}
+        schemas.append(response_format)
+        return {"message": {"content": next(responses)}}
+
+    monkeypatch.setattr(llm, "chat", chat)
+
+    result = asyncio.run(LLMJudge("accuracy").score([{}], [{}], llm=llm))
+
+    assert result == 4
+    assert len(schemas) == 2
+    for schema in schemas:
+        assert schema["properties"]["score"] == {
+            "type": "integer",
+            "enum": [1, 2, 3, 4, 5],
+        }
+
+
+@pytest.mark.parametrize("score", [100, 0, -5, True, 2.5, "4", None])
+def test_llm_judge_rejects_invalid_scores_after_three_attempts(score: Any) -> None:
+    llm = SequenceLLM([json.dumps({"score": score})] * 3)
+
+    with pytest.raises(InvalidLLMResponseError, match="after 3 attempts"):
+        asyncio.run(LLMJudge("accuracy").score([{}], [{}], llm=llm))
+
+    assert llm.calls == 3
+
+
+def test_llm_judge_averages_only_valid_scores() -> None:
+    llm = SequenceLLM(
+        ['{"score": 1}', '{"score": 1}', '{"score": 100}', '{"score": 2}']
+    )
+
+    result = asyncio.run(LLMJudge("accuracy").score([{}] * 3, [{}] * 3, llm=llm))
+
+    assert result == pytest.approx(4 / 3)
+    assert llm.calls == 4
