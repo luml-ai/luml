@@ -387,3 +387,42 @@ def test_platform_admin_logs_are_forwarded_once(
     assert len(audit_spans) == 1
     assert (audit_spans[0].attributes or {})["logfire.msg"] == "audit entry"
     engine.dispose()
+
+
+def test_backend_starts_and_exports_spans_with_tracing_enabled() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+exporter = InMemorySpanExporter()
+with (
+    patch("luml.infra.observability.OTLPSpanExporter", return_value=exporter),
+    patch("luml.infra.observability.BatchSpanProcessor", SimpleSpanProcessor),
+):
+    from luml.server import app
+
+@app.get("/tracing-check")
+def tracing_check():
+    return {"ok": True}
+
+with TestClient(app) as client:
+    assert client.get("/tracing-check").json() == {"ok": True}
+assert any(
+    (span.attributes or {}).get("http.route") == "/tracing-check"
+    for span in exporter.get_finished_spans()
+)
+""",
+        ],
+        env={**os.environ, "PYTEST_VERSION": "1", "LOGFIRE_TOKEN": "test-token"},
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr.decode()
