@@ -291,6 +291,18 @@ def tui(
     app_instance.run()
 
 
+@app.command(
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+    help="Agent skills for this version: skills list | show <name> \\[file] | "
+    "files <name>.",
+)
+def skills(ctx: typer.Context) -> None:
+    from lumlflow._skills import run_cli
+
+    raise typer.Exit(run_cli("lumlflow", "lumlflow skills", ctx.args))
+
+
 @app.command()
 def version() -> None:
     from lumlflow import __version__
