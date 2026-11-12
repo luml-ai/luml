@@ -100,6 +100,7 @@ defineProps<{ product: HomeProduct }>()
 }
 
 .divider {
+  margin-top: auto;
   height: 1px;
   background-color: var(--p-divider-border-color);
 }
