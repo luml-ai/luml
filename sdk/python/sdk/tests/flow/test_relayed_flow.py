@@ -279,6 +279,28 @@ def test_port_in_use_fails_before_anything_is_created(
     assert _stub_starts(stub_record) == []
 
 
+@pytest.mark.usefixtures("clients", "serving")
+def test_connection_timeout_on_a_free_port_starts_lumlflow(
+    port: int, stub_record: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    get = httpx.get
+    probed: list[str] = []
+
+    def timing_out_once(url: str, **options) -> httpx.Response:
+        probed.append(url)
+        if len(probed) == 1:
+            raise httpx.ConnectTimeout("timed out")
+        return get(url, **options)
+
+    monkeypatch.setattr(httpx, "get", timing_out_once)
+
+    with RelayedFlow("training", port=port):
+        assert _answers(port)
+
+    assert len(_stub_starts(stub_record)) == 1
+    assert not _answers(port)
+
+
 @pytest.mark.usefixtures("serving", "no_lumlflow")
 def test_missing_lumlflow_says_to_install_it(clients: FakeClients, port: int) -> None:
     with pytest.raises(RelayedFlowError, match="install lumlflow"):
