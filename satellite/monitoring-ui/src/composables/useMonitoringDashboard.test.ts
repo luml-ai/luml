@@ -175,6 +175,60 @@ describe('monitoring request sequencing', () => {
     }
   })
 
+  it('ignores a new-traces peek that finishes after the reader jumped to the latest page', async () => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      await dashboard.setActiveTab('traces')
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+      const peek = Promise.withResolvers<ReturnType<typeof makeTraces>>()
+      getTraces.mockReturnValueOnce(peek.promise)
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      const page = makeTraces()
+      getTraces.mockResolvedValueOnce({
+        ...page,
+        rows: [{ ...page.rows[0], event_id: 'evt-new' }, ...page.rows],
+      })
+      await dashboard.showLatestTraces()
+
+      peek.resolve(page)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dashboard.tracesOffset.value).toBe(0)
+      expect(dashboard.tracesNewCount.value).toBe(0)
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
+  })
+
+  it('still counts arrivals from a peek that no traces load superseded', async () => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      await dashboard.setActiveTab('traces')
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+      const peek = Promise.withResolvers<ReturnType<typeof makeTraces>>()
+      getTraces.mockReturnValueOnce(peek.promise)
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      const page = makeTraces()
+
+      peek.resolve({
+        ...page,
+        rows: [{ ...page.rows[0], event_id: 'evt-new' }, ...page.rows],
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dashboard.tracesOffset.value).toBe(TRACES_PAGE_SIZE)
+      expect(dashboard.tracesNewCount.value).toBe(1)
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
+  })
+
   it.each(['evt-100', 'evt-200'])('keeps the latest trace detail when reopening %s', async (eventId) => {
     const older = Promise.withResolvers<Awaited<ReturnType<typeof monitoringApi.getTraceDetail>>>()
     const response = {

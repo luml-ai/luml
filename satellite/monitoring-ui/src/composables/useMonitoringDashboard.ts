@@ -327,6 +327,7 @@ export function useMonitoringDashboard() {
 
   async function peekNewTraces(): Promise<void> {
     if (tracesTopEventId === null) return
+    const sequence = requestSequences.get(tracesStatus)
     let page: TracesResponse
     try {
       page = await monitoringApi.getTraces(
@@ -337,6 +338,7 @@ export function useMonitoringDashboard() {
       if (error instanceof SessionExpiredError) reportSessionExpired()
       return
     }
+    if (requestSequences.get(tracesStatus) !== sequence) return
     const index = page.rows.findIndex((row) => row.event_id === tracesTopEventId)
     tracesNewCount.value = index === -1 ? page.rows.length : index
   }
