@@ -205,7 +205,7 @@ def _extract_with_image(
 
 def _assert_writable_models_directory(payload: dict[str, object]) -> None:
     assert payload["uid"] == RANDOM_UID
-    assert payload["models_uid"] == 10001
+    assert payload["models_uid"] == 0
     assert payload["models_gid"] == 0
     mode = payload["models_mode"]
     assert isinstance(mode, int)
@@ -356,3 +356,38 @@ def test_model_environment_is_created_under_app(
     assert payload["root"] == "/app/.micromamba"
     assert payload["envs"]
     assert all(path.startswith("/app/.micromamba/envs/") for path in payload["envs"])
+
+
+@pytest.mark.parametrize("user", ["10001:0", f"{RANDOM_UID}:0"])
+def test_server_code_is_read_only_while_runtime_directories_are_writable(
+    docker_cli: str, model_server_image: str, user: str
+) -> None:
+    script = """
+from pathlib import Path
+for path in [Path('/app/main.py'), Path('/app/handlers/model_handler.py')]:
+    try:
+        with path.open('a'):
+            pass
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError(f'{path} is writable')
+for directory in ['/app/models', '/app/.micromamba', '/app/.cache/uv']:
+    path = Path(directory) / 'write-test'
+    path.touch()
+    path.unlink()
+"""
+    _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--user",
+            user,
+            "--entrypoint",
+            "/app/.venv/bin/python",
+            model_server_image,
+            "-c",
+            script,
+        ]
+    )

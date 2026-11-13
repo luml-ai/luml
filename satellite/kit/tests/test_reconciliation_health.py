@@ -1062,3 +1062,31 @@ async def test_reconciliation_marker_tracks_ready_but_unhealthy_workload() -> No
     assert entry.kind == "relaunch"
     assert driver.start_calls == []
     assert platform.deployments[DEPLOYMENT_ID]["error_message"]["reason"] == "Recovering"
+
+
+@pytest.mark.asyncio
+async def test_deployment_locks_are_reclaimed_after_reconciliation() -> None:
+    from uuid import uuid4
+
+    async with recovery_harness(FakePlatform()) as harness:
+        for _ in range(30):
+            await harness.convergence.reconcile_deployments(
+                [deployment_record(id=str(uuid4()), status="active")]
+            )
+        await harness.convergence.cleanup_orphans([])
+        assert not harness.convergence._deployment_locks
+
+
+@pytest.mark.asyncio
+async def test_deployment_lock_is_shared_while_held_and_waiting() -> None:
+    import asyncio
+
+    async with recovery_harness(FakePlatform()) as harness:
+        lock = harness.convergence.deployment_lock(DEPLOYMENT_ID)
+        async with lock:
+            waiter = asyncio.create_task(lock.acquire())
+            await asyncio.sleep(0)
+            assert harness.convergence.deployment_lock(DEPLOYMENT_ID) is lock
+        await waiter
+        assert harness.convergence.deployment_lock(DEPLOYMENT_ID) is lock
+        lock.release()

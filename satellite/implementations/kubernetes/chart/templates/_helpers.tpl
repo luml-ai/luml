@@ -128,18 +128,6 @@ satellite-token
 {{- end -}}
 {{- end -}}
 
-{{- define "luml.tokenChecksum" -}}
-{{- if .Values.satellite.existingSecret -}}
-{{- printf "external:%s:%s" .Values.satellite.existingSecret .Values.satellite.existingSecretKey | sha256sum -}}
-{{- else -}}
-{{- .Values.satellite.token | sha256sum -}}
-{{- end -}}
-{{- end -}}
-
-{{- define "luml.derivationChecksum" -}}
-{{- include "luml.derivationKey" . | sha256sum -}}
-{{- end -}}
-
 {{- define "luml.monitoringSecretName" -}}
 {{- include "luml.componentName" (dict "root" . "suffix" "monitoring") -}}
 {{- end -}}

@@ -724,3 +724,44 @@ def _listed_deployment(
         "spec": {"replicas": 1},
         "status": {"availableReplicas": 1},
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("satellite", ["someone-else", None])
+async def test_named_foreign_resources_are_neither_observed_nor_removed(
+    satellite: str | None,
+) -> None:
+    config = configuration()
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    await driver.start(deployment(), start_context(config))
+    for item in api.objects.values():
+        if satellite is None:
+            item["metadata"]["labels"].pop(KUBERNETES_SATELLITE_LABEL)
+        else:
+            item["metadata"]["labels"][KUBERNETES_SATELLITE_LABEL] = satellite
+    observation = await driver.observe(DEPLOYMENT_ID)
+    result = await driver.remove(DEPLOYMENT_ID)
+    assert observation.state is WorkloadState.MISSING
+    assert not result.removed
+    assert result.verified
+    assert result.artifact_id is None
+    assert not api.delete_calls
+    assert len(api.objects) == 4
+
+
+@pytest.mark.asyncio
+async def test_remove_checks_ownership_of_each_named_resource() -> None:
+    config = configuration()
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    await driver.start(deployment(), start_context(config))
+    name = deployment_object_name(DEPLOYMENT_ID)
+    secret = api.object("Secret", name)
+    assert secret is not None
+    secret["metadata"]["labels"][KUBERNETES_SATELLITE_LABEL] = "someone-else"
+    api.put(secret)
+    result = await driver.remove(DEPLOYMENT_ID)
+    assert result.removed and result.verified
+    assert api.object("Secret", name) is not None
+    assert ("Secret", name) not in api.delete_calls
