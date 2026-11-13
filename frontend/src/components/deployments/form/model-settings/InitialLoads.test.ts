@@ -1,6 +1,6 @@
 import { enableAutoUnmount, flushPromises, shallowMount } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import CollectionSelect from './CollectionSelect.vue'
+import ModelCollectionSelect from './ModelCollectionSelect.vue'
 import RegistryCollectionSelect from '@/components/orbits/tabs/registry/CollectionSelect.vue'
 import ModelSelect from './ModelSelect.vue'
 
@@ -45,13 +45,13 @@ enableAutoUnmount(afterEach)
 beforeEach(() => vi.resetAllMocks())
 
 const selects = [
-  ['deployment collection', CollectionSelect, 'Failed to load the selected collection'],
+  ['deployment collection', ModelCollectionSelect, 'Failed to load the selected collection'],
   ['registry collection', RegistryCollectionSelect, 'Failed to load the selected collection'],
   ['model', ModelSelect, 'Failed to load the selected model'],
 ] as const
 
 function mountSelect(component: (typeof selects)[number][1]) {
-  shallowMount(component as typeof CollectionSelect, {
+  shallowMount(component as typeof ModelCollectionSelect, {
     props: {
       disabled: false,
       organizationId: 'org',
