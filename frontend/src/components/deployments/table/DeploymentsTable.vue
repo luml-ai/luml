@@ -314,6 +314,10 @@ watch(
   },
 )
 
+watch(canEdit, (value) => {
+  if (value) checkDeploymentInQuery()
+})
+
 function onStopClick() {
   if (!canDelete.value || loading.value || !selection.value.length) return
   confirm.require(

@@ -15,7 +15,9 @@ const { batchAction, confirmRequire, toastAdd } = vi.hoisted(() => ({
   toastAdd: vi.fn(),
 }))
 const orbitStore = reactive({
-  getCurrentOrbitPermissions: { deployment: ['update', 'delete'] as string[] },
+  getCurrentOrbitPermissions: { deployment: ['update', 'delete'] } as
+    | { deployment: string[] }
+    | undefined,
 })
 
 vi.mock('@/stores/orbits', () => ({ useOrbitsStore: () => orbitStore }))
@@ -240,5 +242,18 @@ it('checks delete permission again before accepting a pending stop confirmation'
   confirmRequire.mock.calls[0][0].accept()
   await flushPromises()
   expect(batchAction).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('opens settings from the URL once deployment permissions arrive', async () => {
+  route.query = { deployment: 'deployment-2' }
+  orbitStore.getCurrentOrbitPermissions = undefined
+  const wrapper = mountTable()
+  expect(wrapper.findComponent({ name: 'DeploymentsEditor' }).exists()).toBe(false)
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['read', 'update'] }
+  await flushPromises()
+  expect(wrapper.getComponent({ name: 'DeploymentsEditor' }).props('data')).toMatchObject({
+    id: 'deployment-2',
+  })
   wrapper.unmount()
 })
