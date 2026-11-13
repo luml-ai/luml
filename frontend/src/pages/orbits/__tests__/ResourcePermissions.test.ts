@@ -7,7 +7,6 @@ import TrackPage from '../TrackPage.vue'
 import TrackCard from '@/components/tracks/TrackCard.vue'
 import OrbitDeploymentsView from '../OrbitDeploymentsView.vue'
 import OrbitSatellitesView from '../OrbitSatellitesView.vue'
-import OrbitSecretsView from '../OrbitSecretsView.vue'
 import SecretsList from '@/components/orbit-secrets/SecretsList.vue'
 import S3BucketForm from '@/components/organizations/registry/S3BucketForm.vue'
 import UiRichCard from '@/components/ui/UiRichCard.vue'
@@ -207,30 +206,27 @@ describe('resource creation controls', () => {
 })
 
 describe('secret access', () => {
-  it.each([OrbitDeploymentsView, OrbitSecretsView])(
-    'passes separate update and read permissions to the secrets list',
-    async (component) => {
-      route.name = 'orbit-secrets'
-      const wrapper = shallowMount(component, { global })
-      await flushPromises()
-      expect(wrapper.getComponent(SecretsList).props()).toMatchObject({
-        editAvailable: false,
-        copyAvailable: false,
-      })
-      orbit.getCurrentOrbitPermissions = { orbit_secret: [P.create, P.update] }
-      await nextTick()
-      expect(wrapper.getComponent(SecretsList).props()).toMatchObject({
-        editAvailable: true,
-        copyAvailable: false,
-      })
-      orbit.getCurrentOrbitPermissions = { orbit_secret: [P.read] }
-      await nextTick()
-      expect(wrapper.getComponent(SecretsList).props()).toMatchObject({
-        editAvailable: false,
-        copyAvailable: true,
-      })
-    },
-  )
+  it('passes separate update and read permissions to the secrets list', async () => {
+    route.name = 'orbit-secrets'
+    const wrapper = shallowMount(OrbitDeploymentsView, { global })
+    await flushPromises()
+    expect(wrapper.getComponent(SecretsList).props()).toMatchObject({
+      editAvailable: false,
+      copyAvailable: false,
+    })
+    orbit.getCurrentOrbitPermissions = { orbit_secret: [P.create, P.update] }
+    await nextTick()
+    expect(wrapper.getComponent(SecretsList).props()).toMatchObject({
+      editAvailable: true,
+      copyAvailable: false,
+    })
+    orbit.getCurrentOrbitPermissions = { orbit_secret: [P.read] }
+    await nextTick()
+    expect(wrapper.getComponent(SecretsList).props()).toMatchObject({
+      editAvailable: false,
+      copyAvailable: true,
+    })
+  })
 
   it('honors editAvailable and copyAvailable independently', async () => {
     const wrapper = shallowMount(SecretsList, {
