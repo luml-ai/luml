@@ -78,7 +78,8 @@ export interface PredictRequestData {
 
 export interface PredictResponse {
   status: 'success'
-  predictions: (string | number | object)[]
+  predictions: (string | number | object | null)[]
+  prediction_errors?: (string | null)[]
 }
 
 export interface TabularMetrics {

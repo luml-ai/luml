@@ -45,9 +45,7 @@
         :error="isUploadWithErrors || filePredictWithError"
         :loading="isLoading"
         loading-message="Loading prediction..."
-        :success-message-only="
-          predictReadyForDownload ? 'Success! Your predictions are ready—download the file.' : ''
-        "
+        :success-message-only="predictReadyForDownload ? filePredictMessage : ''"
         success-remove-text="Upload new dataset"
         :accept="['text/csv']"
         accept-text="Supports CSV file format"
@@ -115,8 +113,15 @@ const manualValues = ref(
 const predictionText = ref('')
 const filePredictWithError = ref(false)
 const downloadPredictBlob = ref<Blob | null>(null)
+const failedRowsCount = ref(0)
+const predictedRowsCount = ref(0)
 
 const predictReadyForDownload = computed(() => !!downloadPredictBlob.value)
+const filePredictMessage = computed(() =>
+  failedRowsCount.value
+    ? `Predictions are ready. ${failedRowsCount.value} of ${predictedRowsCount.value} rows failed. Download the file for details.`
+    : 'Success! Your predictions are ready—download the file.',
+)
 const isPredictButtonDisabled = computed(() => !fileData.value.name || isUploadWithErrors.value)
 const isManualPredictButtonDisabled = computed(() => {
   for (const input in manualValues.value) {
@@ -144,8 +149,13 @@ async function onFileSubmit() {
   const predictRequest = { data, model_id: props.modelId }
   const result = await startPredict(predictRequest)
   if (result) {
-    data.prediction = result.predictions as (string | number)[]
-    downloadPredictBlob.value = convertObjectToCsvBlob(data)
+    failedRowsCount.value = result.prediction_errors?.filter((error) => error !== null).length ?? 0
+    predictedRowsCount.value = result.predictions.length
+    downloadPredictBlob.value = convertObjectToCsvBlob({
+      ...data,
+      prediction: result.predictions,
+      ...(failedRowsCount.value ? { prediction_error: result.prediction_errors } : {}),
+    })
   } else {
     filePredictWithError.value = true
   }
@@ -169,6 +179,8 @@ watch(
   fileData,
   () => {
     filePredictWithError.value = false
+    failedRowsCount.value = 0
+    predictedRowsCount.value = 0
     downloadPredictBlob.value = null
   },
   { deep: true },

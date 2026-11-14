@@ -1,18 +1,19 @@
 import asyncio
 from dataclasses import dataclass
 
-from dfs_webworker.utils import success
-from dfs_webworker.store import Store
+from promptopt.graph import Graph
+from promptopt.llm import LLM, InvalidLLMResponseError
+
 from dfs_webworker.prompt_optimization.jsdata import JsData
-from dfs_webworker.prompt_optimization.utils import (
-    jsdata_to_graph,
-    init_llm,
-    data_to_examples,
-)
 from dfs_webworker.prompt_optimization.optimization import optimize
 from dfs_webworker.prompt_optimization.serialization import serialize
-from promptopt.graph import Graph
-from promptopt.llm import LLM
+from dfs_webworker.prompt_optimization.utils import (
+    data_to_examples,
+    init_llm,
+    jsdata_to_graph,
+)
+from dfs_webworker.store import Store
+from dfs_webworker.utils import success
 
 
 @dataclass
@@ -74,7 +75,33 @@ async def prompt_optimization_predict(model_id: str, data: dict[str, list]):
     keys = list(data.keys())
     values_list = [dict(zip(keys, v)) for v in zip(*data.values())]
 
-    tasks = [graph.run(inputs=d, llm=llm) for d in values_list]
-    predictions = await asyncio.gather(*tasks)
+    async def predict_row(inputs):
+        try:
+            return await graph.run(inputs=inputs, llm=llm)
+        except InvalidLLMResponseError as error:
+            return error
 
-    return success(predictions=predictions)
+    tasks = [asyncio.create_task(predict_row(d)) for d in values_list]
+    try:
+        results = await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+    failures = [r for r in results if isinstance(r, InvalidLLMResponseError)]
+    if failures and len(failures) == len(results):
+        raise failures[0]
+    if failures:
+        return success(
+            predictions=[
+                None if isinstance(r, InvalidLLMResponseError) else r for r in results
+            ],
+            prediction_errors=[
+                str(r) if isinstance(r, InvalidLLMResponseError) else None
+                for r in results
+            ],
+        )
+
+    return success(predictions=results)

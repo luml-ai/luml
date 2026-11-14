@@ -1,10 +1,13 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 from uuid import uuid4
 
+import pytest
+
 from promptopt.dataclasses import Field, NodeOutput, OutputSpec, Socket, StateDescriptor
 from promptopt.graph import Graph
+from promptopt.llm import InvalidLLMResponseError
 from promptopt.nodes._base import BaseNode
 from promptopt.nodes.io import InputNode, OutputNode
 from promptopt.variadic import VariadicList
@@ -107,6 +110,36 @@ class RelayNode(BaseNode):
         raise NotImplementedError()
 
 
+class ScriptedNode(RelayNode):
+    def __init__(self, output_field: str, script: Callable[[], Awaitable[None]]):
+        super().__init__("x", output_field, lambda value: value)
+        self._script = script
+
+    async def generate(
+        self, inputs: dict[str, Any], llm: Any, trace: Any
+    ) -> NodeOutput:
+        await self._script()
+        return await super().generate(inputs, llm, trace)
+
+
+def _fan_out_graph(
+    left: Callable[[], Awaitable[None]], right: Callable[[], Awaitable[None]]
+) -> Graph:
+    graph = Graph()
+    input_node = InputNode([Field("x", "str")])
+    output_node = OutputNode([Field("left", "str"), Field("right", "str")])
+
+    graph.add_node(input_node, "input")
+    graph.add_node(output_node, "output")
+    for name, script in [("left", left), ("right", right)]:
+        node = ScriptedNode(name, script)
+        graph.add_node(node, name)
+        graph.connect(input_node, "x", node, "x")
+        graph.connect(node, name, output_node, name)
+
+    return graph
+
+
 def test_graph_connect_and_run_routes_state() -> None:
     graph = Graph()
     input_node = InputNode([Field("x", "str")])
@@ -189,3 +222,68 @@ def test_variadic_writes_append_across_multiple_nodes() -> None:
 
     assert isinstance(result["items"], VariadicList)
     assert list(result["items"]) == ["left_value", "right_value"]
+
+
+def test_malformed_node_does_not_hide_sibling_provider_error() -> None:
+    async def scenario() -> None:
+        malformed = asyncio.Event()
+
+        async def fail_malformed() -> None:
+            malformed.set()
+            raise InvalidLLMResponseError("malformed")
+
+        async def fail_provider() -> None:
+            await malformed.wait()
+            await asyncio.sleep(0)
+            raise RuntimeError("provider")
+
+        graph = _fan_out_graph(fail_malformed, fail_provider)
+        with pytest.raises(RuntimeError, match="provider"):
+            await graph.run({"x": "item"}, llm=None)
+
+    asyncio.run(scenario())
+
+
+def test_malformed_node_raises_after_sibling_nodes_finish() -> None:
+    finished: list[str] = []
+
+    async def scenario() -> None:
+        async def fail_malformed() -> None:
+            raise InvalidLLMResponseError("malformed")
+
+        async def succeed_later() -> None:
+            await asyncio.sleep(0.01)
+            finished.append("right")
+
+        graph = _fan_out_graph(fail_malformed, succeed_later)
+        with pytest.raises(InvalidLLMResponseError, match="malformed"):
+            await graph.run({"x": "item"}, llm=None)
+        assert finished == ["right"]
+
+    asyncio.run(scenario())
+
+
+def test_provider_error_cancels_sibling_nodes() -> None:
+    cancelled: list[str] = []
+
+    async def scenario() -> None:
+        started = asyncio.Event()
+
+        async def fail_provider() -> None:
+            await started.wait()
+            raise RuntimeError("provider")
+
+        async def wait_forever() -> None:
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cancelled.append("right")
+                raise
+
+        graph = _fan_out_graph(fail_provider, wait_forever)
+        with pytest.raises(RuntimeError, match="provider"):
+            await graph.run({"x": "item"}, llm=None)
+        assert cancelled == ["right"]
+
+    asyncio.run(scenario())
