@@ -29,3 +29,23 @@ def test_direct_observability_dependencies_allow_locked_and_next_versions(
     )
     assert locked in requirements[package].specifier
     assert "1.45.1" in requirements[package].specifier
+
+
+@pytest.mark.parametrize(
+    "package",
+    [
+        "opentelemetry-api",
+        "opentelemetry-sdk",
+        "opentelemetry-exporter-otlp-proto-http",
+    ],
+)
+def test_direct_observability_dependencies_exclude_vulnerable_versions(
+    package: str,
+) -> None:
+    backend = Path(__file__).resolve().parents[3]
+    project = tomllib.loads((backend / "pyproject.toml").read_text())
+    requirements = {
+        requirement.name: requirement
+        for requirement in map(Requirement, project["project"]["dependencies"])
+    }
+    assert "1.45.0" not in requirements[package].specifier
