@@ -53,3 +53,31 @@ class TestService:
             "bearerFormat": "JWT",
         }
         assert schema["security"] == [{"BearerAuth": []}]
+
+    def test_json_body_without_content_type_is_parsed(self) -> None:
+        app = AppService()
+
+        @app.post("/body-check")
+        def body_check(payload: dict[str, int]) -> dict[str, int]:
+            return payload
+
+        response = TestClient(app).post("/body-check", content=b'{"value": 1}')
+
+        assert "content-type" not in response.request.headers
+        assert response.status_code == 200
+        assert response.json() == {"value": 1}
+
+    def test_json_body_with_a_non_json_content_type_is_rejected(self) -> None:
+        app = AppService()
+
+        @app.post("/body-check")
+        def body_check(payload: dict[str, int]) -> dict[str, int]:
+            return payload
+
+        response = TestClient(app).post(
+            "/body-check",
+            content=b'{"value": 1}',
+            headers={"Content-Type": "text/plain"},
+        )
+
+        assert response.status_code == 422

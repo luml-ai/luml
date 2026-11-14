@@ -38,6 +38,7 @@ platform_admin_logger = logging.getLogger(PLATFORM_ADMIN_LOGGER)
 
 class AppService(FastAPI):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
+        kwargs.setdefault("strict_content_type", False)
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router, prefix="/v1")
