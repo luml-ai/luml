@@ -1,0 +1,106 @@
+name: Publish Satellite Images
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "satellite/agent/v*"
+      - "satellite/kubernetes/v*"
+      - "satellite/monitoring/v*"
+      - "satellite/serving/v*"
+    paths:
+      - satellite/kit/**
+      - satellite/implementations/docker/**
+      - satellite/implementations/kubernetes/**
+      - satellite/monitoring-ui/**
+      - satellite/.env.example
+      - satellite/docker-compose.yml
+      - satellite/otel-collector-config.yaml
+      - satellite/Caddyfile
+      - docs/docs/guides/satellite.md
+      - frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
+      - .github/workflows/publish-satellite-images.yml
+  workflow_dispatch:
+
+concurrency:
+  group: publish-satellite-images-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  GHCR_REGISTRY: ghcr.io
+
+jobs:
+  kit-tests:
+    uses: "./.github/workflows/[satellite-kit] tests-and-linters.yml"
+
+  docker-tests:
+    uses: "./.github/workflows/[satellite-docker] tests-and-linters.yml"
+
+  kubernetes-tests:
+    uses: "./.github/workflows/[satellite-kubernetes] tests-and-linters.yml"
+
+  ui-tests:
+    uses: "./.github/workflows/[satellite-monitoring-ui] tests-and-linters.yml"
+
+  resolve-image-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set.outputs.image_tag }}
+      images: ${{ steps.set.outputs.images }}
+    steps:
+      - id: set
+        run: |
+          agent='{"image":"agent","name":"luml-satellite-agent","context":"satellite","file":"satellite/implementations/docker/Dockerfile"}'
+          kubernetes='{"image":"kubernetes","name":"luml-satellite-kubernetes","context":"satellite","file":"satellite/implementations/kubernetes/Dockerfile"}'
+          monitoring='{"image":"monitoring","name":"luml-satellite-monitoring","context":"satellite/kit","file":"satellite/kit/Dockerfile.monitoring"}'
+          serving='{"image":"serving","name":"luml-satellite-serving","context":"satellite/kit","file":"satellite/kit/Dockerfile.serving"}'
+
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+
+            if [[ ! "$TAG" =~ ^satellite/(agent|kubernetes|monitoring|serving)/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "Unsupported release tag: $TAG" >&2
+              exit 1
+            fi
+
+            component="${BASH_REMATCH[1]}"
+            echo "image_tag=${TAG##*/}" >> "$GITHUB_OUTPUT"
+            echo "images={\"include\":[${!component}]}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "${{ github.ref_name }}" in
+            main)
+              echo "image_tag=dev" >> "$GITHUB_OUTPUT"
+              echo "images={\"include\":[$agent,$kubernetes,$monitoring,$serving]}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
+              exit 1
+              ;;
+          esac
+
+  push-image:
+    needs: [resolve-image-tag, kit-tests, docker-tests, kubernetes-tests, ui-tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.resolve-image-tag.outputs.images) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: |
+            ${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ matrix.name }}:${{ github.sha }}
+            ${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ matrix.name }}:${{ needs.resolve-image-tag.outputs.image_tag }}

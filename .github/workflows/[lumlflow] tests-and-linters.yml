@@ -2,7 +2,7 @@ name: Lumlflow
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'lumlflow/**'
       - '!lumlflow/frontend/**'
@@ -12,6 +12,9 @@ on:
       - 'lumlflow/**'
       - '!lumlflow/frontend/**'
   workflow_call:
+
+env:
+  LUMLFLOW_BUILD_NO_FRONTEND: '1'
 
 jobs:
   checks:
@@ -27,7 +30,7 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Install dependencies with uv
         run: uv sync --group dev
@@ -40,24 +43,6 @@ jobs:
 
       - name: Type checking
         run: uv run mypy lumlflow/flow lumlflow_kernel lumlflow_typing
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: lumlflow
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.12'
-          enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
-
-      - name: Install dependencies with uv
-        run: uv sync --group dev
 
       - name: Running unit tests
         run: uv run pytest tests/unit
@@ -75,7 +60,7 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Install dependencies with uv
         run: uv sync --group dev
@@ -102,7 +87,7 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Install dependencies with uv
         run: uv sync --group dev
@@ -124,7 +109,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-          cache-dependency-glob: lumlflow/pyproject.toml
+          cache-dependency-glob: lumlflow/uv.lock
 
       - name: Running kernel tests under the venv floor
         run: uv run --python 3.10 --no-project --with pytest pytest tests/unit/kernel tests/integration/kernel

@@ -2,7 +2,7 @@ name: SDK
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'sdk/python/sdk/**'
   pull_request:
@@ -41,38 +41,8 @@ jobs:
       - name: Type checking
         run: uv run --frozen mypy luml
 
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.12'
-          enable-cache: true
-          cache-dependency-glob: sdk/python/sdk/uv.lock
-
-      - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
-
       - name: Run unit tests
         run: uv run --frozen pytest tests --ignore=tests/integrations
-
-  integration-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.12'
-          enable-cache: true
-          cache-dependency-glob: sdk/python/sdk/uv.lock
-
-      - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
 
       - name: Run integration tests
         run: uv run --frozen pytest tests/integrations

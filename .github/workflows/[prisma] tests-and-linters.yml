@@ -2,7 +2,7 @@ name: Prisma
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'prisma/**'
       - '.github/workflows/*prisma*tests-and-linters.yml'

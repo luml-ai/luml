@@ -1,0 +1,181 @@
+name: Promote Images
+
+on:
+  push:
+    branches: [staging, production]
+    paths:
+      - satellite/kit/**
+      - satellite/implementations/docker/**
+      - satellite/implementations/kubernetes/**
+      - satellite/monitoring-ui/**
+      - satellite/.env.example
+      - satellite/docker-compose.yml
+      - satellite/otel-collector-config.yaml
+      - satellite/Caddyfile
+      - docs/docs/guides/satellite.md
+      - frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
+      - relay/**
+      - sdk/python/api/**
+      - model_servers/default/**
+      - .github/workflows/publish-satellite-images.yml
+      - .github/workflows/publish-relay-image.yml
+      - .github/workflows/publish-model-server-image.yml
+      - .github/workflows/promote-images.yml
+  workflow_dispatch:
+
+concurrency:
+  group: promote-images-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  GHCR_REGISTRY: ghcr.io
+
+jobs:
+  resolve-image-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set.outputs.image_tag }}
+    steps:
+      - id: set
+        run: |
+          case "${{ github.ref_name }}" in
+            staging)
+              echo "image_tag=staging" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported promotion branch: ${{ github.ref_name }}; main is built by the publish-*.yml workflows" >&2
+              exit 1
+              ;;
+          esac
+
+  promote:
+    needs: resolve-image-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: luml-satellite-agent
+            built-by: publish-satellite-images.yml
+            paths: |
+              satellite/kit/**
+              satellite/implementations/docker/**
+              satellite/implementations/kubernetes/**
+              satellite/monitoring-ui/**
+              satellite/.env.example
+              satellite/docker-compose.yml
+              satellite/otel-collector-config.yaml
+              satellite/Caddyfile
+              docs/docs/guides/satellite.md
+              frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
+              .github/workflows/publish-satellite-images.yml
+          - name: luml-satellite-kubernetes
+            built-by: publish-satellite-images.yml
+            paths: |
+              satellite/kit/**
+              satellite/implementations/docker/**
+              satellite/implementations/kubernetes/**
+              satellite/monitoring-ui/**
+              satellite/.env.example
+              satellite/docker-compose.yml
+              satellite/otel-collector-config.yaml
+              satellite/Caddyfile
+              docs/docs/guides/satellite.md
+              frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
+              .github/workflows/publish-satellite-images.yml
+          - name: luml-satellite-monitoring
+            built-by: publish-satellite-images.yml
+            paths: |
+              satellite/kit/**
+              satellite/implementations/docker/**
+              satellite/implementations/kubernetes/**
+              satellite/monitoring-ui/**
+              satellite/.env.example
+              satellite/docker-compose.yml
+              satellite/otel-collector-config.yaml
+              satellite/Caddyfile
+              docs/docs/guides/satellite.md
+              frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
+              .github/workflows/publish-satellite-images.yml
+          - name: luml-satellite-serving
+            built-by: publish-satellite-images.yml
+            paths: |
+              satellite/kit/**
+              satellite/implementations/docker/**
+              satellite/implementations/kubernetes/**
+              satellite/monitoring-ui/**
+              satellite/.env.example
+              satellite/docker-compose.yml
+              satellite/otel-collector-config.yaml
+              satellite/Caddyfile
+              docs/docs/guides/satellite.md
+              frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
+              .github/workflows/publish-satellite-images.yml
+          - name: luml-relay
+            built-by: publish-relay-image.yml
+            paths: |
+              relay/**
+              sdk/python/api/**
+              .github/workflows/publish-relay-image.yml
+          - name: luml-model-server
+            built-by: publish-model-server-image.yml
+            paths: |
+              model_servers/default/**
+              satellite/.env.example
+              satellite/docker-compose.yml
+              .github/workflows/publish-model-server-image.yml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find the build of this revision
+        id: source
+        env:
+          IMAGE: ${{ env.GHCR_REGISTRY }}/${{ github.repository_owner }}/${{ matrix.name }}
+          PATHS: ${{ matrix.paths }}
+          BUILT_BY: ${{ matrix.built-by }}
+          IMAGE_TAG: ${{ needs.resolve-image-tag.outputs.image_tag }}
+        run: |
+          specs=()
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            specs+=(":(glob)$path")
+          done <<< "$PATHS"
+
+          SOURCE=$(git log --first-parent -n 1 --format=%H "${{ github.sha }}" -- "${specs[@]}")
+          if [[ -z "$SOURCE" ]]; then
+            echo "::error::No commit reachable from ${{ github.sha }} touches the inputs of $IMAGE" >&2
+            exit 1
+          fi
+
+          if ! docker manifest inspect "$IMAGE:$SOURCE" > /dev/null; then
+            echo "::error::$IMAGE:$SOURCE is not in the registry: its build on main did not succeed. Re-run $BUILT_BY on main at $SOURCE, then promote again." >&2
+            exit 1
+          fi
+
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "source=$SOURCE" >> "$GITHUB_OUTPUT"
+          {
+            echo "| Image | Built from | Tag |"
+            echo "|---|---|---|"
+            echo "| \`$IMAGE\` | \`$SOURCE\` | \`$IMAGE_TAG\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retag without rebuilding
+        env:
+          IMAGE: ${{ steps.source.outputs.image }}
+          SOURCE: ${{ steps.source.outputs.source }}
+          IMAGE_TAG: ${{ needs.resolve-image-tag.outputs.image_tag }}
+        run: docker buildx imagetools create --tag "$IMAGE:$IMAGE_TAG" "$IMAGE:$SOURCE"

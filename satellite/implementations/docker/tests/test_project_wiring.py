@@ -96,14 +96,15 @@ def test_compose_builds_the_kit_implementation_with_field_install_names() -> Non
 
 
 def test_publish_workflow_builds_the_kit_implementation_under_the_existing_contract() -> None:
-    workflow = (WORKFLOWS_ROOT / "publish-satellite-agent-image.yml").read_text()
+    workflow = (WORKFLOWS_ROOT / "publish-satellite-images.yml").read_text()
 
     assert '      - "satellite/agent/v*"' in workflow
-    assert "IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-satellite-agent" in workflow
     assert "      - satellite/implementations/docker/**" in workflow
     assert "      - satellite/kit/**" in workflow
-    assert "          context: satellite" in workflow
-    assert "          file: satellite/implementations/docker/Dockerfile" in workflow
+    assert (
+        '"name":"luml-satellite-agent","context":"satellite",'
+        '"file":"satellite/implementations/docker/Dockerfile"'
+    ) in workflow
     assert "satellite/agent/**" not in workflow
 
 

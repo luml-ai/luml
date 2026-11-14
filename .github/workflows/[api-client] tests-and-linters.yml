@@ -2,7 +2,7 @@ name: Api Client
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'sdk/python/api/**'
       - 'satellite/implementations/docker/tests/snapshots/static_openapi.json'

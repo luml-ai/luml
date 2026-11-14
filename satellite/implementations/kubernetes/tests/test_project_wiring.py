@@ -75,7 +75,7 @@ def test_kubernetes_workflows_exist() -> None:
     workflows = REPOSITORY_ROOT / ".github/workflows"
 
     assert (workflows / "[satellite-kubernetes] tests-and-linters.yml").is_file()
-    assert (workflows / "publish-kubernetes-satellite-image.yml").is_file()
+    assert (workflows / "publish-satellite-images.yml").is_file()
     assert (workflows / "publish-kubernetes-satellite-chart.yml").is_file()
     kubernetes_workflow = (workflows / "[satellite-kubernetes] tests-and-linters.yml").read_text()
     assert "helm lint chart --strict" in kubernetes_workflow
