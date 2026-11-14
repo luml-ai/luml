@@ -19,6 +19,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
         json.dumps({"jupyter-config-data": {}})
     )
     (static_root / "index.html").write_text("<html></html>")
+    (static_root / "nested").mkdir()
     (tmp_path / "secret.txt").write_text("top secret")
 
     monkeypatch.chdir(static_root)
