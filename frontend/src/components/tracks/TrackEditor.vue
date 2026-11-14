@@ -59,6 +59,8 @@
 import type { TrackStage, TrackUpdateIn } from '@/lib/api/orbit-tracks/interfaces'
 import { InputText, Message, Textarea, useToast, useConfirm } from 'primevue'
 import { useTracksStore } from '@/stores/tracks'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { Bolt } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
@@ -71,6 +73,10 @@ import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.v
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 
 const tracksStore = useTracksStore()
+const orbitsStore = useOrbitsStore()
+const canDelete = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.track?.includes(PermissionEnum.delete),
+)
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -103,15 +109,17 @@ const saveLoading = ref(false)
 
 const footerActions = computed<FooterActions>(() => {
   return {
-    leftButton: {
-      props: {
-        label: 'Delete track',
-        severity: 'warn',
-        variant: 'outlined',
-        loading: deleteLoading.value,
-        onClick: onDeleteClick,
-      },
-    },
+    leftButton: canDelete.value
+      ? {
+          props: {
+            label: 'Delete track',
+            severity: 'warn',
+            variant: 'outlined',
+            loading: deleteLoading.value,
+            onClick: onDeleteClick,
+          },
+        }
+      : undefined,
     rightButton: {
       props: {
         label: 'Save changes',
@@ -165,10 +173,12 @@ function updateVisible(visible: boolean) {
 }
 
 function onDeleteClick() {
+  if (!canDelete.value) return
   confirm.require(deleteTrackConfirmOptions(deleteTrack, lockedStages.value))
 }
 
 async function deleteTrack() {
+  if (!canDelete.value) return
   try {
     if (!tracksStore.editableTrack?.id) throw new Error('Track ID is required')
     deleteLoading.value = true

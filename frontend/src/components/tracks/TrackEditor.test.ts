@@ -3,7 +3,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, reactive } from 'vue'
 import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import { useTracksStore } from '@/stores/tracks'
 import TrackEditor from './TrackEditor.vue'
@@ -14,9 +14,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 const mocks = vi.hoisted(() => ({ updateTrack: vi.fn(), getTrack: vi.fn(), toastAdd: vi.fn() }))
 
-vi.mock('@/stores/orbits', () => ({
-  useOrbitsStore: () => ({ getCurrentOrbitPermissions: { track: ['update'] } }),
-}))
+const orbitStore = reactive({ getCurrentOrbitPermissions: { track: ['update'] as string[] } })
+vi.mock('@/stores/orbits', () => ({ useOrbitsStore: () => orbitStore }))
 
 vi.mock('@/lib/api', () => ({
   api: { orbitTracks: { updateTrack: mocks.updateTrack, getTrack: mocks.getTrack } },
@@ -113,6 +112,7 @@ describe('TrackEditor stages', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     }))
+    orbitStore.getCurrentOrbitPermissions = { track: ['update'] }
     mocks.updateTrack.mockReset().mockResolvedValue(track)
     mocks.getTrack.mockReset()
     mocks.toastAdd.mockReset()
@@ -345,5 +345,17 @@ describe('TrackEditor stages', () => {
     expect(mocks.toastAdd).toHaveBeenCalledWith(
       expect.objectContaining({ severity: 'error', detail: 'Could not save stages' }),
     )
+  })
+
+  it('offers track deletion only with track:delete', async () => {
+    const { wrapper } = mountPanel()
+    await openPanel(wrapper)
+    const labels = () => wrapper.findAll('button').map((button) => button.text())
+    expect(labels()).toContain('Save changes')
+    expect(labels()).not.toContain('Delete track')
+
+    orbitStore.getCurrentOrbitPermissions = { track: ['update', 'delete'] }
+    await flushPromises()
+    expect(labels()).toContain('Delete track')
   })
 })
