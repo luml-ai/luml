@@ -48,6 +48,13 @@ const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
 const getTraces = vi.mocked(monitoringApi.getTraces)
 const getSessionInfo = vi.mocked(monitoringApi.getSessionInfo)
 const getAlerts = vi.mocked(monitoringApi.getAlerts)
+const acknowledgeAlert = vi.mocked(monitoringApi.acknowledgeAlert)
+
+function makeAcknowledgedAlerts(): ReturnType<typeof makeAlerts> {
+  const response = makeAlerts()
+  response.groups[0].alerts[0].state = 'acknowledged'
+  return response
+}
 
 describe('monitoring request sequencing', () => {
   beforeEach(() => {
@@ -299,6 +306,75 @@ describe('monitoring request sequencing', () => {
 
     expect(dashboard.qualityTrends.value).toEqual([])
     expect(dashboard.qualityTrendsStatus.value).toBe('idle')
+  })
+
+  it('keeps an acknowledgement when an earlier alerts refresh resolves later', async () => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      getAlerts.mockResolvedValue(makeAlerts())
+      await dashboard.setActiveTab('alerts')
+      const refresh = Promise.withResolvers<ReturnType<typeof makeAlerts>>()
+      getAlerts.mockReturnValueOnce(refresh.promise)
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      acknowledgeAlert.mockResolvedValueOnce(makeAcknowledgedAlerts())
+      await dashboard.acknowledgeAlert('feature_drift:income')
+
+      refresh.resolve(makeAlerts())
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dashboard.alerts.value?.groups[0].alerts[0].state).toBe('acknowledged')
+      expect(dashboard.alertsStatus.value).toBe('ready')
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
+  })
+
+  it('reloads alerts when the window changed while an acknowledgement was in flight', async () => {
+    getAlerts.mockResolvedValue(makeAlerts())
+    const dashboard = useMonitoringDashboard()
+    await dashboard.setActiveTab('alerts')
+    const acknowledgement = Promise.withResolvers<ReturnType<typeof makeAlerts>>()
+    acknowledgeAlert.mockReturnValueOnce(acknowledgement.promise)
+    const request = dashboard.acknowledgeAlert('feature_drift:income')
+    await dashboard.setWindow(Window.D7)
+    getAlerts.mockClear()
+    getAlerts.mockResolvedValueOnce(makeAcknowledgedAlerts())
+
+    acknowledgement.resolve(makeAlerts({ groups: [] }))
+    await request
+
+    expect(getAlerts).toHaveBeenCalledTimes(1)
+    expect(getAlerts).toHaveBeenCalledWith(expect.objectContaining({ window: Window.D7 }))
+    expect(dashboard.alerts.value?.groups[0].alerts[0].state).toBe('acknowledged')
+    expect(dashboard.alertsStatus.value).toBe('ready')
+  })
+
+  it('lets an in-flight alerts refresh finish when the acknowledgement fails', async () => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      getAlerts.mockResolvedValue(makeAlerts())
+      await dashboard.setActiveTab('alerts')
+      const refresh = Promise.withResolvers<ReturnType<typeof makeAlerts>>()
+      getAlerts.mockReturnValueOnce(refresh.promise)
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      acknowledgeAlert.mockRejectedValueOnce(new Error('acknowledgement failed'))
+      await dashboard.acknowledgeAlert('feature_drift:income')
+
+      refresh.resolve(makeAlerts({ groups: [] }))
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dashboard.acknowledgeError.value).toBe(true)
+      expect(dashboard.alerts.value?.groups).toEqual([])
+      expect(dashboard.alertsStatus.value).toBe('ready')
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
   })
 })
 

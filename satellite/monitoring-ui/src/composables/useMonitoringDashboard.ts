@@ -205,13 +205,22 @@ export function useMonitoringDashboard() {
   /** The dashboard's only write: mark an alert as seen and take the refreshed list back. */
   async function acknowledgeAlert(metric: string): Promise<void> {
     acknowledgeError.value = false
+    const sequence = requestSequences.get(alertsStatus)
+    let response: AlertsResponse
     try {
-      // Not an anchor: acknowledging one alert is not "I saw the new ones too".
-      applyAlerts(await monitoringApi.acknowledgeAlert({ ...dimensions }, metric))
+      response = await monitoringApi.acknowledgeAlert({ ...dimensions }, metric)
     } catch (error) {
       if (error instanceof SessionExpiredError) reportSessionExpired()
       else acknowledgeError.value = true
       return
+    }
+    if (requestSequences.get(alertsStatus) === sequence) {
+      nextRequest(alertsStatus)
+      // Not an anchor: acknowledging one alert is not "I saw the new ones too".
+      applyAlerts(response)
+      alertsStatus.value = 'ready'
+    } else {
+      await autoReloadAlerts()
     }
     // Each section carries its own banner copy and hides acknowledged ones —
     // refetch the visible tab now.
