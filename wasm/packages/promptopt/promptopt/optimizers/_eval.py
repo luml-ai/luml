@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from promptopt.dataclasses import Field, JsonModel
 from promptopt.llm import LLM, generate_validated
 
-METRIC_MODEL = JsonModel([Field("score", "integer")])
+METRIC_MODEL = JsonModel([Field("score", "integer", allowed_values=[1, 2, 3, 4, 5])])
 
 METRIC_PROMPT_TEMPLATE = """
 You are evaluating the performance of an AI system based on a given prediction and true value.
