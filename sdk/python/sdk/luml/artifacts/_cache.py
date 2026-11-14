@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import shutil
@@ -65,13 +66,16 @@ def extract_archive_cached(
             ready_marker.write_text(archive_hash + "\n", encoding="utf-8")
             return
         finally:
+            same_file = False
             try:
-                if lock_path.stat().st_ino == os.fstat(lock_fd).st_ino:
-                    lock_path.unlink()
-            except FileNotFoundError:
+                same_file = lock_path.stat().st_ino == os.fstat(lock_fd).st_ino
+            except OSError:
                 pass
             finally:
                 os.close(lock_fd)
+            if same_file:
+                with contextlib.suppress(OSError):
+                    lock_path.unlink()
 
 
 def _acquire_lock_file(lock_path: Path) -> int | None:
@@ -98,7 +102,7 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
         if owner_pid > 0:
             try:
                 os.kill(owner_pid, 0)
-            except (ProcessLookupError, OverflowError):
+            except (ProcessLookupError, OverflowError, OSError):
                 pass
             except PermissionError:
                 return False
@@ -109,9 +113,10 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
             current_stat.st_ino == lock_stat.st_ino
             and current_stat.st_mtime_ns == lock_stat.st_mtime_ns
         ):
-            lock_path.unlink()
+            with contextlib.suppress(OSError):
+                lock_path.unlink()
         return True
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         return True
 
 
