@@ -31,7 +31,7 @@
             </template>
           </Button>
         </div>
-        <IconField>
+        <IconField class="search">
           <InputText v-model="filters['global'].value" size="small" placeholder="Search" />
           <InputIcon>
             <Search :size="12" />
@@ -429,6 +429,10 @@ onBeforeMount(() => {
 
 .counter {
   font-variant-numeric: tabular-nums;
+}
+
+.search {
+  margin-left: auto;
 }
 
 .failures {

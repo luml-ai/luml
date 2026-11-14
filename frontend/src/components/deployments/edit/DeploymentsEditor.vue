@@ -125,6 +125,7 @@
           Stop deployment
         </Button>
       </div>
+      <div v-else></div>
       <Button
         type="submit"
         :loading="loading"
