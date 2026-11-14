@@ -2,6 +2,7 @@
 
 import asyncio
 import atexit
+import contextlib
 import logging
 import os
 import secrets
@@ -9,6 +10,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Coroutine
@@ -342,7 +344,7 @@ def _lumlflow_answers(port: int) -> bool:
         response = httpx.get(
             f"http://127.0.0.1:{port}{STATUS_PATH}", timeout=2.0, trust_env=False
         )
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.ConnectTimeout):
         return False
     except httpx.HTTPError as error:
         raise in_use from error
@@ -433,6 +435,14 @@ def _wait_until_answering(process: subprocess.Popen[bytes], port: int) -> None:
 
 
 def _stop_process(process: subprocess.Popen[bytes]) -> None:
+    if sys.platform == "win32":
+        with contextlib.suppress(OSError):
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
     process.terminate()
     try:
         process.wait(LUMLFLOW_STOP_TIMEOUT)
