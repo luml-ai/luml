@@ -99,3 +99,11 @@ describe('LayoutSidebar Flow entry', () => {
     expect(flowLink(mountSidebar()).classes()).toContain('active')
   })
 })
+
+describe('LayoutSidebar GitHub entry', () => {
+  it('links to the luml repository', () => {
+    const link = mountSidebar().get('a.menu-link--github')
+
+    expect(link.attributes('href')).toBe('https://github.com/luml-ai/luml')
+  })
+})
