@@ -26,7 +26,10 @@ vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
 vi.mock('@/stores/deployments', () => ({ useDeploymentsStore: () => deploymentsStore }))
 vi.mock('@/stores/orbit-secrets', () => ({ useSecretsStore: () => secretsStore }))
 vi.mock('@/stores/orbits', () => ({
-  useOrbitsStore: () => ({ currentOrbitDetails: { organization_id: 'org-1', id: 'orbit-1' } }),
+  useOrbitsStore: () => ({
+    currentOrbitDetails: { organization_id: 'org-1', id: 'orbit-1' },
+    getCurrentOrbitPermissions: { deployment: ['create'], orbit_secret: ['create'] },
+  }),
 }))
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),

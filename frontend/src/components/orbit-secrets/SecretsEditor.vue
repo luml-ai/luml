@@ -68,6 +68,7 @@ import { SECRET_MASK } from './secretMask'
 
 interface Props {
   visible: boolean
+  deleteAvailable?: boolean
   secret?: OrbitSecret | null
 }
 
@@ -92,15 +93,17 @@ const canSave = computed(
 
 const footerActions = computed<FooterActions>(() => {
   return {
-    leftButton: {
-      props: {
-        label: 'Delete key',
-        severity: 'warn',
-        variant: 'outlined',
-        loading: deleteLoading.value,
-        onClick: onComponentDelete,
-      },
-    },
+    leftButton: props.deleteAvailable
+      ? {
+          props: {
+            label: 'Delete key',
+            severity: 'warn',
+            variant: 'outlined',
+            loading: deleteLoading.value,
+            onClick: onComponentDelete,
+          },
+        }
+      : undefined,
     rightButton: {
       props: {
         label: 'Save changes',
@@ -200,6 +203,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 const confirm = useConfirm()
 
 function onComponentDelete() {
+  if (!props.deleteAvailable) return
   confirm.require({
     ...deleteSecretConfirmation,
     accept: async () => {
@@ -209,7 +213,7 @@ function onComponentDelete() {
 }
 
 async function onDelete() {
-  if (!props.secret) return
+  if (!props.deleteAvailable || !props.secret) return
   try {
     deleteLoading.value = true
     const req = getRequestInfo()

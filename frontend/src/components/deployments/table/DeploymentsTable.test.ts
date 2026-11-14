@@ -7,6 +7,12 @@ import {
 } from '@/lib/api/deployments/interfaces'
 import DeploymentsTable from './DeploymentsTable.vue'
 
+vi.mock('@/stores/orbits', () => ({
+  useOrbitsStore: () => ({
+    getCurrentOrbitPermissions: { deployment: ['update', 'delete'], satellite: ['update'] },
+  }),
+}))
+
 vi.mock('@/stores/deployments', () => ({ useDeploymentsStore: () => ({ batchAction: vi.fn() }) }))
 
 vi.mock('vue-router', () => ({

@@ -40,6 +40,7 @@
     </div>
   </UiDialogRight>
   <SatelliteDelete
+    v-if="canDelete"
     v-model:visible="deleteDialogVisible"
     :organization-id="organizationId"
     :orbit-id="orbitId"
@@ -57,6 +58,8 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { satellitesResolver } from '@/utils/forms/resolvers'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useRoute } from 'vue-router'
 import SatelliteDelete from './SatelliteDelete.vue'
 import { getErrorMessage } from '@/helpers/helpers'
@@ -71,6 +74,10 @@ const props = defineProps<Props>()
 const toast = useToast()
 const route = useRoute()
 const satellitesStore = useSatellitesStore()
+const orbitsStore = useOrbitsStore()
+const canDelete = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.satellite?.includes(PermissionEnum.delete),
+)
 
 const visible = defineModel<boolean>('visible')
 const deleteDialogVisible = ref(false)
@@ -93,17 +100,19 @@ const orbitId = computed(() => {
 
 const footerActions = computed<FooterActions>(() => {
   return {
-    leftButton: {
-      props: {
-        label: 'Unpair satellite',
-        severity: 'warn',
-        variant: 'outlined',
-        disabled: loading.value,
-        onClick: () => {
-          deleteDialogVisible.value = true
-        },
-      },
-    },
+    leftButton: canDelete.value
+      ? {
+          props: {
+            label: 'Unpair satellite',
+            severity: 'warn',
+            variant: 'outlined',
+            disabled: loading.value,
+            onClick: () => {
+              deleteDialogVisible.value = true
+            },
+          },
+        }
+      : undefined,
     rightButton: {
       props: {
         label: 'Save changes',
