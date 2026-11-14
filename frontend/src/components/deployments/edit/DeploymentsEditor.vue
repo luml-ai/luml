@@ -105,7 +105,7 @@
       </Accordion>
     </Form>
     <template #footer>
-      <div>
+      <div v-if="deleteAvailable">
         <Button
           v-if="isForceDelete"
           variant="outlined"
@@ -135,7 +135,7 @@
       </Button>
     </template>
     <DeploymentsDelete
-      v-if="isDeleting"
+      v-if="deleteAvailable && isDeleting"
       :visible="isDeleting"
       :deploymentId="data.id"
       :organizationId="collectionsStore.requestInfo.organizationId"
@@ -145,7 +145,7 @@
       @delete="onDelete"
     ></DeploymentsDelete>
     <ForceDeleteConfirmDialog
-      v-if="isForceDeleting"
+      v-if="deleteAvailable && isForceDeleting"
       v-model:visible="isForceDeleting"
       title="Force delete this deployment?"
       :text="FORCE_DELETE_TEXT"
@@ -211,6 +211,7 @@ interface FormValues {
 
 type Props = {
   data: Deployment
+  deleteAvailable?: boolean
 }
 
 const props = defineProps<Props>()
@@ -301,14 +302,17 @@ async function saveChanges({ valid }: FormSubmitEvent) {
 }
 
 function onDeleteClick() {
+  if (!props.deleteAvailable) return
   isDeleting.value = true
 }
 
 function onForceDeleteClick() {
+  if (!props.deleteAvailable) return
   isForceDeleting.value = true
 }
 
 async function onForceDelete() {
+  if (!props.deleteAvailable) return
   try {
     loading.value = true
     await deploymentsStore.forceDeleteDeployment(

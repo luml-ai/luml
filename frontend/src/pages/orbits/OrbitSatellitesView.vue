@@ -5,7 +5,11 @@
       <h1 class="page-header__title">Satellites</h1>
     </div>
 
-    <d-button v-if="authStore.isAuth" label="Add satellite" @click="satellitesStore.showCreator()">
+    <d-button
+      v-if="canCreateSatellite"
+      label="Add satellite"
+      @click="satellitesStore.showCreator()"
+    >
       <template #icon>
         <Plus :size="14" />
       </template>
@@ -19,7 +23,7 @@
   <template v-else>
     <div class="list">
       <UiCardAdd
-        v-if="!satellitesStore.satellitesList.length"
+        v-if="canCreateSatellite && !satellitesStore.satellitesList.length"
         title="Add new Satellite"
         text="Connect external compute resources as satellites."
         @add="satellitesStore.showCreator()"
@@ -35,6 +39,7 @@
   </template>
 
   <SatellitesCreateModal
+    v-if="canCreateSatellite"
     :visible="satellitesStore.creatorVisible"
     @update:visible="(val) => (val ? satellitesStore.showCreator() : satellitesStore.hideCreator())"
     @create="onCreate"
@@ -50,9 +55,11 @@
 
 <script setup lang="ts">
 import type { CreateSatelliteResponse } from '@/lib/api/satellites/interfaces'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSatellitesStore } from '@/stores/satellites'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useAuthStore } from '@/stores/auth'
 import { Skeleton, useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -65,6 +72,12 @@ import { getErrorMessage } from '@/helpers/helpers'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const orbitsStore = useOrbitsStore()
+const canCreateSatellite = computed(
+  () =>
+    authStore.isAuth &&
+    !!orbitsStore.getCurrentOrbitPermissions?.satellite?.includes(PermissionEnum.create),
+)
 const toast = useToast()
 const satellitesStore = useSatellitesStore()
 

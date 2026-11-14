@@ -14,6 +14,10 @@ afterEach(() => vi.unstubAllGlobals())
 
 const mocks = vi.hoisted(() => ({ updateTrack: vi.fn(), getTrack: vi.fn(), toastAdd: vi.fn() }))
 
+vi.mock('@/stores/orbits', () => ({
+  useOrbitsStore: () => ({ getCurrentOrbitPermissions: { track: ['update'] } }),
+}))
+
 vi.mock('@/lib/api', () => ({
   api: { orbitTracks: { updateTrack: mocks.updateTrack, getTrack: mocks.getTrack } },
 }))
