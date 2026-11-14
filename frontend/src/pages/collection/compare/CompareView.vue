@@ -1,11 +1,7 @@
 <template>
   <div>
     <ComparisonHeader></ComparisonHeader>
-    <ComparisonModelsList
-      :models-ids="artifactIdsList"
-      :models-list="artifactsList"
-      :models-info="artifactsInfo"
-    ></ComparisonModelsList>
+    <ComparisonModelsList :models-info="artifactsInfo"></ComparisonModelsList>
     <div v-if="loading">
       <Skeleton style="height: 210px; margin-bottom: 20px"></Skeleton>
       <div
