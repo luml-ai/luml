@@ -12,6 +12,8 @@ import { ref } from 'vue'
 import { Button, Dialog, useToast, type DialogPassThroughOptions } from 'primevue'
 import NotebookCreateUpdateForm from './NotebookCreateUpdateForm.vue'
 import { useNotebooksStore } from '@/stores/notebooks'
+import { getErrorMessage } from '@/helpers/helpers'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 
 const dialogPt: DialogPassThroughOptions = {
   root: {
@@ -33,10 +35,15 @@ const loading = ref(false)
 
 async function onSubmit(payload: { fullname: string }) {
   loading.value = true
-  await notebooksStore.create(payload)
-  loading.value = false
-  visible.value = false
-  toast.add({ severity: 'success', summary: 'Success', detail: 'Instance Created', life: 2000 })
+  try {
+    await notebooksStore.create(payload)
+    visible.value = false
+    toast.add({ severity: 'success', summary: 'Success', detail: 'Instance Created', life: 2000 })
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error)))
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

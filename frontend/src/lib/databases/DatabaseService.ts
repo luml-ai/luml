@@ -36,25 +36,29 @@ class DatabaseServiceClass {
   }
 
   async getDatabaseInfo(name: string): Promise<Notebook> {
-    let db = await openDB(name)
-    if (db.objectStoreNames.contains('meta')) {
-      const meta = await db.get('meta', 'info')
-      const files = await this.getLumlFiles(db)
-      const info = { name, version: db.version, ...meta, files }
-      db.close()
-      return info
-    }
+    const db = await openDB(name)
     const version = db.version
-    db.close()
-    db = await openDB(name, version + 1, {
+    try {
+      if (db.objectStoreNames.contains('meta')) {
+        const meta = await db.get('meta', 'info')
+        const files = await this.getLumlFiles(db)
+        return { name, version, ...meta, files }
+      }
+    } finally {
+      db.close()
+    }
+    const upgradedDb = await openDB(name, version + 1, {
+      blocked() {
+        console.warn(`db ${name} blocked`)
+      },
       upgrade(upgradeDb) {
         if (!upgradeDb.objectStoreNames.contains('meta')) {
           upgradeDb.createObjectStore('meta')
         }
       },
     })
-    db.close()
-    return { name, version: db.version }
+    upgradedDb.close()
+    return { name, version: upgradedDb.version }
   }
 
   async getDatabasesWithMetadata(): Promise<Notebook[]> {
@@ -73,27 +77,37 @@ class DatabaseServiceClass {
   async editDatabase(name: string, metadata: DatabaseMetadata) {
     const version = await this.getVersion(name)
     const db = await openDB(name, version + 1, {
+      blocked() {
+        console.warn(`db ${name} blocked`)
+      },
       upgrade(db) {
         if (!db.objectStoreNames.contains('meta')) {
           db.createObjectStore('meta')
         }
       },
     })
-    await db.put('meta', metadata, 'info')
-    db.close()
+    try {
+      await db.put('meta', metadata, 'info')
+    } finally {
+      db.close()
+    }
   }
 
   async createBackup(name: string) {
-    const db = await openDB(name)
     const metadata = await this.getDatabaseInfo(name)
+    const db = await openDB(name)
     const databaseName = metadata?.fullname || name
-    if (!db.objectStoreNames.contains(FILES_STORE)) {
+    let allFiles
+    try {
+      if (!db.objectStoreNames.contains(FILES_STORE)) {
+        throw new Error(`Database ${databaseName} not includes ${FILES_STORE} store`)
+      }
+      const tx = db.transaction(FILES_STORE, 'readonly')
+      const store = tx.objectStore(FILES_STORE)
+      allFiles = await store.getAll()
+    } finally {
       db.close()
-      throw new Error(`Database ${databaseName} not includes ${FILES_STORE} store`)
     }
-    const tx = db.transaction(FILES_STORE, 'readonly')
-    const store = tx.objectStore(FILES_STORE)
-    const allFiles = await store.getAll()
     const zip = new jszip()
 
     for (const file of allFiles) {
@@ -151,7 +165,6 @@ class DatabaseServiceClass {
 
     const fileCount = Object.keys(zip.files).length
     if (fileCount === 0) {
-      db.close()
       throw new Error('No files found to backup')
     }
 
@@ -163,7 +176,6 @@ class DatabaseServiceClass {
       compressionOptions: { level: 6 },
     })
     saveAs(zipBlob, `${databaseName}-backup.zip`)
-    db.close()
   }
 
   async getFileBlob(file: LumlFile) {
