@@ -519,7 +519,15 @@ def _importable(name: str) -> bool:
         return False
 
 
+_CANONICAL_CONTENT_TYPES: dict[str, str] = {
+    ".csv": "text/csv",
+}
+
+
 def _content_type(path: Path) -> str:
+    canonical = _CANONICAL_CONTENT_TYPES.get(path.suffix.lower())
+    if canonical is not None:
+        return canonical
     from mimetypes import guess_type
 
     return guess_type(path.name)[0] or "application/octet-stream"
