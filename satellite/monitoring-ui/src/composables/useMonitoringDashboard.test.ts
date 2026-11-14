@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/api/monitoring', () => ({
   getHeader: vi.fn(),
   getOverview: vi.fn(),
+  getRuntime: vi.fn(),
   getDataQuality: vi.fn(),
   getFeatureDrift: vi.fn(),
   getReferenceProfile: vi.fn(),
   getTraces: vi.fn(),
+  getTraceDetail: vi.fn(),
   getAlerts: vi.fn(),
   getWorkerHealth: vi.fn(),
   getSessionInfo: vi.fn(),
@@ -21,7 +23,7 @@ import {
   TRACES_PAGE_SIZE,
   useMonitoringDashboard,
 } from '@/composables/useMonitoringDashboard'
-import { ProfileStatus, Window } from '@/api/types'
+import { ProfileStatus, SectionState, Window } from '@/api/types'
 import {
   makeAlerts,
   makeDataQuality,
@@ -29,12 +31,16 @@ import {
   makeHeader,
   makeOverview,
   makeReferenceProfile,
+  makeRuntime,
+  makeTraceDetail,
   makeTraces,
   makeWorkerHealth,
 } from '@/test/fixtures'
 
 const getHeader = vi.mocked(monitoringApi.getHeader)
 const getOverview = vi.mocked(monitoringApi.getOverview)
+const getRuntime = vi.mocked(monitoringApi.getRuntime)
+const getTraceDetail = vi.mocked(monitoringApi.getTraceDetail)
 const getWorkerHealth = vi.mocked(monitoringApi.getWorkerHealth)
 const getDataQuality = vi.mocked(monitoringApi.getDataQuality)
 const getFeatureDrift = vi.mocked(monitoringApi.getFeatureDrift)
@@ -42,6 +48,259 @@ const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
 const getTraces = vi.mocked(monitoringApi.getTraces)
 const getSessionInfo = vi.mocked(monitoringApi.getSessionInfo)
 const getAlerts = vi.mocked(monitoringApi.getAlerts)
+
+describe('monitoring request sequencing', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    getHeader.mockResolvedValue(makeHeader())
+    getWorkerHealth.mockResolvedValue(makeWorkerHealth())
+    getOverview.mockResolvedValue(makeOverview())
+    getRuntime.mockResolvedValue(makeRuntime())
+    getDataQuality.mockResolvedValue(makeDataQuality())
+    getTraces.mockResolvedValue(makeTraces())
+    localStorage.clear()
+  })
+
+  it('keeps the latest window when an older overview resolves last', async () => {
+    const older = Promise.withResolvers<ReturnType<typeof makeOverview>>()
+    getOverview.mockReturnValueOnce(older.promise)
+    const dashboard = useMonitoringDashboard()
+    const first = dashboard.setWindow(Window.D7)
+    await dashboard.setWindow(Window.H24)
+
+    older.resolve(makeOverview({ cards: [] }))
+    await first
+
+    expect(dashboard.dimensions.window).toBe(Window.H24)
+    expect(dashboard.overview.value?.cards).toHaveLength(5)
+    expect(dashboard.overviewStatus.value).toBe('ready')
+  })
+
+  it('keeps the latest request loading when an older request resolves first', async () => {
+    const older = Promise.withResolvers<ReturnType<typeof makeOverview>>()
+    const latest = Promise.withResolvers<ReturnType<typeof makeOverview>>()
+    getOverview.mockReturnValueOnce(older.promise).mockReturnValueOnce(latest.promise)
+    const dashboard = useMonitoringDashboard()
+    const first = dashboard.setWindow(Window.D7)
+    const second = dashboard.setWindow(Window.H24)
+
+    older.resolve(makeOverview({ cards: [] }))
+    await first
+    expect(dashboard.overview.value).toBeNull()
+    expect(dashboard.overviewStatus.value).toBe('loading')
+
+    latest.resolve(makeOverview())
+    await second
+    expect(dashboard.overviewStatus.value).toBe('ready')
+  })
+
+  it('ignores an older failure after the latest request succeeds', async () => {
+    const older = Promise.withResolvers<ReturnType<typeof makeOverview>>()
+    getOverview.mockReturnValueOnce(older.promise)
+    const dashboard = useMonitoringDashboard()
+    const first = dashboard.setWindow(Window.D7)
+    await dashboard.setWindow(Window.H24)
+
+    older.reject(new Error('old request failed'))
+    await first
+
+    expect(dashboard.overview.value?.cards).toHaveLength(5)
+    expect(dashboard.overviewStatus.value).toBe('ready')
+  })
+
+  it('keeps the latest failure when an older request later succeeds', async () => {
+    const older = Promise.withResolvers<ReturnType<typeof makeOverview>>()
+    getOverview.mockReturnValueOnce(older.promise).mockRejectedValueOnce(new Error('latest failed'))
+    const dashboard = useMonitoringDashboard()
+    const first = dashboard.setWindow(Window.D7)
+    await dashboard.setWindow(Window.H24)
+
+    older.resolve(makeOverview({ cards: [] }))
+    await first
+
+    expect(dashboard.overview.value).toBeNull()
+    expect(dashboard.overviewStatus.value).toBe('error')
+  })
+
+  it('still reports session expiry from a superseded request', async () => {
+    const older = Promise.withResolvers<ReturnType<typeof makeOverview>>()
+    getOverview.mockReturnValueOnce(older.promise)
+    const dashboard = useMonitoringDashboard()
+    const first = dashboard.setWindow(Window.D7)
+    await dashboard.setWindow(Window.H24)
+
+    older.reject(new SessionExpiredError())
+    await first
+
+    expect(dashboard.sessionExpired.value).toBe(true)
+    expect(dashboard.overviewStatus.value).toBe('ready')
+  })
+
+  it('allows different sections to finish independently', async () => {
+    const overview = Promise.withResolvers<ReturnType<typeof makeOverview>>()
+    getOverview.mockReturnValueOnce(overview.promise)
+    const dashboard = useMonitoringDashboard()
+    const first = dashboard.setWindow(Window.D7)
+    await dashboard.setActiveTab('runtime')
+
+    overview.resolve(makeOverview({ cards: [] }))
+    await first
+
+    expect(dashboard.overview.value?.cards).toEqual([])
+    expect(dashboard.overviewStatus.value).toBe('ready')
+    expect(dashboard.runtimeStatus.value).toBe('ready')
+  })
+
+  it('keeps a requested traces page when an earlier auto-refresh completes', async () => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      await dashboard.setActiveTab('traces')
+      const refresh = Promise.withResolvers<ReturnType<typeof makeTraces>>()
+      getTraces.mockReturnValueOnce(refresh.promise)
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      getTraces.mockResolvedValueOnce(makeTraces({ offset: TRACES_PAGE_SIZE }))
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+
+      refresh.resolve(makeTraces())
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dashboard.tracesOffset.value).toBe(TRACES_PAGE_SIZE)
+      expect(dashboard.traces.value?.offset).toBe(TRACES_PAGE_SIZE)
+      expect(dashboard.tracesStatus.value).toBe('ready')
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
+  })
+
+  it('ignores a new-traces peek that finishes after the reader jumped to the latest page', async () => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      await dashboard.setActiveTab('traces')
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+      const peek = Promise.withResolvers<ReturnType<typeof makeTraces>>()
+      getTraces.mockReturnValueOnce(peek.promise)
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      const page = makeTraces()
+      getTraces.mockResolvedValueOnce({
+        ...page,
+        rows: [{ ...page.rows[0], event_id: 'evt-new' }, ...page.rows],
+      })
+      await dashboard.showLatestTraces()
+
+      peek.resolve(page)
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dashboard.tracesOffset.value).toBe(0)
+      expect(dashboard.tracesNewCount.value).toBe(0)
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
+  })
+
+  it('still counts arrivals from a peek that no traces load superseded', async () => {
+    vi.useFakeTimers()
+    const dashboard = useMonitoringDashboard()
+    try {
+      await dashboard.setActiveTab('traces')
+      await dashboard.setTracesPage(TRACES_PAGE_SIZE)
+      const peek = Promise.withResolvers<ReturnType<typeof makeTraces>>()
+      getTraces.mockReturnValueOnce(peek.promise)
+      dashboard.setAutoRefresh(30)
+      await vi.advanceTimersByTimeAsync(30_000)
+      const page = makeTraces()
+
+      peek.resolve({
+        ...page,
+        rows: [{ ...page.rows[0], event_id: 'evt-new' }, ...page.rows],
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(dashboard.tracesOffset.value).toBe(TRACES_PAGE_SIZE)
+      expect(dashboard.tracesNewCount.value).toBe(1)
+    } finally {
+      dashboard.setAutoRefresh(0)
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(['evt-100', 'evt-200'])('keeps the latest trace detail when reopening %s', async (eventId) => {
+    const older = Promise.withResolvers<Awaited<ReturnType<typeof monitoringApi.getTraceDetail>>>()
+    const response = {
+      state: SectionState.OK,
+      profile_status: ProfileStatus.READY,
+      trace: makeTraceDetail({ event_id: eventId, latency_ms: 200 }),
+    }
+    getTraceDetail.mockReturnValueOnce(older.promise).mockResolvedValueOnce(response)
+    const dashboard = useMonitoringDashboard()
+    const first = dashboard.openTrace('evt-100')
+    await dashboard.openTrace(eventId)
+
+    older.resolve({ ...response, trace: makeTraceDetail() })
+    await first
+
+    expect(dashboard.openTraceId.value).toBe(eventId)
+    expect(dashboard.traceDetail.value?.event_id).toBe(eventId)
+    expect(dashboard.traceDetail.value?.latency_ms).toBe(200)
+    expect(dashboard.traceDetailStatus.value).toBe('ready')
+  })
+
+  it.each(['success', 'failure'] as const)('keeps a closed trace cleared after a late %s', async (result) => {
+    const detail = Promise.withResolvers<Awaited<ReturnType<typeof monitoringApi.getTraceDetail>>>()
+    getTraceDetail.mockReturnValueOnce(detail.promise)
+    const dashboard = useMonitoringDashboard()
+    const request = dashboard.openTrace('evt-100')
+    dashboard.closeTrace()
+
+    if (result === 'success') {
+      detail.resolve({
+        state: SectionState.OK,
+        profile_status: ProfileStatus.READY,
+        trace: makeTraceDetail(),
+      })
+    } else detail.reject(new Error('closed request failed'))
+    await request
+
+    expect(dashboard.openTraceId.value).toBeNull()
+    expect(dashboard.traceDetail.value).toBeNull()
+    expect(dashboard.traceDetailStatus.value).toBe('idle')
+  })
+
+  it('keeps dismissed quality trends cleared after their request finishes', async () => {
+    const trends = Promise.withResolvers<ReturnType<typeof makeDataQuality>>()
+    getDataQuality.mockReturnValueOnce(trends.promise)
+    const dashboard = useMonitoringDashboard()
+    const request = dashboard.loadQualityTrends('age')
+    await dashboard.loadQualityTrends(null)
+
+    trends.resolve(makeDataQuality())
+    await request
+
+    expect(dashboard.qualityTrends.value).toEqual([])
+    expect(dashboard.qualityTrendsStatus.value).toBe('idle')
+  })
+
+  it('invalidates quality trends when the window changes', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.focusAlert({ group: 'data_quality', feature: 'age' })
+    expect(dashboard.focusedFeature.value).toBe('age')
+    const trends = Promise.withResolvers<ReturnType<typeof makeDataQuality>>()
+    getDataQuality.mockReturnValueOnce(trends.promise)
+    const request = dashboard.loadQualityTrends('age')
+    await dashboard.setWindow(Window.D7)
+
+    trends.resolve(makeDataQuality())
+    await request
+
+    expect(dashboard.qualityTrends.value).toEqual([])
+    expect(dashboard.qualityTrendsStatus.value).toBe('idle')
+  })
+})
 
 describe('useMonitoringDashboard', () => {
   beforeEach(() => {
