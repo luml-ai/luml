@@ -57,6 +57,37 @@ class DependencyHygieneTests(unittest.TestCase):
         ignored = (ROOT / sdk / ".gitignore").read_text().splitlines()
         self.assertNotIn("uv.lock", ignored)
 
+    def test_backend_locks_patched_starlette_and_opentelemetry(self):
+        lock = project_file("backend/uv.lock")
+        packages = {package["name"]: package for package in lock["package"]}
+        self.assertGreaterEqual(
+            tuple(map(int, packages["starlette"]["version"].split("."))), (1, 3, 1)
+        )
+        telemetry = [
+            p for p in lock["package"] if p["name"].startswith("opentelemetry-")
+        ]
+        self.assertTrue(telemetry)
+        for package in telemetry:
+            with self.subTest(package=package["name"]):
+                version = package["version"]
+                if "b" in version:
+                    self.assertGreaterEqual(
+                        tuple(map(int, re.findall(r"\d+", version))), (0, 66, 1)
+                    )
+                else:
+                    self.assertGreaterEqual(
+                        tuple(map(int, version.split("."))), (1, 45, 1)
+                    )
+
+    def test_jupyter_locks_patched_lite_packages(self):
+        lock = project_file("wasm/jupyter/uv.lock")
+        packages = {package["name"]: package for package in lock["package"]}
+        for name in ("jupyterlite", "jupyterlite-core"):
+            with self.subTest(package=name):
+                self.assertGreaterEqual(
+                    tuple(map(int, packages[name]["version"].split("."))), (0, 8, 4)
+                )
+
     def test_jupyter_image_uses_complete_lock_with_patched_starlette(self):
         jupyter = "wasm/jupyter"
         lock = project_file(f"{jupyter}/uv.lock")
