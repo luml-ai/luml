@@ -158,7 +158,13 @@ def test_unsafe_http_attachment_paths_return_404(
     marker = tmp_path / "marker.txt"
     marker.write_bytes(b"outside")
     attachments = tmp_path / "experiments" / experiment_id / "attachments"
-    (attachments / "linked").symlink_to(tmp_path, target_is_directory=True)
+    if name == "linked/marker.txt":
+        try:
+            (attachments / "linked").symlink_to(tmp_path, target_is_directory=True)
+        except OSError as err:
+            if getattr(err, "winerror", None) == 1314:
+                pytest.skip("Symlink creation requires admin privileges on Windows")
+            raise
     name = str(marker) if name == "absolute" else name
     client.headers["Authorization"] = f"Bearer {client.app.state.session_token}"
     path = f"/api/experiments/{experiment_id}/attachments"

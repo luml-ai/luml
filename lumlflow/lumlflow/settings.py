@@ -33,7 +33,10 @@ class Settings(BaseSettings):
         path = Path(path_str).expanduser().resolve()
         if path.suffix == ".db":
             path = path.parent
-        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         return str(path)
 
 

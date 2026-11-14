@@ -64,3 +64,16 @@ class TestSettings:
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(db_file))
         settings = Settings()  # type: ignore[call-arg]
         assert settings.BACKEND_STORE_URI == str(tmp_path.resolve())
+
+    def test_parent_that_cannot_be_created_does_not_fail_parsing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        def denied(self: Path, *args: object, **kwargs: object) -> None:
+            raise PermissionError(13, "Access is denied", str(self))
+
+        store = tmp_path / "missing" / "store"
+        monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(store))
+        monkeypatch.setattr(Path, "mkdir", denied)
+        settings = Settings()  # type: ignore[call-arg]
+        assert settings.BACKEND_STORE_URI == str(store.resolve())
+        assert not store.parent.exists()
