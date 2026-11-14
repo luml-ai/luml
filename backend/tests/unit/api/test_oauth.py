@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import jwt
 import pytest
 from fastapi.testclient import TestClient
-from httpx import URL
+from httpx2 import URL
 from luml.api import auth
 from luml.handlers.auth import AuthHandler
 from luml.schemas.auth import OAuthLogin, Token
