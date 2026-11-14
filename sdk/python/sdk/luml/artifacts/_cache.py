@@ -113,11 +113,12 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
             current_stat.st_ino == lock_stat.st_ino
             and current_stat.st_mtime_ns == lock_stat.st_mtime_ns
         ):
-            with contextlib.suppress(OSError):
-                lock_path.unlink()
+            lock_path.unlink()
         return True
-    except (FileNotFoundError, OSError):
+    except FileNotFoundError:
         return True
+    except OSError:
+        return False
 
 
 def _clear_cache_dir(cache_dir: Path, lock_file_name: str) -> None:

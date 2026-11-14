@@ -123,3 +123,26 @@ def test_lock_of_unsignalable_owner_is_not_stolen(
     with pytest.raises(TimeoutError, match="cache extraction lock"):
         extract_archive_cached(archive, cache, lock_timeout_seconds=0.1)
     assert lock.exists()
+
+
+def test_stale_lock_that_cannot_be_removed_times_out(
+    archive: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    lock = cache / ".materialize.lock"
+    lock.touch()
+    expired = time.time() - 10
+    os.utime(lock, (expired, expired))
+    unlink = Path.unlink
+
+    def deny_lock_removal(self: Path, missing_ok: bool = False) -> None:
+        if self == lock:
+            raise PermissionError
+        unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", deny_lock_removal)
+    with pytest.raises(TimeoutError, match="cache extraction lock"):
+        extract_archive_cached(archive, cache, lock_timeout_seconds=0.1)
+    assert lock.exists()
+    assert not (cache / "payload.txt").exists()
