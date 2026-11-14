@@ -30,6 +30,7 @@ describe('authenticated upload progress', () => {
     expect(api.get).toHaveBeenCalledWith('/luml/artifact/job/progress', {
       adapter: 'fetch',
       responseType: 'stream',
+      signal: expect.any(AbortSignal),
     })
     expect(upload.progress.value).toBe(100)
     expect(upload.complete.value).toBe(true)
@@ -49,4 +50,53 @@ describe('authenticated upload progress', () => {
     expect(upload.error.value).toContain('Failed to receive upload progress')
     expect(upload.loading.value).toBe(false)
   })
+})
+
+it('cancels progress streaming when the component unmounts', async () => {
+  const { defineComponent } = await import('vue')
+  const { mount, flushPromises } = await import('@vue/test-utils')
+  const cancel = vi.fn()
+  const stream = new ReadableStream({ cancel })
+  vi.mocked(api.get).mockResolvedValue({ data: stream })
+  let upload!: ReturnType<typeof useUpload>
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        upload = useUpload()
+        return () => null
+      },
+    }),
+  )
+  const request = upload.follow(async () => ({ job_id: 'job' }))
+  await flushPromises()
+  wrapper.unmount()
+  await request
+  expect(cancel).toHaveBeenCalledTimes(1)
+  expect(upload.loading.value).toBe(false)
+  expect(upload.error.value).toBeNull()
+})
+
+it('does not open a progress request when unmounted while starting an upload', async () => {
+  const { defineComponent } = await import('vue')
+  const { mount } = await import('@vue/test-utils')
+  vi.mocked(api.get).mockClear()
+  let upload!: ReturnType<typeof useUpload>
+  let resolve!: (value: { job_id: string }) => void
+  const started = new Promise<{ job_id: string }>((done) => {
+    resolve = done
+  })
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        upload = useUpload()
+        return () => null
+      },
+    }),
+  )
+  const request = upload.follow(() => started)
+  wrapper.unmount()
+  resolve({ job_id: 'late' })
+  await request
+  expect(api.get).not.toHaveBeenCalled()
+  expect(upload.loading.value).toBe(false)
 })

@@ -3,10 +3,24 @@ import { apiService } from '@/api/api.service'
 import { api } from '@/api/client'
 import { errorToast } from '@/toasts'
 import { useToast } from 'primevue'
-import { ref } from 'vue'
+import { getCurrentScope, onScopeDispose, ref } from 'vue'
 
 export const useUpload = () => {
   const toast = useToast()
+  const controller = new AbortController()
+  const readers = new Set<ReadableStreamDefaultReader<Uint8Array>>()
+  const resetTimers = new Set<ReturnType<typeof setTimeout>>()
+  let disposed = false
+
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      disposed = true
+      controller.abort()
+      for (const reader of readers) void reader.cancel().catch(() => {})
+      for (const timer of resetTimers) clearTimeout(timer)
+      loading.value = false
+    })
+  }
 
   const progress = ref<number | null>(null)
   const error = ref<string | null>(null)
@@ -18,14 +32,15 @@ export const useUpload = () => {
   }
 
   async function follow(start: () => Promise<{ job_id: string }>) {
+    if (disposed) return
     try {
       loading.value = true
       error.value = null
       const response = await start()
-      await initProgressWatch(response.job_id)
+      if (!disposed) await initProgressWatch(response.job_id)
     } catch (err) {
       loading.value = false
-      toast.add(errorToast(err))
+      if (!disposed) toast.add(errorToast(err))
     }
   }
 
@@ -39,9 +54,14 @@ export const useUpload = () => {
     reset()
     const { data: stream } = await api.get<ReadableStream<Uint8Array>>(
       `/luml/artifact/${jobId}/progress`,
-      { adapter: 'fetch', responseType: 'stream' },
+      { adapter: 'fetch', responseType: 'stream', signal: controller.signal },
     )
     const reader = stream.getReader()
+    if (disposed) {
+      await reader.cancel()
+      return
+    }
+    readers.add(reader)
     const decoder = new TextDecoder()
     let buffer = ''
     function handleEvent(event: string) {
@@ -54,9 +74,11 @@ export const useUpload = () => {
         }
         complete.value = true
         loading.value = false
-        setTimeout(() => {
+        const timer = setTimeout(() => {
+          resetTimers.delete(timer)
           reset()
         }, 3000)
+        resetTimers.add(timer)
       } else if (data.type === 'error') {
         error.value = data.message
         loading.value = false
@@ -66,9 +88,9 @@ export const useUpload = () => {
       }
     }
     try {
-      while (!complete.value && !error.value) {
+      while (!disposed && !complete.value && !error.value) {
         const { value, done } = await reader.read()
-        if (done) break
+        if (done || disposed) break
         buffer += decoder.decode(value, { stream: true })
         let boundary: number
         while ((boundary = buffer.indexOf('\n\n')) !== -1) {
@@ -78,8 +100,9 @@ export const useUpload = () => {
         }
       }
     } finally {
+      readers.delete(reader)
       await reader.cancel()
-      if (!complete.value) {
+      if (!disposed && !complete.value) {
         error.value = error.value ?? 'Failed to receive upload progress. Please try again.'
         loading.value = false
       }

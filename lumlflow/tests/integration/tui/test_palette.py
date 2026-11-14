@@ -380,11 +380,13 @@ class TestNoHiddenShortcuts:
             for cmd in app.keymap:
                 assert cmd.id in shown, f"Command not in help cheat-sheet: {cmd.id}"
 
-    async def test_inline_affordances_on_dialog_buttons(self) -> None:
-        """Confirm dialogs render `[Enter]` / `[Esc]` inline affordances.
-
-        SPEC: "dialog buttons read e.g. `[Enter] Save` / `[Esc] Cancel`".
-        """
+    @pytest.mark.parametrize(
+        ("destructive", "confirm_key"), [(False, "[Enter]"), (True, "[Ctrl+Y]")]
+    )
+    async def test_inline_affordances_on_dialog_buttons(
+        self, destructive: bool, confirm_key: str
+    ) -> None:
+        """Confirm dialogs display the shortcut for their actual confirm action."""
 
         from lumlflow.tui.widgets.dialogs import ConfirmDialog
         from textual.containers import Horizontal
@@ -392,11 +394,13 @@ class TestNoHiddenShortcuts:
         app = _make_app()
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.push_screen(ConfirmDialog(title="t", message="m"))
+            app.push_screen(
+                ConfirmDialog(title="t", message="m", destructive=destructive)
+            )
             await pilot.pause()
             buttons = app.screen.query_one("#dialog-buttons", Horizontal)
             rendered = " ".join(str(child.render()) for child in buttons.children)
-            assert "[Enter]" in rendered
+            assert confirm_key in rendered
             assert "[Esc]" in rendered
 
 

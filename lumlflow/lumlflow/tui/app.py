@@ -1,8 +1,10 @@
 """Main Textual application shell for the Lumlflow TUI."""
 
+import asyncio
 from collections import deque
 from datetime import datetime
 
+from textual import work
 from textual.app import App, ComposeResult, ScreenError
 from textual.binding import Binding
 from textual.widget import Widget
@@ -190,7 +192,7 @@ class LumlflowApp(App[None]):
         exactly that store, so the TUI reads from the same place the CLI
         resolved, displayed, and shares with any launched child run —
         rather than re-deriving the path from settings (which depends on
-        env vars, the working directory's `.env`, and lru-cache timing).
+        env vars and lru-cache timing).
         """
         if self._store_uri is not None:
             from lumlflow.tracker import ThreadSafeTracker
@@ -204,6 +206,7 @@ class LumlflowApp(App[None]):
         # Textual lets us set BINDINGS in subclasses but we want the
         # source of truth to be the keymap registry. We build bindings
         # programmatically and store them on the class.
+        self._bindings.bind("ctrl+v", "paste", show=False, priority=True)
         bindings: list[Binding] = []
         action_map = {
             "global.help": "show_help",
@@ -436,21 +439,18 @@ class LumlflowApp(App[None]):
 
     # ----- Clipboard -----
 
-    @property
-    def clipboard(self) -> str:
-        """App clipboard with an OS-clipboard fallback for Ctrl+V.
+    @work(group="clipboard-paste", exclusive=True)
+    async def action_paste(self) -> None:
+        focused = self.focused
+        if focused is None or not _is_text_input(focused):
+            return
+        text: str | None = self._clipboard or await asyncio.to_thread(
+            read_system_clipboard
+        )
+        if text and focused is self.focused and focused.is_mounted:
+            from textual.events import Paste
 
-        Textual's `Input` binds Ctrl+V to paste from the app-internal
-        clipboard, which only ever holds text copied *inside* the app —
-        so pasting an API key copied from a browser silently inserted
-        nothing. Fall back to the system clipboard (wl-paste / xclip /
-        xsel / pbpaste) when the internal one is empty. Terminal
-        bracketed paste (Ctrl+Shift+V, right-click) is unaffected.
-        """
-
-        if self._clipboard:
-            return self._clipboard
-        return read_system_clipboard() or ""
+            focused.post_message(Paste(text))
 
     # ----- Yank (OSC52 clipboard) -----
 

@@ -30,7 +30,6 @@ export const useModelCardStore = defineStore('model-card', () => {
     modelCardLoading.value = true
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
       modelData.value = await apiService.getModel(modelId)
       await loadModelCard(modelId)
     } catch {

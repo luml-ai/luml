@@ -6,6 +6,9 @@ could not tell a stale LUML_BASE_URL override from a proxy failure or
 a malformed pasted key. The 502 must carry the target URL and cause.
 """
 
+import json
+import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -65,3 +68,44 @@ class TestSetApiKeyUnreachable:
         assert exc_info.value.status_code == 502
         assert "LocalProtocolError" in exc_info.value.message
         assert "Illegal header value" in exc_info.value.message
+
+
+@pytest.mark.skipif(os.name == "nt", reason="posix file modes")
+@pytest.mark.parametrize("existing", [False, True])
+def test_credentials_are_private_before_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing: bool
+) -> None:
+    path = tmp_path / ".luml.json"
+    if existing:
+        path.write_text("{}")
+        path.chmod(0o644)
+    monkeypatch.setattr(AuthHandler, "_LUML_JSON_PATH", path)
+    original = os.fdopen
+    modes = []
+
+    def checked_open(fd, *args, **kwargs):
+        modes.append(os.fstat(fd).st_mode & 0o777)
+        return original(fd, *args, **kwargs)
+
+    monkeypatch.setattr(os, "fdopen", checked_open)
+    AuthHandler()._write_api_key_to_file("test-key")
+    assert modes == [0o600]
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert json.loads(path.read_text()) == {"api_key": "test-key"}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="posix file modes")
+def test_permission_failure_does_not_truncate_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / ".luml.json"
+    path.write_text('{"api_key":"previous"}')
+    monkeypatch.setattr(AuthHandler, "_LUML_JSON_PATH", path)
+
+    def fail(fd, mode):
+        raise PermissionError("cannot secure file")
+
+    monkeypatch.setattr(os, "fchmod", fail)
+    with pytest.raises(PermissionError):
+        AuthHandler()._write_api_key_to_file("new-key")
+    assert path.read_text() == '{"api_key":"previous"}'
