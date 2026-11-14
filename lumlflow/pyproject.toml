@@ -18,7 +18,7 @@ dependencies = [
     "websockets>=17.0.1,<18.0.0",
     "pathspec>=0.12.1,<2.0.0",
     "tomli-w>=1.2.0,<2.0.0",
-    "pyarrow>=25.0.1,<26.0.0",
+    "pyarrow>=25.0.1,<27.0.0",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +49,7 @@ dev = [
     "pyyaml>=6.0.3,<7.0.0",
     "types-pyyaml>=6.0.12.20260724,<7.0.0",
     "pandas>=3.0.5,<4.0.0",
-    "pyarrow>=25.0.1,<26.0.0",
+    "pyarrow>=25.0.1,<27.0.0",
     "polars>=1.0.0,<2.0.0",
 ]
 
