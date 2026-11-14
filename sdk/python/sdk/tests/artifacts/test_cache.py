@@ -105,3 +105,21 @@ def test_concurrent_waiters_recover_one_stale_lock(
             future.result(timeout=5)
     assert (cache / "payload.txt").read_text() == "payload"
     assert not lock.exists()
+
+
+def test_lock_of_unsignalable_owner_is_not_stolen(
+    archive: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def deny(pid: int, sig: int) -> None:
+        raise PermissionError
+
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    lock = cache / ".materialize.lock"
+    lock.write_text("1")
+    expired = time.time() - 10
+    os.utime(lock, (expired, expired))
+    monkeypatch.setattr(os, "kill", deny)
+    with pytest.raises(TimeoutError, match="cache extraction lock"):
+        extract_archive_cached(archive, cache, lock_timeout_seconds=0.1)
+    assert lock.exists()

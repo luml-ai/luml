@@ -102,10 +102,10 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
         if owner_pid > 0:
             try:
                 os.kill(owner_pid, 0)
-            except (ProcessLookupError, OverflowError, OSError):
-                pass
             except PermissionError:
                 return False
+            except (ProcessLookupError, OverflowError, OSError):
+                pass
             else:
                 return False
         current_stat = lock_path.stat()
