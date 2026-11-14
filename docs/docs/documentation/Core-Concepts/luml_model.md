@@ -7,7 +7,7 @@ title: .luml Model Format
 # .luml Model Format
 
 
-The `.luml` file is the standard artifact format used throughout LUML. Every model trained via Express Tasks, exported from Notebooks, or uploaded externally is stored and operated as a `.luml` package. This format serves as the foundation for the platform's deployment, versioning, and experiment tracking capabilities.
+The `.luml` file is the standard artifact format used throughout LUML. Every model trained via Express Tasks, exported from Jupyter Lite, or uploaded externally is stored and operated as a `.luml` package. This format serves as the foundation for the platform's deployment, versioning, and experiment tracking capabilities.
 
 
 ## Design Principles
@@ -79,7 +79,7 @@ The `.luml` format integrates with every major module in LUML:
 - **Express Tasks** produce `.luml` files as the output of automated training. When training completes, the resulting model is immediately available as a downloadable `.luml` package or can be saved directly to a Registry.
 
 
-- **Notebooks** allow manual construction and export of `.luml` packages using the LUML SDK. This gives full control over what goes into the package, including custom preprocessing steps and dynamic attributes.
+- **Jupyter Lite** allows manual construction and export of `.luml` packages using the LUML SDK. This gives full control over what goes into the package, including custom preprocessing steps and dynamic attributes.
 
 
 - **Registry** stores `.luml` files and exposes their metadata through the Model Registry interface. The Overview, Model Card, and Experiment Snapshots tabs all read information embedded in the `.luml` package.

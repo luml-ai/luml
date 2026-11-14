@@ -163,7 +163,7 @@ const appTasks: IAppTaskData[] = [
   {
     id: 4,
     icon: Notebooks,
-    title: 'Notebooks',
+    title: 'Jupyter Lite',
     description:
       'Run Jupyter notebooks directly in the browser with no setup or backend. Create, test, and export models locally with automatic discovery, while managing instances entirely client-side.',
     btnText: 'Next',
