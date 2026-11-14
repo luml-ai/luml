@@ -27,11 +27,11 @@ describe('forecasting task card', () => {
 })
 
 describe('forecasting route', () => {
-  it('resolves /forecasting to a named route with the tabular invalid-message guard', () => {
+  it('resolves forecasting under Express Tasks with the tabular invalid-message guard', () => {
     expect(router.hasRoute('forecasting')).toBe(true)
 
     const resolved = router.resolve({ name: 'forecasting' })
-    expect(resolved.path).toBe('/forecasting')
+    expect(resolved.path).toBe('/express-tasks/forecasting')
     expect(resolved.meta.showInvalidMessage).toBe(992)
   })
 })
