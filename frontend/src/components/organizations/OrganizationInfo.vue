@@ -12,12 +12,6 @@
     </div>
     <UiDialogRight v-model:visible="visible" :icon="UserCog" title="Organization settings">
       <div class="dialog-content">
-        <!--<ImageInput
-          shape="square"
-          :image="organizationStore.currentOrganization?.logo"
-          class="photo"
-          @on-image-change="onImageChange"
-        />-->
         <Avatar size="xlarge" :label="avatarLabel" />
         <Form
           id="editOrganizationForm"
