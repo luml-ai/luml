@@ -1,10 +1,11 @@
 <template>
   <div>
-    <OverviewLoader v-if="loading" />
+    <OverviewLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else class="overview">
       <OverviewCards :cards="cards" />
       <MAlerts v-if="data?.alert_banners?.length" :alerts="data.alert_banners" />
+      <OverviewStepSelector />
       <OverviewCharts v-if="data?.series?.length" :series="data.series" />
       <OverviewTopFeatures
         v-if="data?.top_drifted_features?.length"
@@ -15,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import { useHeaderStore } from '@/store/header'
@@ -25,6 +26,7 @@ import OverviewLoader from '@/components/overview/OverviewLoader.vue'
 import OverviewCards from '@/components/overview/OverviewCards.vue'
 import MAlerts from '@/components/MAlerts.vue'
 import OverviewCharts from '@/components/overview/OverviewCharts.vue'
+import OverviewStepSelector from '@/components/overview/OverviewStepSelector.vue'
 import OverviewTopFeatures from '@/components/overview/OverviewTopFeatures.vue'
 
 const headerStore = useHeaderStore()
@@ -37,14 +39,6 @@ const cards = computed(() => {
   const isTabular = headerStore.modelKind === 'tabular'
   return (data.value?.cards ?? []).filter((card) => isCardVisibleForKind(card, isTabular))
 })
-
-watch(
-  data,
-  () => {
-    console.log(data.value)
-  },
-  { immediate: true },
-)
 </script>
 
 <style scoped>

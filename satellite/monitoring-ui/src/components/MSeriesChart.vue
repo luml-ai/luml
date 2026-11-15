@@ -8,7 +8,7 @@ import { computed } from 'vue'
 import { getLineChartOptions } from '@/lib/apex-charts'
 import { useCssVariables } from '@/composables/useCssVariables'
 import { CHART_HEIGHT, DEFAULT_CHART_COLOR } from '@/constants/charts'
-import { countMeasuredPoints, formatChartValue, toChartPoints } from '@/utils/charts'
+import { formatChartValue, hasIsolatedPoints, toChartPoints } from '@/utils/charts'
 import VueApexCharts from 'vue3-apexcharts'
 
 interface Props {
@@ -37,7 +37,7 @@ const chartSeries = computed(() => {
   return [main, { name: 'Compared period', data: toChartPoints(props.series.baseline ?? []) }]
 })
 
-const markerSize = computed(() => (countMeasuredPoints(props.series.points) > 1 ? 0 : 4))
+const markerSize = computed(() => (hasIsolatedPoints(props.series.points) ? 4 : 0))
 
 const options = computed(() => {
   const base = getLineChartOptions({

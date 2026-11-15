@@ -18,6 +18,9 @@ export function toChartPoints(points: SeriesPoint[]): [number, number | null][] 
   return points.map((point) => [new Date(point.t).getTime(), point.value])
 }
 
-export function countMeasuredPoints(points: SeriesPoint[]): number {
-  return points.filter((point) => point.value != null).length
+export function hasIsolatedPoints(points: SeriesPoint[]): boolean {
+  return points.some(
+    (point, index) =>
+      point.value != null && points[index - 1]?.value == null && points[index + 1]?.value == null,
+  )
 }

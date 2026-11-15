@@ -86,6 +86,7 @@ const gapPx = `${GAP}px`
   align-items: center;
   gap: v-bind(gapPx);
   min-width: 0;
+  overflow: hidden;
 }
 
 .tags-measure {
