@@ -14,7 +14,7 @@ export function getStatusRowKey(row: StatusBreakdownRow): string {
   return `${row.status}:${row.status_code ?? 'none'}`
 }
 
-export function isFailedOutcome(row: StatusBreakdownRow): boolean {
+export function isFailedOutcome(row: Pick<StatusBreakdownRow, 'status'>): boolean {
   return row.status !== 'success'
 }
 

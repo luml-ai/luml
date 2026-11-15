@@ -4,11 +4,13 @@
     <MTabs />
     <MFilters />
     <MTabsContent />
+    <Toast />
   </main>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { Toast } from 'primevue'
 import MFilters from './components/filters/MFilters.vue'
 import MTabs from './components/MTabs.vue'
 import MTabsContent from './components/MTabsContent.vue'

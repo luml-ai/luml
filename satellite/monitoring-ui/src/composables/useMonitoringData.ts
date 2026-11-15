@@ -2,7 +2,10 @@ import { ref, shallowRef, watch } from 'vue'
 import type { Dimensions } from '@/api/monitoring/interfaces'
 import { useFiltersStore } from '@/store/filters'
 
-export function useMonitoringData<T>(fetcher: (dims: Dimensions) => Promise<T>) {
+export function useMonitoringData<T>(
+  fetcher: (dims: Dimensions) => Promise<T>,
+  params?: () => unknown,
+) {
   const filtersStore = useFiltersStore()
 
   const data = shallowRef<T | null>(null)
@@ -26,7 +29,9 @@ export function useMonitoringData<T>(fetcher: (dims: Dimensions) => Promise<T>) 
     }
   }
 
-  watch(() => [filtersStore.dimensions, filtersStore.refreshKey], load, { immediate: true })
+  watch(() => [filtersStore.dimensions, filtersStore.refreshKey, params?.()], load, {
+    immediate: true,
+  })
 
   return { data, error, loading, reload: load }
 }
