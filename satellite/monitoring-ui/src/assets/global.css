@@ -1,0 +1,12 @@
+.p-tablist-tab-list {
+  border-top: none !important;
+}
+
+.p-tab {
+  border: none !important;
+}
+
+.p-popover::before,
+.p-popover::after {
+  display: none;
+}

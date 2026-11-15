@@ -459,7 +459,7 @@ export type TraceSortKey = 'ts' | 'latency' | 'status'
 export type SortOrder = 'asc' | 'desc'
 
 export interface Dimensions {
-  window: Window
+  window: Window | null
   compare: Compare
   severity: SeverityFilter
   granularity: Granularity
