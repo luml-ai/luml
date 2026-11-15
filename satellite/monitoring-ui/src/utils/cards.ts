@@ -1,4 +1,5 @@
-import { Severity, type Card } from '@/api/monitoring/interfaces'
+import type { Card } from '@/api/monitoring/interfaces'
+import { SEVERITY_CARD_SEVERITIES } from '@/constants/alerts'
 import { CardSeverity } from '@/types/card'
 import { formatInteger, formatMs, formatPercent, formatPercentPoints } from '@/utils/format'
 
@@ -35,8 +36,8 @@ export function getCardSeverity(card: Card): CardSeverity {
   if (card.key === 'active_alerts') {
     return (card.critical_count ?? 0) > 0 ? CardSeverity.DANGER : CardSeverity.DEFAULT
   }
-  if (card.severity === Severity.CRITICAL) return CardSeverity.DANGER
-  if (card.severity === Severity.WARNING) return CardSeverity.WARNING
+  const serverSeverity = card.severity ? SEVERITY_CARD_SEVERITIES[card.severity] : null
+  if (serverSeverity) return serverSeverity
   if (card.key === 'drifted_features' || card.key === 'timeout_count') {
     return (card.value ?? 0) > 0 ? CardSeverity.WARNING : CardSeverity.DEFAULT
   }

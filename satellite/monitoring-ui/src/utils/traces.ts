@@ -9,9 +9,7 @@ import type { EmptyStateContent } from '@/types/empty'
 import {
   DEFAULT_TRACES_SORT_FIELD,
   DEFAULT_TRACES_SORT_ORDER,
-  TRACES_COLUMN_WIDTHS,
   type TableSortOrder,
-  type TracesColumn,
 } from '@/constants/traces'
 import { isFailedOutcome } from '@/utils/runtime'
 
@@ -55,14 +53,6 @@ export function getTracesEmptyState(traces: TracesResponse): EmptyStateContent |
     }
   }
   return null
-}
-
-export function getTracesTableMinWidth(): number {
-  return Object.values(TRACES_COLUMN_WIDTHS).reduce((sum, width) => sum + width, 0)
-}
-
-export function getTracesColumnStyle(column: TracesColumn) {
-  return { width: `${TRACES_COLUMN_WIDTHS[column]}px` }
 }
 
 export function clampTracesOffset(offset: number, total: number | null): number {

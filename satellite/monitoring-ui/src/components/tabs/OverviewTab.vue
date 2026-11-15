@@ -2,16 +2,18 @@
   <div>
     <OverviewLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
-    <MEmpty v-else-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
-    <div v-else class="overview">
-      <OverviewCards :cards="cards" />
-      <MAlerts v-if="data?.alert_banners?.length" :alerts="data.alert_banners" />
-      <MStepSelector />
-      <MSeriesCharts v-if="data?.series?.length" :series="data.series" />
-      <OverviewTopFeatures
-        v-if="data?.top_drifted_features?.length"
-        :features="data.top_drifted_features"
-      />
+    <div v-else-if="data" class="overview">
+      <OverviewCards v-if="!emptyState" :cards="cards" />
+      <MAlerts v-if="data.alert_banners?.length" :alerts="data.alert_banners" />
+      <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
+      <template v-else>
+        <MStepSelector />
+        <MSeriesCharts v-if="data.series?.length" :series="data.series" />
+        <OverviewTopFeatures
+          v-if="data.top_drifted_features?.length"
+          :features="data.top_drifted_features"
+        />
+      </template>
     </div>
   </div>
 </template>

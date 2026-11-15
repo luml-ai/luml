@@ -2,7 +2,7 @@
   <div>
     <MErrorState v-if="error" :error="error" @retry="reload" />
     <MEmpty v-else-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
-    <div v-else class="traces">
+    <MTableCard v-else>
       <DataTable
         :value="data?.rows ?? []"
         data-key="event_id"
@@ -24,12 +24,16 @@
         @page="onPage"
         @sort="onSort"
       >
-        <Column field="ts" header="Time" sortable :style="getTracesColumnStyle('ts')">
+        <Column field="ts" header="Time" sortable :style="getColumnStyle(TRACES_COLUMN_WIDTHS.ts)">
           <template #body="{ data: row }">
             <MEllipsis :text="formatTimestamp(row.ts)" />
           </template>
         </Column>
-        <Column field="event_id" header="Request" :style="getTracesColumnStyle('request')">
+        <Column
+          field="event_id"
+          header="Request"
+          :style="getColumnStyle(TRACES_COLUMN_WIDTHS.request)"
+        >
           <template #body="{ data: row }">
             <div class="request">
               <MEllipsis class="request-id" :text="row.event_id" />
@@ -40,18 +44,27 @@
         <Column
           field="features_summary"
           header="Features"
-          :style="getTracesColumnStyle('features')"
+          :style="getColumnStyle(TRACES_COLUMN_WIDTHS.features)"
         >
           <template #body="{ data: row }">
             <MEllipsis :text="row.features_summary ?? '—'" />
           </template>
         </Column>
-        <Column field="prediction" header="Prediction" :style="getTracesColumnStyle('prediction')">
+        <Column
+          field="prediction"
+          header="Prediction"
+          :style="getColumnStyle(TRACES_COLUMN_WIDTHS.prediction)"
+        >
           <template #body="{ data: row }">
             <MEllipsis :text="row.prediction ?? '—'" />
           </template>
         </Column>
-        <Column field="status" header="Status" sortable :style="getTracesColumnStyle('status')">
+        <Column
+          field="status"
+          header="Status"
+          sortable
+          :style="getColumnStyle(TRACES_COLUMN_WIDTHS.status)"
+        >
           <template #body="{ data: row }">
             <Tag :value="getOutcomeLabel(row.status)" :severity="getTraceStatusSeverity(row)" />
           </template>
@@ -60,7 +73,7 @@
           field="latency_ms"
           header="Latency"
           sortable
-          :style="getTracesColumnStyle('latency')"
+          :style="getColumnStyle(TRACES_COLUMN_WIDTHS.latency)"
           header-class="numeric"
           body-class="numeric"
         >
@@ -69,7 +82,7 @@
           </template>
         </Column>
       </DataTable>
-    </div>
+    </MTableCard>
   </div>
 </template>
 
@@ -83,25 +96,26 @@ import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
 import MCopyButton from '@/components/MCopyButton.vue'
 import MEllipsis from '@/components/MEllipsis.vue'
+import MTableCard from '@/components/MTableCard.vue'
 import { formatMs, formatTimestamp } from '@/utils/format'
 import { getOutcomeLabel } from '@/utils/runtime'
 import {
   DEFAULT_TRACES_SORT_FIELD,
   DEFAULT_TRACES_SORT_ORDER,
+  TRACES_COLUMN_WIDTHS,
   TRACES_PAGE_SIZE,
 } from '@/constants/traces'
 import {
   getTraceStatusSeverity,
-  getTracesColumnStyle,
   getTracesEmptyState,
   clampTracesOffset,
-  getTracesTableMinWidth,
   normalizeTraceSort,
   toSortOrder,
   toTraceSortKey,
 } from '@/utils/traces'
+import { getColumnStyle, getTableMinWidth } from '@/utils/table'
 
-const tableMinWidth = getTracesTableMinWidth()
+const tableMinWidth = getTableMinWidth(TRACES_COLUMN_WIDTHS)
 
 const filtersStore = useFiltersStore()
 
@@ -146,18 +160,6 @@ function onSort(event: DataTableSortEvent) {
 </script>
 
 <style scoped>
-.traces {
-  --p-datatable-row-background: transparent;
-  --p-datatable-row-striped-background: transparent;
-  --p-paginator-background: transparent;
-  --p-datatable-paginator-top-border-width: 0;
-  --p-datatable-paginator-bottom-border-width: 0;
-  padding: 12px 12px 16px;
-  border: 1px solid var(--p-content-border-color);
-  border-radius: var(--p-card-border-radius);
-  background: var(--p-card-background);
-}
-
 .table-empty :deep(.p-datatable-tbody) {
   height: 300px;
 }
@@ -171,13 +173,5 @@ function onSort(event: DataTableSortEvent) {
 
 .request-id {
   flex: 1;
-}
-
-.traces :deep(.numeric) {
-  text-align: right;
-}
-
-.traces :deep(.numeric .p-datatable-column-header-content) {
-  justify-content: flex-end;
 }
 </style>

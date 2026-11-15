@@ -1,5 +1,6 @@
 import { Severity } from '@/api/monitoring/interfaces'
 import { PSI_SCALE_MAX } from '@/constants/drift'
+import { SEVERITY_COLORS } from '@/constants/alerts'
 
 const psiFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
 
@@ -12,7 +13,5 @@ export function getPsiProgress(psi: number): number {
 }
 
 export function getPsiBarColor(severity: Severity): string {
-  if (severity === Severity.CRITICAL) return '{red.500}'
-  if (severity === Severity.WARNING) return '{orange.500}'
-  return '{primary.color}'
+  return SEVERITY_COLORS[severity] ?? SEVERITY_COLORS[Severity.OK]
 }

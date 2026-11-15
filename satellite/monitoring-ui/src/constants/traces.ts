@@ -13,5 +13,3 @@ export const TRACES_COLUMN_WIDTHS = {
   status: 180,
   latency: 160,
 }
-
-export type TracesColumn = keyof typeof TRACES_COLUMN_WIDTHS

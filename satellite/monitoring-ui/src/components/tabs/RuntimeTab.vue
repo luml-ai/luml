@@ -2,13 +2,15 @@
   <div>
     <RuntimeLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
-    <MEmpty v-else-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
     <div v-else-if="data" class="runtime">
       <MAlerts v-if="data.alerts?.length" :alerts="data.alerts" />
-      <RuntimeCards :data="data" />
-      <MStepSelector />
-      <MSeriesCharts v-if="data.series?.length" :series="data.series" />
-      <RuntimeStatusBreakdown :rows="data.status_breakdown ?? []" />
+      <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
+      <template v-else>
+        <RuntimeCards :data="data" />
+        <MStepSelector />
+        <MSeriesCharts v-if="data.series?.length" :series="data.series" />
+        <RuntimeStatusBreakdown :rows="data.status_breakdown ?? []" />
+      </template>
     </div>
   </div>
 </template>
