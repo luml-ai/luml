@@ -1,0 +1,49 @@
+import { Severity, type Card } from '@/api/monitoring/interfaces'
+import { CardSeverity } from '@/types/card'
+
+const integerFormat = new Intl.NumberFormat('en-US')
+
+const TABULAR_ONLY_CARDS = ['drifted_features', 'output_drift']
+
+export function formatCardValue(card: Card): string {
+  if (card.value == null) return '—'
+  if (card.unit === 'ratio') return `${(card.value * 100).toFixed(1)}%`
+  if (card.unit === 'ms') return `${Math.round(card.value)} ms`
+  if (card.unit === 'score') return card.value.toFixed(2)
+  return integerFormat.format(card.value)
+}
+
+export function formatCardDelta(card: Card): string | null {
+  if (card.delta == null) return null
+  const arrow = card.delta > 0 ? '↑' : card.delta < 0 ? '↓' : '→'
+  const against =
+    card.delta_kind === 'previous'
+      ? 'previous period'
+      : card.delta_kind === 'custom'
+        ? 'compared period'
+        : (card.delta_kind ?? 'reference')
+  return `${arrow} ${formatDeltaMagnitude(card)} vs ${against}`
+}
+
+function formatDeltaMagnitude(card: Card): string {
+  const magnitude = Math.abs(card.delta ?? 0)
+  if (card.unit === 'ratio') return `${(magnitude * 100).toFixed(1)}pp`
+  if (card.unit === 'ms') return `${Math.round(magnitude)} ms`
+  return integerFormat.format(magnitude)
+}
+
+export function getCardSeverity(card: Card): CardSeverity {
+  if (card.key === 'active_alerts') {
+    return (card.critical_count ?? 0) > 0 ? CardSeverity.DANGER : CardSeverity.DEFAULT
+  }
+  if (card.severity === Severity.CRITICAL) return CardSeverity.DANGER
+  if (card.severity === Severity.WARNING) return CardSeverity.WARNING
+  if (card.key === 'drifted_features' || card.key === 'timeout_count') {
+    return (card.value ?? 0) > 0 ? CardSeverity.WARNING : CardSeverity.DEFAULT
+  }
+  return CardSeverity.DEFAULT
+}
+
+export function isCardVisibleForKind(card: Card, isTabular: boolean): boolean {
+  return isTabular || !TABULAR_ONLY_CARDS.includes(card.key)
+}

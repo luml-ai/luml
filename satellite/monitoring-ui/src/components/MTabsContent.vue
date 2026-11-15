@@ -27,6 +27,6 @@ const activeComponent = computed(() => TAB_COMPONENTS[tabsStore.activeTab])
 
 <style scoped>
 .tabs-content {
-  padding-top: 20px;
+  padding: 20px 0;
 }
 </style>

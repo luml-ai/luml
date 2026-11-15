@@ -1,8 +1,9 @@
-import { Compare, SeverityFilter, Window } from '@/api/monitoring/interfaces'
+import { Compare, Granularity, SeverityFilter, Window } from '@/api/monitoring/interfaces'
 import {
   AutoRefresh,
   type AutoRefreshOption,
   type CompareOption,
+  type GranularityOption,
   type SeverityOption,
   type WindowOption,
 } from '@/types/filters'
@@ -30,6 +31,12 @@ export const COMPARE_OPTIONS: CompareOption[] = [
   { label: 'Off', value: Compare.OFF },
   { label: 'Previous', value: Compare.PREVIOUS },
   { label: 'Custom', value: Compare.CUSTOM },
+]
+
+export const GRANULARITY_OPTIONS: GranularityOption[] = [
+  { label: 'Auto', value: Granularity.AUTO },
+  { label: '1h', value: Granularity.HOUR },
+  { label: '24h', value: Granularity.DAY },
 ]
 
 export const RETENTION_DAYS = 30

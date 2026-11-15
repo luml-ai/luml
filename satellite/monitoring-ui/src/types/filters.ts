@@ -1,4 +1,4 @@
-import type { Compare, SeverityFilter, Window } from '@/api/monitoring/interfaces'
+import type { Compare, Granularity, SeverityFilter, Window } from '@/api/monitoring/interfaces'
 
 export enum AutoRefresh {
   OFF = 0,
@@ -16,3 +16,4 @@ export type WindowOption = FilterOption<Window>
 export type AutoRefreshOption = FilterOption<AutoRefresh>
 export type SeverityOption = FilterOption<SeverityFilter>
 export type CompareOption = FilterOption<Compare>
+export type GranularityOption = FilterOption<Granularity>

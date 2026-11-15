@@ -53,7 +53,7 @@ function formatRange(start: string | null, end: string | null) {
 
 <style scoped>
 .filters {
-  padding: 20px 0;
+  padding: 20px 0 0;
 }
 
 .filters-row {
