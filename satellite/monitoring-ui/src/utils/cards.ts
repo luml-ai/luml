@@ -1,16 +1,15 @@
 import { Severity, type Card } from '@/api/monitoring/interfaces'
 import { CardSeverity } from '@/types/card'
-
-const integerFormat = new Intl.NumberFormat('en-US')
+import { formatInteger, formatMs, formatPercent, formatPercentPoints } from '@/utils/format'
 
 const TABULAR_ONLY_CARDS = ['drifted_features', 'output_drift']
 
 export function formatCardValue(card: Card): string {
   if (card.value == null) return '—'
-  if (card.unit === 'ratio') return `${(card.value * 100).toFixed(1)}%`
-  if (card.unit === 'ms') return `${Math.round(card.value)} ms`
+  if (card.unit === 'ratio') return formatPercent(card.value)
+  if (card.unit === 'ms') return formatMs(card.value)
   if (card.unit === 'score') return card.value.toFixed(2)
-  return integerFormat.format(card.value)
+  return formatInteger(card.value)
 }
 
 export function formatCardDelta(card: Card): string | null {
@@ -27,9 +26,9 @@ export function formatCardDelta(card: Card): string | null {
 
 function formatDeltaMagnitude(card: Card): string {
   const magnitude = Math.abs(card.delta ?? 0)
-  if (card.unit === 'ratio') return `${(magnitude * 100).toFixed(1)}pp`
-  if (card.unit === 'ms') return `${Math.round(magnitude)} ms`
-  return integerFormat.format(magnitude)
+  if (card.unit === 'ratio') return formatPercentPoints(magnitude)
+  if (card.unit === 'ms') return formatMs(magnitude)
+  return formatInteger(magnitude)
 }
 
 export function getCardSeverity(card: Card): CardSeverity {

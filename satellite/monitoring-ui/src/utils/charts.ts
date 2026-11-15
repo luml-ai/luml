@@ -1,4 +1,5 @@
-import type { SeriesPoint } from '@/api/monitoring/interfaces'
+import type { Series, SeriesPoint } from '@/api/monitoring/interfaces'
+import { DEFAULT_CHART_COLOR, SERIES_CHART_META, type ChartMeta } from '@/constants/charts'
 
 const numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
 const compactFormat = new Intl.NumberFormat('en-US', {
@@ -23,4 +24,15 @@ export function hasIsolatedPoints(points: SeriesPoint[]): boolean {
     (point, index) =>
       point.value != null && points[index - 1]?.value == null && points[index + 1]?.value == null,
   )
+}
+
+export function getSeriesCharts(series: Series[]): (ChartMeta & { series: Series })[] {
+  return series.map((entry) => ({
+    series: entry,
+    ...(SERIES_CHART_META[entry.key] ?? {
+      title: entry.label,
+      subtitle: '',
+      color: DEFAULT_CHART_COLOR,
+    }),
+  }))
 }

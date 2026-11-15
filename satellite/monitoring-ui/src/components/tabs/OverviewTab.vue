@@ -2,11 +2,12 @@
   <div>
     <OverviewLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
+    <MEmpty v-else-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
     <div v-else class="overview">
       <OverviewCards :cards="cards" />
       <MAlerts v-if="data?.alert_banners?.length" :alerts="data.alert_banners" />
-      <OverviewStepSelector />
-      <OverviewCharts v-if="data?.series?.length" :series="data.series" />
+      <MStepSelector />
+      <MSeriesCharts v-if="data?.series?.length" :series="data.series" />
       <OverviewTopFeatures
         v-if="data?.top_drifted_features?.length"
         :features="data.top_drifted_features"
@@ -21,12 +22,14 @@ import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import { useHeaderStore } from '@/store/header'
 import { isCardVisibleForKind } from '@/utils/cards'
+import { getOverviewEmptyState } from '@/utils/overview'
 import MErrorState from '@/components/MErrorState.vue'
+import MEmpty from '@/components/MEmpty.vue'
 import OverviewLoader from '@/components/overview/OverviewLoader.vue'
 import OverviewCards from '@/components/overview/OverviewCards.vue'
 import MAlerts from '@/components/MAlerts.vue'
-import OverviewCharts from '@/components/overview/OverviewCharts.vue'
-import OverviewStepSelector from '@/components/overview/OverviewStepSelector.vue'
+import MSeriesCharts from '@/components/MSeriesCharts.vue'
+import MStepSelector from '@/components/MStepSelector.vue'
 import OverviewTopFeatures from '@/components/overview/OverviewTopFeatures.vue'
 
 const headerStore = useHeaderStore()
@@ -34,6 +37,8 @@ const headerStore = useHeaderStore()
 const { data, loading, error, reload } = useMonitoringData((dims) =>
   api.monitoring.getOverview(dims),
 )
+
+const emptyState = computed(() => (data.value ? getOverviewEmptyState(data.value) : null))
 
 const cards = computed(() => {
   const isTabular = headerStore.modelKind === 'tabular'

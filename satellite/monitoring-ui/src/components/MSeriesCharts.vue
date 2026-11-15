@@ -20,7 +20,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Series } from '@/api/monitoring/interfaces'
-import { CHART_HEIGHT, DEFAULT_CHART_COLOR, SERIES_CHART_META } from '@/constants/charts'
+import { CHART_HEIGHT } from '@/constants/charts'
+import { getSeriesCharts } from '@/utils/charts'
 import MScalableCard from '@/components/MScalableCard.vue'
 import MSeriesChart from '@/components/MSeriesChart.vue'
 
@@ -32,22 +33,17 @@ const props = withDefaults(defineProps<Props>(), {
   series: () => [],
 })
 
-const charts = computed(() =>
-  props.series.map((series) => ({
-    series,
-    ...(SERIES_CHART_META[series.key] ?? {
-      title: series.label,
-      subtitle: '',
-      color: DEFAULT_CHART_COLOR,
-    }),
-  })),
-)
+const charts = computed(() => getSeriesCharts(props.series))
 </script>
 
 <style scoped>
 .charts {
+  --charts-gap: 16px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(max(260px, (100% - 2 * var(--charts-gap)) / 3), 1fr)
+  );
+  gap: var(--charts-gap);
 }
 </style>

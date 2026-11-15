@@ -112,9 +112,13 @@ const CHARTS_COUNT = 3
 }
 
 .charts {
+  --charts-gap: 16px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(max(260px, (100% - 2 * var(--charts-gap)) / 3), 1fr)
+  );
+  gap: var(--charts-gap);
 }
 
 .chart {
