@@ -18,21 +18,38 @@ import { useExperimentsStore } from '../experiments'
 describe.each([
   {
     entity: 'groups',
+    singularEntity: 'group',
     deleteOne: apiMocks.deleteGroup,
     refresh: apiMocks.getGroups,
     deleteMany: (ids: string[]) => useGroupsStore().deleteGroups(ids),
   },
   {
     entity: 'experiments',
+    singularEntity: 'experiment',
     deleteOne: apiMocks.deleteExperiment,
     refresh: apiMocks.getExperiments,
     deleteMany: (ids: string[]) => useExperimentsStore().deleteExperiments(ids),
   },
-])('$entity bulk delete', ({ entity, deleteOne, refresh, deleteMany }) => {
+])('$entity bulk delete', ({ entity, singularEntity, deleteOne, refresh, deleteMany }) => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.resetAllMocks()
     refresh.mockResolvedValue({ items: [], cursor: null })
+  })
+
+  it('uses the singular noun when deleting one item', async () => {
+    deleteOne.mockResolvedValueOnce({ id: 'first' })
+
+    await deleteMany(['first'])
+
+    expect(deleteOne).toHaveBeenCalledExactlyOnceWith('first')
+    expect(toast.add).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        severity: 'success',
+        detail: `1 ${singularEntity} deleted successfully`,
+      }),
+    )
+    expect(refresh).toHaveBeenCalledOnce()
   })
 
   it('reports the number of successful deletes and refreshes the list', async () => {
@@ -62,7 +79,10 @@ describe.each([
       expect.objectContaining({ severity: 'error', detail: 'permission denied' }),
     )
     expect(toast.add).toHaveBeenCalledWith(
-      expect.objectContaining({ severity: 'success', detail: `1 ${entity} deleted successfully` }),
+      expect.objectContaining({
+        severity: 'success',
+        detail: `1 ${singularEntity} deleted successfully`,
+      }),
     )
     expect(refresh).toHaveBeenCalledOnce()
   })
