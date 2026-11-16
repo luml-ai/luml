@@ -1,5 +1,5 @@
 <template>
-  <div ref="card" class="scalable-card">
+  <div ref="card" class="scalable-card" :class="variant">
     <div class="header">
       <div class="header-text">
         <h3 class="title">{{ title }}</h3>
@@ -57,13 +57,17 @@ const VIEWPORT_GAP = 32
 interface Props {
   title: string
   subtitle?: string
+  variant?: 'bordered' | 'block'
+  dialogRatio?: number
 }
 
 interface Slots {
   default: (props: { scaled: boolean }) => unknown
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  variant: 'bordered',
+})
 
 defineSlots<Slots>()
 
@@ -76,9 +80,15 @@ const { width: cardWidth, height: cardHeight } = useElementSize(card, undefined,
 })
 const { width: windowWidth, height: windowHeight } = useWindowSize()
 
+const dialogRatio = computed(() => {
+  if (props.dialogRatio && props.dialogRatio > 0) return props.dialogRatio
+  if (!cardWidth.value || !cardHeight.value) return null
+  return cardHeight.value / cardWidth.value
+})
+
 const dialogStyle = computed(() => {
-  if (!cardWidth.value || !cardHeight.value) return { width: `${MAX_DIALOG_WIDTH}px` }
-  const ratio = cardHeight.value / cardWidth.value
+  const ratio = dialogRatio.value
+  if (!ratio) return { width: `${MAX_DIALOG_WIDTH}px` }
   const width = Math.min(
     MAX_DIALOG_WIDTH,
     windowWidth.value - VIEWPORT_GAP,
@@ -94,6 +104,9 @@ const dialogStyle = computed(() => {
   flex-direction: column;
   gap: 16px;
   height: 100%;
+}
+
+.scalable-card.bordered {
   padding: 16px 20px;
   border: 1px solid var(--p-content-border-color);
   border-radius: var(--p-card-border-radius);

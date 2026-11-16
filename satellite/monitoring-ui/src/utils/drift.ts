@@ -1,11 +1,34 @@
-import { Severity } from '@/api/monitoring/interfaces'
-import { PSI_SCALE_MAX } from '@/constants/drift'
+import {
+  SectionState,
+  Severity,
+  type FeatureDistribution,
+  type FeatureDriftResponse,
+  type MultivariatePanel,
+  type PcaPoint,
+} from '@/api/monitoring/interfaces'
+import {
+  PCA_PROJECTED_COMPONENTS,
+  PCA_RANGE_PADDING,
+  PCA_RANGE_QUANTILE,
+  PSI_SCALE_MAX,
+} from '@/constants/drift'
 import { SEVERITY_COLORS } from '@/constants/alerts'
+import type { EmptyStateContent } from '@/types/empty'
+import type { MultivariateMetric, PcaBounds, PcaRange } from '@/types/drift'
+import { formatOptional, formatPercent } from '@/utils/format'
 
 const psiFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
+const psiLabelFormat = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 export function formatPsi(psi: number): string {
   return psiFormat.format(psi)
+}
+
+export function formatPsiLabel(psi: number | null | undefined): string {
+  return psi == null ? 'PSI —' : `PSI ${psiLabelFormat.format(psi)}`
 }
 
 export function getPsiProgress(psi: number): number {
@@ -14,4 +37,162 @@ export function getPsiProgress(psi: number): number {
 
 export function getPsiBarColor(severity: Severity): string {
   return SEVERITY_COLORS[severity] ?? SEVERITY_COLORS[Severity.OK]
+}
+
+export function getDistributionCategories(distribution: FeatureDistribution): string[] {
+  return distribution.bins.map((bin) => bin.label)
+}
+
+export function getDistributionSeries(distribution: FeatureDistribution) {
+  return [
+    { name: 'Reference', data: distribution.bins.map((bin) => bin.reference ?? 0) },
+    { name: 'Current', data: distribution.bins.map((bin) => bin.current ?? 0) },
+  ]
+}
+
+export function getFeatureDriftEmptyState(
+  featureDrift: FeatureDriftResponse,
+): EmptyStateContent | null {
+  if (featureDrift.state === SectionState.UNAVAILABLE) {
+    return {
+      title: 'Feature drift unavailable',
+      detail: 'The monitoring store could not provide feature drift for this window.',
+    }
+  }
+  if (featureDrift.state === SectionState.EMPTY) {
+    return {
+      title: 'No feature drift computed yet',
+      detail: 'The worker has not materialized feature drift for this window yet.',
+    }
+  }
+  if (!featureDrift.features.length) {
+    return {
+      title: 'No features to rank',
+      detail: 'Feature drift needs a reference profile and live traffic in this window.',
+    }
+  }
+  return null
+}
+
+export function getMultivariateEmptyState(
+  multivariate: MultivariatePanel,
+): EmptyStateContent | null {
+  if (multivariate.state === SectionState.UNAVAILABLE) {
+    return {
+      title: 'Multivariate drift unavailable',
+      detail: 'The monitoring store could not provide multivariate drift for this window.',
+    }
+  }
+  if (multivariate.state === SectionState.EMPTY) {
+    return {
+      title: 'No multivariate drift computed yet',
+      detail: 'Multivariate drift needs a reference PCA basis and live traffic in this window.',
+    }
+  }
+  return null
+}
+
+export function getMultivariateMetrics(
+  multivariate: MultivariatePanel,
+  totalFeatures: number,
+): MultivariateMetric[] {
+  const projectedVariance = multivariate.explained_variance.slice(0, PCA_PROJECTED_COMPONENTS)
+  const explainedVariance = projectedVariance.length
+    ? projectedVariance.reduce((sum, value) => sum + value, 0)
+    : null
+  return [
+    {
+      label: 'Centroid shift',
+      value: formatOptional(multivariate.shift_value, (value) =>
+        `${value.toFixed(2)} ${multivariate.shift_unit ?? ''}`.trim(),
+      ),
+    },
+    {
+      label: 'Spread vs training',
+      value: formatOptional(multivariate.dispersion_ratio, (value) => `${value.toFixed(2)}×`),
+    },
+    {
+      label: 'Outlier rate',
+      value: formatOptional(multivariate.outlier_rate, formatPercent),
+    },
+    {
+      label: 'Per-feature PSI',
+      value: `${multivariate.feature_psi.length} / ${totalFeatures}`,
+    },
+    {
+      label: 'Explained variance',
+      value: formatOptional(explainedVariance, formatPercent),
+    },
+  ]
+}
+
+const pcaTickFormat = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+})
+
+export function formatPcaTick(value: number): string {
+  return pcaTickFormat.format(value)
+}
+
+function getQuantile(sorted: number[], q: number): number {
+  const index = (sorted.length - 1) * q
+  const lower = Math.floor(index)
+  const upper = Math.ceil(index)
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower)
+}
+
+function getPcaRange(values: number[], ellipseValues: number[]): PcaRange {
+  const sorted = [...values].sort((a, b) => a - b)
+  const candidates = [...ellipseValues]
+  if (sorted.length) {
+    candidates.push(getQuantile(sorted, PCA_RANGE_QUANTILE))
+    candidates.push(getQuantile(sorted, 1 - PCA_RANGE_QUANTILE))
+  }
+  if (!candidates.length) return { min: -1, max: 1 }
+  let min = Math.min(...candidates)
+  let max = Math.max(...candidates)
+  if (min === max) {
+    min -= 1
+    max += 1
+  }
+  const padding = (max - min) * PCA_RANGE_PADDING
+  return { min: min - padding, max: max + padding }
+}
+
+export function getPcaBounds(points: PcaPoint[], ellipses: PcaPoint[]): PcaBounds {
+  return {
+    x: getPcaRange(
+      points.map((point) => point.x),
+      ellipses.map((point) => point.x),
+    ),
+    y: getPcaRange(
+      points.map((point) => point.y),
+      ellipses.map((point) => point.y),
+    ),
+  }
+}
+
+export function isPcaPointInBounds(point: PcaPoint, bounds: PcaBounds): boolean {
+  return (
+    point.x >= bounds.x.min &&
+    point.x <= bounds.x.max &&
+    point.y >= bounds.y.min &&
+    point.y <= bounds.y.max
+  )
+}
+
+export function clampPcaPoint(point: PcaPoint, bounds: PcaBounds): PcaPoint {
+  return {
+    x: Math.min(bounds.x.max, Math.max(bounds.x.min, point.x)),
+    y: Math.min(bounds.y.max, Math.max(bounds.y.min, point.y)),
+  }
+}
+
+export function formatPinnedPoints(count: number): string {
+  return `${count} ${count === 1 ? 'point' : 'points'} beyond range, pinned to the edge`
+}
+
+export function toPcaChartPoints(points: PcaPoint[]): [number, number][] {
+  return points.map((point) => [point.x, point.y])
 }
