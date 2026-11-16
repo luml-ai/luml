@@ -102,3 +102,20 @@ def test_refresh_cookie_endpoints_cannot_bypass_csrf_with_authorization(
     assert csrf_client.post(path, headers=headers).status_code == 403
     headers["Origin"] = "https://app.luml.ai"
     assert csrf_client.post(path, headers=headers).status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/v1/auth/refresh", "/v1/auth/logout"])
+@pytest.mark.parametrize("host", ["x/resource?", "x#fragment", "x?query="])
+def test_refresh_cookie_csrf_uses_routed_path(
+    csrf_client: TestClient, path: str, host: str
+) -> None:
+    response = csrf_client.post(
+        path,
+        headers={
+            "Host": host,
+            "Cookie": "refresh_token=refresh-cookie",
+            "Authorization": "Bearer ignored-token",
+        },
+    )
+
+    assert response.status_code == 403
