@@ -47,6 +47,8 @@ body {
   --p-form-field-hover-border-color: #94a3b8;
   --p-form-field-focus-border-color: #2673fd;
   --p-form-field-focus-ring-color: #00000000;
+  --p-form-field-focus-ring-width: 0px;
+  --p-form-field-focus-ring-offset: 0px;
   --p-form-field-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-form-field-invalid-border-color: #f87171;
   --p-form-field-invalid-placeholder-color: #dc2626;
@@ -353,8 +355,8 @@ body {
   --p-autocomplete-hover-border-color: #94a3b8;
   --p-autocomplete-focus-border-color: #2673fd;
   --p-autocomplete-focus-ring-color: #00000000;
-  --p-autocomplete-focus-ring-width: [object Object];
-  --p-autocomplete-focus-ring-offset: [object Object];
+  --p-autocomplete-focus-ring-width: 0px;
+  --p-autocomplete-focus-ring-offset: 0px;
   --p-autocomplete-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-autocomplete-invalid-border-color: #f87171;
   --p-autocomplete-invalid-placeholder-color: #dc2626;
@@ -1305,8 +1307,8 @@ body {
   --p-inputtext-hover-border-color: #94a3b8;
   --p-inputtext-focus-border-color: #2673fd;
   --p-inputtext-focus-ring-color: #00000000;
-  --p-inputtext-focus-ring-width: [object Object];
-  --p-inputtext-focus-ring-offset: [object Object];
+  --p-inputtext-focus-ring-width: 0px;
+  --p-inputtext-focus-ring-offset: 0px;
   --p-inputtext-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-inputtext-invalid-border-color: #f87171;
   --p-inputtext-invalid-placeholder-color: #dc2626;
@@ -1485,8 +1487,8 @@ body {
   --p-cascadeselect-hover-border-color: #94a3b8;
   --p-cascadeselect-focus-border-color: #2673fd;
   --p-cascadeselect-focus-ring-color: #00000000;
-  --p-cascadeselect-focus-ring-width: [object Object];
-  --p-cascadeselect-focus-ring-offset: [object Object];
+  --p-cascadeselect-focus-ring-width: 0px;
+  --p-cascadeselect-focus-ring-offset: 0px;
   --p-cascadeselect-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-cascadeselect-invalid-border-color: #f87171;
   --p-cascadeselect-invalid-placeholder-color: #dc2626;
@@ -1533,8 +1535,8 @@ body {
   --p-select-hover-border-color: #94a3b8;
   --p-select-focus-border-color: #2673fd;
   --p-select-focus-ring-color: #00000000;
-  --p-select-focus-ring-width: [object Object];
-  --p-select-focus-ring-offset: [object Object];
+  --p-select-focus-ring-width: 0px;
+  --p-select-focus-ring-offset: 0px;
   --p-select-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-select-invalid-border-color: #f87171;
   --p-select-invalid-placeholder-color: #dc2626;
@@ -1607,8 +1609,8 @@ body {
   --p-textarea-hover-border-color: #94a3b8;
   --p-textarea-focus-border-color: #2673fd;
   --p-textarea-focus-ring-color: #00000000;
-  --p-textarea-focus-ring-width: [object Object];
-  --p-textarea-focus-ring-offset: [object Object];
+  --p-textarea-focus-ring-width: 0px;
+  --p-textarea-focus-ring-offset: 0px;
   --p-textarea-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-textarea-invalid-border-color: #f87171;
   --p-textarea-invalid-placeholder-color: #dc2626;
@@ -1641,8 +1643,8 @@ body {
   --p-multiselect-hover-border-color: #94a3b8;
   --p-multiselect-focus-border-color: #2673fd;
   --p-multiselect-focus-ring-color: #00000000;
-  --p-multiselect-focus-ring-width: [object Object];
-  --p-multiselect-focus-ring-offset: [object Object];
+  --p-multiselect-focus-ring-width: 0px;
+  --p-multiselect-focus-ring-offset: 0px;
   --p-multiselect-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-multiselect-invalid-border-color: #f87171;
   --p-multiselect-invalid-placeholder-color: #dc2626;
@@ -1693,8 +1695,8 @@ body {
   --p-treeselect-hover-border-color: #94a3b8;
   --p-treeselect-focus-border-color: #2673fd;
   --p-treeselect-focus-ring-color: #00000000;
-  --p-treeselect-focus-ring-width: [object Object];
-  --p-treeselect-focus-ring-offset: [object Object];
+  --p-treeselect-focus-ring-width: 0px;
+  --p-treeselect-focus-ring-offset: 0px;
   --p-treeselect-focus-ring-shadow: 0px 0px 0px 0px #00000000;
   --p-treeselect-invalid-border-color: #f87171;
   --p-treeselect-invalid-placeholder-color: #dc2626;
