@@ -9,7 +9,9 @@ when the internal clipboard is empty.
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
+import threading
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -21,6 +23,7 @@ from lumlflow.tui import clipboard as clipboard_module
 from lumlflow.tui.clipboard import read_system_clipboard
 from lumlflow.tui.data import DataFacade
 from lumlflow.tui.screens.cloud_publish import CloudPublishScreen
+from lumlflow.tui.widgets.dialogs import EditEntityDialog, EntityEditResult
 from textual.widgets import Input
 
 # ---------------------------------------------------------------------------
@@ -160,39 +163,129 @@ class TestCtrlVPaste:
                 await pilot.pause()
                 assert key_input.value == ""
 
-
-async def test_clipboard_read_does_not_block_ui(tmp_path, monkeypatch):
-    import asyncio
-    import threading
-
-    app = _make_app(tmp_path)
-    entered = threading.Event()
-    release = threading.Event()
-    loop_thread = threading.get_ident()
-    threads = []
-
-    def read():
-        threads.append(threading.get_ident())
-        entered.set()
-        release.wait(2)
-        return "key"
-
-    monkeypatch.setattr("lumlflow.tui.app.read_system_clipboard", read)
-    with patch.object(app.facade.auth, "has_api_key", return_value=False):
-        async with app.run_test() as pilot:
-            key_input = await _publish_screen_with_key_input(app, pilot)
-            try:
+    async def test_multiline_paste_keeps_every_line(self, tmp_path: Path) -> None:
+        app = _make_app(tmp_path)
+        with (
+            patch.object(app.facade.auth, "has_api_key", return_value=False),
+            patch(
+                "lumlflow.tui.app.read_system_clipboard",
+                return_value="line one\nline two",
+            ),
+        ):
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                key_input = await _publish_screen_with_key_input(app, pilot)
                 await pilot.press("ctrl+v")
-                for _ in range(100):
-                    if entered.is_set():
-                        break
-                    await asyncio.sleep(0.01)
-                assert entered.is_set()
-                assert threads[0] != loop_thread
+                await pilot.pause()
+                assert key_input.value == "line one\nline two"
+
+
+class _SlowClipboard:
+    def __init__(self) -> None:
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.threads: list[int] = []
+
+    def read(self) -> str:
+        self.threads.append(threading.get_ident())
+        self.entered.set()
+        self.release.wait(5)
+        return "KEY"
+
+    async def paste(self, pilot: Any) -> asyncio.Task[None]:
+        press = asyncio.create_task(pilot.press("ctrl+v"))
+        for _ in range(200):
+            if self.entered.is_set():
+                break
+            await asyncio.sleep(0.01)
+        assert self.entered.is_set()
+        return press
+
+
+class TestCtrlVPasteDuringSlowRead:
+    @pytest.fixture
+    def clipboard(self, monkeypatch: pytest.MonkeyPatch) -> _SlowClipboard:
+        clipboard = _SlowClipboard()
+        monkeypatch.setattr("lumlflow.tui.app.read_system_clipboard", clipboard.read)
+        return clipboard
+
+    async def test_read_runs_off_the_event_loop(
+        self, tmp_path: Path, clipboard: _SlowClipboard
+    ) -> None:
+        app = _make_app(tmp_path)
+        loop_thread = threading.get_ident()
+        with patch.object(app.facade.auth, "has_api_key", return_value=False):
+            async with app.run_test() as pilot:
+                key_input = await _publish_screen_with_key_input(app, pilot)
+                ticks: list[int] = []
+                try:
+                    press = await clipboard.paste(pilot)
+                    key_input.set_interval(0.01, lambda: ticks.append(1))
+                    for _ in range(200):
+                        if ticks:
+                            break
+                        await asyncio.sleep(0.01)
+                    assert ticks
+                    assert key_input.value == ""
+                    assert clipboard.threads == [clipboard.threads[0]]
+                    assert clipboard.threads[0] != loop_thread
+                finally:
+                    clipboard.release.set()
+                await press
+                await pilot.pause()
+                assert key_input.value == "KEY"
+
+    @pytest.mark.parametrize(
+        ("keys", "expected"),
+        [
+            (("ctrl+v",), "KEYKEY"),
+            (("x", "y"), "KEYxy"),
+        ],
+    )
+    async def test_keys_pressed_during_read_apply_after_the_paste(
+        self,
+        tmp_path: Path,
+        clipboard: _SlowClipboard,
+        keys: tuple[str, ...],
+        expected: str,
+    ) -> None:
+        app = _make_app(tmp_path)
+        with patch.object(app.facade.auth, "has_api_key", return_value=False):
+            async with app.run_test() as pilot:
+                key_input = await _publish_screen_with_key_input(app, pilot)
+                try:
+                    press = await clipboard.paste(pilot)
+                    later = asyncio.create_task(pilot.press(*keys))
+                    await asyncio.sleep(0.05)
+                    assert key_input.value == ""
+                finally:
+                    clipboard.release.set()
+                await asyncio.gather(press, later)
+                await pilot.pause()
+                assert key_input.value == expected
+
+    async def test_save_during_read_keeps_the_paste(
+        self, tmp_path: Path, clipboard: _SlowClipboard
+    ) -> None:
+        app = _make_app(tmp_path)
+        async with app.run_test() as pilot:
+            result: dict[str, Any] = {}
+            app.push_screen(
+                EditEntityDialog(title="Edit", name="orig"),
+                callback=lambda value: result.update(value=value),
+            )
+            await pilot.pause()
+            app.screen.query_one("#edit-description", Input).focus()
+            await pilot.pause()
+            try:
+                press = await clipboard.paste(pilot)
+                save = asyncio.create_task(pilot.press("ctrl+s"))
+                await asyncio.sleep(0.05)
+                assert result == {}
             finally:
-                release.set()
-            for _ in range(100):
-                if key_input.value:
-                    break
-                await asyncio.sleep(0.01)
-            assert key_input.value == "key"
+                clipboard.release.set()
+            await asyncio.gather(press, save)
+            await pilot.pause()
+            saved = result["value"]
+            assert isinstance(saved, EntityEditResult)
+            assert saved.description == "KEY"

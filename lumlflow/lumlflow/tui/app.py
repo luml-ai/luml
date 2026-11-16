@@ -4,7 +4,6 @@ import asyncio
 from collections import deque
 from datetime import datetime
 
-from textual import work
 from textual.app import App, ComposeResult, ScreenError
 from textual.binding import Binding
 from textual.widget import Widget
@@ -98,6 +97,7 @@ class LumlflowApp(App[None]):
         self._attach_timeout: float = attach_timeout
         self._active_run_screen: RunAttachScreen | None = None
         self._quit_in_progress: bool = False
+        self._system_clipboard: str = ""
         # `q` on home arms a short press-again-to-quit window.
         self._quit_armed: bool = False
         # Rolling log of toasts so a missed message isn't gone forever —
@@ -439,18 +439,22 @@ class LumlflowApp(App[None]):
 
     # ----- Clipboard -----
 
-    @work(group="clipboard-paste", exclusive=True)
+    @property
+    def clipboard(self) -> str:
+        return self._clipboard or self._system_clipboard
+
     async def action_paste(self) -> None:
         focused = self.focused
         if focused is None or not _is_text_input(focused):
             return
-        text: str | None = self._clipboard or await asyncio.to_thread(
-            read_system_clipboard
-        )
-        if text and focused is self.focused and focused.is_mounted:
-            from textual.events import Paste
-
-            focused.post_message(Paste(text))
+        if not self._clipboard:
+            text = await asyncio.to_thread(read_system_clipboard)
+            self._system_clipboard = text or ""
+        try:
+            if self.clipboard and focused is self.focused and focused.is_mounted:
+                await focused.run_action("paste")
+        finally:
+            self._system_clipboard = ""
 
     # ----- Yank (OSC52 clipboard) -----
 
