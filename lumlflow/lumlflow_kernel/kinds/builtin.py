@@ -520,6 +520,6 @@ def _importable(name: str) -> bool:
 
 
 def _content_type(path: Path) -> str:
-    from mimetypes import guess_type
+    from mimetypes import MimeTypes
 
-    return guess_type(path.name)[0] or "application/octet-stream"
+    return MimeTypes().guess_type(path.name)[0] or "application/octet-stream"
