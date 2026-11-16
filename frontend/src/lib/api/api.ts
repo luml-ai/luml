@@ -149,7 +149,9 @@ export class ApiClass {
   }
 
   public async getMe(): Promise<IGetUserResponse> {
-    const { data: responseData } = await this.api.get('/v1/auth/users/me')
+    const { data: responseData } = await this.api.get('/v1/auth/users/me', {
+      sessionCheck: true,
+    })
 
     return responseData
   }
@@ -175,7 +177,11 @@ export class ApiClass {
   }
 
   public async logout(): Promise<TPostLogoutResponse> {
-    const { data: responseData } = await this.api.post('/v1/auth/logout', {})
+    const { data: responseData } = await this.api.post(
+      '/v1/auth/logout',
+      {},
+      { skipInterceptors: true },
+    )
     return responseData
   }
 

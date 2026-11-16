@@ -11,20 +11,27 @@ export const useInvitationsStore = defineStore('invitations', () => {
   const isLoading = ref(false)
   const isLoaded = ref(false)
   const loadError = ref(false)
+  let invitationsRequestId = 0
 
   async function getInvitations() {
+    const requestId = ++invitationsRequestId
     isLoading.value = true
     loadError.value = false
 
     try {
-      invitations.value = await api.getInvitations()
+      const response = await api.getInvitations()
+      if (requestId === invitationsRequestId) invitations.value = response
     } catch (error) {
-      invitations.value = []
-      loadError.value = true
+      if (requestId === invitationsRequestId) {
+        invitations.value = []
+        loadError.value = true
+      }
       throw error
     } finally {
-      isLoading.value = false
-      isLoaded.value = true
+      if (requestId === invitationsRequestId) {
+        isLoading.value = false
+        isLoaded.value = true
+      }
     }
   }
 
@@ -51,6 +58,7 @@ export const useInvitationsStore = defineStore('invitations', () => {
   }
 
   function reset() {
+    invitationsRequestId++
     invitations.value = []
     isLoading.value = false
     isLoaded.value = false

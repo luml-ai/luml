@@ -5,7 +5,7 @@ import jwt
 import pytest
 from jwt.exceptions import InvalidTokenError
 from luml.handlers.auth import AuthHandler
-from luml.infra.exceptions import AuthError
+from luml.infra.exceptions import AuthError, RefreshTokenReusedError
 from luml.schemas.auth import Token
 from luml.schemas.user import CreateUser, CurrentUserOut, SignInUser, User
 
@@ -216,13 +216,42 @@ class TestAuthTokens:
                 "exp": int(time()) + 300,
             }
 
-            with pytest.raises(AuthError, match="Token has been revoked") as error:
+            with pytest.raises(
+                RefreshTokenReusedError, match="Token has been revoked"
+            ) as error:
                 await mocks.handler.handle_refresh_token(tokens.refresh_token)
 
         assert error.value.status_code == 400
         mocks.token_black_list_repository.add_token.assert_awaited_once_with(
             tokens.refresh_token, ANY
         )
+
+    async def test_handle_refresh_token_rejects_token_issued_before_password_change(
+        self,
+        mocks: CollaboratorMocks[AuthHandler],
+        new_user: CreateUser,
+        tokens: Token,
+    ) -> None:
+        mocks.user_repository.get_user.return_value = Mock(
+            email=new_user.email, hashed_password="replacement-hash"
+        )
+
+        assert tokens.refresh_token
+
+        with patch("luml.handlers.auth.jwt.decode") as mock_jwt_decode:
+            mock_jwt_decode.return_value = {
+                "sub": new_user.email,
+                "type": "refresh",
+                "pwh": mocks.handler._password_fingerprint("original-hash"),
+                "exp": int(time()) + 300,
+            }
+
+            with pytest.raises(AuthError, match="Token has been revoked") as error:
+                await mocks.handler.handle_refresh_token(tokens.refresh_token)
+
+        assert not isinstance(error.value, RefreshTokenReusedError)
+        assert error.value.status_code == 400
+        mocks.token_black_list_repository.add_token.assert_not_awaited()
 
     async def test_handle_refresh_token_raises_when_user_not_found(
         self,
