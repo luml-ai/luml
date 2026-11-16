@@ -64,3 +64,12 @@ class TestSettings:
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(db_file))
         settings = Settings()  # type: ignore[call-arg]
         assert settings.BACKEND_STORE_URI == str(tmp_path.resolve())
+
+    def test_parsing_does_not_touch_the_filesystem(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        store = tmp_path / "missing" / "store"
+        monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(store))
+        settings = Settings()  # type: ignore[call-arg]
+        assert settings.BACKEND_STORE_URI == str(store.resolve())
+        assert list(tmp_path.iterdir()) == []
