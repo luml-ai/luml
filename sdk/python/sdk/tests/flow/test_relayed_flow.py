@@ -88,12 +88,18 @@ def stub_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     record = tmp_path / "lumlflow-starts.jsonl"
     stub_directory = tmp_path / "bin"
     write_stub_lumlflow(stub_directory)
-    monkeypatch.setenv("PATH", str(stub_directory))
+    if sys.platform == "win32":
+        system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+        system32 = os.path.join(system_root, "system32")
+        new_path = os.pathsep.join([str(stub_directory), system32, system_root])
+        monkeypatch.setenv("PATH", new_path)
+    else:
+        monkeypatch.setenv("PATH", str(stub_directory))
     monkeypatch.setenv("STUB_LUMLFLOW_RECORD", str(record))
     yield record
     for start in _stub_starts(record):
         if _alive(start["pid"]):
-            os.kill(start["pid"], signal.SIGKILL)
+            os.kill(start["pid"], getattr(signal, "SIGKILL", signal.SIGTERM))
 
 
 @pytest.fixture
@@ -110,6 +116,20 @@ def _stub_starts(record: Path) -> list[dict]:
 
 
 def _alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x0400, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            return exit_code.value == 259
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -257,6 +277,28 @@ def test_port_in_use_fails_before_anything_is_created(
 
     assert clients.flows.exposed == []
     assert _stub_starts(stub_record) == []
+
+
+@pytest.mark.usefixtures("clients", "serving")
+def test_connection_timeout_on_a_free_port_starts_lumlflow(
+    port: int, stub_record: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    get = httpx.get
+    probed: list[str] = []
+
+    def timing_out_once(url: str, **options) -> httpx.Response:
+        probed.append(url)
+        if len(probed) == 1:
+            raise httpx.ConnectTimeout("timed out")
+        return get(url, **options)
+
+    monkeypatch.setattr(httpx, "get", timing_out_once)
+
+    with RelayedFlow("training", port=port):
+        assert _answers(port)
+
+    assert len(_stub_starts(stub_record)) == 1
+    assert not _answers(port)
 
 
 @pytest.mark.usefixtures("serving", "no_lumlflow")
@@ -431,7 +473,10 @@ raise RuntimeError("training failed")
 
 @pytest.mark.parametrize(
     ("ending", "returncode"),
-    [("terminate", -signal.SIGTERM), ("error", 1)],
+    [
+        ("terminate", 15 if sys.platform == "win32" else -signal.SIGTERM),
+        ("error", 1),
+    ],
 )
 def test_process_end_ends_only_its_own_session_once_and_stops_lumlflow(
     ending: str, returncode: int, port: int, stub_record: Path, tmp_path: Path
