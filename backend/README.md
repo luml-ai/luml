@@ -90,9 +90,9 @@ untrusted origins return 403. Browsers send this header automatically; configure
 `CORS_ORIGINS` for the frontend origin in cross-origin deployments, including when
 `AUTH_COOKIE_SAMESITE=none`.
 
-The same-origin comparison uses the ASGI scope's scheme and server address.
-When a proxy exposes a different public API origin, include that origin in
-`CORS_ORIGINS` as well. The `Host` header does not select a trusted origin.
+The same-origin comparison uses the request scheme and the `Host` header. A
+malformed `Host` (for example one containing `/`, `?` or `#`) is ignored and the
+ASGI server address is used instead.
 
 Bearer JWT, API key, and satellite key requests use the `Authorization` header and
 do not require this check. Refresh and logout always use cookies and remain

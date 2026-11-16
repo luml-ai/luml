@@ -85,15 +85,11 @@ class CookieCSRFMiddleware(BaseHTTPMiddleware):
         )
         if request.method not in {"GET", "HEAD", "OPTIONS"} and uses_cookie_auth:
             origin = request.headers.get("Origin")
-            server = request.scope.get("server")
-            same_origin = None
-            if server is not None:
-                host, port = server
-                host = f"[{host}]" if ":" in host else host
-                scheme = request.scope["scheme"]
-                if port is not None and port != {"http": 80, "https": 443}.get(scheme):
-                    host = f"{host}:{port}"
-                same_origin = f"{scheme}://{host}"
+            same_origin = (
+                f"{request.url.scheme}://{request.url.netloc}"
+                if request.url.netloc
+                else None
+            )
             if not origin or (
                 origin != same_origin and origin not in self.allowed_origins
             ):

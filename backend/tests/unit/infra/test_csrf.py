@@ -125,8 +125,10 @@ def test_refresh_cookie_csrf_uses_routed_path(
     assert response.status_code == 403
 
 
-@pytest.mark.parametrize("host", ["evil.example", "evil.example/path?"])
-def test_host_header_cannot_choose_trusted_origin(
+@pytest.mark.parametrize(
+    "host", ["evil.example/path?", "evil.example#fragment", "evil.example?query="]
+)
+def test_malformed_host_cannot_choose_trusted_origin(
     csrf_client: TestClient, host: str
 ) -> None:
     response = csrf_client.post(
@@ -152,7 +154,9 @@ def test_host_header_cannot_choose_trusted_origin(
         "https://[::1]:8443",
     ],
 )
-def test_same_origin_uses_scope_server(csrf_client: TestClient, origin: str) -> None:
+def test_malformed_host_falls_back_to_scope_server(
+    csrf_client: TestClient, origin: str
+) -> None:
     csrf_client.base_url = origin
     response = csrf_client.post(
         "/resource",
@@ -183,6 +187,39 @@ async def test_missing_scope_server_requires_configured_origin(
         "scheme": "http",
         "server": None,
         "headers": headers,
+    }
+    middleware = CookieCSRFMiddleware(FastAPI(), ["https://app.luml.ai"])
+
+    response = await middleware.dispatch(
+        Request(scope), AsyncMock(return_value=Response(status_code=200))
+    )
+
+    assert response.status_code == status
+
+
+@pytest.mark.parametrize(
+    ("host", "origin", "status"),
+    [
+        ("localhost:8000", "http://localhost:8000", 200),
+        ("api.luml.ai", "http://api.luml.ai", 200),
+        ("localhost:8000", "http://localhost:5173", 403),
+        ("localhost:8000/docs?", "http://localhost:8000", 403),
+    ],
+)
+async def test_same_origin_follows_valid_host_behind_proxy(
+    host: str, origin: str, status: int
+) -> None:
+    scope: Scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/resource",
+        "scheme": "http",
+        "server": ("172.18.0.5", 8000),
+        "headers": [
+            (b"host", host.encode()),
+            (b"origin", origin.encode()),
+            (b"cookie", b"access_token=cookie-token"),
+        ],
     }
     middleware = CookieCSRFMiddleware(FastAPI(), ["https://app.luml.ai"])
 
