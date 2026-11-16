@@ -1,6 +1,8 @@
+FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
+
 FROM python:3.12-slim
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.8 /uv /bin/uv
+COPY --from=uv /uv /bin/uv
 
 WORKDIR /app
 
