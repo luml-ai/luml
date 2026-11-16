@@ -45,6 +45,15 @@ def load_dataset(
     return MaterializedDataset(manifest, cache_dir)
 
 
+def _is_newer_version(candidate: str, installed: str) -> bool:
+    from packaging.version import InvalidVersion, Version
+
+    try:
+        return Version(candidate) > Version(installed)
+    except InvalidVersion:
+        return False
+
+
 class MaterializedDataset:
     def __init__(
         self,
@@ -224,6 +233,7 @@ class MaterializedDataset:
             from datasets import (  # type: ignore[import-untyped]
                 Dataset,
                 DatasetDict,
+                __version__ as installed_version,
                 load_from_disk,
             )
         except ImportError:
@@ -243,7 +253,18 @@ class MaterializedDataset:
 
         data_dir = self._cache_dir / payload.data_dir
         config_path = data_dir / config
-        loaded = load_from_disk(str(config_path))
+        try:
+            loaded = load_from_disk(str(config_path))
+        except ValueError as error:
+            saved_version = payload.library_version
+            if not _is_newer_version(saved_version, installed_version):
+                raise
+            msg = (
+                f"Config '{config}' was saved with datasets {saved_version} and "
+                f"cannot be read by the installed datasets {installed_version}. "
+                f"Upgrade with: pip install 'datasets>={saved_version}'"
+            )
+            raise ValueError(msg) from error
 
         if isinstance(loaded, DatasetDict):
             return loaded

@@ -2,11 +2,14 @@
 
 import ipaddress
 import re
+import shlex
+import subprocess
 import tomllib
 import unittest
 from pathlib import Path
 
 import yaml
+from test_release_gates import load
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -16,6 +19,46 @@ def project_file(relative):
 
 
 class DependencyHygieneTests(unittest.TestCase):
+    def test_lumlflow_commits_a_complete_dependency_lock(self):
+        lock = project_file("lumlflow/uv.lock")
+        packages = {package["name"]: package for package in lock["package"]}
+        for name in ("lumlflow", "luml-sdk", "luml-api", "pytest", "ruff", "pyarrow"):
+            with self.subTest(package=name):
+                self.assertIn(name, packages)
+        self.assertTrue(packages["pyarrow"]["wheels"])
+        self.assertNotIn(
+            "uv.lock", (ROOT / "lumlflow/.gitignore").read_text().splitlines()
+        )
+        ignored = subprocess.run(
+            ["git", "check-ignore", "--no-index", "-q", "lumlflow/uv.lock"],
+            cwd=ROOT,
+            check=False,
+        )
+        self.assertEqual(ignored.returncode, 1)
+
+    def test_lumlflow_direct_dependencies_have_upper_bounds(self):
+        project = project_file("lumlflow/pyproject.toml")
+        groups = [project["project"]["dependencies"]]
+        groups.extend(project["project"]["optional-dependencies"].values())
+        groups.extend(project["dependency-groups"].values())
+        for group in groups:
+            for requirement in group:
+                with self.subTest(requirement=requirement):
+                    self.assertRegex(requirement, r"<\s*\d")
+
+    def test_lumlflow_workflow_freezes_all_uv_commands(self):
+        jobs = load("[lumlflow] tests-and-linters.yml")["jobs"]
+        commands = []
+        for name, job in jobs.items():
+            for step in job["steps"]:
+                for line in step.get("run", "").splitlines():
+                    words = shlex.split(line)
+                    if words[:2] in (["uv", "sync"], ["uv", "run"]):
+                        commands.append(words)
+                        with self.subTest(job=name, command=line):
+                            self.assertIn("--frozen", words[2:])
+        self.assertTrue(commands)
+
     def test_development_ports_only_publish_on_loopback(self):
         for relative in ("backend/docker-compose.yml", "dev/docker-compose.yml"):
             config = yaml.safe_load((ROOT / relative).read_text())
@@ -56,6 +99,37 @@ class DependencyHygieneTests(unittest.TestCase):
         self.assertTrue(arrow["wheels"])
         ignored = (ROOT / sdk / ".gitignore").read_text().splitlines()
         self.assertNotIn("uv.lock", ignored)
+
+    def test_backend_locks_patched_starlette_and_opentelemetry(self):
+        lock = project_file("backend/uv.lock")
+        packages = {package["name"]: package for package in lock["package"]}
+        self.assertGreaterEqual(
+            tuple(map(int, packages["starlette"]["version"].split("."))), (1, 3, 1)
+        )
+        telemetry = [
+            p for p in lock["package"] if p["name"].startswith("opentelemetry-")
+        ]
+        self.assertTrue(telemetry)
+        for package in telemetry:
+            with self.subTest(package=package["name"]):
+                version = package["version"]
+                if "b" in version:
+                    self.assertGreaterEqual(
+                        tuple(map(int, re.findall(r"\d+", version))), (0, 66, 1)
+                    )
+                else:
+                    self.assertGreaterEqual(
+                        tuple(map(int, version.split("."))), (1, 45, 1)
+                    )
+
+    def test_jupyter_locks_patched_lite_packages(self):
+        lock = project_file("wasm/jupyter/uv.lock")
+        packages = {package["name"]: package for package in lock["package"]}
+        for name in ("jupyterlite", "jupyterlite-core"):
+            with self.subTest(package=name):
+                self.assertGreaterEqual(
+                    tuple(map(int, packages[name]["version"].split("."))), (0, 8, 4)
+                )
 
     def test_jupyter_image_uses_complete_lock_with_patched_starlette(self):
         jupyter = "wasm/jupyter"

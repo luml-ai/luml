@@ -1,8 +1,14 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Activity, Rocket } from 'lucide-vue-next'
 import { SatelliteStatusEnum, type Satellite } from '@/lib/api/satellites/interfaces'
 import SatellitesCard from './SatellitesCard.vue'
+
+vi.mock('@/stores/orbits', () => ({
+  useOrbitsStore: () => ({
+    getCurrentOrbitPermissions: { deployment: ['update', 'delete'], satellite: ['update'] },
+  }),
+}))
 
 function satellite(overrides: Partial<Satellite> = {}): Satellite {
   return {

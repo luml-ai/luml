@@ -20,6 +20,7 @@
           </div>
           <div class="secret-key">
             <Button
+              v-if="copyAvailable"
               variant="text"
               severity="secondary"
               class="eye-button"
@@ -29,10 +30,7 @@
                 <Eye :size="15" />
               </template>
             </Button>
-            <span v-if="!visibleSecrets[secret.id]" class="secret-hidden">
-              {{ maskSecret(secret.value) }}
-            </span>
-            <span v-else class="secret-revealed">{{ secret.value }}</span>
+            <span class="secret-hidden">{{ SECRET_MASK }}</span>
           </div>
           <div class="tags">
             <Tag v-for="tag in normalizeTags(secret.tags)" :key="tag" class="tag">
@@ -44,7 +42,12 @@
           </div>
 
           <div class="actions">
-            <Button variant="text" severity="secondary" @click="editSecret(secret)">
+            <Button
+              v-if="editAvailable"
+              variant="text"
+              severity="secondary"
+              @click="editSecret(secret)"
+            >
               <template #icon>
                 <Bolt :size="14" />
               </template>
@@ -55,24 +58,33 @@
     </div>
   </div>
 
-  <SecretModal v-model:visible="secretModalVisible" :secret="currentSecret" />
+  <SecretModal v-if="copyAvailable" v-model:visible="secretModalVisible" :secret="currentSecret" />
 
-  <SecretEditor v-model:visible="editDialogVisible" :secret="secretToEdit" />
+  <SecretEditor
+    v-if="editAvailable"
+    v-model:visible="editDialogVisible"
+    :secret="secretToEdit"
+    :delete-available="canDelete"
+  />
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
+import { computed, ref } from 'vue'
 import { Button, Tag } from 'primevue'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import type { OrbitSecret } from '@/lib/api/orbit-secrets/interfaces'
 import SecretEditor from './SecretsEditor.vue'
 import SecretModal from './SecretModal.vue'
 import { Eye, Bolt } from 'lucide-vue-next'
-import { maskSecret } from './secretMask'
+import { SECRET_MASK } from './secretMask'
 
 const secretsStore = useSecretsStore()
-
-const visibleSecrets = reactive<Record<string, boolean>>({})
+const orbitsStore = useOrbitsStore()
+const canDelete = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.orbit_secret?.includes(PermissionEnum.delete),
+)
 
 const editDialogVisible = ref(false)
 const secretToEdit = ref<OrbitSecret | null>(null)
@@ -86,14 +98,16 @@ type Props = {
   copyAvailable?: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const editSecret = (secret: OrbitSecret) => {
+  if (!props.editAvailable) return
   secretToEdit.value = secret
   editDialogVisible.value = true
 }
 
 function showSecretModal(secret: OrbitSecret) {
+  if (!props.copyAvailable) return
   currentSecret.value = secret
   secretModalVisible.value = true
 }

@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Generator
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import patch
@@ -19,6 +20,8 @@ from luml.infra.observability import (
     configure_observability,
 )
 from luml.settings import config
+from opentelemetry import propagate, trace
+from opentelemetry.context import Context
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.resources import Resource
@@ -47,6 +50,7 @@ def captured_telemetry(
     original_platform_propagation = platform_logger.propagate
     app_logger = logging.getLogger("luml")
     original_app_level = app_logger.level
+    original_propagator = propagate.get_global_textmap()
     with (
         patch("luml.infra.observability.OTLPSpanExporter", return_value=exporter),
         patch("luml.infra.observability.BatchSpanProcessor", SimpleSpanProcessor),
@@ -56,6 +60,7 @@ def captured_telemetry(
     platform_logger.handlers[:] = original_platform_handlers
     platform_logger.propagate = original_platform_propagation
     app_logger.setLevel(original_app_level)
+    propagate.set_global_textmap(original_propagator)
     HTTPXClientInstrumentor().uninstrument()
     SQLAlchemyInstrumentor().uninstrument()
 
@@ -74,6 +79,45 @@ def test_no_token_does_not_configure_or_export(token: SecretStr | None) -> None:
     exporter.assert_not_called()
     assert TestClient(app).get("/openapi.json").status_code == 200
     engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "tracestate",
+    [
+        pytest.param("a=b" + " " * 100_000 + "x", id="oversized-spaces"),
+        pytest.param("a=b" + "\t" * 100_000 + "x", id="oversized-tabs"),
+        pytest.param(
+            ["a=b" + " " * 50_000, "c=d" + "\t" * 50_000 + "x"],
+            id="multiple-oversized-headers",
+        ),
+        pytest.param("a=b" + " " * 8_000 + "x", id="malformed-within-limit"),
+        pytest.param("malformed", id="malformed"),
+        pytest.param("a=b", id="valid"),
+    ],
+)
+def test_configured_propagator_handles_tracestate_promptly(
+    captured_telemetry: InMemorySpanExporter, tracestate: str | list[str]
+) -> None:
+    engine = create_engine("sqlite://")
+    try:
+        configure_observability(
+            FastAPI(),
+            engine,
+            config.model_copy(update={"LOGFIRE_TOKEN": SecretStr("test-token")}),
+        )
+        assert "tracestate" in propagate.get_global_textmap().fields
+        carrier = {
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            "tracestate": tracestate,
+        }
+        started = time.perf_counter()
+        context = propagate.extract(carrier, context=Context())
+        elapsed = time.perf_counter() - started
+
+        assert elapsed < 0.05
+        assert not trace.get_current_span(context).get_span_context().is_valid
+    finally:
+        engine.dispose()
 
 
 @pytest.mark.parametrize("environment", ["dev", "staging", "prod"])
@@ -387,3 +431,42 @@ def test_platform_admin_logs_are_forwarded_once(
     assert len(audit_spans) == 1
     assert (audit_spans[0].attributes or {})["logfire.msg"] == "audit entry"
     engine.dispose()
+
+
+def test_backend_starts_and_exports_spans_with_tracing_enabled() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+exporter = InMemorySpanExporter()
+with (
+    patch("luml.infra.observability.OTLPSpanExporter", return_value=exporter),
+    patch("luml.infra.observability.BatchSpanProcessor", SimpleSpanProcessor),
+):
+    from luml.server import app
+
+@app.get("/tracing-check")
+def tracing_check():
+    return {"ok": True}
+
+with TestClient(app) as client:
+    assert client.get("/tracing-check").json() == {"ok": True}
+assert any(
+    (span.attributes or {}).get("http.route") == "/tracing-check"
+    for span in exporter.get_finished_spans()
+)
+""",
+        ],
+        env={**os.environ, "PYTEST_VERSION": "1", "LOGFIRE_TOKEN": "test-token"},
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr.decode()

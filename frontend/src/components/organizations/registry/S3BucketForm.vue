@@ -50,7 +50,7 @@
           v-model="initialValues.secret_key"
           id="secret_key"
           name="secret_key"
-          type="text"
+          type="password"
           placeholder="Enter secret key"
           fluid
         />

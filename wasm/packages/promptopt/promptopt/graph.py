@@ -4,7 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 from promptopt.dataclasses import NodeOutput, Socket, StateDescriptor
-from promptopt.llm import LLM
+from promptopt.llm import LLM, InvalidLLMResponseError
 from promptopt.nodes._base import BaseNode
 from promptopt.nodes.gate import Gate
 from promptopt.nodes.io import InputNode, OutputNode
@@ -159,6 +159,12 @@ class Graph:
 
         state.apply_node_output(input_node_result)
 
+        async def generate_node(node, node_inputs):
+            try:
+                return await node.generate(node_inputs, llm, trace)
+            except InvalidLLMResponseError as error:
+                return error
+
         step = 0
         while True:
             self._fill_queue(state)
@@ -176,11 +182,23 @@ class Graph:
             for node in next_nodes:
                 node_inputs = self._get_node_inputs(node, state)
 
-                tasks.append((node, node.generate(node_inputs, llm, trace)))
+                tasks.append(
+                    (node, asyncio.create_task(generate_node(node, node_inputs)))
+                )
 
-            results: list[NodeOutput] = await asyncio.gather(
-                *(task for _, task in tasks)
-            )
+            try:
+                results = await asyncio.gather(*(task for _, task in tasks))
+            except BaseException:
+                for _, task in tasks:
+                    task.cancel()
+                await asyncio.gather(
+                    *(task for _, task in tasks), return_exceptions=True
+                )
+                raise
+
+            for result in results:
+                if isinstance(result, InvalidLLMResponseError):
+                    raise result
 
             for (node, _), node_output in zip(tasks, results, strict=True):
                 state.reset_socket_counts(node.listens_to)

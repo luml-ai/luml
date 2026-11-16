@@ -2,13 +2,13 @@
   <div class="column">
     <h4 class="column-title">Model</h4>
     <div class="fields">
-      <CollectionSelect
+      <ModelCollectionSelect
         v-model="collectionId"
         :disabled="!!initialCollectionId"
         :organization-id="String($route.params.organizationId)"
         :orbit-id="String($route.params.id)"
         :initial-collection-id="initialCollectionId"
-      ></CollectionSelect>
+      ></ModelCollectionSelect>
       <ModelSelect
         v-model="modelId"
         :disabled="isModelSelectDisabled"
@@ -206,7 +206,7 @@ import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { FormField } from '@primevue/forms'
 import { useRoute } from 'vue-router'
 import SecretsSelect from '../../form/SecretsSelect.vue'
-import CollectionSelect from './CollectionSelect.vue'
+import ModelCollectionSelect from './ModelCollectionSelect.vue'
 import ModelSelect from './ModelSelect.vue'
 
 type Props = {

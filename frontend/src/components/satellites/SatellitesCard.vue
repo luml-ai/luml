@@ -10,12 +10,13 @@
           ></div>
           <span>{{ data.name }}</span>
         </h3>
-        <Button variant="text" severity="secondary" @click.stop.prevent="toggle">
+        <Button v-if="canEdit" variant="text" severity="secondary" @click.stop.prevent="toggle">
           <template #icon>
             <EllipsisVertical :size="14" />
           </template>
         </Button>
         <Menu
+          v-if="canEdit"
           ref="menu"
           :model="menuItems"
           :popup="true"
@@ -49,8 +50,13 @@
       </div>
     </div>
   </div>
-  <SatellitesEditModal v-model:visible="showEditModal" :data="data"></SatellitesEditModal>
+  <SatellitesEditModal
+    v-if="canEdit"
+    v-model:visible="showEditModal"
+    :data="data"
+  ></SatellitesEditModal>
   <SatellitesApiKeyModal
+    v-if="canEdit"
     v-model:visible="showApiKey"
     :api-key="null"
     :satellite-id="data.id"
@@ -62,6 +68,8 @@ import { SatelliteStatusEnum, type Satellite } from '@/lib/api/satellites/interf
 import { getLastUpdateText } from '@/helpers/helpers'
 import { Activity, EllipsisVertical, Rocket } from 'lucide-vue-next'
 import { Button, Menu } from 'primevue'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { computed, ref } from 'vue'
 import SatellitesEditModal from './SatellitesEditModal.vue'
 import SatellitesApiKeyModal from './SatellitesApiKeyModal.vue'
@@ -72,6 +80,10 @@ type Props = {
 }
 
 const props = defineProps<Props>()
+const orbitsStore = useOrbitsStore()
+const canEdit = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.satellite?.includes(PermissionEnum.update),
+)
 
 const showEditModal = ref(false)
 

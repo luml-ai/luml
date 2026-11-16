@@ -2,7 +2,7 @@
   <div class="preview-header" v-if="fileName">
     <div class="file-info-wrapper">
       <div class="file-info">
-        <span class="font-bold text-lg">{{ fileName }}</span>
+        <span class="file-name">{{ fileName }}</span>
         <span v-if="fileSize" class="file-size">
           {{ formatFileSize(fileSize) }}
         </span>
@@ -55,8 +55,8 @@ defineEmits<FilePreviewHeaderEmits>()
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid var(--surface-200);
-  background: var(--surface-50);
+  border-bottom: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
 }
 
 .file-info {
@@ -67,6 +67,11 @@ defineEmits<FilePreviewHeaderEmits>()
 .file-info-wrapper {
   display: flex;
   flex-direction: column;
+}
+
+.file-name {
+  font-weight: 700;
+  font-size: 1.125rem;
 }
 
 .file-size {

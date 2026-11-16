@@ -71,6 +71,9 @@ def write_stub_lumlflow(directory: Path) -> Path:
         )
     )
     command.chmod(0o755)
+    if sys.platform == "win32":
+        cmd_wrapper = directory / "lumlflow.cmd"
+        cmd_wrapper.write_text(f'@"{sys.executable}" "{command}" %*\n')
     return command
 
 

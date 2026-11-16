@@ -46,3 +46,18 @@ jobs:
 
       - name: Run integration tests
         run: uv run --frozen pytest tests/integrations
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: sdk/python/sdk/uv.lock
+
+      - name: Run flow tests
+        run: uv run --frozen --no-dev --extra flow --with pytest==9.0.3 pytest tests/flow

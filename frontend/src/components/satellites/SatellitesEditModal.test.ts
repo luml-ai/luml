@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactive } from 'vue'
 import PrimeVue from 'primevue/config'
 import { SatelliteStatusEnum, type Satellite } from '@/lib/api/satellites/interfaces'
 import SatellitesEditModal from './SatellitesEditModal.vue'
@@ -8,6 +9,9 @@ const { updateSatellite, addToast } = vi.hoisted(() => ({
   updateSatellite: vi.fn(),
   addToast: vi.fn(),
 }))
+
+const orbitStore = reactive({ getCurrentOrbitPermissions: { satellite: [] as string[] } })
+vi.mock('@/stores/orbits', () => ({ useOrbitsStore: () => orbitStore }))
 
 vi.mock('@/stores/satellites', () => ({
   useSatellitesStore: () => ({ updateSatellite }),
@@ -46,7 +50,7 @@ function mountModal() {
         UiDialogRight: {
           props: ['visible', 'footerActions'],
           template:
-            '<div v-if="visible"><slot /><button v-bind="footerActions.rightButton.props">Save changes</button></div>',
+            '<div v-if="visible"><slot /><button v-bind="footerActions.rightButton.props">Save changes</button><a v-if="footerActions.leftButton" data-testid="unpair" @click="footerActions.leftButton.props.onClick()">{{ footerActions.leftButton.props.label }}</a></div>',
         },
         SatelliteDelete: true,
       },
@@ -58,6 +62,7 @@ describe('SatellitesEditModal', () => {
   let wrapper: ReturnType<typeof mountModal>
 
   beforeEach(async () => {
+    orbitStore.getCurrentOrbitPermissions = { satellite: ['read', 'update', 'delete'] }
     updateSatellite.mockReset().mockResolvedValue(undefined)
     addToast.mockReset()
     wrapper = mountModal()
@@ -126,5 +131,17 @@ describe('SatellitesEditModal', () => {
     expect(addToast).not.toHaveBeenCalled()
     expect(wrapper.emitted('update:visible')).toBeUndefined()
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined()
+  })
+
+  it('offers unpairing only with satellite:delete', async () => {
+    orbitStore.getCurrentOrbitPermissions = { satellite: ['read', 'update'] }
+    await flushPromises()
+    expect(wrapper.find('[data-testid="unpair"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'SatelliteDelete' }).exists()).toBe(false)
+
+    orbitStore.getCurrentOrbitPermissions = { satellite: ['read', 'update', 'delete'] }
+    await flushPromises()
+    await wrapper.get('[data-testid="unpair"]').trigger('click')
+    expect(wrapper.getComponent({ name: 'SatelliteDelete' }).props('visible')).toBe(true)
   })
 })

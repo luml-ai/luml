@@ -3,9 +3,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
-from luml.api.organization_routes import organization_all_routers
 from luml.infra.exceptions import ApplicationError
 from luml.schemas.lineage import (
     LineageBatchIn,
@@ -15,6 +13,7 @@ from luml.schemas.lineage import (
     LineageNode,
     LineageVia,
 )
+from luml.service import AppService
 
 from tests.support.auth import API_KEY_USER, SIGNED_IN_USER
 from tests.support.ids import ARTIFACT_ID, ORBIT_ID, ORGANIZATION_ID, USER_ID
@@ -279,19 +278,17 @@ class TestOrbitLineage:
         assert response.status_code == status_code
         assert response.json() == {"detail": message}
 
-    def test_lineage_router_is_registered_for_organizations(self) -> None:
-        paths = {
-            route.path
-            for route in organization_all_routers.routes
-            if isinstance(route, APIRoute)
-        }
+    def test_lineage_router_is_registered_for_organizations(
+        self, app: AppService
+    ) -> None:
+        paths = app.openapi()["paths"]
 
         assert (
-            "/organizations/{organization_id}/orbits/{orbit_id}"
+            "/v1/organizations/{organization_id}/orbits/{orbit_id}"
             "/artifacts/{artifact_id}/lineage"
         ) in paths
         assert (
-            "/organizations/{organization_id}/orbits/{orbit_id}/lineage/batch"
+            "/v1/organizations/{organization_id}/orbits/{orbit_id}/lineage/batch"
         ) in paths
 
     @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity"])

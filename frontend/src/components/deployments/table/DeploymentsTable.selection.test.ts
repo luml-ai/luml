@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactive } from 'vue'
 import PrimeVue from 'primevue/config'
 import {
   DeploymentStatusEnum,
@@ -13,14 +14,25 @@ const { batchAction, confirmRequire, toastAdd } = vi.hoisted(() => ({
   confirmRequire: vi.fn(),
   toastAdd: vi.fn(),
 }))
+const orbitStore = reactive({
+  getCurrentOrbitPermissions: { deployment: ['update', 'delete'] } as
+    | { deployment: string[] }
+    | undefined,
+})
+
+vi.mock('@/stores/orbits', () => ({ useOrbitsStore: () => orbitStore }))
 vi.mock('@/stores/deployments', () => ({ useDeploymentsStore: () => ({ batchAction }) }))
 vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
   useConfirm: () => ({ require: confirmRequire }),
   useToast: () => ({ add: toastAdd }),
 }))
+const route = {
+  query: {} as Record<string, string>,
+  params: { organizationId: 'org-1', id: 'orbit-1' },
+}
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {}, params: { organizationId: 'org-1', id: 'orbit-1' } }),
+  useRoute: () => route,
   useRouter: () => ({ replace: vi.fn() }),
 }))
 
@@ -77,6 +89,8 @@ function mountTable(data = [deployment(1), deployment(2)]) {
 }
 
 beforeEach(() => {
+  route.query = {}
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['update', 'delete'] }
   batchAction.mockReset()
   confirmRequire.mockReset()
   toastAdd.mockReset()
@@ -190,4 +204,56 @@ describe('DeploymentsTable selection and batch actions', () => {
     expect(wrapper.find('[data-testid="batch-results"]').exists()).toBe(false)
     expect(counter(wrapper)).toBe('0 Selected')
   })
+})
+
+it('hides deployment mutations from viewers even when the URL opens settings', async () => {
+  route.query = { deployment: 'deployment-1' }
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['read'] }
+  const wrapper = mountTable()
+  expect(wrapper.find('[data-testid="batch-stop"]').exists()).toBe(false)
+  expect(wrapper.find('[data-testid="batch-delete"]').exists()).toBe(false)
+  expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+  expect(wrapper.find('[aria-label="Deployment settings"]').exists()).toBe(false)
+  expect(wrapper.findComponent({ name: 'DeploymentsEditor' }).exists()).toBe(false)
+  wrapper.unmount()
+})
+
+it('separates deployment editing from deletion and closes editing after access is revoked', async () => {
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['update'] }
+  const wrapper = mountTable()
+  expect(wrapper.find('[data-testid="batch-stop"]').exists()).toBe(false)
+  await wrapper.findAll('[aria-label="Deployment settings"]')[0].trigger('click')
+  expect(wrapper.getComponent({ name: 'DeploymentsEditor' }).props('deleteAvailable')).toBe(false)
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['update', 'delete'] }
+  await flushPromises()
+  expect(wrapper.getComponent({ name: 'DeploymentsEditor' }).props('deleteAvailable')).toBe(true)
+  expect(wrapper.find('[data-testid="batch-stop"]').exists()).toBe(true)
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['read'] }
+  await flushPromises()
+  expect(wrapper.findComponent({ name: 'DeploymentsEditor' }).exists()).toBe(false)
+  wrapper.unmount()
+})
+
+it('checks delete permission again before accepting a pending stop confirmation', async () => {
+  const wrapper = mountTable()
+  await wrapper.findAll('input[type="checkbox"]')[1].setValue(true)
+  await wrapper.get('[data-testid="batch-stop"]').trigger('click')
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['update'] }
+  confirmRequire.mock.calls[0][0].accept()
+  await flushPromises()
+  expect(batchAction).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it('opens settings from the URL once deployment permissions arrive', async () => {
+  route.query = { deployment: 'deployment-2' }
+  orbitStore.getCurrentOrbitPermissions = undefined
+  const wrapper = mountTable()
+  expect(wrapper.findComponent({ name: 'DeploymentsEditor' }).exists()).toBe(false)
+  orbitStore.getCurrentOrbitPermissions = { deployment: ['read', 'update'] }
+  await flushPromises()
+  expect(wrapper.getComponent({ name: 'DeploymentsEditor' }).props('data')).toMatchObject({
+    id: 'deployment-2',
+  })
+  wrapper.unmount()
 })

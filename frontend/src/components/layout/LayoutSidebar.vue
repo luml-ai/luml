@@ -59,7 +59,7 @@
           </li>
           <li class="item">
             <a
-              href="https://github.com/Dataforce-Solutions/dataforce.studio"
+              href="https://github.com/luml-ai/luml"
               target="_blank"
               class="menu-link menu-link--github"
             >
