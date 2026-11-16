@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import os
@@ -6,6 +7,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from types import FrameType
@@ -27,7 +29,7 @@ from tests.flow.fakes import (
     local_server,
     write_stub_lumlflow,
 )
-from tests.platforms import posix_only
+from tests.platforms import posix_only, windows_only
 
 SDK_ROOT = Path(__file__).resolve().parents[2]
 
@@ -444,6 +446,50 @@ def test_no_interruption_handler_is_installed(port: int) -> None:
 
     with RelayedFlow("training", port=port):
         assert signal.getsignal(signal.SIGINT) == before
+
+
+PROCESS_TREE_SCRIPT = """
+import subprocess, sys
+
+server = (
+    "import sys;"
+    "from http.server import BaseHTTPRequestHandler, HTTPServer;"
+    "address = ('127.0.0.1', int(sys.argv[1]));"
+    "HTTPServer(address, BaseHTTPRequestHandler).serve_forever()"
+)
+child = subprocess.Popen([sys.executable, "-c", server, sys.argv[1]])
+print(child.pid, flush=True)
+child.wait()
+"""
+
+
+@windows_only
+def test_free_port_is_not_taken_for_a_server_that_is_not_flow(port: int) -> None:
+    assert flow_module._lumlflow_answers(port) is False
+
+
+@windows_only
+def test_stopping_lumlflow_stops_the_processes_it_started(port: int) -> None:
+    with subprocess.Popen(
+        [sys.executable, "-c", PROCESS_TREE_SCRIPT, str(port)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        assert process.stdout is not None
+        child = int(process.stdout.readline())
+        try:
+            deadline = time.monotonic() + 30
+            while not _answers(port):
+                assert time.monotonic() < deadline
+                time.sleep(0.1)
+
+            flow_module._stop_process(process)
+
+            assert not _answers(port)
+        finally:
+            process.kill()
+            with contextlib.suppress(OSError):
+                os.kill(child, signal.SIGTERM)
 
 
 EXITING_SCRIPT = """
