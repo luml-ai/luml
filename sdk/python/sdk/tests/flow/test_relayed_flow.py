@@ -27,6 +27,7 @@ from tests.flow.fakes import (
     local_server,
     write_stub_lumlflow,
 )
+from tests.platforms import posix_only
 
 SDK_ROOT = Path(__file__).resolve().parents[2]
 
@@ -474,13 +475,7 @@ raise RuntimeError("training failed")
 @pytest.mark.parametrize(
     ("ending", "returncode"),
     [
-        pytest.param(
-            "terminate",
-            -signal.SIGTERM,
-            marks=pytest.mark.skipif(
-                sys.platform == "win32", reason="no POSIX signals there"
-            ),
-        ),
+        pytest.param("terminate", -signal.SIGTERM, marks=posix_only),
         ("error", 1),
     ],
 )
