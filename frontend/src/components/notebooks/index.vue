@@ -2,7 +2,7 @@
   <div class="notebooks">
     <div class="top">
       <div class="headings">
-        <h1 class="main-title">Notebooks</h1>
+        <h1 class="main-title">Jupyter Lite</h1>
       </div>
       <NotebookCreator></NotebookCreator>
     </div>
