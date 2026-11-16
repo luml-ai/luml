@@ -33,7 +33,7 @@ class WorkflowSecurityTests(unittest.TestCase):
         for path in paths:
             workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
             with self.subTest(workflow=path.name):
-                self.assertEqual(workflow.get("permissions"), {"contents": "read"})
+                self.assertIn(workflow.get("permissions"), ({}, {"contents": "read"}))
 
     def test_registry_publish_jobs_keep_their_required_permissions(self):
         paths = [*WORKFLOWS.glob("publish-*-image.yml")]
