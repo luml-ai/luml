@@ -77,6 +77,47 @@ class TestSessionRecovery:
         assert response.status_code == 200
         assert response.json()["email"] == new_user.email
 
+    async def test_failed_refresh_drops_a_revoked_session(
+        self, client: AsyncClient, new_user: CreateUser
+    ) -> None:
+        _, refresh = await signin(client, new_user.email, PASSWORD)
+        response = await client.post(
+            "/v1/auth/change-password",
+            json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+        )
+        assert response.status_code == 200
+        client.cookies.clear()
+        client.cookies.set("refresh_token", refresh, domain="testserver.local")
+
+        response = await client.get("/v1/auth/users/me")
+        assert response.json() == {"detail": "Session refresh required"}
+        response = await client.post("/v1/auth/refresh")
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Token has been revoked"}
+        assert "refresh_token" not in client.cookies
+        response = await client.get("/v1/auth/users/me")
+        assert response.status_code == 401
+        assert response.json() == {"detail": "Not authenticated"}
+
+    async def test_losing_a_concurrent_refresh_keeps_the_rotated_session(
+        self, client: AsyncClient, new_user: CreateUser
+    ) -> None:
+        _, refresh = await signin(client, new_user.email, PASSWORD)
+        assert (await client.post("/v1/auth/refresh")).status_code == 200
+        rotated = client.cookies["refresh_token"]
+
+        response = await client.post(
+            "/v1/auth/refresh", headers={"Cookie": f"refresh_token={refresh}"}
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Token has been revoked"}
+        assert response.headers.get_list("set-cookie") == []
+        assert client.cookies["refresh_token"] == rotated
+        assert (await client.get("/v1/auth/users/me")).status_code == 200
+        assert (await client.post("/v1/auth/refresh")).status_code == 200
+
 
 class TestPasswordSecurity:
     @pytest.mark.parametrize("reset", [False, True], ids=["change", "reset"])

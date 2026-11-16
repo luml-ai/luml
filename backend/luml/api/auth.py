@@ -10,7 +10,7 @@ from fastapi import (
     Response,
     status,
 )
-from starlette.responses import RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 from luml.clients.oauth_providers import (
     OAuthGoogleProvider,
@@ -19,6 +19,7 @@ from luml.clients.oauth_providers import (
 from luml.handlers.auth import AuthHandler
 from luml.infra.auth_rate_limits import limit_auth_attempts
 from luml.infra.dependencies import UserAuthentication
+from luml.infra.exceptions import AuthError, RefreshTokenReusedError
 from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
     ChangePasswordIn,
@@ -76,6 +77,17 @@ def set_auth_cookies(response: Response, data: Token) -> None:
             samesite=config.AUTH_COOKIE_SAMESITE,
             path="/",
             max_age=auth_handler.refresh_token_expire,
+        )
+
+
+def delete_auth_cookies(response: Response) -> None:
+    for key in ("access_token", "refresh_token"):
+        response.delete_cookie(
+            key=key,
+            httponly=True,
+            secure=True,
+            samesite=config.AUTH_COOKIE_SAMESITE,
+            path="/",
         )
 
 
@@ -138,12 +150,23 @@ async def google_callback(
 
 
 @auth_router.post("/refresh", response_model=DetailResponse)
-async def refresh(request: Request, response: Response) -> dict[str, str]:
+async def refresh(
+    request: Request, response: Response
+) -> dict[str, str] | JSONResponse:
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token not found")
 
-    tokens = await auth_handler.handle_refresh_token(refresh_token)
+    try:
+        tokens = await auth_handler.handle_refresh_token(refresh_token)
+    except RefreshTokenReusedError:
+        raise
+    except AuthError as error:
+        failure = JSONResponse(
+            status_code=error.status_code, content={"detail": error.message}
+        )
+        delete_auth_cookies(failure)
+        return failure
     set_auth_cookies(response, tokens)
     return {"detail": "Tokens refreshed successfully"}
 
@@ -203,19 +226,13 @@ async def update_user_profile(
 async def logout(request: Request, response: Response) -> dict[str, str]:
     access_token = request.cookies.get("access_token")
     refresh_token = request.cookies.get("refresh_token")
-    samesite = config.AUTH_COOKIE_SAMESITE
 
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token not found")
 
     await auth_handler.handle_logout(access_token, refresh_token)
 
-    response.delete_cookie(
-        key="access_token", httponly=True, secure=True, samesite=samesite, path="/"
-    )
-    response.delete_cookie(
-        key="refresh_token", httponly=True, secure=True, samesite=samesite, path="/"
-    )
+    delete_auth_cookies(response)
 
     return {"detail": "Successfully logged out"}
 

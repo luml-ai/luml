@@ -23,6 +23,7 @@ from luml.infra.db import engine
 from luml.infra.exceptions import (
     AuthError,
     EmailDeliveryError,
+    RefreshTokenReusedError,
 )
 from luml.repositories.base import violates
 from luml.repositories.token_blacklist import TokenBlackListRepository
@@ -233,7 +234,7 @@ class AuthHandler:
             if not await self.__token_black_list_repository.add_token(
                 refresh_token, exp
             ):
-                raise AuthError("Token has been revoked", 400)
+                raise RefreshTokenReusedError
 
             return self._create_tokens(service_user.email, service_user.hashed_password)
 

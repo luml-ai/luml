@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from luml.infra.exceptions import AuthError, RefreshTokenReusedError
 from luml.schemas.auth import Token
 from luml.schemas.user import AuthProvider, ChangePasswordIn, CurrentUserOut
 
@@ -130,6 +131,45 @@ def test_refresh_and_logout_reject_cross_site_cookies(
     assert response.status_code == 403
     mock_logout.assert_not_awaited()
     mock_refresh.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("error", "clears_cookies"),
+    [
+        (AuthError("Invalid refresh token", 400), True),
+        (AuthError("Token has been revoked", 400), True),
+        (AuthError("User not found", 404), True),
+        (RefreshTokenReusedError(), False),
+    ],
+    ids=["invalid", "password-changed", "user-deleted", "reused"],
+)
+@patch("luml.api.auth.auth_handler.handle_refresh_token", new_callable=AsyncMock)
+def test_failed_refresh_clears_session_cookies_unless_token_was_reused(
+    mock_refresh: AsyncMock,
+    error: AuthError,
+    clears_cookies: bool,
+    client: TestClient,
+) -> None:
+    mock_refresh.side_effect = error
+    client.cookies.set("access_token", "access-cookie")
+    client.cookies.set("refresh_token", "refresh-cookie")
+
+    response = client.post(
+        "/v1/auth/refresh", headers={"Origin": "https://app.luml.ai"}
+    )
+
+    assert response.status_code == error.status_code
+    assert response.json() == {"detail": error.message}
+    cookies = response.headers.get_list("set-cookie")
+    if clears_cookies:
+        assert sorted(cookie.split("=")[0] for cookie in cookies) == [
+            "access_token",
+            "refresh_token",
+        ]
+        assert all("Max-Age=0" in cookie for cookie in cookies)
+    else:
+        assert cookies == []
+    mock_refresh.assert_awaited_once_with("refresh-cookie")
 
 
 @patch("luml.api.auth.auth_handler.update_user", new_callable=AsyncMock)
