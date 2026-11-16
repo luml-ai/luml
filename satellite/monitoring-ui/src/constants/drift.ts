@@ -1,4 +1,8 @@
-export const PSI_SCALE_MAX = 0.25
+export const PSI_WARNING_THRESHOLD = 0.1
+
+export const PSI_CRITICAL_THRESHOLD = 0.25
+
+export const PSI_SCALE_MAX = PSI_CRITICAL_THRESHOLD
 
 export const DRIFT_CHART_ASPECT_RATIO = '585 / 225'
 

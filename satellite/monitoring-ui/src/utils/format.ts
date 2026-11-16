@@ -1,4 +1,24 @@
+import { Severity } from '@/api/monitoring/interfaces'
+
 const integerFormat = new Intl.NumberFormat('en-US')
+const decimalFormat = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+export function formatDecimal(value: number): string {
+  return decimalFormat.format(value)
+}
+
+export function getSeverityByThresholds(
+  value: number,
+  warning: number,
+  critical: number,
+): Severity {
+  if (value >= critical) return Severity.CRITICAL
+  if (value >= warning) return Severity.WARNING
+  return Severity.OK
+}
 
 export function formatInteger(value: number): string {
   return integerFormat.format(value)

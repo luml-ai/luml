@@ -1,7 +1,7 @@
 <template>
-  <MScalableCard variant="block" :title="title" :subtitle="subtitle" :dialog-ratio="dialogRatio">
+  <MScalableCard :variant="variant" :title="title" :subtitle="subtitle" :dialog-ratio="dialogRatio">
     <template #default="{ scaled }">
-      <div class="chart" :class="{ scaled }">
+      <div class="chart" :class="{ scaled, fixed: height }">
         <div v-if="isEmpty" class="chart-empty">{{ emptyText }}</div>
         <slot v-else />
       </div>
@@ -10,6 +10,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { DRIFT_CHART_ASPECT_RATIO } from '@/constants/drift'
 import MScalableCard from '@/components/MScalableCard.vue'
 
@@ -19,14 +20,25 @@ interface Props {
   dialogRatio?: number
   emptyText: string
   isEmpty?: boolean
+  variant?: 'bordered' | 'block'
+  height?: number
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  variant: 'block',
+})
+
+const chartHeight = computed(() => (props.height ? `${props.height}px` : 'auto'))
 </script>
 
 <style scoped>
 .chart {
   aspect-ratio: v-bind(DRIFT_CHART_ASPECT_RATIO);
+}
+
+.chart.fixed {
+  height: v-bind(chartHeight);
+  aspect-ratio: auto;
 }
 
 .chart.scaled {

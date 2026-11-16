@@ -10,25 +10,36 @@ import {
   PCA_PROJECTED_COMPONENTS,
   PCA_RANGE_PADDING,
   PCA_RANGE_QUANTILE,
+  PSI_CRITICAL_THRESHOLD,
   PSI_SCALE_MAX,
+  PSI_WARNING_THRESHOLD,
 } from '@/constants/drift'
 import { SEVERITY_COLORS } from '@/constants/alerts'
 import type { EmptyStateContent } from '@/types/empty'
 import type { MultivariateMetric, PcaBounds, PcaRange } from '@/types/drift'
-import { formatOptional, formatPercent } from '@/utils/format'
+import {
+  formatDecimal,
+  formatOptional,
+  formatPercent,
+  getSeverityByThresholds,
+} from '@/utils/format'
 
 const psiFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 })
-const psiLabelFormat = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
 
 export function formatPsi(psi: number): string {
   return psiFormat.format(psi)
 }
 
+export function formatPsiValue(psi: number | null | undefined): string {
+  return formatOptional(psi, formatDecimal)
+}
+
+export function getPsiSeverity(psi: number): Severity {
+  return getSeverityByThresholds(psi, PSI_WARNING_THRESHOLD, PSI_CRITICAL_THRESHOLD)
+}
+
 export function formatPsiLabel(psi: number | null | undefined): string {
-  return psi == null ? 'PSI —' : `PSI ${psiLabelFormat.format(psi)}`
+  return `PSI ${formatPsiValue(psi)}`
 }
 
 export function getPsiProgress(psi: number): number {
