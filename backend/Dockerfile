@@ -1,3 +1,5 @@
+FROM ghcr.io/astral-sh/uv:0.9.5 AS uv
+
 FROM python:3.14-slim-bookworm@sha256:516b51cb9db2ef061e465c803e50f64361b82cefd91e525b889b967b83e83527 AS base
 
 FROM base AS builder
@@ -7,7 +9,7 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /bin/uv
+COPY --from=uv /uv /bin/uv
 COPY pyproject.toml uv.lock /app/
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

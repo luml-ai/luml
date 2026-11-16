@@ -359,13 +359,21 @@ def test_model_environment_is_created_under_app(
     assert all(path.startswith("/app/.micromamba/envs/") for path in payload["envs"])
 
 
+def _pinned_micromamba_version() -> str:
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
+    stage = re.search(
+        r"^FROM mambaorg/micromamba:(\d+\.\d+\.\d+)@sha256:[a-f0-9]{64} AS micromamba$",
+        dockerfile,
+        re.MULTILINE,
+    )
+    assert stage is not None
+    return stage[1]
+
+
 def test_micromamba_source_is_digest_pinned() -> None:
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
-    assert re.search(
-        r"COPY --from=mambaorg/micromamba:2\.9\.0@sha256:[a-f0-9]{64} "
-        r"/bin/micromamba /usr/local/bin/micromamba",
-        dockerfile,
-    )
+    assert _pinned_micromamba_version()
+    assert "COPY --from=micromamba /bin/micromamba /usr/local/bin/micromamba" in dockerfile
     assert "micro.mamba.pm" not in dockerfile
 
 
@@ -385,4 +393,4 @@ def test_pinned_micromamba_runs_offline_as_the_default_user(
             "--version",
         ]
     )
-    assert result.stdout.strip() == "2.9.0"
+    assert result.stdout.strip() == _pinned_micromamba_version()
