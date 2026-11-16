@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -356,3 +357,40 @@ def test_model_environment_is_created_under_app(
     assert payload["root"] == "/app/.micromamba"
     assert payload["envs"]
     assert all(path.startswith("/app/.micromamba/envs/") for path in payload["envs"])
+
+
+def _pinned_micromamba_version() -> str:
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
+    stage = re.search(
+        r"^FROM mambaorg/micromamba:(\d+\.\d+\.\d+)@sha256:[a-f0-9]{64} AS micromamba$",
+        dockerfile,
+        re.MULTILINE,
+    )
+    assert stage is not None
+    return stage[1]
+
+
+def test_micromamba_source_is_digest_pinned() -> None:
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
+    assert _pinned_micromamba_version()
+    assert "COPY --from=micromamba /bin/micromamba /usr/local/bin/micromamba" in dockerfile
+    assert "micro.mamba.pm" not in dockerfile
+
+
+def test_pinned_micromamba_runs_offline_as_the_default_user(
+    docker_cli: str, model_server_image: str
+) -> None:
+    result = _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--entrypoint",
+            "/usr/local/bin/micromamba",
+            model_server_image,
+            "--version",
+        ]
+    )
+    assert result.stdout.strip() == _pinned_micromamba_version()
