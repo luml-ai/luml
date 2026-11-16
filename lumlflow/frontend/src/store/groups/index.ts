@@ -50,7 +50,8 @@ export const useGroupsStore = defineStore('groups', () => {
       }
     }
     if (deletedGroupIds.length) {
-      toast.add(successToast(`${deletedGroupIds.length} groups deleted successfully`))
+      const noun = deletedGroupIds.length === 1 ? 'group' : 'groups'
+      toast.add(successToast(`${deletedGroupIds.length} ${noun} deleted successfully`))
     }
     await getInitialPage()
   }

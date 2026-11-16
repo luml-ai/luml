@@ -1,5 +1,8 @@
 name: Promote Images
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [staging, production]
@@ -131,10 +134,10 @@ jobs:
               satellite/docker-compose.yml
               .github/workflows/publish-model-server-image.yml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}

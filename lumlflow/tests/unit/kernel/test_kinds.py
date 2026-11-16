@@ -1,6 +1,7 @@
 import base64
 import io
 import math
+import mimetypes
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -514,6 +515,38 @@ def test_a_file_is_stored_as_itself_and_read_back_as_a_path(
             "name": "rows.csv",
             "size": source.stat().st_size,
             "content_type": "text/csv",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("name", "system_type", "expected"),
+    [
+        ("rows.csv", "application/vnd.ms-excel", "text/csv"),
+        ("ROWS.CSV", "application/vnd.ms-excel", "text/csv"),
+        ("plot.png", "image/x-png", "image/png"),
+        ("model.safetensors", "application/x-safetensors", "application/octet-stream"),
+    ],
+)
+def test_a_file_previews_with_pythons_own_type_whatever_the_system_maps(
+    kinds: registry.Registry,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    system_type: str,
+    expected: str,
+) -> None:
+    mimetypes.init()
+    monkeypatch.setitem(mimetypes.types_map, Path(name).suffix.lower(), system_type)
+    assert mimetypes.guess_type(name)[0] == system_type
+    source = tmp_path / name
+    source.write_bytes(b"step,loss\n1,0.5\n")
+    assert kinds.get(builtin.FILE).preview(source) == [
+        {
+            "block": "file",
+            "name": name,
+            "size": source.stat().st_size,
+            "content_type": expected,
         }
     ]
 

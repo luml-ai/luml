@@ -101,7 +101,7 @@ def test_kind_end_to_end_wiring_and_release_checklist_exist() -> None:
     assert "openshift" in workflow_text
     assert "model_servers/default/**" in workflow_text
     assert "workflow_dispatch" in workflow_text
-    assert "actions/setup-python@v5" in workflow_text
+    assert "uses: actions/setup-python@" in workflow_text
     assert "python-version: '3.14'" in workflow_text
     assert (e2e_root / "run.sh").is_file()
     assert (e2e_root / "test_kind.py").is_file()
