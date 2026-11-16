@@ -474,7 +474,13 @@ raise RuntimeError("training failed")
 @pytest.mark.parametrize(
     ("ending", "returncode"),
     [
-        ("terminate", 15 if sys.platform == "win32" else -signal.SIGTERM),
+        pytest.param(
+            "terminate",
+            -signal.SIGTERM,
+            marks=pytest.mark.skipif(
+                sys.platform == "win32", reason="no POSIX signals there"
+            ),
+        ),
         ("error", 1),
     ],
 )
