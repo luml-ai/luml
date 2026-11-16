@@ -1,6 +1,7 @@
 import base64
 import io
 import math
+import mimetypes
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -512,6 +513,28 @@ def test_a_file_is_stored_as_itself_and_read_back_as_a_path(
         {
             "block": "file",
             "name": "rows.csv",
+            "size": source.stat().st_size,
+            "content_type": "text/csv",
+        }
+    ]
+
+
+@pytest.mark.parametrize("name", ["rows.csv", "ROWS.CSV"])
+def test_a_csv_file_previews_as_text_csv_when_the_system_maps_csv_elsewhere(
+    kinds: registry.Registry,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+) -> None:
+    mimetypes.init()
+    monkeypatch.setitem(mimetypes.types_map, ".csv", "application/vnd.ms-excel")
+    assert mimetypes.guess_type("rows.csv")[0] == "application/vnd.ms-excel"
+    source = tmp_path / name
+    source.write_text("step,loss\n1,0.5\n", encoding="utf-8")
+    assert kinds.get(builtin.FILE).preview(source) == [
+        {
+            "block": "file",
+            "name": name,
             "size": source.stat().st_size,
             "content_type": "text/csv",
         }
