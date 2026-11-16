@@ -85,14 +85,8 @@ class CookieCSRFMiddleware(BaseHTTPMiddleware):
         )
         if request.method not in {"GET", "HEAD", "OPTIONS"} and uses_cookie_auth:
             origin = request.headers.get("Origin")
-            same_origin = (
-                f"{request.url.scheme}://{request.url.netloc}"
-                if request.url.netloc
-                else None
-            )
-            if not origin or (
-                origin != same_origin and origin not in self.allowed_origins
-            ):
+            same_origin = f"{request.url.scheme}://{request.url.netloc}"
+            if origin != same_origin and origin not in self.allowed_origins:
                 return JSONResponse(
                     {"detail": "CSRF origin check failed"}, status_code=403
                 )

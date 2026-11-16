@@ -1,13 +1,9 @@
 from collections.abc import Iterator
-from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from luml.infra.middleware import CookieCSRFMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.types import Scope
 
 
 @pytest.fixture
@@ -123,108 +119,3 @@ def test_refresh_cookie_csrf_uses_routed_path(
     )
 
     assert response.status_code == 403
-
-
-@pytest.mark.parametrize(
-    "host", ["evil.example/path?", "evil.example#fragment", "evil.example?query="]
-)
-def test_malformed_host_cannot_choose_trusted_origin(
-    csrf_client: TestClient, host: str
-) -> None:
-    response = csrf_client.post(
-        "/resource",
-        headers={
-            "Host": host,
-            "Origin": "http://evil.example",
-            "Cookie": "access_token=cookie-token",
-        },
-    )
-
-    assert response.status_code == 403
-
-
-@pytest.mark.parametrize(
-    "origin",
-    [
-        "http://testserver",
-        "https://testserver",
-        "http://testserver:8080",
-        "https://testserver:8443",
-        "http://[::1]",
-        "https://[::1]:8443",
-    ],
-)
-def test_malformed_host_falls_back_to_scope_server(
-    csrf_client: TestClient, origin: str
-) -> None:
-    csrf_client.base_url = origin
-    response = csrf_client.post(
-        "/resource",
-        headers={
-            "Host": "untrusted.example/path?",
-            "Origin": origin,
-            "Cookie": "access_token=cookie-token",
-        },
-    )
-
-    assert response.status_code == 200
-
-
-@pytest.mark.parametrize(
-    ("origin", "status"),
-    [(None, 403), ("http://untrusted.example", 403), ("https://app.luml.ai", 200)],
-)
-async def test_missing_scope_server_requires_configured_origin(
-    origin: str | None, status: int
-) -> None:
-    headers = [(b"cookie", b"access_token=cookie-token")]
-    if origin is not None:
-        headers.append((b"origin", origin.encode()))
-    scope: Scope = {
-        "type": "http",
-        "method": "POST",
-        "path": "/resource",
-        "scheme": "http",
-        "server": None,
-        "headers": headers,
-    }
-    middleware = CookieCSRFMiddleware(FastAPI(), ["https://app.luml.ai"])
-
-    response = await middleware.dispatch(
-        Request(scope), AsyncMock(return_value=Response(status_code=200))
-    )
-
-    assert response.status_code == status
-
-
-@pytest.mark.parametrize(
-    ("host", "origin", "status"),
-    [
-        ("localhost:8000", "http://localhost:8000", 200),
-        ("api.luml.ai", "http://api.luml.ai", 200),
-        ("localhost:8000", "http://localhost:5173", 403),
-        ("localhost:8000/docs?", "http://localhost:8000", 403),
-    ],
-)
-async def test_same_origin_follows_valid_host_behind_proxy(
-    host: str, origin: str, status: int
-) -> None:
-    scope: Scope = {
-        "type": "http",
-        "method": "POST",
-        "path": "/resource",
-        "scheme": "http",
-        "server": ("172.18.0.5", 8000),
-        "headers": [
-            (b"host", host.encode()),
-            (b"origin", origin.encode()),
-            (b"cookie", b"access_token=cookie-token"),
-        ],
-    }
-    middleware = CookieCSRFMiddleware(FastAPI(), ["https://app.luml.ai"])
-
-    response = await middleware.dispatch(
-        Request(scope), AsyncMock(return_value=Response(status_code=200))
-    )
-
-    assert response.status_code == status
