@@ -197,6 +197,8 @@ const provider = new ExperimentSnapshotApiProvider(apiService)
 await provider.init({ artifacts: [artifact1, artifact2] })
 ```
 
+When `apiService` has `getSpan`, `getTraceSpans` calls `getTraceDetails` with `{ payloads: false }` and `getSpanPayload` loads one span. Without `getSpan`, spans come with their payloads as before.
+
 ### `ExperimentSnapshotDatabaseProvider`
 
 Queries experiment databases with `@sqlite.org/sqlite-wasm`. Each entry of `modelsInfo` gives a zip `buffer` (old artifacts) or a `source`: a `range` source reads `exp.db` inside the artifact with HTTP Range requests and does not download the whole file. `sqliteWasmUrl` is the URL of `sqlite3.wasm`.
@@ -213,6 +215,8 @@ const failures = await provider.init({
 ```
 
 `init` opens every experiment on its own and returns the ones that failed; the others work.
+
+For artifacts made with luml-sdk 0.6.0 or newer, `getTraceSpans` returns spans without payloads (`payloadLoaded: false`) and `getSpanPayload` reads one span. The trace list, average scores and filter keys come from tables computed at export when the artifact has them. Older artifacts use the same queries as before, and both kinds can be opened together.
 
 Limits: metric steps are integers, and steps above 2^53 are not drawn. An old artifact whose unzipped database is 2 GiB or more does not open; upload it again with luml-sdk 0.6.0 or newer.
 
@@ -254,9 +258,12 @@ class MyProvider implements ExperimentSnapshotProvider {
   async getMetricCatalogs(request?: MetricCatalogsRequest, signal?: AbortSignal) { /* ... */ }
   async getMetricBuckets(request: MetricBucketsRequest, signal?: AbortSignal) { /* ... */ }
   async getEvalsColumns(datasetId: string, signal?: AbortSignal) { /* ... */ }
+  async getSpanPayload(modelId: string, traceId: string, spanId: string) { /* ... */ }
   // ... implement remaining interface methods
 }
 ```
+
+Spans returned by `getTraceSpans` carry `payloadLoaded`. When it is `false`, the trace view calls `getSpanPayload` on select for `attributes`, `events`, `links` and `status_message`. A provider that returns full spans sets `payloadLoaded: true`.
 
 ---
 

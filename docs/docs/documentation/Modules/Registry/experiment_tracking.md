@@ -50,6 +50,8 @@ The main module components are:
     ![](/img/trace_table.webp)
     ![](/img/trace_inside.webp)
 
+    A trace opens with its span tree only, and the data of a span loads when you select it, so traces with many thousands of spans stay usable. A value longer than 2,000 characters shows a preview, with `Show all` and `Download` for the full value. Experiments uploaded with luml-sdk 0.6.0 or newer carry summaries computed at upload, and the viewer reads the trace list, the average scores and the filter keys from them when it can. Experiments uploaded with older versions open as before and can be compared with new ones.
+
     
     
   </TabItem>

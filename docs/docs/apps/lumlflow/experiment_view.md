@@ -36,6 +36,8 @@ The Traces tab captures the execution flow of the run. Each operation within the
 
 Traces are most informative for Generative AI runs, where the execution path through an LLM-based system is the primary object of analysis. They remain available for Classical ML runs but are rarely populated for that category.
 
+A trace opens with its span tree only. The data of a span (attributes, events, links and status message) loads when you select the span, so traces with many thousands of spans stay usable. A value longer than 2,000 characters shows its first 2,000 characters, with `Show all` to open the full value and `Download` to save it.
+
 Individual spans within a trace can be annotated. An annotation is a structured record attached to a span and comes in two types. A **feedback** annotation captures an assessment of the span's behavior and carries a name, the author's user name, a boolean value, and an optional rationale. An **expectation** annotation declares the expected outcome of the span and carries the same fields, except that the value can be a string, integer, or boolean.
 
 Annotations can be added through the Flow interface or written locally through the LUML SDK. They can be added, edited, and removed inside Flow. Once the experiment is uploaded to LUML, the annotations are carried with the run and remain visible in the Registry, where they become read-only.

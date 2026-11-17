@@ -1016,6 +1016,55 @@ if trace:
         print(span.name, span.annotation_count)
 ```
 
+<a id="luml.experiments.tracker.ExperimentTracker.get_trace_structure"></a>
+
+#### get_trace_structure
+
+```python
+def get_trace_structure(
+        experiment_id: str,
+        trace_id: str
+) -> TraceDetails | None
+```
+
+Retrieve a trace's span tree without span payloads, for large traces.
+
+Spans have ``attributes``, ``events``, ``links`` and ``status_message`` set
+to ``None``; load one span in full with ``get_span``.
+
+**Returns**:
+
+  TraceDetails | None: Trace with its spans, or ``None`` if not found.
+  
+
+**Example**:
+
+```python
+tracker = ExperimentTracker()
+trace = tracker.get_trace_structure("exp-1", "trace-abc")
+if trace:
+    root = trace.spans[0]
+    span = tracker.get_span("exp-1", "trace-abc", root.span_id)
+```
+
+<a id="luml.experiments.tracker.ExperimentTracker.get_span"></a>
+
+#### get_span
+
+```python
+def get_span(
+        experiment_id: str,
+        trace_id: str,
+        span_id: str
+) -> SpanRecord | None
+```
+
+Retrieve one span with its payload.
+
+**Returns**:
+
+  SpanRecord | None: The span, or ``None`` if the trace has no such span.
+
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_traces"></a>
 
 #### get_experiment_traces

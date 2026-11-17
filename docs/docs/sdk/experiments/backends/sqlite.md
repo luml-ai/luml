@@ -1567,6 +1567,23 @@ backend.get_trace("exp-001", "4bf92f3577b34da6a3ce929d0e0e4736")
   status_message=None,
 - `attributes={"llm.model"` - "gpt-4o", "llm.token_count": 512&#125;, events=None, links=None, trace_flags=1, ) ] )
 
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.get_trace_structure"></a>
+
+#### get_trace_structure
+
+```python
+def get_trace_structure(
+        experiment_id: str,
+        trace_id: str
+) -> TraceDetails | None
+```
+
+The trace's span tree without span payloads: `attributes`, `events`,
+`links` and `status_message` are None. `get_span` loads one span's payload.
+
+From schema revision 3 the spans come from the `spans_structure` index alone,
+so large payloads are never read. Spans are ordered by start time, then id.
+
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_evals"></a>
 
 #### get_experiment_evals
