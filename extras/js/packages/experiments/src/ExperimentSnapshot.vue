@@ -1,5 +1,6 @@
 <template>
   <div class="content">
+    <ExperimentStatusNotices :statuses="dynamicMetricsStore.statuses" :models-info="modelsInfo" />
     <TracesWrapper
       v-if="modelsIds[0] && modelsIds.length === 1"
       :artifactId="modelsIds[0]"
@@ -18,12 +19,7 @@
       ></StaticParametersMultiple>
     </template>
 
-    <DynamicMetricsLoader v-if="dynamicMetricsLoading" />
-    <DynamicMetrics
-      v-else-if="dynamicMetricsNames"
-      :metrics-names="dynamicMetricsNames"
-      :models-info="modelsInfo"
-    ></DynamicMetrics>
+    <DynamicMetrics :models-info="modelsInfo"></DynamicMetrics>
 
     <EvalsDatasetsList
       v-if="evalsStore.getProvider"
@@ -59,6 +55,7 @@ import type {
 import { useToast, Skeleton } from 'primevue'
 import { simpleErrorToast } from './lib/primevue/data/toasts'
 import { useEvalsStore } from './store/evals'
+import { useDynamicMetricsStore } from './store/dynamic-metrics'
 import { provideTheme } from './lib/theme/ThemeProvider'
 import StaticParameters from './components/static-parameters/StaticParameters.vue'
 import DynamicMetrics from './components/dynamic-metrics/DynamicMetrics.vue'
@@ -67,7 +64,7 @@ import TracesDialog from './components/evals/traces/TracesDialog.vue'
 import TraceDialog from './components/evals/traces/trace/TraceDialog.vue'
 import EvalsDatasetsList from './components/evals/EvalsDatasetsList.vue'
 import TracesWrapper from './components/traces/TracesWrapper.vue'
-import DynamicMetricsLoader from './components/dynamic-metrics/DynamicMetricsLoader.vue'
+import ExperimentStatusNotices from './components/experiment-status/ExperimentStatusNotices.vue'
 
 type Props = {
   provider: ExperimentSnapshotProvider
@@ -81,14 +78,13 @@ const props = defineProps<Props>()
 provideTheme(toRef(props, 'theme'))
 const toast = useToast()
 const evalsStore = useEvalsStore()
+// The statuses come with the catalogs the metrics section loads.
+const dynamicMetricsStore = useDynamicMetricsStore()
 
-let dynamicMetricsController: AbortController | null = null
 let staticParamsController: AbortController | null = null
 
 const staticParamsLoading = ref(true)
 const staticParams = ref<ExperimentSnapshotStaticParams[] | null>(null)
-const dynamicMetricsLoading = ref(true)
-const dynamicMetricsNames = ref<string[] | null>(null)
 
 const showStaticParams = computed(() => {
   if (!staticParams.value) return false
@@ -108,23 +104,6 @@ async function initStaticParams() {
   }
 }
 
-async function initDynamicMetrics() {
-  dynamicMetricsController?.abort()
-  dynamicMetricsController = new AbortController()
-  try {
-    dynamicMetricsLoading.value = true
-    dynamicMetricsNames.value = await props.provider.getDynamicMetricsNames(
-      dynamicMetricsController.signal,
-    )
-    dynamicMetricsLoading.value = false
-  } catch (error) {
-    if (error instanceof DOMException) return
-    toast.add(simpleErrorToast('Failed to load dynamic metrics'))
-  } finally {
-    dynamicMetricsLoading.value = false
-  }
-}
-
 function onTraceVisibleUpdate(value: boolean | undefined) {
   if (!value) {
     evalsStore.resetSelectedTrace()
@@ -134,11 +113,9 @@ function onTraceVisibleUpdate(value: boolean | undefined) {
 onBeforeMount(async () => {
   evalsStore.setProvider(props.provider)
   initStaticParams()
-  initDynamicMetrics()
 })
 
 onBeforeUnmount(() => {
-  dynamicMetricsController?.abort()
   staticParamsController?.abort()
 })
 

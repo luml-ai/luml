@@ -7,7 +7,6 @@ import type {
 type FileIndex = Record<string, [number, number]>
 
 interface ModelDownloader {
-  url: string
   getFileFromBucket<T = unknown>(
     fileIndex: FileIndex,
     fileName: string,

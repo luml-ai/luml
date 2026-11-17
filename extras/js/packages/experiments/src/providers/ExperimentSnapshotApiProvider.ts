@@ -17,14 +17,116 @@ import type {
   ExperimentMetricHistory,
   SpanFromApi,
   GetBatchExperimentsEvalsParams,
+  MetricBucketsWire,
+  MetricBucketWire,
+  MetricCatalogWire,
+  WireNumber,
 } from './ExperimentSnapshotApiProvider.interface'
+import {
+  INVALID_LEVEL,
+  NEEDS_NEWER_READER,
+  READ_FAILED,
+  TOO_MANY_BUCKETS,
+  type ExperimentMetricCatalog,
+  type ExperimentReadError,
+  type ExperimentResult,
+  type ExperimentSnapshotStatus,
+  type MetricBucketsRequest,
+  type MetricBucketsResponse,
+  type MetricCatalogsRequest,
+} from '@/metric-buckets/types'
+import { toExperimentReadError } from '@/metric-buckets/errors'
+import { redactSecrets } from './snapshot-source/errors'
+import { NEWEST_KNOWN_REVISION } from './ExperimentSnapshotTraits'
 import type {
   AddAnnotationPayload,
   UpdateAnnotationPayload,
 } from '@/components/annotations/annotations.interface'
 
+function decodeWireNumber(value: WireNumber): number | null {
+  if (value === 'Infinity') return Infinity
+  if (value === '-Infinity') return -Infinity
+  if (value === null || typeof value === 'number') return value
+  throw new TypeError(`Unexpected number encoding ${JSON.stringify(value)}`)
+}
+
+function decodeSum(value: number | null): number | null {
+  if (value === null || typeof value === 'number') return value
+  throw new TypeError(`Unexpected bucket sum ${JSON.stringify(value)}`)
+}
+
+function decodeCatalog(wire: MetricCatalogWire): ExperimentMetricCatalog {
+  return {
+    revision: wire.revision,
+    bucket_min_level: wire.bucket_min_level,
+    bucket_max_level: wire.bucket_max_level,
+    skipped_rows: wire.skipped_rows,
+    metrics: wire.metrics.map((metric) => ({
+      ...metric,
+      min: decodeWireNumber(metric.min),
+      max: decodeWireNumber(metric.max),
+    })),
+  }
+}
+
+function decodeBucket([
+  bucket,
+  firstStep,
+  lastStep,
+  count,
+  finiteCount,
+  min,
+  max,
+  sum,
+]: MetricBucketWire) {
+  return {
+    bucket,
+    first_step: firstStep,
+    last_step: lastStep,
+    count,
+    finite_count: finiteCount,
+    min: decodeWireNumber(min),
+    max: decodeWireNumber(max),
+    sum: decodeSum(sum),
+  }
+}
+
+function decodeBuckets(wire: MetricBucketsWire): MetricBucketsResponse {
+  return {
+    level: wire.level,
+    series: wire.series.map((series) => ({ ...series, buckets: series.buckets.map(decodeBucket) })),
+  }
+}
+
+const CODES_BY_STATUS: Record<number, ExperimentReadError['code'][]> = {
+  409: [NEEDS_NEWER_READER],
+  422: [INVALID_LEVEL, TOO_MANY_BUCKETS],
+}
+
+/**
+ * The Flow API answers 409 and 422 with `{"detail": {"code", "message"}}`; those codes become
+ * the typed errors the database provider raises, anything else (404 included) `read-failed`.
+ * The error is read the way axios rejects: `{response: {status, data}}`.
+ */
+function apiReadError(error: unknown): ExperimentReadError {
+  const response = (error as { response?: { status?: unknown; data?: unknown } } | null)?.response
+  const detail = (response?.data as { detail?: { code?: unknown; message?: unknown } } | null)
+    ?.detail
+  const known = typeof response?.status === 'number' ? CODES_BY_STATUS[response.status] : undefined
+  const code = known?.find((candidate) => candidate === detail?.code)
+  if (code) {
+    const message = redactSecrets(
+      typeof detail?.message === 'string' ? detail.message : String(detail?.code),
+    )
+    return { code, message }
+  }
+  const fallback = toExperimentReadError(error)
+  return response ? { code: READ_FAILED, message: fallback.message } : fallback
+}
+
 export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider {
   private _artifacts: ArtifactInfo[] | null = null
+  private catalogResults = new Map<string, ExperimentResult<ExperimentMetricCatalog>>()
   private _datasetsCursors: Record<string, Array<string | null>> = {}
   private _tracesCursors: Record<string, Array<string | null>> = {}
 
@@ -41,6 +143,77 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
 
   async init(data: { artifacts: ArtifactInfo[] }) {
     this._artifacts = data.artifacts
+    this.catalogResults = new Map()
+  }
+
+  async getExperimentStatuses(): Promise<ExperimentSnapshotStatus[]> {
+    return this.artifacts.map(({ id }) => {
+      const catalog = this.catalogResults.get(id)
+      const revision = catalog?.ok ? catalog.value.revision : null
+      return {
+        modelId: id,
+        revision,
+        transport: 'api',
+        transportFallback: null,
+        unknownNewerRevision: revision !== null && revision > NEWEST_KNOWN_REVISION,
+        skippedMetricRows: catalog?.ok ? catalog.value.skipped_rows : null,
+        error: catalog && !catalog.ok ? catalog.error : null,
+      }
+    })
+  }
+
+  /** One `GET metric-catalog` per experiment, always from the server (live runs grow). */
+  async getMetricCatalogs(request: MetricCatalogsRequest = {}, signal?: AbortSignal) {
+    const fetchCatalog = this.apiService.getExperimentMetricCatalog?.bind(this.apiService)
+    const artifacts = request.modelIds
+      ? this.artifacts.filter(({ id }) => request.modelIds?.includes(id))
+      : this.artifacts
+    const results = await Promise.all(
+      artifacts.map(({ id }) =>
+        this.apiResult(id, signal, async () => {
+          if (!fetchCatalog) throw new Error('The API does not serve metric catalogs')
+          return decodeCatalog(await fetchCatalog(id, signal))
+        }),
+      ),
+    )
+    for (const result of results) this.catalogResults.set(result.modelId, result)
+    return results
+  }
+
+  /** One `POST metric-buckets` per experiment, all keys in its body. */
+  async getMetricBuckets(request: MetricBucketsRequest, signal?: AbortSignal) {
+    const fetchBuckets = this.apiService.getExperimentMetricBuckets?.bind(this.apiService)
+    const body = {
+      keys: request.keys,
+      start_step: request.start_step ?? null,
+      end_step: request.end_step ?? null,
+      level: request.level,
+    }
+    const artifacts = request.modelIds
+      ? this.artifacts.filter(({ id }) => request.modelIds?.includes(id))
+      : this.artifacts
+    return Promise.all(
+      artifacts.map(({ id }) =>
+        this.apiResult(id, signal, async () => {
+          if (!fetchBuckets) throw new Error('The API does not serve metric buckets')
+          return decodeBuckets(await fetchBuckets(id, body, signal))
+        }),
+      ),
+    )
+  }
+
+  /** Per-experiment errors; an abort rejects the whole call. */
+  private async apiResult<T>(
+    modelId: string,
+    signal: AbortSignal | undefined,
+    read: () => Promise<T>,
+  ): Promise<ExperimentResult<T>> {
+    try {
+      return { modelId, ok: true, value: await read() }
+    } catch (error) {
+      if (signal?.aborted) throw error
+      return { modelId, ok: false, error: apiReadError(error) }
+    }
   }
 
   async getDynamicMetricsNames() {

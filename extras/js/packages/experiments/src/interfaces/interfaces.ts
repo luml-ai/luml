@@ -5,10 +5,18 @@ import type {
   UpdateAnnotationPayload,
 } from '@/components/annotations/annotations.interface'
 import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
-import type { Database } from 'sql.js'
+import type { SnapshotDatabase as Database } from '../providers/snapshot-source/SnapshotDatabase'
+import type {
+  ExperimentMetricCatalog,
+  ExperimentResult,
+  ExperimentSnapshotStatus,
+  MetricBucketsRequest,
+  MetricBucketsResponse,
+  MetricCatalogsRequest,
+} from '../metric-buckets/types'
 
 export interface ExperimentSnapshotProvider {
-  init: (data: any) => Promise<void>
+  init: (data: any) => Promise<unknown>
 
   getDynamicMetricsNames: (signal?: AbortSignal) => Promise<string[]>
 
@@ -16,6 +24,20 @@ export interface ExperimentSnapshotProvider {
     metricName: string,
     signal?: AbortSignal,
   ) => Promise<ExperimentSnapshotDynamicMetric[]>
+
+  /** Revision, transport and read status of every loaded experiment. */
+  getExperimentStatuses: (signal?: AbortSignal) => Promise<ExperimentSnapshotStatus[]>
+
+  /** Metadata only: per experiment the revision, stored bucket levels and per-metric summary. */
+  getMetricCatalogs: (
+    request?: MetricCatalogsRequest,
+    signal?: AbortSignal,
+  ) => Promise<ExperimentResult<ExperimentMetricCatalog>[]>
+
+  getMetricBuckets: (
+    request: MetricBucketsRequest,
+    signal?: AbortSignal,
+  ) => Promise<ExperimentResult<MetricBucketsResponse>[]>
 
   getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>
 

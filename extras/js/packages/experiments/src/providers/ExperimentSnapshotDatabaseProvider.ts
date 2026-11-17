@@ -1,4 +1,3 @@
-import type { Database, SqlJsStatic, SqlValue } from 'sql.js'
 import type {
   EvalsInfo,
   ExperimentSnapshotDynamicMetric,
@@ -19,7 +18,6 @@ import type {
 } from '../interfaces/interfaces'
 import { safeParse } from '../helpers/helpers'
 import { loadAsync as loadZipAsync } from 'jszip'
-import initSqlJs from 'sql.js'
 import type { Trace } from './ExperimentSnapshotApiProvider.interface'
 import {
   type Annotation,
@@ -28,10 +26,105 @@ import {
   AnnotationValueType,
 } from '@/components/annotations/annotations.interface'
 import { SearchEvalsUtils, SearchTracesUtils } from '@/utils/_search_utils'
+import {
+  NEWEST_KNOWN_REVISION,
+  readSnapshotTraits,
+  type SnapshotTraits,
+} from './ExperimentSnapshotTraits'
+import { readMetricBuckets, readMetricCatalog, readMetricKeys } from './snapshotMetricQueries'
+import { SnapshotNeedsNewerReaderError, toExperimentReadError } from '../metric-buckets/errors'
+import type {
+  ExperimentMetricCatalog,
+  ExperimentReadError,
+  ExperimentResult,
+  ExperimentSnapshotStatus,
+  MetricBucketsRequest,
+  MetricBucketsResponse,
+  MetricCatalogsRequest,
+} from '../metric-buckets/types'
+import {
+  isSnapshotSourceExpired,
+  redactSecrets,
+  SnapshotFormatError,
+} from './snapshot-source/errors'
+import type { SnapshotDatabase as Database, SqlValue } from './snapshot-source/SnapshotDatabase'
+import { RangeSqliteEngine } from './snapshot-source/RangeSqliteEngine'
+import {
+  browserTransport,
+  BufferRangeFile,
+  type HttpRangeFile,
+  type SnapshotTransport,
+} from './snapshot-source/httpSource'
+import {
+  DEFAULT_RAW_SNAPSHOT_OPTIONS,
+  openRawSnapshot,
+  type ExperimentSnapshotSource,
+  type RawSnapshotOptions,
+  type SnapshotTransportFallback,
+  type SnapshotTransportKind,
+} from './snapshot-source/openRawSnapshot'
+import { toSourceLocation, type SnapshotSourceRef } from './snapshot-source/sourceLocation'
+import type { RangeReadStats } from './snapshot-source/RangeChunkCache'
+import {
+  assertZipEntryFits,
+  ZIP_SNAPSHOT_ENTRY,
+  zipEntrySize,
+} from './snapshot-source/zipDirectory'
 
-interface ModelInfo {
+/** An experiment whose snapshot could not be fetched carries the error instead of a source. */
+export type ExperimentSnapshotModelSource =
+  | { modelId: string; buffer: ArrayBuffer }
+  | { modelId: string; source: ExperimentSnapshotSource }
+  | { modelId: string; error: ExperimentReadError }
+
+export interface ExperimentSnapshotInitData {
+  modelsInfo: ExperimentSnapshotModelSource[]
+  sqliteWasmUrl?: string
+}
+
+export interface ExperimentSnapshotProviderOptions {
+  transport?: SnapshotTransport
+  raw?: Partial<RawSnapshotOptions>
+}
+
+export interface SnapshotTransportStats extends RangeReadStats {
   modelId: string
-  buffer: ArrayBuffer
+  transport: SnapshotTransportKind
+}
+
+/** An experiment that did not open; the others opened and work. */
+export interface SnapshotOpenFailure {
+  modelId: string
+  error: ExperimentReadError
+}
+
+interface OpenedSnapshot {
+  modelId: string
+  database: Database
+  transport: SnapshotTransportKind
+  fallback: SnapshotTransportFallback | null
+  rangeFile: HttpRangeFile | null
+}
+
+interface SnapshotSourceInfo {
+  modelId: string
+  source: ExperimentSnapshotSource
+}
+
+interface FailedSnapshot {
+  modelId: string
+  /** Null when the snapshot was never fetched. */
+  source: ExperimentSnapshotSource | null
+  error: ExperimentReadError
+}
+
+function transportOf(source: ExperimentSnapshotSource): SnapshotTransportKind {
+  if (source.kind === 'zip') return 'zip-full'
+  return source.kind === 'raw' ? 'raw-full' : 'raw-range'
+}
+
+function isAbortError(error: unknown): boolean {
+  return (error as { name?: unknown } | null)?.name === 'AbortError'
 }
 
 const SQLLITE_TYPE_MAP = {
@@ -54,25 +147,271 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private evalsDatasetsRequestParams: Record<string, number> = {}
   private batchEvalsCursors: Record<string, Array<string | null>> = {}
   private tracesRequestParams: Record<string, number> = {}
+  private snapshotTraits = new WeakMap<Database, SnapshotTraits>()
+  private openedSnapshots: OpenedSnapshot[] = []
+  private failedSnapshots = new Map<string, FailedSnapshot>()
+  // Experiments in the order init received them; statuses and results follow it.
+  private modelOrder: string[] = []
+  private engine: RangeSqliteEngine | null = null
+  private metricCatalogs = new Map<string, ExperimentMetricCatalog>()
+  private readonly transport: SnapshotTransport
+  private readonly rawOptions: RawSnapshotOptions
+
+  constructor(options: ExperimentSnapshotProviderOptions = {}) {
+    this.transport = options.transport ?? browserTransport
+    this.rawOptions = { ...DEFAULT_RAW_SNAPSHOT_OPTIONS, ...options.raw }
+  }
 
   private get modelsSnapshots() {
     if (!this._modelsSnapshots) throw new Error('Models snapshots not initialized')
     return this._modelsSnapshots
   }
 
-  async init(data: { modelsInfo: ModelInfo[]; wasmUrl: string }) {
-    const SQL = await initSqlJs({ locateFile: () => data.wasmUrl })
-    const snapshotsPromises = data.modelsInfo.map(async ({ modelId, buffer }) => {
-      const database = await this.createDatabaseFromBuffer(buffer, SQL)
-      return { modelId, database }
+  /**
+   * Opens every experiment on its own: one that cannot open (too large for the full-download
+   * fallback, not a snapshot, a source error) is returned as a failure and reported by its
+   * status, while the others open and work. An expired source can be renewed and opened
+   * again with `reopenSnapshot`, which leaves the opened ones alone. `signal` stops downloads.
+   */
+  async init(
+    data: ExperimentSnapshotInitData,
+    signal?: AbortSignal,
+  ): Promise<SnapshotOpenFailure[]> {
+    const sources: SnapshotSourceInfo[] = data.modelsInfo.flatMap((info) => {
+      if ('error' in info) return []
+      const source =
+        'source' in info ? info.source : ({ kind: 'zip', buffer: info.buffer } as const)
+      return [{ modelId: info.modelId, source }]
     })
-    this._modelsSnapshots = await Promise.all(snapshotsPromises)
+    this.engine = sources.length ? await RangeSqliteEngine.load(data.sqliteWasmUrl) : null
+    const settled = await Promise.allSettled(sources.map((info) => this.openOne(info, signal)))
+    signal?.throwIfAborted()
+    this.modelOrder = data.modelsInfo.map(({ modelId }) => modelId)
+    this.openedSnapshots = []
+    this.failedSnapshots = new Map()
+    this.metricCatalogs = new Map()
+    for (const info of data.modelsInfo) {
+      if ('error' in info) this.recordFailure({ ...info, source: null })
+    }
+    for (const [index, result] of settled.entries()) {
+      const info = sources[index]
+      if (!info) continue
+      if (result.status === 'fulfilled') this.openedSnapshots.push(result.value)
+      else this.recordFailure({ ...info, error: toExperimentReadError(result.reason) })
+    }
+    this.syncModelsSnapshots()
+    return this.openFailures()
+  }
+
+  /**
+   * Opens one experiment that failed to open from a range source again, from a renewed URL
+   * or token; the experiments already open are kept as they are.
+   */
+  async reopenSnapshot(
+    modelId: string,
+    location: SnapshotSourceRef,
+    signal?: AbortSignal,
+  ): Promise<SnapshotOpenFailure[]> {
+    const failed = this.failedSnapshots.get(modelId)
+    if (failed?.source?.kind !== 'range') {
+      throw new Error(`Snapshot '${modelId}' has no range source that failed to open`)
+    }
+    const { offset, size } = failed.source
+    const source = { kind: 'range' as const, offset, size, ...toSourceLocation(location) }
+    try {
+      const opened = await this.openOne({ modelId, source }, signal)
+      this.failedSnapshots.delete(modelId)
+      this.openedSnapshots.push(opened)
+      this.syncModelsSnapshots()
+    } catch (error) {
+      if (isAbortError(error)) throw error
+      this.recordFailure({ modelId, source, error: toExperimentReadError(error) })
+    }
+    return this.openFailures()
+  }
+
+  private async openOne(
+    { modelId, source }: SnapshotSourceInfo,
+    signal?: AbortSignal,
+  ): Promise<OpenedSnapshot> {
+    const engine = this.engine
+    if (!engine) throw new Error('SQLite engine not loaded')
+    let snapshot: OpenedSnapshot
+    if (source.kind === 'zip') {
+      const database = await this.openZipSnapshot(engine, modelId, source.buffer)
+      snapshot = { modelId, database, transport: 'zip-full', fallback: null, rangeFile: null }
+    } else {
+      const opened = await openRawSnapshot(
+        engine,
+        this.transport,
+        modelId,
+        source,
+        this.rawOptions,
+        signal,
+      )
+      snapshot = { modelId, ...opened }
+    }
+    // Reading the traits reads pages, so a source failure surfaces here, at open.
+    this.snapshotTraits.set(snapshot.database, readSnapshotTraits(snapshot.database))
+    return snapshot
+  }
+
+  /** The UI shows only a short text per code, so the message is logged for diagnosis. */
+  private recordFailure(failed: FailedSnapshot): void {
+    this.failedSnapshots.set(failed.modelId, failed)
+    console.warn(
+      `Experiment '${failed.modelId}' did not open: ${redactSecrets(failed.error.message)}`,
+    )
+  }
+
+  private syncModelsSnapshots(): void {
+    const order = new Map(this.modelOrder.map((modelId, index) => [modelId, index]))
+    this.openedSnapshots.sort(
+      (left, right) => (order.get(left.modelId) ?? 0) - (order.get(right.modelId) ?? 0),
+    )
+    this._modelsSnapshots = this.openedSnapshots.map(({ modelId, database }) => ({
+      modelId,
+      database,
+    }))
+  }
+
+  private openFailures(): SnapshotOpenFailure[] {
+    return this.modelOrder.flatMap((modelId) => {
+      const failed = this.failedSnapshots.get(modelId)
+      return failed ? [{ modelId, error: failed.error }] : []
+    })
+  }
+
+  /** Points a range-backed snapshot at a renewed URL or token. */
+  async setSourceUrl(modelId: string, source: SnapshotSourceRef) {
+    const snapshot = this.openedSnapshots.find((item) => item.modelId === modelId)
+    if (!snapshot?.rangeFile) throw new Error(`Snapshot '${modelId}' is not range-backed`)
+    snapshot.rangeFile.location = toSourceLocation(source)
+  }
+
+  async getTransportStats(): Promise<SnapshotTransportStats[]> {
+    return this.openedSnapshots.map(({ modelId, transport, rangeFile }) => ({
+      modelId,
+      transport,
+      ...(rangeFile?.cache.stats ?? { requests: 0, bytesFetched: 0, cacheHits: 0, cacheMisses: 0 }),
+    }))
+  }
+
+  async getExperimentStatuses(): Promise<ExperimentSnapshotStatus[]> {
+    return this.modelOrder.flatMap((modelId): ExperimentSnapshotStatus[] => {
+      const failed = this.failedSnapshots.get(modelId)
+      if (failed) {
+        return [
+          {
+            modelId,
+            revision: null,
+            transport: failed.source ? transportOf(failed.source) : 'raw-range',
+            transportFallback: null,
+            unknownNewerRevision: false,
+            skippedMetricRows: null,
+            error: failed.error,
+          },
+        ]
+      }
+      const opened = this.openedSnapshots.find((snapshot) => snapshot.modelId === modelId)
+      if (!opened) return []
+      const { database, transport, fallback, rangeFile } = opened
+      const traits = this.traitsOf(database)
+      // A storage that stopped honouring Range fails every later read of this experiment.
+      const failure = this.readerRefusal(modelId, traits) ?? rangeFile?.failure ?? null
+      return [
+        {
+          modelId,
+          revision: traits.revision,
+          transport,
+          transportFallback: fallback,
+          unknownNewerRevision: traits.unknownNewerRevision,
+          skippedMetricRows: this.metricCatalogs.get(modelId)?.skipped_rows ?? null,
+          error: failure ? toExperimentReadError(failure) : null,
+        },
+      ]
+    })
+  }
+
+  /** `refresh` is ignored: a published snapshot never changes, so its cached catalog stays right. */
+  async getMetricCatalogs(
+    request: MetricCatalogsRequest = {},
+    signal?: AbortSignal,
+  ): Promise<ExperimentResult<ExperimentMetricCatalog>[]> {
+    return this.resultsFor(request.modelIds, signal, (snapshot) => this.catalogOf(snapshot))
+  }
+
+  /** One SQL statement per experiment covers every requested key. */
+  async getMetricBuckets(
+    request: MetricBucketsRequest,
+    signal?: AbortSignal,
+  ): Promise<ExperimentResult<MetricBucketsResponse>[]> {
+    return this.resultsFor(request.modelIds, signal, (snapshot) =>
+      readMetricBuckets(
+        snapshot.database,
+        this.traitsOf(snapshot.database),
+        snapshot.modelId,
+        this.catalogOf(snapshot),
+        request,
+      ),
+    )
+  }
+
+  /** One result per requested experiment; one that did not open answers with its error. */
+  private resultsFor<T>(
+    modelIds: string[] | undefined,
+    signal: AbortSignal | undefined,
+    read: (snapshot: ModelSnapshot) => T,
+  ): ExperimentResult<T>[] {
+    const wanted = modelIds
+      ? this.modelOrder.filter((id) => modelIds.includes(id))
+      : this.modelOrder
+    return wanted.flatMap((modelId): ExperimentResult<T>[] => {
+      signal?.throwIfAborted()
+      const failed = this.failedSnapshots.get(modelId)
+      if (failed) return [{ modelId, ok: false, error: failed.error }]
+      const snapshot = this.modelsSnapshots.find((item) => item.modelId === modelId)
+      return snapshot ? [this.experimentResult(snapshot, () => read(snapshot))] : []
+    })
+  }
+
+  private catalogOf(snapshot: ModelSnapshot): ExperimentMetricCatalog {
+    let catalog = this.metricCatalogs.get(snapshot.modelId)
+    if (!catalog) {
+      catalog = readMetricCatalog(snapshot.database, this.traitsOf(snapshot.database))
+      this.metricCatalogs.set(snapshot.modelId, catalog)
+    }
+    return catalog
+  }
+
+  private readerRefusal(modelId: string, traits: SnapshotTraits) {
+    if (!traits.needsNewerReader) return null
+    return new SnapshotNeedsNewerReaderError(
+      modelId,
+      traits.revision,
+      traits.minReaderRevision,
+      NEWEST_KNOWN_REVISION,
+    )
+  }
+
+  /**
+   * Turns a failure into that experiment's error. An expired source URL is rethrown: the
+   * worker proxy renews it and retries the whole call.
+   */
+  private experimentResult<T>(snapshot: ModelSnapshot, read: () => T): ExperimentResult<T> {
+    const { modelId, database } = snapshot
+    try {
+      const refusal = this.readerRefusal(modelId, this.traitsOf(database))
+      if (refusal) throw refusal
+      return { modelId, ok: true, value: read() }
+    } catch (error) {
+      if (isSnapshotSourceExpired(error)) throw error
+      return { modelId, ok: false, error: toExperimentReadError(error) }
+    }
   }
 
   async getDynamicMetricsNames() {
-    const names = this.modelsSnapshots.map((snapshot) =>
-      this.getModelMetricsNames(snapshot.database),
-    )
+    const names = this.modelsSnapshots.map((snapshot) => this.getModelMetricsNames(snapshot))
     const uniqueNames = new Set<string>(names.flat())
     return [...uniqueNames]
   }
@@ -101,6 +440,17 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
     if (this.modelsSnapshots.length > 1) return this.getNextBatchEvalsByDatasetId(params)
+    const keys = this.modelsSnapshots.map((snapshot) =>
+      this.getEvalsPageKey(snapshot.modelId, params.dataset_id),
+    )
+    return this.keepPagingOnFailure(this.evalsDatasetsRequestParams, keys, () =>
+      this.getNextSingleEvalsByDatasetId(params),
+    )
+  }
+
+  private async getNextSingleEvalsByDatasetId(
+    params: GetEvalsByDatasetParams,
+  ): Promise<EvalsInfo[]> {
     const promises = this.modelsSnapshots.map(async (snapshot) => {
       const key = this.getEvalsPageKey(snapshot.modelId, params.dataset_id)
       const page = this.evalsDatasetsRequestParams[key] || 1
@@ -214,6 +564,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     `
 
     const snapshotsPromises = snapshots.map(async (snapshot) => {
+      if (!this.traitsOf(snapshot.database).hasExperimentTables) return []
       const rows = this._getRowsByQueryAndParams(snapshot.database, query, pageIds)
       const rowsPromises = rows.map(async (row) => {
         const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
@@ -261,13 +612,42 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     delete this.batchEvalsCursors[datasetId]
   }
 
+  /**
+   * A failed read is retried by the caller, so it must not advance its page cursors. Only the
+   * read's own `keys` are restored: reads of other datasets may run between its awaits.
+   */
+  private async keepPagingOnFailure<T>(
+    pages: Record<string, number>,
+    keys: string[],
+    read: () => Promise<T>,
+  ): Promise<T> {
+    const saved = keys.map((key) => [key, pages[key]] as const)
+    try {
+      return await read()
+    } catch (error) {
+      for (const [key, page] of saved) {
+        if (page === undefined) delete pages[key]
+        else pages[key] = page
+      }
+      throw error
+    }
+  }
+
+  /** Null for an experiment that failed to open: its status already reports it. */
+  private openedDatabase(modelId: string): Database | null {
+    const database = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
+    if (database) return database
+    if (this.failedSnapshots.has(modelId)) return null
+    throw new Error('Database not found')
+  }
+
   private getEvalsPageKey(modelId: string, datasetId: string) {
     return `${modelId}:${datasetId}`
   }
 
   async getTraceSpans(modelId: string, traceId: string) {
-    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
-    if (!db) throw new Error('Database not found')
+    const db = this.openedDatabase(modelId)
+    if (!db || !this.traitsOf(db).hasExperimentTables) return []
     const stmt = db.prepare(`
       SELECT trace_id, span_id, parent_span_id, name, kind,
              start_time_unix_nano, end_time_unix_nano,
@@ -295,8 +675,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getTraceId(args: SpansParams) {
-    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === args.modelId)?.database
-    if (!db) throw new Error('Database not found')
+    const db = this.openedDatabase(args.modelId)
+    if (!db || !this.traitsOf(db).hasExperimentTables) return null
     const rows = this._getRowsByQueryAndParams(
       db,
       'SELECT trace_id FROM eval_traces_bridge WHERE eval_dataset_id = ? AND eval_id = ? LIMIT 1',
@@ -393,36 +773,14 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     search?: string,
     filters?: string[],
   ): Promise<ModelScores[]> {
-    const whereParts: string[] = ['scores IS NOT NULL', 'dataset_id = ?']
-    const params: SqlValue[] = [datasetId]
-
-    if (search) {
-      whereParts.push(`(id LIKE ?
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?)
-      )`)
-      const like = `%${search}%`
-      params.push(like, like, like, like, like, like)
-    }
-
-    for (const filter of filters || []) {
-      const [where, filterParams] = SearchEvalsUtils.toSql(filter)
-      if (where) {
-        whereParts.push(where)
-        params.push(...(filterParams as SqlValue[]))
-      }
-    }
-
-    const whereCondition = `WHERE ${whereParts.join(' AND ')}`
-
     return this.modelsSnapshots.map((snapshot) => {
+      const traits = this.traitsOf(snapshot.database)
+      if (!traits.hasExperimentTables) return { modelId: snapshot.modelId, scores: [] }
+      const { whereParts, params } = this.buildEvalsWhere(traits, undefined, search, filters)
       const rows = this._getRowsByQueryAndParams(
         snapshot.database,
-        `SELECT scores FROM evals ${whereCondition}`,
-        params,
+        `SELECT scores FROM evals WHERE ${['scores IS NOT NULL', 'dataset_id = ?', ...whereParts].join(' AND ')}`,
+        [datasetId, ...params],
       )
       const formattedRows = rows.map((row) => safeParse(row[0] as SqlValue))
       const sum: Record<string, { sum: number; count: number }> = formattedRows.reduce(
@@ -463,10 +821,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
-    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
-    if (!db) throw new Error('Database not found')
-    const hasAnnotations = this.isDatabaseHasAnnotations(db)
-    if (!hasAnnotations) return []
+    const db = this.openedDatabase(artifactId)
+    if (!db || !this.traitsOf(db).hasEvalAnnotations) return []
     const rows = this._getRowsByQueryAndParams(
       db,
       `
@@ -494,6 +850,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getTraces(params: GetTracesParams) {
+    const keys = this.modelsSnapshots.map((snapshot) => snapshot.modelId)
+    return this.keepPagingOnFailure(this.tracesRequestParams, keys, async () =>
+      this.getNextTraces(params),
+    )
+  }
+
+  private getNextTraces(params: GetTracesParams) {
     const tracesByArtifacts = this.modelsSnapshots.map((snapshot) => {
       const page = this.tracesRequestParams[snapshot.modelId] || 1
       this.tracesRequestParams[snapshot.modelId] = page + 1
@@ -534,11 +897,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   async getEvalById(artifactId: string, evalId: string): Promise<EvalsInfo> {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
     if (!db) throw new Error('Database not found')
-    const rows = this._getRowsByQueryAndParams(
-      db,
-      'SELECT id, dataset_id, inputs, outputs, refs, scores, metadata FROM evals WHERE id = ?',
-      [evalId],
-    )
+    const rows = this.traitsOf(db).hasExperimentTables
+      ? this._getRowsByQueryAndParams(
+          db,
+          'SELECT id, dataset_id, inputs, outputs, refs, scores, metadata FROM evals WHERE id = ?',
+          [evalId],
+        )
+      : []
     const row = rows[0]
     if (!row) throw new Error('Eval not found')
     const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
@@ -574,10 +939,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     traceId: string,
     spanId: string,
   ): Promise<Annotation[]> {
-    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
-    if (!db) throw new Error('Database not found')
-    const hasAnnotations = this.isDatabaseHasAnnotations(db)
-    if (!hasAnnotations) return []
+    const db = this.openedDatabase(artifactId)
+    if (!db || !this.traitsOf(db).hasSpanAnnotations) return []
     const rows = this._getRowsByQueryAndParams(
       db,
       'SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale FROM span_annotations WHERE trace_id = ? AND span_id = ?',
@@ -599,10 +962,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getTracesAnnotationSummary(artifactId: string) {
-    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
-    if (!db) throw new Error('Database not found')
-    const hasAnnotations = this.isDatabaseHasAnnotations(db)
-    if (!hasAnnotations) return { feedback: [], expectations: [] }
+    const db = this.openedDatabase(artifactId)
+    if (!db || !this.traitsOf(db).hasSpanAnnotations) return { feedback: [], expectations: [] }
     const queryResult = db.exec(
       `SELECT name, value, annotation_kind, value_type FROM span_annotations`,
     )
@@ -620,10 +981,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getTracesColumns(artifactId: string): Promise<TypedTracesColumns> {
-    const database = this.modelsSnapshots.find(
-      (snapshot) => snapshot.modelId === artifactId,
-    )?.database
-    if (!database) throw new Error('Database not found')
+    const database = this.openedDatabase(artifactId)
+    if (!database || !this.traitsOf(database).hasExperimentTables) {
+      return { attributes: [], annotations_feedback: [], annotations_expectations: [] }
+    }
     const queryResult = database.exec(`
         SELECT je.key, je.type
         FROM spans, json_each(spans.attributes) AS je
@@ -698,6 +1059,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     database: Database,
     params: Omit<GetTracesParams, 'limit'> & { page?: number; limit?: number },
   ): Trace[] {
+    const traits = this.traitsOf(database)
+    if (!traits.hasExperimentTables) return []
     const offset = params.page && params.limit ? (params.page - 1) * params.limit : 0
     const limitQuery = params.limit ? 'LIMIT ?' : ''
     const offsetQuery = offset ? 'OFFSET ?' : ''
@@ -718,7 +1081,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     }
 
     for (const filter of params.filters || []) {
-      const [sql, filterParams] = SearchTracesUtils.toSql(filter)
+      const [sql, filterParams] = SearchTracesUtils.toSql(filter, traits.hasSpanAnnotations)
       if (!sql) continue
 
       if (SearchTracesUtils.isAggregateFilter(filter)) {
@@ -785,11 +1148,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private getModelDynamicMetricData(database: Database, metricName: string, modelId: string) {
-    const rows = this._getRowsByQueryAndParams(
-      database,
-      'SELECT value, step FROM dynamic_metrics WHERE key = ? ORDER BY step ASC',
-      [metricName],
-    )
+    const rows = this.traitsOf(database).hasExperimentTables
+      ? this._getRowsByQueryAndParams(
+          database,
+          'SELECT value, step FROM dynamic_metrics WHERE key = ? ORDER BY step ASC',
+          [metricName],
+        )
+      : []
     const total = rows.length
     const MAX_POINTS = 50_000
     const data: ExperimentSnapshotDynamicMetric = {
@@ -827,6 +1192,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       modelId: string
     } & GetEvalsByDatasetParams,
   ) {
+    const traits = this.traitsOf(database)
+    if (!traits.hasExperimentTables) return []
     const parentColumnsSort = ['created_at', 'id']
     const sortBy = parentColumnsSort.includes(sort_by)
       ? sort_by
@@ -836,7 +1203,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const offset = page && limit ? (page - 1) * limit : 0
     const offsetQuery = offset ? 'OFFSET ?' : ''
 
-    const { whereParts, params } = this.buildEvalsWhere(dataset_id, search, filters)
+    const { whereParts, params } = this.buildEvalsWhere(traits, dataset_id, search, filters)
     if (!parentColumnsSort.includes(sort_by)) params.push(`$.${sort_by}`)
     if (limit) params.push(limit)
     if (offset) params.push(offset)
@@ -878,6 +1245,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private buildEvalsWhere(
+    traits: SnapshotTraits,
     dataset_id?: string,
     search?: string,
     filters?: string[],
@@ -904,7 +1272,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     }
 
     for (const filter of filters || []) {
-      const [where, filterParams] = SearchEvalsUtils.toSql(filter)
+      const [where, filterParams] = SearchEvalsUtils.toSql(filter, traits.hasEvalAnnotations)
       if (where) {
         whereParts.push(where)
         params.push(...(filterParams as SqlValue[]))
@@ -933,7 +1301,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const candidateIds = new Set<string>()
 
     for (const snapshot of snapshots) {
-      const { whereParts, params } = this.buildEvalsWhere(dataset_id, search, filters)
+      const traits = this.traitsOf(snapshot.database)
+      if (!traits.hasExperimentTables) continue
+      const { whereParts, params } = this.buildEvalsWhere(traits, dataset_id, search, filters)
 
       if (cursor) {
         whereParts.push(`id > ?`)
@@ -992,6 +1362,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     column: 'inputs' | 'outputs' | 'refs' | 'scores' | 'metadata',
     datasetId: string,
   ) {
+    if (!this.traitsOf(database).hasExperimentTables) return []
     const rows = this._getRowsByQueryAndParams(
       database,
       `
@@ -1016,6 +1387,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private getUniqueDatasetsIdsByDatabase(database: Database): string[] {
+    if (!this.traitsOf(database).hasExperimentTables) return []
     const queryResult = database.exec('SELECT DISTINCT dataset_id FROM evals')
     const rows = queryResult[0]?.values || []
     return rows.map((row) => this.parseValue(row[0], 'string'))
@@ -1030,7 +1402,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private getStaticParams(database: Database, modelId: string): ExperimentSnapshotStaticParams[] {
-    const queryResult = database.exec('SELECT key, value, value_type FROM static_params')
+    const queryResult = this.traitsOf(database).hasExperimentTables
+      ? database.exec('SELECT key, value, value_type FROM static_params')
+      : []
     const rows = queryResult[0]?.values || []
     const obj = Object.fromEntries(
       rows.map((row) => [row[0], this.parseValue(row[1], row[2] as SqlValue)]),
@@ -1038,30 +1412,40 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return { ...obj, modelId }
   }
 
-  private getModelMetricsNames(database: Database) {
-    const queryResult = database.exec('SELECT key FROM dynamic_metrics')
-    const rows = queryResult[0]?.values || []
-    return rows.map((row) => this.parseValue(row[0], 'string'))
+  /** On revision 3 the catalog already holds the keys, so no per-key point lookup is made. */
+  private getModelMetricsNames(snapshot: ModelSnapshot) {
+    const traits = this.traitsOf(snapshot.database)
+    if (traits.metricLayout === 'metric-points' && traits.bucketLevels) {
+      return this.catalogOf(snapshot).metrics.map((entry) => entry.key)
+    }
+    return readMetricKeys(snapshot.database, traits)
   }
 
-  private async createDatabaseFromBuffer(buffer: ArrayBuffer, SQL: SqlJsStatic) {
+  /**
+   * Zipped snapshots of the first generation keep their WAL-mode header. They are opened like
+   * sql.js opened them: main file only, no `-wal`, so the WAL header check does not apply.
+   */
+  private async openZipSnapshot(engine: RangeSqliteEngine, modelId: string, buffer: ArrayBuffer) {
+    const zipBytes = new Uint8Array(buffer)
+    assertZipEntryFits(modelId, zipEntrySize(zipBytes, zipBytes.length, ZIP_SNAPSHOT_ENTRY))
     const zip = await loadZipAsync(buffer)
-    const dbFile = zip.file('exp.db')
-    if (!dbFile) throw new Error('exp.db not found')
+    const dbFile = zip.file(ZIP_SNAPSHOT_ENTRY)
+    if (!dbFile) throw new SnapshotFormatError(modelId, 'exp.db not found')
     const content = await dbFile.async('uint8array')
-    return new SQL.Database(content)
+    return engine.openDatabase(new BufferRangeFile(content))
   }
 
-  private isDatabaseHasAnnotations(database: Database) {
-    const version = database.exec('PRAGMA user_version')[0]?.values[0]
-    if (!version) return false
-    const versionNumber = this.parseValue(version, 'int')
-    return versionNumber >= 1
+  private traitsOf(database: Database): SnapshotTraits {
+    let traits = this.snapshotTraits.get(database)
+    if (!traits) {
+      traits = readSnapshotTraits(database)
+      this.snapshotTraits.set(database, traits)
+    }
+    return traits
   }
 
   private getTraceAnnotations(database: Database, traceId: string) {
-    const hasAnnotations = this.isDatabaseHasAnnotations(database)
-    if (!hasAnnotations) return { feedback: [], expectations: [] }
+    if (!this.traitsOf(database).hasSpanAnnotations) return { feedback: [], expectations: [] }
     const rows = this._getRowsByQueryAndParams(
       database,
       `
@@ -1182,6 +1566,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private getEvalsIdsByDatabase(database: Database, datasetId: string) {
+    if (!this.traitsOf(database).hasExperimentTables) return []
     const rows = this._getRowsByQueryAndParams(
       database,
       'SELECT id FROM evals WHERE dataset_id = ?',
@@ -1196,8 +1581,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private getSnapAnnotationsCountByDatabase(database: Database, spanId: string): number {
-    const hasAnnotations = this.isDatabaseHasAnnotations(database)
-    if (!hasAnnotations) return 0
+    if (!this.traitsOf(database).hasSpanAnnotations) return 0
     const rows = this._getRowsByQueryAndParams(
       database,
       'SELECT COUNT(*) FROM span_annotations WHERE span_id = ?',
@@ -1226,8 +1610,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private getAnnotationFields(database: Database, datasetId: string, kind: AnnotationKind) {
-    const hasAnnotations = this.isDatabaseHasAnnotations(database)
-    if (!hasAnnotations) return []
+    if (!this.traitsOf(database).hasEvalAnnotations) return []
     const rows = this._getRowsByQueryAndParams(
       database,
       'SELECT DISTINCT name, value_type FROM eval_annotations WHERE annotation_kind = ? AND dataset_id = ?',
@@ -1246,8 +1629,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   private getSpanAnnotationFields(database: Database, kind: AnnotationKind) {
-    const hasAnnotations = this.isDatabaseHasAnnotations(database)
-    if (!hasAnnotations) return []
+    if (!this.traitsOf(database).hasSpanAnnotations) return []
     const rows = this._getRowsByQueryAndParams(
       database,
       'SELECT DISTINCT name, value_type FROM span_annotations WHERE annotation_kind = ?',

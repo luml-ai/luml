@@ -1,0 +1,420 @@
+import type { SnapshotDatabase as Database, SqlValue } from './snapshot-source/SnapshotDatabase'
+import type { SnapshotTraits } from './ExperimentSnapshotTraits'
+import type {
+  ExperimentMetricCatalog,
+  MetricBucket,
+  MetricBucketSeries,
+  MetricBucketsRequest,
+  MetricBucketsResponse,
+  MetricCatalogEntry,
+} from '../metric-buckets/types'
+import {
+  assertBucketLevel,
+  bucketOf,
+  bucketStepRange,
+  MAX_RETURNED_BUCKETS,
+} from '../metric-buckets/levels'
+import { TooManyBucketsError } from '../metric-buckets/errors'
+
+const numeric = (value: string) => `typeof(${value}) IN ('real', 'integer')`
+/** Values `finite_count` and `sum` cover; the limit keeps any sum of them from overflowing. */
+const summable = (value: string) => `${numeric(value)} AND ${value} BETWEEN -1e290 AND 1e290`
+
+/**
+ * Released SDKs stored numpy integers as BLOB steps, floats as REAL steps and sometimes
+ * non-text keys; such rows cannot be bucketed and are left out on revisions 0-2.
+ */
+const LEGACY_VALID_ROW = "typeof(step) = 'integer' AND typeof(key) = 'text'"
+
+/** count, finite_count, min, max, sum over raw points, as section 4 of the contract defines them. */
+const rawAggregates = (value: string) =>
+  `count(*), count(CASE WHEN ${summable(value)} THEN 1 END), ` +
+  `min(CASE WHEN ${numeric(value)} THEN ${value} END), ` +
+  `max(CASE WHEN ${numeric(value)} THEN ${value} END), ` +
+  `sum(CASE WHEN ${summable(value)} THEN ${value} END)`
+
+type BucketSource =
+  | { kind: 'bucket-table' }
+  | { kind: 'coarse-aggregate'; topLevel: number }
+  | { kind: 'raw-group-by' }
+
+function rows(database: Database, sql: string, params: SqlValue[]): SqlValue[][] {
+  const statement = database.prepare(sql)
+  try {
+    statement.bind(params)
+    const result: SqlValue[][] = []
+    while (statement.step()) result.push(statement.get())
+    return result
+  } finally {
+    statement.free()
+  }
+}
+
+function numberOrNull(value: SqlValue | undefined): number | null {
+  return typeof value === 'number' ? value : null
+}
+
+function catalogEntry(row: SqlValue[]): MetricCatalogEntry {
+  return {
+    key: String(row[0]),
+    first_step: Number(row[1]),
+    last_step: Number(row[2]),
+    count: Number(row[3]),
+    min: numberOrNull(row[4]),
+    max: numberOrNull(row[5]),
+  }
+}
+
+/**
+ * Released revisions all have the PRIMARY KEY (key, step) autoindex. Seeks on it need BINARY
+ * order on both columns; a partial index may lack rows. Same statement as the SDK.
+ */
+const LEGACY_KEY_STEP_INDEX = `
+SELECT il.name FROM pragma_index_list('dynamic_metrics') il
+WHERE il.partial = 0
+  AND EXISTS (SELECT 1 FROM pragma_index_xinfo(il.name) x
+              WHERE x.seqno = 0 AND x.name = 'key' AND x.coll = 'BINARY')
+  AND EXISTS (SELECT 1 FROM pragma_index_xinfo(il.name) x
+              WHERE x.seqno = 1 AND x.name = 'step' AND x.coll = 'BINARY')
+ORDER BY il."unique" DESC, il.name LIMIT 1`
+
+/**
+ * Catalog rows (key, first_step, last_step, skipped) and the non-text key count, by index
+ * seeks only. SQLite orders NULL < numbers < text < BLOB, so `key >= '' AND key < x''` holds
+ * the text keys, `step < ''` the numeric steps and `step >= ''` the text and BLOB steps.
+ */
+function legacySeekQueries(index: string): { catalog: string; nonTextKeys: string } {
+  const table = `dynamic_metrics INDEXED BY "${index.replace(/"/g, '""')}"`
+  const integerSteps =
+    `SELECT step FROM ${table} WHERE key = k.key AND step < '' ` +
+    "AND typeof(step) = 'integer' ORDER BY step"
+  return {
+    catalog: `
+      WITH RECURSIVE k(key) AS (
+        SELECT (SELECT key FROM ${table} WHERE key >= '' AND key < x'' ORDER BY key LIMIT 1)
+        UNION ALL
+        SELECT (SELECT key FROM ${table} WHERE key > k.key AND key < x'' ORDER BY key LIMIT 1)
+        FROM k WHERE k.key IS NOT NULL
+      )
+      SELECT key, (${integerSteps} LIMIT 1), (${integerSteps} DESC LIMIT 1),
+             (SELECT count(*) FROM ${table} WHERE key = k.key AND step IS NULL)
+             + (SELECT count(*) FROM ${table} WHERE key = k.key AND step >= '')
+      FROM k WHERE key IS NOT NULL`,
+    nonTextKeys: `
+      SELECT (SELECT count(*) FROM ${table} WHERE key IS NULL)
+             + (SELECT count(*) FROM ${table} WHERE key < '')
+             + (SELECT count(*) FROM ${table} WHERE key >= x'')`,
+  }
+}
+
+interface CatalogRead {
+  metrics: MetricCatalogEntry[]
+  skippedRows: number
+}
+
+/**
+ * Revisions 0-2: count, min and max are null, as only the index is read. Fractional REAL
+ * steps are left out of the steps but not counted as skipped; finding them needs a full scan.
+ */
+function readLegacyCatalog(database: Database): CatalogRead {
+  const [indexRow] = rows(database, LEGACY_KEY_STEP_INDEX, [])
+  if (!indexRow) return readLegacyScanCatalog(database)
+  const { catalog, nonTextKeys } = legacySeekQueries(String(indexRow[0]))
+  let skippedRows = Number(rows(database, nonTextKeys, [])[0]?.[0] ?? 0)
+  const metrics: MetricCatalogEntry[] = []
+  for (const [key, firstStep, lastStep, skipped] of rows(database, catalog, [])) {
+    skippedRows += Number(skipped)
+    if (firstStep === null || firstStep === undefined) continue
+    metrics.push({
+      key: String(key),
+      first_step: Number(firstStep),
+      last_step: Number(lastStep),
+      count: null,
+      min: null,
+      max: null,
+    })
+  }
+  return { metrics, skippedRows }
+}
+
+function readLegacyScanCatalog(database: Database): CatalogRead {
+  const metrics = rows(
+    database,
+    `SELECT key, min(step), max(step), count(*),
+            min(CASE WHEN ${numeric('value')} THEN value END),
+            max(CASE WHEN ${numeric('value')} THEN value END)
+     FROM dynamic_metrics
+     WHERE ${LEGACY_VALID_ROW}
+     GROUP BY key ORDER BY key`,
+    [],
+  ).map(catalogEntry)
+  const [row] = rows(
+    database,
+    `SELECT count(*) FROM dynamic_metrics WHERE NOT (${LEGACY_VALID_ROW})`,
+    [],
+  )
+  return { metrics, skippedRows: Number(row?.[0] ?? 0) }
+}
+
+function catalogSql(traits: SnapshotTraits): { sql: string; params: SqlValue[] } {
+  if (traits.bucketLevels) {
+    // The top stored level holds a few rows per metric and is contiguous in the level-first
+    // key, so this reads a handful of pages however large the experiment is.
+    return {
+      sql: `SELECT k.key, min(b.first_step), max(b.last_step), sum(b.count), min(b.min), max(b.max)
+            FROM metric_buckets b JOIN metric_keys k ON k.id = b.metric_id
+            WHERE b.level = ?
+            GROUP BY b.metric_id ORDER BY k.key`,
+      params: [traits.bucketLevels.max],
+    }
+  }
+  return {
+    sql: `SELECT k.key, min(p.step), max(p.step), count(*),
+                 min(CASE WHEN ${numeric('p.value')} THEN p.value END),
+                 max(CASE WHEN ${numeric('p.value')} THEN p.value END)
+          FROM metric_points p JOIN metric_keys k ON k.id = p.metric_id
+          GROUP BY p.metric_id ORDER BY k.key`,
+    params: [],
+  }
+}
+
+function readCatalogRows(database: Database, traits: SnapshotTraits): CatalogRead {
+  if (!traits.hasExperimentTables) return { metrics: [], skippedRows: 0 }
+  if (traits.metricLayout === 'dynamic-metrics') return readLegacyCatalog(database)
+  const { sql, params } = catalogSql(traits)
+  return { metrics: rows(database, sql, params).map(catalogEntry), skippedRows: 0 }
+}
+
+export function readMetricCatalog(
+  database: Database,
+  traits: SnapshotTraits,
+): ExperimentMetricCatalog {
+  const { metrics, skippedRows } = readCatalogRows(database, traits)
+  return {
+    revision: traits.revision,
+    bucket_min_level: traits.bucketLevels?.min ?? null,
+    bucket_max_level: traits.bucketLevels?.max ?? null,
+    skipped_rows: skippedRows,
+    metrics,
+  }
+}
+
+/** Keys that have points, without touching the points on revision 3. */
+export function readMetricKeys(database: Database, traits: SnapshotTraits): string[] {
+  if (!traits.hasExperimentTables) return []
+  const sql =
+    traits.metricLayout === 'metric-points'
+      ? `SELECT key FROM metric_keys k
+         WHERE EXISTS (SELECT 1 FROM metric_points p WHERE p.metric_id = k.id)`
+      : 'SELECT DISTINCT key FROM dynamic_metrics'
+  // Unconverted, as the viewer always returned them: a legacy table may hold a NULL key.
+  return rows(database, sql, []).map((row) => row[0] as string)
+}
+
+function bucketSource(traits: SnapshotTraits, level: number): BucketSource {
+  const stored = traits.metricLayout === 'metric-points' ? traits.bucketLevels : null
+  if (!stored || level < stored.min) return { kind: 'raw-group-by' }
+  if (level <= stored.max) return { kind: 'bucket-table' }
+  return { kind: 'coarse-aggregate', topLevel: stored.max }
+}
+
+const placeholders = (count: number) => Array(count).fill('?').join(', ')
+
+const SELECTED_KEY_IDS = (count: number) =>
+  `(SELECT id FROM metric_keys WHERE key IN (${placeholders(count)}))`
+
+/**
+ * Rows one key may read before its answer certainly exceeds the bucket cap: a bucket holds at
+ * most `childrenPerBucket` rows (distinct steps, or child buckets), so that many times
+ * cap + 1 rows span more than cap buckets. -1 is SQLite's "no limit".
+ */
+function cappedRows(childrenPerBucket: number): number {
+  const rows = (MAX_RETURNED_BUCKETS + 1) * childrenPerBucket
+  return rows > Number.MAX_SAFE_INTEGER ? -1 : rows
+}
+
+/**
+ * One `UNION ALL` branch per key, each an index-ordered scan stopped by `LIMIT`, so the
+ * outer `GROUP BY` (which must sort) never reads more than the cap allows. Columns:
+ * `position` (the key's index), `key`, then the branch's own columns.
+ */
+function perKeyScans(
+  keys: string[],
+  scan: (key: string) => { sql: string; params: SqlValue[] },
+): { sql: string; params: SqlValue[] } {
+  const params: SqlValue[] = []
+  const branches = keys.map((key, position) => {
+    const branch = scan(key)
+    params.push(key, ...branch.params)
+    return `SELECT ${position} AS position, ? AS key, * FROM (${branch.sql})`
+  })
+  return { sql: branches.join(' UNION ALL '), params }
+}
+
+/**
+ * One statement for all keys. Columns: key, bucket, first_step, last_step, count,
+ * finite_count, min, max, sum; ordered by key, then bucket.
+ */
+function bucketQuery(
+  traits: SnapshotTraits,
+  keys: string[],
+  level: number,
+  firstBucket: number,
+  lastBucket: number,
+): { sql: string; params: SqlValue[] } {
+  const [lowStep, highStep] = bucketStepRange(firstBucket, lastBucket, level)
+  const source = bucketSource(traits, level)
+  if (source.kind === 'bucket-table') {
+    // Rows arrive in primary-key order without a sort, so the cap check stops the scan.
+    return {
+      sql: `SELECT k.key, b.bucket, b.first_step, b.last_step, b.count, b.finite_count,
+                   b.min, b.max, b.sum
+            FROM metric_buckets b JOIN metric_keys k ON k.id = b.metric_id
+            WHERE b.level = ? AND b.metric_id IN ${SELECTED_KEY_IDS(keys.length)}
+              AND b.bucket BETWEEN ? AND ?
+            ORDER BY b.metric_id, b.bucket`,
+      params: [level, ...keys, firstBucket, lastBucket],
+    }
+  }
+  if (source.kind === 'coarse-aggregate') {
+    const top = source.topLevel
+    const children = perKeyScans(keys, (key) => ({
+      sql: `SELECT bucket, first_step, last_step, count, finite_count, min, max, sum
+            FROM metric_buckets
+            WHERE level = ? AND metric_id = (SELECT id FROM metric_keys WHERE key = ?)
+              AND bucket BETWEEN ? AND ?
+            ORDER BY bucket LIMIT ?`,
+      params: [
+        top,
+        key,
+        bucketOf(lowStep, top),
+        bucketOf(highStep, top),
+        cappedRows(4 ** (level - top)),
+      ],
+    }))
+    return {
+      sql: `SELECT key, bucket >> ? AS parent, min(first_step), max(last_step), sum(count),
+                   sum(finite_count), min(min), max(max), sum(sum)
+            FROM (${children.sql})
+            GROUP BY position, parent ORDER BY position, parent`,
+      params: [2 * (level - top), ...children.params],
+    }
+  }
+  const pointLimit = cappedRows(4 ** level)
+  const points = perKeyScans(keys, (key) =>
+    traits.metricLayout === 'metric-points'
+      ? {
+          sql: `SELECT step, value FROM metric_points
+                WHERE metric_id = (SELECT id FROM metric_keys WHERE key = ?)
+                  AND step BETWEEN ? AND ?
+                ORDER BY step LIMIT ?`,
+          params: [key, lowStep, highStep, pointLimit],
+        }
+      : {
+          sql: `SELECT step, value FROM dynamic_metrics
+                WHERE key = ? AND step BETWEEN ? AND ? AND ${LEGACY_VALID_ROW}
+                ORDER BY step LIMIT ?`,
+          params: [key, lowStep, highStep, pointLimit],
+        },
+  )
+  return {
+    sql: `SELECT key, step >> ? AS b, min(step), max(step), ${rawAggregates('value')}
+          FROM (${points.sql})
+          GROUP BY position, b ORDER BY position, b`,
+    params: [2 * level, ...points.params],
+  }
+}
+
+function bucketFromRow(row: SqlValue[]): MetricBucket {
+  return {
+    bucket: Number(row[1]),
+    first_step: Number(row[2]),
+    last_step: Number(row[3]),
+    count: Number(row[4]),
+    finite_count: Number(row[5]),
+    min: numberOrNull(row[6]),
+    max: numberOrNull(row[7]),
+    sum: numberOrNull(row[8]),
+  }
+}
+
+/** Reads rows key by key and stops as soon as one key exceeds the bucket cap. */
+function collectBuckets(
+  database: Database,
+  sql: string,
+  params: SqlValue[],
+  modelId: string,
+): Map<string, MetricBucket[]> {
+  const byKey = new Map<string, MetricBucket[]>()
+  const statement = database.prepare(sql)
+  try {
+    statement.bind(params)
+    while (statement.step()) {
+      const row = statement.get()
+      const key = String(row[0])
+      let buckets = byKey.get(key)
+      if (!buckets) byKey.set(key, (buckets = []))
+      if (buckets.length === MAX_RETURNED_BUCKETS) {
+        throw new TooManyBucketsError(modelId, key, MAX_RETURNED_BUCKETS)
+      }
+      buckets.push(bucketFromRow(row))
+    }
+    return byKey
+  } finally {
+    statement.free()
+  }
+}
+
+/**
+ * The request's inclusive range over integer steps: a fractional bound is rounded inward and
+ * an open side stays null (the metric's own first or last step, as in the Python reader).
+ */
+function requestedSteps(request: MetricBucketsRequest): [number | null, number | null] {
+  const start = request.start_step ?? null
+  const end = request.end_step ?? null
+  if (Number.isNaN(start) || Number.isNaN(end)) throw new RangeError('step bounds must not be NaN')
+  return [start === null ? null : Math.ceil(start), end === null ? null : Math.floor(end)]
+}
+
+const clampStep = (step: number) =>
+  Math.min(Math.max(step, -Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER)
+
+export function readMetricBuckets(
+  database: Database,
+  traits: SnapshotTraits,
+  modelId: string,
+  catalog: ExperimentMetricCatalog,
+  request: MetricBucketsRequest,
+): MetricBucketsResponse {
+  assertBucketLevel(request.level)
+  const level = request.level
+  const [start, end] = requestedSteps(request)
+  const entries = new Map(catalog.metrics.map((entry) => [entry.key, entry]))
+  // Compared before clamping. An open side does not widen what is read: every bucket with
+  // points of a key lies inside the key's own range.
+  const keys = [...new Set(request.keys)].filter((key) => {
+    const entry = entries.get(key)
+    return entry !== undefined && (start ?? entry.first_step) <= (end ?? entry.last_step)
+  })
+  let byKey = new Map<string, MetricBucket[]>()
+  if (keys.length && traits.hasExperimentTables) {
+    const query = bucketQuery(
+      traits,
+      keys,
+      level,
+      bucketOf(clampStep(start ?? -Infinity), level),
+      bucketOf(clampStep(end ?? Infinity), level),
+    )
+    byKey = collectBuckets(database, query.sql, query.params, modelId)
+  }
+  const series: MetricBucketSeries[] = request.keys.map((key) => {
+    const entry = entries.get(key)
+    return {
+      key,
+      first_step: entry?.first_step ?? null,
+      last_step: entry?.last_step ?? null,
+      buckets: byKey.get(key) ?? [],
+    }
+  })
+  return { level, series }
+}

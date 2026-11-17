@@ -35,6 +35,26 @@ export interface ApiServiceInterface {
     signal?: AbortSignal,
   ) => Promise<ExperimentMetricHistory>
 
+  /**
+   * `GET experiments/{id}/metric-catalog`. Optional so API services written before the
+   * endpoint existed stay assignable; without it the catalog fails per experiment.
+   */
+  getExperimentMetricCatalog?: (
+    experimentId: string,
+    signal?: AbortSignal,
+  ) => Promise<MetricCatalogWire>
+
+  /**
+   * `POST experiments/{id}/metric-buckets`. Optional for the same reason as the catalog.
+   * Both reject like axios (`{response: {status, data}}`) so a 409 or 422 `detail.code`
+   * reaches the viewer as its typed error.
+   */
+  getExperimentMetricBuckets?: (
+    experimentId: string,
+    body: MetricBucketsRequestWire,
+    signal?: AbortSignal,
+  ) => Promise<MetricBucketsWire>
+
   getTraceDetails: (
     modelId: string,
     traceId: string,
@@ -181,4 +201,53 @@ export interface GetBatchExperimentsEvalsParams {
   dataset_id?: string
   search?: string
   filters?: string[]
+}
+
+/** JSON has no infinities: non-finite numbers travel as these strings. */
+export type WireNumber = number | 'Infinity' | '-Infinity' | null
+
+export interface MetricCatalogWire {
+  revision: number
+  bucket_min_level: number | null
+  bucket_max_level: number | null
+  /** Legacy metric rows the server left out, as `ExperimentMetricCatalog.skipped_rows`. */
+  skipped_rows: number
+  metrics: {
+    key: string
+    first_step: number
+    last_step: number
+    /** Null, like `min` and `max`, below revision 3. */
+    count: number | null
+    min: WireNumber
+    max: WireNumber
+  }[]
+}
+
+export interface MetricBucketsRequestWire {
+  keys: string[]
+  start_step: number | null
+  end_step: number | null
+  level: number
+}
+
+/** bucket, first_step, last_step, count, finite_count, min, max, sum (never infinite) */
+export type MetricBucketWire = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  WireNumber,
+  WireNumber,
+  number | null,
+]
+
+export interface MetricBucketsWire {
+  level: number
+  series: {
+    key: string
+    first_step: number | null
+    last_step: number | null
+    buckets: MetricBucketWire[]
+  }[]
 }

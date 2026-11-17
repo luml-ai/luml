@@ -1,175 +1,61 @@
 <template>
   <DynamicMetricsItemContent
     :title="metricName"
-    :loading="!data"
-    :aggregated="isAggregated"
+    :loading="status.loading"
+    :aggregation-steps="status.level === null ? null : 4 ** status.level"
+    :error="status.error"
     class="chart-wrapper"
-    @scale="setScaledChart"
+    data-testid="metric-chart"
+    :data-metric-key="metricName"
+    :data-level="status.level ?? 0"
+    :data-state="status.state"
   >
-    <div ref="chartRef" style="height: 200px; width: 100%"></div>
+    <MetricBucketPlot
+      :store="store"
+      :metric-name="metricName"
+      :model-ids="modelIds"
+      :full-range="fullRange"
+      :models-info="modelsInfo"
+      height="200px"
+      lazy
+      @status="status = $event"
+    />
     <template #scaled>
-      <div ref="chartScaledRef" style="height: calc(100vh - 100px); width: 100%"></div>
+      <MetricBucketPlot
+        :store="store"
+        :metric-name="metricName"
+        :model-ids="modelIds"
+        :full-range="fullRange"
+        :models-info="modelsInfo"
+        height="calc(100vh - 100px)"
+      />
     </template>
   </DynamicMetricsItemContent>
 </template>
 
 <script setup lang="ts">
-import type { ExperimentSnapshotDynamicMetric, ModelInfo } from '@/interfaces/interfaces'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { useVariableValue } from '@/hooks/useVariableValue'
-import { plotlyLineChartLayout } from '@/lib/plotly/layouts'
-import { cutStringOnMiddle } from '@/helpers/helpers'
-import { plotlyService } from '@/services/PlotlyService'
-import { useTheme } from '@/lib/theme/ThemeProvider'
+import type { ModelInfo } from '@/interfaces/interfaces'
+import type { MetricBucketStore } from '@/metric-buckets/MetricBucketStore'
+import type { StepRange } from '@/lib/metric-charts/bucketTraces'
+import { ref } from 'vue'
 import DynamicMetricsItemContent from './DynamicMetricsItemContent.vue'
-
-const { getVariablesValues } = useVariableValue()
-const theme = useTheme()
+import type { PlotStatus } from './dynamic-metrics.interface'
+import MetricBucketPlot from './MetricBucketPlot.vue'
 
 type Props = {
+  store: MetricBucketStore
   metricName: string
-  data: ExperimentSnapshotDynamicMetric[] | undefined
+  modelIds: string[]
+  fullRange: StepRange
   modelsInfo: Record<string, ModelInfo>
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
-const chartRef = ref<HTMLDivElement | null>(null)
-const chartScaledRef = ref<HTMLDivElement | null>(null)
-
-let resizeObserver: ResizeObserver | null = null
-let resizeTimeout: ReturnType<typeof setTimeout> | null = null
-
-const isAggregated = computed(() => {
-  return !!props.data?.some((item) => item.aggregated)
-})
-
-const plotlyData = computed(() => {
-  if (!props.data) return []
-  const data: ExperimentSnapshotDynamicMetric[] = props.data.map((item) => ({
-    modelId: item.modelId,
-    x: [...item.x],
-    y: [...item.y],
-    aggregated: item.aggregated,
-  }))
-  return data
-    .filter((item) => item.modelId)
-    .map((item) => {
-      const modelId = item.modelId
-      const modelInfo = props.modelsInfo[modelId] as ModelInfo
-      const color = getVariablesValues([modelInfo.color])[0]
-      const modelName = getFormattedName(modelInfo.name)
-      return {
-        ...item,
-        type: 'scatter',
-        mode: item.x.length > 1 ? 'lines' : 'markers',
-        name: props.metricName,
-        line: { color: color, width: 2, shape: 'linear' },
-        hovertemplate: '<b>Value:</b> %{y}<br>' + `<b>Model:</b> ${modelName}<extra></extra>`,
-      }
-    })
-})
-
-function setScaledChart() {
-  nextTick(async () => {
-    const layout = getPlotlyLayout()
-    const Plotly = await plotlyService.getPlotly()
-    Plotly.newPlot(chartScaledRef.value, plotlyData.value, layout, {
-      displayModeBar: false,
-      responsive: true,
-    })
-  })
-}
-
-function getFormattedName(name: string | undefined) {
-  if (!name) return ''
-  if (name.length > 24) {
-    return cutStringOnMiddle(name, 24)
-  }
-  return name
-}
-
-function getPlotlyLayout() {
-  const [bgColor, borderColor, textColor, gridColor] = getVariablesValues([
-    'var(--p-card-background)',
-    'var(--p-content-border-color)',
-    'var(--p-text-muted-color)',
-    'var(--p-datatable-row-background)',
-  ])
-
-  return plotlyLineChartLayout({
-    title: props.metricName,
-    bgColor: bgColor as string,
-    borderColor: borderColor as string,
-    textColor: textColor as string,
-    gridColor: gridColor as string,
-  })
-}
-
-async function renderChart() {
-  if (!props.data || !chartRef.value) return
-  const layout = getPlotlyLayout()
-  const Plotly = await plotlyService.getPlotly()
-  Plotly.newPlot(chartRef.value, plotlyData.value, layout, {
-    displayModeBar: false,
-    responsive: true,
-  })
-  observeResize()
-}
-
-async function handleResize() {
-  if (!chartRef.value) return
-  const Plotly = await plotlyService.getPlotly()
-  Plotly.Plots.resize(chartRef.value)
-}
-
-function observeResize() {
-  if (!chartRef.value || resizeObserver) return
-
-  resizeObserver = new ResizeObserver(() => {
-    if (resizeTimeout) clearTimeout(resizeTimeout)
-    resizeTimeout = setTimeout(() => {
-      handleResize()
-    }, 100)
-  })
-
-  resizeObserver.observe(chartRef.value)
-}
-
-watch(theme, async () => {
-  const layout = getPlotlyLayout()
-  const Plotly = await plotlyService.getPlotly()
-  Plotly.relayout(chartRef.value, layout)
-})
-
-watch(
-  () => props.data,
-  () => {
-    nextTick(() => {
-      renderChart()
-    })
-  },
-  { immediate: true },
-)
-
-onBeforeUnmount(() => {
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-    resizeObserver = null
-  }
-  if (resizeTimeout) {
-    clearTimeout(resizeTimeout)
-  }
-})
+const status = ref<PlotStatus>({ level: null, loading: false, error: null, state: 'loading' })
 </script>
 
 <style scoped>
-.charts {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-
 .chart-wrapper {
   height: 300px;
   overflow: hidden;

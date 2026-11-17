@@ -1,5 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { ExperimentSnapshotWorkerProxy } from '../ExperimentSnapshotWorkerProxy'
+import {
+  SNAPSHOT_RANGE_UNSUPPORTED,
+  SNAPSHOT_SOURCE_EXPIRED,
+  SNAPSHOT_SOURCE_REDIRECT,
+  SNAPSHOT_SOURCE_TOO_LARGE,
+  SNAPSHOT_TOO_LARGE_FOR_BROWSER,
+  SnapshotRangeUnsupportedError,
+  SnapshotSourceExpiredError,
+  SnapshotSourceRedirectError,
+  SnapshotSourceTooLargeError,
+  SnapshotTooLargeForBrowserError,
+} from '../snapshot-source/errors'
+import type { SnapshotSourceRef } from '../snapshot-source/sourceLocation'
 
 class FakeWorker extends EventTarget {
   readonly postMessage = vi.fn()
@@ -75,7 +88,7 @@ describe('ExperimentSnapshotWorkerProxy', () => {
     const [message] = worker.postMessage.mock.calls[0]
     worker.respond({ type: 'error', requestId: message.requestId, error: 'query failed' })
 
-    await expect(result).rejects.toBe('query failed')
+    await expect(result).rejects.toMatchObject({ message: 'query failed' })
     expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
     expectCleanedUp()
   })
@@ -196,5 +209,410 @@ describe('ExperimentSnapshotWorkerProxy', () => {
 
     await rejection
     expectCleanedUp()
+  })
+})
+
+describe('ExperimentSnapshotWorkerProxy source URL renewal', () => {
+  const rangeSource = {
+    kind: 'range',
+    url: 'https://bucket/a?sig=1',
+    offset: 512,
+    size: 4096,
+  } as const
+  const expired = { code: SNAPSHOT_SOURCE_EXPIRED, modelId: 'm1', error: 'Range request failed' }
+  type RenewUrl = (id: string, failedUrl: string) => Promise<string>
+  let worker: FakeWorker
+  let sourceUrls: { get: Mock<(id: string) => Promise<string>>; renew: Mock<RenewUrl> }
+  let proxy: ExperimentSnapshotWorkerProxy
+
+  async function nextMessage(index: number) {
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledTimes(index + 1))
+    return worker.postMessage.mock.calls[index]![0]
+  }
+
+  async function initialized() {
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }])
+    const message = await nextMessage(0)
+    worker.respond({ type: 'result', requestId: message.requestId, data: true })
+    await init
+  }
+
+  beforeEach(() => {
+    worker = new FakeWorker()
+    sourceUrls = {
+      get: vi.fn(async () => rangeSource.url),
+      renew: vi.fn(async () => 'https://bucket/a?sig=2'),
+    }
+    proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker, { sourceUrls })
+  })
+
+  it('renews the URL once and retries the call once after a source failure', async () => {
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    const first = await nextMessage(1)
+    worker.respond({ type: 'error', requestId: first.requestId, ...expired })
+    const update = await nextMessage(2)
+    expect(update.payload).toEqual({
+      method: 'setSourceUrl',
+      args: ['m1', 'https://bucket/a?sig=2'],
+    })
+    worker.respond({ type: 'result', requestId: update.requestId, data: undefined })
+    const retry = await nextMessage(3)
+    expect(retry.payload).toEqual(first.payload)
+    worker.respond({ type: 'result', requestId: retry.requestId, data: ['dataset'] })
+
+    await expect(result).resolves.toEqual(['dataset'])
+    expect(sourceUrls.renew).toHaveBeenCalledExactlyOnceWith('m1', rangeSource.url)
+  })
+
+  it('resends the renewed URL when an abort stopped the hand-over to the worker', async () => {
+    await initialized()
+    let finishRenewal!: (url: string) => void
+    sourceUrls.renew.mockImplementation(() => new Promise((resolve) => (finishRenewal = resolve)))
+    const controller = new AbortController()
+    const aborted = proxy.getUniqueDatasetsIds(controller.signal)
+
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...expired })
+    await vi.waitFor(() => expect(sourceUrls.renew).toHaveBeenCalledOnce())
+    controller.abort()
+    finishRenewal('https://bucket/a?sig=2')
+    await expect(aborted).rejects.toThrow()
+    const sent = worker.postMessage.mock.calls.map(([message]) => message.payload?.method)
+    expect(sent).not.toContain('setSourceUrl')
+
+    sourceUrls.get.mockResolvedValue('https://bucket/a?sig=2')
+    const next = proxy.getUniqueDatasetsIds()
+    const update = await nextMessage(sent.length)
+    expect(update.payload).toEqual({
+      method: 'setSourceUrl',
+      args: ['m1', 'https://bucket/a?sig=2'],
+    })
+    worker.respond({ type: 'result', requestId: update.requestId })
+    const retry = await nextMessage(sent.length + 1)
+    worker.respond({ type: 'result', requestId: retry.requestId, data: ['d'] })
+    await expect(next).resolves.toEqual(['d'])
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces the error when the retried call fails again, without renewing twice', async () => {
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...expired })
+    worker.respond({ type: 'result', requestId: (await nextMessage(2)).requestId })
+    worker.respond({ type: 'error', requestId: (await nextMessage(3)).requestId, ...expired })
+
+    await expect(result).rejects.toBeInstanceOf(SnapshotSourceExpiredError)
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(worker.postMessage).toHaveBeenCalledTimes(4)
+  })
+
+  it('renews each model once when their URLs expire together, and the call succeeds', async () => {
+    const init = proxy.init([
+      { modelId: 'm1', source: rangeSource },
+      { modelId: 'm2', source: { ...rangeSource, url: 'https://bucket/b?sig=1' } },
+    ])
+    worker.respond({ type: 'result', requestId: (await nextMessage(0)).requestId, data: true })
+    await init
+    sourceUrls.get.mockImplementation(async (id) =>
+      id === 'm1' ? rangeSource.url : 'https://bucket/b?sig=1',
+    )
+    sourceUrls.renew.mockImplementation(async (id) => `https://bucket/${id}?sig=2`)
+    const result = proxy.getUniqueDatasetsIds()
+
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...expired })
+    worker.respond({ type: 'result', requestId: (await nextMessage(2)).requestId })
+    const expiredB = { ...expired, modelId: 'm2' }
+    worker.respond({ type: 'error', requestId: (await nextMessage(3)).requestId, ...expiredB })
+    const update = await nextMessage(4)
+    expect(update.payload).toEqual({
+      method: 'setSourceUrl',
+      args: ['m2', 'https://bucket/m2?sig=2'],
+    })
+    worker.respond({ type: 'result', requestId: update.requestId })
+    worker.respond({ type: 'result', requestId: (await nextMessage(5)).requestId, data: ['d'] })
+
+    await expect(result).resolves.toEqual(['d'])
+    expect(sourceUrls.renew.mock.calls).toEqual([
+      ['m1', rangeSource.url],
+      ['m2', 'https://bucket/b?sig=1'],
+    ])
+  })
+
+  it('surfaces storage that stopped honouring Range without renewing or retrying', async () => {
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    worker.respond({
+      type: 'error',
+      requestId: (await nextMessage(1)).requestId,
+      code: SNAPSHOT_RANGE_UNSUPPORTED,
+      modelId: 'm1',
+      error: 'Storage stopped honouring Range requests',
+    })
+
+    await expect(result).rejects.toBeInstanceOf(SnapshotRangeUnsupportedError)
+    await expect(result).rejects.toMatchObject({
+      modelId: 'm1',
+      message: 'Storage stopped honouring Range requests',
+    })
+    expect(sourceUrls.renew).not.toHaveBeenCalled()
+    expect(worker.postMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it('hands an aged URL to the worker before the call', async () => {
+    await initialized()
+    sourceUrls.get.mockResolvedValue('https://bucket/a?sig=3')
+    const result = proxy.getDynamicMetricsNames()
+
+    const update = await nextMessage(1)
+    expect(update.payload).toEqual({
+      method: 'setSourceUrl',
+      args: ['m1', 'https://bucket/a?sig=3'],
+    })
+    worker.respond({ type: 'result', requestId: update.requestId })
+    const call = await nextMessage(2)
+    expect(call.payload.method).toBe('getDynamicMetricsNames')
+    worker.respond({ type: 'result', requestId: call.requestId, data: [] })
+
+    await expect(result).resolves.toEqual([])
+    expect(sourceUrls.renew).not.toHaveBeenCalled()
+  })
+
+  const openFailure = (modelId: string, code: string) => ({
+    modelId,
+    error: { code, message: 'Snapshot request failed' },
+  })
+
+  it('renews only the model whose source failed at open and reopens only that one', async () => {
+    const sourceB = { ...rangeSource, url: 'https://bucket/b?sig=1' }
+    sourceUrls.renew.mockImplementation(async (id) => `https://bucket/${id}?sig=2`)
+    const init = proxy.init([
+      { modelId: 'm1', source: rangeSource },
+      { modelId: 'm2', source: sourceB },
+      { modelId: 'm3', source: { ...rangeSource, url: 'https://bucket/c?sig=1' } },
+    ])
+
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [openFailure('m2', SNAPSHOT_SOURCE_EXPIRED), openFailure('m3', 'snapshot-format')],
+    })
+    const reopen = await nextMessage(1)
+    expect(reopen).toEqual({
+      type: 'reopen',
+      requestId: expect.any(String),
+      payload: { modelId: 'm2', source: { url: 'https://bucket/m2?sig=2' } },
+    })
+    worker.respond({ type: 'result', requestId: reopen.requestId, data: [] })
+
+    await expect(init).resolves.toBeUndefined()
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(sourceUrls.renew).toHaveBeenCalledWith('m2', 'https://bucket/b?sig=1')
+    expect(worker.postMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not renew a failed open twice: a second failure stays that model status', async () => {
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }])
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [openFailure('m1', SNAPSHOT_SOURCE_EXPIRED)],
+    })
+    const reopen = await nextMessage(1)
+    worker.respond({
+      type: 'result',
+      requestId: reopen.requestId,
+      data: [openFailure('m1', SNAPSHOT_SOURCE_EXPIRED)],
+    })
+
+    await expect(init).resolves.toBeUndefined()
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(worker.postMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it('resolves init when renewing a failed open fails; the open failure stays the status', async () => {
+    sourceUrls.renew.mockRejectedValue(new Error('Renewal failed'))
+    const init = proxy.init([
+      { modelId: 'm1', source: rangeSource },
+      { modelId: 'm2', source: { ...rangeSource, url: 'https://bucket/b?sig=1' } },
+    ])
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [openFailure('m1', SNAPSHOT_SOURCE_EXPIRED)],
+    })
+
+    await expect(init).resolves.toBeUndefined()
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(worker.postMessage).toHaveBeenCalledOnce()
+  })
+
+  it('resolves init when the renewed location carries a header that is not allowed', async () => {
+    const renew = sourceUrls.renew as unknown as Mock<() => Promise<SnapshotSourceRef>>
+    renew.mockResolvedValue({ url: 'https://bucket/a', headers: { 'X-Api-Key': 'secret' } })
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }])
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [openFailure('m1', SNAPSHOT_SOURCE_EXPIRED)],
+    })
+
+    await expect(init).resolves.toBeUndefined()
+    expect(worker.postMessage).toHaveBeenCalledOnce()
+  })
+
+  it('resolves init when the worker rejects the reopen', async () => {
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }])
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [openFailure('m1', SNAPSHOT_SOURCE_EXPIRED)],
+    })
+    const reopen = await nextMessage(1)
+    worker.respond({ type: 'error', requestId: reopen.requestId, error: 'Reopen failed' })
+
+    await expect(init).resolves.toBeUndefined()
+  })
+
+  it('still rejects init when it is aborted during a renewal', async () => {
+    const controller = new AbortController()
+    sourceUrls.renew.mockImplementation(async () => {
+      controller.abort()
+      return 'https://bucket/a?sig=2'
+    })
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }], controller.signal)
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [openFailure('m1', SNAPSHOT_SOURCE_EXPIRED)],
+    })
+
+    await expect(init).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('always transfers snapshot buffers on init, as no init is retried', async () => {
+    const buffer = new ArrayBuffer(8)
+    const other = new ArrayBuffer(8)
+    const plain = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker)
+    const plainInit = plain.init([{ modelId: 'z', buffer }]).catch(() => undefined)
+    expect(worker.postMessage.mock.calls[0]![1]).toEqual([buffer])
+
+    const rangeInit = proxy
+      .init([
+        { modelId: 'y', buffer: other },
+        { modelId: 'm1', source: rangeSource },
+      ])
+      .catch(() => undefined)
+    expect(worker.postMessage.mock.calls[1]![1]).toEqual([other])
+    plain.terminate()
+    proxy.terminate()
+    await Promise.all([plainInit, rangeInit])
+  })
+
+  it('keeps URLs out of the message of a worker error', async () => {
+    await initialized()
+    const failing = proxy.getUniqueDatasetsIds()
+    worker.respond({
+      type: 'error',
+      requestId: (await nextMessage(1)).requestId,
+      error: "Failed to load 'https://bucket/a?X-Amz-Signature=SECRET'; Bearer tok-SECRET",
+    })
+    const error = (await failing.catch((caught: unknown) => caught)) as Error
+    expect(error.message).not.toMatch(/SECRET|\?/)
+    expect(error.message).toContain('https://bucket')
+  })
+
+  it('does not renew for ordinary errors or without a URL provider', async () => {
+    await initialized()
+    const failing = proxy.getUniqueDatasetsIds()
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, error: 'bad' })
+    await expect(failing).rejects.toMatchObject({ message: 'bad' })
+
+    const plain = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker)
+    const call = plain.getUniqueDatasetsIds()
+    worker.respond({ type: 'error', requestId: (await nextMessage(2)).requestId, ...expired })
+    await expect(call).rejects.toMatchObject({ code: SNAPSHOT_SOURCE_EXPIRED, modelId: 'm1' })
+    expect(sourceUrls.renew).not.toHaveBeenCalled()
+  })
+})
+
+describe('ExperimentSnapshotWorkerProxy sources with headers', () => {
+  const url = 'https://workspace.test/api/2.0/fs/files/a.tar'
+  const tokenSource = (token: string) => ({ url, headers: { Authorization: `Bearer ${token}` } })
+  const rangeSource = { kind: 'range', ...tokenSource('t1'), offset: 512, size: 4096 } as const
+  const expired = { code: SNAPSHOT_SOURCE_EXPIRED, modelId: 'm1', error: 'status 401' }
+  let worker: FakeWorker
+  let sourceUrls: {
+    get: Mock<(id: string) => Promise<SnapshotSourceRef>>
+    renew: Mock<(id: string, failed: SnapshotSourceRef) => Promise<SnapshotSourceRef>>
+  }
+  let proxy: ExperimentSnapshotWorkerProxy
+
+  async function nextMessage(index: number) {
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledTimes(index + 1))
+    return worker.postMessage.mock.calls[index]![0]
+  }
+
+  beforeEach(async () => {
+    worker = new FakeWorker()
+    sourceUrls = {
+      get: vi.fn(async () => tokenSource('t1')),
+      renew: vi.fn(async () => tokenSource('t2')),
+    }
+    proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker, { sourceUrls })
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }])
+    worker.respond({ type: 'result', requestId: (await nextMessage(0)).requestId, data: true })
+    await init
+  })
+
+  it('renews an expired token for the same URL and hands the new headers to the worker', async () => {
+    const result = proxy.getUniqueDatasetsIds()
+
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...expired })
+    const update = await nextMessage(2)
+    expect(update.payload).toEqual({ method: 'setSourceUrl', args: ['m1', tokenSource('t2')] })
+    worker.respond({ type: 'result', requestId: update.requestId })
+    worker.respond({ type: 'result', requestId: (await nextMessage(3)).requestId, data: ['d'] })
+
+    await expect(result).resolves.toEqual(['d'])
+    expect(sourceUrls.renew).toHaveBeenCalledExactlyOnceWith('m1', tokenSource('t1'))
+  })
+
+  it('sends nothing for an equal location, and an aged token when it changed', async () => {
+    const unchanged = proxy.getDynamicMetricsNames()
+    const call = await nextMessage(1)
+    expect(call.payload.method).toBe('getDynamicMetricsNames')
+    worker.respond({ type: 'result', requestId: call.requestId, data: [] })
+    await unchanged
+
+    sourceUrls.get.mockResolvedValue(tokenSource('t3'))
+    const aged = proxy.getDynamicMetricsNames()
+    const update = await nextMessage(2)
+    expect(update.payload).toEqual({ method: 'setSourceUrl', args: ['m1', tokenSource('t3')] })
+    worker.respond({ type: 'result', requestId: update.requestId })
+    worker.respond({ type: 'result', requestId: (await nextMessage(3)).requestId, data: [] })
+    await aged
+    expect(sourceUrls.renew).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [SNAPSHOT_SOURCE_REDIRECT, SnapshotSourceRedirectError, {}],
+    [SNAPSHOT_SOURCE_TOO_LARGE, SnapshotSourceTooLargeError, { size: 2048, limit: 1024 }],
+    [
+      SNAPSHOT_TOO_LARGE_FOR_BROWSER,
+      SnapshotTooLargeForBrowserError,
+      { size: 2 ** 32 - 1, limit: 2 ** 31 },
+    ],
+  ] as const)('rebuilds %s from the worker and does not renew it', async (code, type, extra) => {
+    const result = proxy.getUniqueDatasetsIds()
+
+    const failure = { code, modelId: 'm1', error: 'failed', ...extra }
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...failure })
+
+    await expect(result).rejects.toBeInstanceOf(type)
+    await expect(result).rejects.toMatchObject({ modelId: 'm1', ...extra })
+    expect(sourceUrls.renew).not.toHaveBeenCalled()
   })
 })

@@ -45,7 +45,7 @@ export default defineConfig({
           '@vueuse/core': 'VueUse',
           'js-yaml': 'jsyaml',
           jszip: 'JSZip',
-          'sql.js': 'initSqlJs',
+          '@sqlite.org/sqlite-wasm': 'sqlite3InitModule',
           uuid: 'uuid',
           'plotly.js-dist': 'Plotly',
           axios: 'axios',

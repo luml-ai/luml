@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, toRaw } from 'vue'
+import { computed, markRaw, ref, shallowRef, toRaw } from 'vue'
 import type {
   EvalsInfo,
   ExperimentSnapshotProvider,
@@ -12,6 +12,7 @@ import { useAnnotationsStore } from '../annotations'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
+import { MetricBucketStore } from '@/metric-buckets/MetricBucketStore'
 
 export function getSpansTimes(spans: Omit<TraceSpan, 'children'>[]): {
   minTime: number | null
@@ -33,6 +34,8 @@ export const useEvalsStore = defineStore('evals', () => {
 
   const currentEvalData = ref<EvalsInfo[] | null>(null)
   const provider = ref<ExperimentSnapshotProvider | null>(null)
+  // One per provider: charts share its catalogs and bucket cache; replaced with the provider.
+  const metricBucketStore = shallowRef<MetricBucketStore | null>(null)
   const selectedEval = ref<{ datasetId: string; evalId: string } | undefined>(undefined)
   const selectedTrace = ref<(BaseTraceInfo & { artifactId: string }) | null>(null)
   const datasets = ref<DatasetData[] | null>(null)
@@ -50,11 +53,17 @@ export const useEvalsStore = defineStore('evals', () => {
   })
 
   function setProvider(newProvider: ExperimentSnapshotProvider) {
+    const rawProvider = toRaw(newProvider)
+    if (provider.value && toRaw(provider.value) === rawProvider && metricBucketStore.value) return
     provider.value = newProvider
+    metricBucketStore.value?.dispose()
+    metricBucketStore.value = markRaw(new MetricBucketStore(rawProvider))
   }
 
   function resetProvider() {
     provider.value = null
+    metricBucketStore.value?.dispose()
+    metricBucketStore.value = null
   }
 
   function setCurrentEvalData(data: EvalsInfo[]) {
@@ -217,6 +226,7 @@ export const useEvalsStore = defineStore('evals', () => {
     getTraceSpansTree,
     resetProvider,
     getProvider,
+    metricBucketStore,
     initDatasets,
     initDataset,
     datasets,

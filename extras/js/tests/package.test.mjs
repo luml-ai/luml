@@ -83,7 +83,7 @@ test('UMD builds use the browser globals exposed by peer packages', async () => 
     '@vueuse/core': 'VueUse',
     'js-yaml': 'jsyaml',
     jszip: 'JSZip',
-    'sql.js': 'initSqlJs',
+    '@sqlite.org/sqlite-wasm': 'sqlite3InitModule',
     uuid: 'uuid',
     'plotly.js-dist': 'Plotly',
     axios: 'axios',
