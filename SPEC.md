@@ -12,9 +12,10 @@ Flow.
 Flow can already preview files: the Attachments tab of an experiment uses the shared
 `@luml/attachments` package. The Workspace page does not use it.
 
-Product source: knowledge base `product:PROP-004` (approved 2026-11-17), UI in
-`app-ui:UIP-002`. `B-#` and `TQ-#` below refer to its building blocks and technical
-questions.
+This spec follows a product proposal and a UI design approved on 2026-11-17. Both are
+internal; everything needed to build the feature is in this file, and the approved screens
+are in `codie/design/LM-1113/` (see Frontend). Codes in brackets (`B-#`, `TQ-#`, `S-#`) are
+the proposal's item numbers, kept only for traceability.
 
 ## Solution (at a glance)
 
@@ -47,8 +48,8 @@ questions.
   over a plain HTTP `GET`, because previews need blobs and media need range requests.
 - **Operations follow what the person can browse.** The Workspace page already navigates
   the whole disk (breadcrumb `WorkspacePath.vue`, `canGoUp` in the workspace store); limiting
-  operations to the start folder would show files the person can't touch. This changes
-  PROP-004 B-14 ("paths stay inside the project root"); the KB proposal gets a log line.
+  operations to the start folder would show files the person can't touch. The approved
+  proposal limited operations to the project root (B-14); this spec lifts that limit.
 - **Lock rule modelled on cell claims.** Same idle time (`CLAIM_IDLE_S`), colours and
   "held by" wording as cells. A file watcher is the only way to see agent writes, because
   agents write files through their own shell, not through the daemon (TQ-7).
@@ -58,14 +59,14 @@ questions.
 
 ## Out of scope (this version)
 
-- Linking files to the cells that read or produce them (`PROP-004 S-08`); rename, move and
+- Linking files to the cells that read or produce them (`S-08`); rename, move and
   delete only warn (TQ-6).
 - Marking which files an agent changed, beyond the editor lock (`S-09`).
 - "Create a cell that loads this file" (`S-10`).
 - File operations as MCP tools; moving files to the system Trash.
 - Editing binary files, notebooks (`.flow`) or files inside a `.luml` archive.
 - Paging a dataset beyond the first chunk of a split.
-- Narrow-screen layout with a file open (not drawn in UIP-002).
+- Narrow-screen layout with a file open (not designed yet).
 
 # Design
 
@@ -98,7 +99,7 @@ Shared preview: `extras/js/packages/attachments/`.
   previews and `file.read_text` / `file.write_text` read and write the target. Rename,
   move and delete act on the link only (`unlink` for a link to a folder, never
   `rmtree` through it). A broken link is listed as a file with `size: null` and shows the
-  B-05 card.
+  no-preview card (Frontend §1).
 - **OS errors** (`PermissionError`, read-only filesystem, disk full, …) are returned as kind
   `OsError` with the OS message (e.g. "Permission denied"); the frontend shows an error
   toast. Writes are atomic; a failed cross-filesystem `file.move` removes the partial copy
@@ -161,7 +162,7 @@ Shared preview: `extras/js/packages/attachments/`.
 
   - `kind` (TQ-2): `manifest.artifact_type` when `"experiment"` or `"dataset"`; else
     `"model"` if `fnnx.extras.reader.Reader` opens the file (as
-    `ModelReference.validate`); else `"unknown"` (B-05 card).
+    `ModelReference.validate`); else `"unknown"` (no-preview card).
   - Tabular splits come from the manifest payload (`subsets → splits → chunk_files`,
     `num_rows`, `-1` → `null`). HF splits come from the payload `subsets: {config:
     [split]}` and the tar members `data/<config>/<split>/*.arrow`, sorted; `num_rows` from
@@ -179,8 +180,8 @@ New RPC methods in `Api.methods`, not in `_SILENT`. Each returns `{path}` (the n
 | `file.rename` | `{path, name, close_open?}` | File or folder. `AlreadyExists` if the target exists. |
 | `file.move` | `{path, to, close_open?}` | `to` is an existing folder, not `path` or inside it. `AlreadyExists` if `to/<name>` exists. |
 | `file.delete` | `{path, close_open?}` | Permanent: `unlink` or `shutil.rmtree`. |
-| `file.mkdir` | `{directory, name?}` | Without `name`: `untitled`, then `untitled 2`, `untitled 3`, … (first free). `AlreadyExists` if a given name exists. |
-| `file.create` | `{directory, name?}` | Empty file, `open(…, "x")`. Without `name`: `untitled.txt`, then `untitled 2.txt`, … |
+| `file.mkdir` | `{directory, name}` | New empty folder. `AlreadyExists` if the name exists. |
+| `file.create` | `{directory, name}` | Empty file, `open(…, "x")`. `AlreadyExists` if the name exists. |
 | `flow.move` | `{flow, to, close_open?}` | Moves a `.flow` into folder `to`, like `Hub.rename_flow`. |
 
 - Same filesystem: `Path.rename`; otherwise `shutil.move`.
@@ -195,6 +196,8 @@ New RPC methods in `Api.methods`, not in `_SILENT`. Each returns `{path}` (the n
     `FlowOpen` instead of closing silently. `flow.duplicate` is unchanged. The CLI
     (`lumlflow/lumlflow/flow/cli.py`, `flow delete`) always passes `close_open: true`, so
     its behaviour does not change.
+- `AlreadyExists` messages read `"{name}" already exists`; the frontend shows them under
+  the name field.
 - **Cells that read a renamed / deleted file (TQ-6):** not tracked; dialogs warn (Frontend
   §6).
 
@@ -251,78 +254,158 @@ New RPC methods in `Api.methods`, not in `_SILENT`. Each returns `{path}` (the n
 
 ## Frontend
 
+The approved UI is described here in full and drawn in the screenshots under
+`codie/design/LM-1113/` (1440 × 900, light theme). Sample data in the drawings (names,
+sizes, agent "Claude") is illustrative. Where a screenshot and the text disagree, the text
+wins. Not drawn: **Show hidden**, **Show more**, the "moved or deleted" state, the
+`FlowOpen` and unsaved-changes dialogs, the read-only experiment route, and the layout on
+narrow screens; build them from existing Flow components in the same style.
+
+Components to reuse (all in `lumlflow/frontend/src/`): the Workspace page frame and tabs,
+`WorkspacePath.vue` (breadcrumb), `CreateNewFlow.vue` (**+ New notebook**), the open-flows
+summary, `LumlflowCard`, `LumlflowDialog` (the 600 px layout of "Create new notebook"),
+`LumlflowConfirmDialog`, `UiCodeEditor`, the PrimeVue `Button`, `SelectButton`, `Select`,
+`Message`, `Tabs`, and the attachments table (`AttachmentsPreviewDataTable` in
+`@luml/attachments`). Icons are `lucide-vue-next`.
+
 ### 1. Workspace page
 
-- `WorkspacesPage.vue`: with a file selected, the listing becomes a 400 px column and
-  `WorkspaceFileViewer` fills the rest (UIP-002 `WorkspacesPage`). Route query
-  `?directory=…&file=…` keeps the selection on reload and back.
-- `WorkspaceFolderItem.vue`: the `file` branch gets a click handler, a type icon, size and
-  a selected state (UIP-002 `WorkspaceFolder`).
-- `WorkspaceFileViewer.vue` (new): header with name, size, modified date, path with copy,
-  close. Body:
+**Nothing open** — the page as today, with file rows in the listing:
+
+![Files listed, nothing open](codie/design/LM-1113/01-files-listed.png)
+
+- Order: notebooks, then folders, then files, each by name.
+- `WorkspaceFolderItem.vue`, `file` branch: row height and hover as folder rows; icon by
+  preview type (`FileCode` code, `Sheet` table, `FileImage` image, `FileAudio` audio,
+  `FileVideo` video, `FileText` text / Markdown / PDF, `Package` `.luml`, `File` other),
+  16 px; name; size right-aligned in the muted colour (`1.84KB`, `12.6MB`). A symlink adds
+  a small `Link` icon after the type icon. A click opens the file; the open file's row
+  keeps the selected fill `--p-menu-item-focus-background`.
+- Below the listing, in one row: **+ New notebook** (as today), **New folder**
+  (`FolderPlus`), **New file** (`FilePlus`), all text buttons.
+- **Show hidden**: a small toggle at the right of the listing header, remembered in
+  `localStorage` (`lumlflow.workspace.showHidden`, read and written in try/catch).
+- **Show more**: when `next_offset` is set, the listing ends with "Showing {n} of {total}
+  items" and a text button **Show more**, which loads the next page and appends it.
+- Empty directory: "This directory is empty".
+
+**A file open** — the listing becomes a 400 px column on the left and the viewer card
+fills the rest; clicking another file swaps the viewer; the viewer's X closes it and the
+listing takes the full width again. Route query `?directory=…&file=…` keeps the selection
+on reload and back.
+
+![Code file open](codie/design/LM-1113/04-code-file.png)
+
+`WorkspaceFileViewer.vue` (new), a `LumlflowCard`:
+
+- **Header:** name; then size and "Modified {YYYY-MM-DD HH:mm}" in the muted colour; below,
+  the full path with a copy button (`Copy`); an X (`X`, "Close preview") at the right. File
+  actions are in the row menu, not in the header.
+- **Body** by type:
   - `.luml` → `LumlPackagePreview` (§3);
   - a type the preview supports → `FilePreview` from `@luml/attachments` reading
     `GET /api/flow/file`; text and code also get **Edit** (§4);
   - any other file: try `file.read_text`; if it succeeds, plain text with **Edit**;
-    otherwise the B-05 card (name, size, date);
-  - over the preview size limit → the B-05 card with "Too large to preview (limit 10 MB)".
+    otherwise the no-preview card;
+  - **No-preview card:** the header stays and the body says "No preview for this file
+    type". Same layout for "File is empty" and, over the preview size limit, "File is too
+    large for preview".
+
+![Markdown, rendered](codie/design/LM-1113/05-markdown-file.png)
+![JSON, pretty](codie/design/LM-1113/06-json-pretty.png)
+![Parquet as a table](codie/design/LM-1113/07-parquet-file.png)
+![No preview](codie/design/LM-1113/08-not-previewable.png)
+![Too large](codie/design/LM-1113/09-too-large.png)
+
+- Above text content, one row: on the left the Rendered / Raw (Markdown) or Pretty / Raw
+  (JSON, YAML) `SelectButton`, size small, when the type has one; on the right **Edit**
+  (text button, `Pencil` icon).
+- Images and SVG are centred on a bordered surface; audio and video use the browser's
+  player; PDF and HTML fill the body in a frame (HTML in a sandboxed iframe).
+- Tables (CSV, XML, Parquet, Arrow) use the attachments table: 10 rows per page, page
+  sizes 10 / 20 / 50, small size.
 - Listing and viewer refresh on `files_changed`.
 - **File gone:** if the open file no longer exists after a refresh (deleted or moved from
-  outside), the viewer keeps its header and shows "This file was moved or deleted"; unsaved
-  edits stay visible and copyable; **Close** returns to the listing.
+  outside), the viewer keeps its header and the body says "This file was moved or
+  deleted"; unsaved edits stay visible and copyable; the X returns to the listing.
 - **Unsaved edits + operation:** rename, move or delete of the file being edited, or of a
   folder containing it, first asks "You have unsaved changes in {name}. Discard them and
-  continue?" (**Discard and continue** / **Cancel**).
-- Symlinks show a small link icon next to the type icon.
+  continue?" (**Discard and continue** / **Cancel**), as a `LumlflowConfirmDialog`.
 
 ### 2. `@luml/attachments` (shared)
 
 - **Exports:** `FilePreview`, `useFilePreview(name, getBlob, size)` (no tree needed),
   `getFileType`, `FILE_TYPES`, and the language map for CodeMirror.
-- **Types (B-02 "at least"):** keep all current ones; add images `gif`, `webp`; text
-  `log`; code `toml`, `ini`, `cfg`, `sh`, `sql`, `jsx`, `tsx`, `css`; table `parquet`,
-  `arrow`. Detection stays by extension.
+- **Types (at least the current ones):** keep all current ones; add images `gif`, `webp`;
+  text `log`; code `toml`, `ini`, `cfg`, `sh`, `sql`, `jsx`, `tsx`, `css`; table
+  `parquet`, `arrow`. Detection stays by extension.
 - **Size:** keep the 10 MB limit, except audio, video and PDF (streamed by URL) and Parquet
   (partial read), which have no limit.
 - **Highlighting (B-12, TQ-8):** `CodePreview` uses a read-only CodeMirror 6 view
   (`EditorState.readOnly`, `EditorView.editable.of(false)`) with `python`, `javascript`
   (js, ts, jsx, tsx), `json`, `yaml`, `markdown`, `css`, `sql`, `xml` (xml, html);
   colours from the `--ui-code-*` variables used by Flow's editor
-  (`components/ui/code-editor/code-editor.const.ts`). `txt` and `log` stay plain.
+  (`components/ui/code-editor/code-editor.const.ts`). `txt` and `log` stay plain
+  monospaced text.
 - **Toggles (B-13):** Markdown → Rendered (marked + DOMPurify, as today) / Raw (highlighted).
   JSON → Pretty (`JSON.stringify(…, null, 2)`) / Raw. YAML → Pretty (`js-yaml` load + dump)
   / Raw. Default Rendered / Pretty; invalid JSON / YAML shows Raw with "Can't parse".
 - **Tables (B-06):** `TablePreview` gains Parquet via `hyparquet` (schema + first 1,000
   rows, reading only the needed byte ranges through an async-buffer over the URL or blob)
-  and Arrow IPC via `apache-arrow` `tableFromIPC` (first 1,000 rows). Footer: "Showing
-  first 1,000 of N rows" when N is known. CSV / XML unchanged.
+  and Arrow IPC via `apache-arrow` `tableFromIPC` (first 1,000 rows), paged in the table
+  as above. Footer: "Showing first 1,000 of N rows" when N is known. CSV / XML unchanged.
+- The same changes show in Flow's and LUML's Attachments tabs (a `.parquet` attachment
+  opens as a table there too); no other change to those tabs.
 
 ### 3. `.luml` view (`LumlPackagePreview`)
 
-- Calls `file.inspect`, then by `kind`:
-  - **experiment:** manifest as YAML, archive files, **Open in Experiments**, **Upload
-    experiment to LUML**.
-  - **model:** manifest as YAML, archive files, "For full overview, upload model to LUML"
-    with **Upload model to LUML**.
-  - **dataset:** tabs `subset / split`; each tab previews the first file of the split
-    (Parquet / CSV / Arrow) via `/api/flow/file/entry`, 1,000 rows; total rows from
-    `num_rows` when known. Manifest as YAML and archive files below; **Upload dataset to
-    LUML**.
-  - **unknown:** B-05 card.
-- A file in the archive list opens in `FilePreview` via `/api/flow/file/entry`.
+![.luml experiment](codie/design/LM-1113/10-luml-experiment.png)
+![.luml model](codie/design/LM-1113/11-luml-model.png)
+![.luml dataset](codie/design/LM-1113/12-luml-dataset.png)
+
+- Calls `file.inspect`, then shows, top to bottom:
+  - a row "For full overview" with the actions on the right (secondary small buttons with
+    14 px icons):
+    - **experiment:** **Open in Experiments** (`FlaskConical`, §5) and **Upload experiment
+      to LUML** (`CloudUpload`);
+    - **model:** **Upload model to LUML** (`CloudUpload`);
+    - **dataset:** **Upload dataset to LUML** (`CloudUpload`);
+  - **dataset only — Data:** `Tabs` with one tab per `subset / split`; each tab previews the
+    first file of the split (Parquet / CSV / Arrow) via `/api/flow/file/entry` in the
+    attachments table, 1,000 rows; total rows from `num_rows` when known;
+  - **Manifest:** the whole `manifest.json` as highlighted YAML, scrolling after 320 px;
+  - **Contents:** the files in the archive, `File` / `Folder` icon, path, size on the right.
+  - **unknown kind:** the no-preview card.
+- A file in **Contents** opens in `FilePreview` via `/api/flow/file/entry`.
 
 ### 4. Editing (B-15)
 
-- `UiCodeEditor` with the language from the shared map; **Edit**, **Save**, **Cancel** in
-  the viewer header.
-- **Lock:** from `file_locks` frames. The viewer shows "Being changed by {label}" with the
-  `Lock` icon, coloured with `agentColor(actor)` (`store/flow` `AGENT_COLORS`), neutral
-  colour when `actor` is null; **Edit** is disabled.
-- **Lock during an edit:** the editor turns read-only with a banner; the person's unsaved
-  text stays visible and copyable. When the lock ends: **Reload** (take the file from
-  disk) or **Overwrite** (save their text with `force: true`).
-- **`FileConflict` on save:** dialog "This file changed on disk since you opened it." with
-  **Reload** / **Overwrite**.
+![Editing a file](codie/design/LM-1113/17-editing-file.png)
+
+- **Edit** swaps the highlighted text for `UiCodeEditor` (language from the shared map,
+  full body height) and, in the row above it, the view toggle for **Cancel** (text button)
+  and **Save** (primary), both small, on the right.
+- **Changed on disk:** when the file changes on disk during an edit (`files_changed` and a
+  newer `mtime`) or `file.write_text` returns `FileConflict`, a warning `Message` (small)
+  appears above the editor: "This file changed on disk after you started to edit it." with
+  **Overwrite** (saves with `force: true`) and **Reload** (text button; takes the file from
+  disk and drops the edit).
+
+![Changed on disk](codie/design/LM-1113/18-edit-conflict.png)
+
+- **Agent lock** (from `file_locks` frames), drawn like a cell an agent works on: the
+  card's border takes the agent's colour; under the header a strip in that colour with a
+  `Lock` icon (14 px) and "{label} is working on this file" (e.g. "Claude is working on
+  this file", or "An agent is working on this file" when `actor` is null), with the tooltip
+  "Read-only until 3 minutes after the agent's last change to this file."; the body is
+  dimmed and **Edit** is disabled. Colour: `agentColor(actor)` (`store/flow`
+  `AGENT_COLORS`), neutral when `actor` is null.
+
+![Agent working on the file](codie/design/LM-1113/19-agent-working-on-file.png)
+
+- **Lock during an edit:** the editor turns read-only and the strip appears; the person's
+  unsaved text stays visible and copyable. When the lock ends, the changed-on-disk warning
+  offers **Overwrite** / **Reload**.
 
 ### 5. Experiment from a `.luml` (B-09, TQ-4)
 
@@ -336,20 +419,47 @@ New RPC methods in `Api.methods`, not in `_SILENT`. Each returns `{path}` (the n
 
 ### 6. Row menu and dialogs (B-14)
 
-- Files, folders and notebooks get the ⋮ menu: **Rename**, **Move to…**, **Delete**
-  (notebooks keep **Duplicate**). Rename inline, as in `WorkspaceFolderItemFlow.vue`.
-  **Move to…**: dialog with a folder picker starting at the current directory, able to go
-  up. **New folder** / **New file** buttons in the listing header create `untitled` /
-  `untitled.txt` (§4) right away, then start inline rename on the new row; Escape keeps the
-  default name.
-- Confirm texts:
-  - delete a file: "Delete {name} permanently? Cells that read it will fail on their next
-    run."
-  - delete a folder: "Delete {name} and everything in it permanently?"
-  - rename / move: inline note "Cells that read this file by path are not updated."
-- **`FlowOpen`:** dialog "{n} open notebook(s) will be closed: {names}. Running cells stop
-  and agents working in them lose their session. Close and continue?" → repeats the call
-  with `close_open: true`.
+![Row menu](codie/design/LM-1113/02-file-menu-open.png)
+![Renaming a file](codie/design/LM-1113/03-file-renaming.png)
+
+- Files and folders get the notebooks' ⋮ menu with **Rename**, **Move to…**, **Delete** (no
+  Duplicate); notebooks gain **Move to…** and keep their items.
+- **Rename** is inline, as in `WorkspaceFolderItemFlow.vue`, with a small secondary
+  **Save** button (smaller than the notebook row's).
+- **Move to…:** a `LumlflowDialog` (600 px, layout of "Create new notebook"), header
+  "MOVE TO", text "Move **{name}** to:", a folder field, and a full-width rounded **Move**
+  button, disabled until a folder is chosen. The folder field opens a picker that starts at
+  the current directory, lists its folders, and can go up to the parent and into a folder
+  (operations work anywhere the page can browse); the chosen path shows in the field.
+
+![Move to dialog](codie/design/LM-1113/13-move-dialog.png)
+
+- **New folder** / **New file:** the same dialog as "Create new notebook": header "CREATE
+  NEW FOLDER" / "CREATE NEW FILE", required **Name** field (placeholder "Name your folder"
+  / "Name your file, e.g. notes.md"), full-width rounded **Create folder** / **Create file**,
+  disabled while the name is empty. Errors under the field in red, small: `"{name}" already
+  exists` (`AlreadyExists`) and the name-rule message for an invalid name. A created file
+  opens in the viewer.
+
+![New file, name taken](codie/design/LM-1113/16-new-file-dialog.png)
+
+- **Delete** uses `LumlflowConfirmDialog`:
+  - file: header "Delete {name}?", text "This action is permanent and cannot be undone.
+    Cells that read this file will fail the next time they run.", buttons **Cancel** and
+    **Delete file** (warn, outlined);
+  - folder: header "Delete {name}?", text "The folder and everything in it are deleted. This
+    action is permanent and cannot be undone.", buttons **Cancel** and **Delete folder**.
+
+![Delete file](codie/design/LM-1113/14-delete-file-confirm.png)
+![Delete folder](codie/design/LM-1113/15-delete-folder-confirm.png)
+
+- Rename and move of a file show an inline note under the field: "Cells that read this file
+  by path are not updated."
+- **`FlowOpen`:** `LumlflowConfirmDialog` "{n} open notebook(s) will be closed: {names}.
+  Running cells stop and agents working in them lose their session. Close and continue?"
+  (**Close and continue** / **Cancel**) → repeats the call with `close_open: true`.
+- Errors from operations show as an error toast with the message (`kind` decides the
+  wording for known kinds, the OS message for `OsError`).
 
 ### 7. Upload
 
@@ -439,7 +549,7 @@ modified date and path, and the URL holds `file=<path>`
 ## Scenario: File over the preview limit
 **Given** `big.csv` of 50 MB
 **When** the person clicks it
-**Then** the viewer shows name, size and date with "Too large to preview (limit 10 MB)"
+**Then** the viewer shows name, size and date with "File is too large for preview"
 
 ## Scenario: Large video plays
 **Given** `run.mp4` of 300 MB
@@ -602,9 +712,11 @@ nothing
 **Then** only the link is removed; `/mnt/big/data` and its contents stay
 
 ## Scenario: New file and new folder
-**Given** a folder that already holds `untitled.txt`
-**When** the person clicks **New file**, then **New folder**
-**Then** `untitled 2.txt` and `untitled` are created and each starts inline rename
+**Given** a folder that already holds `README.md`
+**When** the person clicks **New file** and enters `README.md`
+**Then** the dialog shows `"README.md" already exists` under the name and nothing is
+created; with `notes.md` the file is created and opens in the viewer; **New folder** with
+`plots` creates the folder
 
 ## Scenario: No permission
 **Given** a file the OS user may not delete
@@ -629,21 +741,24 @@ an agent is active
 **When** the person opens it
 **Then** there is no **Edit** button
 
-## Scenario: Conflict on save
-**Given** the person opened `notes.md` and it changed on disk afterwards, with no lock
-**When** the person saves
-**Then** a dialog offers **Reload** or **Overwrite**; Overwrite writes the person's text
+## Scenario: Changed on disk during an edit
+**Given** the person is editing `notes.md` and it changes on disk, with no lock
+**When** the change arrives, or the person saves
+**Then** a warning above the editor says "This file changed on disk after you started to
+edit it." with **Overwrite** (writes the person's text) and **Reload** (takes the file
+from disk)
 
 ## Scenario: One agent changes a file
 **Given** one agent session holds a lease and `notes.md` is open
 **When** the agent writes `notes.md` from its shell
-**Then** the viewer shows "Being changed by {agent}" in the agent's colour, **Edit** is
-disabled, and it becomes editable 180 s after the agent's last change
+**Then** the card's border and a strip take the agent's colour, the strip says "{agent} is
+working on this file", the body is dimmed, **Edit** is disabled, and it becomes editable
+180 s after the agent's last change
 
 ## Scenario: Several agents active
 **Given** two agent sessions hold leases
 **When** `notes.md` changes on disk
-**Then** the lock reads "Being changed by an agent" in a neutral colour
+**Then** the strip reads "An agent is working on this file" in a neutral colour
 
 ## Scenario: Lock ends with the agent's session
 **Given** a file locked by an agent
@@ -658,8 +773,9 @@ disabled, and it becomes editable 180 s after the agent's last change
 ## Scenario: Lock during an edit
 **Given** the person is editing `notes.md` with unsaved text
 **When** an agent writes the file
-**Then** the editor turns read-only with a banner, the unsaved text stays visible and
-copyable, and after the lock ends the person chooses **Reload** or **Overwrite**
+**Then** the editor turns read-only and the agent strip appears, the unsaved text stays
+visible and copyable, and after the lock ends the person chooses **Overwrite** or
+**Reload**
 
 ## Scenario: Save while locked
 **Given** a file locked by an agent
@@ -707,8 +823,8 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
 
 - [ ] **3. File and folder operations** (Design §4)
   - [ ] `file.rename`, `file.move` (same / cross filesystem, rollback), `file.delete`
-    (unlink / rmtree, links never followed), `file.mkdir`, `file.create` (untitled
-    numbering)
+    (unlink / rmtree, links never followed), `file.mkdir`, `file.create` (name required,
+    `"{name}" already exists`)
   - [ ] `flow.move`; `close_open` and `FlowOpen` in all operations, including
     `flow.rename` and `flow.delete`; open sessions found under a folder
   - [ ] CLI `flow delete` passes `close_open: true` (`cli.py`)
@@ -758,21 +874,23 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
     `type: 'file'`; **Show more**; **Show hidden** (localStorage, try/catch)
   - [ ] `WorkspaceFolderItem.vue` file rows (click, icon, size, selected, link icon)
   - [ ] `WorkspacesPage.vue` split layout and `?file=`; `WorkspaceFileViewer.vue` (header,
-    `FilePreview` over `/api/flow/file`, plain-text fallback via `file.read_text`, B-05
-    card, too-large message)
+    `FilePreview` over `/api/flow/file`, plain-text fallback via `file.read_text`,
+    no-preview / empty / too-large states)
   - [ ] `files` stream subscription; refresh on `files_changed`; "moved or deleted" state
   - [ ] Tests for the store (paging, hidden, refresh) and viewer states
 
 - [ ] **10. Row menu, dialogs and operations** (Frontend §6)
-  - [ ] ⋮ menu for files, folders and notebooks; inline rename; **Move to…** folder picker;
-    **Delete** confirms; **New file** / **New folder** with inline rename
+  - [ ] ⋮ menu for files, folders and notebooks; inline rename with Save; **Move to…**
+    dialog with a folder picker that can go up; **Delete** confirms; **New file** / **New
+    folder** dialogs with name errors
   - [ ] `FlowOpen` close-and-continue dialog; unsaved-changes dialog; error toasts by `kind`
   - [ ] Tests for the store actions and dialog flows
 
 - [ ] **11. Editing with locks and conflicts** (Frontend §4)
   - [ ] `UiCodeEditor` with the shared language map; Edit / Save / Cancel
-  - [ ] Lock banner with `agentColor` / neutral colour; read-only during a lock; keep
-    unsaved text; Reload / Overwrite after the lock and on `FileConflict`
+  - [ ] Agent strip, coloured border and dimmed body with `agentColor` / neutral colour;
+    read-only during a lock; keep unsaved text; changed-on-disk warning with Overwrite /
+    Reload (during an edit, after a lock, on `FileConflict`)
   - [ ] Tests for lock, conflict and save flows
 
 - [ ] **12. `.luml` view and upload** (Frontend §3, §7)
