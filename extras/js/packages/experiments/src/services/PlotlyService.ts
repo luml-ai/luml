@@ -1,4 +1,4 @@
-type Plotly = typeof import('plotly.js-dist')
+type Plotly = typeof import('plotly.js-basic-dist-min')
 
 class PlotlyServiceClass {
   private loading: Promise<Plotly> | null = null
@@ -7,7 +7,7 @@ class PlotlyServiceClass {
     if (typeof window === 'undefined') {
       return Promise.reject(new Error('Plotly works only in browser'))
     }
-    this.loading ??= import('plotly.js-dist').then(
+    this.loading ??= import('plotly.js-basic-dist-min').then(
       (module) => module.default ?? module,
       (error: unknown) => {
         // A failed load is retried by the next caller.

@@ -47,7 +47,7 @@ export default defineConfig({
           jszip: 'JSZip',
           '@sqlite.org/sqlite-wasm': 'sqlite3InitModule',
           uuid: 'uuid',
-          'plotly.js-dist': 'Plotly',
+          'plotly.js-basic-dist-min': 'Plotly',
           axios: 'axios',
         },
       },

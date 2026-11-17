@@ -1,9 +1,11 @@
-type PlotlyModule = typeof import('plotly.js-dist')
+type PlotlyModule = typeof import('plotly.js-basic-dist-min')
 
 let modulePromise: Promise<PlotlyModule> | null = null
 
 export function loadPlotly(): Promise<PlotlyModule> {
-  modulePromise ??= import('plotly.js-dist').then((imported) => imported.default ?? imported)
+  modulePromise ??= import('plotly.js-basic-dist-min').then(
+    (imported) => imported.default ?? imported,
+  )
   return modulePromise
 }
 

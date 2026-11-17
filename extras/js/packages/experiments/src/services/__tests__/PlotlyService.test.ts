@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const plotlyModule = vi.hoisted(() => ({ fail: true }))
 
-vi.mock('plotly.js-dist', () => {
+vi.mock('plotly.js-basic-dist-min', () => {
   if (plotlyModule.fail) throw new Error('chunk failed')
   return { default: { react: () => {} } }
 })

@@ -9,13 +9,14 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import type { MetricBucket } from '../../../extras/js/packages/experiments/src/metric-buckets/types'
 
-// Draws the real metric chart traces with the real plotly.js-dist in Chromium and checks the
-// SVG Plotly renders: unit tests mock Plotly, and Plotly ignores some trace fields silently.
+// Draws the real metric chart traces with the real plotly.js-basic-dist-min in Chromium and
+// checks the SVG Plotly renders: unit tests mock Plotly, and Plotly ignores some trace fields
+// silently.
 
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 const EXPERIMENTS_SRC = resolve(here, '../../../extras/js/packages/experiments/src')
-const PLOTLY = require.resolve('plotly.js-dist/plotly.js')
+const PLOTLY = require.resolve('plotly.js-basic-dist-min')
 const THEMES = {
   light: { alpha: 0.2, background: '#ffffff', colors: ['#2673fd', '#d62728', '#2ca02c'] },
   dark: { alpha: 0.35, background: '#18181b', colors: ['#2462d0', '#b12526', '#298629'] },
