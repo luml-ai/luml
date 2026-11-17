@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 class SatelliteResource:
     """Satellites of the configured orbit, as the Platform records them."""
 
-    def __init__(self, client: LumlClient) -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def _path(self, satellite_id: str) -> str:
@@ -58,7 +58,7 @@ class SatelliteResource:
 class AsyncSatelliteResource:
     """Async variant of `SatelliteResource`."""
 
-    def __init__(self, client: AsyncLumlClient) -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     def _path(self, satellite_id: str) -> str:

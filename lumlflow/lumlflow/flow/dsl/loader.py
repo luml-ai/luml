@@ -139,7 +139,7 @@ def _declared_literals(
             continue
         try:
             declared[name] = ast.literal_eval(value)
-        except ValueError, TypeError, SyntaxError, MemoryError, RecursionError:
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
             flags.append(
                 _invalid(
                     f"`{name}` is not a literal. lumlflow reads declarations "

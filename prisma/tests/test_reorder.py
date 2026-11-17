@@ -24,7 +24,7 @@ def db() -> Database:
 @pytest.fixture
 async def client(
     tmp_path: Path,
-) -> AsyncGenerator[AsyncClient]:
+) -> AsyncGenerator[AsyncClient, None]:
     db = Database()
     pty = PtyManager()
     config = AppConfig(data_dir=tmp_path, db_path=tmp_path / "test.db")

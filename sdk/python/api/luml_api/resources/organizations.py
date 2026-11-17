@@ -32,7 +32,7 @@ class OrganizationResourceBase(ABC):
 class OrganizationResource(OrganizationResourceBase):
     """Resource for managing organizations."""
 
-    def __init__(self, client: LumlClient) -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def get(self, organization_value: str | None = None) -> Organization | None:
@@ -126,7 +126,7 @@ class OrganizationResource(OrganizationResourceBase):
 class AsyncOrganizationResource(OrganizationResourceBase):
     """Resource for managing organizations for async client."""
 
-    def __init__(self, client: AsyncLumlClient) -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     async def get(self, organization_value: str | None = None) -> Organization | None:

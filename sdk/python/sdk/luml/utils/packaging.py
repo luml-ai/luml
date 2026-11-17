@@ -240,7 +240,7 @@ def is_sklearn_estimator(obj: object, estimator_cls: type | None) -> bool:
 def add_reference_profile(
     artifact_path: str,
     reference_data: Any,  # noqa: ANN401
-    task_type: TaskType,
+    task_type: "TaskType",
     predict: Callable[[Any], Any],
     *,
     predict_proba: Callable[[Any], Any] | None = None,

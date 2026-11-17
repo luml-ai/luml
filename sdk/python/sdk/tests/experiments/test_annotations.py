@@ -1252,7 +1252,7 @@ class TestUpdateAnnotation:
         exp_id: str,
         trace_id: str = "t1",
         span_id: str = "s1",
-    ) -> AnnotationRecord:
+    ) -> "AnnotationRecord":
         tracker.log_span(
             trace_id=trace_id,
             span_id=span_id,
@@ -1274,7 +1274,7 @@ class TestUpdateAnnotation:
 
     def _eval_annotation(
         self, tracker: ExperimentTracker, exp_id: str
-    ) -> AnnotationRecord:
+    ) -> "AnnotationRecord":
         tracker.log_eval_sample(
             eval_id="e1", dataset_id="ds1", inputs={"q": "hi"}, experiment_id=exp_id
         )
@@ -1397,7 +1397,7 @@ class TestGetSpanAnnotations:
         name: str = "quality",
         value: bool = True,
         user: str = "alice",
-    ) -> AnnotationRecord:
+    ) -> "AnnotationRecord":
         return tracker.log_span_annotation(
             trace_id=trace_id,
             span_id=span_id,

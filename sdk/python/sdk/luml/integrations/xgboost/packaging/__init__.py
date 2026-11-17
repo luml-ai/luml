@@ -121,7 +121,7 @@ def _get_default_tags() -> list[str]:
 
 
 def save_xgboost(  # noqa: C901
-    estimator: Union[Booster, xgb.XGBModel],  # noqa: UP007
+    estimator: "Union[Booster, xgb.XGBModel]",  # noqa: UP007
     inputs: Any,  # noqa: ANN401
     path: str | None = None,
     input_format: Literal["unified", "native"] = "unified",

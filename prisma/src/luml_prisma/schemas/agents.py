@@ -13,7 +13,7 @@ class AgentOut(BaseModel):
     default_args: list[str]
 
     @classmethod
-    def from_def(cls, a: AgentDef) -> AgentOut:
+    def from_def(cls, a: AgentDef) -> "AgentOut":
         return cls(
             id=a.id,
             name=a.name,

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 class FlowResource:
     """The current user's flows on the configured orbit's Flow page."""
 
-    def __init__(self, client: LumlClient) -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def _path(self, flow_id: str | None = None) -> str:
@@ -69,7 +69,7 @@ class FlowResource:
 class AsyncFlowResource:
     """Async variant of `FlowResource`."""
 
-    def __init__(self, client: AsyncLumlClient) -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     def _path(self, flow_id: str | None = None) -> str:

@@ -37,7 +37,7 @@ class DeploymentResourceBase(ABC):
 class DeploymentResource(DeploymentResourceBase):
     """Resource for reading Deployments and their monitoring."""
 
-    def __init__(self, client: LumlClient) -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def _path(self) -> str:
@@ -168,7 +168,7 @@ class DeploymentResource(DeploymentResourceBase):
 class AsyncDeploymentResource(DeploymentResourceBase):
     """Async resource for reading Deployments and their monitoring."""
 
-    def __init__(self, client: AsyncLumlClient) -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     def _path(self) -> str:

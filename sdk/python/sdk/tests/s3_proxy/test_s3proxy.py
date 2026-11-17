@@ -25,7 +25,7 @@ def storage_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def server(storage_root: Path) -> Generator[S3ProxyServer]:
+def server(storage_root: Path) -> Generator[S3ProxyServer, None, None]:
     proxy = S3ProxyServer(
         ("127.0.0.1", 0),
         S3ProxyHandler,

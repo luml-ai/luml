@@ -93,7 +93,7 @@ class DaemonClient:
             except OSError:
                 pass
 
-    def __enter__(self) -> DaemonClient:
+    def __enter__(self) -> "DaemonClient":
         return self
 
     def __exit__(
@@ -126,7 +126,7 @@ def is_alive(record: DaemonRecord) -> bool:
                 isinstance(answer, dict)
                 and answer.get("instance_id") == record.instance_id
             )
-    except ServerError, OSError, ValueError:
+    except (ServerError, OSError, ValueError):
         return False
 
 
@@ -187,7 +187,7 @@ def stop(record: DaemonRecord, *, timeout: float = STOP_TIMEOUT_S) -> bool:
         return False
     try:
         os.kill(record.pid, signal.SIGTERM)
-    except OSError, ProcessLookupError:
+    except (OSError, ProcessLookupError):
         return False
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -255,7 +255,7 @@ def _start_daemon(
     raise ServerError(f"lumlflow could not start:\n{_tail(log)}")
 
 
-def _spawn(directory: Path, log: Path) -> subprocess.Popen[bytes]:
+def _spawn(directory: Path, log: Path) -> "subprocess.Popen[bytes]":
     inherited_executable = os.environ.get(harnesses.DAEMON_EXECUTABLE_ENV)
     environment = dict(os.environ)
     environment[harnesses.DAEMON_EXECUTABLE_ENV] = inherited_executable or str(
@@ -274,7 +274,7 @@ def _spawn(directory: Path, log: Path) -> subprocess.Popen[bytes]:
 
 
 def _await_registration(
-    process: subprocess.Popen[bytes], deadline: float
+    process: "subprocess.Popen[bytes]", deadline: float
 ) -> DaemonRecord | None:
     exited_at: float | None = None
     while time.monotonic() < deadline:

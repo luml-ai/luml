@@ -39,7 +39,7 @@ class WorkspaceExclusions:
         try:
             resolved = path.resolve()
             relative = resolved.relative_to(self.root)
-        except OSError, ValueError:
+        except (OSError, ValueError):
             return True
         if any(part in EXCLUDED_DIRS for part in relative.parts):
             return True
@@ -70,7 +70,7 @@ class WorkspaceExclusions:
             return self._gitignores[directory]
         try:
             lines = (directory / ".gitignore").read_text("utf-8").splitlines()
-        except OSError, UnicodeError:
+        except (OSError, UnicodeError):
             spec = None
         else:
             spec = GitIgnoreSpec.from_lines(lines)
@@ -84,7 +84,7 @@ class WorkspaceTree:
     files: dict[str, str] = field(default_factory=dict)
     strays: list[str] = field(default_factory=list)
 
-    def changed_paths(self, other: WorkspaceTree) -> list[str]:
+    def changed_paths(self, other: "WorkspaceTree") -> list[str]:
         return sorted(
             path
             for path in self.files.keys() | other.files.keys()

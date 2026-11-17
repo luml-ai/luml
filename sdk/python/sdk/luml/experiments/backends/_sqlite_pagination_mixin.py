@@ -12,7 +12,7 @@ class SQLitePaginationMixin:
         if isinstance(v, str) and v and v[0] in ("{", "["):
             try:
                 return json.loads(v)
-            except json.JSONDecodeError, ValueError:
+            except (json.JSONDecodeError, ValueError):
                 return v
         return v
 

@@ -43,7 +43,7 @@ The kernel uses the environment resolved for the flow. If that environment is a 
 
 ## Getting started
 
-Python 3.14 or later and [`uv`](https://docs.astral.sh/uv/) are required. Install lumlflow as an isolated tool with `uv` or `pipx`:
+Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/) are required. Install lumlflow as an isolated tool with `uv` or `pipx`:
 
 ```bash
 uv tool install lumlflow

@@ -48,7 +48,7 @@ def servers(state_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Reap]:
     spawned: list[subprocess.Popen[Any]] = []
     spawn = client._spawn
 
-    def watched(root: Path, log: Path) -> subprocess.Popen[bytes]:
+    def watched(root: Path, log: Path) -> "subprocess.Popen[bytes]":
         child = spawn(root, log)
         spawned.append(child)
         return child

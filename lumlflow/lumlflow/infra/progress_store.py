@@ -71,7 +71,7 @@ class ProgressStore:
 
     def make_handler(
         self, job_id: str, item_idx: int = 0, total_items: int = 1
-    ) -> SSEProgressHandler:
+    ) -> "SSEProgressHandler":
         return SSEProgressHandler(self, job_id, item_idx, total_items)
 
     def delete(self, job_id: str) -> None:

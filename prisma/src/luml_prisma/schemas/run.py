@@ -48,7 +48,7 @@ class RunOut(BaseModel):
         cls,
         r: Any,  # noqa: ANN401
         has_waiting_input: bool = False,
-    ) -> RunOut:
+    ) -> "RunOut":
         config = json.loads(r.config_json) if r.config_json else {}
         raw_keys = r.discovered_metric_keys_json
         discovered = json.loads(raw_keys) if raw_keys else []
@@ -91,7 +91,7 @@ class RunNodeOut(BaseModel):
         cls,
         n: Any,  # noqa: ANN401
         active_session_id: str | None = None,
-    ) -> RunNodeOut:
+    ) -> "RunNodeOut":
         return cls(
             id=n.id,
             run_id=n.run_id,
@@ -135,7 +135,7 @@ class RunEventOut(BaseModel):
     created_at: str
 
     @classmethod
-    def from_db(cls, e: Any) -> RunEventOut:  # noqa: ANN401
+    def from_db(cls, e: Any) -> "RunEventOut":  # noqa: ANN401
         return cls(
             id=e.id,
             run_id=e.run_id,

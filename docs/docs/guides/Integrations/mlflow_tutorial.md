@@ -10,7 +10,7 @@ sidebar_position: 3
 
 The plugin registers itself for the `luml://` URI scheme. Setting the MLflow tracking URI to `luml://<org>/<orbit>` is the only change a project needs.
 
-*Note: the plugin requires Python 3.14 or later and MLflow 3.1 or later.*
+*Note: the plugin requires Python 3.12 or later and MLflow 3.1 or later.*
 
 ## Setup
 

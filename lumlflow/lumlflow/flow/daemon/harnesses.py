@@ -1043,7 +1043,7 @@ class HarnessService:
                 try:
                     status = self._entry_status(harness)
                     entry = self._owned_entry(harness)
-                except HarnessConfigError, OSError:
+                except (HarnessConfigError, OSError):
                     continue
                 if status.state not in {
                     EntryState.SET_UP,

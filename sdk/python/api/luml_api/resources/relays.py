@@ -14,7 +14,7 @@ class RelayResource:
     `PermissionDeniedError`.
     """
 
-    def __init__(self, client: LumlClient) -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def _path(self, relay_id: str | None = None) -> str:
@@ -133,7 +133,7 @@ class RelayResource:
 class AsyncRelayResource:
     """Async variant of `RelayResource`."""
 
-    def __init__(self, client: AsyncLumlClient) -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     def _path(self, relay_id: str | None = None) -> str:

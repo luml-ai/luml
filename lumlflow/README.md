@@ -6,7 +6,7 @@ Lumlflow gives you a lightweight, self-hosted dashboard to track machine learnin
 
 ## Quickstart
 
-Python 3.14 or later and [`uv`](https://docs.astral.sh/uv/) are required. Install lumlflow as an isolated tool, then create a project environment for flow cells before opening the UI:
+Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/) are required. Install lumlflow as an isolated tool, then create a project environment for flow cells before opening the UI:
 
 ```bash
 uv tool install lumlflow
@@ -265,5 +265,5 @@ A model a flow cell produced goes the same way: expand the cell, and **upload to
 
 ## Requirements
 
-- Python 3.14+
+- Python 3.12+
 - `uv`

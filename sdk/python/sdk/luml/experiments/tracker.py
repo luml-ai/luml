@@ -110,7 +110,7 @@ class ExperimentTracker:
     def current_experiment_id(self, experiment_id: str | None) -> None:
         self._active_experiment.id = experiment_id
 
-    def __enter__(self) -> ExperimentTracker:
+    def __enter__(self) -> "ExperimentTracker":
         return self
 
     def __exit__(
@@ -2142,7 +2142,7 @@ class ExperimentTracker:
 
     def export(
         self, output_path: str, experiment_id: str | None = None
-    ) -> ExperimentReference:
+    ) -> "ExperimentReference":
         """
         Export the entire experiment tracking data and save as an artifact.
 

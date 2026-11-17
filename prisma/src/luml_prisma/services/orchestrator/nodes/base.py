@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 class NodeServices:
     db: Database
     pty: PtyManager
-    engine: OrchestratorEngine
+    engine: "OrchestratorEngine"
     config: AppConfig
 
 

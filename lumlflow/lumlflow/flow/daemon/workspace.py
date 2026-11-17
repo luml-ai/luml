@@ -90,7 +90,7 @@ def list_directory(root: Path) -> DirectoryListing:
         )
     try:
         entries = sorted(os.scandir(root), key=lambda entry: entry.name)
-    except FileNotFoundError, NotADirectoryError:
+    except (FileNotFoundError, NotADirectoryError):
         raise FlowError(f"there is no directory `{root}`") from None
     except OSError:
         raise FlowError(f"cannot read `{root}`") from None
@@ -195,7 +195,7 @@ def read_record() -> DaemonRecord | None:
     try:
         body = json.loads(path.read_bytes())
         return DaemonRecord(**body)
-    except OSError, ValueError, TypeError:
+    except (OSError, ValueError, TypeError):
         return None
 
 

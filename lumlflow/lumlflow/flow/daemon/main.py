@@ -285,7 +285,7 @@ class Daemon:
                 self._forget_calls(actor)
             await self._release(leased)
 
-    async def _release(self, leased: Leases) -> None:
+    async def _release(self, leased: "Leases") -> None:
         if self._stopped.is_set():
             return
         ended = sorted(leased, key=lambda lease: (lease[0] or "", lease[1]))
@@ -390,7 +390,7 @@ class Daemon:
             for lease in client_leases
         }
 
-    def _announce_activity(self, activity: Activity, phase: str) -> None:
+    def _announce_activity(self, activity: "Activity", phase: str) -> None:
         flow, actor, label, tool, slug = activity
         with contextlib.suppress(FlowError, OSError):
             self.api.announce_activity(
@@ -468,7 +468,7 @@ class Daemon:
             message = json.loads(
                 await asyncio.wait_for(reader.readline(), _AUTH_TIMEOUT_S)
             )
-        except ValueError, TimeoutError:
+        except (ValueError, TimeoutError):
             return False
         return (
             isinstance(message, dict)
@@ -477,7 +477,7 @@ class Daemon:
         )
 
     async def _handle(
-        self, line: bytes, writer: asyncio.StreamWriter, leased: Leases
+        self, line: bytes, writer: asyncio.StreamWriter, leased: "Leases"
     ) -> None:
         try:
             message = json.loads(line)
@@ -640,7 +640,7 @@ def _install_signals(stop: Any) -> None:
             continue
         try:
             loop.add_signal_handler(received, stop)
-        except NotImplementedError, ValueError, AttributeError:
+        except (NotImplementedError, ValueError, AttributeError):
             # Windows has no loop signal handlers; the C handler hops threads.
             signal.signal(received, lambda *_: loop.call_soon_threadsafe(stop))
 

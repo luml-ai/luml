@@ -194,7 +194,7 @@ class LocalDaemon:
     def close(self) -> None:
         pass
 
-    def __enter__(self) -> LocalDaemon:
+    def __enter__(self) -> "LocalDaemon":
         return self
 
     def __exit__(self, *_: object) -> None:

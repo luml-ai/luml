@@ -134,7 +134,7 @@ class Served:
         assert answer.status_code == 200, answer.text
         return answer.json()["result"]
 
-    def watch(self) -> WebSocketTestSession:
+    def watch(self) -> "WebSocketTestSession":
         return self.http.websocket_connect(f"{web.STREAM_PATH}?token={TOKEN}")
 
 

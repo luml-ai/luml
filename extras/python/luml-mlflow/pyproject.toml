@@ -3,7 +3,7 @@ name = "luml-mlflow"
 version = "0.1.0"
 description = "MLflow tracking store + artifact repository that lands MLflow runs in a luml orbit"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "mlflow>=3.1,<4",
     "fnnx>=0.0.12",
@@ -42,7 +42,7 @@ build-backend = "hatchling.build"
 packages = ["luml_mlflow"]
 
 [tool.ruff]
-target-version = "py314"
+target-version = "py312"
 line-length = 88
 indent-width = 4
 src = ["luml_mlflow"]
@@ -62,7 +62,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 ignore_missing_imports = true
 disallow_untyped_defs = true
 warn_unused_ignores = true

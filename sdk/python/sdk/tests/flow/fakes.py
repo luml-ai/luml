@@ -176,7 +176,7 @@ class FakeClients:
 
     def __call__(
         self, organization: str | None = None, orbit: str | None = None
-    ) -> FakeClient:
+    ) -> "FakeClient":
         self.setups.append({"organization": organization, "orbit": orbit})
         return FakeClient(self.flows, self.live_sessions)
 

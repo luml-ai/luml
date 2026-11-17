@@ -67,7 +67,7 @@ class DeleteResult:
 
 
 class Branches:
-    def __init__(self, store: FlowStore) -> None:
+    def __init__(self, store: "FlowStore") -> None:
         self._store = store
 
     @property

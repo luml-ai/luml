@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class LiveSessionResource:
     """Live sessions of the configured orbit, exposed through a relay."""
 
-    def __init__(self, client: LumlClient) -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def _path(self, session_id: str | None = None) -> str:
@@ -135,7 +135,7 @@ class LiveSessionResource:
 class AsyncLiveSessionResource:
     """Async variant of `LiveSessionResource`."""
 
-    def __init__(self, client: AsyncLumlClient) -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     def _path(self, session_id: str | None = None) -> str:

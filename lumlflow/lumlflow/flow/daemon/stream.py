@@ -19,7 +19,7 @@ _KERNEL_STATE = "kernel_state"
 
 
 class Subscription:
-    def __init__(self, streams: Streams, *, depth: int = QUEUE_DEPTH) -> None:
+    def __init__(self, streams: "Streams", *, depth: int = QUEUE_DEPTH) -> None:
         self.journals: set[str] = set()
         self.runs: set[tuple[str, str]] = set()
         self._streams = streams

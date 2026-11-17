@@ -185,7 +185,7 @@ async def luml_port(fake_luml: FakeLuml, monkeypatch: pytest.MonkeyPatch) -> Asy
 
 @dataclass
 class RunningExpose:
-    task: asyncio.Task[None]
+    task: "asyncio.Task[None]"
     stop: asyncio.Event
 
 

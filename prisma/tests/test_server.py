@@ -54,7 +54,7 @@ async def client(
     tmp_config: AppConfig,
     db: Database,
     pty: PtyManager,
-) -> AsyncGenerator[AsyncClient]:
+) -> AsyncGenerator[AsyncClient, None]:
     app.state.config = tmp_config
     app.state.db = db
     app.state.pty = pty

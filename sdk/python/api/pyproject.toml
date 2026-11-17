@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "LUML Python API Client"
 readme = "README.md"
 
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "pyfnx-utils>=0.0.1,<1.0.0",
     "cloudpickle>=3.1.2,<4.0.0",
@@ -24,21 +24,21 @@ packages = ["luml_api"]
 
 [dependency-groups]
 dev = [
-    "mypy>=1.18.2,<2.0.0",
+    "mypy==1.15.0",
     "pydoc-markdown>=4.8.2",
     "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
     "pytest-cov==6.0.0",
     "respx==0.22.0",
-    "ruff>=0.14.5,<1.0.0",
+    "ruff==0.11.5",
     "types-passlib==1.7.7.20250408",
     "fnnx>=0.0.11",
     "cloudpickle>=3.1.2",
 ]
 
 [tool.ruff]
-# Target Python 3.14
-target-version = "py314"
+# Target Python 3.12
+target-version = "py312"
 
 # Black-compatible settings
 line-length = 88

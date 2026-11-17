@@ -12,7 +12,7 @@ Install the LUML SDK and scikit-learn:
 pip install luml-sdk scikit-learn numpy
 ```
 
-_Note: the SDK requires Python 3.14 or later._
+_Note: the SDK requires Python 3.12 or later._
 
 ## Train a Model
 

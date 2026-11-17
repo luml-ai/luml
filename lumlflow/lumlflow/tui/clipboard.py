@@ -47,7 +47,7 @@ def supports_osc52() -> bool:
     try:
         if terminal is None or not terminal.isatty():
             return False
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return False
     # `TERM=dumb` and `TERM=unknown` short-circuit since they explicitly
     # disclaim terminal capabilities.
@@ -112,7 +112,7 @@ def read_system_clipboard(timeout: float = 0.5) -> str | None:
             continue
         try:
             proc = subprocess.run(command, capture_output=True, timeout=timeout)
-        except OSError, subprocess.SubprocessError:
+        except (OSError, subprocess.SubprocessError):
             continue
         if proc.returncode != 0:
             continue

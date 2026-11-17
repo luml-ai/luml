@@ -128,7 +128,7 @@ class TrackResourceBase(ABC):
 class TrackResource(TrackResourceBase, ListedResource):
     """Resource for managing tracks."""
 
-    def __init__(self, client: LumlClient) -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     @validate_orbit
@@ -826,7 +826,7 @@ class TrackResource(TrackResourceBase, ListedResource):
 class AsyncTrackResource(TrackResourceBase, ListedResource):
     """Resource for managing tracks for async client."""
 
-    def __init__(self, client: AsyncLumlClient) -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     @validate_orbit

@@ -24,7 +24,7 @@ def model_file(tmp_path: Path) -> Path:
 @pytest.fixture
 async def client(
     queue: UploadQueue,
-) -> AsyncGenerator[AsyncClient]:
+) -> AsyncGenerator[AsyncClient, None]:
     app.state.upload_queue = queue
     transport = ASGITransport(app=app)
     async with AsyncClient(

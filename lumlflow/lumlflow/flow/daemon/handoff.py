@@ -16,7 +16,7 @@ _FRAME = re.compile(
 
 
 def payload(
-    session: FlowSession, *, branch: str, slug: str | None = None
+    session: "FlowSession", *, branch: str, slug: str | None = None
 ) -> dict[str, Any]:
     if not slug:
         raise FlowError("this context is about one cell. name it")

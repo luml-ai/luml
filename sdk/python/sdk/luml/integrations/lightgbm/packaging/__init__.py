@@ -97,7 +97,7 @@ def _get_default_tags() -> list[str]:
 
 
 def save_lightgbm(  # noqa: C901
-    estimator: Union[Booster, lgb.LGBMModel],  # noqa: UP007
+    estimator: "Union[Booster, lgb.LGBMModel]",  # noqa: UP007
     inputs: Any,  # noqa: ANN401
     path: str | None = None,
     input_format: Literal["unified", "native"] = "unified",

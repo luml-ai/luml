@@ -27,7 +27,7 @@ _tracer = trace.get_tracer(__name__) if trace is not None else None
 def _try_parse(raw: str) -> dict[str, Any] | None:
     try:
         parsed = json.loads(raw)
-    except json.JSONDecodeError, TypeError:
+    except (json.JSONDecodeError, TypeError):
         return None
     if (
         isinstance(parsed, dict)

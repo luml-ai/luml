@@ -85,7 +85,7 @@ class FlowStore:
     @classmethod
     def init(
         cls, flow_dir: Path, *, name: str | None = None, actor: str = "user"
-    ) -> FlowStore:
+    ) -> "FlowStore":
         flow_dir = flow_dir.resolve()
         if store_dir(flow_dir).exists():
             raise FlowAlreadyExists(f"{flow_dir} already holds a flow store")
@@ -119,7 +119,7 @@ class FlowStore:
         return store
 
     @classmethod
-    def open(cls, flow_dir: Path) -> FlowStore:
+    def open(cls, flow_dir: Path) -> "FlowStore":
         flow_dir = flow_dir.resolve()
         if not store_dir(flow_dir).is_dir():
             raise FlowNotFound(f"no flow at {flow_dir}")
@@ -647,7 +647,7 @@ def _resolve_order(
 def _order_decimal(value: object) -> Decimal | None:
     try:
         key = Decimal(str(value))
-    except InvalidOperation, ValueError:
+    except (InvalidOperation, ValueError):
         return None
     return key if key.is_finite() else None
 

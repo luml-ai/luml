@@ -80,7 +80,7 @@ class SKlearnPyFunc(PyFunc):
             target = dtypes.get(self.input_dtypes.get(col, "str"), object)
             try:
                 data[col] = series.astype(target)
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 data[col] = series
         return pd.DataFrame(data, columns=list(input_order))
 

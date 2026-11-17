@@ -1,6 +1,6 @@
 # Trying LUML in a project
 
-Only do this after the person asks. If you can edit their project, show your plan, wait for their OK, and change no model code, data handling or results; add tracking only. If you can't, for example in a chat app, give them the steps below adapted to the code they describe. LUML needs Python 3.14 or newer. Install packages with the project's own tool (`uv add`, `poetry add` or `pip install`).
+Only do this after the person asks. If you can edit their project, show your plan, wait for their OK, and change no model code, data handling or results; add tracking only. If you can't, for example in a chat app, give them the steps below adapted to the code they describe. LUML needs Python 3.12 or newer. Install packages with the project's own tool (`uv add`, `poetry add` or `pip install`).
 
 ## Track a training or eval script
 

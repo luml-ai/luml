@@ -47,7 +47,7 @@ class Gated:
 
 @pytest.fixture
 def serve(servers: Reap) -> Serve:
-    def start(root: Path, *args: str) -> subprocess.Popen[str]:
+    def start(root: Path, *args: str) -> "subprocess.Popen[str]":
         running = subprocess.Popen(
             [sys.executable, "-m", "lumlflow.cli", "ui", "--no-browser", *args],
             cwd=root,
@@ -706,7 +706,7 @@ def _running(record: DaemonRecord) -> int:
 
 
 def _receive_catch_up(
-    stream: websockets.sync.client.ClientConnection,
+    stream: "websockets.sync.client.ClientConnection",
 ) -> None:
     while True:
         frame = json.loads(stream.recv(timeout=30))

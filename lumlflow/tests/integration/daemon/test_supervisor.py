@@ -71,7 +71,7 @@ def _kill(record: DaemonRecord | None) -> None:
 
 
 def _caught_up(
-    socket: websockets.sync.client.ClientConnection,
+    socket: "websockets.sync.client.ClientConnection",
 ) -> list[dict[str, Any]]:
     replayed: list[dict[str, Any]] = []
     while True:
@@ -81,7 +81,9 @@ def _caught_up(
         replayed.append(frame)
 
 
-def _watch(record: DaemonRecord, flow: str) -> websockets.sync.client.ClientConnection:
+def _watch(
+    record: DaemonRecord, flow: str
+) -> "websockets.sync.client.ClientConnection":
     stream = f"ws://127.0.0.1:{record.web_port}{web.STREAM_PATH}?token={record.token}"
     socket = websockets.sync.client.connect(stream, open_timeout=30)
     socket.send(json.dumps({"subscribe": "journal", "flow": flow}))
@@ -89,7 +91,7 @@ def _watch(record: DaemonRecord, flow: str) -> websockets.sync.client.ClientConn
 
 
 def _until(
-    socket: websockets.sync.client.ClientConnection,
+    socket: "websockets.sync.client.ClientConnection",
     wanted: Callable[[dict[str, Any]], bool],
 ) -> dict[str, Any]:
     for _ in range(_FRAME_LIMIT):
@@ -767,7 +769,7 @@ def _hello() -> dict[str, Any]:
     }
 
 
-def _say(process: subprocess.Popen[bytes], message: dict[str, Any]) -> Any:
+def _say(process: "subprocess.Popen[bytes]", message: dict[str, Any]) -> Any:
     assert process.stdin is not None and process.stdout is not None
     process.stdin.write(json.dumps(message).encode("utf-8") + b"\n")
     process.stdin.flush()

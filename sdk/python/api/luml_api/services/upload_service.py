@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class UploadService:
-    def __init__(self, bucket_secrets_client: BucketSecretResource) -> None:
+    def __init__(self, bucket_secrets_client: "BucketSecretResource") -> None:
         self._bucket_secrets = bucket_secrets_client
 
     def upload_file(
@@ -59,7 +59,7 @@ class UploadService:
 
 
 class AsyncUploadService:
-    def __init__(self, bucket_secrets_client: AsyncBucketSecretResource) -> None:
+    def __init__(self, bucket_secrets_client: "AsyncBucketSecretResource") -> None:
         self._bucket_secrets = bucket_secrets_client
 
     async def upload_file(
