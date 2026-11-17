@@ -79,8 +79,10 @@ alembic upgrade head
 ```
 
 The image exposes Alembic through `PATH`; migration jobs use the dependencies
-already installed in the image. Provide the job's database configuration through
-its environment. The platform job configuration is managed outside this repository.
+already installed in the image. Give the job the same environment variables as the
+backend service: `migrations/env.py` imports the application models, which load the
+full application settings, so `POSTGRESQL_DSN` alone is not enough. The platform
+job configuration is managed outside this repository.
 
 To inspect migration heads without database or network access:
 
