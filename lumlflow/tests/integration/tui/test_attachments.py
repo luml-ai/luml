@@ -532,12 +532,7 @@ class TestSaveToDisk:
             await pilot.pause()
             target = tmp_path / "saved_config.json"
             panel._on_save_dest(str(target), "config.json")
-            # Wait for the worker to finish writing.
-            for _ in range(20):
-                await pilot.pause()
-                if target.exists():
-                    break
-            assert target.exists()
+            await settle_workers(pilot)
             assert b"lr" in target.read_bytes()
             assert not isinstance(app.screen, ConfirmDialog)
 
