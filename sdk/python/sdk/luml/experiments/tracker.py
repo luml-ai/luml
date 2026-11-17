@@ -1203,7 +1203,8 @@ class ExperimentTracker:
         Retrieve a trace's span tree without span payloads, for large traces.
 
         Spans have ``attributes``, ``events``, ``links`` and ``status_message`` set
-        to ``None``; load one span in full with ``get_span``.
+        to ``None``. Here ``None`` means "not loaded", not "empty"; load one span in
+        full with ``get_span``.
 
         Returns:
             TraceDetails | None: Trace with its spans, or ``None`` if not found.

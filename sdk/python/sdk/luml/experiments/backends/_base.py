@@ -396,8 +396,12 @@ class Backend(ABC):
     def get_trace_structure(
         self, experiment_id: str, trace_id: str
     ) -> TraceDetails | None:
-        """The trace's span tree without span payloads: `attributes`, `events`,
-        `links` and `status_message` are None. `get_span` loads one span's payload."""
+        """The trace's span tree without span payloads, or None if the trace does not
+        exist.
+
+        `attributes`, `events`, `links` and `status_message` are None on every span.
+        None here means "not loaded", not "empty": `get_span` loads one span's payload.
+        """
         trace = self.get_trace(experiment_id, trace_id)
         if trace is None:
             return None
@@ -418,6 +422,8 @@ class Backend(ABC):
     def get_span(
         self, experiment_id: str, trace_id: str, span_id: str
     ) -> SpanRecord | None:
+        """One span with its full payload and annotation count, or None if the trace
+        has no span with this id."""
         trace = self.get_trace(experiment_id, trace_id)
         if trace is None:
             return None

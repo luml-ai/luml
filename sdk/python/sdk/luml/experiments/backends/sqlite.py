@@ -3013,9 +3013,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         for i in range(0, len(ids), batch_size):
             batch = ids[i : i + batch_size]
             placeholders = ", ".join("?" for _ in batch)
+            # Link order, which revision 3 bridge indexes would otherwise turn
+            # into id order.
             cur.execute(
                 f"SELECT {key_column}, {value_column} FROM eval_traces_bridge"
-                f" WHERE {key_column} IN ({placeholders})",
+                f" WHERE {key_column} IN ({placeholders}) ORDER BY rowid",
                 batch,
             )
             for key, value in cur.fetchall():
@@ -3451,11 +3453,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_trace_structure(
         self, experiment_id: str, trace_id: str
     ) -> TraceDetails | None:
-        """The trace's span tree without span payloads: `attributes`, `events`,
-        `links` and `status_message` are None. `get_span` loads one span's payload.
+        """The trace's span tree without span payloads, or None if the trace does not
+        exist.
 
-        From schema revision 3 the spans come from the `spans_structure` index alone,
-        so large payloads are never read. Spans are ordered by start time, then id.
+        `attributes`, `events`, `links` and `status_message` are None on every span.
+        None here means "not loaded", not "empty": `get_span` loads one span's payload.
+        From schema revision 3 large payloads are never read. Spans are ordered by
+        start time, then id.
         """
         self._ensure_experiment_initialized(experiment_id)
         has_annotations = self._has_annotation_tables(experiment_id)
@@ -3509,6 +3513,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_span(
         self, experiment_id: str, trace_id: str, span_id: str
     ) -> SpanRecord | None:
+        """One span with its full payload and annotation count, or None if the trace
+        has no span with this id."""
         self._ensure_experiment_initialized(experiment_id)
         has_annotations = self._has_annotation_tables(experiment_id)
         with self._get_experiment_connection(experiment_id) as conn:
@@ -4067,13 +4073,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """Like get_experiment_eval_columns but also returns the SQLite type for each key."""
         self._ensure_experiment_initialized(experiment_id)
         with self._get_experiment_connection(experiment_id) as conn:
-
+            # A key's type is taken from one eval. MIN() picks the eval that revision 2
+            # stores read first (lowest id in a dataset, else first written), so the
+            # revision 3 indexes do not change the pick.
             def _fields(col: str) -> list[ColumnField]:
                 cur = conn.cursor()
                 if dataset_id is not None:
                     cur.execute(
                         f"""
-                        SELECT je.key, je.type
+                        SELECT je.key, je.type, MIN(evals.id)
                         FROM evals, json_each(evals.{col}) AS je
                         WHERE evals.{col} IS NOT NULL AND evals.dataset_id = ?
                         GROUP BY je.key
@@ -4084,7 +4092,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 else:
                     cur.execute(
                         f"""
-                        SELECT je.key, je.type
+                        SELECT je.key, je.type, MIN(evals.rowid)
                         FROM evals, json_each(evals.{col}) AS je
                         WHERE evals.{col} IS NOT NULL
                         GROUP BY je.key
@@ -4104,9 +4112,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     return []
                 cur = conn.cursor()
                 if dataset_id is not None:
+                    # MIN(rowid) keeps the first written annotation's type, as revision
+                    # 2 stores give, though revision 3 reads them in eval order.
                     cur.execute(
                         """
-                        SELECT name, value_type
+                        SELECT name, value_type, MIN(rowid)
                         FROM eval_annotations
                         WHERE annotation_kind = ? AND dataset_id = ?
                         GROUP BY name
@@ -4482,7 +4492,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
                    FROM eval_annotations
                    WHERE dataset_id = ? AND eval_id = ?
-                   ORDER BY created_at""",
+                   ORDER BY created_at, rowid""",
                 (dataset_id, eval_id),
             ).fetchall()
             return [self._row_to_annotation(r) for r in rows]
@@ -4621,7 +4631,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
                    FROM span_annotations
                    WHERE trace_id = ? AND span_id = ?
-                   ORDER BY created_at""",
+                   ORDER BY created_at, rowid""",
                 (trace_id, span_id),
             ).fetchall()
             return [self._row_to_annotation(r) for r in rows]
