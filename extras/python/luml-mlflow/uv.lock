@@ -1345,7 +1345,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "cloudpickle", specifier = ">=3.1.2,<4.0.0" },
-    { name = "datasets", marker = "extra == 'datasets-hf'", specifier = ">=2.14.0,<4.0.0" },
+    { name = "datasets", marker = "extra == 'datasets-hf'", specifier = ">=2.14.0,<6.0.0" },
     { name = "fnnx", specifier = ">=0.0.8,<0.1.0" },
     { name = "luml-api", marker = "extra == 'flow'", editable = "../../../sdk/python/api" },
     { name = "luml-relay", extras = ["luml"], marker = "extra == 'flow'", editable = "../../../relay" },
@@ -1366,7 +1366,7 @@ provides-extras = ["tracing", "datasets", "datasets-hf", "datasets-polars", "llm
 dev = [
     { name = "catboost", specifier = ">=1.2.10" },
     { name = "cloudpickle", specifier = ">=3.1.2" },
-    { name = "datasets", specifier = ">=2.14.0,<4.0.0" },
+    { name = "datasets", specifier = ">=2.14.0,<6.0.0" },
     { name = "fnnx", specifier = ">=0.0.11" },
     { name = "langchain-core", specifier = ">=1.2.7" },
     { name = "langchain-openai", specifier = ">=1.1.7" },
