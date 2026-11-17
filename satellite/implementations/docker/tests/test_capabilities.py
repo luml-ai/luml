@@ -21,7 +21,7 @@ DEPLOYMENT_SCHEMA_PATH = "/deployments/{deployment_id}/openapi.json"
 
 
 @pytest.mark.asyncio
-async def test_docker_capabilities_remain_wire_identical() -> None:
+async def test_docker_capabilities_include_wake_and_preserve_existing_declarations() -> None:
     fake_platform = FakePlatform()
     config = configuration(MONITORING_ENABLED=True)
 
@@ -42,6 +42,7 @@ async def test_docker_capabilities_remain_wire_identical() -> None:
             await close_runtime(runtime)
 
     assert capabilities == {
+        "wake": {"version": 1, "api_versions": [1], "facets": ["satellite"]},
         "deploy": {
             "version": 1,
             "api_versions": [1],
@@ -97,6 +98,7 @@ async def test_pairing_document_matches_snapshot_and_preserves_existing_contract
     expected = copy.deepcopy(old_document)
     expected["paths"][INFERENCE_ACCESS_PATH]["post"]["security"] = [{"HTTPBearer": []}]
     expected["paths"][DEPLOYMENT_SCHEMA_PATH] = document["paths"][DEPLOYMENT_SCHEMA_PATH]
+    expected["paths"]["/wake"] = snapshot["paths"]["/wake"]
     schemas = expected["components"]["schemas"]
     snapshot_schemas = snapshot["components"]["schemas"]
     schemas["RecordingStatus"] = snapshot_schemas["RecordingStatus"]
@@ -128,7 +130,7 @@ async def test_pairing_document_matches_snapshot_and_preserves_existing_contract
 
 
 @pytest.mark.asyncio
-async def test_monitoring_disabled_advertises_only_deploy() -> None:
+async def test_monitoring_disabled_advertises_deploy_and_wake() -> None:
     fake_platform = FakePlatform()
     config = configuration(MONITORING_ENABLED=False)
 
@@ -144,7 +146,7 @@ async def test_monitoring_disabled_advertises_only_deploy() -> None:
             upstream_transport=upstream_transport(),
         )
         try:
-            assert set(runtime.capabilities) == {"deploy"}
+            assert set(runtime.capabilities) == {"deploy", "wake"}
         finally:
             await close_runtime(runtime)
 

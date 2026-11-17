@@ -216,3 +216,14 @@ async def test_pairing_logs_fields_dropped_by_an_older_platform(
     )
     assert isinstance(pair_body, dict)
     assert pair_body["base_url"] == "https://satellite.example"
+
+
+def test_wake_is_an_optional_general_capability() -> None:
+    capabilities = derive_capabilities(
+        supported_variants=[],
+        supported_tags_combinations=None,
+        settings_type=DockerSettings,
+        wake=True,
+    )
+    assert capabilities["wake"] == {"version": 1, "api_versions": [1], "facets": ["satellite"]}
+    assert "wake" not in capabilities["deploy"]

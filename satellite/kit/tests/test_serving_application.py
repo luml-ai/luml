@@ -338,7 +338,10 @@ async def test_single_deployment_and_not_hosted_modes() -> None:
         not_hosted=True,
     )
     try:
+        assert "/wake" not in single.openapi()["paths"]
+        assert "/wake" not in not_hosted.openapi()["paths"]
         async for client in app_client(single):
+            assert (await client.post("/wake")).status_code == 404
             listing = await client.get("/deployments", headers=AUTHORIZATION)
             other = await client.post(
                 f"/deployments/{OTHER_DEPLOYMENT_ID}/compute",
@@ -346,6 +349,7 @@ async def test_single_deployment_and_not_hosted_modes() -> None:
                 json={},
             )
         async for client in app_client(not_hosted):
+            assert (await client.post("/wake")).status_code == 404
             disabled = await client.post(
                 f"/deployments/{DEPLOYMENT_ID}/compute",
                 headers=AUTHORIZATION,

@@ -45,11 +45,7 @@ def build_state(fixture_path: Path) -> dict[str, Any]:
     return {
         "token": SATELLITE_TOKEN,
         "deployments": deployments,
-        "tasks": [
-            task_record("20000000-0000-0000-0000-000000000001", MAIN_DEPLOYMENT_ID),
-            task_record("20000000-0000-0000-0000-000000000002", REPLICA_DEPLOYMENT_ID),
-            task_record("20000000-0000-0000-0000-000000000003", GPU_DEPLOYMENT_ID),
-        ],
+        "tasks": [],
         "artifacts": [
             {
                 "id": ARTIFACT_ID,

@@ -9,6 +9,7 @@ class SatelliteConfiguration(BaseSettings):
     PLATFORM_URL: AnyHttpUrl = AnyHttpUrl("https://api.luml.ai")
     BASE_URL: str | None = None
     POLL_INTERVAL_SEC: float = 2.0
+    IDLE_POLL_INTERVAL_SEC: float = 120.0
     MONITORING_FRAME_ANCESTORS: str = ""
     MONITORING_SESSION_TTL_SECONDS: int = 1800
     AGENT_PORT: int = 8000

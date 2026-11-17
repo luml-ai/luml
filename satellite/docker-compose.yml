@@ -108,6 +108,7 @@ services:
       BASE_URL: ${BASE_URL:-http://localhost}
       MODEL_IMAGE: ${MODEL_IMAGE:-luml-random-svc:latest}
       POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-2}
+      IDLE_POLL_INTERVAL_SEC: ${IDLE_POLL_INTERVAL_SEC:-120}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       MONITORING_ENABLED: "true"
       GREPTIMEDB_HOST: greptimedb

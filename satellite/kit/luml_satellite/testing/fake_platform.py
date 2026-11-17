@@ -337,8 +337,19 @@ class FakePlatform:
             return _validation_error("capabilities")
 
         stored_capabilities = (
-            _legacy_capabilities(capabilities) if self.legacy else _json_mapping(capabilities)
+            _legacy_capabilities(capabilities)
+            if self.legacy
+            else {
+                name: declaration
+                for name, declaration in _json_mapping(capabilities).items()
+                if name in {"deploy", "monitoring", "wake"}
+                or re.fullmatch(r"custom\.[a-z0-9_]+", name)
+            }
         )
+        wake = stored_capabilities.get("wake")
+        if isinstance(wake, dict) and wake.get("version") == 1:
+            wake.setdefault("api_versions", [1])
+            wake.setdefault("facets", ["satellite"])
         now = datetime.now(UTC).isoformat()
         response: dict[str, Any] = {
             "id": self.satellite_id,

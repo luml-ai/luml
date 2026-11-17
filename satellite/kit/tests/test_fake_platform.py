@@ -134,3 +134,28 @@ async def test_fake_platform_control_state_requires_authentication_and_valid_rec
     assert unauthorized.status_code == 401
     assert invalid.status_code == 422
     assert platform.deployments == {}
+
+
+@pytest.mark.asyncio
+async def test_fake_platform_keeps_wake_and_custom_and_drops_unknown_general() -> None:
+    platform = FakePlatform()
+    declarations = {
+        "deploy": {"version": 1},
+        "wake": {"version": 1},
+        "future_general": {"version": 1},
+        "custom.metrics": {"version": 1, "facets": ["satellite:custom.metrics"]},
+    }
+    async with PlatformClient(
+        "http://platform", "test-token", transport=platform.transport
+    ) as client:
+        paired = await client.pair_satellite(
+            "http://satellite", declarations, kit=KitInfo(kind="docker")
+        )
+    assert paired.capabilities["wake"] == {
+        "version": 1,
+        "api_versions": [1],
+        "facets": ["satellite"],
+    }
+    assert paired.capabilities["deploy"] == declarations["deploy"]
+    assert paired.capabilities["custom.metrics"] == declarations["custom.metrics"]
+    assert "future_general" not in paired.capabilities

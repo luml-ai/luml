@@ -119,6 +119,7 @@ HELM_ARGUMENTS=(
   --set satellite.platformUrl=http://fake-platform:8090
   --set satellite.host="$HOST"
   --set satellite.pollIntervalSeconds=1
+  --set satellite.idlePollIntervalSeconds=3600
   --set satellite.image.repository=luml-e2e/kubernetes
   --set satellite.image.tag=local
   --set satellite.image.pullPolicy=Never

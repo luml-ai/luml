@@ -87,6 +87,9 @@ class SatelliteRuntime:
         if configuration.POLL_INTERVAL_SEC <= 0:
             raise ValueError("POLL_INTERVAL_SEC must be greater than zero")
 
+        if configuration.IDLE_POLL_INTERVAL_SEC <= 0:
+            raise ValueError("IDLE_POLL_INTERVAL_SEC must be greater than zero")
+
         self.configuration = configuration
         self.platform = platform
         self.driver = driver
@@ -116,6 +119,23 @@ class SatelliteRuntime:
             else serves_deployments
         )
         self._stopped = False
+        self._wake_requested = False
+        self._wake_enabled = False
+        self._wake_available = False
+        if self._public_application is not None:
+            from fastapi import FastAPI, Response
+
+            if isinstance(self._public_application, FastAPI):
+
+                @self._public_application.post(
+                    "/wake", status_code=202, tags=["satellite"], response_class=Response
+                )
+                async def wake() -> Response:
+                    self._wake_requested = True
+                    return Response(status_code=202)
+
+                self._public_application.openapi_schema = None
+                self._wake_available = bool(configuration.BASE_URL)
 
         resolver = artifact_resolver or ArtifactResolver(
             platform,
@@ -168,6 +188,7 @@ class SatelliteRuntime:
             settings_type=self.driver.settings_type,
             monitoring_bundle=self.monitoring,
             serves_deployments=self._serves_deployments,
+            wake=self._wake_available,
         )
 
     @property
@@ -188,6 +209,7 @@ class SatelliteRuntime:
             openapi=self._openapi_document(),
             logger=self.logger,
         )
+        self._wake_enabled = self._wake_available and "wake" in paired.capabilities
         if self._on_paired is not None:
             self._on_paired(paired)
 
@@ -214,29 +236,46 @@ class SatelliteRuntime:
             self._mark_reconciled()
             next_health = self.clock.monotonic() + self.configuration.HEALTH_PASS_INTERVAL_SEC
             failures = 0
+            last_poll: float | None = None
+            retry_at = 0.0
             while not self._stopped:
-                try:
-                    await self.poll()
-                    if (
-                        self.configuration.HEALTH_PASS_INTERVAL_SEC > 0
-                        and self.clock.monotonic() >= next_health
-                    ):
-                        await self.health_pass()
-                        next_health = (
-                            self.clock.monotonic() + self.configuration.HEALTH_PASS_INTERVAL_SEC
-                        )
-                except Exception as error:
-                    failures += 1
-                    self._log_loop_failure(error, failures)
-                    if self._stopped:
-                        break
-                    await self.clock.sleep(self._backoff_delay(failures))
-                    continue
+                now = self.clock.monotonic()
+                active = bool(self.polling.in_flight or self.convergence.in_progress)
+                interval = (
+                    self.configuration.IDLE_POLL_INTERVAL_SEC
+                    if self._wake_enabled and not active
+                    else self.configuration.POLL_INTERVAL_SEC
+                )
+                if now >= retry_at and (
+                    last_poll is None
+                    or failures
+                    or self._wake_requested
+                    or now - last_poll >= interval
+                ):
+                    self._wake_requested = False
+                    last_poll = now
+                    try:
+                        await self.poll()
+                    except Exception as error:
+                        failures += 1
+                        self._log_loop_failure(error, failures)
+                        retry_at = self.clock.monotonic() + self._backoff_delay(failures)
+                    else:
+                        failures = 0
 
-                failures = 0
-                if self._stopped:
-                    break
-                await self.clock.sleep(self.configuration.POLL_INTERVAL_SEC)
+                if (
+                    self.configuration.HEALTH_PASS_INTERVAL_SEC > 0
+                    and self.clock.monotonic() >= next_health
+                ):
+                    try:
+                        await self.health_pass()
+                    except Exception as error:
+                        self.logger.warning("satellite health pass failed: %s", error)
+                    next_health = (
+                        self.clock.monotonic() + self.configuration.HEALTH_PASS_INTERVAL_SEC
+                    )
+                if not self._stopped:
+                    await self.clock.sleep(max(0.0, 1.0 - (self.clock.monotonic() - now)))
         finally:
             await self.polling.drain()
             await self._close_serving()

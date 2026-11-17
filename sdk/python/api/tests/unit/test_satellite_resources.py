@@ -235,3 +235,101 @@ async def test_async_satellite_operations_and_request_match_the_sync_api(
     assert request_route.calls[0].request.headers["Authorization"] == (
         f"Bearer {TEST_API_KEY}"
     )
+
+
+@pytest.mark.parametrize("status", [202, 404, 503])
+def test_satellite_wake_accepts_empty_response_and_ignores_http_errors(
+    client_with_mocks: LumlClient,
+    respx_mock: MockRouter,
+    status: int,
+) -> None:
+    satellite = Satellite.model_validate(
+        _satellite_record(present_capabilities=["wake"])
+    )
+    satellite._bind(client_with_mocks, "/unused")
+    route = respx_mock.post(f"{SATELLITE_URL}/wake").mock(
+        return_value=httpx.Response(status)
+    )
+    assert satellite.wake() is None
+    assert route.call_count == 1
+    assert route.calls[0].request.content == b""
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        _satellite_record(),
+        _satellite_record(base_url=None, present_capabilities=["wake"]),
+    ],
+)
+def test_satellite_wake_is_optional(
+    client_with_mocks: LumlClient, record: dict[str, Any]
+) -> None:
+    satellite = Satellite.model_validate(record)
+    satellite._bind(client_with_mocks, "/unused")
+    assert satellite.wake() is None
+
+
+def test_satellite_wake_ignores_transport_errors(
+    client_with_mocks: LumlClient,
+    respx_mock: MockRouter,
+) -> None:
+    satellite = Satellite.model_validate(
+        _satellite_record(present_capabilities=["wake"])
+    )
+    satellite._bind(client_with_mocks, "/unused")
+    respx_mock.post(f"{SATELLITE_URL}/wake").mock(
+        side_effect=httpx.ConnectError("offline")
+    )
+    assert satellite.wake() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [202, 404, 503])
+async def test_async_satellite_wake_accepts_empty_response_and_ignores_http_errors(
+    async_client_with_mocks: AsyncLumlClient,
+    respx_mock: MockRouter,
+    status: int,
+) -> None:
+    satellite = AsyncSatellite.model_validate(
+        _satellite_record(present_capabilities=["wake"])
+    )
+    satellite._bind(async_client_with_mocks, "/unused")
+    route = respx_mock.post(f"{SATELLITE_URL}/wake").mock(
+        return_value=httpx.Response(status)
+    )
+    assert await satellite.wake() is None
+    assert route.call_count == 1
+    assert route.calls[0].request.content == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "record",
+    [
+        _satellite_record(),
+        _satellite_record(base_url=None, present_capabilities=["wake"]),
+    ],
+)
+async def test_async_satellite_wake_is_optional(
+    async_client_with_mocks: AsyncLumlClient,
+    record: dict[str, Any],
+) -> None:
+    satellite = AsyncSatellite.model_validate(record)
+    satellite._bind(async_client_with_mocks, "/unused")
+    assert await satellite.wake() is None
+
+
+@pytest.mark.asyncio
+async def test_async_satellite_wake_ignores_transport_errors(
+    async_client_with_mocks: AsyncLumlClient,
+    respx_mock: MockRouter,
+) -> None:
+    satellite = AsyncSatellite.model_validate(
+        _satellite_record(present_capabilities=["wake"])
+    )
+    satellite._bind(async_client_with_mocks, "/unused")
+    respx_mock.post(f"{SATELLITE_URL}/wake").mock(
+        side_effect=httpx.ReadTimeout("offline")
+    )
+    assert await satellite.wake() is None

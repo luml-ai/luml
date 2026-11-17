@@ -78,6 +78,7 @@ services:
       BASE_URL: ${BASE_URL:-http://localhost}
       MODEL_IMAGE: ${MODEL_IMAGE:-ghcr.io/luml-ai/luml-model-server:latest}
       POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-2}
+      IDLE_POLL_INTERVAL_SEC: ${IDLE_POLL_INTERVAL_SEC:-120}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       MONITORING_ENABLED: "true"
       MONITORING_FRAME_ANCESTORS: ${MONITORING_FRAME_ANCESTORS:-https://app.luml.ai}
@@ -281,7 +282,8 @@ BASE_URL=http://localhost
 | `PLATFORM_URL` | `https://api.luml.ai` | Luml API the Satellite pairs with. |
 | `MODEL_IMAGE` | `ghcr.io/luml-ai/luml-model-server:latest` | Image model containers start from. |
 | `MONITORING_FRAME_ANCESTORS` | `https://app.luml.ai` | Origins allowed to embed the monitoring dashboard, separated by spaces. |
-| `POLL_INTERVAL_SEC` | `2` | How often the Satellite polls Luml for tasks, in seconds. |
+| `POLL_INTERVAL_SEC` | `2` | Task poll interval while work is in flight, and failure backoff base, in seconds. Also used when wake is unavailable. |
+| `IDLE_POLL_INTERVAL_SEC` | `120` | Task poll interval while idle when wake was negotiated. Must be greater than zero. |
 
 **6. Launch the Satellite:**
 
@@ -367,3 +369,10 @@ Several Satellites can share one Docker daemon. Give each Satellite its own toke
 ```
 
 Then set `BASE_URL=http://localhost:8081` in that stack's `.env`. A Satellite manages only the containers it started and leaves containers of other Satellites alone.
+
+When the Satellite has a public application and `BASE_URL`, it declares the `wake`
+capability. After the platform accepts it, clients can send an unauthenticated
+`POST /wake` to request a task poll on the next one-second tick. The signal is a
+best-effort hint: tasks remain in the platform queue until polled. Running work
+keeps the active poll interval, and health checks retain their own cadence.
+Upgrade the platform before upgrading Satellites that declare `wake`.

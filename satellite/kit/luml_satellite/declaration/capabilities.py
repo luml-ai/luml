@@ -19,6 +19,7 @@ def derive_capabilities(
     settings_type: type[DeploymentSettings],
     monitoring_bundle: MonitoringBundleCapabilities | None = None,
     serves_deployments: bool = True,
+    wake: bool = False,
 ) -> CapabilityDeclaration:
     monitoring_features = (
         list(monitoring_bundle.monitoring_features) if monitoring_bundle is not None else None
@@ -29,6 +30,7 @@ def derive_capabilities(
         field_spec=settings_fields(settings_type),
         monitoring_features=monitoring_features,
         serves_deployments=serves_deployments,
+        wake=wake,
     )
 
 
@@ -39,6 +41,7 @@ def build_capabilities(
     field_spec: Sequence[Mapping[str, object]],
     monitoring_features: Sequence[str] | None,
     serves_deployments: bool = True,
+    wake: bool = False,
 ) -> CapabilityDeclaration:
     deploy_facets = ["satellite", "deployment"] if serves_deployments else ["satellite"]
     capabilities: CapabilityDeclaration = {
@@ -62,6 +65,8 @@ def build_capabilities(
             "facets": ["deployment:monitoring"],
             "features": list(monitoring_features),
         }
+    if wake:
+        capabilities["wake"] = {"version": 1, "api_versions": [1], "facets": ["satellite"]}
     return capabilities
 
 

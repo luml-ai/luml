@@ -257,7 +257,7 @@ class TestSatellitePairing:
         assert paired.capabilities == {"custom.gpu_monitoring": declaration}
 
     @pytest.mark.parametrize("capability", ["monitorng", "gpu_monitoring"])
-    async def test_pair_satellite_rejects_unknown_unprefixed_capability(
+    async def test_pair_satellite_drops_unknown_unprefixed_capability(
         self, mocks: CollaboratorMocks[SatelliteHandler], capability: str
     ) -> None:
         satellite_pair_in = SatellitePairIn(
@@ -265,12 +265,12 @@ class TestSatellitePairing:
             capabilities={capability: {"version": 1}},
         )
 
-        with pytest.raises(ApplicationError, match=capability) as error:
-            await mocks.handler.pair_satellite(SATELLITE_ID, satellite_pair_in)
-
-        assert error.value.status_code == 422
-        mocks.sat_repo.get_satellite.assert_not_awaited()
-        mocks.sat_repo.pair_satellite.assert_not_awaited()
+        mocks.sat_repo.get_satellite.return_value = Mock()
+        mocks.sat_repo.pair_satellite.return_value = Mock()
+        await mocks.handler.pair_satellite(SATELLITE_ID, satellite_pair_in)
+        pair_call = mocks.sat_repo.pair_satellite.await_args
+        assert pair_call is not None
+        assert pair_call.args[0].capabilities == {}
 
     @pytest.mark.parametrize(
         "facet",
@@ -510,3 +510,51 @@ class TestSatellitePairing:
 
         assert result == expected
         mocks.sat_repo.get_satellite_by_hash.assert_awaited_once()
+
+
+def test_wake_and_unknown_general_capabilities_are_normalized() -> None:
+    from luml.schemas.satellite import normalize_capabilities
+
+    existing = {
+        "version": 1,
+        "api_versions": [1],
+        "facets": ["satellite:custom.metrics"],
+        "setting": 42,
+    }
+    capabilities = normalize_capabilities(
+        {
+            "deploy": {"version": 1},
+            "wake": {"version": 1},
+            "future_general": {"invalid_future_envelope": True},
+            "custom.metrics": existing,
+        }
+    )
+    assert capabilities["wake"] == {
+        "version": 1,
+        "api_versions": [1],
+        "facets": ["satellite"],
+    }
+    assert capabilities["custom.metrics"] == existing
+    assert "future_general" not in capabilities
+    assert get_present_capabilities(capabilities) == [
+        "deploy",
+        "wake",
+        "custom.metrics",
+    ]
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        {"version": 1, "api_versions": [0]},
+        {"version": 1, "facets": ["deployment"]},
+        {"version": True},
+    ],
+)
+def test_wake_rejects_invalid_known_declarations(
+    declaration: dict[str, object],
+) -> None:
+    from luml.schemas.satellite import CapabilityValidationError, normalize_capabilities
+
+    with pytest.raises(CapabilityValidationError):
+        normalize_capabilities({"wake": declaration})

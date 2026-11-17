@@ -95,6 +95,7 @@ async def test_main_composition_pairs_reconciles_and_keeps_compute_out_of_proces
                     headers={"Authorization": "Bearer access-key"},
                 )
                 liveness = await client.get("/livez")
+                assert (await client.post("/wake")).status_code == 202
                 compute = await client.post(
                     f"/deployments/{DEPLOYMENT_ID}/compute",
                     json={"value": 1},
@@ -133,6 +134,12 @@ async def test_main_composition_pairs_reconciles_and_keeps_compute_out_of_proces
     assert body["kit"]["kind"] == "kubernetes"
     assert body["base_url"] == "http://satellite.example"
     assert isinstance(body["openapi"], dict)
+    assert body["capabilities"]["wake"] == {
+        "version": 1,
+        "api_versions": [1],
+        "facets": ["satellite"],
+    }
+    assert body["openapi"]["paths"]["/wake"]["post"]["tags"] == ["satellite"]
     assert driver.platform_satellite_id == fake_platform.satellite_id
 
 

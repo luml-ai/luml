@@ -6355,6 +6355,20 @@
           "satellite"
         ]
       }
+    },
+    "/wake": {
+      "post": {
+        "operationId": "wake_wake_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Wake",
+        "tags": [
+          "satellite"
+        ]
+      }
     }
   },
   "tags": [

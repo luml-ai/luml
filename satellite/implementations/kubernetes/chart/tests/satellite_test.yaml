@@ -202,3 +202,17 @@ tests:
           content:
             name: ARTIFACT_FETCH_RESOURCES
             value: '{"limits":{"cpu":"1000m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}'
+
+  - it: uses the default idle poll interval
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: IDLE_POLL_INTERVAL_SEC, value: "120"}
+
+  - it: passes the configured idle poll interval
+    set:
+      satellite.idlePollIntervalSeconds: 45
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: IDLE_POLL_INTERVAL_SEC, value: "45"}

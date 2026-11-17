@@ -19,16 +19,21 @@ from luml.schemas.base import BaseOrmConfig
 
 DEPLOY_CAPABILITY = "deploy"
 MONITORING_CAPABILITY = "monitoring"
+WAKE_CAPABILITY = "wake"
 SATELLITE_API_VERSION = 1
 MAX_OPENAPI_DOCUMENT_SIZE_BYTES = 2 * 1024 * 1024
-RESERVED_CAPABILITIES = frozenset({DEPLOY_CAPABILITY, MONITORING_CAPABILITY})
+RESERVED_CAPABILITIES = frozenset(
+    {DEPLOY_CAPABILITY, MONITORING_CAPABILITY, WAKE_CAPABILITY}
+)
 SUPPORTED_CAPABILITY_DECLARATION_VERSIONS: dict[str, frozenset[int]] = {
     DEPLOY_CAPABILITY: frozenset({1}),
     MONITORING_CAPABILITY: frozenset({1}),
+    WAKE_CAPABILITY: frozenset({1}),
 }
 SUPPORTED_CAPABILITY_API_VERSIONS: dict[str, frozenset[int]] = {
     DEPLOY_CAPABILITY: frozenset({1}),
     MONITORING_CAPABILITY: frozenset({1}),
+    WAKE_CAPABILITY: frozenset({1}),
 }
 
 DEPLOY_FACETS = ["satellite", "deployment"]
@@ -39,6 +44,7 @@ _FACET_LEVELS = frozenset({"satellite", "deployment"})
 _RESERVED_FACETS: dict[str, frozenset[str]] = {
     DEPLOY_CAPABILITY: frozenset(DEPLOY_FACETS),
     MONITORING_CAPABILITY: frozenset(MONITORING_FACETS),
+    WAKE_CAPABILITY: frozenset({"satellite"}),
 }
 
 CapabilityVersion = Annotated[int, Field(strict=True, gt=0)]
@@ -87,9 +93,18 @@ class MonitoringCapabilityV1(BaseModel):
     )
 
 
+class WakeCapabilityV1(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    version: Literal[1]
+    api_versions: list[CapabilityVersion] = Field(default_factory=lambda: [1])
+    facets: list[str] = Field(default_factory=lambda: ["satellite"])
+
+
 _CAPABILITY_MODELS: dict[str, dict[int, type[BaseModel]]] = {
     DEPLOY_CAPABILITY: {1: DeployCapabilityV1},
     MONITORING_CAPABILITY: {1: MonitoringCapabilityV1},
+    WAKE_CAPABILITY: {1: WakeCapabilityV1},
 }
 
 
@@ -101,14 +116,6 @@ def _validation_error_message(capability: str, error: ValidationError) -> str:
     detail = error.errors(include_url=False)[0]
     location = ".".join(str(part) for part in detail["loc"])
     return f"Invalid capability '{capability}' field '{location}': {detail['msg']}"
-
-
-def _validate_capability_name(capability: str) -> None:
-    if capability in RESERVED_CAPABILITIES:
-        return
-    if _CUSTOM_CAPABILITY_PATTERN.fullmatch(capability):
-        return
-    raise CapabilityValidationError(f"Invalid capability '{capability}'")
 
 
 def _validate_facets(
@@ -143,7 +150,11 @@ def normalize_capabilities(
 ) -> dict[str, dict[str, Any]]:
     normalized: dict[str, dict[str, Any]] = {}
     for capability, declaration in capabilities.items():
-        _validate_capability_name(capability)
+        if (
+            capability not in RESERVED_CAPABILITIES
+            and not _CUSTOM_CAPABILITY_PATTERN.fullmatch(capability)
+        ):
+            continue
         try:
             envelope = CapabilityEnvelope.model_validate(declaration)
         except ValidationError as error:

@@ -204,6 +204,43 @@ def _assert_pairing(control: PlatformControl) -> None:
     _wait_for("Kubernetes pairing", paired)
 
 
+def _assert_wake_starts_deploy(control: PlatformControl, host: str) -> None:
+    def first_poll() -> bool | None:
+        return (
+            True
+            if any(
+                request.get("path") == "/satellites/v1/tasks"
+                and request.get("query") == {"status": ["pending"]}
+                for request in control.state()["requests"]
+            )
+            else None
+        )
+
+    _wait_for("initial idle task poll", first_poll, interval=0.1)
+    task_id = "20000000-0000-0000-0000-000000000001"
+    control.seed({"tasks": [task_record(task_id, MAIN_DEPLOYMENT_ID)]})
+    response = _http(18080, "POST", "/wake", host=host)
+    assert response.status == 202
+    assert response.body == b""
+
+    def started() -> bool | None:
+        for task in control.state()["tasks"]:
+            if task["id"] == task_id and task["status"] in {"running", "done"}:
+                return True
+        return None
+
+    _wait_for("wake-triggered deploy through ingress", started, timeout=3, interval=0.1)
+    control.seed(
+        {
+            "tasks": [
+                task_record("20000000-0000-0000-0000-000000000002", REPLICA_DEPLOYMENT_ID),
+                task_record("20000000-0000-0000-0000-000000000003", GPU_DEPLOYMENT_ID),
+            ]
+        }
+    )
+    assert _http(18080, "POST", "/wake", host=host).status == 202
+
+
 def _wait_for_deployments(control: PlatformControl) -> None:
     def active() -> bool | None:
         main = _deployment(control, MAIN_DEPLOYMENT_ID)
@@ -633,6 +670,7 @@ def run_suite(
     with _port_forward(namespace, "service/fake-platform", 8090) as platform_port:
         control = PlatformControl(platform_port)
         _assert_pairing(control)
+        _assert_wake_starts_deploy(control, host)
         _wait_for_deployments(control)
         compute_path = _assert_public_serving(host)
         _assert_serving_survives_satellite_outage(namespace, host, compute_path)

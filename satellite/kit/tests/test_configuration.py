@@ -10,6 +10,7 @@ def test_configuration_keeps_existing_and_new_defaults() -> None:
     assert str(configuration.PLATFORM_URL) == "https://api.luml.ai/"
     assert configuration.BASE_URL is None
     assert configuration.POLL_INTERVAL_SEC == 2.0
+    assert configuration.IDLE_POLL_INTERVAL_SEC == 120.0
     assert configuration.MONITORING_FRAME_ANCESTORS == ""
     assert configuration.MONITORING_SESSION_TTL_SECONDS == 1800
     assert configuration.AGENT_PORT == 8000
@@ -76,3 +77,8 @@ def test_two_configurations_coexist_without_shared_state() -> None:
 def test_store_credentials_must_be_configured_together() -> None:
     with pytest.raises(ValidationError, match="GREPTIMEDB_USERNAME and GREPTIMEDB_PASSWORD"):
         SatelliteConfiguration(SATELLITE_TOKEN="token", GREPTIMEDB_USERNAME="monitoring")
+
+
+def test_idle_interval_can_be_configured_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IDLE_POLL_INTERVAL_SEC", "45")
+    assert SatelliteConfiguration(SATELLITE_TOKEN="token").IDLE_POLL_INTERVAL_SEC == 45

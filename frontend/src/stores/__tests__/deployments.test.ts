@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useDeploymentsStore } from '@/stores/deployments'
 import { api } from '@/lib/api'
+import { useSatellitesStore } from '@/stores/satellites'
+import { SatelliteStatusEnum, type Satellite } from '@/lib/api/satellites/interfaces'
 import {
   DeploymentStatusEnum,
   MonitoringMode,
@@ -12,6 +14,8 @@ import {
 vi.mock('@/lib/api', () => ({
   api: {
     deployments: {
+      create: vi.fn(),
+      deleteDeployment: vi.fn(),
       update: vi.fn(),
       batchAction: vi.fn(),
     },
@@ -142,5 +146,132 @@ describe('deployment batch actions', () => {
     expect(result.succeeded).toEqual([...ids.slice(0, 100), ids[200]])
     expect(result.failed.map(({ deployment_id }) => deployment_id)).toEqual(ids.slice(100, 200))
     expect(result.failed.every(({ message }) => message.includes('not confirmed'))).toBe(true)
+  })
+})
+
+describe('deployment wake signals', () => {
+  const fetchMock = vi.fn()
+  const satellite = (overrides: Partial<Satellite> = {}): Satellite => ({
+    id: 'sat-1',
+    orbit_id: ORBIT,
+    name: 'satellite',
+    description: '',
+    base_url: 'https://satellite.example/',
+    paired: true,
+    capabilities: {},
+    present_capabilities: ['wake'],
+    created_at: '',
+    updated_at: '',
+    last_seen_at: '',
+    status: SatelliteStatusEnum.active,
+    ...overrides,
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.resetAllMocks()
+    vi.stubGlobal('fetch', fetchMock)
+    fetchMock.mockResolvedValue(undefined)
+    useSatellitesStore().setList([satellite()])
+  })
+
+  it.each(['create', 'update', 'delete'] as const)(
+    'wakes after successful %s without headers or body',
+    async (action) => {
+      const store = useDeploymentsStore()
+      const deployment = makeDeployment()
+      store.setDeployments([deployment])
+      mockApi.deployments.create.mockResolvedValue(deployment)
+      mockApi.deployments.update.mockResolvedValue(deployment)
+      mockApi.deployments.deleteDeployment.mockResolvedValue(deployment)
+      if (action === 'create') {
+        await store.createDeployment(ORG, ORBIT, {
+          satellite_id: 'sat-1',
+          artifact_id: 'art-1',
+          name: 'dep',
+          description: '',
+          tags: [],
+          dynamic_attributes_secrets: {},
+          satellite_parameters: {},
+          monitoring_mode: MonitoringMode.off,
+          env_variables: {},
+          env_variables_secrets: {},
+        })
+      } else if (action === 'update') {
+        await store.update(ORG, ORBIT, DEPLOYMENT, {
+          name: 'dep',
+          description: '',
+          tags: [],
+          dynamic_attributes_secrets: {},
+        })
+      } else {
+        await store.deleteDeployment(ORG, ORBIT, DEPLOYMENT)
+      }
+      expect(fetchMock).toHaveBeenCalledExactlyOnceWith('https://satellite.example/wake', {
+        method: 'POST',
+        mode: 'no-cors',
+        keepalive: true,
+      })
+    },
+  )
+
+  it.each([{ present_capabilities: [] }, { base_url: null }])(
+    'skips satellites without wake or a base URL',
+    async (overrides) => {
+      useSatellitesStore().setList([satellite(overrides)])
+      mockApi.deployments.deleteDeployment.mockResolvedValue(makeDeployment())
+      await useDeploymentsStore().deleteDeployment(ORG, ORBIT, DEPLOYMENT)
+      expect(fetchMock).not.toHaveBeenCalled()
+    },
+  )
+
+  it('wakes each distinct successful satellite once across batches', async () => {
+    const store = useDeploymentsStore()
+    const items = Array.from({ length: 102 }, (_, index) =>
+      makeDeployment({
+        id: `dep-${index}`,
+        satellite_id: index === 101 ? 'sat-2' : 'sat-1',
+      }),
+    )
+    useSatellitesStore().setList([satellite(), satellite({ id: 'sat-2' })])
+    store.setDeployments(items)
+    mockApi.deployments.batchAction
+      .mockResolvedValueOnce({ succeeded: items.slice(0, 100).map(({ id }) => id), failed: [] })
+      .mockResolvedValueOnce({ succeeded: items.slice(100).map(({ id }) => id), failed: [] })
+    await store.batchAction(
+      ORG,
+      ORBIT,
+      items.map(({ id }) => id),
+      'delete',
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(store.deployments).toEqual([])
+  })
+
+  it.each(['reject', 'throw', 'pending'] as const)(
+    'ignores a %s wake and updates the UI immediately',
+    async (failure) => {
+      if (failure === 'reject') fetchMock.mockRejectedValue(new Error('blocked'))
+      if (failure === 'throw')
+        fetchMock.mockImplementation(() => {
+          throw new Error('blocked')
+        })
+      if (failure === 'pending') fetchMock.mockReturnValue(new Promise(() => {}))
+      mockApi.deployments.deleteDeployment.mockResolvedValue(
+        makeDeployment({ status: DeploymentStatusEnum.deletion_pending }),
+      )
+      const store = useDeploymentsStore()
+      store.setDeployments([makeDeployment()])
+      await store.deleteDeployment(ORG, ORBIT, DEPLOYMENT)
+      expect(store.deployments[0].status).toBe(DeploymentStatusEnum.deletion_pending)
+    },
+  )
+
+  it('sends nothing after failed task creation', async () => {
+    mockApi.deployments.deleteDeployment.mockRejectedValue(new Error('failed'))
+    await expect(useDeploymentsStore().deleteDeployment(ORG, ORBIT, DEPLOYMENT)).rejects.toThrow(
+      'failed',
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

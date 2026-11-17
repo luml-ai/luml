@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from httpx import URL, InvalidURL
+from httpx import URL, HTTPError, InvalidURL
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from luml_api._exceptions import LumlAPIError
@@ -697,6 +697,16 @@ class Satellite(_SatelliteRecord):
         self._client = client
         self._openapi_path = openapi_path
 
+    def wake(self) -> None:
+        """Hint that the Satellite should poll for tasks; ignore delivery failures."""
+        if "wake" not in self.present_capabilities or not self.base_url:
+            return
+        try:
+            url = _resolve_satellite_url(self.base_url, "/wake", self.id)
+            self._client.request("POST", url)
+        except (HTTPError, LumlAPIError):
+            pass
+
     def operations(self, facet: str | None = None) -> list[dict[str, Any]]:
         """
         List the Satellite's endpoints from its stored OpenAPI document.
@@ -770,6 +780,16 @@ class AsyncSatellite(_SatelliteRecord):
     def _bind(self, client: "AsyncLumlClient", openapi_path: str) -> None:
         self._client = client
         self._openapi_path = openapi_path
+
+    async def wake(self) -> None:
+        """Hint that the Satellite should poll for tasks; ignore delivery failures."""
+        if "wake" not in self.present_capabilities or not self.base_url:
+            return
+        try:
+            url = _resolve_satellite_url(self.base_url, "/wake", self.id)
+            await self._client.request("POST", url)
+        except (HTTPError, LumlAPIError):
+            pass
 
     async def operations(self, facet: str | None = None) -> list[dict[str, Any]]:
         """

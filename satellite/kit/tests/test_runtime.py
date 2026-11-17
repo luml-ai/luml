@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 
 import httpx
 import pytest
@@ -442,7 +443,7 @@ async def test_runtime_loop_uses_capped_backoff_and_names_authentication_failure
         await runtime.run_forever()
 
     assert runtime.poll_attempts == 10
-    assert clock.sleeps == [1.0, 2.0, 4.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0]
+    assert clock.sleeps == [1.0] * 55
     assert "platform rejected the satellite token; re-pair this satellite" in caplog.text
     errors = [
         record
@@ -565,3 +566,258 @@ async def test_two_runtimes_keep_convergence_state_isolated() -> None:
     assert set(second_runtime.convergence.in_progress) == {second_id}
     assert [str(call[0].id) for call in first_driver.start_calls] == [first_id]
     assert [str(call[0].id) for call in second_driver.start_calls] == [second_id]
+
+
+class TickClock(FakeClock):
+    def __init__(self, until: float) -> None:
+        super().__init__()
+        self.until = until
+        self.runtime: SatelliteRuntime
+        self.on_tick: Callable[[], Awaitable[None]] | None = None
+
+    async def sleep(self, seconds: float) -> None:
+        await super().sleep(seconds)
+        await asyncio.sleep(0)
+        if self.on_tick is not None:
+            await self.on_tick()
+        if self.monotonic() >= self.until:
+            self.runtime.stop()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("base_url", "application", "legacy", "expected"),
+    [
+        ("http://satellite", True, False, [0, 120, 240]),
+        (None, True, False, list(range(0, 241, 2))),
+        ("http://satellite", False, False, list(range(0, 241, 2))),
+        ("http://satellite", True, True, list(range(0, 241, 2))),
+    ],
+)
+async def test_idle_poll_cadence_requires_negotiated_wake(
+    base_url: str | None,
+    application: bool,
+    legacy: bool,
+    expected: list[int],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi import FastAPI
+
+    platform = FakePlatform(legacy=legacy)
+    clock = TickClock(241)
+    polls: list[float] = []
+    health: list[float] = []
+    async with PlatformClient(
+        "http://platform", platform.token, transport=platform.transport
+    ) as client:
+        runtime = SatelliteRuntime(
+            configuration(base_url=base_url).model_copy(update={"POLL_INTERVAL_SEC": 2}),
+            client,
+            FakeDriver(),
+            clock=clock,
+            public_application=FastAPI() if application else None,
+        )
+        clock.runtime = runtime
+        original_poll = runtime.poll
+
+        async def poll() -> None:
+            polls.append(clock.monotonic())
+            await original_poll()
+
+        async def health_pass() -> None:
+            health.append(clock.monotonic())
+
+        monkeypatch.setattr(runtime, "poll", poll)
+        monkeypatch.setattr(runtime, "health_pass", health_pass)
+        await runtime.run_forever()
+    assert polls == expected
+    assert health == [60, 120, 180, 240]
+    pending = [
+        r
+        for r in platform.requests
+        if r.path == "/satellites/v1/tasks" and r.query == {"status": ["pending"]}
+    ]
+    assert len(pending) == len(expected)
+
+
+@pytest.mark.asyncio
+async def test_wake_coalesces_and_survives_a_running_poll(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fastapi import FastAPI
+
+    platform = FakePlatform()
+    clock = TickClock(4)
+    app = FastAPI()
+    app.openapi()
+    polls: list[float] = []
+    async with (
+        PlatformClient("http://platform", platform.token, transport=platform.transport) as client,
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://satellite"
+        ) as public,
+    ):
+        runtime = SatelliteRuntime(
+            configuration(), client, FakeDriver(), clock=clock, public_application=app
+        )
+        clock.runtime = runtime
+        original_poll = runtime.poll
+
+        async def signal() -> None:
+            response = await public.post("/wake")
+            assert response.status_code == 202
+            assert response.content == b""
+
+        async def on_tick() -> None:
+            if clock.monotonic() == 1:
+                for _ in range(20):
+                    await signal()
+
+        async def poll() -> None:
+            polls.append(clock.monotonic())
+            await original_poll()
+            if clock.monotonic() == 1:
+                clock.now += 0.25
+                await signal()
+
+        clock.on_tick = on_tick
+        monkeypatch.setattr(runtime, "poll", poll)
+        await runtime.run_forever()
+    assert polls == [0, 1, 2]
+    paired = next(r.body for r in platform.requests if r.path == "/satellites/v1/pair")
+    assert isinstance(paired, dict)
+    assert paired["openapi"]["paths"]["/wake"]["post"]["tags"] == ["satellite"]
+
+
+@pytest.mark.parametrize("interval", [0, -1])
+def test_idle_interval_must_be_positive(interval: float) -> None:
+    with pytest.raises(ValueError, match="IDLE_POLL_INTERVAL_SEC"):
+        SatelliteRuntime(
+            configuration().model_copy(update={"IDLE_POLL_INTERVAL_SEC": interval}),
+            PlatformClient("http://platform", "test-token"),
+            FakeDriver(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_wake_does_not_shorten_failure_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fastapi import FastAPI
+
+    platform = FakePlatform()
+    clock = TickClock(16)
+    app = FastAPI()
+    polls: list[float] = []
+    health: list[float] = []
+    async with (
+        PlatformClient("http://platform", platform.token, transport=platform.transport) as client,
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://satellite"
+        ) as public,
+    ):
+        runtime = SatelliteRuntime(
+            configuration(health_interval=3).model_copy(update={"POLL_INTERVAL_SEC": 2}),
+            client,
+            FakeDriver(),
+            clock=clock,
+            public_application=app,
+            jitter=lambda ceiling: ceiling,
+        )
+        clock.runtime = runtime
+
+        async def poll() -> None:
+            polls.append(clock.monotonic())
+            if len(polls) <= 3:
+                raise RuntimeError("unavailable")
+
+        async def health_pass() -> None:
+            health.append(clock.monotonic())
+
+        async def on_tick() -> None:
+            assert (await public.post("/wake")).status_code == 202
+
+        clock.on_tick = on_tick
+        monkeypatch.setattr(runtime, "poll", poll)
+        monkeypatch.setattr(runtime, "health_pass", health_pass)
+        await runtime.run_forever()
+    assert polls == [0, 2, 6, 14, 15]
+    assert health == [3, 6, 9, 12, 15]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("in_flight", [False, True])
+async def test_active_work_keeps_polling_without_wake(
+    in_flight: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fastapi import FastAPI
+
+    platform = FakePlatform()
+    clock = TickClock(7)
+    polls: list[float] = []
+    release = asyncio.Event()
+    driver = FakeDriver()
+    platform.add_deployment(deployment_record())
+    platform.add_task(task_record(type="custom.wait" if in_flight else "deploy"))
+    driver.script_start(DEPLOYMENT_ID, StartResult(StartStatus.IN_PROGRESS))
+
+    async def handle(task: object) -> None:
+        await release.wait()
+
+    async with PlatformClient(
+        "http://platform", platform.token, transport=platform.transport
+    ) as client:
+        runtime = SatelliteRuntime(
+            configuration().model_copy(update={"POLL_INTERVAL_SEC": 2}),
+            client,
+            driver,
+            clock=clock,
+            public_application=FastAPI(),
+            custom_handlers={"custom.wait": handle},
+        )
+        clock.runtime = runtime
+        original_poll = runtime.poll
+
+        async def poll() -> None:
+            polls.append(clock.monotonic())
+            await original_poll()
+            if not in_flight:
+                await runtime.polling.drain()
+
+        async def on_tick() -> None:
+            if clock.monotonic() == 7:
+                release.set()
+
+        clock.on_tick = on_tick
+        monkeypatch.setattr(runtime, "poll", poll)
+        await runtime.run_forever()
+    assert polls == [0, 2, 4, 6]
+
+
+@pytest.mark.asyncio
+async def test_task_created_before_wake_starts_on_next_tick() -> None:
+    from fastapi import FastAPI
+
+    platform = FakePlatform()
+    clock = TickClock(3)
+    driver = FakeDriver()
+    app = FastAPI()
+    async with (
+        PlatformClient("http://platform", platform.token, transport=platform.transport) as client,
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://satellite"
+        ) as public,
+    ):
+        runtime = SatelliteRuntime(
+            configuration(), client, driver, clock=clock, public_application=app
+        )
+        clock.runtime = runtime
+
+        async def on_tick() -> None:
+            if clock.monotonic() == 1:
+                platform.add_deployment(deployment_record())
+                platform.add_task(task_record())
+                assert (await public.post("/wake")).status_code == 202
+            elif clock.monotonic() == 2:
+                await runtime.polling.drain()
+                assert len(driver.start_calls) == 1
+                assert platform.tasks[TASK_ID]["status"] == "done"
+
+        clock.on_tick = on_tick
+        await runtime.run_forever()

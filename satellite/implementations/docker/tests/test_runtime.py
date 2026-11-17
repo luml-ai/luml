@@ -348,6 +348,7 @@ async def test_main_composition_pairs_reconciles_and_serves_against_the_fake_pla
                     headers={"Authorization": "Bearer access-key"},
                 )
                 live = await client.get("/livez")
+                assert (await client.post("/wake")).status_code == 202
                 inference_access = await client.post(
                     "/satellites/deployments/inference-access",
                     json={"api_key": "access-key"},
@@ -378,6 +379,12 @@ async def test_main_composition_pairs_reconciles_and_serves_against_the_fake_pla
     assert body["kit"]["kind"] == "docker"
     assert body["base_url"] == "http://satellite"
     assert isinstance(body["openapi"], dict)
+    assert body["capabilities"]["wake"] == {
+        "version": 1,
+        "api_versions": [1],
+        "facets": ["satellite"],
+    }
+    assert body["openapi"]["paths"]["/wake"]["post"]["tags"] == ["satellite"]
 
 
 @pytest.mark.asyncio

@@ -48,6 +48,8 @@ spec:
               value: {{ .Values.satellite.slug | quote }}
             - name: POLL_INTERVAL_SEC
               value: {{ .Values.satellite.pollIntervalSeconds | quote }}
+            - name: IDLE_POLL_INTERVAL_SEC
+              value: {{ .Values.satellite.idlePollIntervalSeconds | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.satellite.logLevel | quote }}
             - name: NAMESPACE
