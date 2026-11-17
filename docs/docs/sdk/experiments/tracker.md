@@ -18,6 +18,7 @@ Supports multiple backend storage options via connection strings.
 **Arguments**:
 
 - `connection_string` - Backend connection string. Format: 'backend://config'. Default is 'sqlite://./experiments' for local SQLite storage.
+- `flush_interval` - Seconds between background commits of buffered metrics, spans and eval samples. 0 commits every call immediately.
   
 
 **Example**:
@@ -156,7 +157,7 @@ Log time-series metrics (values that change during training).
 
 - `key` - Metric name.
 - `value` - Metric value (numeric).
-- `step` - Training step/epoch number.
+- `step` - Training step/epoch number. Must be an integer: a fractional step such as 2.5 raises `TypeError`.
 - `experiment_id` - Experiment ID. Uses current experiment if not specified.
   
 
@@ -1091,6 +1092,84 @@ tracker = ExperimentTracker()
 history = tracker.get_experiment_metric_history("exp-1", "train_loss")
 for point in history:
     print(f"step={point['step']} loss={point['value']}")
+```
+
+<a id="luml.experiments.tracker.ExperimentTracker.get_metric_catalog"></a>
+
+#### get_metric_catalog
+
+```python
+def get_metric_catalog(experiment_id: str) -> MetricCatalog
+```
+
+Summarise every metric of an experiment without reading its points.
+
+**Arguments**:
+
+- `experiment_id` _str_ - The experiment to query.
+  
+
+**Returns**:
+
+- `MetricCatalog` - The schema revision, the stored bucket levels (None below revision 3) and per metric its first and last step, point count and smallest and largest numeric value, ordered by key. The point count and the values are None below revision 3, unless the file has no (key, step) index.
+  
+
+**Example**:
+
+```python
+tracker = ExperimentTracker()
+catalog = tracker.get_metric_catalog("exp-1")
+for metric in catalog.metrics:
+    print(metric.key, metric.first_step, metric.last_step, metric.count)
+```
+
+<a id="luml.experiments.tracker.ExperimentTracker.get_metric_buckets"></a>
+
+#### get_metric_buckets
+
+```python
+def get_metric_buckets(
+        experiment_id: str,
+        key: str,
+        level: int,
+        start_step: int | None = None,
+        end_step: int | None = None
+) -> MetricBuckets
+```
+
+Aggregate a metric into buckets of ``4 ** level`` steps.
+
+Every bucket that has points and intersects the inclusive step range is
+returned whole, ordered by bucket index, with count, finite count, min, max
+and the sum of finite values. Use ``choose_bucket_level`` from
+``luml.experiments.backends.metric_store`` to pick a level for a bucket budget.
+
+**Arguments**:
+
+- `experiment_id` _str_ - The experiment to query.
+- `key` _str_ - The metric key.
+- `level` _int_ - The bucket level, 0 for one bucket per point.
+- `start_step` _int | None_ - First step of the range; the metric's first step when None.
+- `end_step` _int | None_ - Last step of the range; the metric's last step when None.
+  
+
+**Returns**:
+
+- `MetricBuckets` - The buckets and the metric's overall step range, which is None for an unknown key.
+  
+
+**Raises**:
+
+- `TooManyBucketsError` - If more than 20,000 buckets would be returned.
+  
+
+**Example**:
+
+```python
+tracker = ExperimentTracker()
+result = tracker.get_metric_buckets("exp-1", "train_loss", level=3)
+for bucket in result.buckets:
+    print(bucket.first_step, bucket.last_step, bucket.min, bucket.max)
 ```
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_evals"></a>

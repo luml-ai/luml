@@ -29,8 +29,8 @@ Vue 3 component library for visualizing and analysing ML experiment snapshots. P
 | `@primevue/themes` | `^4.3.9` |
 | `pinia` | `>=2.2.6` |
 | `@vueuse/core` | `^14.2.1` |
-| `plotly.js-dist` | `^3.0.3` |
-| `sql.js` | `^1.13.0` |
+| `plotly.js-basic-dist-min` | `^3.5.0` |
+| `@sqlite.org/sqlite-wasm` | `^3.53.4-build2` |
 | `arquero` | `^7.2.1` |
 | `lucide-vue-next` | `^0.460.0` |
 | `marked` | `^16.2.0` |
@@ -111,8 +111,7 @@ dist/
 ├── luml-experiments.es.js     # ES module — for bundlers
 ├── luml-experiments.umd.js    # UMD — for browser globals
 ├── experiments.css            # Bundled component styles
-├── index.d.ts                 # TypeScript declarations entry
-└── sql-wasm.wasm              # SQL.js WebAssembly binary
+└── index.d.ts                 # TypeScript declarations entry
 ```
 
 Import styles separately: `import '@luml/experiments/style.css'`
@@ -200,14 +199,22 @@ await provider.init({ artifacts: [artifact1, artifact2] })
 
 ### `ExperimentSnapshotDatabaseProvider`
 
-Queries a local SQL.js in-memory database. Use this when the snapshot is loaded from a `.db` file uploaded by the user.
+Queries experiment databases with `@sqlite.org/sqlite-wasm`. Each entry of `modelsInfo` gives a zip `buffer` (old artifacts) or a `source`: a `range` source reads `exp.db` inside the artifact with HTTP Range requests and does not download the whole file. `sqliteWasmUrl` is the URL of `sqlite3.wasm`.
 
 ```typescript
 import { ExperimentSnapshotDatabaseProvider } from '@luml/experiments'
+import sqliteWasmUrl from '@sqlite.org/sqlite-wasm/sqlite3.wasm?url'
 
 const provider = new ExperimentSnapshotDatabaseProvider()
-await provider.init({ buffer: arrayBuffer })
+const failures = await provider.init({
+  modelsInfo: [{ modelId: 'model-a', source: { kind: 'range', url, offset, size } }],
+  sqliteWasmUrl,
+})
 ```
+
+`init` opens every experiment on its own and returns the ones that failed; the others work.
+
+Limits: metric steps are integers, and steps above 2^53 are not drawn. An old artifact whose unzipped database is 2 GiB or more does not open; upload it again with luml-sdk 0.6.0 or newer.
 
 ### `ExperimentSnapshotWorkerProxy`
 
@@ -226,6 +233,12 @@ Every request rejects when the worker fires `error` or `messageerror`, or when i
 const proxy = new ExperimentSnapshotWorkerProxy(worker, { requestTimeoutMs: 120_000 })
 ```
 
+Pass `sourceUrls` (a `SnapshotSourceUrlProvider`) to renew the URL of a range source when it expires:
+
+```typescript
+const proxy = new ExperimentSnapshotWorkerProxy(worker, { sourceUrls })
+```
+
 Call `proxy.terminate()` instead of `worker.terminate()`: it stops the worker, rejects pending requests at once, and rejects later calls without posting them.
 
 ### Custom provider
@@ -238,6 +251,8 @@ import type { ExperimentSnapshotProvider } from '@luml/experiments'
 class MyProvider implements ExperimentSnapshotProvider {
   async init(data: any) { /* ... */ }
   async getDynamicMetricsNames(signal?: AbortSignal) { return [] }
+  async getMetricCatalogs(request?: MetricCatalogsRequest, signal?: AbortSignal) { /* ... */ }
+  async getMetricBuckets(request: MetricBucketsRequest, signal?: AbortSignal) { /* ... */ }
   async getEvalsColumns(datasetId: string, signal?: AbortSignal) { /* ... */ }
   // ... implement remaining interface methods
 }

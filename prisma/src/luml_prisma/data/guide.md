@@ -273,6 +273,8 @@ for step in range(num_steps):
 tracker.end_experiment()
 ```
 
+Steps must be integers: a fractional step such as 2.5 raises `TypeError`.
+
 ### Database Structure
 
 ```

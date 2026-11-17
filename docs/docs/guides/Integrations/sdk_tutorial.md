@@ -42,7 +42,7 @@ exp_id = tracker.start_experiment(
 )
 ```
 
-Two types of values can be logged. Static values represent fixed configuration that does not change during training (hyperparameters, dataset identifiers, architecture choices). Dynamic values represent time-series metrics that change at each step or epoch.
+Two types of values can be logged. Static values represent fixed configuration that does not change during training (hyperparameters, dataset identifiers, architecture choices). Dynamic values represent time-series metrics that change at each step or epoch. Steps must be integers: a fractional step such as 2.5 raises `TypeError`.
 
 ```python
 # Static parameters

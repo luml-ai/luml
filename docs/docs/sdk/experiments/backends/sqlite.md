@@ -2,6 +2,64 @@
 
 # luml.experiments.backends.sqlite
 
+<a id="luml.experiments.backends.sqlite.DeletedDatabaseError"></a>
+
+## DeletedDatabaseError Objects
+
+```python
+class DeletedDatabaseError(sqlite3.OperationalError)
+```
+
+The database was deleted while the caller waited for its connection.
+
+<a id="luml.experiments.backends.sqlite.ConnectionPool"></a>
+
+## ConnectionPool Objects
+
+```python
+class ConnectionPool()
+```
+
+<a id="luml.experiments.backends.sqlite.ConnectionPool.get_connection"></a>
+
+#### get_connection
+
+```python
+@contextlib.contextmanager
+def get_connection(
+        db_path: str | Path,
+        *,
+        write: bool = False,
+        create: bool = True
+) -> Iterator[sqlite3.Connection]
+```
+
+With `create=False` a missing database raises instead of being created.
+
+<a id="luml.experiments.backends.sqlite.ConnectionPool.connection_locks"></a>
+
+#### connection_locks
+
+```python
+def connection_locks() -> list[GuardedLock]
+```
+
+The locks guarding each connection, the meta database's first, as the lock
+order requires.
+
+<a id="luml.experiments.backends.sqlite.ConnectionPool.remove_database"></a>
+
+#### remove_database
+
+```python
+def remove_database(experiment_id: str, db_path: str, directory: Path) -> None
+```
+
+Closes the connection to `db_path` and removes `directory`.
+
+Connections open only under the pool lock, so holding it through the removal
+keeps a reader from re-creating the WAL files in a half-removed directory.
+
 <a id="luml.experiments.backends.sqlite.SQLiteBackend"></a>
 
 ## SQLiteBackend Objects
@@ -1225,6 +1283,40 @@ method raises an error if the specified experiment cannot be found.
 
 - `ValueError` - If the experiment with the given experiment ID does not exist.
 
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.snapshot_experiment"></a>
+
+#### snapshot_experiment
+
+```python
+@contextlib.contextmanager
+def snapshot_experiment(experiment_id: str) -> Iterator[ExperimentSnapshot]
+```
+
+Yields a compacted, self-contained copy of the experiment database for
+publishing, removed again when the context exits.
+
+Rows buffered so far are flushed first. The copy is one consistent point in
+time even while other threads or processes write; their writes are not
+blocked. A copy below schema revision 3 is migrated to it, unless its rows
+cannot be stored at revision 3: the snapshot then keeps the source revision
+and says why in `fallback_reason`. The live database is never changed.
+Temporary files go next to the database.
+
+**Arguments**:
+
+- `experiment_id` _str_ - The experiment to copy.
+  
+
+**Yields**:
+
+- `ExperimentSnapshot` - The copy, its schema revision and the artifact generation it is published as.
+  
+
+**Raises**:
+
+- `ValueError` - If the experiment does not exist.
+- `ExportSpaceError` - If the disk is too full for the temporary files.
+
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.export_attachments"></a>
 
 #### export_attachments
@@ -2287,4 +2379,65 @@ backend.get_all_traces_annotation_summary("exp-001")
   name="latency_ok",
   total=5,
 - `counts={"true"` - 4, "false": 1&#125; ) ], expectations=[] )
+
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.get_metric_catalog"></a>
+
+#### get_metric_catalog
+
+```python
+def get_metric_catalog(experiment_id: str) -> MetricCatalog
+```
+
+Summarises every metric of an experiment without reading its points: first
+and last step, point count, and the smallest and largest numeric value.
+Below revision 3 only the (key, step) index is read, so the count, smallest
+and largest value are None; a file without that index is scanned instead.
+
+**Arguments**:
+
+- `experiment_id` _str_ - The experiment to summarise.
+  
+
+**Returns**:
+
+- `MetricCatalog` - The schema revision, the stored bucket levels (None below revision 3) and one summary per metric, ordered by key.
+
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.get_metric_buckets"></a>
+
+#### get_metric_buckets
+
+```python
+def get_metric_buckets(
+        experiment_id: str,
+        key: str,
+        level: int,
+        start_step: int | None = None,
+        end_step: int | None = None
+) -> MetricBuckets
+```
+
+Aggregates a metric into buckets of `4 ** level` steps; bucket `b` holds the
+steps whose `step >> (2 * level)` is `b`.
+
+Every bucket that has points and intersects the inclusive step range is
+returned whole, ordered by bucket index. Results are the same whichever
+schema revision or storage level serves them.
+
+**Arguments**:
+
+- `experiment_id` _str_ - The experiment to read.
+- `key` _str_ - The metric key.
+- `level` _int_ - The bucket level, 0 for one bucket per point.
+- `start_step` _int | None_ - First step of the range; the metric's first step when None.
+- `end_step` _int | None_ - Last step of the range; the metric's last step when None.
+  
+
+**Returns**:
+
+- `MetricBuckets` - The buckets and the metric's overall step range, which is None for an unknown key.
+  
+
+**Raises**:
+
+- `TooManyBucketsError` - If more than 20,000 buckets would be returned.
 

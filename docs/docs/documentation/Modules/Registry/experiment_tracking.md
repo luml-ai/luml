@@ -62,6 +62,8 @@ The main module components are:
     
     ![](/img/dynamic_metrics.webp)
 
+    Limits: steps are integers, and steps above 2^53 are not drawn. An experiment uploaded with luml-sdk older than 0.6.0 whose unzipped database is 2 GiB or more does not open in the browser; upload it again with luml-sdk 0.6.0 or newer.
+
     
   </TabItem>
 </Tabs>

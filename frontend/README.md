@@ -200,7 +200,7 @@ frontend/
 │
 ├── public/                      # Static assets — served as-is, not processed by Vite
 │   ├── *.whl                    # Python wheels for Pyodide (onnx, scikit-learn, …)
-│   ├── *.wasm                   # WebAssembly binaries (SQL.js, Parquet)
+│   ├── *.wasm                   # WebAssembly binaries (Parquet)
 │   ├── webworker.js             # Data processing Web Worker
 │   └── data/                    # Sample datasets
 │
@@ -257,7 +257,7 @@ Heavy computation runs entirely in the browser:
 
 - **Web Workers** offload processing from the main thread.
 - **Pyodide** (WebAssembly Python runtime) powers the Notebooks module — no backend execution needed.
-- **SQL.js** and **Parquet-WASM** handle SQL queries and Parquet files in-browser.
+- **SQLite WASM** (`@sqlite.org/sqlite-wasm`) reads experiment databases in-browser with HTTP Range requests, and **Parquet-WASM** reads Parquet files.
 - **Apache Arrow** and **Arquero** provide efficient in-memory data transformation.
 
 Python wheels and WASM binaries are pre-bundled in `public/` and loaded on demand.

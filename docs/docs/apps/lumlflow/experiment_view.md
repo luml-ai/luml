@@ -26,6 +26,8 @@ The Metrics tab renders each logged metric as an individual interactive plot. Pl
 
 This tab is primarily intended for Classical ML runs, where metrics such as loss or accuracy are recorded at successive training steps. Generative AI runs typically rely on the Evals tab instead, but any dynamic value logged through the SDK will still appear here.
 
+Limits: steps are integers, and steps above 2^53 are not drawn.
+
 ![](/img/lumlflow_metrics.webp)
 
 ## Traces
