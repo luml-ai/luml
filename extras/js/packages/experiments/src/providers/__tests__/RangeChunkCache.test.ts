@@ -94,6 +94,49 @@ describe('RangeChunkCache', () => {
     expect(cache.stats.bytesFetched).toBe(64 * CHUNK)
   })
 
+  it('restarts read-ahead after a failed read so the retry asks only for what it needs', () => {
+    const bytes = patternBytes(64 * CHUNK)
+    const calls: [number, number][] = []
+    let failNextLarge = true
+    const cache = new RangeChunkCache(
+      (offset, length) => {
+        calls.push([offset, length])
+        if (failNextLarge && length === 9 * CHUNK) {
+          failNextLarge = false
+          throw new DOMException('timeout', 'TimeoutError')
+        }
+        return bytes.slice(offset, offset + length)
+      },
+      bytes.length,
+      { chunkSize: CHUNK, maxReadAheadBytes: 8 * CHUNK },
+    )
+    const readSequentially = (from: number, to: number) => {
+      for (let offset = from; offset < to; offset += 16 * KIB) cache.read(offset, 16 * KIB)
+    }
+
+    expect(() => readSequentially(0, 64 * CHUNK)).toThrow('timeout')
+    const failedAt = calls.at(-1)![0]
+    readSequentially(failedAt, 64 * CHUNK)
+    expect(cache.read(10 * CHUNK, 2 * CHUNK)).toEqual(bytes.slice(10 * CHUNK, 12 * CHUNK))
+
+    expect(calls.map(([offset, length]) => [offset / CHUNK, length / CHUNK])).toEqual([
+      [0, 1],
+      [1, 2],
+      [3, 3],
+      [6, 5],
+      [11, 9],
+      [11, 1],
+      [12, 2],
+      [14, 3],
+      [17, 5],
+      [22, 9],
+      [31, 9],
+      [40, 9],
+      [49, 9],
+      [58, 6],
+    ])
+  })
+
   it('resets read-ahead on random access so point reads fetch single chunks', () => {
     const { calls, cache } = cacheOver(64 * CHUNK)
     for (const chunk of [40, 3, 17, 55, 9]) cache.read(chunk * CHUNK + 100, 16 * KIB)

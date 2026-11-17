@@ -362,14 +362,33 @@ describe('fractional REAL steps of revisions 0-2', () => {
     expect(seriesOf(valueOf(inverted), 'frac').skipped_rows).toBe(0)
   })
 
-  it('still refuse a series the bucket cap may not hold', async () => {
-    // At level 0 a key's scan stops after 20,001 rows, so fractional steps among them leave
-    // the rest unknown: refused like a series that is too long.
-    const many: MetricPoint[] = Array.from({ length: 20_000 }, (_, step) => ({
-      key: 'dense',
-      step,
-      value: step,
-    }))
+  // At level 0 a key's scan stops after 20,001 rows; with fractional steps among them the
+  // integer buckets come from the integer-only scan.
+  const denseSteps = (key: string, length: number): MetricPoint[] =>
+    Array.from({ length }, (_, step) => ({ key, step, value: step }))
+
+  it('draw a series whose fractional steps fill the row limit from its integer steps', async () => {
+    const epochs = denseSteps('epochs', 101)
+    // 25,000 fractional steps epoch + n/251 between the epochs 0..100.
+    const batches = `
+      WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 24999)
+      INSERT INTO dynamic_metrics (key, value, step)
+      SELECT 'epochs', 1.0, (i % 100) + (i / 100 + 1) / 251.0 FROM n;
+    `
+    const provider = await providerFor([
+      { modelId: 'rev2', db: await revision2Database(epochs, batches) },
+    ])
+    const series = seriesOf(
+      valueOf((await provider.getMetricBuckets({ keys: ['epochs'], level: 0 }))[0]),
+      'epochs',
+    )
+
+    expect(series.skipped_rows).toBeGreaterThan(0)
+    expectSameBuckets(series.buckets, oracleBuckets(epochs, 'epochs', 0), 'epochs')
+  })
+
+  it('draw an integer series the cap holds next to one fractional step', async () => {
+    const many = denseSteps('dense', 20_000)
     const provider = await providerFor([
       {
         modelId: 'rev2',
@@ -379,11 +398,30 @@ describe('fractional REAL steps of revisions 0-2', () => {
         ),
       },
     ])
-    const [refused] = await provider.getMetricBuckets({ keys: ['dense'], level: 0 })
-    expect(refused).toMatchObject({ ok: false, error: { code: TOO_MANY_BUCKETS } })
+    const [drawn] = await provider.getMetricBuckets({ keys: ['dense'], level: 0 })
+    expect(seriesOf(valueOf(drawn), 'dense').skipped_rows).toBe(1)
+    expectSameBuckets(
+      seriesOf(valueOf(drawn), 'dense').buckets,
+      oracleBuckets(many, 'dense', 0),
+      'dense',
+    )
     const [fits] = await provider.getMetricBuckets({ keys: ['dense'], level: 0, end_step: 9 })
     expect(seriesOf(valueOf(fits), 'dense')).toMatchObject({ skipped_rows: 1 })
     expect(seriesOf(valueOf(fits), 'dense').buckets).toHaveLength(10)
+  })
+
+  it('still refuse a series with more integer buckets than the cap', async () => {
+    const provider = await providerFor([
+      {
+        modelId: 'rev2',
+        db: await revision2Database(
+          denseSteps('dense', 20_001),
+          "INSERT INTO dynamic_metrics (key, value, step) VALUES ('dense', 1.0, 0.5);",
+        ),
+      },
+    ])
+    const [refused] = await provider.getMetricBuckets({ keys: ['dense'], level: 0 })
+    expect(refused).toMatchObject({ ok: false, error: { code: TOO_MANY_BUCKETS } })
   })
 })
 

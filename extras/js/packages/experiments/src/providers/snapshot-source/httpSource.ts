@@ -43,6 +43,7 @@ export interface SyncRangeResponse {
 export type SyncSend = (
   location: SnapshotSourceLocation,
   headers: Record<string, string>,
+  timeoutMs: number,
 ) => SyncRangeResponse
 
 /** `header`: the bytes the probe read from the member's start. */
@@ -122,16 +123,26 @@ function responseHeaderOf(request: XMLHttpRequest, name: string): string | null 
  * good: nothing on the main thread can interrupt a blocked `send()`.
  */
 export const SYNC_RANGE_TIMEOUT_MS = 30_000
+const SLOWEST_LINK_BYTES_PER_S = 32 * 1024
+
+/**
+ * XHR's timeout bounds the whole transfer, not idle time, so it grows with the request:
+ * a large read-ahead over a slow link must still finish.
+ */
+export function syncRangeTimeoutMs(length: number): number {
+  return SYNC_RANGE_TIMEOUT_MS + Math.ceil((length / SLOWEST_LINK_BYTES_PER_S) * 1000)
+}
 
 /** Sync XHR is the only blocking HTTP API in a worker; a timeout throws a `TimeoutError`. */
 export function sendSyncXhr(
   location: SnapshotSourceLocation,
   headers: Record<string, string>,
+  timeoutMs: number,
 ): SyncRangeResponse {
   const request = new XMLHttpRequest()
   request.open('GET', location.url, false)
   // Allowed for sync requests in workers only, which is where this runs.
-  request.timeout = SYNC_RANGE_TIMEOUT_MS
+  request.timeout = timeoutMs
   request.responseType = 'arraybuffer'
   request.withCredentials = location.credentials === 'include'
   for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value)
@@ -154,7 +165,11 @@ export function sendSyncXhr(
  */
 export function createSyncRangeReader(send: SyncSend): SyncReadRange {
   return (location, offset, length) => {
-    const response = send(location, requestHeaders(location, rangeHeader(offset, length)))
+    const response = send(
+      location,
+      requestHeaders(location, rangeHeader(offset, length)),
+      syncRangeTimeoutMs(length),
+    )
     if (response.status < 200 || response.status >= 300) {
       if (redirectDroppedHeaders(location, response.url)) {
         throw new RedirectDroppedHeadersError(
@@ -414,7 +429,7 @@ export class HttpRangeFile implements RangeFile {
       }
       // Not an expired URL: renewing it would only wait as long again.
       if (errorName(error) === 'TimeoutError') {
-        throw new SnapshotSourceTimeoutError(this.modelId, SYNC_RANGE_TIMEOUT_MS)
+        throw new SnapshotSourceTimeoutError(this.modelId, syncRangeTimeoutMs(length))
       }
       // A failed sync XHR's message names the URL, signature included.
       const reason = error instanceof RangeStatusError ? error.message : errorName(error)

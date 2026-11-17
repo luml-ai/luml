@@ -264,8 +264,14 @@ function perKeyScans(
 interface BucketQuery {
   sql: string
   params: SqlValue[]
-  /** Rows each key's scan stops at on revisions 0-2, where fractional steps share it. */
-  legacyRowLimit: number | null
+  /** Revisions 0-2, when each key's scan stops at a row limit that fractional steps share. */
+  legacyFallback: LegacyFallback | null
+}
+
+interface LegacyFallback {
+  rowLimit: number
+  /** The key's scan over integer steps only, as before fractional steps were counted. */
+  integerOnly: (key: string) => BucketQuery
 }
 
 /**
@@ -294,7 +300,7 @@ function bucketQuery(
               AND b.bucket BETWEEN ? AND ?
             ORDER BY b.metric_id, b.bucket`,
       params: [level, ...keys, firstBucket, lastBucket],
-      legacyRowLimit: null,
+      legacyFallback: null,
     }
   }
   if (source.kind === 'coarse-aggregate') {
@@ -319,46 +325,73 @@ function bucketQuery(
             FROM (${children.sql})
             GROUP BY position, parent ORDER BY position, parent`,
       params: [2 * (level - top), ...children.params],
-      legacyRowLimit: null,
+      legacyFallback: null,
     }
   }
   const pointLimit = cappedRows(4 ** level)
-  const legacy = traits.metricLayout !== 'metric-points'
+  if (traits.metricLayout === 'metric-points') {
+    return {
+      ...rawGroupBy(keys, level, 'step >> ?', (key) => ({
+        sql: `SELECT step, value FROM metric_points
+              WHERE metric_id = (SELECT id FROM metric_keys WHERE key = ?)
+                AND step BETWEEN ? AND ?
+              ORDER BY step LIMIT ?`,
+        params: [key, lowStep, highStep, pointLimit],
+      })),
+      legacyFallback: null,
+    }
+  }
+  const integerOnly = (key: string): BucketQuery => ({
+    ...rawGroupBy([key], level, 'step >> ?', (scanKey) => ({
+      sql: `SELECT step, value FROM dynamic_metrics
+            WHERE key = ? AND step BETWEEN ? AND ? AND ${LEGACY_VALID_ROW}
+            ORDER BY step LIMIT ?`,
+      params: [scanKey, lowStep, highStep, pointLimit],
+    })),
+    legacyFallback: null,
+  })
   const [countLow, countHigh] = countSteps
-  const points = perKeyScans(keys, (key) =>
-    !legacy
-      ? {
-          sql: `SELECT step, value FROM metric_points
-                WHERE metric_id = (SELECT id FROM metric_keys WHERE key = ?)
-                  AND step BETWEEN ? AND ?
-                ORDER BY step LIMIT ?`,
-          params: [key, lowStep, highStep, pointLimit],
-        }
-      : {
-          sql: `SELECT step, value FROM dynamic_metrics
-                WHERE key = ? AND typeof(key) = 'text' AND step BETWEEN ? AND ?
-                  AND (typeof(step) = 'integer' AND step BETWEEN ? AND ?
-                       OR typeof(step) = 'real' AND step BETWEEN ? AND ?)
-                ORDER BY step LIMIT ?`,
-          params: [
-            key,
-            Math.min(lowStep, countLow),
-            Math.max(highStep, countHigh),
-            lowStep,
-            highStep,
-            countLow,
-            countHigh,
-            pointLimit,
-          ],
-        },
+  const withFractional = rawGroupBy(
+    keys,
+    level,
+    "CASE WHEN typeof(step) = 'integer' THEN step >> ? END",
+    (key) => ({
+      sql: `SELECT step, value FROM dynamic_metrics
+            WHERE key = ? AND typeof(key) = 'text' AND step BETWEEN ? AND ?
+              AND (typeof(step) = 'integer' AND step BETWEEN ? AND ?
+                   OR typeof(step) = 'real' AND step BETWEEN ? AND ?)
+            ORDER BY step LIMIT ?`,
+      params: [
+        key,
+        Math.min(lowStep, countLow),
+        Math.max(highStep, countHigh),
+        lowStep,
+        highStep,
+        countLow,
+        countHigh,
+        pointLimit,
+      ],
+    }),
   )
-  const bucket = legacy ? "CASE WHEN typeof(step) = 'integer' THEN step >> ? END" : 'step >> ?'
+  return {
+    ...withFractional,
+    legacyFallback: pointLimit === -1 ? null : { rowLimit: pointLimit, integerOnly },
+  }
+}
+
+/** Each key's scanned points grouped by `bucket`, an expression whose one `?` is the shift. */
+function rawGroupBy(
+  keys: string[],
+  level: number,
+  bucket: string,
+  scan: (key: string) => { sql: string; params: SqlValue[] },
+): { sql: string; params: SqlValue[] } {
+  const points = perKeyScans(keys, scan)
   return {
     sql: `SELECT key, ${bucket} AS b, min(step), max(step), ${rawAggregates('value')}
           FROM (${points.sql})
           GROUP BY position, b ORDER BY position, b`,
     params: [2 * level, ...points.params],
-    legacyRowLimit: legacy && pointLimit !== -1 ? pointLimit : null,
   }
 }
 
@@ -383,7 +416,7 @@ interface KeyBuckets {
 /** Reads rows key by key and stops as soon as one key exceeds the bucket cap. */
 function collectBuckets(
   database: Database,
-  { sql, params, legacyRowLimit }: BucketQuery,
+  { sql, params, legacyFallback }: BucketQuery,
   modelId: string,
 ): Map<string, KeyBuckets> {
   const byKey = new Map<string, KeyBuckets>()
@@ -407,14 +440,15 @@ function collectBuckets(
   } finally {
     statement.free()
   }
-  if (legacyRowLimit !== null) {
-    for (const [key, { buckets, skippedRows }] of byKey) {
-      // A scan cut short by its limit proves too many buckets only when integer steps filled
-      // it; with fractional steps among them the rest is unknown, so it is refused the same way.
-      const read = buckets.reduce((sum, bucket) => sum + bucket.count, skippedRows)
-      if (skippedRows > 0 && read >= legacyRowLimit) {
-        throw new TooManyBucketsError(modelId, key, MAX_RETURNED_BUCKETS)
-      }
+  if (legacyFallback !== null) {
+    for (const [key, read] of byKey) {
+      const rowsRead = read.buckets.reduce((sum, bucket) => sum + bucket.count, read.skippedRows)
+      if (read.skippedRows === 0 || rowsRead < legacyFallback.rowLimit) continue
+      // Fractional steps filled part of the cut-short scan, so the integer buckets beyond it
+      // are unknown: the integer-only scan reads them (and refuses too many), as the Python
+      // reader does. The fractional count stays what was read, a lower bound.
+      const integer = collectBuckets(database, legacyFallback.integerOnly(key), modelId)
+      read.buckets = integer.get(key)?.buckets ?? []
     }
   }
   return byKey

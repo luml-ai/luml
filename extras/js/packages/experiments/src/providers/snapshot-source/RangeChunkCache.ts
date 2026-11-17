@@ -39,6 +39,7 @@ export class RangeChunkCache {
   private readonly chunks = new Map<number, Uint8Array>()
   private cachedBytes = 0
   private streams: ReadStream[] = []
+  private currentStream: ReadStream | null = null
   private readAheadChunks = 0
 
   constructor(
@@ -106,6 +107,7 @@ export class RangeChunkCache {
       stream.readAheadChunks = Math.min(maxChunks, Math.max(1, stream.readAheadChunks * 2))
     }
     this.readAheadChunks = stream.readAheadChunks
+    this.currentStream = stream
   }
 
   private ensureChunks(firstChunk: number, lastChunk: number): void {
@@ -137,7 +139,15 @@ export class RangeChunkCache {
 
     const byteStart = runStart * chunkSize
     const byteEnd = Math.min((runEnd + 1) * chunkSize, this.size)
-    const data = this.readRange(byteStart, byteEnd - byteStart)
+    let data: Uint8Array
+    try {
+      data = this.readRange(byteStart, byteEnd - byteStart)
+    } catch (error) {
+      // A large read-ahead may be what failed (a timeout on a slow link): the retry starts a
+      // new stream that asks only for what it needs and ramps up again.
+      this.streams = this.streams.filter((stream) => stream !== this.currentStream)
+      throw error
+    }
     this.stats.requests++
     this.stats.bytesFetched += data.length
     if (data.length !== byteEnd - byteStart) {

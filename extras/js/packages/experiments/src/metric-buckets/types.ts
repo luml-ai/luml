@@ -110,7 +110,8 @@ export interface MetricBucketSeries {
   buckets: MetricBucket[]
   /**
    * Revisions 0-2: the key's rows with a fractional REAL step in the requested range (without
-   * an end on an open side), left out of the buckets. Not part of the catalog's count.
+   * an end on an open side), left out of the buckets. Not part of the catalog's count. A lower
+   * bound when the key's scan hit its row limit and the buckets come from integer steps alone.
    */
   skipped_rows: number
 }

@@ -11,6 +11,7 @@ import {
   probeSnapshotHeader,
   readSourceRange,
   SYNC_RANGE_TIMEOUT_MS,
+  syncRangeTimeoutMs,
   xhrReadRange,
   type SnapshotTransport,
   type SyncReadRange,
@@ -65,13 +66,33 @@ describe('sync range reads', () => {
 
     xhrReadRange(URL_A, 0, 4)
 
-    expect(calls).toEqual(['open', `timeout ${SYNC_RANGE_TIMEOUT_MS}`, 'send'])
+    expect(calls).toEqual(['open', `timeout ${syncRangeTimeoutMs(4)}`, 'send'])
     expect(SYNC_RANGE_TIMEOUT_MS).toBe(30_000)
+  })
+
+  it('allow a larger request the time it takes at 32 KiB/s on top of the base timeout', () => {
+    const timeouts: number[] = []
+    const reader = createSyncRangeReader((_location, headers, timeoutMs) => {
+      timeouts.push(timeoutMs)
+      const [, start, end] = /^bytes=(\d+)-(\d+)$/.exec(headers.Range!)!.map(Number)
+      return {
+        status: 206,
+        url: URL_A,
+        contentRange: null,
+        body: new Uint8Array(end! - start! + 1),
+      }
+    })
+    reader({ url: URL_A, headers: {} }, 0, 64 * 1024)
+    reader({ url: URL_A, headers: {} }, 0, 4 * 1024 * 1024)
+
+    expect(timeouts).toEqual([32_000, 158_000])
   })
 
   it('report a timeout as timed-out, not as an expired URL, and read again afterwards', () => {
     let hang = true
+    const lengths: number[] = []
     const read: SyncReadRange = (_location, offset, length) => {
+      lengths.push(length)
       if (hang) throw timeoutError()
       return ARTIFACT.slice(offset, offset + length)
     }
@@ -84,7 +105,11 @@ describe('sync range reads', () => {
       error = thrown
     }
     expect(error).toBeInstanceOf(SnapshotSourceTimeoutError)
-    expect(error).toMatchObject({ code: 'timed-out', modelId: 'm' })
+    expect(error).toMatchObject({
+      code: 'timed-out',
+      modelId: 'm',
+      limit: syncRangeTimeoutMs(lengths[0]!),
+    })
     expect((error as Error).message).not.toContain('secret')
     expect(file.failure).toBeNull()
     hang = false
