@@ -96,10 +96,7 @@ def render_deployment_manifests(
         "image": configuration.SERVING_IMAGE,
         "imagePullPolicy": configuration.SERVING_IMAGE_PULL_POLICY,
         "command": ["luml-artifact-fetch"],
-        "resources": {
-            "requests": {"cpu": "100m", "memory": "128Mi"},
-            "limits": {"cpu": "1000m", "memory": "512Mi"},
-        },
+        "resources": configuration.ARTIFACT_FETCH_RESOURCES,
         "env": [
             _literal_env("MODEL_ARTIFACT_ID", artifact_id),
             _secret_env("MODEL_ARTIFACT_URL", name, "artifact-url"),

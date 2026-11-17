@@ -342,13 +342,16 @@ def test_probe_configuration_changes_the_workload_spec_fingerprint() -> None:
     assert fingerprint(first) != fingerprint(tolerant)
 
 
-def test_artifact_fetch_has_bounded_resources() -> None:
-    config = configuration()
+@pytest.mark.parametrize(
+    "resources",
+    [
+        {},
+        {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}},
+    ],
+)
+def test_artifact_fetch_uses_the_configured_resources(resources: dict[str, Any]) -> None:
+    config = configuration(ARTIFACT_FETCH_RESOURCES=resources)
     manifests = render_deployment_manifests(
         config, deployment(), start_context(config), TokenDeriver(config.SATELLITE_TOKEN)
     )
-    resources = init_container(manifests.deployment)["resources"]
-    assert resources["requests"]["cpu"]
-    assert resources["requests"]["memory"]
-    assert resources["limits"]["cpu"]
-    assert resources["limits"]["memory"]
+    assert init_container(manifests.deployment)["resources"] == resources

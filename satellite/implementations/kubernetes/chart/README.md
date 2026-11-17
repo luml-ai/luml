@@ -42,7 +42,7 @@ is taken".
 | Group | Purpose |
 |---|---|
 | `satellite` | Token or existing token Secret, derivation key, platform URL, host/base URL, slug, image, pull secrets and resources |
-| `model`, `sidecar` | Model and serving images, sidecar authorization cache, recording defaults and resources |
+| `model`, `sidecar` | Model and serving images, artifact-fetch init container resources, sidecar authorization cache, recording defaults and resources |
 | `deploymentLimits` | User-visible replica, CPU, memory and health-check limits sent in the satellite capability declaration |
 | `gpu` | Whether the chart offers GPU fields, their limits, node selector, tolerations and runtime class |
 | `sharedCache` | Optional artifact-cache claim, size, storage class and access modes |
@@ -51,6 +51,13 @@ is taken".
 | `monitoring` | Dashboard, worker, collector, session, retention and store configuration |
 | `networkPolicy`, `rbac`, `serviceAccount` | Namespaced access controls |
 | `probes` | Timeout and failure threshold for every probe this chart renders, including the ones the satellite gives model pods |
+
+`model.artifactFetch.resources` sets requests and limits for the init container that downloads
+and unpacks the model artifact before the model starts. The defaults are 100m CPU and 128Mi
+memory requested, 1 CPU and 512Mi memory at most; the download and unpacking stream to disk,
+so memory does not grow with the artifact size. Lower them when a LimitRange in the namespace
+caps containers below these values. New and redeployed models use the new values; running
+model pods keep theirs.
 
 `satellite.baseUrl` overrides URL derivation. Without it, the chart uses `https://` when you
 configure an Ingress TLS Secret or select the OpenShift preset. Otherwise it uses `http://`.

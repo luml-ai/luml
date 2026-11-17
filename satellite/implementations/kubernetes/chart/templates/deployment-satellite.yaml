@@ -140,6 +140,8 @@ spec:
               value: {{ .Values.satellite.imagePullSecrets | toJson | quote }}
             - name: SIDECAR_RESOURCES
               value: {{ .Values.sidecar.resources | toJson | quote }}
+            - name: ARTIFACT_FETCH_RESOURCES
+              value: {{ .Values.model.artifactFetch.resources | toJson | quote }}
             - name: SIDECAR_CACHE_TTL_SEC
               value: {{ .Values.sidecar.cacheTtlSeconds | quote }}
             - name: SIDECAR_STALE_ALLOWANCE_SEC

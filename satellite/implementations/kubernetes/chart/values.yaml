@@ -27,6 +27,14 @@ model:
     repository: ghcr.io/luml-ai/luml-model-server
     tag: dev
     pullPolicy: IfNotPresent
+  artifactFetch:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
 
 sidecar:
   image:

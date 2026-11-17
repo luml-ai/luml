@@ -183,3 +183,22 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content: {name: SECURITY_PRESET, value: openshift}
+
+  - it: passes the default artifact-fetch resources to the satellite
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARTIFACT_FETCH_RESOURCES
+            value: '{"limits":{"cpu":"1000m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"128Mi"}}'
+
+  - it: lets operators override artifact-fetch resources
+    set:
+      model.artifactFetch.resources.limits.memory: 256Mi
+      model.artifactFetch.resources.requests.cpu: 50m
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ARTIFACT_FETCH_RESOURCES
+            value: '{"limits":{"cpu":"1000m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}'
