@@ -62,7 +62,7 @@ Without `--version`, Helm installs the latest chart. Pass `--version <x.y.z>` to
 | `monitoring.frameAncestors` | Origins allowed to embed the monitoring dashboard. Set it to `https://app.luml.ai`. |
 | `networkPolicy.enabled` | On by default. Limits traffic of the Satellite and its models to what they need. |
 
-The release name is the Satellite's identity inside its namespace. To run several Satellites in one namespace, give each its own release name, token and host.
+The release name is the Satellite's identity inside its namespace. To run several Satellites in one namespace, give each its own release name, token and host. A Satellite never takes over model objects that carry another release name: if you reinstall it under a new release name, delete the old release's `luml-dep-*` objects first, or deployments that collide with them fail with "Kubernetes resource name is taken".
 
 Check that the Satellite paired:
 

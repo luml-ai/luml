@@ -765,3 +765,47 @@ async def test_remove_checks_ownership_of_each_named_resource() -> None:
     assert result.removed and result.verified
     assert api.object("Secret", name) is not None
     assert ("Secret", name) not in api.delete_calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("satellite", ["someone-else", None])
+async def test_start_does_not_take_over_named_foreign_resources(satellite: str | None) -> None:
+    config = configuration()
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+    await driver.start(deployment(), start_context(config))
+    for item in api.objects.values():
+        if satellite is None:
+            item["metadata"]["labels"].pop(KUBERNETES_SATELLITE_LABEL)
+        else:
+            item["metadata"]["labels"][KUBERNETES_SATELLITE_LABEL] = satellite
+    applied = len(api.apply_calls)
+    result = await driver.start(deployment(), start_context(config))
+    assert result.status is StartStatus.FAILED
+    assert result.reason == "Kubernetes resource name is taken"
+    assert ("someone-else" if satellite else "no LUML satellite") in (result.error or "")
+    assert len(api.apply_calls) == applied
+    assert not api.delete_calls
+    assert all(
+        item["metadata"]["labels"].get(KUBERNETES_SATELLITE_LABEL) == satellite
+        for item in api.objects.values()
+    )
+
+
+@pytest.mark.asyncio
+async def test_start_checks_every_named_resource_before_applying() -> None:
+    api = InMemoryKubernetesApi()
+    foreign_config = configuration(SATELLITE_NAME="someone-else")
+    await KubernetesDriver(foreign_config, api).start(deployment(), start_context(foreign_config))
+    name = deployment_object_name(DEPLOYMENT_ID)
+    api.objects = {key: value for key, value in api.objects.items() if key == ("Secret", name)}
+    applied = len(api.apply_calls)
+    config = configuration()
+    result = await KubernetesDriver(config, api).start(deployment(), start_context(config))
+    assert result.status is StartStatus.FAILED
+    assert "Secret" in (result.error or "")
+    assert len(api.apply_calls) == applied
+    assert list(api.objects) == [("Secret", name)]
+    secret = api.object("Secret", name)
+    assert secret is not None
+    assert secret["metadata"]["labels"][KUBERNETES_SATELLITE_LABEL] == "someone-else"

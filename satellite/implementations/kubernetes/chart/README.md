@@ -31,7 +31,11 @@ For OpenShift, add `-f chart/values-openshift.yaml`. The OpenShift preset:
 4. Still renders a standard Ingress, not a Route.
 
 The release name is the satellite identity inside its namespace. Use a different release name
-and host for each satellite that you install in the same namespace.
+and host for each satellite that you install in the same namespace. A satellite never takes
+over model objects (`luml-dep-<deployment id>`) that carry another release name. If you
+reinstall a satellite under a new release name, delete the model objects of the old release
+first. Otherwise a deployment whose objects already exist fails with "Kubernetes resource name
+is taken".
 
 ## Values
 

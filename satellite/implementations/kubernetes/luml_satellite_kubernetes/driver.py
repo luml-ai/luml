@@ -136,11 +136,28 @@ class KubernetesDriver:
         )
         deployment_id = str(deployment.id)
         name = deployment_object_name(deployment_id)
+        objects = list(manifests.objects())
+        existing: dict[str, Mapping[str, object] | None] = {}
         new_objects: list[str] = []
         try:
-            for manifest in manifests.objects():
+            for manifest in objects:
                 kind = str(manifest["kind"])
-                if await self.api.get(kind, name) is None:
+                current = await self.api.get(kind, name)
+                owner = _labels(current).get(KUBERNETES_SATELLITE_LABEL)
+                if current is not None and owner != self.configuration.SATELLITE_NAME:
+                    holder = f"satellite {owner!r}" if owner else "no LUML satellite"
+                    return StartResult(
+                        StartStatus.FAILED,
+                        reason="Kubernetes resource name is taken",
+                        error=(
+                            f"Kubernetes {kind} {name} belongs to {holder}; "
+                            "remove it to deploy from this satellite"
+                        ),
+                    )
+                existing[kind] = current
+            for manifest in objects:
+                kind = str(manifest["kind"])
+                if existing[kind] is None:
                     # track before applying because a failed response may still create the object.
                     new_objects.append(kind)
                 await self.api.apply(manifest)
