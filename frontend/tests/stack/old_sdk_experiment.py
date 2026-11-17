@@ -7,11 +7,14 @@ Run with the interpreter of a venv holding luml-sdk==0.5.0:
 - ``python -I old_sdk_experiment.py legacy <store dir>`` writes the ``fallback``
   experiment only: integer steps plus rows revision 3 cannot store (a fractional REAL
   step and a text step), so this SDK's export keeps the old format.
+- ``python -I old_sdk_experiment.py traces <store dir> [<output tar>]`` writes the
+  ``traces_old`` experiment (trace_data.py) and exports it when a tar is given.
 """
 
 import math
 import random
 import sys
+from pathlib import Path
 
 from luml.experiments.tracker import ExperimentTracker
 
@@ -19,6 +22,7 @@ STEPS = 3_000
 SEED = 31
 LEGACY_STEPS = 40
 LEGACY_ID = "fallback"
+TRACES_NAME = "traces_old"
 
 
 def write_regular(store: str, output: str) -> None:
@@ -45,9 +49,25 @@ def write_legacy(store: str) -> None:
     tracker.end_experiment()
 
 
+def write_traces(store: str, output: str | None) -> str:
+    # -I leaves this directory off the path; trace_data is shared with this SDK.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import trace_data
+
+    tracker = ExperimentTracker(f"sqlite://{store}")
+    experiment_id = tracker.start_experiment(name=TRACES_NAME, group="e2e")
+    trace_data.log_all(tracker)
+    tracker.end_experiment()
+    if output:
+        tracker.export(output, experiment_id)
+    return experiment_id
+
+
 def main() -> None:
     if sys.argv[1] == "legacy":
         write_legacy(sys.argv[2])
+    elif sys.argv[1] == "traces":
+        write_traces(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
     else:
         write_regular(sys.argv[1], sys.argv[2])
 

@@ -3,10 +3,25 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SLOW_LINK, ThrottleProxy } from './proxy'
+import {
+  expectAverageScores,
+  expectLargeValue,
+  expectRegularTrace,
+  expectVirtualisedTree,
+  openTrace,
+  rowCells,
+  scoreTexts,
+  searchEval,
+  spanAttribute,
+  spanRow,
+  traceDialog,
+  type TraceData,
+} from './trace_view'
 
 // Flow end to end: the real Flow server of this worktree with its web bundle built from this
 // worktree, on one store holding an experiment of released luml-sdk 0.5.0 (old schema), one
-// of this SDK (new schema) and a running one that another process appends to.
+// of this SDK (new schema) and a running one that another process appends to, plus the same
+// traces and evals (trace_data.py) written once by each SDK.
 
 interface FlowExperiment {
   id: string
@@ -22,6 +37,9 @@ interface FlowData {
   new: FlowExperiment
   live: FlowExperiment
   old?: FlowExperiment
+  traces: FlowExperiment
+  traces_old?: FlowExperiment
+  expected: TraceData
 }
 
 const env = (name: string): string => {
@@ -38,6 +56,7 @@ const FLOW_DIR = env('E2E_FLOW_DIR')
 const data = JSON.parse(readFileSync(join(FLOW_DIR, 'flow.json'), 'utf-8')) as FlowData
 const SDK_DIR = join(env('E2E_REPO'), 'sdk/python/sdk')
 const KEY = 'train/loss'
+const TRACES = data.expected
 
 interface ApiCalls {
   catalog: string[]
@@ -118,6 +137,37 @@ function userVersion(db: string): number {
   return Number(output.trim())
 }
 
+interface TraceCalls {
+  /** The query string and body size of each trace request (the span tree). */
+  structure: { search: string; bytes: number }[]
+  /** The span id of each span request. */
+  spans: string[]
+}
+
+/** Trace and span requests the page sends for one experiment's traces. */
+function recordTraceApi(page: Page, experimentId: string): TraceCalls {
+  const calls: TraceCalls = { structure: [], spans: [] }
+  page.on('response', async (response) => {
+    const url = new URL(response.url())
+    const match = /^\/api\/experiments\/([^/]+)\/traces\/([^/]+)(?:\/spans\/([^/]+))?$/.exec(
+      url.pathname,
+    )
+    if (!match || match[1] !== experimentId || ['all', 'typed-columns'].includes(match[2]!)) return
+    if (match[3]) calls.spans.push(decodeURIComponent(match[3]))
+    else calls.structure.push({ search: url.search, bytes: (await response.body()).length })
+  })
+  return calls
+}
+
+/** The size of the full trace (with every payload), from the API the page no longer uses for it. */
+async function fullTraceBytes(experimentId: string, traceId: string): Promise<number> {
+  const response = await fetch(`${FLOW}/api/experiments/${experimentId}/traces/${traceId}`, {
+    headers: { Authorization: `Bearer ${env('E2E_FLOW_TOKEN')}` },
+  })
+  expect(response.status).toBe(200)
+  return (await response.arrayBuffer()).byteLength
+}
+
 test('the experiment page reads the catalog and buckets, never the full history', async ({
   page,
 }) => {
@@ -162,6 +212,63 @@ test('the refresh button picks up points another process appended', async ({ pag
 
   await expectRefreshShowsAppended(page, calls, before)
 })
+
+for (const [format, key] of [
+  ['new', 'traces'],
+  ['old', 'traces_old'],
+] as const) {
+  test(`a trace of a ${format}-schema experiment: its structure, then each selected span once`, async ({
+    page,
+  }) => {
+    test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
+    const experiment = data[key]!
+    const { large, medium, small, root } = TRACES.big
+    const calls = recordTraceApi(page, experiment.id)
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`)
+    await openTrace(page, TRACES.big.trace_id)
+    const dialog = traceDialog(page)
+    await expectVirtualisedTree(dialog, TRACES)
+    expect(calls.structure.map((call) => call.search)).toEqual(['?payloads=false'])
+    // The structure leaves every payload out, the two large values among them.
+    const full = await fullTraceBytes(experiment.id, TRACES.big.trace_id)
+    expect(full - calls.structure[0]!.bytes).toBeGreaterThan(large.chars! + medium.chars!)
+    expect(calls.spans).toEqual([root.span_id])
+
+    await spanRow(dialog, large.span).click()
+    await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
+    await spanRow(dialog, small.span).click()
+    await expect(spanAttribute(dialog, small.key).locator('.content')).toHaveText(small.value!)
+    await spanRow(dialog, large.span).click()
+    await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
+    expect(calls.spans).toEqual([root.span_id, large.span_id, small.span_id])
+    expect(calls.structure).toHaveLength(1)
+    if (experiment.db) expect(userVersion(experiment.db)).toBe(experiment.user_version)
+  })
+
+  test(`the evals of a ${format}-schema experiment: scores, rows and the eval's trace`, async ({
+    page,
+  }) => {
+    test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
+    const experiment = data[key]!
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/evals`)
+    await expectAverageScores(page, TRACES.averages)
+    const evalId = 'eval-0003'
+    const expected = TRACES.evals[evalId]!
+    const rows = await searchEval(page, evalId)
+    expect(await rowCells(rows.first())).toEqual(
+      expect.arrayContaining([
+        evalId,
+        `Question ${expected.index}?`,
+        `Answer ${expected.index}`,
+        ...scoreTexts(expected.scores),
+      ]),
+    )
+    await rows.first().getByRole('button', { name: evalId }).click()
+    await page.getByRole('button', { name: 'Trace', exact: true }).click()
+    await expectRegularTrace(traceDialog(page), expected.index)
+    if (experiment.db) expect(userVersion(experiment.db)).toBe(experiment.user_version)
+  })
+}
 
 /** Another process appends to the live experiment; the refresh button shows the new points. */
 async function expectRefreshShowsAppended(page: Page, calls: ApiCalls, before: number) {
@@ -320,5 +427,26 @@ test.describe('slow network to Flow', () => {
     const before = (await drawn(page, KEY, [data.live.id]))[data.live.id]!
     await expectRefreshShowsAppended(page, calls, before)
     await expectSlowedApi([data.live.id])
+  })
+  test('a trace of a new-schema experiment on a slow link: its structure, then the selected span', async ({
+    page,
+  }) => {
+    const experiment = data.traces
+    const { large, root } = TRACES.big
+    const calls = recordTraceApi(page, experiment.id)
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`, SLOW_FLOW)
+    await openTrace(page, TRACES.big.trace_id)
+    const dialog = traceDialog(page)
+    await expectVirtualisedTree(dialog, TRACES)
+    await spanRow(dialog, large.span).click()
+    await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
+    expect(calls.structure.map((call) => call.search)).toEqual(['?payloads=false'])
+    expect(calls.spans).toEqual([root.span_id, large.span_id])
+    const served = await expectSlowedApi([experiment.id])
+    // The span with the 1 MiB value crosses the link at its rate.
+    const span = served.find((request) => request.path.endsWith(`/spans/${large.span_id}`))!
+    expect(span.endedAt - span.startedAt).toBeGreaterThanOrEqual(
+      SLOW_LINK.latencyMs! + (large.chars! / SLOW_LINK.bytesPerSecond!) * 1000 * 0.9,
+    )
   })
 })

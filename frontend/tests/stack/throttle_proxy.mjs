@@ -6,7 +6,7 @@
 //
 // Controlled over the same port under /__e2e/ (the specs call it from Node):
 //   POST /__e2e/config  {latencyMs, bytesPerSecond, throttleMatching, stallMatching, stripRange,
-//                        refuseSeen}
+//                        refuseSeen, refuseNextMatching}
 //   GET  /__e2e/log     the requests served since the last reset
 //   POST /__e2e/reset   default config, empty log, held requests answered
 import http from 'node:http'
@@ -38,6 +38,11 @@ const DEFAULT_CONFIG = {
    * corrupted, so the storage itself refuses it: a URL that stopped working mid-session.
    */
   refuseSeen: false,
+  /**
+   * A regular expression over `<path>?<query> <range>`: the next matching signed request is sent
+   * with its signature corrupted, so the storage refuses that one read; then it clears itself.
+   */
+  refuseNextMatching: null,
 }
 
 let config = { ...DEFAULT_CONFIG }
@@ -125,7 +130,12 @@ async function forward(request, response) {
   const signature = signatureParam(url)
   if (signature) {
     const value = url.searchParams.get(signature)
-    if (refusedSignatures.has(value)) url.searchParams.set(signature, `${value}x`)
+    const refuseNext =
+      config.refuseNextMatching &&
+      request.method !== 'OPTIONS' &&
+      new RegExp(config.refuseNextMatching).test(`${url.pathname}${url.search} ${range}`)
+    if (refuseNext) config.refuseNextMatching = null
+    if (refuseNext || refusedSignatures.has(value)) url.searchParams.set(signature, `${value}x`)
     else seenSignatures.add(value)
   }
   const stall = config.stallMatching && new RegExp(config.stallMatching)

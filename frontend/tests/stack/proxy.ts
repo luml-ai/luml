@@ -7,6 +7,7 @@ export interface ProxyConfig {
   stallMatching?: string | null
   stripRange?: boolean
   refuseSeen?: boolean
+  refuseNextMatching?: string | null
 }
 
 export interface ProxiedRequest {

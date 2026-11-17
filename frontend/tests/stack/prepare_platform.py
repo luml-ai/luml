@@ -16,11 +16,13 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 import httpx
+import trace_data
 from luml_api import LumlClient
 from luml_api._types import ArtifactStatus, BucketType, CollectionType
 
@@ -38,7 +40,7 @@ SHORT_STEPS = 40
 CACHE = os.environ.get("E2E_ARTIFACT_CACHE")
 TWIN_KEY = "train/long_running_metric/with_a_fairly_long_key_name"
 # Published once more to each storage through its delaying proxy (throttle_proxy.mjs).
-PROXIED_LABELS = {"s3": ("large", "old", "new_a"), "azure": ("large",)}
+PROXIED_LABELS = {"s3": ("large", "old", "new_a", "traces_new"), "azure": ("large",)}
 
 
 @dataclass
@@ -52,6 +54,8 @@ class Published:
     size: int
     file_size: int
     bucket_location: str
+    # Where the 1 MiB span attribute value lies in the object (traces_new only).
+    payload_region: list[int] | None
 
 
 def env(name: str) -> str:
@@ -145,6 +149,43 @@ def fallback_experiment(work: Path) -> Path | None:
     return out
 
 
+def trace_experiments(work: Path) -> dict[str, Path]:
+    """The same traces and evals (trace_data.py) by this SDK and by luml-sdk 0.5.0."""
+    started = time.monotonic()
+    outputs = {"traces_new": work / "traces_new.tar"}
+    if not (CACHE and outputs["traces_new"].exists()):
+        store = work / "traces-store"
+        shutil.rmtree(store, ignore_errors=True)
+        tracker = ExperimentTracker(f"sqlite://{store}")
+        experiment_id = tracker.start_experiment(name="traces_new", group="e2e")
+        trace_data.log_all(tracker)
+        tracker.end_experiment()
+        tracker.export(str(outputs["traces_new"]), experiment_id)
+        shutil.rmtree(store)
+    python = os.environ.get("E2E_OLD_SDK_PYTHON")
+    if python and Path(python).exists():
+        outputs["traces_old"] = work / "traces_old.tar"
+        if not (CACHE and outputs["traces_old"].exists()):
+            store = work / "traces-old-store"
+            shutil.rmtree(store, ignore_errors=True)
+            subprocess.run(
+                [
+                    python,
+                    "-I",
+                    str(OLD_SDK_SCRIPT),
+                    "traces",
+                    str(store),
+                    str(outputs["traces_old"]),
+                ],
+                check=True,
+            )
+            shutil.rmtree(store)
+    sys.stdout.write(
+        f"trace experiments written in {time.monotonic() - started:.1f}s\n"
+    )
+    return outputs
+
+
 def snapshot_member(tar_path: Path) -> tuple[str, int, int]:
     with tarfile.open(tar_path) as archive:
         for member in archive.getmembers():
@@ -155,6 +196,27 @@ def snapshot_member(tar_path: Path) -> tuple[str, int, int]:
             ):
                 return name, member.offset_data, member.size
     raise ValueError(f"{tar_path} has no snapshot member")
+
+
+def payload_region(tar_path: Path, offset: int, size: int) -> list[int]:
+    """The object byte range [first, last] of the 1 MiB attribute value of trace_data.py
+    in a generation 2 member.
+
+    A value this size fills consecutive overflow pages of the compacted DB, so the bytes
+    from its first marker to its last are the value plus a link per page.
+    """
+    with tar_path.open("rb") as handle:
+        handle.seek(offset)
+        database = handle.read(size)
+    begin = trace_data.begin_marker(trace_data.LARGE_KEY).encode()
+    end = trace_data.end_marker(trace_data.LARGE_KEY).encode()
+    first, last = database.find(begin), database.rfind(end) + len(end) - 1
+    length = last - first + 1
+    if first < 0 or database.rfind(begin) != first:
+        sys.exit(f"{tar_path.name}: the large attribute value is missing")
+    if not trace_data.LARGE_CHARS <= length <= trace_data.LARGE_CHARS * 1.02:
+        sys.exit(f"{tar_path.name}: the large attribute value is not contiguous")
+    return [offset + first, offset + last]
 
 
 def build_artifacts(work: Path) -> tuple[dict[str, tuple[Path, str]], str]:
@@ -201,6 +263,8 @@ def build_artifacts(work: Path) -> tuple[dict[str, tuple[Path, str]], str]:
         artifacts["fallback"] = (fallback, "experiment")
     old_path, old_source = old_experiment(work)
     artifacts["old"] = (old_path, "experiment")
+    for label, path in trace_experiments(work).items():
+        artifacts[label] = (path, "experiment")
     large_size = artifacts["large"][0].stat().st_size
     if large_size > 150 * 1024 * 1024:
         sys.exit(f"large artifact is {large_size} bytes, above the 150 MB budget")
@@ -272,6 +336,9 @@ def publish(
             size=size,
             file_size=path.stat().st_size,
             bucket_location=artifact.bucket_location,
+            payload_region=payload_region(path, offset, size)
+            if label == "traces_new"
+            else None,
         )
     return {
         "bucket_secret_id": secret_id,
@@ -297,6 +364,7 @@ def main() -> None:
         "regular_steps": REGULAR_STEPS,
         "short_steps": SHORT_STEPS,
         "twin_key": TWIN_KEY,
+        "traces": trace_data.expected(),
         "storages": {
             storage: publish(client, storage, artifacts) for storage in storages
         },

@@ -11,6 +11,23 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PRESIGNED_URL_MIN_RENEW_AGE_MS } from '../../src/lib/bucket-service/presigned-url-cache'
 import { SLOW_LINK, ThrottleProxy, VERY_SLOW_LINK, type ProxyConfig } from './proxy'
+import {
+  expectAverageScores,
+  expectLargeValue,
+  expectRegularTrace,
+  expectTraceRow,
+  expectVirtualisedTree,
+  openTrace,
+  rowCells,
+  scoreTexts,
+  searchEval,
+  spanAttribute,
+  spanRow,
+  traceDialog,
+  traceFilterFields,
+  traceRows,
+  type TraceData,
+} from './trace_view'
 
 // The platform end to end: the real backend, Postgres, Redis and object storage (MinIO through
 // an S3 bucket secret, Azurite through an Azure one), the frontend built from this worktree,
@@ -28,6 +45,8 @@ interface PublishedArtifact {
   file_size: number
   /** The object key in the bucket; storage requests are matched to artifacts by it. */
   bucket_location: string
+  /** Object bytes [first, last] of the 1 MiB span attribute value (traces_new only). */
+  payload_region: [number, number] | null
 }
 
 interface StorageData {
@@ -44,6 +63,7 @@ interface PlatformData {
   regular_steps: number
   short_steps: number
   twin_key: string
+  traces: TraceData
   storages: Record<string, StorageData>
   /** The same storages through their delaying proxies (throttle_proxy.mjs), fewer artifacts. */
   proxied: Record<string, StorageData>
@@ -174,12 +194,25 @@ function expectRangeReads(network: NetworkLog, artifact: PublishedArtifact) {
   }
 }
 
-/** A generation 1 DB (exp.db.zip) is downloaded whole, in one request for its member. */
+/** The tail of a zipped DB over this size is read first, to check its entry (zipDirectory.ts). */
+const ZIP_TAIL_BYTES = 128 * 1024
+
+/**
+ * A generation 1 DB (exp.db.zip) is downloaded whole, in one request for its member. A member
+ * over 128 KiB has its tail read first; the browser's cache then serves that part of the
+ * download, which asks storage for the rest only.
+ */
 function expectWholeDownload(network: NetworkLog, artifact: PublishedArtifact) {
   const requests = memberReads(network, artifact)
-  expect(requests, `${artifact.name}: ${JSON.stringify(requests)}`).toHaveLength(1)
-  expect(requests[0]!.bytes).toBe(artifact.size)
-  expect(requests[0]!.range).toEqual([artifact.offset, artifact.offset + artifact.size - 1])
+  const end = artifact.offset + artifact.size - 1
+  const tailStart = end + 1 - ZIP_TAIL_BYTES
+  const probed = artifact.size > ZIP_TAIL_BYTES && requests[0]?.range?.[0] === tailStart
+  if (probed) expect(requests[0]!.range).toEqual([tailStart, end])
+  const downloads = probed ? requests.slice(1) : requests
+  expect(downloads, `${artifact.name}: ${JSON.stringify(requests)}`).toHaveLength(1)
+  expect(downloads[0]!.bytes).toBe(artifact.size)
+  expect(downloads[0]!.range![0]).toBe(artifact.offset)
+  expect(probed ? [tailStart - 1, end] : [end]).toContain(downloads[0]!.range![1])
 }
 
 function collectionUrl(storage: StorageData) {
@@ -258,6 +291,116 @@ async function dragZoom(page: Page, card: Locator, start: number) {
 
 async function expectNoNotices(page: Page) {
   await expect(page.getByTestId('experiment-status-notice')).toHaveCount(0)
+}
+
+const TRACES = data.traces
+// traces_new is about 3 MB. Its trace list reads the summary table and its span tree the
+// covering index, in read-ahead chunks of 64 KiB: well under 1 MiB each. The 1 MiB value of one
+// span alone is more than either view may read, and a chunk that holds a page next to that value
+// may touch a few of its pages, never more than 5% of it.
+const MAX_TRACE_VIEW_BYTES = TRACES.big.large.chars!
+const MAX_PAYLOAD_TOUCHED = 0.05
+// Selecting the span reads its value and the row page around it, in read-ahead chunks.
+const MAX_PAYLOAD_READ_EXTRA = 512 * 1024
+const BROWSER_STATE = join(env('E2E_WORK_DIR'), 'browser-state.json')
+
+function sumBytes(requests: StorageRequest[]): number {
+  return requests.reduce((sum, request) => sum + request.bytes, 0)
+}
+
+function regionSize(region: [number, number]): number {
+  return region[1] - region[0] + 1
+}
+
+/** Bytes of `requests` that fall inside `region` (a read without Range covers it all). */
+function bytesWithin(requests: StorageRequest[], region: [number, number]): number {
+  return requests.reduce((sum, request) => {
+    if (!request.range) return sum + regionSize(region)
+    const first = Math.max(request.range[0], region[0])
+    const last = Math.min(request.range[1], region[1])
+    return sum + Math.max(0, last - first + 1)
+  }, 0)
+}
+
+/** The reads hold no span payload: at most a few pages of the 1 MiB value. */
+function expectNoPayloadRead(requests: StorageRequest[], artifact: PublishedArtifact) {
+  const region = artifact.payload_region!
+  expect(bytesWithin(requests, region), 'bytes of the 1 MiB value read').toBeLessThan(
+    regionSize(region) * MAX_PAYLOAD_TOUCHED,
+  )
+}
+
+/** Opens an experiment of trace_data.py and waits for its trace list and average scores. */
+async function openTraceSnapshot(page: Page, storage: StorageData, artifact: PublishedArtifact) {
+  await openSnapshot(page, storage, artifact)
+  await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+    timeout: 60_000,
+  })
+  await expectAverageScores(page, TRACES.averages)
+}
+
+/** The bar charts of average scores per experiment: score name to experiment id to value. */
+async function scoreCharts(page: Page): Promise<Record<string, Record<string, number>>> {
+  const plots = page.locator('.charts .js-plotly-plot')
+  await expect(plots).toHaveCount(Object.keys(TRACES.averages).length, { timeout: 60_000 })
+  const read = () =>
+    plots.evaluateAll((elements) =>
+      elements.map((element) => {
+        const plot = element as unknown as {
+          data?: { x: string[]; y: number[] }[]
+          layout?: { title?: { text?: string } | string }
+        }
+        const title = plot.layout?.title
+        return {
+          name: typeof title === 'string' ? title : (title?.text ?? ''),
+          x: [...(plot.data?.[0]?.x ?? [])],
+          y: [...(plot.data?.[0]?.y ?? [])],
+        }
+      }),
+    )
+  await expect.poll(async () => (await read()).every((chart) => chart.x.length > 0)).toBe(true)
+  const result: Record<string, Record<string, number>> = {}
+  for (const chart of await read()) {
+    result[chart.name] = Object.fromEntries(chart.x.map((id, index) => [id, chart.y[index]!]))
+  }
+  return result
+}
+
+interface TraceStep {
+  bytes: number
+  ms: number
+}
+
+/**
+ * Opens traces_new, then its big trace, then selects the span with the 1 MiB value: the bytes
+ * read from storage and the time of each of the three steps.
+ */
+async function traceSteps(
+  page: Page,
+  network: NetworkLog,
+  storage: StorageData,
+  traces: PublishedArtifact,
+): Promise<TraceStep[]> {
+  const steps: TraceStep[] = []
+  let reads = 0
+  let started = Date.now()
+  const endStep = () => {
+    const requests = network.of(traces)
+    steps.push({ bytes: sumBytes(requests.slice(reads)), ms: Date.now() - started })
+    reads = requests.length
+    started = Date.now()
+  }
+  await openTraceSnapshot(page, storage, traces)
+  endStep()
+  await openTrace(page, TRACES.big.trace_id)
+  const dialog = traceDialog(page)
+  await expectVirtualisedTree(dialog, TRACES)
+  endStep()
+  const { large } = TRACES.big
+  await spanRow(dialog, large.span).click()
+  await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
+  endStep()
+  return steps
 }
 
 // Signed in once by global-setup.ts.
@@ -452,6 +595,192 @@ for (const storageName of Object.keys(data.storages)) {
         'train/loss',
         compared.map((item) => item.id),
       )
+      await expectNoNotices(page)
+    })
+
+    // The same traces and evals (trace_data.py), written by this SDK and by luml-sdk 0.5.0: the
+    // new format reads its summary tables and indexes by Range, the old one is downloaded whole,
+    // and both show the same values.
+    for (const label of ['traces_new', 'traces_old']) {
+      const format = label === 'traces_new' ? 'new' : 'old'
+      const skipWithoutOldSdk = () =>
+        test.skip(
+          !storage.artifacts[label],
+          'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set',
+        )
+      const expectReads = (traces: PublishedArtifact) => {
+        if (traces.generation === 1) return expectWholeDownload(network, traces)
+        expectRangeReads(network, traces)
+        expectNoPayloadRead(network.of(traces), traces)
+      }
+
+      test(`the traces of a ${format}-format experiment are listed, sorted and paged`, async ({
+        page,
+      }) => {
+        skipWithoutOldSdk()
+        const traces = artifact(label)
+        await openTraceSnapshot(page, storage, traces)
+        expectReads(traces)
+        if (traces.generation === 2) {
+          expect(network.bytesOf(traces), `read of ${traces.size}`).toBeLessThan(
+            MAX_TRACE_VIEW_BYTES,
+          )
+        }
+
+        const duration = page.getByRole('columnheader', { name: 'execution time' })
+        await duration.click()
+        for (const [position, id] of ['trace-0000', 'trace-0001', 'trace-0002'].entries()) {
+          const expected = TRACES.traces[id]!
+          await expectTraceRow(traceRows(page).nth(position), id, expected, expected.eval_id)
+        }
+        await duration.click()
+        await expectTraceRow(traceRows(page).first(), TRACES.big.trace_id, TRACES.big, null)
+        const longest = TRACES.traces['trace-0299']!
+        await expectTraceRow(traceRows(page).nth(1), 'trace-0299', longest, longest.eval_id)
+
+        // 20 traces a page: the table asks for the next one when it is scrolled to its end.
+        const paged = 'trace-0262'
+        const row = traceRows(page).filter({
+          has: page.getByRole('button', { name: paged, exact: true }),
+        })
+        const scroller = page.locator('.traces-table .p-virtualscroller')
+        await expect
+          .poll(
+            async () => {
+              await scroller.evaluate((element) => element.scrollTo(0, element.scrollHeight))
+              return row.count()
+            },
+            { message: `${paged} on the second page`, timeout: 30_000 },
+          )
+          .toBe(1)
+        const expected = TRACES.traces[paged]!
+        await expectTraceRow(row, paged, expected, expected.eval_id)
+        expectReads(traces)
+        await expectNoNotices(page)
+      })
+
+      test(`the big trace of a ${format}-format experiment: a virtualised tree, payloads on select`, async ({
+        page,
+      }) => {
+        skipWithoutOldSdk()
+        const traces = artifact(label)
+        const { large, medium, small } = TRACES.big
+        await openTraceSnapshot(page, storage, traces)
+        let reads = network.of(traces).length
+        await openTrace(page, TRACES.big.trace_id)
+        const dialog = traceDialog(page)
+        await expectVirtualisedTree(dialog, TRACES)
+        const treeReads = network.of(traces).slice(reads)
+        if (traces.generation === 2) {
+          expect(sumBytes(treeReads)).toBeLessThan(MAX_TRACE_VIEW_BYTES)
+          expectNoPayloadRead(treeReads, traces)
+        } else expect(treeReads).toEqual([])
+
+        reads = network.of(traces).length
+        await spanRow(dialog, large.span).click()
+        const largeValue = spanAttribute(dialog, large.key)
+        await expectLargeValue(largeValue, large.chars!, large.start)
+        const payloadReads = network.of(traces).slice(reads)
+        if (traces.generation === 2) {
+          const region = traces.payload_region!
+          expect(bytesWithin(payloadReads, region)).toBeGreaterThanOrEqual(
+            regionSize(region) * (1 - MAX_PAYLOAD_TOUCHED),
+          )
+          expect(sumBytes(payloadReads)).toBeLessThan(regionSize(region) + MAX_PAYLOAD_READ_EXTRA)
+        } else expect(payloadReads).toEqual([])
+
+        await largeValue.getByRole('button', { name: 'Show all' }).click()
+        const viewer = page.getByRole('dialog', { name: large.key })
+        await expect(viewer.locator('.line').first()).toHaveText(new RegExp(`^${large.start} `))
+        await page.keyboard.press('Escape')
+        await expect(viewer).toBeHidden()
+
+        await spanRow(dialog, medium.span).click()
+        await expectLargeValue(spanAttribute(dialog, medium.key), medium.chars!)
+        await spanRow(dialog, small.span).click()
+        await expect(spanAttribute(dialog, small.key).locator('.content')).toHaveText(small.value!)
+        // A span selected before is shown again without a read.
+        reads = network.of(traces).length
+        await spanRow(dialog, large.span).click()
+        await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
+        expect(network.of(traces).slice(reads)).toEqual([])
+        await expectNoNotices(page)
+      })
+
+      test(`the evals of a ${format}-format experiment: scores, rows, filter keys and the eval's trace`, async ({
+        page,
+      }) => {
+        skipWithoutOldSdk()
+        const traces = artifact(label)
+        await openTraceSnapshot(page, storage, traces)
+        const attributeFields = TRACES.attribute_keys.map((key) => `attributes.${key}`)
+        const fields = await traceFilterFields(page)
+        expect(fields.filter((field) => field.startsWith('attributes.')).sort()).toEqual(
+          attributeFields,
+        )
+
+        const evalId = 'eval-0003'
+        const expected = TRACES.evals[evalId]!
+        const rows = await searchEval(page, evalId)
+        expect(await rowCells(rows.first())).toEqual(
+          expect.arrayContaining([
+            evalId,
+            `Question ${expected.index}?`,
+            `Answer ${expected.index}`,
+            ...scoreTexts(expected.scores),
+          ]),
+        )
+        await rows.first().getByRole('button', { name: evalId }).click()
+        await page.getByRole('button', { name: 'Trace', exact: true }).click()
+        await expectRegularTrace(traceDialog(page), expected.index)
+        expectReads(traces)
+        await expectNoNotices(page)
+      })
+    }
+
+    test('old and new experiments with the same evals and traces compare equal', async ({
+      page,
+    }) => {
+      test.skip(
+        !storage.artifacts.traces_old,
+        'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set',
+      )
+      const compared = [artifact('traces_old'), artifact('traces_new')]
+      await openCompare(page, storage, compared)
+      const charts = await scoreCharts(page)
+      expect(Object.keys(charts).sort()).toEqual(Object.keys(TRACES.averages).sort())
+      for (const [name, value] of Object.entries(TRACES.averages)) {
+        for (const item of compared) {
+          expect(Math.abs(charts[name]![item.id]! - value), `${name} of ${item.name}`).toBeLessThan(
+            1e-9,
+          )
+        }
+      }
+
+      const evalId = 'eval-0003'
+      const expected = TRACES.evals[evalId]!
+      const rows = await searchEval(page, evalId, 2)
+      const [first, second] = [await rowCells(rows.nth(0)), await rowCells(rows.nth(1))]
+      // The id and experiment cells differ by design (the id is shown once per group).
+      expect(first.slice(2)).toEqual(second.slice(2))
+      expect(first).toEqual(expect.arrayContaining(scoreTexts(expected.scores)))
+
+      await rows.first().getByRole('button').first().click()
+      const scoreBlocks = page.locator('.scores-block .scores')
+      await expect(scoreBlocks).toHaveCount(2)
+      expect(await scoreBlocks.nth(0).innerText()).toBe(await scoreBlocks.nth(1).innerText())
+      const traceButtons = page.getByRole('button', { name: 'Trace', exact: true })
+      await expect(traceButtons).toHaveCount(2)
+      for (const index of [0, 1]) {
+        await traceButtons.nth(index).click()
+        const dialog = traceDialog(page)
+        await expectRegularTrace(dialog, expected.index)
+        await dialog.getByRole('button', { name: 'Close' }).click()
+        await expect(dialog).toBeHidden()
+      }
+      expectWholeDownload(network, compared[0]!)
+      expectRangeReads(network, compared[1]!)
+      expectNoPayloadRead(network.of(compared[1]!), compared[1]!)
       await expectNoNotices(page)
     })
 
@@ -688,6 +1017,70 @@ test.describe('slow network to storage', () => {
     await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
     const [line] = await settledChart(page, 'train/loss', [large.id])
     expect(line!.x.length).toBeGreaterThan(30)
+  })
+
+  test('traces of a new-format experiment on a slow link: the same reads, each step in time', async ({
+    page,
+    browser,
+  }) => {
+    const traces = artifact('traces_new')
+    const baselineContext = await browser.newContext({
+      storageState: BROWSER_STATE,
+      viewport: { width: 1440, height: 1000 },
+    })
+    const baseline = await traceSteps(
+      await baselineContext.newPage(),
+      new NetworkLog(baselineContext, storage.artifacts),
+      storage,
+      traces,
+    )
+    await baselineContext.close()
+
+    await proxy.configure(SLOW_LINK)
+    // Each step waits up to 60 s (the expect timeouts of traceSteps); here they take seconds.
+    const slow = await traceSteps(page, network, storage, traces)
+    console.log(
+      `traces_new of ${traces.size} bytes, unthrottled then on the slow link (bytes/ms): ` +
+        ['list', 'tree', 'payload']
+          .map(
+            (name, i) =>
+              `${name} ${baseline[i]!.bytes}/${baseline[i]!.ms} ${slow[i]!.bytes}/${slow[i]!.ms}`,
+          )
+          .join(', '),
+    )
+    expect(slow.map((step) => step.bytes)).toEqual(baseline.map((step) => step.bytes))
+    expectRangeReads(network, traces)
+    expectSlowed(network, traces, SLOW_LINK)
+    // The 1 MiB value crosses the link at its rate.
+    const region = traces.payload_region!
+    expect(slow[2]!.ms).toBeGreaterThanOrEqual(
+      ((regionSize(region) * (1 - MAX_PAYLOAD_TOUCHED)) / SLOW_LINK.bytesPerSecond!) * 1000 * 0.9,
+    )
+    await expectNoNotices(page)
+  })
+
+  test('a span payload read that fails says so, and selecting the span again loads it', async ({
+    page,
+  }) => {
+    const traces = artifact('traces_new')
+    const { large } = TRACES.big
+    await openTraceSnapshot(page, storage, traces)
+    await openTrace(page, TRACES.big.trace_id)
+    const dialog = traceDialog(page)
+    await expectVirtualisedTree(dialog, TRACES)
+
+    // Storage refuses the next read of the object: the one for the selected span's value.
+    await proxy.configure({ refuseNextMatching: escapeRegExp(traces.bucket_location) })
+    await spanRow(dialog, large.span).click()
+    await expect(
+      dialog.locator('.body').getByText('Cannot load span data.', { exact: true }).first(),
+    ).toBeVisible()
+    expect(network.of(traces).filter((request) => request.status === 403)).toHaveLength(1)
+
+    await spanRow(dialog, large.span).click()
+    await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
+    expect(network.of(traces).filter((request) => request.status === 403)).toHaveLength(1)
+    await expectNoNotices(page)
   })
 })
 

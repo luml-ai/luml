@@ -16,7 +16,10 @@ import random
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
+
+import trace_data
 
 from luml.experiments.tracker import ExperimentTracker
 
@@ -43,6 +46,7 @@ def main() -> None:
     flow_dir = Path(sys.argv[1])
     store = flow_dir / "store"
     result: dict[str, object] = {"store": str(store)}
+    trace_seconds = 0.0
 
     python = os.environ.get("E2E_OLD_SDK_PYTHON")
     if python and Path(python).exists():
@@ -57,11 +61,25 @@ def main() -> None:
             check=True,
         )
         (flow_dir / "old.tar").unlink()
+        started = time.monotonic()
+        subprocess.run(
+            [python, "-I", str(HERE / "old_sdk_experiment.py"), "traces", str(store)],
+            check=True,
+        )
+        trace_seconds = time.monotonic() - started
     # Recorded before this SDK opens the store: nothing it does may migrate these.
     old_versions = {db.parent.name: user_version(db) for db in store.glob("*/exp.db")}
 
     tracker = ExperimentTracker(f"sqlite://{store}")
     old = [item for item in tracker.list_experiments() if item.name == "old"]
+    traces_old = [
+        item for item in tracker.list_experiments() if item.name == "traces_old"
+    ]
+    started = time.monotonic()
+    traces_id = tracker.start_experiment(name="flow_traces", group="e2e")
+    trace_data.log_all(tracker)
+    tracker.end_experiment()
+    trace_seconds += time.monotonic() - started
     new_id = tracker.start_experiment(name="flow_new", group="e2e")
     log_series(tracker, new_id, 0, NEW_STEPS, 41)
     tracker.end_experiment()
@@ -85,7 +103,20 @@ def main() -> None:
             "steps": LIVE_STEPS,
         },
         groups=groups,
+        traces={
+            "id": traces_id,
+            "group_id": experiments["flow_traces"].group_id,
+        },
+        expected=trace_data.expected(),
     )
+    if traces_old:
+        db = store / traces_old[0].id / "exp.db"
+        result["traces_old"] = {
+            "id": traces_old[0].id,
+            "group_id": traces_old[0].group_id,
+            "db": str(db),
+            "user_version": old_versions[traces_old[0].id],
+        }
     if old:
         db = store / old[0].id / "exp.db"
         result["old"] = {
@@ -97,7 +128,10 @@ def main() -> None:
         }
     (flow_dir / "flow.json").write_text(json.dumps(result, indent=2))
     old_state = "yes" if old else "no (no luml-sdk 0.5.0)"
-    sys.stdout.write(f"flow store ready; old-schema experiment: {old_state}\n")
+    sys.stdout.write(
+        f"flow store ready; old-schema experiment: {old_state}; "
+        f"trace experiments written in {trace_seconds:.1f}s\n"
+    )
 
 
 if __name__ == "__main__":
