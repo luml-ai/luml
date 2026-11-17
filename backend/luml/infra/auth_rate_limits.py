@@ -73,7 +73,7 @@ async def limit_auth_attempts(
     limits = {
         hmac.new(
             config.AUTH_SECRET_KEY.encode(),
-            f"{request.url.path}:{scope}".encode(),
+            f"{request.scope['path']}:{scope}".encode(),
             hashlib.sha256,
         ).hexdigest(): limit
         for scope, limit in scopes.items()

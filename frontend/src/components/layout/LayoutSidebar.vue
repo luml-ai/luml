@@ -103,7 +103,11 @@ import { useOrganizationStore } from '@/stores/organization'
 import { GitHubService } from '@/lib/github/GitHubService'
 import { useLayout } from '@/hooks/useLayout'
 import { useOrbitsStore } from '@/stores/orbits'
-import { TAB_TO_ROUTE, ROUTE_TO_TAB } from '@/constants/orbit-navigation'
+import {
+  TAB_TO_ROUTE,
+  ROUTE_TO_TAB,
+  RESOURCE_ROUTE_TO_TAB_ROUTE,
+} from '@/constants/orbit-navigation'
 import { useThemeStore } from '@/stores/theme'
 import UiThemeToggle from '../ui/UiThemeToggle.vue'
 import { useLocalStorage } from '@vueuse/core'
@@ -134,7 +138,6 @@ const theme = computed<Theme>({
 
 const ROUTES_REQUIRING_ORG_ID = ['organization', 'collection']
 const ORBIT_ROUTES = Object.values(TAB_TO_ROUTE)
-const DEPLOYMENTS_GROUP = ['orbit-deployments', 'orbit-secrets']
 
 const getFormattedGithubStars = computed(() => {
   if (githubStarsCount.value === null) return null
@@ -148,10 +151,18 @@ function isActive(routeName: string): boolean {
     const tab = (route.query.tab as string) ?? 'registry'
     return TAB_TO_ROUTE[tab] === routeName
   }
-  if (routeName === 'orbit-deployments') {
-    return DEPLOYMENTS_GROUP.includes(currentRouteName)
-  }
-  return currentRouteName === routeName
+  const tabRoute = RESOURCE_ROUTE_TO_TAB_ROUTE[currentRouteName] ?? currentRouteName
+  const tab =
+    tabRoute === 'orbit-tracks' || tabRoute === 'orbit-registry'
+      ? 'registry'
+      : ROUTE_TO_TAB[tabRoute]
+  if (tab) return TAB_TO_ROUTE[tab] === routeName
+
+  return (
+    currentRouteName === routeName ||
+    route.meta.sidebarRoute === routeName ||
+    route.matched.some((record) => record.name === routeName)
+  )
 }
 
 function requiresOrgId(routeName: string): boolean {

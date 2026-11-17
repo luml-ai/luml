@@ -1439,3 +1439,58 @@ class TestModelPublish:
                 assert isinstance(publish, CloudPublishScreen)
                 assert publish._is_model is False
                 assert publish._ctx.experiment_id == exp_id
+
+
+async def test_metric_refresh_uses_one_worker_and_coalesces_requests(
+    facade, tracker, monkeypatch
+):
+    import asyncio
+    import threading
+
+    exp_id = _seed_experiment_with_metrics(tracker, metric_keys=("loss", "accuracy"))
+    app = _make_app(facade)
+    async with app.run_test() as pilot:
+        screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+        await settle_workers(pilot)
+        from lumlflow.tui.screens import experiment_detail
+
+        original = experiment_detail.load_changed_series
+        entered = threading.Event()
+        release = threading.Event()
+        calls = []
+        active = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def load_series(facade_arg, experiment_id, budgets, shown):
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            calls.append(dict(budgets))
+            entered.set()
+            release.wait(2)
+            try:
+                return original(facade_arg, experiment_id, budgets, shown)
+            finally:
+                with lock:
+                    active -= 1
+
+        monkeypatch.setattr(experiment_detail, "load_changed_series", load_series)
+        try:
+            screen._request_metric_series("loss", max_points=10)
+            for _ in range(100):
+                if entered.is_set():
+                    break
+                await asyncio.sleep(0.01)
+            assert entered.is_set()
+            for _ in range(10):
+                screen._request_metric_series("accuracy", max_points=20)
+            await asyncio.sleep(0.05)
+            assert peak == 1
+        finally:
+            release.set()
+        await settle_workers(pilot)
+        assert calls == [{"loss": 10}, {"accuracy": 20}]
+        assert screen._metric_series["loss"].key == "loss"
+        assert screen._metric_series["accuracy"].key == "accuracy"

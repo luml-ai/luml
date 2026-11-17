@@ -53,7 +53,7 @@ def test_package_reaches_the_platform_only_through_the_kit_client() -> None:
 def test_image_runs_as_a_non_root_group_zero_user() -> None:
     dockerfile = (PACKAGE_ROOT / "Dockerfile").read_text()
 
-    assert dockerfile.startswith("FROM python:3.14-")
+    assert "\nFROM python:3.14-" in dockerfile
     assert "chgrp -R 0 /app" in dockerfile
     assert "chmod -R g=u /app" in dockerfile
     assert "USER 10001:0" in dockerfile
@@ -75,7 +75,7 @@ def test_kubernetes_workflows_exist() -> None:
     workflows = REPOSITORY_ROOT / ".github/workflows"
 
     assert (workflows / "[satellite-kubernetes] tests-and-linters.yml").is_file()
-    assert (workflows / "publish-kubernetes-satellite-image.yml").is_file()
+    assert (workflows / "publish-satellite-images.yml").is_file()
     assert (workflows / "publish-kubernetes-satellite-chart.yml").is_file()
     kubernetes_workflow = (workflows / "[satellite-kubernetes] tests-and-linters.yml").read_text()
     assert "helm lint chart --strict" in kubernetes_workflow
@@ -101,7 +101,7 @@ def test_kind_end_to_end_wiring_and_release_checklist_exist() -> None:
     assert "openshift" in workflow_text
     assert "model_servers/default/**" in workflow_text
     assert "workflow_dispatch" in workflow_text
-    assert "actions/setup-python@v5" in workflow_text
+    assert "uses: actions/setup-python@" in workflow_text
     assert "python-version: '3.14'" in workflow_text
     assert (e2e_root / "run.sh").is_file()
     assert (e2e_root / "test_kind.py").is_file()

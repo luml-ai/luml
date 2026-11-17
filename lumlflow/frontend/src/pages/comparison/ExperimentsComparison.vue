@@ -71,8 +71,7 @@ const experiments = ref<Experiment[]>([])
 
 const experimentsIds = computed(() => {
   const ids = route.query.ids
-  if (!ids || typeof ids === 'string') throw new Error('Experiments IDs are required')
-  return ids.map(String)
+  return (Array.isArray(ids) ? ids : [ids]).filter((id): id is string => !!id)
 })
 
 const artifactsInfo = computed(() => {
@@ -87,6 +86,7 @@ const artifactsInfo = computed(() => {
 async function fetchExperiments() {
   try {
     loading.value = true
+    if (!experimentsIds.value.length) throw new Error('Experiments IDs are required')
     const promises = experimentsIds.value.map((id) => apiService.getExperiment(id))
     experiments.value = await Promise.all(promises)
   } catch (e) {

@@ -1,15 +1,17 @@
 name: Publish Relay Image
 
+permissions:
+  contents: read
+
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     tags:
       - "luml-relay/image/v*"
     paths:
-      - relay/Dockerfile
-      - relay/pyproject.toml
-      - relay/uv.lock
-      - relay/luml_relay/**
+      - relay/**
+      - sdk/python/api/**
+      - .github/workflows/publish-relay-image.yml
   workflow_dispatch:
 
 concurrency:
@@ -47,14 +49,8 @@ jobs:
             main)
               echo "image_tag=dev" >> "$GITHUB_OUTPUT"
               ;;
-            staging)
-              echo "image_tag=staging" >> "$GITHUB_OUTPUT"
-              ;;
-            production)
-              echo "image_tag=latest" >> "$GITHUB_OUTPUT"
-              ;;
             *)
-              echo "Unsupported publish branch: ${{ github.ref_name }}" >&2
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
               exit 1
               ;;
           esac
@@ -66,13 +62,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: relay
           file: relay/Dockerfile

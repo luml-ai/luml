@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -102,6 +102,31 @@ def test_email_limits_ignore_case_and_forwarded_headers(client: TestClient) -> N
     limits = consume.await_args_list[0].args[0]
     assert sorted(limits.values()) == [5, 20]
     assert all("example.com" not in key for key in limits)
+
+
+@pytest.mark.parametrize("host", ["testserver", "x/1?", "x/2?", "x#fragment"])
+def test_limit_keys_use_routed_path(client: TestClient, host: str) -> None:
+    with (
+        patch(
+            "starlette.requests.Request.url",
+            new_callable=PropertyMock,
+            side_effect=AssertionError("rate limits must use the ASGI scope"),
+        ),
+        patch(
+            "luml.infra.auth_rate_limits.limiter.consume",
+            new_callable=AsyncMock,
+            return_value=42,
+        ) as consume,
+    ):
+        for headers in [{}, {"Host": host}]:
+            response = client.post(
+                "/v1/auth/signin",
+                json={"email": "u@example.com", "password": "wrong-password"},
+                headers=headers,
+            )
+            assert response.status_code == 429
+
+    assert consume.await_args_list[0] == consume.await_args_list[1]
 
 
 def test_reset_limits_use_only_verified_password_reset_identity(

@@ -147,9 +147,8 @@ class EditEntityDialog(BaseDialog[EntityEditResult | None]):
 class ConfirmDialog(BaseDialog[bool]):
     """Yes/no confirm dialog with inline error display.
 
-    Defaults focus visually to Cancel for destructive actions (the
-    label shows `[Esc] Cancel` first so the eye lands on the safe
-    option). The handler's constraint message (e.g. "Cannot delete a
+    Enter cancels destructive actions; Ctrl+Y explicitly confirms.
+    The handler's constraint message (e.g. "Cannot delete a
     group that has linked experiments") is surfaced via `set_error`
     when the parent screen receives a 409 from the facade.
     """
@@ -196,7 +195,7 @@ class ConfirmDialog(BaseDialog[bool]):
                         markup=False,
                     )
                     yield Static(
-                        f"[Enter] {self.confirm_label}",
+                        f"[Ctrl+Y] {self.confirm_label}",
                         id="dialog-confirm-key",
                         markup=False,
                     )

@@ -83,7 +83,7 @@ def test_stub_model_image_is_non_root_and_includes_the_fixture() -> None:
     dockerfile = (KIT_ROOT / "Dockerfile.stub-model").read_text(encoding="utf-8")
     fixture = KIT_ROOT / "e2e/fixtures/stub-model/stub.json"
 
-    assert dockerfile.startswith("FROM python:3.14-")
+    assert "\nFROM python:3.14-" in dockerfile
     assert "chgrp -R 0 /app" in dockerfile
     assert "chmod -R g=u /app" in dockerfile
     assert "USER 10001:0" in dockerfile

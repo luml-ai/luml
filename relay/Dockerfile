@@ -1,3 +1,5 @@
+FROM ghcr.io/astral-sh/uv:0.9.5 AS uv
+
 FROM python:3.12-slim-bookworm
 
 WORKDIR /app
@@ -6,7 +8,7 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV PATH="/app/.venv/bin:$PATH"
 
-COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /bin/uv
+COPY --from=uv /uv /bin/uv
 COPY pyproject.toml uv.lock /app/
 
 RUN --mount=type=cache,target=/root/.cache/uv \

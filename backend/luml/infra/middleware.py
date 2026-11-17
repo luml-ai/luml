@@ -81,7 +81,7 @@ class CookieCSRFMiddleware(BaseHTTPMiddleware):
         # refresh and logout use cookies even when an authorization header is present
         uses_cookie_auth = uses_session_cookie and (
             not request.headers.get("Authorization")
-            or request.url.path in {"/v1/auth/refresh", "/v1/auth/logout"}
+            or request.scope["path"] in {"/v1/auth/refresh", "/v1/auth/logout"}
         )
         if request.method not in {"GET", "HEAD", "OPTIONS"} and uses_cookie_auth:
             origin = request.headers.get("Origin")

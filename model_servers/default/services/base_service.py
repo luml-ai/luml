@@ -100,8 +100,11 @@ class UvicornBaseService:
                 send: Callable[[dict[str, Any]], Awaitable[None]],  # noqa: ANN401
             ) -> None:
                 try:
-                    body = await service._read_body(receive)
-                    request_data = json.loads(body) if body else {}
+                    try:
+                        body = await service._read_body(receive)
+                        request_data = json.loads(body) if body else {}
+                    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                        raise HTTPException(400, "Invalid JSON request body") from error
 
                     headers = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
 
@@ -195,7 +198,7 @@ class UvicornBaseService:
         data: dict[str, Any],
         status: int = 200,  # noqa: ANN401
     ) -> None:
-        body = json.dumps(data).encode()
+        body = json.dumps(data, allow_nan=False).encode()
         await send(
             {
                 "type": "http.response.start",

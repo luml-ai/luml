@@ -7,6 +7,8 @@ satellite:
   existingSecretKey: satellite-token
   # required for initial installs, GitOps and offline rendering; reuse the same key.
   derivationKey: ""
+  # change this non-secret value to roll the satellite after rotating satellite.existingSecret.
+  credentialsRevision: ""
   platformUrl: https://api.luml.ai
   host: satellite.example.com
   baseUrl: ""
@@ -25,6 +27,14 @@ model:
     repository: ghcr.io/luml-ai/luml-model-server
     tag: dev
     pullPolicy: IfNotPresent
+  artifactFetch:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
 
 sidecar:
   image:

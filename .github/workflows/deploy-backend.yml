@@ -1,5 +1,8 @@
 name: Deploy Backend
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, staging, production]
@@ -43,8 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-env.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.14"
       # Environments whose DigitalOcean app runs migrations as a PRE_DEPLOY job set
@@ -54,15 +57,15 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install --upgrade uv
-          uv sync
+          uv sync --locked
       - name: Run migrations
         if: vars.MIGRATIONS_IN_APP_PLATFORM != 'true'
         working-directory: backend
         env:
           POSTGRESQL_DSN: ${{ secrets.POSTGRESQL_DSN }}
         run: |
-          uv run alembic upgrade head
-          uv run alembic current
+          uv run --locked alembic upgrade head
+          uv run --locked alembic current
 
   deploy:
     needs: [resolve-env, migrate, tests]
@@ -71,7 +74,7 @@ jobs:
       name: ${{ needs.resolve-env.outputs.environment }}
       url: ${{ vars.BACKEND_URL }}
     steps:
-      - uses: digitalocean/action-doctl@v2
+      - uses: digitalocean/action-doctl@3cb3953159719656269e044e0e24ca16dd2a690f # v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       - name: Trigger deployment

@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import os
@@ -6,6 +7,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from types import FrameType
@@ -27,6 +29,7 @@ from tests.flow.fakes import (
     local_server,
     write_stub_lumlflow,
 )
+from tests.platforms import posix_only, windows_only
 
 SDK_ROOT = Path(__file__).resolve().parents[2]
 
@@ -88,12 +91,18 @@ def stub_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     record = tmp_path / "lumlflow-starts.jsonl"
     stub_directory = tmp_path / "bin"
     write_stub_lumlflow(stub_directory)
-    monkeypatch.setenv("PATH", str(stub_directory))
+    if sys.platform == "win32":
+        system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+        system32 = os.path.join(system_root, "system32")
+        new_path = os.pathsep.join([str(stub_directory), system32, system_root])
+        monkeypatch.setenv("PATH", new_path)
+    else:
+        monkeypatch.setenv("PATH", str(stub_directory))
     monkeypatch.setenv("STUB_LUMLFLOW_RECORD", str(record))
     yield record
     for start in _stub_starts(record):
         if _alive(start["pid"]):
-            os.kill(start["pid"], signal.SIGKILL)
+            os.kill(start["pid"], getattr(signal, "SIGKILL", signal.SIGTERM))
 
 
 @pytest.fixture
@@ -110,6 +119,20 @@ def _stub_starts(record: Path) -> list[dict]:
 
 
 def _alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x0400, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            return exit_code.value == 259
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -259,6 +282,28 @@ def test_port_in_use_fails_before_anything_is_created(
     assert _stub_starts(stub_record) == []
 
 
+@pytest.mark.usefixtures("clients", "serving")
+def test_connection_timeout_on_a_free_port_starts_lumlflow(
+    port: int, stub_record: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    get = httpx.get
+    probed: list[str] = []
+
+    def timing_out_once(url: str, **options) -> httpx.Response:
+        probed.append(url)
+        if len(probed) == 1:
+            raise httpx.ConnectTimeout("timed out")
+        return get(url, **options)
+
+    monkeypatch.setattr(httpx, "get", timing_out_once)
+
+    with RelayedFlow("training", port=port):
+        assert _answers(port)
+
+    assert len(_stub_starts(stub_record)) == 1
+    assert not _answers(port)
+
+
 @pytest.mark.usefixtures("serving", "no_lumlflow")
 def test_missing_lumlflow_says_to_install_it(clients: FakeClients, port: int) -> None:
     with pytest.raises(RelayedFlowError, match="install lumlflow"):
@@ -403,6 +448,50 @@ def test_no_interruption_handler_is_installed(port: int) -> None:
         assert signal.getsignal(signal.SIGINT) == before
 
 
+PROCESS_TREE_SCRIPT = """
+import subprocess, sys
+
+server = (
+    "import sys;"
+    "from http.server import BaseHTTPRequestHandler, HTTPServer;"
+    "address = ('127.0.0.1', int(sys.argv[1]));"
+    "HTTPServer(address, BaseHTTPRequestHandler).serve_forever()"
+)
+child = subprocess.Popen([sys.executable, "-c", server, sys.argv[1]])
+print(child.pid, flush=True)
+child.wait()
+"""
+
+
+@windows_only
+def test_free_port_is_not_taken_for_a_server_that_is_not_flow(port: int) -> None:
+    assert flow_module._lumlflow_answers(port) is False
+
+
+@windows_only
+def test_stopping_lumlflow_stops_the_processes_it_started(port: int) -> None:
+    with subprocess.Popen(
+        [sys.executable, "-c", PROCESS_TREE_SCRIPT, str(port)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        assert process.stdout is not None
+        child = int(process.stdout.readline())
+        try:
+            deadline = time.monotonic() + 30
+            while not _answers(port):
+                assert time.monotonic() < deadline
+                time.sleep(0.1)
+
+            flow_module._stop_process(process)
+
+            assert not _answers(port)
+        finally:
+            process.kill()
+            with contextlib.suppress(OSError):
+                os.kill(child, signal.SIGTERM)
+
+
 EXITING_SCRIPT = """
 import os, signal, sys, time
 
@@ -431,7 +520,10 @@ raise RuntimeError("training failed")
 
 @pytest.mark.parametrize(
     ("ending", "returncode"),
-    [("terminate", -signal.SIGTERM), ("error", 1)],
+    [
+        pytest.param("terminate", -signal.SIGTERM, marks=posix_only),
+        ("error", 1),
+    ],
 )
 def test_process_end_ends_only_its_own_session_once_and_stops_lumlflow(
     ending: str, returncode: int, port: int, stub_record: Path, tmp_path: Path

@@ -37,6 +37,9 @@ class FakeEnvManager:
     def __init__(self, env_config: dict) -> None:
         self.env_config = env_config
 
+    def _env_exists(self, name: str) -> None:
+        return None
+
     def ensure(self) -> str:
         raise RuntimeError("Command failed: pip install -r requirements.txt")
 
@@ -235,3 +238,65 @@ class TestModelEnvSetup:
         assert removed == [
             ["/usr/local/bin/micromamba", "env", "remove", "-n", "fnnx-deadbeef", "-y"]
         ]
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_only_completed_environments_are_reused(tmp_path, complete: bool) -> None:  # noqa: ANN001
+    prefix = tmp_path / "fnnx-test"
+    prefix.mkdir()
+    if complete:
+        (prefix / ".luml-complete").touch()
+    events = []
+
+    class EnvManager:
+        env_id = "test"
+
+        def __init__(self, config: dict) -> None:
+            self._env_path: str | None = None
+
+        def _env_exists(self, name: str) -> str | None:
+            return str(prefix) if prefix.exists() else None
+
+        def ensure(self) -> None:
+            events.append("reuse" if prefix.exists() else "build")
+            prefix.mkdir(exist_ok=True)
+            self._env_path = str(prefix)
+
+    def discard(manager: object, name: str) -> None:
+        import shutil
+
+        events.append("discard")
+        shutil.rmtree(prefix)
+
+    handler = ModelHandler.__new__(ModelHandler)
+    with (
+        patch.object(handler, "_get_env", return_value={"python3::conda_pip": {}}),
+        patch.object(handler, "_worker_dependencies", return_value=[]),
+        patch.object(handler, "_discard_env", side_effect=discard),
+        patch.object(model_handler_module, "CondaLikeEnvManager", EnvManager),
+        patch.object(model_handler_module, "install_micromamba"),
+    ):
+        result = handler._create_model_env()
+    assert events == (["reuse"] if complete else ["discard", "build"])
+    assert (prefix / ".luml-complete").is_file()
+    assert result["path"] == str(prefix)
+
+
+def test_unremovable_incomplete_environment_is_not_reused(tmp_path) -> None:  # noqa: ANN001
+    from unittest.mock import Mock
+
+    prefix = tmp_path / "fnnx-test"
+    prefix.mkdir()
+    manager = Mock(env_id="test")
+    manager._env_exists.return_value = str(prefix)
+    handler = ModelHandler.__new__(ModelHandler)
+    with (
+        patch.object(handler, "_get_env", return_value={"python3::conda_pip": {}}),
+        patch.object(handler, "_worker_dependencies", return_value=[]),
+        patch.object(handler, "_discard_env"),
+        patch.object(model_handler_module, "CondaLikeEnvManager", return_value=manager),
+        patch.object(model_handler_module, "install_micromamba"),
+        pytest.raises(RuntimeError, match="Could not remove incomplete"),
+    ):
+        handler._create_model_env()
+    manager.ensure.assert_not_called()

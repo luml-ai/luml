@@ -14,7 +14,7 @@ _tracker_provider: "TrackerProvider | None" = None
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore")
     BACKEND_STORE_URI: str = Field(
         default=_DEFAULT_STORE_PATH,
         validation_alias=AliasChoices("LUML_BACKEND_STORE_URI", "BACKEND_STORE_URI"),
@@ -33,7 +33,6 @@ class Settings(BaseSettings):
         path = Path(path_str).expanduser().resolve()
         if path.suffix == ".db":
             path = path.parent
-        path.parent.mkdir(parents=True, exist_ok=True)
         return str(path)
 
 

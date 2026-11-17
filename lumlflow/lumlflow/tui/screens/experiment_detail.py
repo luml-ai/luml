@@ -32,6 +32,7 @@ All data fetching runs on Textual worker threads via the
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
@@ -46,7 +47,6 @@ from textual.widgets import DataTable, Static, Tree
 from lumlflow.schemas.experiments import (
     ExperimentDetails,
     ExperimentStatus,
-    MetricSummary,
 )
 from lumlflow.schemas.models import Model, UpdateModel
 from lumlflow.tui.data import DataFacade, Result
@@ -483,6 +483,7 @@ class ExperimentDetailScreen(BaseScreen):
         self._metric_keys: list[str] = []
         self._metric_series: dict[str, MetricSeries] = {}
         self._pending_metric_budgets: dict[str, int] = {}
+        self._metric_loading = False
         self._zoomed_metric: str | None = None
 
     # ----- composition -----
@@ -778,38 +779,36 @@ class ExperimentDetailScreen(BaseScreen):
             grid.focus_first_cell()
 
     def _request_metric_series(self, key: str, *, max_points: int) -> None:
-        """Queue a chart's series; one worker serves the whole batch."""
+        """Queue a chart's series; one worker at a time serves the queue."""
 
         cached = self._metric_series.get(key)
         if cached is not None:
             self._show_metric_series(cached)
-        if not self._pending_metric_budgets:
-            self.call_after_refresh(self._flush_metric_requests)
         self._pending_metric_budgets[key] = max_points
+        if not self._metric_loading:
+            self._metric_loading = True
+            self.call_after_refresh(self._drain_metric_requests)
 
-    def _flush_metric_requests(self) -> None:
-        budgets = self._pending_metric_budgets
-        self._pending_metric_budgets = {}
-        if not budgets:
-            return
-        shown = {
-            key: series.fingerprint
-            for key, series in self._metric_series.items()
-            if key in budgets
-        }
-        self._fetch_metric_series(budgets, shown)
-
-    @work(thread=True, group="experiment-metric")
-    def _fetch_metric_series(
-        self,
-        budgets: dict[str, int],
-        shown: dict[str, tuple[MetricSummary | None, int]],
-    ) -> None:
-        facade = self.facade
-        if facade is None:
-            return
-        result = load_changed_series(facade, self._experiment_id, budgets, shown)
-        post_from_worker(self, self._on_metric_result, result)
+    @work(group="experiment-metric")
+    async def _drain_metric_requests(self) -> None:
+        try:
+            while self._pending_metric_budgets:
+                budgets = self._pending_metric_budgets
+                self._pending_metric_budgets = {}
+                facade = self.facade
+                if facade is None:
+                    continue
+                shown = {
+                    key: series.fingerprint
+                    for key, series in self._metric_series.items()
+                    if key in budgets
+                }
+                result = await asyncio.to_thread(
+                    load_changed_series, facade, self._experiment_id, budgets, shown
+                )
+                self._on_metric_result(result)
+        finally:
+            self._metric_loading = False
 
     def _on_metric_result(self, result: Result[list[MetricSeries]]) -> None:
         if not result.ok:

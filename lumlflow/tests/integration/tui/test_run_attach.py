@@ -865,3 +865,35 @@ class TestMultipleNewExperiments:
             # Let the child exit before teardown closes the loop, or its
             # subprocess transport is collected on a closed loop.
             await _wait_until(lambda: run_screen._exited, pilot=pilot, timeout=10.0)
+
+
+async def test_attach_detection_runs_off_event_loop(facade, monkeypatch):
+    import threading
+    from types import SimpleNamespace
+
+    app = LumlflowApp(facade=facade)
+    screen = RunAttachScreen(
+        facade=facade,
+        spec=RunSpec(script="/dev/null"),
+        store_uri=_store_uri_for(facade.tracker),
+        auto_navigate=False,
+    )
+    monkeypatch.setattr(RunAttachScreen, "on_mount", lambda self: None)
+    threads = []
+
+    def detect(**kwargs):
+        threads.append(threading.get_ident())
+        return ["new-experiment"]
+
+    screen._run = SimpleNamespace(
+        detect_new_experiments=detect,
+        state=SimpleNamespace(exit_code=0),
+        is_running=False,
+    )
+    async with app.run_test() as pilot:
+        app.push_screen(screen)
+        await pilot.pause()
+        screen._tick_attach()
+        await _wait_until(lambda: screen._attached_id is not None, pilot=pilot)
+        assert screen._attached_id == "new-experiment"
+        assert threads and all(t != threading.get_ident() for t in threads)

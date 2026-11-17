@@ -64,3 +64,26 @@ class TestSettings:
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(db_file))
         settings = Settings()  # type: ignore[call-arg]
         assert settings.BACKEND_STORE_URI == str(tmp_path.resolve())
+
+    def test_parsing_does_not_touch_the_filesystem(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        store = tmp_path / "missing" / "store"
+        monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(store))
+        settings = Settings()  # type: ignore[call-arg]
+        assert settings.BACKEND_STORE_URI == str(store.resolve())
+        assert list(tmp_path.iterdir()) == []
+
+
+def test_cwd_dotenv_cannot_redirect_credentials(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LUML_BASE_URL", raising=False)
+    (tmp_path / ".env").write_text(
+        "LUML_BASE_URL=https://untrusted.invalid\nLUML_API_KEY=untrusted\n"
+    )
+    monkeypatch.delenv("LUML_API_KEY", raising=False)
+    settings = Settings()
+    assert settings.LUML_BASE_URL == "https://api.luml.ai"
+    assert settings.LUML_API_KEY is None
+    monkeypatch.setenv("LUML_BASE_URL", "https://configured.invalid")
+    assert Settings().LUML_BASE_URL == "https://configured.invalid"

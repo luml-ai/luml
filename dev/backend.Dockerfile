@@ -1,3 +1,5 @@
+FROM ghcr.io/astral-sh/uv:0.9.5 AS uv
+
 FROM python:3.14-slim-bookworm
 
 WORKDIR /app
@@ -8,7 +10,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
-COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /bin/uv
+COPY --from=uv /uv /bin/uv
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \

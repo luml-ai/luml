@@ -1,5 +1,8 @@
 name: Deploy Frontend
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, staging, production]
@@ -8,6 +11,7 @@ on:
       - "extras/js/**"
       - "package.json"
       - "package-lock.json"
+      - "satellite/implementations/kubernetes/tests/snapshots/settings_fields.json"
   workflow_dispatch:
 
 concurrency:
@@ -17,12 +21,6 @@ concurrency:
 jobs:
   tests:
     uses: "./.github/workflows/[frontend] tests-and-linters.yml"
-
-  flow-tests:
-    uses: "./.github/workflows/[lumlflow] tests-and-linters.yml"
-
-  flow-frontend-tests:
-    uses: "./.github/workflows/[lumlflow-frontend] tests-and-linters.yml"
 
   extras-tests:
     uses: "./.github/workflows/[extras-js] tests-and-linters.yml"
@@ -51,13 +49,13 @@ jobs:
           esac
 
   deploy:
-    needs: [resolve-env, tests, flow-tests, flow-frontend-tests, extras-tests]
+    needs: [resolve-env, tests, extras-tests]
     runs-on: ubuntu-latest
     environment:
       name: ${{ needs.resolve-env.outputs.environment }}
       url: ${{ vars.FRONTEND_URL }}
     steps:
-      - uses: digitalocean/action-doctl@v2
+      - uses: digitalocean/action-doctl@3cb3953159719656269e044e0e24ca16dd2a690f # v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       - name: Trigger deployment

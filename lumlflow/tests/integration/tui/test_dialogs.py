@@ -33,7 +33,7 @@ class _Harness(App[None]):
 
 
 @pytest.mark.parametrize("destructive", [False, True])
-async def test_confirm_dialog_enter_returns_true(destructive: bool) -> None:
+async def test_confirm_dialog_enter_uses_safe_default(destructive: bool) -> None:
     app = _Harness()
     async with app.run_test() as pilot:
         result: dict = {}
@@ -49,7 +49,7 @@ async def test_confirm_dialog_enter_returns_true(destructive: bool) -> None:
         assert isinstance(app.screen, ConfirmDialog)
         await pilot.press("enter")
         await pilot.pause()
-        assert result.get("v") is True
+        assert result.get("v") is (not destructive)
 
 
 async def test_confirm_dialog_escape_returns_false() -> None:
@@ -80,7 +80,7 @@ async def test_destructive_confirm_shows_cancel_first_in_layout() -> None:
             )
         )
         await pilot.pause()
-        # Confirm key text mentions [Esc] Cancel earlier than [Enter] Delete.
+        # cancel is displayed before the explicit destructive shortcut.
         # We use the children of the button container.
         from textual.containers import Horizontal
 
@@ -236,3 +236,19 @@ async def test_run_quit_dialog_buttons_are_clickable(
         await pilot.pause()
         assert not isinstance(app.screen, RunQuitDialog)
         assert result == {"v": expected}
+
+
+async def test_destructive_confirm_requires_explicit_shortcut():
+    app = _Harness()
+    async with app.run_test() as pilot:
+        result = {}
+        app.push(
+            ConfirmDialog(title="Delete?", message="Permanent", destructive=True),
+            callback=lambda v: result.update(v=v),
+        )
+        await pilot.pause()
+        label = app.screen.query_one("#dialog-confirm-key", Static)
+        assert "Ctrl+Y" in str(label.render())
+        await pilot.press("ctrl+y")
+        await pilot.pause()
+        assert result.get("v") is True

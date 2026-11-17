@@ -1,0 +1,124 @@
+suite: credential metadata and permissions
+templates:
+  - templates/rbac.yaml
+  - templates/deployment-satellite.yaml
+  - templates/deployment-worker.yaml
+  - templates/deployment-dashboard.yaml
+release:
+  name: secure
+  namespace: models
+  revision: 7
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: grants only used secret operations
+    template: templates/rbac.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "create", "patch", "delete"]
+
+  - it: keys the credentials checksum with the derivation key instead of plain fingerprints
+    template: templates/deployment-satellite.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+      - notExists:
+          path: spec.template.metadata.annotations["luml.ai/credentials-revision"]
+
+  - it: keeps credential consumers running on upgrades with unchanged credentials
+    release:
+      revision: 8
+      upgrade: true
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-satellite.yaml
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-worker.yaml
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-dashboard.yaml
+
+  - it: rolls credential consumers when the token changes
+    set:
+      satellite.token: rotated-token
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-satellite.yaml
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-worker.yaml
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-dashboard.yaml
+
+  - it: rolls credential consumers when the derivation key changes
+    set:
+      satellite.derivationKey: rotated-derivation-key
+    asserts:
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-satellite.yaml
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-worker.yaml
+      - notEqual:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
+        template: templates/deployment-dashboard.yaml
+
+  - it: keeps an operator-managed token checksum stable without a credentials revision
+    set:
+      satellite.existingSecret: operator-token
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: e850f343113428ae7990d53a00ac9af2653afa85617fbcc122f9b0328952e677
+        template: templates/deployment-satellite.yaml
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: e850f343113428ae7990d53a00ac9af2653afa85617fbcc122f9b0328952e677
+        template: templates/deployment-worker.yaml
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: e850f343113428ae7990d53a00ac9af2653afa85617fbcc122f9b0328952e677
+        template: templates/deployment-dashboard.yaml
+
+  - it: rolls credential consumers of an operator-managed token on a credentials revision change
+    set:
+      satellite.existingSecret: operator-token
+      satellite.credentialsRevision: rotation-1
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: a00f5fec36827480a6b15089be15f6e5b4dee6a35e9a579569b0864f4c334a8d
+        template: templates/deployment-satellite.yaml
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: a00f5fec36827480a6b15089be15f6e5b4dee6a35e9a579569b0864f4c334a8d
+        template: templates/deployment-worker.yaml
+      - equal:
+          path: spec.template.metadata.annotations["checksum/credentials"]
+          value: a00f5fec36827480a6b15089be15f6e5b4dee6a35e9a579569b0864f4c334a8d
+        template: templates/deployment-dashboard.yaml
