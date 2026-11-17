@@ -159,14 +159,26 @@ jobs:
             specs+=(":(glob)$path")
           done <<< "$PATHS"
 
-          SOURCE=$(git log --first-parent -n 1 --format=%H "${{ github.sha }}" -- "${specs[@]}")
-          if [[ -z "$SOURCE" ]]; then
-            echo "::error::No commit reachable from ${{ github.sha }} touches the inputs of $IMAGE" >&2
+          TARGET="${{ github.sha }}"
+          LAST_CHANGE=$(git log -n 1 --format=%H "$TARGET" -- "${specs[@]}")
+          if [[ -z "$LAST_CHANGE" ]]; then
+            echo "::error::No commit reachable from $TARGET touches the inputs of $IMAGE" >&2
             exit 1
           fi
 
-          if ! docker manifest inspect "$IMAGE:$SOURCE" > /dev/null; then
-            echo "::error::$IMAGE:$SOURCE is not in the registry: its build on main did not succeed. Re-run $BUILT_BY on main at $SOURCE, then promote again." >&2
+          SOURCE=""
+          CHECKED=0
+          while read -r candidate; do
+            git diff --quiet "$candidate" "$TARGET" -- "${specs[@]}" || continue
+            CHECKED=$((CHECKED + 1))
+            if docker manifest inspect "$IMAGE:$candidate" > /dev/null 2>&1; then
+              SOURCE=$candidate
+              break
+            fi
+          done < <(git rev-list --topo-order --max-count=500 "$TARGET")
+
+          if [[ -z "$SOURCE" ]]; then
+            echo "::error::No build of $IMAGE in the registry has the inputs of $TARGET ($CHECKED commits with the same inputs checked): the build on main did not succeed. Re-run $BUILT_BY on main at $LAST_CHANGE, then promote again." >&2
             exit 1
           fi
 

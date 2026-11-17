@@ -387,7 +387,8 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertNotIn("build-push-action", json.dumps(promote["steps"]))
         self.assertIn("docker manifest inspect", steps_text)
         self.assertIn("docker buildx imagetools create", steps_text)
-        self.assertIn("--first-parent", steps_text)
+        self.assertIn("git rev-list", steps_text)
+        self.assertNotIn("--first-parent", steps_text)
         checkouts = [
             step
             for step in promote["steps"]
@@ -442,11 +443,12 @@ class ReleaseGateTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(values, {"image_tag": expected})
 
-    def test_promotion_finds_the_last_commit_that_touched_the_image_inputs(self):
+    def test_promotion_retags_a_published_build_with_the_same_inputs(self):
         promote = load(PROMOTION)["jobs"]["promote"]
         script = named_step(promote, "Find the build of this revision")["run"]
         with tempfile.TemporaryDirectory() as directory:
-            repo = Path(directory) / "repo"
+            root = Path(directory)
+            repo = root / "repo"
             repo.mkdir()
             git(repo, "init", "-q", "-b", "main")
 
@@ -458,58 +460,79 @@ class ReleaseGateTests(unittest.TestCase):
                 git(repo, "commit", "-q", "-m", message)
                 return git(repo, "rev-parse", "HEAD")
 
-            commit("relay/luml_relay/app.py", "relay 1")
-            built = commit("sdk/python/api/client.py", "api change")
-            head = commit("backend/app.py", "unrelated")
-
-            bin_dir = Path(directory) / "bin"
+            bin_dir = root / "bin"
             bin_dir.mkdir()
-            inspected = Path(directory) / "inspected"
+            inspected = root / "inspected"
+            published = root / "published"
             docker = bin_dir / "docker"
             docker.write_text(
                 "#!/bin/bash\n"
-                f'echo "$*" >> "{inspected}"\n'
-                '[[ "$3" == "$EXISTING_IMAGE" ]]\n'
+                f'echo "$3" >> "{inspected}"\n'
+                f'grep -qxF "$3" "{published}"\n'
             )
             docker.chmod(0o755)
+            image = "ghcr.io/example/luml-relay"
             env = {
                 "PATH": f"{bin_dir}:{os.environ['PATH']}",
-                "IMAGE": "ghcr.io/example/luml-relay",
+                "IMAGE": image,
                 "PATHS": "relay/**\nsdk/python/api/**\n",
                 "BUILT_BY": "publish-relay-image.yml",
                 "IMAGE_TAG": "staging",
             }
-            rendered = script.replace("${{ github.sha }}", head)
 
-            result, values = run_step(
-                rendered,
-                {**env, "EXISTING_IMAGE": f"ghcr.io/example/luml-relay:{built}"},
-                cwd=repo,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(values, {"image": env["IMAGE"], "source": built})
-            self.assertEqual(
-                inspected.read_text().strip(),
-                f"manifest inspect ghcr.io/example/luml-relay:{built}",
-            )
+            def promote_at(target, builds, paths=None):
+                published.write_text("".join(f"{image}:{sha}\n" for sha in builds))
+                inspected.unlink(missing_ok=True)
+                rendered = script.replace("${{ github.sha }}", target)
+                step_env = {**env, "PATHS": paths} if paths else env
+                result, values = run_step(rendered, step_env, cwd=repo)
+                checked = inspected.read_text().split() if inspected.exists() else []
+                return result, values, checked
 
-            inspected.unlink()
-            result, values = run_step(
-                rendered, {**env, "EXISTING_IMAGE": "none"}, cwd=repo
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(values, {})
-            self.assertIn("not in the registry", result.stderr)
+            first = commit("relay/luml_relay/app.py", "relay 1")
+            changed = commit("sdk/python/api/client.py", "api change")
+            unrelated = commit("backend/app.py", "unrelated")
 
-            inspected.unlink()
-            result, values = run_step(
-                rendered,
-                {**env, "PATHS": "model_servers/**\n", "EXISTING_IMAGE": "none"},
-                cwd=repo,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(values, {})
-            self.assertFalse(inspected.exists())
+            with self.subTest(case="each commit pushed on its own"):
+                result, values, checked = promote_at(unrelated, [first, changed])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(values, {"image": image, "source": changed})
+                self.assertEqual(
+                    checked, [f"{image}:{unrelated}", f"{image}:{changed}"]
+                )
+
+            with self.subTest(case="batched push publishes only its tip"):
+                result, values, checked = promote_at(unrelated, [first, unrelated])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(values, {"image": image, "source": unrelated})
+                self.assertEqual(checked, [f"{image}:{unrelated}"])
+
+            with self.subTest(case="a build of other inputs is never reused"):
+                result, values, checked = promote_at(unrelated, [first])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(values, {})
+                self.assertIn("has the inputs of", result.stderr)
+                self.assertIn(changed, result.stderr)
+                self.assertNotIn(f"{image}:{first}", checked)
+
+            with self.subTest(case="nothing reachable touches the inputs"):
+                result, values, checked = promote_at(
+                    unrelated, [first, changed], paths="model_servers/**\n"
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(values, {})
+                self.assertEqual(checked, [])
+
+            git(repo, "checkout", "-q", "-b", "staging", first)
+            commit("staging-notes.md", "staging only")
+            git(repo, "merge", "-q", "--no-ff", "-m", "promote main", "main")
+            merge = git(repo, "rev-parse", "HEAD")
+
+            with self.subTest(case="main merged into a promotion branch"):
+                result, values, checked = promote_at(merge, [first, changed])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(values, {"image": image, "source": changed})
+                self.assertEqual(checked[0], f"{image}:{merge}")
 
     def test_flow_frontend_gate_builds_the_bundle(self):
         workflow = load("[lumlflow-frontend] tests-and-linters.yml")
