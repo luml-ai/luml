@@ -12,7 +12,7 @@ test('Jupyter Lite keeps notebook navigation and stored instances', async ({ pag
     .filter({ has: page.getByText('Jupyter Lite', { exact: true }) })
   await expect(card).toBeVisible()
   await card.getByRole('button', { name: 'Next', exact: true }).click()
-  await expect(page).toHaveURL('/notebooks')
+  await expect(page).toHaveURL('/express-tasks/notebooks')
   await expect(page.getByRole('heading', { name: 'Jupyter Lite', exact: true })).toBeVisible()
   await expect(
     page.getByText('You don’t have any notebook instances yet.', { exact: false }),
