@@ -116,6 +116,18 @@ class PRLabelerTests(unittest.TestCase):
             {"sdk-api", "SDK"},
         )
 
+    def test_labels_follow_the_current_diff_after_every_push(self):
+        workflow = load("[repo] pr-labeler.yml")
+        self.assertIn("synchronize", workflow["on"]["pull_request_target"]["types"])
+        labelers = [
+            step
+            for job in workflow["jobs"].values()
+            for step in job["steps"]
+            if step.get("uses", "").startswith("actions/labeler@")
+        ]
+        self.assertEqual(len(labelers), 1)
+        self.assertEqual(labelers[0]["with"]["sync-labels"], "true")
+
     def test_workflow_never_runs_pull_request_code(self):
         workflow = load("[repo] pr-labeler.yml")
         self.assertIn("pull_request_target", workflow["on"])
