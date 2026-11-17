@@ -3,6 +3,8 @@
 run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 """
 
+import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -63,6 +65,29 @@ class WorkflowSecurityTests(unittest.TestCase):
             self.assertIn(
                 update["schedule"]["interval"], {"daily", "weekly", "monthly"}
             )
+
+    def test_dependabot_updates_every_directory_with_a_dockerfile(self):
+        config = yaml.load(
+            (ROOT / ".github/dependabot.yml").read_text(), Loader=yaml.BaseLoader
+        )
+        covered = {
+            directory
+            for update in config["updates"]
+            if update["package-ecosystem"] == "docker"
+            for directory in update.get("directories", [update.get("directory")])
+        }
+        tracked = subprocess.run(
+            ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
+        ).stdout.splitlines()
+        dockerfiles = [
+            Path(name)
+            for name in tracked
+            if re.search("dockerfile|containerfile", Path(name).name, re.IGNORECASE)
+        ]
+        self.assertTrue(dockerfiles)
+        for dockerfile in dockerfiles:
+            with self.subTest(dockerfile=str(dockerfile)):
+                self.assertIn(f"/{dockerfile.parent.as_posix()}", covered)
 
     def test_migrations_keep_dependencies_locked_and_dsn_scoped(self):
         workflow = yaml.load(

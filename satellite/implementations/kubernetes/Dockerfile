@@ -1,3 +1,5 @@
+FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
+
 FROM python:3.14-slim-bookworm
 
 WORKDIR /app/satellite
@@ -6,7 +8,7 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV PATH="/app/satellite/implementations/kubernetes/.venv/bin:$PATH"
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.8 /uv /bin/uv
+COPY --from=uv /uv /bin/uv
 
 COPY kit /app/satellite/kit
 COPY implementations/kubernetes /app/satellite/implementations/kubernetes

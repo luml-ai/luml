@@ -53,7 +53,7 @@ def test_package_reaches_the_platform_only_through_the_kit_client() -> None:
 def test_image_runs_as_a_non_root_group_zero_user() -> None:
     dockerfile = (PACKAGE_ROOT / "Dockerfile").read_text()
 
-    assert dockerfile.startswith("FROM python:3.14-")
+    assert "\nFROM python:3.14-" in dockerfile
     assert "chgrp -R 0 /app" in dockerfile
     assert "chmod -R g=u /app" in dockerfile
     assert "USER 10001:0" in dockerfile

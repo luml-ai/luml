@@ -4,3 +4,24 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  - package-ecosystem: docker
+    directories:
+      - /backend
+      - /dev
+      - /model_servers/default
+      - /relay
+      - /satellite/implementations/docker
+      - /satellite/implementations/kubernetes
+      - /satellite/kit
+      - /wasm/jupyter
+    schedule:
+      interval: weekly
+    groups:
+      docker-images:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
