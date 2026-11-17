@@ -283,7 +283,9 @@ class MetricCatalog:
 
     `skipped_rows` counts the rows of revisions 0-2 that the catalog and the buckets
     leave out: a key that is not text or a NULL, text or BLOB step. Rows with a
-    fractional REAL step are left out too but not counted.
+    fractional REAL step are left out too but not counted here: the bucket reads
+    count them, except for a text key without any integer step, whose REAL-step
+    rows are counted here as it is not listed.
     """
 
     revision: int
@@ -309,10 +311,16 @@ class MetricBucket:
 
 @dataclass
 class MetricBuckets:
-    """`first_step` and `last_step` span the whole metric; None for an unknown key."""
+    """`first_step` and `last_step` span the whole metric; None for an unknown key.
+
+    `skipped_rows` counts the rows of revisions 0-2 with a fractional REAL step in the
+    requested step range, unbounded on a side given as None, which the buckets leave
+    out. The catalog's `skipped_rows` does not include them.
+    """
 
     key: str
     level: int
     first_step: int | None
     last_step: int | None
     buckets: list[MetricBucket] = field(default_factory=list)
+    skipped_rows: int = 0

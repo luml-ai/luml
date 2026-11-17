@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ExperimentSnapshotApiProvider } from '../ExperimentSnapshotApiProvider'
+import { MetricBucketStore } from '@/metric-buckets/MetricBucketStore'
 import type {
   ApiServiceInterface,
   MetricBucketsWire,
@@ -26,11 +27,15 @@ const lossWire: MetricBucketsWire['series'][number] = {
     [1, 256, 256, 1, 0, null, null, null],
     [2, 512, 513, 2, 0, 1e308, 1.7e308, null],
   ],
+  skipped_rows: 2,
 }
 
 const bucketsWire: MetricBucketsWire = {
   level: 4,
-  series: [lossWire, { key: 'gone/x', first_step: null, last_step: null, buckets: [] }],
+  series: [
+    lossWire,
+    { key: 'gone/x', first_step: null, last_step: null, buckets: [], skipped_rows: 0 },
+  ],
 }
 
 async function provider(service: Partial<ApiServiceInterface>, ids = ['e1', 'e2']) {
@@ -163,8 +168,9 @@ describe('ExperimentSnapshotApiProvider metric catalog and buckets', () => {
                   sum: null,
                 },
               ],
+              skipped_rows: 2,
             },
-            { key: 'gone/x', first_step: null, last_step: null, buckets: [] },
+            { key: 'gone/x', first_step: null, last_step: null, buckets: [], skipped_rows: 0 },
           ],
         },
       },
@@ -257,5 +263,37 @@ describe('ExperimentSnapshotApiProvider metric catalog and buckets', () => {
     await expect(
       instance.getMetricBuckets({ keys: ['loss'], level: 0 }, controller.signal),
     ).rejects.toThrow('Aborted')
+  })
+
+  it('flags in the store only the experiment whose answer left out fractional steps', async () => {
+    const legacyCatalog: MetricCatalogWire = {
+      ...catalogWire,
+      revision: 2,
+      bucket_min_level: null,
+      bucket_max_level: null,
+      skipped_rows: 0,
+      metrics: [{ key: 'loss', first_step: 0, last_step: 99, count: null, min: null, max: null }],
+    }
+    const getExperimentMetricBuckets = vi.fn(async (id: string) => ({
+      level: 0,
+      series: [{ ...lossWire, buckets: [], skipped_rows: id === 'e2' ? 1 : 0 }],
+    }))
+    const instance = await provider({
+      getExperimentMetricCatalog: vi.fn().mockResolvedValue(legacyCatalog),
+      getExperimentMetricBuckets,
+    })
+    const store = new MetricBucketStore(instance, { debounceMs: 0 })
+    await new Promise<void>((done) => {
+      const chart = store.subscribe((state) => {
+        if (state.plan && !state.loading) done()
+      })
+      chart.request({ modelIds: ['e1', 'e2'], keys: ['loss'], bucketBudget: 100 })
+    })
+    const { statuses } = await store.loadCatalogs()
+    store.dispose()
+    expect(statuses.map((status) => [status.modelId, status.fractionalMetricSteps])).toEqual([
+      ['e1', undefined],
+      ['e2', true],
+    ])
   })
 })

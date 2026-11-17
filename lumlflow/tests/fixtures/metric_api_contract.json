@@ -125,7 +125,8 @@
                 "Infinity",
                 null
               ]
-            ]
+            ],
+            "skipped_rows": 0
           },
           {
             "key": "ünïcode/métric",
@@ -152,13 +153,15 @@
                 1.5,
                 1.5
               ]
-            ]
+            ],
+            "skipped_rows": 0
           },
           {
             "key": "missing",
             "first_step": null,
             "last_step": null,
-            "buckets": []
+            "buckets": [],
+            "skipped_rows": 0
           }
         ]
       }
@@ -217,7 +220,48 @@
                 0.72,
                 10.32
               ]
-            ]
+            ],
+            "skipped_rows": 0
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "buckets of a revision 2 store",
+    "experiment": "legacy",
+    "method": "POST",
+    "endpoint": "metric-buckets",
+    "request": {
+      "keys": [
+        "train/loss"
+      ],
+      "start_step": null,
+      "end_step": null,
+      "level": 6
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "level": 6,
+        "series": [
+          {
+            "key": "train/loss",
+            "first_step": 0,
+            "last_step": 149,
+            "buckets": [
+              [
+                0,
+                0,
+                149,
+                150,
+                150,
+                0.51,
+                2.0,
+                188.25
+              ]
+            ],
+            "skipped_rows": 1
           }
         ]
       }

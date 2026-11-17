@@ -94,6 +94,8 @@ class FakeSource implements MetricBucketSource {
   /** Answer revision 2 catalogs, which have no count, min or max. */
   legacy = false
   metricKeys = KEYS
+  /** `${modelId}/${key}` whose bucket answers report one fractional step left out. */
+  fractionalSteps = new Set<string>()
   private readonly lengths = new Map<string, number>()
 
   constructor(
@@ -189,6 +191,7 @@ class FakeSource implements MetricBucketSource {
             first_step: 0,
             last_step: total - 1,
             buckets: denseBuckets(level, start_step ?? 0, end_step ?? total - 1, total),
+            skipped_rows: this.fractionalSteps.has(`${modelId}/${key}`) ? 1 : 0,
           }
         }),
       },
@@ -840,6 +843,42 @@ describe('MetricBucketStore', () => {
         ['b', true],
       ])
     })
+  })
+
+  it('flags only the experiment whose bucket answer left out fractional steps, for good', async () => {
+    const { source, store, chart } = setup(['a', 'b'])
+    source.fractionalSteps.add('b/acc')
+    const changed = vi.fn()
+    store.onStatusesChanged(changed)
+    const flags = async () =>
+      (await store.loadCatalogs()).statuses.map((status) => [
+        status.modelId,
+        status.fractionalMetricSteps,
+      ])
+    chart.request({ ...REQUEST, modelIds: ['a', 'b'], keys: ['loss'] })
+    await vi.advanceTimersByTimeAsync(DEBOUNCE)
+    expect(await flags()).toEqual([
+      ['a', undefined],
+      ['b', undefined],
+    ])
+
+    chart.request({ ...REQUEST, modelIds: ['a', 'b'], keys: KEYS })
+    await vi.advanceTimersByTimeAsync(DEBOUNCE)
+    expect(await flags()).toEqual([
+      ['a', undefined],
+      ['b', true],
+    ])
+    expect(changed).toHaveBeenCalledTimes(1)
+
+    source.fractionalSteps.clear()
+    await store.refreshCatalogs(['a', 'b'])
+    chart.request({ ...REQUEST, modelIds: ['a', 'b'], keys: KEYS, startStep: 10 })
+    await vi.advanceTimersByTimeAsync(DEBOUNCE)
+    expect(await flags()).toEqual([
+      ['a', undefined],
+      ['b', true],
+    ])
+    expect(changed).toHaveBeenCalledTimes(1)
   })
 
   it('does not degrade the plan of a local experiment for its row cost', async () => {

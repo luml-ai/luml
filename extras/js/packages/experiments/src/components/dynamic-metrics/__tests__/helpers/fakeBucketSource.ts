@@ -109,6 +109,8 @@ export class FakeBucketSource implements MetricBucketSource {
   bucketErrors = new Set<string>()
   statuses: Partial<Record<string, Partial<ExperimentSnapshotStatus>>> = {}
   skippedRows: Record<string, number> = {}
+  /** Fractional steps each series of an experiment's bucket answers reports left out. */
+  fractionalSteps: Record<string, number> = {}
   /** Experiments read as revision 2: catalogs without count, min and max. */
   legacy = new Set<string>()
   private gates: Gate[] = []
@@ -206,6 +208,7 @@ export class FakeBucketSource implements MetricBucketSource {
                 request.start_step ?? Number.MIN_SAFE_INTEGER,
                 request.end_step ?? Number.MAX_SAFE_INTEGER,
               ),
+              skipped_rows: this.fractionalSteps[modelId] ?? 0,
             }
           }),
         }

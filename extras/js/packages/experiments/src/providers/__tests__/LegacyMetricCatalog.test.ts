@@ -4,8 +4,8 @@ import { resolve } from 'node:path'
 import sqlite3InitModule, { type Sqlite3Static } from '@sqlite.org/sqlite-wasm'
 import { ExperimentSnapshotDatabaseProvider } from '../ExperimentSnapshotDatabaseProvider'
 import type { ExperimentMetricCatalog, MetricCatalogEntry } from '@/metric-buckets/types'
-import { rawBuffer, zipped } from './helpers/metricDatabases'
-import { FIXTURES_DIR } from './helpers/snapshotSources'
+import { rawBuffer, revision2Database, zipped, type MetricPoint } from './helpers/metricDatabases'
+import { FIXTURES_DIR, memoryTransport } from './helpers/snapshotSources'
 
 /*
  * The vectors the SDK tests read too (test_metric_legacy_catalog.py), so both readers return
@@ -149,5 +149,36 @@ describe('legacy metric catalog without a full (key, step) index', () => {
       })),
     )
     expect(catalog.skipped_rows).toBe(vector.skipped_rows)
+  })
+})
+
+describe('legacy metric catalog read by range', () => {
+  it('counts the steps of a key without an integer one, never reading a long key', async () => {
+    const long: MetricPoint[] = Array.from({ length: 60_000 }, (_, step) => ({
+      key: 'long',
+      step,
+      value: step,
+    }))
+    const db = await revision2Database(
+      long,
+      `INSERT INTO dynamic_metrics (key, value, step)
+       SELECT 'long', 1.0, step + 0.5 FROM dynamic_metrics WHERE key = 'long';
+       INSERT INTO dynamic_metrics (key, value, step) VALUES ('frac', 1.0, 0.25), ('frac', 1.0, 0.75);`,
+    )
+    const url = 'https://bucket.test/exp.db'
+    const { transport, requests } = memoryTransport({ [url]: db })
+    const provider = new ExperimentSnapshotDatabaseProvider({ transport })
+    await provider.init({
+      modelsInfo: [
+        { modelId: 'legacy', source: { kind: 'range', url, offset: 0, size: db.length } },
+      ],
+    })
+    const opened = requests.length
+    const [result] = await provider.getMetricCatalogs()
+    if (!result?.ok) throw new Error(JSON.stringify(result))
+    expect(result.value.metrics.map((entry) => entry.key)).toEqual(['long'])
+    expect(result.value.skipped_rows).toBe(2)
+    const bytes = requests.slice(opened).reduce((sum, request) => sum + request.length, 0)
+    expect(bytes, `${bytes} of ${db.length}`).toBeLessThan(db.length / 10)
   })
 })

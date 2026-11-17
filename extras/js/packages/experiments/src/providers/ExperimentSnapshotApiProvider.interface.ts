@@ -249,5 +249,6 @@ export interface MetricBucketsWire {
     first_step: number | null
     last_step: number | null
     buckets: MetricBucketWire[]
+    skipped_rows: number
   }[]
 }

@@ -110,7 +110,8 @@ export function installHarness(worker: Worker): void {
       },
       /**
        * One chart's settled state through the real store: the plan's level and the series it
-       * drew, and how many provider bucket calls it made at which levels.
+       * drew, how many provider bucket calls it made at which levels, and the store's statuses
+       * afterwards (bucket answers can add to them).
        */
       async chartState(request: {
         modelIds: string[]
@@ -134,26 +135,30 @@ export function installHarness(worker: Worker): void {
         })
         const store = new MetricBucketStore(counting, { debounceMs: 0, requestTimeoutMs: 20_000 })
         try {
-          return await settle(
-            new Promise((resolve, reject) => {
-              const timer = setTimeout(() => reject(new Error('chart did not settle')), 20_000)
-              const chart = store.subscribe((state) => {
-                if (!state.plan || state.loading) return
-                clearTimeout(timer)
-                resolve({
-                  level: state.plan.level,
-                  fetchLevels: [...levels],
-                  errors: state.errors,
-                  series: state.series.map(({ modelId, key, level, final, buckets }) => ({
-                    modelId,
-                    key,
-                    level,
-                    final,
-                    buckets,
-                  })),
-                })
+          const drawn = new Promise<Record<string, unknown>>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('chart did not settle')), 20_000)
+            const chart = store.subscribe((state) => {
+              if (!state.plan || state.loading) return
+              clearTimeout(timer)
+              resolve({
+                level: state.plan.level,
+                fetchLevels: [...levels],
+                errors: state.errors,
+                series: state.series.map(({ modelId, key, level, final, buckets }) => ({
+                  modelId,
+                  key,
+                  level,
+                  final,
+                  buckets,
+                })),
               })
-              chart.request(request)
+            })
+            chart.request(request)
+          })
+          return await settle(
+            drawn.then(async (state) => {
+              const { statuses } = await store.loadCatalogs()
+              return { ...state, statuses }
             }),
           )
         } finally {

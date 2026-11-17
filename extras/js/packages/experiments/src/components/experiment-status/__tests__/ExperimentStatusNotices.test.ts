@@ -59,7 +59,7 @@ describe('ExperimentStatusNotices', () => {
     expect(notices.map((notice) => notice.text())).toEqual([
       'Run A: The experiment could not be read. Its data is not shown.',
       'Run B: The request timed out. Its data is not shown.',
-      'An experiment: 2 metric points were skipped because their steps are not integers.',
+      'An experiment: Some metric points are not shown because their steps are not integers.',
     ])
     expect(notices.map((notice) => notice.attributes('data-code'))).toEqual([
       'read-failed',
@@ -96,19 +96,27 @@ describe('ExperimentStatusNotices', () => {
     ])
   })
 
-  it('counts skipped metric points', () => {
-    expect(noticesFor([status('a', { skippedMetricRows: 1200 })])).toEqual([
-      'Run A: 1,200 metric points were skipped because their steps are not integers.',
+  it('says skipped metric points are not shown, without a count', () => {
+    const expected = [
+      'Run A: Some metric points are not shown because their steps are not integers.',
+    ]
+    expect(noticesFor([status('a', { skippedMetricRows: 1200 })])).toEqual(expected)
+    expect(noticesFor([status('a', { skippedMetricRows: 1 })])).toEqual(expected)
+  })
+
+  it('says so too when only a bucket answer left out fractional steps', () => {
+    const wrapper = mountNotices([status('a', { fractionalMetricSteps: true }), status('b')])
+    const notices = wrapper.findAll('[data-testid="experiment-status-notice"]')
+    expect(notices.map((notice) => notice.text())).toEqual([
+      'Run A: Some metric points are not shown because their steps are not integers.',
     ])
-    expect(noticesFor([status('a', { skippedMetricRows: 1 })])).toEqual([
-      'Run A: 1 metric point was skipped because its step is not an integer.',
-    ])
+    expect(notices[0]?.attributes('data-code')).toBe('skipped-rows')
   })
 
   it('joins several conditions of one experiment into one line', () => {
     const notices = noticesFor([status('a', { unknownNewerRevision: true, skippedMetricRows: 3 })])
     expect(notices).toHaveLength(1)
     expect(notices[0]).toContain('newer version')
-    expect(notices[0]).toContain('3 metric points were skipped')
+    expect(notices[0]).toContain('not integers')
   })
 })

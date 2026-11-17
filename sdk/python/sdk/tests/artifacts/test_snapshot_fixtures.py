@@ -224,6 +224,25 @@ def test_both_generations_of_the_same_data_read_the_same(tmp_path: Path) -> None
         new.close()
 
 
+def test_the_fallback_fixture_counts_its_fractional_step_in_the_buckets(
+    tmp_path: Path,
+) -> None:
+    backend = _backend_on(
+        _extracted("n_gen1_fallback", tmp_path / "n" / "exp.db"), tmp_path / "store"
+    )
+    try:
+        keys = [m.key for m in backend.get_metric_catalog(EXP_ID).metrics]
+        for level in _expected("n_gen1_fallback")["metrics"]["levels"]:
+            skipped = {
+                key: backend.get_metric_buckets(EXP_ID, key, level).skipped_rows
+                for key in keys
+            }
+            assert skipped == {key: int(key == "loss") for key in keys}, level
+        assert backend.get_metric_buckets(EXP_ID, "loss", 0, 3, 250).skipped_rows == 0
+    finally:
+        backend.close()
+
+
 def _extracted(name: str, dest: Path) -> Path:
     dest.parent.mkdir(parents=True)
     extract_snapshot_db(FIXTURES_DIR / f"{name}.tar", dest)

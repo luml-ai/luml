@@ -194,16 +194,25 @@ function localModelIdsOf(statuses: ExperimentSnapshotStatus[]): Set<string> {
   )
 }
 
-/** Sets `unsafeMetricSteps` from the catalogs, whichever provider read them. */
-function markUnsafeSteps(
+/**
+ * Sets `unsafeMetricSteps` from the catalogs and `fractionalMetricSteps` from the bucket
+ * answers, whichever provider read them.
+ */
+function markStatuses(
   statuses: ExperimentSnapshotStatus[],
   catalogs: Map<string, ExperimentMetricCatalog>,
+  fractionalStepModels: ReadonlySet<string>,
 ): ExperimentSnapshotStatus[] {
-  return statuses.map((status) =>
-    catalogs.get(status.modelId)?.metrics.some(hasUnsafeSteps)
-      ? { ...status, unsafeMetricSteps: true }
-      : status,
-  )
+  return statuses.map((status) => {
+    const unsafe = catalogs.get(status.modelId)?.metrics.some(hasUnsafeSteps) ?? false
+    const fractional = fractionalStepModels.has(status.modelId)
+    if (!unsafe && !fractional) return status
+    return {
+      ...status,
+      ...(unsafe && { unsafeMetricSteps: true }),
+      ...(fractional && { fractionalMetricSteps: true }),
+    }
+  })
 }
 
 /**
@@ -384,6 +393,8 @@ export class MetricBucketStore {
   // Refreshes run one after another, so each starts from the catalogs the previous one left
   // and a slow earlier refresh never overwrites a later one.
   private refreshQueue: Promise<unknown> = Promise.resolve()
+  private readonly fractionalStepModels = new Set<string>()
+  private readonly statusListeners = new Set<() => void>()
 
   constructor(
     private readonly source: MetricBucketSource,
@@ -430,7 +441,7 @@ export class MetricBucketStore {
       if (result.ok) loaded.catalogs.set(result.modelId, result.value)
       else loaded.errors.set(result.modelId, result.error)
     }
-    loaded.statuses = markUnsafeSteps(loaded.statuses, loaded.catalogs)
+    loaded.statuses = markStatuses(loaded.statuses, loaded.catalogs, this.fractionalStepModels)
     return loaded
   }
 
@@ -492,6 +503,28 @@ export class MetricBucketStore {
     return bounded(start, this.lifetime.signal, this.requestTimeoutMs)
   }
 
+  /**
+   * Calls `listener` when the statuses `loadCatalogs()` returns change without a refresh: a
+   * bucket answer reported fractional steps for the first time. Returns the unsubscribe.
+   */
+  onStatusesChanged(listener: () => void): () => void {
+    this.statusListeners.add(listener)
+    return () => this.statusListeners.delete(listener)
+  }
+
+  /** The flag stays for the store's lifetime, as the count depends on the range read. */
+  private noteFractionalSteps(modelId: string): void {
+    if (this.fractionalStepModels.has(modelId)) return
+    this.fractionalStepModels.add(modelId)
+    const loaded = this.catalogsPromise
+    if (!loaded) return
+    this.catalogsPromise = loaded.then((catalogs) => ({
+      ...catalogs,
+      statuses: markStatuses(catalogs.statuses, catalogs.catalogs, this.fractionalStepModels),
+    }))
+    for (const listener of this.statusListeners) listener()
+  }
+
   subscribe(listener: ChartListener, options: SubscribeOptions = {}): ChartSubscription {
     const subscription = new StoreSubscription(this, listener, options.series ?? [])
     if (this.disposed) subscription.close()
@@ -512,6 +545,7 @@ export class MetricBucketStore {
     this.batchTimer = null
     this.pendingJobs.clear()
     this.inFlight.clear()
+    this.statusListeners.clear()
     this.catalogsPromise = null
     if (this.ownsCache) this.cache.clear()
   }
@@ -582,7 +616,7 @@ export class MetricBucketStore {
       for (const [key, fromStep] of keys) this.dropMetric(result.modelId, key, fromStep)
       if (keys.size) changed.set(result.modelId, keys)
     }
-    next.statuses = markUnsafeSteps(next.statuses, next.catalogs)
+    next.statuses = markStatuses(next.statuses, next.catalogs, this.fractionalStepModels)
     this.catalogsPromise = Promise.resolve(next)
     const changedKeys = new Map(
       [...changed].map(([modelId, keys]) => [modelId, new Set(keys.keys())]),
@@ -840,6 +874,9 @@ export class MetricBucketStore {
     }
     const uncached = new Set<string>()
     if (result.ok && !this.disposed) {
+      if (result.value.series.some((series) => series.skipped_rows > 0)) {
+        this.noteFractionalSteps(modelId)
+      }
       for (const series of result.value.series) {
         if (versions.get(series.key) !== this.versionOf(modelId, series.key)) continue
         const kept = this.cache.write(

@@ -141,6 +141,69 @@ def test_legacy_catalog_without_a_full_key_step_index_is_exact(
     assert catalog.skipped_rows == vector["skipped_rows"]
 
 
+UNLISTED_KEY_ROWS: list[list[Any]] = [
+    ["frac", 1.0, 0.5],
+    ["frac", 2.0, 1.5],
+    ["frac", 3.0, -2.5],
+    ["frac", 1.0, None],
+    ["frac", 1.0, "s"],
+    ["loss", 1.0, 0],
+    ["loss", 2.0, 3],
+    ["mixed", 1.0, 1],
+    ["mixed", 1.0, 1.5],
+    ["mixed", 1.0, "s"],
+]
+
+
+def _without_key_step_index(path: Path) -> Path:
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        """
+        DROP TABLE dynamic_metrics;
+        CREATE TABLE dynamic_metrics (
+            key TEXT, value REAL, step INTEGER,
+            logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+    )
+    conn.close()
+    return path
+
+
+# Indexed: 3 REAL steps of "frac", its NULL and text step, the text step of "mixed".
+# The scan catalog already counted every non-integer step, so also "mixed" 1.5.
+@pytest.mark.parametrize(("indexed", "skipped"), [(True, 6), (False, 7)])
+def test_legacy_catalog_counts_the_real_steps_of_a_key_it_cannot_list(
+    tmp_path: Path, indexed: bool, skipped: int
+) -> None:
+    path = build_revision2_db(tmp_path / "exp.db")
+    if not indexed:
+        _without_key_step_index(path)
+    _insert(path, UNLISTED_KEY_ROWS)
+
+    catalog = _catalog(path)
+
+    assert [(m.key, m.first_step, m.last_step) for m in catalog.metrics] == [
+        ("loss", 0, 3),
+        ("mixed", 1, 1),
+    ]
+    assert catalog.skipped_rows == skipped
+
+
+def test_revision_3_catalog_skips_no_rows(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    db_path = make_revision2_store(store, "exp")
+    _insert(db_path, [row for row in UNLISTED_KEY_ROWS if isinstance(row[2], int)])
+    backend = SQLiteBackend(str(store), flush_interval=0)
+    backend.log_dynamic("exp", "loss", 0.5, step=4)
+    catalog = backend.get_metric_catalog("exp")
+    backend.close()
+
+    assert catalog.revision == 3
+    assert [m.key for m in catalog.metrics] == ["loss", "mixed"]
+    assert catalog.skipped_rows == 0
+
+
 def _wide_revision2_db(path: Path, keys: int, steps: int) -> Path:
     build_revision2_db(path)
     conn = sqlite3.connect(path)

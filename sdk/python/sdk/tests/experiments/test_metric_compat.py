@@ -502,6 +502,74 @@ def test_revision_2_bucket_span_ignores_real_steps_at_both_ends(
     backend.close()
 
 
+FRACTIONAL_ROWS = [
+    ("loss", 7.0, -2.5, None),
+    ("loss", 8.0, 1.5, None),
+    ("loss", 9.0, 7.5, None),
+]
+
+
+@pytest.mark.parametrize("level", [0, 1, 5])
+@pytest.mark.parametrize(
+    ("key", "start_step", "end_step", "skipped"),
+    [
+        ("loss", None, None, 3),
+        ("loss", 0, 3, 1),
+        ("loss", -5, 0, 1),
+        ("loss", None, 1, 1),
+        ("loss", None, 2, 2),
+        ("loss", 2, None, 1),
+        ("loss", 2, 3, 0),
+        ("acc", None, None, 0),
+        ("acc", -3, 10, 0),
+    ],
+)
+def test_revision_2_buckets_count_fractional_steps_and_keep_the_aggregates(
+    tmp_path: Path,
+    level: int,
+    key: str,
+    start_step: int | None,
+    end_step: int | None,
+    skipped: int,
+) -> None:
+    baseline = SQLiteBackend(str(_revision2_store(tmp_path / "baseline")[0]))
+    fractional = SQLiteBackend(
+        str(_revision2_store_with(tmp_path / "fractional", FRACTIONAL_ROWS))
+    )
+
+    expected = baseline.get_metric_buckets(
+        EXPERIMENT_ID, key, level, start_step, end_step
+    )
+    result = fractional.get_metric_buckets(
+        EXPERIMENT_ID, key, level, start_step, end_step
+    )
+
+    assert result.skipped_rows == skipped
+    assert result.buckets == expected.buckets
+    assert (result.first_step, result.last_step) == (
+        expected.first_step,
+        expected.last_step,
+    )
+    assert expected.skipped_rows == 0
+    baseline.close()
+    fractional.close()
+
+
+@pytest.mark.parametrize("level", [0, 5, 20])
+def test_revision_3_buckets_never_skip_rows(tmp_path: Path, level: int) -> None:
+    store = tmp_path / "store"
+    make_store(store, EXPERIMENT_ID)
+    backend = SQLiteBackend(str(store), flush_interval=0)
+    for step in range(10):
+        backend.log_dynamic(EXPERIMENT_ID, "loss", float(step), step=step)
+
+    result = backend.get_metric_buckets(EXPERIMENT_ID, "loss", level)
+
+    assert result.buckets
+    assert result.skipped_rows == 0
+    backend.close()
+
+
 def test_numpy_steps_are_skipped_by_revision_2_reads_and_decoded_on_write(
     tmp_path: Path,
 ) -> None:

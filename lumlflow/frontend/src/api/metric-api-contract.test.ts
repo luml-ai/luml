@@ -120,9 +120,14 @@ describe('metric catalog and bucket transport against the pinned server answers'
       expect(sentBodies).toEqual([request])
       expect(result?.ok).toBe(true)
       const series = result?.ok ? result.value.series : []
-      const wire = (pinned.response.body as { series: { buckets: unknown[][] }[] }).series
+      const wire = (
+        pinned.response.body as { series: { buckets: unknown[][]; skipped_rows: number }[] }
+      ).series
       expect(series.map((entry) => entry.buckets.length)).toEqual(
         wire.map((entry) => entry.buckets.length),
+      )
+      expect(series.map((entry) => entry.skipped_rows)).toEqual(
+        wire.map((entry) => entry.skipped_rows),
       )
       for (const entry of series) {
         for (const bucket of entry.buckets) {
@@ -154,7 +159,49 @@ describe('metric catalog and bucket transport against the pinned server answers'
       max: Infinity,
       sum: null,
     })
-    expect(series[2]).toEqual({ key: 'missing', first_step: null, last_step: null, buckets: [] })
+    expect(series[2]).toEqual({
+      key: 'missing',
+      first_step: null,
+      last_step: null,
+      buckets: [],
+      skipped_rows: 0,
+    })
+  })
+
+  it('carries the fractional steps a revision 2 store left out of its buckets', async () => {
+    const pinned = contractCase('buckets of a revision 2 store')
+    const [result] = await (
+      await provider(['legacy'])
+    ).getMetricBuckets({ keys: ['train/loss'], level: 6 })
+
+    expect(sentBodies).toEqual([pinned.request])
+    expect(result).toEqual({
+      modelId: 'legacy',
+      ok: true,
+      value: {
+        level: 6,
+        series: [
+          {
+            key: 'train/loss',
+            first_step: 0,
+            last_step: 149,
+            buckets: [
+              {
+                bucket: 0,
+                first_step: 0,
+                last_step: 149,
+                count: 150,
+                finite_count: 150,
+                min: 0.51,
+                max: 2.0,
+                sum: 188.25,
+              },
+            ],
+            skipped_rows: 1,
+          },
+        ],
+      },
+    })
   })
 
   it('maps the server error codes to the typed errors', async () => {

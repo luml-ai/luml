@@ -61,7 +61,33 @@ describe('ExperimentSnapshot status notices', () => {
     )
     const notices = wrapper.findAll('[data-testid="experiment-status-notice"]')
     expect(notices.map((notice) => notice.text())).toEqual([
-      'Run B: 4 metric points were skipped because their steps are not integers.',
+      'Run B: Some metric points are not shown because their steps are not integers.',
+    ])
+    wrapper.unmount()
+  })
+
+  it('shows the notice once a chart read left out fractional steps', async () => {
+    setActivePinia(createPinia())
+    const source = new FakeBucketSource({ a: { loss: points(0, 9) }, b: { loss: points(0, 9) } })
+    source.fractionalSteps.a = 1
+    const wrapper = mountSnapshot(snapshotProvider(source), ['a', 'b'])
+    await settle()
+    const notices = () =>
+      wrapper.findAll('[data-testid="experiment-status-notice"]').map((notice) => notice.text())
+    expect(notices()).toEqual([])
+
+    vi.useFakeTimers()
+    try {
+      const chart = useEvalsStore().metricBucketStore!.subscribe(() => {})
+      chart.request({ modelIds: ['a', 'b'], keys: ['loss'], bucketBudget: 100 })
+      await vi.advanceTimersByTimeAsync(100)
+    } finally {
+      vi.useRealTimers()
+    }
+    await settle()
+
+    expect(notices()).toEqual([
+      'Run A: Some metric points are not shown because their steps are not integers.',
     ])
     wrapper.unmount()
   })

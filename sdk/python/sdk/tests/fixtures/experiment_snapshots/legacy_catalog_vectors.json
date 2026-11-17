@@ -1,5 +1,5 @@
 {
-  "description": "Metric catalog of revision 0-2 dynamic_metrics tables, read by the SDK and the viewer. Rows are [key, value, step] inserted in order; {\"blob\": hex} is a BLOB. The indexed catalog has null count, min and max; skipped_rows counts non-text keys and NULL, text or BLOB steps, not fractional REAL steps. The no_index case drops the (key, step) index and expects the exact scan catalog.",
+  "description": "Metric catalog of revision 0-2 dynamic_metrics tables, read by the SDK and the viewer. Rows are [key, value, step] inserted in order; {\"blob\": hex} is a BLOB. The indexed catalog has null count, min and max; skipped_rows counts non-text keys and NULL, text or BLOB steps, not fractional REAL steps except those of a text key without any integer step. The no_index case drops the (key, step) index and expects the exact scan catalog.",
   "cases": [
     {
       "name": "mixed",
@@ -45,7 +45,7 @@
         ["loss", -3, 5],
         ["neg", -10, -1]
       ],
-      "skipped_rows": 9
+      "skipped_rows": 11
     },
     {
       "name": "empty",
@@ -60,7 +60,7 @@
         ["frac", 1.0, 0.25]
       ],
       "metrics": [],
-      "skipped_rows": 1
+      "skipped_rows": 2
     }
   ],
   "no_index": {

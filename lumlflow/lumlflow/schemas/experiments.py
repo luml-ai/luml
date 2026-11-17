@@ -157,6 +157,7 @@ class MetricBucketSeries(BaseModel):
     first_step: int | None
     last_step: int | None
     buckets: list[MetricBucket]
+    skipped_rows: int
 
 
 class MetricBuckets(BaseModel):

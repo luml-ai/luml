@@ -15,6 +15,7 @@ from lumlflow.schemas.experiments import (
 )
 
 from tests.helpers.metrics import (
+    LEGACY_INSERT,
     Point,
     log_points,
     require_newer_reader,
@@ -141,6 +142,7 @@ def test_buckets_have_the_contract_shape(
                     [0, 0, 5, 2, 2, 1.0, 2.0, 3.0],
                     [1, 16, 16, 1, 1, 0.5, 0.5, 0.5],
                 ],
+                "skipped_rows": 0,
             }
         ],
     }
@@ -201,6 +203,7 @@ def test_a_key_with_slashes_and_unicode_is_served(
                 [1, 1, 1, 1, 1, 0.5, 0.5, 0.5],
                 [2, 2, 2, 1, 1, 0.25, 0.25, 0.25],
             ],
+            "skipped_rows": 0,
         }
     ]
 
@@ -221,8 +224,15 @@ def test_duplicate_keys_are_answered_once_and_missing_keys_are_empty(
             "first_step": 0,
             "last_step": 0,
             "buckets": [[0, 0, 0, 1, 1, 1.0, 1.0, 1.0]],
+            "skipped_rows": 0,
         },
-        {"key": "missing", "first_step": None, "last_step": None, "buckets": []},
+        {
+            "key": "missing",
+            "first_step": None,
+            "last_step": None,
+            "buckets": [],
+            "skipped_rows": 0,
+        },
     ]
 
 
@@ -441,6 +451,36 @@ def test_a_revision_2_experiment_is_served_unmigrated_with_the_same_buckets(
         assert_same_buckets(old["series"][0]["buckets"], new["series"][0]["buckets"])
 
     assert schema_snapshot(old_db) == before
+    tracker.backend.close()
+
+
+def test_a_revision_2_experiment_counts_its_fractional_steps_per_series(
+    store: Path,
+) -> None:
+    experiment_id, db_path = revision2_experiment(
+        store, "m", [(step, 1.0) for step in range(10)]
+    )
+    conn = sqlite3.connect(db_path)
+    conn.executemany(
+        LEGACY_INSERT,
+        [("m", 0.5, 2.5, None), ("m", 0.5, 7.5, None), ("other", 1.0, 0, None)],
+    )
+    conn.commit()
+    conn.close()
+    tracker = ExperimentTracker(f"sqlite://{store}")
+    client = serve(tracker)
+
+    whole = bucket_json(client, experiment_id, keys=["m", "other"], level=1)
+    window = bucket_json(
+        client, experiment_id, keys=["m"], level=0, start_step=0, end_step=5
+    )
+
+    assert [(s["key"], s["skipped_rows"]) for s in whole["series"]] == [
+        ("m", 2),
+        ("other", 0),
+    ]
+    assert sum(bucket[3] for bucket in whole["series"][0]["buckets"]) == 10
+    assert window["series"][0]["skipped_rows"] == 1
     tracker.backend.close()
 
 

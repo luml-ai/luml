@@ -1,6 +1,7 @@
 # flake8: noqa: E501
 """Metric storage of experiment schema revision 3: points, keys and buckets."""
 
+import math
 import sqlite3
 from itertools import groupby
 from typing import Any
@@ -399,19 +400,27 @@ def _legacy_seek_queries(index: str) -> tuple[str, str]:
 def _legacy_catalog(conn: sqlite3.Connection) -> tuple[list[MetricSummary], int]:
     """Revisions 0-2: count, min and max are None, as only the index is read.
 
-    Fractional REAL steps are left out of the steps but not counted as skipped;
-    finding them needs a full scan.
+    Fractional REAL steps of a listed key are left out of the steps but not counted
+    as skipped; finding them needs a full scan.
     """
     index = conn.execute(_LEGACY_KEY_STEP_INDEX).fetchone()
     if index is None:
         return _legacy_scan_catalog(conn)
     catalog_sql, non_text_keys_sql = _legacy_seek_queries(index[0])
+    quoted = index[0].replace('"', '""')
+    # Only asked for a key the first-step seek already walked to its end.
+    unlisted_real_steps_sql = (
+        f'SELECT count(*) FROM dynamic_metrics INDEXED BY "{quoted}" '
+        "WHERE key = ? AND step < ''"
+    )
     skipped_rows: int = conn.execute(non_text_keys_sql).fetchone()[0]
     metrics: list[MetricSummary] = []
-    for key, first_step, last_step, skipped in conn.execute(catalog_sql):
+    for key, first_step, last_step, skipped in conn.execute(catalog_sql).fetchall():
         skipped_rows += skipped
         if first_step is not None:
             metrics.append(MetricSummary(key, first_step, last_step, None, None, None))
+        else:
+            skipped_rows += conn.execute(unlisted_real_steps_sql, (key,)).fetchone()[0]
     return metrics, skipped_rows
 
 
@@ -519,15 +528,25 @@ def _bucket_source_query(schema: ExperimentSchema, level: int) -> tuple[str, str
                 """,
                 "top",
             )
-    source = (
-        "metric_points WHERE metric_id = :metric_id"
-        if schema.has_metric_points
-        else "dynamic_metrics WHERE key = :key AND typeof(step) = 'integer'"
-    )
+    if not schema.has_metric_points:
+        # The fractional REAL steps of the walked range form the NULL group, which
+        # sorts first; only its count is used.
+        return (
+            f"""
+            SELECT CASE WHEN typeof(step) = 'integer' THEN step >> :shift END AS b,
+                   min(step), max(step), {_value_aggregates("value")}
+            FROM dynamic_metrics
+            WHERE key = :key AND step BETWEEN :walk_low AND :walk_high
+              AND (typeof(step) = 'integer' AND step BETWEEN :low AND :high
+                   OR typeof(step) = 'real' AND step BETWEEN :start AND :end)
+            GROUP BY b ORDER BY b LIMIT :limit
+            """,
+            "legacy",
+        )
     return (
         f"""
         SELECT step >> :shift AS b, min(step), max(step), {_value_aggregates("value")}
-        FROM {source} AND step BETWEEN :low AND :high
+        FROM metric_points WHERE metric_id = :metric_id AND step BETWEEN :low AND :high
         GROUP BY b ORDER BY b LIMIT :limit
         """,
         "step",
@@ -568,7 +587,7 @@ def fetch_metric_buckets(
     low = _clamp_step((start >> shift) << shift)
     high = _clamp_step((((end >> shift) + 1) << shift) - 1)
     query, unit = _bucket_source_query(schema, level)
-    params: dict[str, int | str | None] = {
+    params: dict[str, int | float | str | None] = {
         "level": level,
         "metric_id": metric_id,
         "key": key,
@@ -582,9 +601,24 @@ def fetch_metric_buckets(
         params.update(
             low=low >> top_shift, high=high >> top_shift, coarsen=shift - top_shift
         )
+    elif unit == "legacy":
+        # Fractional steps outside the integer span still count on an open side.
+        count_low = -math.inf if start_step is None else start
+        count_high = math.inf if end_step is None else end
+        params.update(
+            low=low,
+            high=high,
+            start=count_low,
+            end=count_high,
+            walk_low=min(low, count_low),
+            walk_high=max(high, count_high),
+            limit=MAX_RETURNED_BUCKETS + 2,
+        )
     else:
         params.update(low=low, high=high)
     rows = conn.execute(query, params).fetchall()
+    if unit == "legacy" and rows and rows[0][0] is None:
+        result.skipped_rows = rows.pop(0)[3]
     if len(rows) > MAX_RETURNED_BUCKETS:
         raise TooManyBucketsError(MAX_RETURNED_BUCKETS)
     result.buckets = [MetricBucket(*row) for row in rows]

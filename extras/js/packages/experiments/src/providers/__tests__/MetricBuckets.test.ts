@@ -125,6 +125,7 @@ describe('metric catalog and buckets on revision 2 and revision 3 databases', ()
             first_step: null,
             last_step: null,
             buckets: [],
+            skipped_rows: 0,
           })
           expect(response.level).toBe(level)
         }
@@ -304,6 +305,85 @@ describe('legacy metric rows that cannot be bucketed', () => {
     ])
     const [series] = await provider.getDynamicMetricData('loss')
     expect(series?.x).toContain(2.5)
+  })
+})
+
+describe('fractional REAL steps of revisions 0-2', () => {
+  const integerPoints: MetricPoint[] = ['frac', 'plain'].flatMap((key) =>
+    Array.from({ length: 6 }, (_, step) => ({ key, step, value: step })),
+  )
+  const FRACTIONAL_ROWS = `
+    INSERT INTO dynamic_metrics (key, value, step) VALUES
+      ('frac', 9.0, -2.5), ('frac', 9.0, 1.5), ('frac', 9.0, 7.5);
+  `
+  const ranges: [number | null, number | null, number][] = [
+    [null, null, 3],
+    [null, 2, 2],
+    [0, null, 2],
+    [0, 5, 1],
+    [2, 5, 0],
+    [1, 2, 1],
+    [-3, 8, 3],
+    [-2, 0, 0],
+  ]
+
+  it('are counted per series in the requested range, the buckets unchanged', async () => {
+    const provider = await providerFor([
+      { modelId: 'rev2', db: await revision2Database(integerPoints, FRACTIONAL_ROWS) },
+      { modelId: 'rev3', db: await revision3Database(integerPoints) },
+    ])
+    for (const level of [0, 1, 2, 31]) {
+      for (const [start, end, fractional] of ranges) {
+        const results = await provider.getMetricBuckets({
+          keys: ['frac', 'plain', 'missing'],
+          start_step: start,
+          end_step: end,
+          level,
+        })
+        const [rev2, rev3] = results.map(valueOf)
+        const label = `level ${level} [${start}, ${end}]`
+        const skipped = (response: MetricBucketsResponse) =>
+          response.series.map((series) => series.skipped_rows)
+        expect(skipped(rev2!), label).toEqual([fractional, 0, 0])
+        expect(skipped(rev3!), label).toEqual([0, 0, 0])
+        for (const key of ['frac', 'plain']) {
+          const expected = oracleBuckets(integerPoints, key, level, start, end)
+          expectSameBuckets(seriesOf(rev2!, key).buckets, expected, `${key} ${label}`)
+        }
+      }
+    }
+    const [inverted] = await provider.getMetricBuckets({
+      modelIds: ['rev2'],
+      keys: ['frac'],
+      start_step: 7,
+      end_step: 1,
+      level: 0,
+    })
+    expect(seriesOf(valueOf(inverted), 'frac').skipped_rows).toBe(0)
+  })
+
+  it('still refuse a series the bucket cap may not hold', async () => {
+    // At level 0 a key's scan stops after 20,001 rows, so fractional steps among them leave
+    // the rest unknown: refused like a series that is too long.
+    const many: MetricPoint[] = Array.from({ length: 20_000 }, (_, step) => ({
+      key: 'dense',
+      step,
+      value: step,
+    }))
+    const provider = await providerFor([
+      {
+        modelId: 'rev2',
+        db: await revision2Database(
+          many,
+          "INSERT INTO dynamic_metrics (key, value, step) VALUES ('dense', 1.0, 0.5);",
+        ),
+      },
+    ])
+    const [refused] = await provider.getMetricBuckets({ keys: ['dense'], level: 0 })
+    expect(refused).toMatchObject({ ok: false, error: { code: TOO_MANY_BUCKETS } })
+    const [fits] = await provider.getMetricBuckets({ keys: ['dense'], level: 0, end_step: 9 })
+    expect(seriesOf(valueOf(fits), 'dense')).toMatchObject({ skipped_rows: 1 })
+    expect(seriesOf(valueOf(fits), 'dense').buckets).toHaveLength(10)
   })
 })
 

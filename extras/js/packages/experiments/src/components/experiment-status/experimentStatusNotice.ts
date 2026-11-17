@@ -9,13 +9,6 @@ export interface ExperimentStatusNotice {
   text: string
 }
 
-function skippedRowsText(count: number): string {
-  const formatted = count.toLocaleString('en-US')
-  return count === 1
-    ? '1 metric point was skipped because its step is not an integer.'
-    : `${formatted} metric points were skipped because their steps are not integers.`
-}
-
 /** One line for an experiment whose data is not shown in full; null when all is well. */
 export function experimentStatusNotice(
   status: ExperimentSnapshotStatus,
@@ -34,8 +27,12 @@ export function experimentStatusNotice(
       'This experiment was written by a newer version. Some data may not be shown.',
     ])
   }
-  if (status.skippedMetricRows !== null && status.skippedMetricRows > 0) {
-    warnings.push(['skipped-rows', skippedRowsText(status.skippedMetricRows)])
+  // No count: the buckets' share depends on the range read so far.
+  if ((status.skippedMetricRows ?? 0) > 0 || status.fractionalMetricSteps) {
+    warnings.push([
+      'skipped-rows',
+      'Some metric points are not shown because their steps are not integers.',
+    ])
   }
   if (status.unsafeMetricSteps) {
     warnings.push(['unsafe-steps', 'Metric steps above 2^53 are not shown.'])

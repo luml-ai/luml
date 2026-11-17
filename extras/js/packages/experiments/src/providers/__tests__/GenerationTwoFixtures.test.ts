@@ -285,6 +285,46 @@ describe('generation 1 fallback n_gen1_fallback', () => {
       expect.objectContaining({ transport: 'zip-full', revision: 2, skippedMetricRows: 0 }),
     ])
   })
+
+  it('counts its fractional step in the buckets of loss only, at every level', async () => {
+    const name = 'n_gen1_fallback'
+    const { provider } = await openProvider([name])
+    const keys = okValue(await provider.getMetricCatalogs(), name).metrics.map((m) => m.key)
+    for (const level of readJson(name).metrics.levels) {
+      const response = okValue(await provider.getMetricBuckets({ keys, level }), name)
+      expect(
+        Object.fromEntries(response.series.map((series) => [series.key, series.skipped_rows])),
+        `L${level}`,
+      ).toEqual(Object.fromEntries(keys.map((key) => [key, key === 'loss' ? 1 : 0])))
+    }
+    const subRange = { keys: ['loss'], start_step: 3, end_step: 250, level: 0 }
+    const [loss] = okValue(await provider.getMetricBuckets(subRange), name).series
+    expect(loss!.skipped_rows).toBe(0)
+  })
+
+  it('turns the skipped-steps notice on in the store once a chart reads loss', async () => {
+    const name = 'n_gen1_fallback'
+    const { provider } = await openProvider([name])
+    const store = new MetricBucketStore(provider, { debounceMs: 0 })
+    const changed = vi.fn()
+    store.onStatusesChanged(changed)
+    const [before] = (await store.loadCatalogs()).statuses
+    expect(before!.fractionalMetricSteps).toBeUndefined()
+    await new Promise<ChartState>((done) => {
+      const chart = store.subscribe((state) => {
+        if (state.plan && !state.loading) done(state)
+      })
+      chart.request({ modelIds: [name], keys: ['loss'], bucketBudget: 300 })
+    })
+    const [after] = (await store.loadCatalogs()).statuses
+    store.dispose()
+    expect(after).toMatchObject({
+      modelId: name,
+      skippedMetricRows: 0,
+      fractionalMetricSteps: true,
+    })
+    expect(changed).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('generation 1 and generation 2 twins l_gen1_twin and m_gen2_twin', () => {

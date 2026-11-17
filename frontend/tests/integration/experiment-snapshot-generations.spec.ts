@@ -101,6 +101,7 @@ interface ChartSnapshot {
   fetchLevels: number[]
   errors: unknown[]
   series: { modelId: string; key: string; level: number; final: boolean; buckets: Bucket[] }[]
+  statuses: { modelId: string; skippedMetricRows: number | null; fractionalMetricSteps?: boolean }[]
 }
 
 type Result<T> =
@@ -125,6 +126,7 @@ const OLD_ERAS = [
   'h_raw_model_sdk_0_5_0',
 ]
 const TWINS = ['l_gen1_twin', 'm_gen2_twin']
+const FALLBACK = 'n_gen1_fallback'
 
 function artifactOf(
   name: string,
@@ -216,7 +218,7 @@ let signs: string[] = []
 
 test.beforeAll(async () => {
   test.setTimeout(180_000)
-  for (const name of [...new Set([...GENERATION_TWO, ...OLD_ERAS, ...TWINS])]) {
+  for (const name of [...new Set([...GENERATION_TWO, ...OLD_ERAS, ...TWINS, FALLBACK])]) {
     artifacts.set(name, readFixture(name))
   }
   const [workerJs, harnessJs, large] = await Promise.all([
@@ -617,6 +619,32 @@ test('a mixed set of every old era and generation 2 opens and charts together', 
     }
   }
   expect(signs.sort()).toEqual([...names].sort())
+})
+
+test('an old experiment whose only odd row is a fractional step is flagged once charted', async ({
+  page,
+}) => {
+  // Written by luml-sdk 0.5.0: loss has one step at 2.5, which its catalog does not count. The
+  // flag turns on the skipped-steps notice (experimentStatusNotice.ts).
+  const other = 'i_gen2_sdk_0_6_0'
+  await open(page, [FALLBACK, other])
+  const catalogs = await call<Result<{ skipped_rows: number }>[]>(page, 'getMetricCatalogs')
+  expect(value(catalogs, FALLBACK).skipped_rows).toBe(0)
+  const drawn = await chart(page, {
+    modelIds: [FALLBACK, other],
+    keys: ['loss'],
+    bucketBudget: CHART_BUDGET,
+  })
+  expect(drawn.errors).toEqual([])
+  expect(drawn.statuses).toEqual([
+    expect.objectContaining({
+      modelId: FALLBACK,
+      skippedMetricRows: 0,
+      fractionalMetricSteps: true,
+    }),
+    expect.not.objectContaining({ fractionalMetricSteps: true }),
+  ])
+  expect(drawn.statuses[1]!.modelId).toBe(other)
 })
 
 test('a zip too large for the browser fails from its directory and the others open', async ({

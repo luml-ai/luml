@@ -313,7 +313,7 @@ for (const storageName of Object.keys(data.storages)) {
       })
     }
 
-    test('an old-format experiment with a text step and a fractional step counts only the text one as skipped', async ({
+    test('an old-format experiment with a text step and a fractional step says points are not shown', async ({
       page,
     }) => {
       test.skip(
@@ -321,7 +321,7 @@ for (const storageName of Object.keys(data.storages)) {
         'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set',
       )
       // Written by luml-sdk 0.5.0: steps 0..39, one at 2.5 and one at 'oops'. This SDK's export
-      // keeps the old format; charts leave both odd rows out and count only the text step.
+      // keeps the old format; charts leave both odd rows out and one notice says so.
       const fallback = artifact('fallback')
       expect(fallback.generation).toBe(1)
       await openSnapshot(page, storage, fallback)
@@ -329,7 +329,9 @@ for (const storageName of Object.keys(data.storages)) {
       expect(line!.x).toEqual(Array.from({ length: 40 }, (_, step) => step))
       const notice = page.getByTestId('experiment-status-notice')
       await expect(notice).toHaveAttribute('data-code', 'skipped-rows')
-      await expect(notice).toHaveText(/\b1 metric point was skipped/)
+      await expect(notice).toHaveText(
+        /Some metric points are not shown because their steps are not integers\./,
+      )
     })
 
     const comparisons: [string, string[], string][] = [

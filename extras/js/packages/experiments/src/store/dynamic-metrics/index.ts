@@ -17,6 +17,7 @@ export const useDynamicMetricsStore = defineStore('dynamicMetrics', () => {
   const filter = ref('')
   const page = ref(0)
   let loadedFrom: MetricBucketStore | null = null
+  let stopWatchingStatuses: (() => void) | null = null
 
   const entries = computed(() => (catalogs.value ? catalogMetricEntries(catalogs.value) : []))
 
@@ -51,11 +52,26 @@ export const useDynamicMetricsStore = defineStore('dynamicMetrics', () => {
 
   const modelIds = computed(() => (catalogs.value ? [...catalogs.value.catalogs.keys()] : []))
 
+  /** Bucket answers can add a notice to the statuses loaded with the catalogs. */
+  function watchStatuses(store: MetricBucketStore | null) {
+    stopWatchingStatuses?.()
+    stopWatchingStatuses =
+      store?.onStatusesChanged(async () => {
+        try {
+          const loaded = await store.loadCatalogs()
+          if (loadedFrom === store) catalogs.value = markRaw(loaded)
+        } catch {
+          // The notice waits for the next load; the charts report their own failures.
+        }
+      }) ?? null
+  }
+
   async function load(store: MetricBucketStore | null) {
     loadedFrom = store
     catalogs.value = null
     page.value = 0
     loading.value = !!store
+    watchStatuses(store)
     if (!store) return
     try {
       const loaded = await store.loadCatalogs()
@@ -90,6 +106,7 @@ export const useDynamicMetricsStore = defineStore('dynamicMetrics', () => {
 
   function reset() {
     loadedFrom = null
+    watchStatuses(null)
     catalogs.value = null
     loading.value = false
     filter.value = ''

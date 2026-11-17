@@ -112,13 +112,14 @@ function mockBuckets(
       series: request.keys.map((key) => {
         const metric = metrics[key]
         if (!metric || metric.modelId !== modelId) {
-          return { key, first_step: null, last_step: null, buckets: [] }
+          return { key, first_step: null, last_step: null, buckets: [], skipped_rows: 0 }
         }
         return {
           key,
           first_step: Math.min(...metric.x),
           last_step: Math.max(...metric.x),
           buckets: aggregateMetric(metric, request),
+          skipped_rows: 0,
         }
       }),
     },

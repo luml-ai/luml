@@ -184,6 +184,7 @@ class ExperimentsHandler:
                         buckets=[
                             MetricBucket(**asdict(bucket)) for bucket in result.buckets
                         ],
+                        skipped_rows=result.skipped_rows,
                     )
                 )
         return MetricBuckets(level=request.level, series=series)

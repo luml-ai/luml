@@ -49,6 +49,8 @@ export interface ExperimentSnapshotStatus {
    * rounded, so only the steps inside that range are drawn.
    */
   unsafeMetricSteps?: boolean
+  /** Set by the metric store: a bucket answer of this session left out fractional steps. */
+  fractionalMetricSteps?: boolean
   error: ExperimentReadError | null
 }
 
@@ -68,7 +70,8 @@ export interface ExperimentMetricCatalog {
   bucket_max_level: number | null
   /**
    * Legacy metric rows left out of catalog and buckets: a non-text key or a NULL, text or BLOB
-   * step. Rows with a fractional REAL step are left out too but not counted.
+   * step. Rows with a fractional REAL step are left out too but counted only for a key without
+   * any integer step; the buckets count the others (`MetricBucketSeries.skipped_rows`).
    */
   skipped_rows: number
   metrics: MetricCatalogEntry[]
@@ -105,6 +108,11 @@ export interface MetricBucketSeries {
   first_step: number | null
   last_step: number | null
   buckets: MetricBucket[]
+  /**
+   * Revisions 0-2: the key's rows with a fractional REAL step in the requested range (without
+   * an end on an open side), left out of the buckets. Not part of the catalog's count.
+   */
+  skipped_rows: number
 }
 
 export interface MetricBucketsResponse {

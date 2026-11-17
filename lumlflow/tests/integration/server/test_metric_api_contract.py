@@ -10,12 +10,14 @@ the same answers through Flow's `apiService` into the provider's decoder. Set
 import json
 import math
 import os
+import sqlite3
 from pathlib import Path
 from typing import Any
 
 from luml.experiments.tracker import ExperimentTracker
 
 from tests.helpers.metrics import (
+    LEGACY_INSERT,
     log_points,
     require_newer_reader,
     revision2_experiment,
@@ -42,9 +44,14 @@ def contract_store(store: Path) -> dict[str, str]:
     setup.end_experiment(future)
     setup.backend.close()
     require_newer_reader(store / future / "exp.db")
-    legacy, _ = revision2_experiment(
+    legacy, legacy_db = revision2_experiment(
         store, "train/loss", [(step, 2.0 - step / 100) for step in range(150)]
     )
+    # Released SDKs stored a fractional step as given; the buckets count it.
+    conn = sqlite3.connect(legacy_db)
+    conn.execute(LEGACY_INSERT, ("train/loss", 1.0, 10.5, None))
+    conn.commit()
+    conn.close()
     return {"main": main, "future": future, "legacy": legacy}
 
 
