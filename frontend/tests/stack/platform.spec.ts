@@ -5,9 +5,10 @@ import {
   type Locator,
   type Page,
   type Request,
+  type Response,
 } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { PRESIGNED_URL_MIN_RENEW_AGE_MS } from '../../src/lib/bucket-service/presigned-url-cache'
 import { SLOW_LINK, ThrottleProxy, VERY_SLOW_LINK, type ProxyConfig } from './proxy'
@@ -47,6 +48,8 @@ interface PublishedArtifact {
   bucket_location: string
   /** Object bytes [first, last] of the 1 MiB span attribute value (traces_new only). */
   payload_region: [number, number] | null
+  /** The same for the 100 KiB value. */
+  medium_region: [number, number] | null
 }
 
 interface StorageData {
@@ -115,17 +118,29 @@ const MAX_FRACTION_PER_VIEW = 0.05
 class NetworkLog {
   storage: StorageRequest[] = []
   urlIssues: string[] = []
+  /** Storage reads sent and not finished yet; each resolves once its entry is complete. */
+  private readonly pending = new Set<Promise<void>>()
 
   constructor(
     context: BrowserContext,
     private readonly artifacts: Record<string, PublishedArtifact>,
   ) {
     const entries = new Map<Request, StorageRequest>()
-    context.on('response', async (response) => {
+    const finishers = new Map<Request, () => void>()
+    const logging = new Map<Request, Promise<void>>()
+    context.on('request', (request) => {
+      if (!isStorageRead(request)) return
+      const finished = new Promise<void>((resolve) => finishers.set(request, resolve))
+      // 'response' comes before 'requestfinished' and 'requestfailed', so its entry is known.
+      const settled = finished.then(() => logging.get(request))
+      this.pending.add(settled)
+      void settled.then(() => this.pending.delete(settled))
+    })
+    const finish = (request: Request) => finishers.get(request)?.()
+    context.on('requestfinished', finish)
+    context.on('requestfailed', finish)
+    const record = async (response: Response) => {
       const url = new URL(response.url())
-      const issued = DOWNLOAD_URL.exec(url.pathname)
-      if (issued && response.request().method() === 'GET') this.urlIssues.push(issued[1]!)
-      if (!STORAGE_PORTS.includes(url.port) || response.request().method() !== 'GET') return
       const artifact = Object.values(this.artifacts).find((item) =>
         decodeURIComponent(url.pathname).endsWith(`/${item.bucket_location}`),
       )
@@ -144,6 +159,11 @@ class NetworkLog {
       entry.range = match ? [Number(match[1]), Number(match[2])] : null
       entry.bytes = Number.isFinite(length) ? length : 0
       this.storage.push(entry)
+    }
+    context.on('response', (response) => {
+      const issued = DOWNLOAD_URL.exec(new URL(response.url()).pathname)
+      if (issued && response.request().method() === 'GET') this.urlIssues.push(issued[1]!)
+      if (isStorageRead(response.request())) logging.set(response.request(), record(response))
     })
     // A read the viewer cancels once it has what it needs fails instead; it has no end time.
     context.on('requestfinished', (request) => {
@@ -163,6 +183,15 @@ class NetworkLog {
   issuesOf(artifact: PublishedArtifact): number {
     return this.urlIssues.filter((id) => id === artifact.id).length
   }
+
+  /** Resolves once no storage read is in flight, every one finished or failed and logged. */
+  async settled(): Promise<void> {
+    while (this.pending.size) await Promise.all(this.pending)
+  }
+}
+
+function isStorageRead(request: Request): boolean {
+  return STORAGE_PORTS.includes(new URL(request.url()).port) && request.method() === 'GET'
 }
 
 /**
@@ -198,9 +227,10 @@ function expectRangeReads(network: NetworkLog, artifact: PublishedArtifact) {
 const ZIP_TAIL_BYTES = 128 * 1024
 
 /**
- * A generation 1 DB (exp.db.zip) is downloaded whole, in one request for its member. A member
- * over 128 KiB has its tail read first; the browser's cache then serves that part of the
- * download, which asks storage for the rest only.
+ * A generation 1 DB (exp.db.zip) is downloaded whole: one download of its member, which a read
+ * of its last 128 KiB may come before (a member over that size). When the browser's cache kept
+ * that tail, the download asks storage for [offset, tail start - 1] only, and its response, the
+ * cached and the fetched part merged, still has the member's full length.
  */
 function expectWholeDownload(network: NetworkLog, artifact: PublishedArtifact) {
   const requests = memberReads(network, artifact)
@@ -322,12 +352,16 @@ function bytesWithin(requests: StorageRequest[], region: [number, number]): numb
   }, 0)
 }
 
-/** The reads hold no span payload: at most a few pages of the 1 MiB value. */
+/** The reads hold no span payload: at most a few pages of the 1 MiB and the 100 KiB values. */
 function expectNoPayloadRead(requests: StorageRequest[], artifact: PublishedArtifact) {
-  const region = artifact.payload_region!
-  expect(bytesWithin(requests, region), 'bytes of the 1 MiB value read').toBeLessThan(
-    regionSize(region) * MAX_PAYLOAD_TOUCHED,
-  )
+  for (const [name, region] of [
+    ['1 MiB', artifact.payload_region!],
+    ['100 KiB', artifact.medium_region!],
+  ] as const) {
+    expect(bytesWithin(requests, region), `bytes of the ${name} value read`).toBeLessThan(
+      regionSize(region) * MAX_PAYLOAD_TOUCHED,
+    )
+  }
 }
 
 /** Opens an experiment of trace_data.py and waits for its trace list and average scores. */
@@ -384,22 +418,26 @@ async function traceSteps(
   const steps: TraceStep[] = []
   let reads = 0
   let started = Date.now()
-  const endStep = () => {
+  // A step ends when its view is shown and its reads are done: a read still on the slow link
+  // then would otherwise count in the next step.
+  const endStep = async () => {
+    const ms = Date.now() - started
+    await network.settled()
     const requests = network.of(traces)
-    steps.push({ bytes: sumBytes(requests.slice(reads)), ms: Date.now() - started })
+    steps.push({ bytes: sumBytes(requests.slice(reads)), ms })
     reads = requests.length
     started = Date.now()
   }
   await openTraceSnapshot(page, storage, traces)
-  endStep()
+  await endStep()
   await openTrace(page, TRACES.big.trace_id)
   const dialog = traceDialog(page)
   await expectVirtualisedTree(dialog, TRACES)
-  endStep()
+  await endStep()
   const { large } = TRACES.big
   await spanRow(dialog, large.span).click()
   await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
-  endStep()
+  await endStep()
   return steps
 }
 
@@ -608,6 +646,12 @@ for (const storageName of Object.keys(data.storages)) {
           !storage.artifacts[label],
           'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set',
         )
+      // This SDK writes the new format, luml-sdk 0.5.0 the old one.
+      const traceArtifact = () => {
+        const traces = artifact(label)
+        expect(traces.generation).toBe(format === 'new' ? 2 : 1)
+        return traces
+      }
       const expectReads = (traces: PublishedArtifact) => {
         if (traces.generation === 1) return expectWholeDownload(network, traces)
         expectRangeReads(network, traces)
@@ -618,7 +662,7 @@ for (const storageName of Object.keys(data.storages)) {
         page,
       }) => {
         skipWithoutOldSdk()
-        const traces = artifact(label)
+        const traces = traceArtifact()
         await openTraceSnapshot(page, storage, traces)
         expectReads(traces)
         if (traces.generation === 2) {
@@ -663,7 +707,7 @@ for (const storageName of Object.keys(data.storages)) {
         page,
       }) => {
         skipWithoutOldSdk()
-        const traces = artifact(label)
+        const traces = traceArtifact()
         const { large, medium, small } = TRACES.big
         await openTraceSnapshot(page, storage, traces)
         let reads = network.of(traces).length
@@ -694,9 +738,19 @@ for (const storageName of Object.keys(data.storages)) {
         await expect(viewer.locator('.line').first()).toHaveText(new RegExp(`^${large.start} `))
         await page.keyboard.press('Escape')
         await expect(viewer).toBeHidden()
+        const download = page.waitForEvent('download')
+        await largeValue.getByRole('button', { name: 'Download' }).click()
+        expect(statSync(await (await download).path()).size).toBe(large.chars)
 
         await spanRow(dialog, medium.span).click()
         await expectLargeValue(spanAttribute(dialog, medium.key), medium.chars!)
+        if (traces.generation === 2) {
+          // Counted over every read so far: the 1 MiB value's read-ahead may have touched it.
+          const region = traces.medium_region!
+          expect(bytesWithin(network.of(traces), region)).toBeGreaterThanOrEqual(
+            regionSize(region) * (1 - MAX_PAYLOAD_TOUCHED),
+          )
+        }
         await spanRow(dialog, small.span).click()
         await expect(spanAttribute(dialog, small.key).locator('.content')).toHaveText(small.value!)
         // A span selected before is shown again without a read.
@@ -711,7 +765,7 @@ for (const storageName of Object.keys(data.storages)) {
         page,
       }) => {
         skipWithoutOldSdk()
-        const traces = artifact(label)
+        const traces = traceArtifact()
         await openTraceSnapshot(page, storage, traces)
         const attributeFields = TRACES.attribute_keys.map((key) => `attributes.${key}`)
         const fields = await traceFilterFields(page)
@@ -1039,15 +1093,6 @@ test.describe('slow network to storage', () => {
     await proxy.configure(SLOW_LINK)
     // Each step waits up to 60 s (the expect timeouts of traceSteps); here they take seconds.
     const slow = await traceSteps(page, network, storage, traces)
-    console.log(
-      `traces_new of ${traces.size} bytes, unthrottled then on the slow link (bytes/ms): ` +
-        ['list', 'tree', 'payload']
-          .map(
-            (name, i) =>
-              `${name} ${baseline[i]!.bytes}/${baseline[i]!.ms} ${slow[i]!.bytes}/${slow[i]!.ms}`,
-          )
-          .join(', '),
-    )
     expect(slow.map((step) => step.bytes)).toEqual(baseline.map((step) => step.bytes))
     expectRangeReads(network, traces)
     expectSlowed(network, traces, SLOW_LINK)
@@ -1069,17 +1114,30 @@ test.describe('slow network to storage', () => {
     const dialog = traceDialog(page)
     await expectVirtualisedTree(dialog, TRACES)
 
-    // Storage refuses the next read of the object: the one for the selected span's value.
-    await proxy.configure({ refuseNextMatching: escapeRegExp(traces.bucket_location) })
+    // Storage refuses every read of the selected span's value until told otherwise. With a URL
+    // under 30 s old the viewer shows the error at once; with an older one it renews the URL,
+    // retries once, is refused again and shows the error. Either way the error is final.
+    const region = traces.payload_region!
+    await proxy.configure({
+      refuseMatching: escapeRegExp(traces.bucket_location),
+      refuseOverlapping: region,
+    })
     await spanRow(dialog, large.span).click()
     await expect(
       dialog.locator('.body').getByText('Cannot load span data.', { exact: true }).first(),
     ).toBeVisible()
-    expect(network.of(traces).filter((request) => request.status === 403)).toHaveLength(1)
+    await network.settled()
+    await proxy.configure({ refuseMatching: null, refuseOverlapping: null })
+    const refused = () => network.of(traces).filter((request) => request.status === 403)
+    expect(refused().length).toBeGreaterThan(0)
+    for (const request of refused()) {
+      expect(bytesWithin([request], region), JSON.stringify(request)).toBeGreaterThan(0)
+    }
+    const refusedCount = refused().length
 
     await spanRow(dialog, large.span).click()
     await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
-    expect(network.of(traces).filter((request) => request.status === 403)).toHaveLength(1)
+    expect(refused()).toHaveLength(refusedCount)
     await expectNoNotices(page)
   })
 })

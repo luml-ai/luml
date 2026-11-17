@@ -2,16 +2,20 @@
 // the real network path, so it slows every request the page and its Web Worker make, whatever
 // API they use (sync XHR included), and it logs what it served so the specs can measure it.
 //
-//   node throttle_proxy.mjs <listen port> <target port>
+//   node throttle_proxy.mjs <listen port> <target port> [port file]
+//
+// Listen port 0 binds a free port; the bound port is written to the port file once it listens.
 //
 // Controlled over the same port under /__e2e/ (the specs call it from Node):
 //   POST /__e2e/config  {latencyMs, bytesPerSecond, throttleMatching, stallMatching, stripRange,
-//                        refuseSeen, refuseNextMatching}
+//                        refuseSeen, refuseMatching, refuseOverlapping}
 //   GET  /__e2e/log     the requests served since the last reset
 //   POST /__e2e/reset   default config, empty log, held requests answered
+import { renameSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 
-const [listenPort, targetPort] = process.argv.slice(2).map(Number)
+const [listenPort, targetPort] = process.argv.slice(2, 4).map(Number)
+const portFile = process.argv[4]
 const TARGET_HOST = '127.0.0.1'
 const CHUNK_BYTES = 16 * 1024
 
@@ -39,10 +43,12 @@ const DEFAULT_CONFIG = {
    */
   refuseSeen: false,
   /**
-   * A regular expression over `<path>?<query> <range>`: the next matching signed request is sent
-   * with its signature corrupted, so the storage refuses that one read; then it clears itself.
+   * A regular expression over the path: every matching signed request is sent with its
+   * signature corrupted, so the storage refuses it, until this is cleared.
    */
-  refuseNextMatching: null,
+  refuseMatching: null,
+  /** `[first, last]`: refuseMatching only refuses Range reads that overlap these bytes. */
+  refuseOverlapping: null,
 }
 
 let config = { ...DEFAULT_CONFIG }
@@ -60,6 +66,14 @@ function signatureParam(url) {
     if (url.searchParams.has(name)) return name
   }
   return null
+}
+
+function refused(url, range) {
+  if (!config.refuseMatching || !new RegExp(config.refuseMatching).test(url.pathname)) return false
+  if (!config.refuseOverlapping) return true
+  const [first, last] = config.refuseOverlapping
+  const bytes = range ? /^bytes=(\d+)-(\d+)$/.exec(range) : null
+  return bytes !== null && Number(bytes[1]) <= last && Number(bytes[2]) >= first
 }
 
 async function paced(chunk, throttled) {
@@ -130,12 +144,8 @@ async function forward(request, response) {
   const signature = signatureParam(url)
   if (signature) {
     const value = url.searchParams.get(signature)
-    const refuseNext =
-      config.refuseNextMatching &&
-      request.method !== 'OPTIONS' &&
-      new RegExp(config.refuseNextMatching).test(`${url.pathname}${url.search} ${range}`)
-    if (refuseNext) config.refuseNextMatching = null
-    if (refuseNext || refusedSignatures.has(value)) url.searchParams.set(signature, `${value}x`)
+    const refuse = request.method !== 'OPTIONS' && refused(url, range)
+    if (refuse || refusedSignatures.has(value)) url.searchParams.set(signature, `${value}x`)
     else seenSignatures.add(value)
   }
   const stall = config.stallMatching && new RegExp(config.stallMatching)
@@ -211,4 +221,9 @@ const server = http.createServer((request, response) => {
   })
 })
 server.keepAliveTimeout = 60_000
-server.listen(listenPort, '127.0.0.1')
+server.listen(listenPort, '127.0.0.1', () => {
+  if (!portFile) return
+  // Renamed into place, so a reader never sees a partly written port.
+  writeFileSync(`${portFile}.tmp`, String(server.address().port))
+  renameSync(`${portFile}.tmp`, portFile)
+})

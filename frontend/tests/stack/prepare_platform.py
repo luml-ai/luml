@@ -8,6 +8,7 @@ specs need to ``$E2E_WORK_DIR/platform.json``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -36,8 +37,10 @@ LARGE_POINTS_PER_KEY = 1_000_000
 LARGE_KEYS = ("train/loss", "train/grad_norm", "val/accuracy")
 REGULAR_STEPS = 3_000
 SHORT_STEPS = 40
-# Debugging only: generated artifacts are kept and reused there (deterministic).
+# Debugging only: generated artifacts are kept and reused there (deterministic), in a
+# folder per content of the files that define them.
 CACHE = os.environ.get("E2E_ARTIFACT_CACHE")
+DATA_FILES = (Path(__file__), Path(__file__).with_name("trace_data.py"), OLD_SDK_SCRIPT)
 TWIN_KEY = "train/long_running_metric/with_a_fairly_long_key_name"
 # Published once more to each storage through its delaying proxy (throttle_proxy.mjs).
 PROXIED_LABELS = {"s3": ("large", "old", "new_a", "traces_new"), "azure": ("large",)}
@@ -54,8 +57,10 @@ class Published:
     size: int
     file_size: int
     bucket_location: str
-    # Where the 1 MiB span attribute value lies in the object (traces_new only).
+    # Where the 1 MiB and the 100 KiB span attribute values lie in the object
+    # (traces_new only).
     payload_region: list[int] | None
+    medium_region: list[int] | None
 
 
 def env(name: str) -> str:
@@ -63,6 +68,13 @@ def env(name: str) -> str:
     if not value:
         sys.exit(f"missing environment variable {name}")
     return value
+
+
+def cache_dir(cache: str) -> Path:
+    content = b"".join(path.read_bytes() for path in DATA_FILES)
+    folder = Path(cache) / hashlib.sha256(content).hexdigest()[:16]
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 
 def api_key(base_url: str) -> str:
@@ -198,24 +210,37 @@ def snapshot_member(tar_path: Path) -> tuple[str, int, int]:
     raise ValueError(f"{tar_path} has no snapshot member")
 
 
-def payload_region(tar_path: Path, offset: int, size: int) -> list[int]:
-    """The object byte range [first, last] of the 1 MiB attribute value of trace_data.py
-    in a generation 2 member.
+def payload_region(
+    tar_path: Path, offset: int, size: int, key: str, chars: int
+) -> list[int]:
+    """The object byte range [first, last] of a large attribute value of trace_data.py
+    in a generation 2 member: the consecutive overflow pages that end with it.
 
-    A value this size fills consecutive overflow pages of the compacted DB, so the bytes
-    from its first marker to its last are the value plus a link per page.
+    The value starts in its row's cell and goes on in a chain of overflow pages, each a
+    4-byte link and then the value's next bytes. The chain of the 1 MiB value follows
+    its cell; the 100 KiB value's cell is on an earlier page, so its range starts at the
+    first page of the chain, the most of the value.
     """
     with tar_path.open("rb") as handle:
         handle.seek(offset)
         database = handle.read(size)
-    begin = trace_data.begin_marker(trace_data.LARGE_KEY).encode()
-    end = trace_data.end_marker(trace_data.LARGE_KEY).encode()
+    begin = trace_data.begin_marker(key).encode()
+    end = trace_data.end_marker(key).encode()
     first, last = database.find(begin), database.rfind(end) + len(end) - 1
-    length = last - first + 1
     if first < 0 or database.rfind(begin) != first:
-        sys.exit(f"{tar_path.name}: the large attribute value is missing")
-    if not trace_data.LARGE_CHARS <= length <= trace_data.LARGE_CHARS * 1.02:
-        sys.exit(f"{tar_path.name}: the large attribute value is not contiguous")
+        sys.exit(f"{tar_path.name}: the {key} value is missing")
+    # The page size is the header's 2 bytes at offset 16; 1 stands for 65536.
+    page_size = int.from_bytes(database[16:18], "big")
+    page_size = 65536 if page_size == 1 else page_size
+    text = trace_data.payload_text(key, chars).encode()
+    chain = last - last % page_size
+    while chain > first and database[chain - page_size + 4 : chain] in text:
+        chain -= page_size
+    if first < chain - page_size:
+        first = chain + 4
+    length = last - first + 1
+    if not chars * 0.9 <= length <= chars * 1.02:
+        sys.exit(f"{tar_path.name}: the {key} value is not in one chain of pages")
     return [offset + first, offset + last]
 
 
@@ -321,6 +346,7 @@ def publish(
         if artifact.status != ArtifactStatus.UPLOADED:
             sys.exit(f"{label}: upload ended with status {artifact.status}")
         member, offset, size = snapshot_member(path)
+        traces = label == "traces_new"
         indexed = artifact.file_index[member]
         if (int(indexed[0]), int(indexed[1])) != (offset, size):
             sys.exit(
@@ -336,8 +362,15 @@ def publish(
             size=size,
             file_size=path.stat().st_size,
             bucket_location=artifact.bucket_location,
-            payload_region=payload_region(path, offset, size)
-            if label == "traces_new"
+            payload_region=payload_region(
+                path, offset, size, trace_data.LARGE_KEY, trace_data.LARGE_CHARS
+            )
+            if traces
+            else None,
+            medium_region=payload_region(
+                path, offset, size, trace_data.MEDIUM_KEY, trace_data.MEDIUM_CHARS
+            )
+            if traces
             else None,
         )
     return {
@@ -353,7 +386,7 @@ def main() -> None:
     base_url = env("E2E_BACKEND_URL")
     storages = os.environ.get("E2E_STORAGES", "s3,azure").split(",")
     key = api_key(base_url)
-    artifacts, old_source = build_artifacts(Path(CACHE) if CACHE else work)
+    artifacts, old_source = build_artifacts(cache_dir(CACHE) if CACHE else work)
     client = LumlClient(base_url=base_url, api_key=key)
     result = {
         # A throwaway key of the disposable stack; rotate_s3_key.py uses it.

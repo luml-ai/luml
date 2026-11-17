@@ -106,6 +106,8 @@ def main() -> None:
         traces={
             "id": traces_id,
             "group_id": experiments["flow_traces"].group_id,
+            "db": str(store / traces_id / "exp.db"),
+            "user_version": user_version(store / traces_id / "exp.db"),
         },
         expected=trace_data.expected(),
     )

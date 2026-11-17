@@ -159,6 +159,11 @@ function recordTraceApi(page: Page, experimentId: string): TraceCalls {
   return calls
 }
 
+/** One trace request, without payloads; its entry is recorded once its body has arrived. */
+async function expectStructureRead(calls: TraceCalls) {
+  await expect.poll(() => calls.structure.map((call) => call.search)).toEqual(['?payloads=false'])
+}
+
 /** The size of the full trace (with every payload), from the API the page no longer uses for it. */
 async function fullTraceBytes(experimentId: string, traceId: string): Promise<number> {
   const response = await fetch(`${FLOW}/api/experiments/${experimentId}/traces/${traceId}`, {
@@ -222,13 +227,14 @@ for (const [format, key] of [
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
     const experiment = data[key]!
+    expect(experiment.user_version).toBe(format === 'new' ? 3 : 2)
     const { large, medium, small, root } = TRACES.big
     const calls = recordTraceApi(page, experiment.id)
     await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`)
     await openTrace(page, TRACES.big.trace_id)
     const dialog = traceDialog(page)
     await expectVirtualisedTree(dialog, TRACES)
-    expect(calls.structure.map((call) => call.search)).toEqual(['?payloads=false'])
+    await expectStructureRead(calls)
     // The structure leaves every payload out, the two large values among them.
     const full = await fullTraceBytes(experiment.id, TRACES.big.trace_id)
     expect(full - calls.structure[0]!.bytes).toBeGreaterThan(large.chars! + medium.chars!)
@@ -250,6 +256,7 @@ for (const [format, key] of [
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
     const experiment = data[key]!
+    expect(experiment.user_version).toBe(format === 'new' ? 3 : 2)
     await open(page, `/experiments/${experiment.group_id}/${experiment.id}/evals`)
     await expectAverageScores(page, TRACES.averages)
     const evalId = 'eval-0003'
@@ -440,7 +447,7 @@ test.describe('slow network to Flow', () => {
     await expectVirtualisedTree(dialog, TRACES)
     await spanRow(dialog, large.span).click()
     await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
-    expect(calls.structure.map((call) => call.search)).toEqual(['?payloads=false'])
+    await expectStructureRead(calls)
     expect(calls.spans).toEqual([root.span_id, large.span_id])
     const served = await expectSlowedApi([experiment.id])
     // The span with the 1 MiB value crosses the link at its rate.
