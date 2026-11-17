@@ -7,6 +7,7 @@ from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
     PaginatedTraces,
     SearchValidationResult,
+    Span,
     Trace,
     TraceColumns,
     TraceDetails,
@@ -150,5 +151,12 @@ def validate_traces_filter(
 
 
 @experiments_traces_router.get("/{trace_id}", response_model=TraceDetails)
-def get_trace(experiment_id: str, trace_id: str) -> TraceDetails:
-    return experiments_handler.get_trace(experiment_id, trace_id)
+def get_trace(experiment_id: str, trace_id: str, payloads: bool = True) -> TraceDetails:
+    """payloads=false leaves out span attributes, events, links and status
+    messages; fetch one span in full from `/{trace_id}/spans/{span_id}`."""
+    return experiments_handler.get_trace(experiment_id, trace_id, payloads=payloads)
+
+
+@experiments_traces_router.get("/{trace_id}/spans/{span_id}", response_model=Span)
+def get_span(experiment_id: str, trace_id: str, span_id: str) -> Span:
+    return experiments_handler.get_span(experiment_id, trace_id, span_id)

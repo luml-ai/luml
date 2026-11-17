@@ -307,6 +307,41 @@ def seeded_span(
     return facade, exp_id, trace_id, span_id
 
 
+class TestTraceReads:
+    def test_structure_and_span(
+        self, seeded_span: tuple[DataFacade, str, str, str], tracker: ExperimentTracker
+    ) -> None:
+        facade, exp_id, trace_id, span_id = seeded_span
+        tracker.log_span(
+            trace_id=trace_id,
+            span_id="span-2",
+            name="child",
+            parent_span_id=span_id,
+            start_time_unix_nano=10,
+            end_time_unix_nano=20,
+            attributes={"prompt": "hello"},
+            experiment_id=exp_id,
+        )
+
+        structure = facade.get_trace_structure(exp_id, trace_id).unwrap()
+        span = facade.get_span(exp_id, trace_id, "span-2").unwrap()
+
+        assert [s.span_id for s in structure.spans] == [span_id, "span-2"]
+        assert structure.spans[1].attributes is None
+        assert span.attributes == {"prompt": "hello"}
+
+    def test_missing_span_maps_to_404(
+        self, seeded_span: tuple[DataFacade, str, str, str]
+    ) -> None:
+        facade, exp_id, trace_id, _ = seeded_span
+
+        result = facade.get_span(exp_id, trace_id, "missing")
+
+        assert not result.ok
+        assert result.error is not None
+        assert result.error.code == 404
+
+
 class TestAnnotations:
     def test_create_and_list_eval_annotation(
         self, seeded_eval: tuple[DataFacade, str, str, str]

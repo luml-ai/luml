@@ -18,8 +18,10 @@ Performance considerations the SPEC calls out:
   spans render with subtrees collapsed by default so the initial view
   is concise. Root nodes stay expanded so structure is always visible.
 - ``E``/``C`` expand-all / collapse-all the entire tree in one keystroke.
-- The detail pane and annotation list update from the cached
-  ``TraceDetails`` — only annotation reads hit the store on demand.
+- The tree loads from the trace structure, without span payloads. The
+  detail pane reads one span's payload when it is selected, caches it per
+  span, and shortens values longer than ``VALUE_PREVIEW_CHARS`` until
+  ``v`` shows them in full.
 
 Two focusable panes (tree + detail/annotations) participate in the
 ``Tab`` / ``Shift-Tab`` focus cycle, both wrapped in ``PanelFrame``s so
@@ -30,6 +32,8 @@ work without a preliminary ``Tab``.
 
 from __future__ import annotations
 
+import asyncio
+from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
@@ -56,6 +60,7 @@ from lumlflow.tui.widgets.annotation_dialog import (
     AnnotationDialog,
     AnnotationDialogResult,
 )
+from lumlflow.tui.widgets.attachments_panel import _format_size
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
 
 if TYPE_CHECKING:
@@ -65,6 +70,15 @@ if TYPE_CHECKING:
 # stays scannable on large traces. The user expands explicitly with `l`
 # (single node) or `E` (whole tree).
 AUTO_COLLAPSE_THRESHOLD = 30
+
+# Attribute and event values longer than this are shortened until `v`.
+VALUE_PREVIEW_CHARS = 4_000
+
+# Span payloads kept in memory; each may be megabytes.
+SPAN_PAYLOAD_CACHE_SIZE = 32
+
+SPAN_LOADING_TEXT = "Loading span data."
+SPAN_LOAD_ERROR_TEXT = "Cannot load span data."
 
 # OTel span status codes (matches the SDK's `log_span(status_code=...)`).
 _STATUS_OK = 1
@@ -273,6 +287,7 @@ class TraceDetailScreen(BaseScreen):
         Binding("y", "yank", "Yank span id", show=False),
         Binding("E", "expand_all", "Expand all", show=False),
         Binding("C", "collapse_all", "Collapse all", show=False),
+        Binding("v", "show_all", "Show all", show=False),
     ]
 
     def __init__(
@@ -292,7 +307,12 @@ class TraceDetailScreen(BaseScreen):
         self._group_name = group_name
         self._trace_id = trace_id
         self._details: TraceDetails | None = None
+        # Structure spans (no payloads) for the tree; full spans per id once read.
         self._spans_by_id: dict[str, Span] = {}
+        self._span_payloads: OrderedDict[str, Span] = OrderedDict()
+        self._pending_payload_span_id: str | None = None
+        self._payload_loading = False
+        self._show_full_values = False
         # The Tree's node `data` field stores the span_id; mapping in the
         # other direction lets us scroll to a span on the fly.
         self._tree_nodes: dict[str, TreeNode[str]] = {}
@@ -405,7 +425,7 @@ class TraceDetailScreen(BaseScreen):
         if facade is None:
             self.app.call_from_thread(self._on_trace_failure, "facade unavailable")
             return
-        result = facade.get_trace(self._experiment_id, self._trace_id)
+        result = facade.get_trace_structure(self._experiment_id, self._trace_id)
         self.app.call_from_thread(self._on_trace_result, result)
 
     def _on_trace_result(self, result: Result[Any]) -> None:
@@ -544,6 +564,8 @@ class TraceDetailScreen(BaseScreen):
     def _set_selected_span(self, span_id: str, *, scroll: bool = False) -> None:
         if span_id not in self._spans_by_id:
             return
+        if span_id != self._selected_span_id:
+            self._show_full_values = False
         self._selected_span_id = span_id
         node = self._tree_nodes.get(span_id)
         if node is not None and scroll:
@@ -553,11 +575,98 @@ class TraceDetailScreen(BaseScreen):
                 tree.scroll_to_node(node)
             except Exception:
                 pass
-        span = self._spans_by_id[span_id]
-        self._render_span_detail(span)
+        self._render_selected_span()
         self._fetch_span_annotations(span_id)
 
-    def _render_span_detail(self, span: Span) -> None:
+    def _render_selected_span(self) -> None:
+        span_id = self._selected_span_id
+        if span_id is None:
+            return
+        payload = self._span_payloads.get(span_id)
+        if payload is not None:
+            self._span_payloads.move_to_end(span_id)
+            self._render_span_detail(payload)
+            return
+        self._render_span_detail(
+            self._spans_by_id[span_id], placeholder=Text(SPAN_LOADING_TEXT, style="dim")
+        )
+        self._request_span_payload(span_id)
+
+    # ----- span payload fetch -----
+
+    def _request_span_payload(self, span_id: str) -> None:
+        """Queue one span's payload; one worker reads only the latest request."""
+
+        self._pending_payload_span_id = span_id
+        if not self._payload_loading:
+            self._payload_loading = True
+            self._drain_span_payloads()
+
+    @work(group="span-payload")
+    async def _drain_span_payloads(self) -> None:
+        try:
+            while self._pending_payload_span_id is not None:
+                span_id = self._pending_payload_span_id
+                self._pending_payload_span_id = None
+                facade = self.facade
+                if facade is None or span_id in self._span_payloads:
+                    continue
+                result = await asyncio.to_thread(
+                    facade.get_span, self._experiment_id, self._trace_id, span_id
+                )
+                self._on_span_payload_result(result, span_id)
+        finally:
+            self._payload_loading = False
+
+    def _on_span_payload_result(self, result: Result[Span], span_id: str) -> None:
+        if result.ok:
+            self._remember_span_payload(span_id, result.unwrap())
+        if span_id != self._selected_span_id:
+            return
+        if result.ok:
+            self._render_span_detail(self._span_payloads[span_id])
+        else:
+            self._render_span_detail(
+                self._spans_by_id[span_id],
+                placeholder=Text(SPAN_LOAD_ERROR_TEXT, style="red"),
+            )
+
+    def _remember_span_payload(self, span_id: str, payload: Span) -> None:
+        """Cache a payload; the oldest one goes first, never the shown one."""
+
+        self._span_payloads[span_id] = payload
+        self._span_payloads.move_to_end(span_id)
+        while len(self._span_payloads) > SPAN_PAYLOAD_CACHE_SIZE:
+            oldest = next(
+                key for key in self._span_payloads if key != self._selected_span_id
+            )
+            del self._span_payloads[oldest]
+
+    def action_show_all(self) -> None:
+        """Toggle between shortened and full long values of the selected span."""
+
+        if self._selected_span_id not in self._span_payloads:
+            return
+        self._show_full_values = not self._show_full_values
+        self._render_selected_span()
+
+    def _append_value(self, text: Text, value: object, style: str = "") -> None:
+        rendered = f"{value}"
+        if self._show_full_values or len(rendered) <= VALUE_PREVIEW_CHARS:
+            text.append(rendered, style=style)
+            return
+        size = _format_size(len(rendered.encode()))
+        text.append(
+            f"First {VALUE_PREVIEW_CHARS:,} characters of {size}. "
+            "Press v to show all.\n",
+            style="dim italic",
+        )
+        text.append(f"{rendered[:VALUE_PREVIEW_CHARS]}…", style=style)
+
+    def _render_span_detail(
+        self, span: Span, *, placeholder: Text | None = None
+    ) -> None:
+        """Render the header, plus `placeholder` instead of a payload not read yet."""
         try:
             header = self.query_one("#span-detail-header", Static)
             attrs = self.query_one("#span-detail-attrs", Static)
@@ -586,6 +695,11 @@ class TraceDetailScreen(BaseScreen):
             head.append(span.status_message, style="bold red")
         header.update(head)
 
+        if placeholder is not None:
+            attrs.update(placeholder)
+            events.update("")
+            return
+
         # ----- attributes -----
         if span.attributes:
             text = Text()
@@ -594,7 +708,7 @@ class TraceDetailScreen(BaseScreen):
                     text.append("\n")
                 text.append(f"{k}", style="bold")
                 text.append(" = ")
-                text.append(f"{v}")
+                self._append_value(text, v)
             attrs.update(text)
         else:
             attrs.update(Text("(no attributes)", style="dim"))
@@ -626,7 +740,7 @@ class TraceDetailScreen(BaseScreen):
                     text.append("\n  ")
                     text.append(f"{k}", style="dim bold")
                     text.append(" = ")
-                    text.append(f"{v}", style="dim")
+                    self._append_value(text, v, style="dim")
         return text
 
     @staticmethod
@@ -917,6 +1031,10 @@ class TraceDetailScreen(BaseScreen):
 
 __all__ = (
     "AUTO_COLLAPSE_THRESHOLD",
+    "SPAN_LOADING_TEXT",
+    "SPAN_LOAD_ERROR_TEXT",
+    "SPAN_PAYLOAD_CACHE_SIZE",
+    "VALUE_PREVIEW_CHARS",
     "TraceDetailScreen",
     "_build_span_tree",
     "_format_duration_ns",

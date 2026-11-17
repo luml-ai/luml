@@ -27,6 +27,7 @@ import type {
   Experiment,
   ExperimentMetricHistory,
   Model,
+  Span,
   Trace,
   TraceDetails,
   UpdateExperimentPayload,
@@ -174,8 +175,23 @@ export const apiService = {
     return data
   },
 
-  getTraceDetails: async (experimentId: string, traceId: string) => {
-    const { data } = await api.get<TraceDetails>(`/experiments/${experimentId}/traces/${traceId}`)
+  getTraceDetails: async (
+    experimentId: string,
+    traceId: string,
+    options: { payloads?: boolean } = {},
+  ) => {
+    const url = `/experiments/${experimentId}/traces/${traceId}`
+    const { data } =
+      options.payloads === false
+        ? await api.get<TraceDetails>(url, { params: { payloads: false } })
+        : await api.get<TraceDetails>(url)
+    return data
+  },
+
+  getSpan: async (experimentId: string, traceId: string, spanId: string) => {
+    const { data } = await api.get<Span>(
+      `/experiments/${experimentId}/traces/${traceId}/spans/${spanId}`,
+    )
     return data
   },
 

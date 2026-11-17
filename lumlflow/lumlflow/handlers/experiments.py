@@ -274,12 +274,19 @@ class ExperimentsHandler:
 
         return traces
 
-    def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails:
+    def get_trace(
+        self, experiment_id: str, trace_id: str, *, payloads: bool = True
+    ) -> TraceDetails:
+        """Without `payloads` the spans carry no attributes, events, links or
+        status message; `get_span` loads one span in full."""
         if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
 
+        read_trace = (
+            self.tracker.get_trace if payloads else self.tracker.get_trace_structure
+        )
         try:
-            result = self.tracker.get_trace(experiment_id, trace_id)
+            result = read_trace(experiment_id, trace_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -293,6 +300,20 @@ class ExperimentsHandler:
             spans=[Span.model_validate(s) for s in result.spans],
             annotations=AnnotationSummary.model_validate(summary),
         )
+
+    def get_span(self, experiment_id: str, trace_id: str, span_id: str) -> Span:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+
+        try:
+            result = self.tracker.get_span(experiment_id, trace_id, span_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        if result is None:
+            raise NotFound("Span not found")
+
+        return Span.model_validate(result)
 
     def get_eval(self, experiment_id: str, eval_id: str) -> Eval:
         if not self.tracker.get_experiment_record(experiment_id):

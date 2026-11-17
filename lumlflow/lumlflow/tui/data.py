@@ -71,6 +71,7 @@ from lumlflow.schemas.experiments import (
     PaginatedExperiments,
     PaginatedTraces,
     SearchValidationResult,
+    Span,
     TraceColumns,
     TraceDetails,
     TracesSortBy,
@@ -417,8 +418,17 @@ class DataFacade:
             )
         )
 
-    def get_trace(self, experiment_id: str, trace_id: str) -> Result[TraceDetails]:
-        return self._read(lambda: self.experiments.get_trace(experiment_id, trace_id))
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> Result[TraceDetails]:
+        return self._read(
+            lambda: self.experiments.get_trace(experiment_id, trace_id, payloads=False)
+        )
+
+    def get_span(self, experiment_id: str, trace_id: str, span_id: str) -> Result[Span]:
+        return self._read(
+            lambda: self.experiments.get_span(experiment_id, trace_id, span_id)
+        )
 
     def list_evals(
         self,
