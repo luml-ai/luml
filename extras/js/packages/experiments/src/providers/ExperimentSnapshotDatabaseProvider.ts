@@ -34,12 +34,15 @@ import {
 } from './ExperimentSnapshotTraits'
 import { readMetricBuckets, readMetricCatalog, readMetricKeys } from './snapshotMetricQueries'
 import {
+  DATASET_EVAL_IDS_SQL,
+  EVAL_ANNOTATION_FIELDS_SQL,
   EVAL_TRACE_SQL,
   readEvalColumnKeys,
   readScoreStats,
   readSpanAttributeKeys,
   readStructuralSpans,
   summariesAnswerTraceFilters,
+  TRACE_ANNOTATIONS_SQL,
   TRACE_EVALS_SQL,
   traceSummariesQuery,
   type EvalJsonColumn,
@@ -838,9 +841,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       if (traits.hasScoreStats && !whereParts.length) {
         return { modelId: snapshot.modelId, scores: readScoreStats(snapshot.database, datasetId) }
       }
+      // Keys come in first-seen order and sums depend on order: revisions 0 to 2 read the
+      // dataset's evals in id order. `+id` sorts the rows read from the covering `evals_list`
+      // instead of reading every eval row through the primary key.
+      const idOrder = traits.structuralTraces ? ' ORDER BY +id' : ''
       const rows = this._getRowsByQueryAndParams(
         snapshot.database,
-        `SELECT scores FROM evals WHERE ${['scores IS NOT NULL', 'dataset_id = ?', ...whereParts].join(' AND ')}`,
+        `SELECT scores FROM evals WHERE ${['scores IS NOT NULL', 'dataset_id = ?', ...whereParts].join(' AND ')}${idOrder}`,
         [datasetId, ...params],
       )
       const formattedRows = rows.map((row) => safeParse(row[0] as SqlValue))
@@ -1289,12 +1296,14 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     if (offset) params.push(offset)
 
     const whereCondition = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
+    // Revisions 0 to 2 sort evals read in id order, so equal scores come in id order.
+    const tieBreak = traits.structuralTraces && !parentColumnsSort.includes(sort_by) ? ', id' : ''
 
     const query = `
       SELECT id, dataset_id, inputs, outputs, refs, scores, metadata
       FROM evals
       ${whereCondition}
-      ORDER BY ${sortBy} ${safeOrder}
+      ORDER BY ${sortBy} ${safeOrder}${tieBreak}
       ${limitQuery}
       ${offsetQuery}
     `
@@ -1440,12 +1449,15 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private extractEvalColumns(database: Database, column: EvalJsonColumn, datasetId: string) {
     const traits = this.traitsOf(database)
     if (!traits.hasExperimentTables) return []
+    // MIN() takes a key's type from the eval with the lowest id, the first one that
+    // revisions 0 to 2 read, whichever index revision 3 reads the dataset through.
+    const firstEval = traits.structuralTraces ? ', MIN(evals.id)' : ''
     const rows = traits.hasKeyCatalogs
       ? readEvalColumnKeys(database, datasetId, column)
       : this._getRowsByQueryAndParams(
           database,
           `
-      SELECT je.key, je.type
+      SELECT je.key, je.type${firstEval}
       FROM evals, json_each(evals.${column}) AS je
       WHERE evals.${column} IS NOT NULL AND evals.dataset_id = ?
       GROUP BY je.key
@@ -1527,7 +1539,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     if (!this.traitsOf(database).hasSpanAnnotations) return { feedback: [], expectations: [] }
     const rows = this._getRowsByQueryAndParams(
       database,
-      `
+      this.traitsOf(database).structuralTraces
+        ? TRACE_ANNOTATIONS_SQL
+        : `
       SELECT name, value, annotation_kind, value_type
       FROM span_annotations
       WHERE trace_id = ?
@@ -1648,7 +1662,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     if (!this.traitsOf(database).hasExperimentTables) return []
     const rows = this._getRowsByQueryAndParams(
       database,
-      'SELECT id FROM evals WHERE dataset_id = ?',
+      this.traitsOf(database).structuralTraces
+        ? DATASET_EVAL_IDS_SQL
+        : 'SELECT id FROM evals WHERE dataset_id = ?',
       [datasetId],
     )
     return rows.map((row) => this.parseValue(row[0], 'string'))
@@ -1692,7 +1708,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     if (!this.traitsOf(database).hasEvalAnnotations) return []
     const rows = this._getRowsByQueryAndParams(
       database,
-      'SELECT DISTINCT name, value_type FROM eval_annotations WHERE annotation_kind = ? AND dataset_id = ?',
+      this.traitsOf(database).structuralTraces
+        ? EVAL_ANNOTATION_FIELDS_SQL
+        : 'SELECT DISTINCT name, value_type FROM eval_annotations WHERE annotation_kind = ? AND dataset_id = ?',
       [kind, datasetId],
     )
     return rows.map((row) => {

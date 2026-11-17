@@ -31,6 +31,28 @@ export const EVAL_TRACE_SQL = `
 export const TRACE_EVALS_SQL =
   'SELECT eval_id FROM eval_traces_bridge WHERE trace_id = ? ORDER BY rowid'
 
+// The indexes below change the order the base-table queries read rows in. Revisions 0 to 2
+// read these tables in rowid order, or evals in id order within a dataset, and the UI shows
+// what that order gives: ties, first-seen keys and the value or type of the first row.
+
+/** Within a name, annotations in rowid order instead of span order. */
+export const TRACE_ANNOTATIONS_SQL = `
+  SELECT name, value, annotation_kind, value_type
+  FROM span_annotations
+  WHERE trace_id = ?
+  ORDER BY name, rowid
+`
+
+/** The distinct fields in order of their first annotation instead of eval order. */
+export const EVAL_ANNOTATION_FIELDS_SQL = `
+  SELECT name, value_type FROM eval_annotations
+  WHERE annotation_kind = ? AND dataset_id = ?
+  GROUP BY name, value_type
+  ORDER BY MIN(rowid)
+`
+
+export const DATASET_EVAL_IDS_SQL = 'SELECT id FROM evals WHERE dataset_id = ? ORDER BY id'
+
 export const SPAN_ANNOTATION_COUNTS_SQL = `
   SELECT span_id, COUNT(*) FROM span_annotations WHERE trace_id = ? GROUP BY span_id
 `
