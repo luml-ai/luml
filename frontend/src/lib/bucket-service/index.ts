@@ -48,22 +48,36 @@ export class ModelDownloader {
     signal?: AbortSignal,
   ): Promise<T> {
     const range = this.getRangeHeader(fileIndex, fileName, outerOffset)
-    // Status does not tell a range from a whole object (some storages answer 200 to both), so
-    // the body is read as bytes and its length checked before it is parsed.
-    const bytes = await this.urls.withLocation(async ({ url, headers, credentials }) => {
-      const file = await axios.get<ArrayBuffer>(url, {
-        headers: { ...headers, Range: range },
-        responseType: 'arraybuffer',
-        withCredentials: credentials === 'include',
-        signal,
-      })
-      return file.data
-    })
     const expected = fileIndex[fileName]?.[1] ?? 0
-    if (bytes.byteLength !== expected) {
-      throw new RangeLengthMismatchError(fileName, expected, bytes.byteLength)
+    // Status does not tell a range from a whole object (some storages answer 200 to both), so
+    // the body is read as bytes and its length checked before it is parsed. A body longer than
+    // the range is stopped at once: storage that ignores Range would send the whole object.
+    // Its length comes back instead of bytes, so the mismatch is not retried with a renewed URL.
+    const answer = await this.urls.withLocation(async ({ url, headers, credentials }) => {
+      const tooLong = new AbortController()
+      let received = 0
+      try {
+        const file = await axios.get<ArrayBuffer>(url, {
+          headers: { ...headers, Range: range },
+          responseType: 'arraybuffer',
+          withCredentials: credentials === 'include',
+          signal: signal ? AbortSignal.any([signal, tooLong.signal]) : tooLong.signal,
+          onDownloadProgress: ({ loaded, total }) => {
+            received = Math.max(loaded, total ?? 0)
+            if (received > expected) tooLong.abort()
+          },
+        })
+        return file.data
+      } catch (error) {
+        if (tooLong.signal.aborted && !signal?.aborted) return received
+        throw error
+      }
+    })
+    const receivedLength = typeof answer === 'number' ? answer : answer.byteLength
+    if (typeof answer === 'number' || receivedLength !== expected) {
+      throw new RangeLengthMismatchError(fileName, expected, receivedLength)
     }
-    return (buffer ? bytes : parseJsonOrText(bytes)) as T
+    return (buffer ? answer : parseJsonOrText(answer)) as T
   }
 
   getRangeHeader(fileIndex: FileIndex, fileName: string, outerOffset = 0) {

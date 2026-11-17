@@ -231,7 +231,10 @@ describe('PresignedUrlCache with locations that carry headers', () => {
 })
 
 describe('ModelDownloader range checks', () => {
-  beforeEach(() => vi.mocked(axios.get).mockReset())
+  // A block body: a function returned from beforeEach runs as a teardown, and this one is the mock.
+  beforeEach(() => {
+    vi.mocked(axios.get).mockReset()
+  })
 
   it('sends the location headers and credentials mode with the Range header', async () => {
     const location = {
@@ -264,6 +267,71 @@ describe('ModelDownloader range checks', () => {
     await expect(read).rejects.toBeInstanceOf(RangeLengthMismatchError)
     await expect(read).rejects.toMatchObject({ expected: 10, received: 1000 })
     expect(axios.get).toHaveBeenCalledOnce()
+    expect(fetchUrl).toHaveBeenCalledOnce()
+  })
+
+  /** Answers with `size` bytes after one progress event, unless the reader aborts on it. */
+  function answerWithProgress(size: number, wasAborted: { value: boolean }) {
+    vi.mocked(axios.get).mockImplementation(async (_url, config) => {
+      config?.onDownloadProgress?.({ loaded: Math.min(size, 16_384), total: size, bytes: 0 })
+      wasAborted.value = (config?.signal as AbortSignal | undefined)?.aborted ?? false
+      if (wasAborted.value) throw Object.assign(new Error('canceled'), { name: 'CanceledError' })
+      return { data: new ArrayBuffer(size) }
+    })
+  }
+
+  it('stops a body longer than the range at its first progress and fails with a typed error', async () => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    const wasAborted = { value: false }
+    answerWithProgress(1_000_000, wasAborted)
+
+    const read = new ModelDownloader(cache.source('a')).getFileFromBucket({ f: [512, 2] }, 'f')
+
+    await expect(read).rejects.toBeInstanceOf(RangeLengthMismatchError)
+    await expect(read).rejects.toMatchObject({ expected: 2, received: 1_000_000 })
+    await expect(read).rejects.not.toHaveProperty('message', expect.stringContaining('sig='))
+    expect(wasAborted.value).toBe(true)
+    expect(axios.get).toHaveBeenCalledOnce()
+    expect(fetchUrl).toHaveBeenCalledOnce()
+  })
+
+  it('reads a range answered with exactly its length without stopping it', async () => {
+    const cache = new PresignedUrlCache(issuer())
+    const wasAborted = { value: false }
+    answerWithProgress(4, wasAborted)
+
+    const data = await new ModelDownloader(cache.source('a')).getFileFromBucket(
+      { f: [512, 4] },
+      'f',
+      true,
+    )
+
+    expect(data).toEqual(new ArrayBuffer(4))
+    expect(wasAborted.value).toBe(false)
+  })
+
+  it('passes a caller abort through without renewing the URL', async () => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    const caller = new AbortController()
+    caller.abort()
+    vi.mocked(axios.get).mockImplementation(async (_url, config) => {
+      if ((config?.signal as AbortSignal | undefined)?.aborted) {
+        throw Object.assign(new Error('canceled'), { name: 'CanceledError' })
+      }
+      return { data: new ArrayBuffer(4) }
+    })
+
+    const read = new ModelDownloader(cache.source('a')).getFileFromBucket(
+      { f: [0, 4] },
+      'f',
+      true,
+      0,
+      caller.signal,
+    )
+
+    await expect(read).rejects.toHaveProperty('name', 'CanceledError')
     expect(fetchUrl).toHaveBeenCalledOnce()
   })
 
