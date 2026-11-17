@@ -26,6 +26,7 @@ from luml.artifacts.model import ModelReference
 from luml.experiments.backends import _snapshot
 from luml.experiments.backends._exceptions import ExportSpaceError
 from luml.experiments.backends._snapshot import WORK_DIR_PREFIX
+from luml.experiments.backends._snapshot_summaries import SUMMARY_TABLES
 from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.tracker import ExperimentTracker
 from tests.artifacts.snapshot_helpers import (
@@ -38,6 +39,7 @@ from tests.artifacts.snapshot_helpers import (
     schema_objects,
     table_rows,
 )
+from tests.artifacts.summary_helpers import exported_summary_tables
 from tests.experiments.metric_helpers import (
     FIXTURES_DIR,
     LEGACY_INSERT,
@@ -46,6 +48,7 @@ from tests.experiments.metric_helpers import (
 )
 
 EXP_ID = "exp"
+SUMMARY_PREFIX = "snapshot_"
 SDK_ROOT = Path(__file__).parents[2]
 FORK_TIMEOUT = 60
 
@@ -98,11 +101,13 @@ def _pooled_paths(tracker: ExperimentTracker) -> list[str]:
 
 
 def _rows_of(path: Path) -> dict[str, list[tuple[Any, ...]]]:
+    """Rows of the tables a live store has: an export adds its summary tables."""
     conn = connect_read_only(path)
     try:
-        return table_rows(conn)
+        rows = table_rows(conn)
     finally:
         conn.close()
+    return {name: v for name, v in rows.items() if name not in SUMMARY_TABLES}
 
 
 def _rows_without_migration_times(path: Path) -> dict[str, list[tuple[Any, ...]]]:
@@ -116,9 +121,23 @@ def _rows_without_migration_times(path: Path) -> dict[str, list[tuple[Any, ...]]
 
 
 def _objects_of(path: Path) -> list[tuple[str, str, str | None]]:
+    """Schema objects a live store has: an export adds its summary tables."""
     conn = connect_read_only(path)
     try:
-        return schema_objects(conn)
+        objects = schema_objects(conn)
+    finally:
+        conn.close()
+    return [obj for obj in objects if not obj[1].startswith(SUMMARY_PREFIX)]
+
+
+def _summary_tables_of(path: Path) -> list[str]:
+    conn = connect_read_only(path)
+    try:
+        return sorted(
+            name
+            for kind, name, _ in schema_objects(conn)
+            if kind == "table" and name.startswith(SUMMARY_PREFIX)
+        )
     finally:
         conn.close()
 
@@ -207,6 +226,8 @@ def test_standalone_artifact_is_generation_2_and_round_trips(
     _check_invariants(snapshot)
     assert _objects_of(snapshot) == before["schema"]
     assert _rows_of(snapshot) == before["rows"]
+    assert _summary_tables_of(snapshot) == sorted(exported_summary_tables())
+    assert _summary_tables_of(_db_path(store)) == []
     assert live_database_state(_db_path(store)) == before
     assert _work_dirs(store) == []
 
@@ -377,6 +398,7 @@ def test_revision_2_store_is_migrated_in_the_copy_only(
         expected
     )
     assert _objects_of(snapshot) == _objects_of(expected)
+    assert _summary_tables_of(snapshot) == sorted(exported_summary_tables())
     assert live_database_state(db_path) == before
     assert before["user_version"] == 2
 

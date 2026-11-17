@@ -34,6 +34,7 @@ from luml.experiments.backends.data_types import (
     MetricCatalog,
     Model,
     PaginatedResponse,
+    SpanRecord,
     TraceColumns,
     TraceDetails,
     TraceRecord,
@@ -1194,6 +1195,40 @@ class ExperimentTracker:
         ```
         """
         return self.backend.get_trace(experiment_id, trace_id)
+
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> TraceDetails | None:
+        """
+        Retrieve a trace's span tree without span payloads, for large traces.
+
+        Spans have ``attributes``, ``events``, ``links`` and ``status_message`` set
+        to ``None``; load one span in full with ``get_span``.
+
+        Returns:
+            TraceDetails | None: Trace with its spans, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        trace = tracker.get_trace_structure("exp-1", "trace-abc")
+        if trace:
+            root = trace.spans[0]
+            span = tracker.get_span("exp-1", "trace-abc", root.span_id)
+        ```
+        """
+        return self.backend.get_trace_structure(experiment_id, trace_id)
+
+    def get_span(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> SpanRecord | None:
+        """
+        Retrieve one span with its payload.
+
+        Returns:
+            SpanRecord | None: The span, or ``None`` if the trace has no such span.
+        """
+        return self.backend.get_span(experiment_id, trace_id, span_id)
 
     def get_experiment_traces(
         self,

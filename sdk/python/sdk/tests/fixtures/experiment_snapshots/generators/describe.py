@@ -8,6 +8,7 @@ Usage: describe.py <artifact.tar> <generation.log.json> <out.json> <spec-json-st
 spec: {"era", "producer", "generation", "artifact_kind", "has_data", "has_annotations"}
 """
 
+import hashlib
 import json
 import math
 import sqlite3
@@ -61,10 +62,10 @@ def tree_depth(span_id: str, spans: list[dict[str, Any]]) -> int:
     )
 
 
-def expected_traces() -> list[dict[str, Any]]:
+def expected_traces(all_spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
     traces = []
-    for trace_id in dict.fromkeys(span["trace_id"] for span in fd.SPANS):
-        spans = [span for span in fd.SPANS if span["trace_id"] == trace_id]
+    for trace_id in dict.fromkeys(span["trace_id"] for span in all_spans):
+        spans = [span for span in all_spans if span["trace_id"] == trace_id]
         root = next(span for span in spans if span["parent_span_id"] is None)
         traces.append(
             {
@@ -75,6 +76,7 @@ def expected_traces() -> list[dict[str, Any]]:
                 "max_depth": tree_depth(root["span_id"], spans),
                 "execution_time": max(s["end"] for s in spans)
                 - min(s["start"] for s in spans),
+                "state": root["status_code"] if root["status_code"] in (1, 2) else 0,
                 "linked_evals": [e for _, e, t in fd.EVAL_TRACE_LINKS if t == trace_id],
                 "span_types": {span["span_id"]: span_type(span) for span in spans},
                 "status_messages": {
@@ -89,30 +91,86 @@ def expected_traces() -> list[dict[str, Any]]:
     return traces
 
 
+def viewer_type(value: object) -> str:
+    """The column type the viewer shows for a JSON value; NaN reads as JSON5 null."""
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int | float) and not math.isnan(value):
+        return "number"
+    return "string" if isinstance(value, str) else "unknown"
+
+
+def key_types(values: list[dict[str, Any] | None]) -> dict[str, str]:
+    types: dict[str, str] = {}
+    for value in values:
+        for key, item in (value or {}).items():
+            types.setdefault(key, viewer_type(item))
+            assert types[key] == viewer_type(item), f"{key} has two types"
+    return dict(sorted(types.items()))
+
+
 def span_type(span: dict[str, Any]) -> int:
     return {"chat": 1, "execute_tool": 3}.get(
         span["attributes"].get("gen_ai.operation.name"), 0
     )
 
 
-def expected_datasets() -> dict[str, Any]:
+def _reject_constant(name: str) -> None:
+    raise ValueError(f"{name} is not JSON")
+
+
+def viewer_value(value: dict[str, Any] | None) -> dict[str, Any] | str:
+    """What the platform viewer reads back: JSON.parse, or the stored text when JSON
+    rejects it (json.dumps writes NaN)."""
+    if not value:
+        return {}
+    text = json.dumps(value)
+    try:
+        return json.loads(text, parse_constant=_reject_constant)
+    except ValueError:
+        return text
+
+
+def viewer_scores(sample: dict[str, Any]) -> dict[str, float]:
+    """The scores the viewer averages: numbers and booleans of parsable rows."""
+    scores = viewer_value(sample["scores"])
+    if not isinstance(scores, dict):
+        return {}
+    return {
+        key: float(value)
+        for key, value in scores.items()
+        if isinstance(value, int | float)
+    }
+
+
+def expected_datasets(samples: list[dict[str, Any]]) -> dict[str, Any]:
     datasets: dict[str, Any] = {}
-    for sample in fd.EVALS:
+    for sample in samples:
         dataset = datasets.setdefault(
             sample["dataset_id"], {"eval_ids": [], "evals": {}, "average_scores": {}}
         )
         dataset["eval_ids"].append(sample["id"])
         dataset["evals"][sample["id"]] = {
-            key: sample[key] or {}
+            key: viewer_value(sample[key])
             for key in ("inputs", "outputs", "refs", "scores", "metadata")
         }
     for dataset_id, dataset in datasets.items():
         sums: dict[str, list[float]] = {}
-        for sample in fd.EVALS:
+        for sample in samples:
             if sample["dataset_id"] == dataset_id:
-                for key, value in (sample["scores"] or {}).items():
+                for key, value in viewer_scores(sample).items():
                     sums.setdefault(key, []).append(value)
         dataset["average_scores"] = {key: sum(v) / len(v) for key, v in sums.items()}
+        dataset["column_keys"] = {
+            column: key_types(
+                [
+                    sample[column]
+                    for sample in samples
+                    if sample["dataset_id"] == dataset_id
+                ]
+            )
+            for column in ("inputs", "outputs", "refs", "scores", "metadata")
+        }
         dataset["linked"] = next(
             (
                 {"eval_id": e, "trace_id": t}
@@ -125,10 +183,15 @@ def expected_datasets() -> dict[str, Any]:
 
 
 def expected_content(
-    conn: sqlite3.Connection, has_data: bool, has_annotations: bool
+    conn: sqlite3.Connection,
+    has_data: bool,
+    has_annotations: bool,
+    edge_cases: bool = False,
 ) -> dict:
     if not has_data:
         return EMPTY_CONTENT
+    spans = fd.SPANS + (fd.EDGE_SPANS if edge_cases else [])
+    samples = fd.EVALS + (fd.EDGE_EVALS if edge_cases else [])
     stored = conn.execute(
         "SELECT step, value, typeof(value) FROM dynamic_metrics"
         " WHERE key = ? ORDER BY step",
@@ -148,8 +211,9 @@ def expected_content(
             ],
         },
         "attachments": len(fd.ATTACHMENTS),
-        "traces": expected_traces(),
-        "datasets": expected_datasets(),
+        "traces": expected_traces(spans),
+        "span_attribute_keys": key_types([span["attributes"] for span in spans]),
+        "datasets": expected_datasets(samples),
         "eval_annotations": len(fd.EVAL_ANNOTATIONS) if has_annotations else 0,
         "span_annotations": len(fd.SPAN_ANNOTATIONS) if has_annotations else 0,
         "eval_annotation_rationales": [
@@ -157,6 +221,18 @@ def expected_content(
             for a in fd.EVAL_ANNOTATIONS
             if has_annotations and a.get("rationale")
         ],
+        **({"large_attribute": large_attribute()} if edge_cases else {}),
+    }
+
+
+def large_attribute() -> dict[str, Any]:
+    value = fd.large_attribute_value()
+    return {
+        "trace_id": fd.EDGE_TRACE_ID,
+        "span_id": fd.EDGE_SPANS[0]["span_id"],
+        "key": fd.LARGE_ATTRIBUTE_KEY,
+        "length": len(value),
+        "sha256": hashlib.sha256(value.encode()).hexdigest(),
     }
 
 

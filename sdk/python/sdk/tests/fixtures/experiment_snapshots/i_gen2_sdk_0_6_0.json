@@ -10,7 +10,7 @@
   "manifest_payload": {
     "local_experiment_id": "fixture-i",
     "status": "completed",
-    "group": "ac575695-c155-4f84-81e9-4414bcf462c4",
+    "group": "df95ddc1-c5a6-4694-9b15-6815deb05018",
     "tags": [
       "fixture"
     ],
@@ -18,7 +18,7 @@
     "min_reader_revision": 2
   },
   "generation_log": {
-    "content": "full",
+    "content": "edge",
     "non_finite_metric_logging": {
       "nan": "accepted",
       "inf": "accepted"
@@ -52,6 +52,10 @@
     "metric_buckets",
     "metric_keys",
     "metric_points",
+    "snapshot_eval_column_keys",
+    "snapshot_eval_score_stats",
+    "snapshot_span_attribute_keys",
+    "snapshot_trace_summaries",
     "span_annotations",
     "spans",
     "static_params"
@@ -67,15 +71,28 @@
     "dynamic_metrics": "CREATE VIEW dynamic_metrics AS SELECT k.key AS key, p.value AS value, p.step AS step, p.logged_at AS logged_at FROM metric_points p JOIN metric_keys k ON k.id = p.metric_id",
     "dynamic_metrics_no_legacy_insert": "CREATE TRIGGER dynamic_metrics_no_legacy_insert INSTEAD OF INSERT ON dynamic_metrics BEGIN SELECT RAISE(ABORT, 'this experiment uses schema revision 3; upgrade luml-sdk to write to it'); END",
     "eval_annotations": "CREATE TABLE eval_annotations ( id TEXT PRIMARY KEY, dataset_id TEXT NOT NULL, eval_id TEXT NOT NULL, name TEXT NOT NULL, annotation_kind TEXT NOT NULL CHECK(annotation_kind IN ('feedback', 'expectation')), value_type TEXT NOT NULL CHECK(value_type IN ('int', 'bool', 'string')), value TEXT NOT NULL, user TEXT NOT NULL, rationale TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (dataset_id, eval_id) REFERENCES evals(dataset_id, id) )",
+    "eval_annotations_eval": "CREATE INDEX eval_annotations_eval ON eval_annotations(dataset_id, eval_id)",
     "eval_traces_bridge": "CREATE TABLE eval_traces_bridge ( id TEXT PRIMARY KEY, eval_dataset_id TEXT NOT NULL, eval_id TEXT NOT NULL, trace_id TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )",
+    "eval_traces_bridge_eval": "CREATE INDEX eval_traces_bridge_eval ON eval_traces_bridge(eval_id, eval_dataset_id, trace_id)",
+    "eval_traces_bridge_trace": "CREATE INDEX eval_traces_bridge_trace ON eval_traces_bridge(trace_id, eval_id)",
     "evals": "CREATE TABLE evals ( id TEXT NOT NULL, dataset_id TEXT NOT NULL, inputs TEXT NOT NULL, outputs TEXT, refs TEXT, scores TEXT, metadata TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (dataset_id, id) )",
+    "evals_list": "CREATE INDEX evals_list ON evals(dataset_id, created_at, id, updated_at, scores)",
     "exp_schema_info": "CREATE TABLE exp_schema_info ( key TEXT PRIMARY KEY, value TEXT NOT NULL ) WITHOUT ROWID",
     "exp_schema_migrations": "CREATE TABLE exp_schema_migrations ( version INTEGER PRIMARY KEY, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP )",
     "metric_buckets": "CREATE TABLE metric_buckets ( level INTEGER NOT NULL, metric_id INTEGER NOT NULL, bucket INTEGER NOT NULL, count INTEGER NOT NULL, finite_count INTEGER NOT NULL, min REAL, max REAL, sum REAL, first_step INTEGER NOT NULL, last_step INTEGER NOT NULL, PRIMARY KEY (level, metric_id, bucket) ) WITHOUT ROWID",
     "metric_keys": "CREATE TABLE metric_keys ( id INTEGER PRIMARY KEY, key TEXT NOT NULL UNIQUE )",
     "metric_points": "CREATE TABLE metric_points ( metric_id INTEGER NOT NULL, step INTEGER NOT NULL, value REAL, logged_ms INTEGER, logged_at TIMESTAMP GENERATED ALWAYS AS (strftime('%Y-%m-%d %H:%M:%S', logged_ms / 1000, 'unixepoch')) VIRTUAL, PRIMARY KEY (metric_id, step) ) WITHOUT ROWID",
+    "snapshot_eval_column_keys": "CREATE TABLE snapshot_eval_column_keys ( dataset_id TEXT NOT NULL, column_name TEXT NOT NULL, key TEXT NOT NULL, type TEXT NOT NULL, PRIMARY KEY (dataset_id, column_name, key) ) WITHOUT ROWID",
+    "snapshot_eval_score_stats": "CREATE TABLE snapshot_eval_score_stats ( dataset_id TEXT NOT NULL, score_key TEXT NOT NULL, count INTEGER NOT NULL, sum REAL, PRIMARY KEY (dataset_id, score_key) ) WITHOUT ROWID",
+    "snapshot_span_attribute_keys": "CREATE TABLE snapshot_span_attribute_keys ( key TEXT PRIMARY KEY, type TEXT NOT NULL ) WITHOUT ROWID",
+    "snapshot_trace_summaries": "CREATE TABLE snapshot_trace_summaries ( trace_id TEXT PRIMARY KEY, start_time_unix_nano INTEGER NOT NULL, end_time_unix_nano INTEGER NOT NULL, execution_time INTEGER NOT NULL, span_count INTEGER NOT NULL, state INTEGER NOT NULL, created_at TEXT ) WITHOUT ROWID",
+    "snapshot_trace_summaries_created": "CREATE INDEX snapshot_trace_summaries_created ON snapshot_trace_summaries(created_at, trace_id)",
+    "snapshot_trace_summaries_duration": "CREATE INDEX snapshot_trace_summaries_duration ON snapshot_trace_summaries(execution_time, trace_id)",
+    "snapshot_trace_summaries_spans": "CREATE INDEX snapshot_trace_summaries_spans ON snapshot_trace_summaries(span_count, trace_id)",
     "span_annotations": "CREATE TABLE span_annotations ( id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, span_id TEXT NOT NULL, name TEXT NOT NULL, annotation_kind TEXT NOT NULL CHECK(annotation_kind IN ('feedback', 'expectation')), value_type TEXT NOT NULL CHECK(value_type IN ('int', 'bool', 'string')), value TEXT NOT NULL, user TEXT NOT NULL, rationale TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (trace_id, span_id) REFERENCES spans(trace_id, span_id) )",
+    "span_annotations_span": "CREATE INDEX span_annotations_span ON span_annotations(trace_id, span_id)",
     "spans": "CREATE TABLE spans ( trace_id TEXT NOT NULL, span_id TEXT NOT NULL, parent_span_id TEXT, name TEXT NOT NULL, kind INTEGER, dfs_span_type INTEGER NOT NULL DEFAULT 0, start_time_unix_nano BIGINT NOT NULL, end_time_unix_nano BIGINT NOT NULL, status_code INTEGER, status_message TEXT, attributes TEXT, events TEXT, links TEXT, trace_flags INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (trace_id, span_id) )",
+    "spans_structure": "CREATE INDEX spans_structure ON spans(trace_id, start_time_unix_nano, span_id, parent_span_id, end_time_unix_nano, status_code, name, kind, dfs_span_type, created_at, trace_flags)",
     "static_params": "CREATE TABLE static_params ( key TEXT PRIMARY KEY, value TEXT, value_type TEXT )"
   },
   "expected": {
@@ -198,6 +215,7 @@
         ],
         "max_depth": 3,
         "execution_time": 900000000,
+        "state": 1,
         "linked_evals": [
           "e1"
         ],
@@ -241,6 +259,7 @@
         ],
         "max_depth": 2,
         "execution_time": 500000000,
+        "state": 1,
         "linked_evals": [
           "s1"
         ],
@@ -251,8 +270,42 @@
         "status_messages": {},
         "events": {},
         "links": {}
+      },
+      {
+        "trace_id": "2c09873b38ef65ff0660ad433ea2531e",
+        "span_count": 2,
+        "root_span": "large_prompt",
+        "span_names": [
+          "large_prompt",
+          "llm_call"
+        ],
+        "max_depth": 2,
+        "execution_time": 200000000,
+        "state": 1,
+        "linked_evals": [],
+        "span_types": {
+          "0123456789abcdef": 0,
+          "fedcba9876543210": 1
+        },
+        "status_messages": {
+          "fedcba9876543210": "rate limited"
+        },
+        "events": {},
+        "links": {}
       }
     ],
+    "span_attribute_keys": {
+      "gen_ai.operation.name": "string",
+      "gen_ai.request.model": "string",
+      "gen_ai.usage.input_tokens": "number",
+      "input.value": "string",
+      "llm.prompt": "string",
+      "prompt.kind": "string",
+      "retrieval.documents": "number",
+      "retry.count": "number",
+      "tool.name": "string",
+      "user.city": "string"
+    },
     "datasets": {
       "qa_set": {
         "eval_ids": [
@@ -320,6 +373,24 @@
           "exact_match": 0.6666666666666666,
           "relevance": 0.75
         },
+        "column_keys": {
+          "inputs": {
+            "question": "string"
+          },
+          "outputs": {
+            "answer": "string"
+          },
+          "refs": {
+            "answer": "string"
+          },
+          "scores": {
+            "exact_match": "number",
+            "relevance": "number"
+          },
+          "metadata": {
+            "source": "string"
+          }
+        },
         "linked": {
           "eval_id": "e1",
           "trace_id": "0af7651916cd43dd8448eb211c80319c"
@@ -371,10 +442,98 @@
         "average_scores": {
           "rouge": 0.30000000000000004
         },
+        "column_keys": {
+          "inputs": {
+            "document": "string"
+          },
+          "outputs": {
+            "summary": "string"
+          },
+          "refs": {},
+          "scores": {
+            "rouge": "number"
+          },
+          "metadata": {}
+        },
         "linked": {
           "eval_id": "s1",
           "trace_id": "1bf8762a27de54ee9559fc322d91420d"
         }
+      },
+      "edge_scores": {
+        "eval_ids": [
+          "x1",
+          "x2",
+          "x3",
+          "x4"
+        ],
+        "evals": {
+          "x1": {
+            "inputs": {
+              "question": "numbers, booleans and strings"
+            },
+            "outputs": {},
+            "refs": {},
+            "scores": {
+              "accuracy": 1.0,
+              "passed": true,
+              "grade": "A"
+            },
+            "metadata": {}
+          },
+          "x2": {
+            "inputs": {
+              "question": "a NaN score"
+            },
+            "outputs": {},
+            "refs": {},
+            "scores": "{\"unstable_score\": NaN, \"passed\": false, \"grade\": \"C\"}",
+            "metadata": {}
+          },
+          "x3": {
+            "inputs": {
+              "question": "numbers, booleans and strings"
+            },
+            "outputs": {},
+            "refs": {},
+            "scores": {
+              "accuracy": 0.5,
+              "passed": true,
+              "grade": "B"
+            },
+            "metadata": {}
+          },
+          "x4": {
+            "inputs": {
+              "question": "a boolean only"
+            },
+            "outputs": {},
+            "refs": {},
+            "scores": {
+              "passed": false
+            },
+            "metadata": {}
+          }
+        },
+        "average_scores": {
+          "accuracy": 0.75,
+          "passed": 0.6666666666666666
+        },
+        "column_keys": {
+          "inputs": {
+            "question": "string"
+          },
+          "outputs": {},
+          "refs": {},
+          "scores": {
+            "accuracy": "number",
+            "grade": "string",
+            "passed": "boolean",
+            "unstable_score": "unknown"
+          },
+          "metadata": {}
+        },
+        "linked": null
       }
     },
     "eval_annotations": 4,
@@ -385,7 +544,14 @@
         "helpful",
         "Matches the docs"
       ]
-    ]
+    ],
+    "large_attribute": {
+      "trace_id": "2c09873b38ef65ff0660ad433ea2531e",
+      "span_id": "0123456789abcdef",
+      "key": "llm.prompt",
+      "length": 204800,
+      "sha256": "1425b737c11db52f0924572dd7f05f4329402cf46602d4daa0ad0111cffb941d"
+    }
   },
   "metrics": {
     "skipped_rows": 0,

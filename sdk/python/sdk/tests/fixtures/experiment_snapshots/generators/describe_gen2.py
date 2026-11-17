@@ -56,7 +56,7 @@ def producer_facts(artifact: str, kind: str) -> tuple[str, Any]:
 
 def logged_metrics(content: str) -> list[md.LogEntry]:
     log: list[md.LogEntry] = []
-    if content == "full":
+    if content in ("full", "edge"):
         for key, points in fd.metric_points().items():
             log += [(key, value, step) for step, value in points]
         log += [
@@ -127,12 +127,13 @@ def main() -> None:
     ).fetchall()
     tables = {name for kind, name in objects if kind == "table"}
 
+    full = content in ("full", "edge")
     expected = (
-        expected_content(conn, True, spec["has_annotations"])
-        if content == "full"
+        expected_content(conn, True, spec["has_annotations"], content == "edge")
+        if full
         else {"static_params": fd.STATIC_PARAMS}
     )
-    if content == "full":
+    if full:
         cross_check(conn, tables, expected)
     log = logged_metrics(content)
     points = md.stored_points(log)

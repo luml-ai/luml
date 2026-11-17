@@ -25,7 +25,12 @@ import pytest
 from luml.experiments.backends.data_types import AnnotationKind, AnnotationValueType
 from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.backends.sqlite import SQLiteBackend
+from luml.experiments.backends.trace_schema import TRACE_EVAL_INDEXES
 from luml.experiments.tracker import ExperimentTracker
+from tests.artifacts.summary_helpers import (
+    assert_summaries_match_reads,
+    exports_key_catalogs,
+)
 from tests.experiments.metric_helpers import assert_bucket_invariants, schema_snapshot
 
 OLD_PYTHON = os.environ.get("LUML_OLD_SDK_PYTHON")
@@ -365,3 +370,116 @@ def test_released_sdk_reads_a_generation_2_snapshot_like_the_live_store(
 
     assert schema_snapshot(store2 / EXP_ID / "exp.db")[1] == 2
     assert reads_published == reads3
+
+
+OLD_TRACE_EVAL_WRITER = """
+import json, sys
+from luml.experiments.backends.data_types import AnnotationKind, AnnotationValueType
+from luml.experiments.backends.sqlite import SQLiteBackend
+b = SQLiteBackend(sys.argv[1])
+print("ready", flush=True)
+relogged = {}
+for t in range(int(sys.argv[2])):
+    trace = f"t{t}"
+    for s in range(4):
+        b.log_span(
+            "exp", trace, f"s{s}", "span", s, s + 10,
+            parent_span_id=None if s == 0 else "s0", status_code=1 + t % 2,
+            attributes={"payload": "x" * 300, "n": t},
+        )
+    b.log_eval_sample("exp", f"e{t}", "ds", {"q": t}, scores={"acc": t % 3, "ok": True})
+    b.link_eval_sample_to_trace("exp", "ds", f"e{t}", trace)
+    b.log_eval_annotation(
+        "exp", "ds", f"e{t}", "good", AnnotationKind.FEEDBACK, AnnotationValueType.BOOL,
+        True, "u",
+    )
+    b.log_span_annotation(
+        "exp", trace, "s1", "note", AnnotationKind.FEEDBACK, AnnotationValueType.BOOL,
+        False, "u",
+    )
+    if t % 10 == 0:
+        # INSERT OR REPLACE of an eval and a span that have annotations (risk R6).
+        try:
+            b.log_eval_sample("exp", f"e{t}", "ds", {"q": -t}, scores={"acc": 2})
+            b.log_span("exp", trace, "s1", "relogged", 1, 30, parent_span_id="s0")
+            relogged[trace] = "accepted"
+        except Exception as error:
+            relogged[trace] = f"{type(error).__name__}: {error}"
+print(json.dumps(relogged), flush=True)
+"""
+
+
+def _assert_index_rows_match_table(conn: sqlite3.Connection) -> None:
+    for name, (table, columns) in TRACE_EVAL_INDEXES.items():
+        listed = ", ".join(columns)
+        through_index = conn.execute(
+            f"SELECT {listed} FROM {table} INDEXED BY {name} ORDER BY {listed}"
+        ).fetchall()
+        through_table = conn.execute(
+            f"SELECT {listed} FROM {table} NOT INDEXED ORDER BY {listed}"
+        ).fetchall()
+        assert through_index == through_table, name
+
+
+def test_released_sdk_writes_traces_and_evals_to_revision_3_while_this_one_reads(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    backend = SQLiteBackend(str(store), flush_interval=0)
+    backend.initialize_experiment(EXP_ID, name="new")
+    backend.close()
+    db_path = store / EXP_ID / "exp.db"
+    schema_before = schema_snapshot(db_path)
+    traces = 300
+
+    old = _old_sdk(OLD_TRACE_EVAL_WRITER, str(store), str(traces))
+    assert old.stdout is not None
+    assert old.stdout.readline().strip() == "ready"
+    reader = SQLiteBackend(str(store))
+    reads = 0
+    while old.poll() is None:
+        page = reader.get_experiment_traces(EXP_ID, limit=5)
+        for record in page.items:
+            structure = reader.get_trace_structure(EXP_ID, record.trace_id)
+            if structure is not None:
+                assert all(span.attributes is None for span in structure.spans)
+                reader.get_span(EXP_ID, record.trace_id, structure.spans[0].span_id)
+        reader.get_experiment_evals(EXP_ID, dataset_id="ds", limit=5)
+        reader.get_evals_average_scores(EXP_ID, dataset_id="ds")
+        reads += 1
+        time.sleep(0.005)
+    stdout, stderr = old.communicate(timeout=120)
+    assert old.returncode == 0, stderr
+    relogged = json.loads(stdout.strip().splitlines()[-1])
+    assert reads > 5
+
+    assert relogged == {f"t{t}": "accepted" for t in range(0, traces, 10)}
+    assert schema_snapshot(db_path) == schema_before
+    conn = sqlite3.connect(db_path)
+    assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
+    assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+    _assert_index_rows_match_table(conn)
+    annotations = conn.execute("SELECT count(*) FROM eval_annotations").fetchone()
+    assert annotations == (traces,)
+    relogged_eval = conn.execute("SELECT inputs FROM evals WHERE id = 'e10'")
+    assert relogged_eval.fetchone() == ('{"q": -10}',)
+    conn.close()
+
+    structure = reader.get_trace_structure(EXP_ID, "t10")
+    full = reader.get_trace(EXP_ID, "t10")
+    assert structure is not None
+    assert full is not None
+    assert {span.span_id: span.annotation_count for span in structure.spans} == {
+        span.span_id: span.annotation_count for span in full.spans
+    }
+    relogged_span = reader.get_span(EXP_ID, "t10", "s1")
+    assert relogged_span is not None
+    assert relogged_span.name == "relogged"
+    assert relogged_span.attributes is None
+    with reader.snapshot_experiment(EXP_ID) as snapshot:
+        assert snapshot.artifact_generation == 2
+        conn = sqlite3.connect(snapshot.path)
+        assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
+        assert_summaries_match_reads(conn, exports_key_catalogs())
+        conn.close()
+    reader.close()

@@ -3405,7 +3405,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                         ON s.trace_id = sa.trace_id AND s.span_id = sa.span_id
                     WHERE s.trace_id = ?
                     GROUP BY s.trace_id, s.span_id
-                    ORDER BY s.start_time_unix_nano
+                    ORDER BY s.start_time_unix_nano, s.span_id
                     """,
                     (trace_id,),
                 )
@@ -3418,7 +3418,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                            trace_flags, 0 AS annotation_count
                     FROM spans
                     WHERE trace_id = ?
-                    ORDER BY start_time_unix_nano
+                    ORDER BY start_time_unix_nano, span_id
                     """,
                     (trace_id,),
                 )
@@ -3447,6 +3447,107 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 for row in rows
             ]
             return TraceDetails(trace_id=trace_id, spans=spans)
+
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> TraceDetails | None:
+        """The trace's span tree without span payloads: `attributes`, `events`,
+        `links` and `status_message` are None. `get_span` loads one span's payload.
+
+        From schema revision 3 the spans come from the `spans_structure` index alone,
+        so large payloads are never read. Spans are ordered by start time, then id.
+        """
+        self._ensure_experiment_initialized(experiment_id)
+        has_annotations = self._has_annotation_tables(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            rows = conn.execute(
+                """
+                SELECT span_id, parent_span_id, name, kind, dfs_span_type,
+                       start_time_unix_nano, end_time_unix_nano, status_code,
+                       trace_flags
+                FROM spans
+                WHERE trace_id = ?
+                ORDER BY start_time_unix_nano, span_id
+                """,
+                (trace_id,),
+            ).fetchall()
+            if not rows:
+                return None
+            annotation_counts: dict[str, int] = {}
+            if has_annotations:
+                annotation_counts = dict(
+                    conn.execute(
+                        "SELECT span_id, COUNT(*) FROM span_annotations "
+                        "WHERE trace_id = ? GROUP BY span_id",
+                        (trace_id,),
+                    ).fetchall()
+                )
+        return TraceDetails(
+            trace_id=trace_id,
+            spans=[
+                SpanRecord(
+                    trace_id=trace_id,
+                    span_id=row[0],
+                    parent_span_id=row[1],
+                    name=row[2],
+                    kind=row[3],
+                    dfs_span_type=row[4],
+                    start_time_unix_nano=row[5],
+                    end_time_unix_nano=row[6],
+                    status_code=row[7],
+                    status_message=None,
+                    attributes=None,
+                    events=None,
+                    links=None,
+                    trace_flags=row[8],
+                    annotation_count=annotation_counts.get(row[0], 0),
+                )
+                for row in rows
+            ],
+        )
+
+    def get_span(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> SpanRecord | None:
+        self._ensure_experiment_initialized(experiment_id)
+        has_annotations = self._has_annotation_tables(experiment_id)
+        with self._get_experiment_connection(experiment_id) as conn:
+            row = conn.execute(
+                """
+                SELECT parent_span_id, name, kind, dfs_span_type,
+                       start_time_unix_nano, end_time_unix_nano, status_code,
+                       status_message, attributes, events, links, trace_flags
+                FROM spans
+                WHERE trace_id = ? AND span_id = ?
+                """,
+                (trace_id, span_id),
+            ).fetchone()
+            if row is None:
+                return None
+            annotation_count = 0
+            if has_annotations:
+                annotation_count = conn.execute(
+                    "SELECT COUNT(*) FROM span_annotations "
+                    "WHERE trace_id = ? AND span_id = ?",
+                    (trace_id, span_id),
+                ).fetchone()[0]
+        return SpanRecord(
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=row[0],
+            name=row[1],
+            kind=row[2],
+            dfs_span_type=row[3],
+            start_time_unix_nano=row[4],
+            end_time_unix_nano=row[5],
+            status_code=row[6],
+            status_message=row[7],
+            attributes=json.loads(row[8]) if row[8] else None,
+            events=json.loads(row[9]) if row[9] else None,
+            links=json.loads(row[10]) if row[10] else None,
+            trace_flags=row[11],
+            annotation_count=annotation_count,
+        )
 
     def _build_evals_where_conditions(
         self,

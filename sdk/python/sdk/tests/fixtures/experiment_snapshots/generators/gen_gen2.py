@@ -2,11 +2,12 @@
 Python that runs it (released 0.5.0 or this tree's). Run under fakeroot.
 
 Usage:
-  gen_gen2.py populate <work_dir> <exp_id> full|metrics|legacy
+  gen_gen2.py populate <work_dir> <exp_id> full|edge|metrics|legacy
   gen_gen2.py export <work_dir> <exp_id> <out_tar>
   gen_gen2.py model <work_dir> <exp_id> <out_tar>
 
 full: the standard fixture content (fixture_data) plus the metric log of metric_data.
+edge: full plus the trace and eval edge cases of fixture_data.
 metrics: static params and the metric log only. legacy: metrics plus a REAL step that
 revision 3 cannot store, which only released SDKs accept.
 """
@@ -41,9 +42,11 @@ def log_metrics(entries: list[tuple[str, float, float | int]]) -> None:
 def populate(content: str) -> None:
     tracker.start_experiment(name=exp_id, experiment_id=exp_id, tags=["fixture"])
     log: dict[str, object] = {"content": content}
-    if content == "full":
+    if content in ("full", "edge"):
         log.update(fd.populate(tracker, exp_id))
         fd.populate_annotations(tracker, exp_id)
+        if content == "edge":
+            fd.populate_edge_cases(tracker, exp_id)
     else:
         for key, value in fd.STATIC_PARAMS.items():
             tracker.log_static(key, value, experiment_id=exp_id)

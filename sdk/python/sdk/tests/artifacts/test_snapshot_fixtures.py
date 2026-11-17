@@ -1,6 +1,8 @@
 """Frozen generation 2 (and fallback) artifacts against the expectations generated
 next to them by a brute force that shares no code with the SDK."""
 
+import dataclasses
+import hashlib
 import json
 import math
 import sqlite3
@@ -21,6 +23,7 @@ from tests.artifacts.snapshot_helpers import (
     read_json_member,
     snapshot_member,
 )
+from tests.artifacts.summary_helpers import KEY_CATALOG_TABLES, exports_key_catalogs
 from tests.experiments.metric_helpers import (
     FIXTURES_DIR,
     assert_bucket_invariants,
@@ -37,7 +40,9 @@ FIXTURES = [
     "l_gen1_twin",
     "m_gen2_twin",
     "n_gen1_fallback",
+    "o_gen1_edge_sdk_0_5_0",
 ]
+EDGE_FIXTURES = ["i_gen2_sdk_0_6_0", "o_gen1_edge_sdk_0_5_0"]
 EXP_ID = "fixture"
 
 
@@ -279,9 +284,57 @@ def test_a_fresh_export_has_the_frozen_format(tmp_path: Path) -> None:
     extract_snapshot_db(artifact, db)
     assert _header(db) == (frozen["page_size"], frozen["wal_header"])
     facts = _schema_facts(db)
+    omitted = set() if exports_key_catalogs() else set(KEY_CATALOG_TABLES)
+    frozen["tables"] = [name for name in frozen["tables"] if name not in omitted]
+    frozen["schema_sql"] = {
+        name: sql for name, sql in frozen["schema_sql"].items() if name not in omitted
+    }
     assert facts == {key: frozen[key] for key in facts}
     live_db = tmp_path / "store" / exp_id / "exp.db"
-    assert _schema_facts(live_db)["schema_sql"] == frozen["schema_sql"]
+    assert _schema_facts(live_db)["schema_sql"] == {
+        name: sql
+        for name, sql in frozen["schema_sql"].items()
+        if not name.startswith("snapshot_")
+    }
     conn = sqlite3.connect(db)
     assert conn.execute("SELECT count(*) FROM metric_points").fetchone() == (1,)
     conn.close()
+
+
+@pytest.mark.parametrize("name", EDGE_FIXTURES)
+def test_trace_structure_and_spans_read_as_the_full_trace(
+    name: str, tmp_path: Path
+) -> None:
+    expected = _expected(name)["expected"]
+    backend = _backend_on(
+        _extracted(name, tmp_path / name / "exp.db"), tmp_path / "store"
+    )
+    try:
+        for trace in expected["traces"]:
+            full = backend.get_trace(EXP_ID, trace["trace_id"])
+            structure = backend.get_trace_structure(EXP_ID, trace["trace_id"])
+            assert full is not None
+            assert structure is not None
+            by_id = {span.span_id: span for span in full.spans}
+            assert sorted(by_id) == sorted(s.span_id for s in structure.spans)
+            for span in structure.spans:
+                assert span == dataclasses.replace(
+                    by_id[span.span_id],
+                    status_message=None,
+                    attributes=None,
+                    events=None,
+                    links=None,
+                )
+                assert (
+                    backend.get_span(EXP_ID, span.trace_id, span.span_id)
+                    == (by_id[span.span_id])
+                )
+        large = expected["large_attribute"]
+        span = backend.get_span(EXP_ID, large["trace_id"], large["span_id"])
+        assert span is not None
+        assert span.attributes is not None
+        value = span.attributes[large["key"]]
+        assert len(value) == large["length"]
+        assert hashlib.sha256(value.encode()).hexdigest() == large["sha256"]
+    finally:
+        backend.close()

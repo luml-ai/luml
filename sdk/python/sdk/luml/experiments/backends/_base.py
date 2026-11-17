@@ -1,3 +1,4 @@
+import dataclasses
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from typing import Any, Literal
@@ -23,6 +24,7 @@ from luml.experiments.backends.data_types import (
     MetricCatalog,
     Model,
     PaginatedResponse,
+    SpanRecord,
     TraceColumns,
     TraceDetails,
     TraceRecord,
@@ -390,6 +392,36 @@ class Backend(ABC):
     @abstractmethod
     def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
         pass
+
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> TraceDetails | None:
+        """The trace's span tree without span payloads: `attributes`, `events`,
+        `links` and `status_message` are None. `get_span` loads one span's payload."""
+        trace = self.get_trace(experiment_id, trace_id)
+        if trace is None:
+            return None
+        return TraceDetails(
+            trace_id=trace.trace_id,
+            spans=[
+                dataclasses.replace(
+                    span,
+                    status_message=None,
+                    attributes=None,
+                    events=None,
+                    links=None,
+                )
+                for span in trace.spans
+            ],
+        )
+
+    def get_span(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> SpanRecord | None:
+        trace = self.get_trace(experiment_id, trace_id)
+        if trace is None:
+            return None
+        return next((span for span in trace.spans if span.span_id == span_id), None)
 
     @abstractmethod
     def check_experiments_exists(self, experiment_ids: list[str]) -> None:

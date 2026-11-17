@@ -8,6 +8,7 @@ from luml.experiments.backends.metric_schema import (
     NUMERIC_SQL,
     SUMMABLE_SQL,
 )
+from luml.experiments.backends.trace_schema import create_trace_eval_indexes
 
 VERSION = 3
 DESCRIPTION = "Compact metric points with aggregation buckets"
@@ -209,4 +210,5 @@ def up(conn: sqlite3.Connection) -> None:
     cursor.executemany(
         "INSERT INTO exp_schema_info (key, value) VALUES (?, ?)", _SCHEMA_INFO
     )
+    create_trace_eval_indexes(conn)
     cursor.execute("PRAGMA user_version = 3")

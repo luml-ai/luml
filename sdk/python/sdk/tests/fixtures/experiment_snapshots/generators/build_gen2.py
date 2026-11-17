@@ -1,4 +1,5 @@
-"""Regenerate fixtures i to n (artifact generation 2 and its fallback) and their JSON.
+"""Regenerate fixtures i to o (artifact generation 2, its fallback, and a revision 2
+artifact with the trace and eval edge cases) and their JSON.
 
 Usage: python build_gen2.py <workspace> <new_python> [<fixture_dir>]
 
@@ -6,7 +7,9 @@ Usage: python build_gen2.py <workspace> <new_python> [<fixture_dir>]
 <new_python> is a Python running this tree's luml-sdk (sdk/python/sdk/.venv/bin/python).
 Every SDK run happens under fakeroot, so packed files are owned by root, and attachment
 mtimes are fixed before each export. <fixture_dir> defaults to the directory that
-contains this generators directory.
+contains this generators directory. Fixtures l and n stand for artifacts already
+published: to regenerate the others, write to a separate <fixture_dir> and copy only
+those.
 """
 
 import json
@@ -61,9 +64,9 @@ shutil.rmtree(WORK, ignore_errors=True)
 shutil.rmtree(OUT, ignore_errors=True)
 WORK.mkdir()
 OUT.mkdir()
-work = {name: str(WORK / name) for name in "ijklmn"}
+work = {name: str(WORK / name) for name in "ijklmno"}
 
-run(NEW, "populate", work["i"], "fixture-i", "full")
+run(NEW, "populate", work["i"], "fixture-i", "edge")
 run(NEW, "export", work["i"], "fixture-i", str(OUT / "i_gen2_sdk_0_6_0.tar"))
 run(NEW, "populate", work["j"], "fixture-j", "full")
 run(NEW, "model", work["j"], "fixture-j", str(OUT / "j_gen2_model_sdk_0_6_0.tar"))
@@ -75,6 +78,8 @@ run(NEW, "populate", work["m"], "fixture-twin", "metrics")
 run(NEW, "export", work["m"], "fixture-twin", str(OUT / "m_gen2_twin.tar"))
 run(OLD, "populate", work["n"], "fixture-n", "legacy")
 run(NEW, "export", work["n"], "fixture-n", str(OUT / "n_gen1_fallback.tar"))
+run(OLD, "populate", work["o"], "fixture-o", "edge")
+run(OLD, "export", work["o"], "fixture-o", str(OUT / "o_gen1_edge_sdk_0_5_0.tar"))
 
 describe(
     "i_gen2_sdk_0_6_0",
@@ -114,5 +119,15 @@ describe(
         f"store by {OLD_PRODUCER}, exported by {NEW_PRODUCER}",
         "experiment",
         False,
+    ),
+)
+describe(
+    "o_gen1_edge_sdk_0_5_0",
+    "o",
+    spec(
+        "generation 1, revision 2, with the trace and eval edge cases",
+        OLD_PRODUCER,
+        "experiment",
+        True,
     ),
 )

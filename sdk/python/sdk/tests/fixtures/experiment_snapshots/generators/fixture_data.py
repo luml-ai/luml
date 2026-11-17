@@ -254,6 +254,86 @@ SPAN_ANNOTATIONS: list[dict[str, Any]] = [
     },
 ]
 
+# Edge cases for the trace and eval readers, logged only into fixtures that say so:
+# a span payload far larger than its tree row, and scores the readers must skip.
+EDGE_TRACE_ID = "2c09873b38ef65ff0660ad433ea2531e"
+LARGE_ATTRIBUTE_KEY = "llm.prompt"
+LARGE_ATTRIBUTE_SIZE = 200 * 1024
+
+
+def large_attribute_value() -> str:
+    lines = (f"line {index:06d} of a long prompt\n" for index in range(10_000))
+    return "".join(lines)[:LARGE_ATTRIBUTE_SIZE]
+
+
+EDGE_SPANS: list[dict[str, Any]] = [
+    {
+        "trace_id": EDGE_TRACE_ID,
+        "span_id": "0123456789abcdef",
+        "parent_span_id": None,
+        "name": "large_prompt",
+        "start": BASE_NS + 3_000_000_000,
+        "end": BASE_NS + 3_200_000_000,
+        "status_code": 1,
+        "attributes": {
+            LARGE_ATTRIBUTE_KEY: large_attribute_value(),
+            "prompt.kind": "large",
+        },
+    },
+    {
+        "trace_id": EDGE_TRACE_ID,
+        "span_id": "fedcba9876543210",
+        "parent_span_id": "0123456789abcdef",
+        "name": "llm_call",
+        "start": BASE_NS + 3_050_000_000,
+        "end": BASE_NS + 3_150_000_000,
+        "status_code": 2,
+        "status_message": "rate limited",
+        "attributes": {"gen_ai.operation.name": "chat", "retry.count": 2},
+    },
+]
+
+EDGE_DATASET_ID = "edge_scores"
+# json.dumps writes NaN, which JSON.parse rejects, so the viewer counts no score of x2.
+EDGE_EVALS: list[dict[str, Any]] = [
+    {
+        "dataset_id": EDGE_DATASET_ID,
+        "id": "x1",
+        "inputs": {"question": "numbers, booleans and strings"},
+        "outputs": None,
+        "refs": None,
+        "scores": {"accuracy": 1.0, "passed": True, "grade": "A"},
+        "metadata": None,
+    },
+    {
+        "dataset_id": EDGE_DATASET_ID,
+        "id": "x2",
+        "inputs": {"question": "a NaN score"},
+        "outputs": None,
+        "refs": None,
+        "scores": {"unstable_score": math.nan, "passed": False, "grade": "C"},
+        "metadata": None,
+    },
+    {
+        "dataset_id": EDGE_DATASET_ID,
+        "id": "x3",
+        "inputs": {"question": "numbers, booleans and strings"},
+        "outputs": None,
+        "refs": None,
+        "scores": {"accuracy": 0.5, "passed": True, "grade": "B"},
+        "metadata": None,
+    },
+    {
+        "dataset_id": EDGE_DATASET_ID,
+        "id": "x4",
+        "inputs": {"question": "a boolean only"},
+        "outputs": None,
+        "refs": None,
+        "scores": {"passed": False},
+        "metadata": None,
+    },
+]
+
 
 def _non_finite_label(value: float) -> str:
     return "nan" if math.isnan(value) else "inf" if math.isinf(value) else "finite"
@@ -287,8 +367,10 @@ def _log_non_finite_metric(tracker: Tracker, exp_id: str) -> dict[str, str]:
     return outcomes
 
 
-def _log_spans(tracker: Tracker, exp_id: str) -> None:
-    for span in SPANS:
+def _log_spans(
+    tracker: Tracker, exp_id: str, spans: list[dict[str, Any]] = SPANS
+) -> None:
+    for span in spans:
         tracker.log_span(
             span["trace_id"],
             span["span_id"],
@@ -306,8 +388,10 @@ def _log_spans(tracker: Tracker, exp_id: str) -> None:
         )
 
 
-def _log_evals(tracker: Tracker, exp_id: str) -> None:
-    for sample in EVALS:
+def _log_evals(
+    tracker: Tracker, exp_id: str, samples: list[dict[str, Any]] = EVALS
+) -> None:
+    for sample in samples:
         tracker.log_eval_sample(
             sample["id"],
             sample["dataset_id"],
@@ -317,10 +401,6 @@ def _log_evals(tracker: Tracker, exp_id: str) -> None:
             scores=sample["scores"],
             metadata=sample["metadata"],
             experiment_id=exp_id,
-        )
-    for dataset_id, eval_id, trace_id in EVAL_TRACE_LINKS:
-        tracker.link_eval_sample_to_trace(
-            dataset_id, eval_id, trace_id, experiment_id=exp_id
         )
 
 
@@ -336,7 +416,16 @@ def populate(tracker: Tracker, exp_id: str) -> dict[str, Any]:
         tracker.log_attachment(name, content, experiment_id=exp_id)
     _log_spans(tracker, exp_id)
     _log_evals(tracker, exp_id)
+    for dataset_id, eval_id, trace_id in EVAL_TRACE_LINKS:
+        tracker.link_eval_sample_to_trace(
+            dataset_id, eval_id, trace_id, experiment_id=exp_id
+        )
     return {"non_finite_metric_logging": non_finite_log}
+
+
+def populate_edge_cases(tracker: Tracker, exp_id: str) -> None:
+    _log_spans(tracker, exp_id, EDGE_SPANS)
+    _log_evals(tracker, exp_id, EDGE_EVALS)
 
 
 def populate_annotations(tracker: Tracker, exp_id: str) -> None:

@@ -23,6 +23,7 @@ from luml.experiments.backends._exceptions import (
     ExportSpaceError,
     LegacyMetricRowsError,
 )
+from luml.experiments.backends._snapshot_summaries import build_snapshot_summaries
 from luml.experiments.backends.migration_runner import (
     KNOWN_EXPERIMENT_REVISION,
     ExperimentMigrationRunner,
@@ -217,6 +218,8 @@ def _build_snapshot(
     _vacuum_into(pool, work_dir, db_path, copy)
     schema = _read_schema(pool, work_dir, copy)
     if schema.revision >= KNOWN_EXPERIMENT_REVISION:
+        if schema.revision == KNOWN_EXPERIMENT_REVISION:
+            _add_summaries(pool, work_dir, copy)
         return _snapshot(copy, work_dir, schema)
 
     migrated = work_dir / "migrated.db"
@@ -236,6 +239,7 @@ def _build_snapshot(
     compacted = work_dir / "exp.db"
     _vacuum_into(pool, work_dir, migrated, compacted)
     migrated.unlink()
+    _add_summaries(pool, work_dir, compacted)
     return _snapshot(compacted, work_dir, _read_schema(pool, work_dir, compacted))
 
 
@@ -289,6 +293,17 @@ def _read_schema(
     with _helper_connection(pool, work_dir) as conn:
         conn.execute("ATTACH DATABASE ? AS snapshot", (_read_only_uri(path),))
         return read_experiment_schema(conn, "snapshot")
+
+
+def _add_summaries(pool: "ConnectionPool", work_dir: Path, path: Path) -> None:
+    # Attached, the copy keeps its rollback journal: opened through the pool it would
+    # be switched to WAL, which a published snapshot must not be in.
+    with _helper_connection(pool, work_dir) as conn:
+        conn.execute("ATTACH DATABASE ? AS snapshot", (str(path),))
+        try:
+            build_snapshot_summaries(conn, "snapshot")
+        finally:
+            conn.execute("DETACH DATABASE snapshot")
 
 
 def _migrate(pool: "ConnectionPool", path: Path) -> None:
