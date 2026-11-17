@@ -1578,11 +1578,28 @@ def get_trace_structure(
 ) -> TraceDetails | None
 ```
 
-The trace's span tree without span payloads: `attributes`, `events`,
-`links` and `status_message` are None. `get_span` loads one span's payload.
+The trace's span tree without span payloads, or None if the trace does not
+exist.
 
-From schema revision 3 the spans come from the `spans_structure` index alone,
-so large payloads are never read. Spans are ordered by start time, then id.
+`attributes`, `events`, `links` and `status_message` are None on every span.
+None here means "not loaded", not "empty": `get_span` loads one span's payload.
+From schema revision 3 large payloads are never read. Spans are ordered by
+start time, then id.
+
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.get_span"></a>
+
+#### get_span
+
+```python
+def get_span(
+        experiment_id: str,
+        trace_id: str,
+        span_id: str
+) -> SpanRecord | None
+```
+
+One span with its full payload and annotation count, or None if the trace
+has no span with this id.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_evals"></a>
 

@@ -216,7 +216,7 @@ const failures = await provider.init({
 
 `init` opens every experiment on its own and returns the ones that failed; the others work.
 
-For artifacts made with luml-sdk 0.6.0 or newer, `getTraceSpans` returns spans without payloads (`payloadLoaded: false`) and `getSpanPayload` reads one span. The trace list, average scores and filter keys come from tables computed at export when the artifact has them. Older artifacts use the same queries as before, and both kinds can be opened together.
+When the database of an artifact has schema revision 3 or newer, `getTraceSpans` returns spans without payloads (`payloadLoaded: false`) and `getSpanPayload` reads one span. luml-sdk 0.6.0 and newer write revision 3. The trace list, average scores and filter keys come from tables computed at export when the artifact has them. Older artifacts use the same queries as before, and both kinds can be opened together.
 
 Limits: metric steps are integers, and steps above 2^53 are not drawn. An old artifact whose unzipped database is 2 GiB or more does not open; upload it again with luml-sdk 0.6.0 or newer.
 
