@@ -240,13 +240,19 @@ class WriteBuffer:
         buffer_ref: "weakref.ReferenceType[WriteBuffer]",
         stop: threading.Event,
         interval: float,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        while not stop.wait(interval):
+        # Counted from the start of each flush, so slow flushes do not stretch the
+        # period and with it what a killed process loses.
+        wait = interval
+        while not stop.wait(wait):
             buffer = buffer_ref()
             if buffer is None:
                 return
+            started = clock()
             buffer.flush_on_timer()
             del buffer
+            wait = max(0.0, interval - (clock() - started))
 
     def generation(self, db_path: str) -> int:
         return self._generations.get(db_path, 0)

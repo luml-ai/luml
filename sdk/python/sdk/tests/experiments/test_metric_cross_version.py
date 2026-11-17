@@ -22,6 +22,7 @@ from typing import Any
 
 import pytest
 
+from luml.experiments.backends.data_types import AnnotationKind, AnnotationValueType
 from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.backends.sqlite import SQLiteBackend
 from luml.experiments.tracker import ExperimentTracker
@@ -151,6 +152,58 @@ def test_reading_a_store_a_released_sdk_is_writing(tmp_path: Path) -> None:
     buckets = reader.get_metric_buckets(EXP_ID, "loss", 4)
     assert sum(b.count for b in buckets.buckets) == steps
     reader.close()
+
+
+OLD_APPEND = """
+import json, sys
+from luml.experiments.backends.sqlite import SQLiteBackend
+backend = SQLiteBackend(sys.argv[1])
+for _ in range(3):
+    backend.log_dynamic("exp", "loss", 7.0)
+print(json.dumps([p["step"] for p in backend.get_experiment_metric_history("exp", "loss")]))
+"""
+
+
+def test_non_metric_writes_leave_a_released_sdk_logging_metrics(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    old = _old_sdk(OLD_WRITER, str(store), "5")
+    _, stderr = old.communicate(timeout=120)
+    assert old.returncode == 0, stderr
+    db_path = store / EXP_ID / "exp.db"
+    schema_before = schema_snapshot(db_path)
+
+    backend = SQLiteBackend(str(store), flush_interval=0)
+    backend.log_static(EXP_ID, "lr", 0.1)
+    backend.log_attachment(EXP_ID, "notes.txt", "hello")
+    backend.log_span(EXP_ID, "t1", "s1", "root", 1, 2)
+    backend.log_eval_sample(EXP_ID, "ev1", "ds", {"q": "x"})
+    backend.link_eval_sample_to_trace(EXP_ID, "ds", "ev1", "t1")
+    backend.log_eval_annotation(
+        EXP_ID,
+        "ds",
+        "ev1",
+        "good",
+        AnnotationKind.FEEDBACK,
+        AnnotationValueType.BOOL,
+        True,
+        "u",
+    )
+    backend.close()
+    assert schema_snapshot(db_path) == schema_before
+
+    old = _old_sdk(OLD_APPEND, str(store))
+    stdout, stderr = old.communicate(timeout=120)
+    assert old.returncode == 0, stderr
+    assert json.loads(stdout.strip().splitlines()[-1]) == list(range(8))
+
+    reader = SQLiteBackend(str(store))
+    history = reader.get_experiment_metric_history(EXP_ID, "loss")
+    assert [p["value"] for p in history][-3:] == [7.0, 7.0, 7.0]
+    assert reader.get_experiment_data(EXP_ID).static_params["lr"] == 0.1
+    reader.close()
+    assert schema_snapshot(db_path)[1] == 2
 
 
 OLD_POPULATE = """

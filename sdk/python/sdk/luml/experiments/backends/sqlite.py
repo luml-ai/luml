@@ -437,9 +437,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self.pool = ConnectionPool(10)
         self._migrated_experiment_dbs: set[str] = set()
         self._writable_experiment_dbs: set[str] = set()
+        self._metric_writable_experiment_dbs: set[str] = set()
         self._legacy_metric_rows: dict[str, LegacyMetricRowsError] = {}
-        # Tagged with the write-buffer generation they were read in.
-        self._experiment_schemas: dict[str, tuple[int, ExperimentSchema]] = {}
+        # Tagged with the write-buffer generation and the schema and user versions
+        # they were read at: another process may migrate the database meanwhile.
+        self._experiment_schemas: dict[
+            str, tuple[int, tuple[int, int], ExperimentSchema]
+        ] = {}
         self._experiment_db_paths: dict[str, str] = {}
         self._write_buffer = WriteBuffer(
             self.pool, flush_interval, hook=MetricWriteHook()
@@ -450,18 +454,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         weakref.finalize(self, self._write_buffer.close)
 
     def _ensure_experiment_initialized(
-        self, experiment_id: str, *, write: bool = False
+        self, experiment_id: str, *, write: bool = False, metrics: bool = False
     ) -> tuple[str, int]:
         """Returns the database path and the generation that log calls hand to the
         write buffer, which refuses their rows once the experiment is deleted.
 
-        Readers never migrate past revision 2, which released SDKs also bring older
-        databases to: a process with an older SDK may still be writing this one.
-        Only a write migrates to the latest revision.
+        Only a metric write (`metrics=True`) migrates past revision 2, which released
+        SDKs also bring older databases to: a process with an older SDK may still be
+        logging metrics to this one, and revision 3 changes only the metric tables.
         """
-        ready = (
-            self._writable_experiment_dbs if write else self._migrated_experiment_dbs
-        )
+        if metrics:
+            ready = self._metric_writable_experiment_dbs
+        elif write:
+            ready = self._writable_experiment_dbs
+        else:
+            ready = self._migrated_experiment_dbs
         cached_path = self._experiment_db_paths.get(experiment_id)
         if cached_path is not None and experiment_id in ready:
             generation = self._write_buffer.generation(cached_path)
@@ -480,7 +487,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 with self._open_experiment(experiment_id, write=True) as (conn, schema):
                     if experiment_id not in ready:
                         self._prepare_schema(
-                            experiment_id, conn, schema, generation, write=write
+                            experiment_id, conn, schema, write=write, metrics=metrics
                         )
             self._experiment_db_paths[experiment_id] = str(db_path)
         return str(db_path), generation
@@ -490,26 +497,27 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         experiment_id: str,
         conn: sqlite3.Connection,
         schema: ExperimentSchema,
-        generation: int,
         *,
         write: bool,
+        metrics: bool,
     ) -> None:
-        target = KNOWN_EXPERIMENT_REVISION if write else READ_MIGRATION_REVISION
+        write = write or metrics
+        target = KNOWN_EXPERIMENT_REVISION if metrics else READ_MIGRATION_REVISION
         self._check_writable(experiment_id, schema, write=write)
         if schema.revision < target:
             try:
                 ExperimentMigrationRunner(conn).migrate(target)
             except LegacyMetricRowsError as error:
-                # Revision 3 changes only the metric tables, so every other write
-                # still works at the revision the earlier migrations reached.
                 self._legacy_metric_rows[experiment_id] = error
+                raise
             schema = read_experiment_schema(conn)
             self._check_readable(experiment_id, schema)
             self._check_writable(experiment_id, schema, write=write)
-        self._experiment_schemas[experiment_id] = (generation, schema)
         self._migrated_experiment_dbs.add(experiment_id)
         if write:
             self._writable_experiment_dbs.add(experiment_id)
+        if metrics:
+            self._metric_writable_experiment_dbs.add(experiment_id)
 
     @staticmethod
     def _check_writable(
@@ -543,12 +551,17 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def _experiment_schema(
         self, experiment_id: str, conn: sqlite3.Connection, generation: int
     ) -> ExperimentSchema:
+        # Read before the schema: a migration in between only causes a re-read.
+        versions = conn.execute(
+            "SELECT schema_version, user_version "
+            "FROM pragma_schema_version, pragma_user_version"
+        ).fetchone()
         cached = self._experiment_schemas.get(experiment_id)
-        if cached is not None and cached[0] == generation:
-            return cached[1]
+        if cached is not None and cached[:2] == (generation, versions):
+            return cached[2]
         schema = read_experiment_schema(conn)
         self._check_readable(experiment_id, schema)
-        self._experiment_schemas[experiment_id] = (generation, schema)
+        self._experiment_schemas[experiment_id] = (generation, versions, schema)
         return schema
 
     def flush(self, experiment_id: str | None = None) -> None:
@@ -662,12 +675,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self._get_attachments_dir(experiment_id).mkdir(exist_ok=True)
         db_path = self._get_experiment_db_path(experiment_id)
         self._write_buffer.mark_created(str(db_path))
-        generation = self._write_buffer.generation(str(db_path))
 
         with self.pool.get_connection(db_path, write=True) as conn:
             schema = read_experiment_schema(conn)
             self._check_readable(experiment_id, schema)
-            self._prepare_schema(experiment_id, conn, schema, generation, write=True)
+            self._prepare_schema(experiment_id, conn, schema, write=True, metrics=True)
 
     @staticmethod
     def _row_to_model(row: sqlite3.Row) -> Model:
@@ -824,12 +836,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             None
         """
-        db_path, generation = self._ensure_experiment_initialized(
-            experiment_id, write=True
-        )
         legacy_rows = self._legacy_metric_rows.get(experiment_id)
         if legacy_rows is not None:
             raise LegacyMetricRowsError(legacy_rows.count, legacy_rows.example)
+        db_path, generation = self._ensure_experiment_initialized(
+            experiment_id, metrics=True
+        )
         value = float(value)
         key = _metric_key(key)
         if step is not None:
@@ -1521,6 +1533,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             self._experiment_db_paths.pop(experiment_id, None)
             self._migrated_experiment_dbs.discard(experiment_id)
             self._writable_experiment_dbs.discard(experiment_id)
+            self._metric_writable_experiment_dbs.discard(experiment_id)
             self._legacy_metric_rows.pop(experiment_id, None)
             self._experiment_schemas.pop(experiment_id, None)
             self._write_buffer.discard(db_path)

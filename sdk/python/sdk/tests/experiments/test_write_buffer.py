@@ -4,9 +4,12 @@ import logging
 import os
 import signal
 import sqlite3
+import subprocess
+import sys
 import threading
 import time
 import warnings
+import weakref
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -589,6 +592,61 @@ def test_close_removes_its_exit_hook(
     backend.close()
 
     assert buffer_hook not in registered
+
+
+def test_interpreter_exit_flushes_rows_left_in_the_buffer(store: Path) -> None:
+    script = """
+import sys
+from luml.experiments.backends.sqlite import SQLiteBackend
+backend = SQLiteBackend(sys.argv[1], flush_interval=3600)
+backend.initialize_experiment(sys.argv[2], "default", "exit")
+for step in range(20):
+    backend.log_dynamic(sys.argv[2], "loss", step * 0.5)
+backend.log_span(sys.argv[2], "t", "s", "op", 1000, 2000)
+"""
+    subprocess.run(
+        [sys.executable, "-c", script, str(store), EXP_ID],
+        check=True,
+        capture_output=True,
+        timeout=60,
+    )
+
+    assert _count_rows(store, "metric_points") == 20
+    assert _count_rows(store, "spans") == 1
+
+
+class _ScriptedStop(threading.Event):
+    def __init__(self, ticks: int) -> None:
+        super().__init__()
+        self.ticks = ticks
+        self.waits: list[float] = []
+
+    def wait(self, timeout: float | None = None) -> bool:
+        assert timeout is not None
+        self.waits.append(timeout)
+        return len(self.waits) > self.ticks
+
+
+def test_timer_period_counts_from_the_start_of_each_flush() -> None:
+    now = 0.0
+    flush_durations = [0.2, 0.7, 0.1]
+
+    class SlowBuffer:
+        def flush_on_timer(self) -> None:
+            nonlocal now
+            now += flush_durations.pop(0)
+
+    buffer = SlowBuffer()
+    stop = _ScriptedStop(ticks=3)
+
+    WriteBuffer._run_flusher(
+        weakref.ref(buffer),  # type: ignore[arg-type]
+        stop,
+        0.5,
+        clock=lambda: now,
+    )
+
+    assert stop.waits == pytest.approx([0.5, 0.3, 0.0, 0.4])
 
 
 class _SignallingLock:

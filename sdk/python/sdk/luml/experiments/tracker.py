@@ -146,7 +146,11 @@ class ExperimentTracker:
 
         backend_type, config = connection_string.split("://", 1)
 
-        return BackendRegistry.get_backend(backend_type)(config, flush_interval)
+        backend_class = BackendRegistry.get_backend(backend_type)
+        # Backends registered before buffering existed take only `config`.
+        if flush_interval == DEFAULT_FLUSH_INTERVAL:
+            return backend_class(config)
+        return backend_class(config, flush_interval)
 
     @staticmethod
     def _detect_source() -> str | None:

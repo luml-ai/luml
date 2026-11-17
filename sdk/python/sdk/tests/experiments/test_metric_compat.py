@@ -14,6 +14,7 @@ from luml.experiments.backends._exceptions import (
     LegacyMetricRowsError,
     SQLiteVersionError,
 )
+from luml.experiments.backends.data_types import AnnotationKind, AnnotationValueType
 from luml.experiments.backends.metric_store import METRIC_POINT_SQL
 from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.backends.sqlite import SQLiteBackend
@@ -129,23 +130,57 @@ def test_reads_never_migrate_a_revision_2_experiment(tmp_path: Path) -> None:
     conn.close()
 
 
-@pytest.mark.parametrize(
-    "write",
-    [
-        lambda b: b.log_static(EXPERIMENT_ID, "lr", 0.1),
-        lambda b: b.log_attachment(EXPERIMENT_ID, "a.txt", "x"),
-        lambda b: b.log_eval_sample(EXPERIMENT_ID, "e1", "ds", {"q": 1}),
-        lambda b: b.log_span(EXPERIMENT_ID, "t", "s", "n", 0, 1),
-    ],
-)
-def test_any_write_migrates(
-    tmp_path: Path, write: Callable[[SQLiteBackend], None]
-) -> None:
-    store, _ = _revision2_store(tmp_path)
+def _write_everything_but_metrics_once(backend: SQLiteBackend) -> None:
+    backend.log_static(EXPERIMENT_ID, "lr", 0.1)
+    backend.log_attachment(EXPERIMENT_ID, "a.txt", "x")
+    backend.log_eval_sample(EXPERIMENT_ID, "e1", "ds", {"q": 1})
+    backend.log_span(EXPERIMENT_ID, "t", "s", "n", 0, 1)
+    backend.flush()
+    backend.link_eval_sample_to_trace(EXPERIMENT_ID, "ds", "e1", "t")
+    annotation = backend.log_eval_annotation(
+        EXPERIMENT_ID,
+        "ds",
+        "e1",
+        "good",
+        AnnotationKind.FEEDBACK,
+        AnnotationValueType.BOOL,
+        True,
+        "u",
+    )
+    backend.update_annotation(EXPERIMENT_ID, annotation.id, "eval", value=False)
+    backend.log_span_annotation(
+        EXPERIMENT_ID,
+        "t",
+        "s",
+        "note",
+        AnnotationKind.FEEDBACK,
+        AnnotationValueType.BOOL,
+        True,
+        "u",
+    )
+    backend.delete_annotation(EXPERIMENT_ID, annotation.id, "eval")
+    backend.flush()
+
+
+def test_only_a_metric_write_migrates(tmp_path: Path) -> None:
+    store, db_path = _revision2_store(tmp_path)
+    before = schema_snapshot(db_path)
     backend = SQLiteBackend(str(store))
-    write(backend)
+
+    _write_everything_but_metrics_once(backend)
+    assert schema_snapshot(db_path) == before
+    assert backend.get_experiment_ddl_version(EXPERIMENT_ID) == 2
+    # A released SDK still logging to this store keeps working.
+    conn = sqlite3.connect(db_path)
+    conn.execute(RELEASED_INSERT, ("loss", 1.0, 99))
+    conn.commit()
+    conn.close()
+
+    backend.log_dynamic(EXPERIMENT_ID, "loss", 0.5)
     backend.flush()
     assert backend.get_experiment_ddl_version(EXPERIMENT_ID) == 3
+    history = backend.get_experiment_metric_history(EXPERIMENT_ID, "loss")
+    assert [point["step"] for point in history] == [0, 1, 2, 3, 99, 100]
     backend.close()
 
 
@@ -164,9 +199,9 @@ def test_released_sdk_statements_on_revision_3(tmp_path: Path) -> None:
     store, db_path = _revision2_store(tmp_path)
     on_revision_2 = _released_reads(db_path)
 
-    backend = SQLiteBackend(str(store))
-    backend.log_static(EXPERIMENT_ID, "migrate", 1)
-    backend.close()
+    conn = sqlite3.connect(db_path)
+    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    conn.close()
     assert schema_snapshot(db_path)[1] == 3
     assert _released_reads(db_path) == on_revision_2
 
@@ -277,6 +312,33 @@ def test_revision_4_needing_a_newer_writer_reads_but_refuses_writes(
         assert backend._write_buffer._rows == {}
     backend.close()
     assert schema_snapshot(db_path) == before
+
+
+def test_a_long_lived_reader_follows_a_migration_by_another_backend(
+    tmp_path: Path,
+) -> None:
+    store, db_path = _revision2_store(tmp_path)
+    reader = SQLiteBackend(str(store))
+    catalog = reader.get_metric_catalog(EXPERIMENT_ID)
+    assert (catalog.revision, catalog.bucket_max_level) == (2, None)
+
+    writer = SQLiteBackend(str(store), flush_interval=0)
+    writer.log_dynamic(EXPERIMENT_ID, "loss", 0.5)
+    writer.close()
+
+    catalog = reader.get_metric_catalog(EXPERIMENT_ID)
+    assert catalog.revision == 3
+    assert catalog.bucket_max_level is not None
+    assert [(m.key, m.count) for m in catalog.metrics] == [("acc", 2), ("loss", 5)]
+    assert reader.get_experiment_data(EXPERIMENT_ID).dynamic_metrics["loss"][-1] == {
+        "value": 0.5,
+        "step": 4,
+    }
+
+    _set_revision_4(db_path, min_reader=4, min_writer=4)
+    with pytest.raises(ExperimentReaderTooOldError):
+        reader.get_metric_catalog(EXPERIMENT_ID)
+    reader.close()
 
 
 def test_a_database_past_every_known_revision_gets_no_missing_migration(
@@ -509,7 +571,7 @@ def test_new_and_migrated_databases_have_the_same_schema(tmp_path: Path) -> None
     make_store(new_store, EXPERIMENT_ID)
     migrated_db = make_revision2_store(migrated_store, EXPERIMENT_ID)
     backend = SQLiteBackend(str(migrated_store), flush_interval=0)
-    backend.log_static(EXPERIMENT_ID, "migrate", 1)
+    backend.log_dynamic(EXPERIMENT_ID, "migrate", 1.0)
     backend.close()
 
     new_schema = schema_snapshot(new_store / EXPERIMENT_ID / "exp.db")

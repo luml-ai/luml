@@ -80,7 +80,7 @@ def test_concurrent_lazy_migration_runs_once(tmp_path: Path) -> None:
 
     def initialize(_: int) -> None:
         barrier.wait()
-        backend._ensure_experiment_initialized(experiment_id, write=True)
+        backend._ensure_experiment_initialized(experiment_id, metrics=True)
 
     with (
         patch.object(ExperimentMigrationRunner, "migrate", autospec=True) as migration,
