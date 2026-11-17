@@ -1,4 +1,6 @@
 export const PRESIGNED_URL_REUSE_MS = 30 * 60 * 1000
+/** A URL younger than this is not renewed: storage that rejects every URL costs one renewal. */
+export const PRESIGNED_URL_MIN_RENEW_AGE_MS = 30 * 1000
 
 /**
  * Where an artifact is read from: a presigned URL, or a URL that also needs request headers
@@ -55,8 +57,9 @@ function isAbort(error: unknown): boolean {
 
 /**
  * One download location per artifact, reused for 30 minutes. It is renewed early only when a
- * request with it fails, because some storage setups issue URLs or tokens that expire sooner
- * than the platform expects. Concurrent callers that need a new one share one backend request.
+ * request with it fails and it is at least 30 seconds old, because some storage setups issue
+ * URLs or tokens that expire sooner than the platform expects. Concurrent callers that need a
+ * new one share one backend request.
  */
 export class PresignedUrlCache {
   private readonly issued = new Map<string, IssuedRef>()
@@ -65,6 +68,7 @@ export class PresignedUrlCache {
   constructor(
     private readonly fetchUrl: (artifactId: string) => Promise<DownloadRef>,
     private readonly reuseMs = PRESIGNED_URL_REUSE_MS,
+    private readonly minRenewAgeMs = PRESIGNED_URL_MIN_RENEW_AGE_MS,
   ) {}
 
   async get(artifactId: string): Promise<string> {
@@ -91,7 +95,10 @@ export class PresignedUrlCache {
     return this.renewUnless(artifactId, (ref) => !sameDownloadLocation(ref, failed))
   }
 
-  /** Runs `request` with the cached URL; on failure renews once and retries once. */
+  /**
+   * Runs `request` with the cached URL; on failure renews once and retries once. When the
+   * renewal hands back the URL that just failed, the error surfaces without a retry.
+   */
   withUrl<T>(artifactId: string, request: (url: string) => Promise<T>): Promise<T> {
     return this.withLocation(artifactId, (location) => request(location.url))
   }
@@ -105,7 +112,9 @@ export class PresignedUrlCache {
         return await request(toDownloadLocation(ref))
       } catch (error) {
         if (isAbort(error)) throw error
-        return request(toDownloadLocation(await this.renewLocation(artifactId, ref)))
+        const renewed = await this.renewLocation(artifactId, ref)
+        if (sameDownloadLocation(renewed, ref)) throw error
+        return request(toDownloadLocation(renewed))
       }
     })
   }
@@ -126,10 +135,17 @@ export class PresignedUrlCache {
     issuedSinceFailure: (ref: DownloadRef) => boolean,
   ): Promise<DownloadRef> {
     const current = this.issued.get(artifactId)
-    if (current && issuedSinceFailure(current.ref) && this.isFresh(current)) {
+    if (
+      current &&
+      (this.isRecent(current) || (issuedSinceFailure(current.ref) && this.isFresh(current)))
+    ) {
       return Promise.resolve(current.ref)
     }
     return this.issue(artifactId)
+  }
+
+  private isRecent(entry: IssuedRef): boolean {
+    return Date.now() - entry.issuedAt < this.minRenewAgeMs
   }
 
   private isFresh(entry: IssuedRef): boolean {

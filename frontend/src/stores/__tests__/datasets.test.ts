@@ -6,7 +6,10 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { useDatasetsStore } from '@/stores/datasets'
 import { ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
 import { formatCellValue } from '@/components/table-view/index.vue'
-import { PresignedUrlCache } from '@/lib/bucket-service/presigned-url-cache'
+import {
+  PRESIGNED_URL_MIN_RENEW_AGE_MS,
+  PresignedUrlCache,
+} from '@/lib/bucket-service/presigned-url-cache'
 
 vi.mock('@/lib/api', () => ({ api: {} }))
 vi.mock('axios', () => ({ default: { get: vi.fn() } }))
@@ -44,7 +47,7 @@ async function setup(chunkLength = CHUNK_LENGTH) {
   store.setSelectedSubset('main')
   store.setSelectedSplit('train')
   await flushPromises()
-  return { store, getDownloadUrl }
+  return { store, getDownloadUrl, urls }
 }
 const csv = (value: string) => ({ data: new TextEncoder().encode(csvText(value)).buffer })
 beforeEach(() => {
@@ -76,9 +79,13 @@ describe('dataset paging', () => {
   })
   it('renews the presigned URL once and retries a chunk read that fails', async () => {
     vi.mocked(axios.get).mockRejectedValueOnce(new Error('403')).mockResolvedValue(csv('value'))
-    const { store, getDownloadUrl } = await setup()
+    const { store, getDownloadUrl, urls } = await setup()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    await urls.get('dataset')
+    vi.setSystemTime(Date.now() + PRESIGNED_URL_MIN_RENEW_AGE_MS)
     store.setCurrentPage(0)
     await flushPromises()
+    vi.useRealTimers()
     expect(getDownloadUrl).toHaveBeenCalledTimes(2)
     expect(vi.mocked(axios.get).mock.calls.map(([url]) => url)).toEqual([
       'https://bucket/first',

@@ -4,6 +4,7 @@ import type { DownloadUrlSource } from './presigned-url-cache'
 
 export {
   PresignedUrlCache,
+  PRESIGNED_URL_MIN_RENEW_AGE_MS,
   PRESIGNED_URL_REUSE_MS,
   sameDownloadLocation,
   toDownloadLocation,

@@ -2,6 +2,7 @@ import { test, expect, type BrowserContext, type Locator, type Page } from '@pla
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { PRESIGNED_URL_MIN_RENEW_AGE_MS } from '../../src/lib/bucket-service/presigned-url-cache'
 
 // The platform end to end: the real backend, Postgres, Redis and object storage (MinIO through
 // an S3 bucket secret, Azurite through an Azure one), the frontend built from this worktree,
@@ -424,6 +425,8 @@ for (const storageName of Object.keys(data.storages)) {
         await openSnapshot(page, storage, large)
         await settledChart(page, 'train/loss', [large.id])
         expect(network.issuesOf(large)).toBe(1)
+        // A URL younger than this is not renewed.
+        await page.waitForTimeout(PRESIGNED_URL_MIN_RENEW_AGE_MS)
 
         // A key rotation: MinIO refuses every URL signed with the old key from now on.
         execFileSync(

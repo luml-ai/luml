@@ -7,6 +7,7 @@ import {
   toExperimentReadError,
 } from '@luml/experiments'
 import {
+  PRESIGNED_URL_REUSE_MS,
   PresignedUrlCache,
   toDownloadLocation,
   type DownloadRef,
@@ -49,7 +50,8 @@ async function issue(key: string): Promise<DownloadRef> {
 }
 
 export function installHarness(worker: Worker): void {
-  const urls = new PresignedUrlCache(issue)
+  // The specs expire URLs seconds after issue, so the minimum age before a renewal is off.
+  const urls = new PresignedUrlCache(issue, PRESIGNED_URL_REUSE_MS, 0)
   // Every message the worker posted, to check that none of them carries a credential.
   const posted: string[] = []
   worker.addEventListener('message', (event) => posted.push(JSON.stringify(event.data)))

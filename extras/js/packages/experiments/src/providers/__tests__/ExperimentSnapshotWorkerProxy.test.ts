@@ -308,6 +308,18 @@ describe('ExperimentSnapshotWorkerProxy source URL renewal', () => {
     expect(worker.postMessage).toHaveBeenCalledTimes(4)
   })
 
+  it('surfaces the error without a retry when the renewal hands back the failed URL', async () => {
+    sourceUrls.renew.mockResolvedValue(rangeSource.url)
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...expired })
+
+    await expect(result).rejects.toBeInstanceOf(SnapshotSourceExpiredError)
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(worker.postMessage).toHaveBeenCalledTimes(2)
+  })
+
   it('renews each model once when their URLs expire together, and the call succeeds', async () => {
     const init = proxy.init([
       { modelId: 'm1', source: rangeSource },
@@ -438,6 +450,20 @@ describe('ExperimentSnapshotWorkerProxy source URL renewal', () => {
       { modelId: 'm1', source: rangeSource },
       { modelId: 'm2', source: { ...rangeSource, url: 'https://bucket/b?sig=1' } },
     ])
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [openFailure('m1', SNAPSHOT_SOURCE_EXPIRED)],
+    })
+
+    await expect(init).resolves.toBeUndefined()
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(worker.postMessage).toHaveBeenCalledOnce()
+  })
+
+  it('does not reopen when the renewal of a failed open hands back the failed URL', async () => {
+    sourceUrls.renew.mockResolvedValue(rangeSource.url)
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }])
     worker.respond({
       type: 'result',
       requestId: (await nextMessage(0)).requestId,

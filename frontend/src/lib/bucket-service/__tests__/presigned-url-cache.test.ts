@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from 'axios'
 import {
   ModelDownloader,
+  PRESIGNED_URL_MIN_RENEW_AGE_MS,
   PRESIGNED_URL_REUSE_MS,
   PresignedUrlCache,
   RangeLengthMismatchError,
+  toDownloadLocation,
 } from '@/lib/bucket-service'
 
 vi.mock('axios', () => ({ default: { get: vi.fn() } }))
@@ -14,15 +16,22 @@ function issuer() {
   return vi.fn(async (id: string) => `https://bucket/${id}?sig=${++issued}`)
 }
 
+beforeEach(() => {
+  vi.useFakeTimers()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+/** Issues the first URL and lets it age past the minimum, as a URL that really expired. */
+async function issuedLongAgo(cache: PresignedUrlCache, artifactId = 'a') {
+  const ref = await cache.getLocation(artifactId)
+  vi.advanceTimersByTime(PRESIGNED_URL_MIN_RENEW_AGE_MS)
+  return ref
+}
+
 describe('PresignedUrlCache', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
   it('reuses one URL per artifact for 30 minutes', async () => {
     const fetchUrl = issuer()
     const cache = new PresignedUrlCache(fetchUrl)
@@ -48,6 +57,7 @@ describe('PresignedUrlCache', () => {
   it('renews once after a failed request and retries it once', async () => {
     const fetchUrl = issuer()
     const cache = new PresignedUrlCache(fetchUrl)
+    await issuedLongAgo(cache)
     const request = vi
       .fn<(url: string) => Promise<string>>()
       .mockRejectedValueOnce(new Error('403 expired'))
@@ -65,6 +75,7 @@ describe('PresignedUrlCache', () => {
   it('surfaces the error when the retry fails too, without a second renewal', async () => {
     const fetchUrl = issuer()
     const cache = new PresignedUrlCache(fetchUrl)
+    await issuedLongAgo(cache)
     const request = vi.fn(async () => {
       throw new Error('403 expired')
     })
@@ -101,7 +112,7 @@ describe('PresignedUrlCache', () => {
   it('renews once for concurrent failures of the same URL', async () => {
     const fetchUrl = issuer()
     const cache = new PresignedUrlCache(fetchUrl)
-    const failed = await cache.get('a')
+    const failed = toDownloadLocation(await issuedLongAgo(cache)).url
 
     const renewed = await Promise.all([cache.renew('a', failed), cache.renew('a', failed)])
     const late = await cache.renew('a', failed)
@@ -121,11 +132,55 @@ describe('PresignedUrlCache', () => {
     await expect(cache.get('a')).rejects.toThrow('backend down')
     await expect(cache.get('a')).resolves.toBe('https://bucket/a?sig=1')
   })
+
+  it('hands back a URL younger than 30 seconds instead of asking the backend', async () => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    const failed = await cache.get('a')
+
+    vi.advanceTimersByTime(PRESIGNED_URL_MIN_RENEW_AGE_MS - 1)
+    expect(await cache.renew('a', failed)).toBe(failed)
+    expect(await cache.renewLocation('a', failed)).toBe(failed)
+    expect(fetchUrl).toHaveBeenCalledOnce()
+
+    vi.advanceTimersByTime(1)
+    expect(await cache.renew('a', failed)).toBe('https://bucket/a?sig=2')
+    expect(fetchUrl).toHaveBeenCalledTimes(2)
+  })
+
+  it('costs one renewal when storage rejects every URL', async () => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    await issuedLongAgo(cache)
+    const request = vi.fn(async () => {
+      throw new Error('403 signature does not match')
+    })
+
+    for (let read = 0; read < 5; read++) {
+      await expect(cache.withUrl('a', request)).rejects.toThrow('403 signature')
+    }
+
+    expect(fetchUrl).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenCalledTimes(2 + 4)
+  })
+
+  it('surfaces the error without a retry when the URL just issued fails', async () => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    const request = vi.fn(async () => {
+      throw new Error('403')
+    })
+
+    await expect(cache.withUrl('a', request)).rejects.toThrow('403')
+    expect(request).toHaveBeenCalledOnce()
+    expect(fetchUrl).toHaveBeenCalledOnce()
+  })
 })
 
 describe('ModelDownloader', () => {
   it('reads a member with a Range header through the cached URL and retries once', async () => {
     const cache = new PresignedUrlCache(issuer())
+    await issuedLongAgo(cache)
     vi.mocked(axios.get)
       .mockRejectedValueOnce(new Error('403'))
       .mockResolvedValueOnce({ data: new ArrayBuffer(4) })
@@ -151,7 +206,7 @@ describe('PresignedUrlCache with locations that carry headers', () => {
   it('renews a token for the same URL once and shares it with a late failure', async () => {
     const fetchLocation = tokenIssuer()
     const cache = new PresignedUrlCache(fetchLocation)
-    const failed = await cache.getLocation('a')
+    const failed = await issuedLongAgo(cache)
 
     const renewed = await cache.renewLocation('a', failed)
     const late = await cache.renewLocation('a', { url, headers: { Authorization: 'Bearer t1' } })
@@ -164,7 +219,7 @@ describe('PresignedUrlCache with locations that carry headers', () => {
 
   it('hands a bare issued URL back unchanged and retries with the renewed one', async () => {
     const cache = new PresignedUrlCache(issuer())
-    expect(await cache.getLocation('a')).toBe('https://bucket/a?sig=1')
+    expect(await issuedLongAgo(cache)).toBe('https://bucket/a?sig=1')
 
     const request = vi
       .fn<(location: { url: string }) => Promise<string>>()

@@ -214,7 +214,8 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
    * Range reads run synchronously in the worker, so an expired URL or token fails the running
    * request. Each model's source is renewed at most once per request and the request retried;
    * sources of several models can expire together, so one request may renew each of them. A
-   * second failure of the same model surfaces.
+   * second failure of the same model surfaces, and so does a renewal that hands back the source
+   * that just failed.
    */
   private async withSourceRenewal<T>(
     attempt: () => Promise<T>,
@@ -228,7 +229,9 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
       } catch (error) {
         if (!this.canRenew(error) || renewed.has(error.modelId)) throw error
         renewed.add(error.modelId)
-        const source = await this.sourceUrls!.renew(error.modelId, usedUrls.get(error.modelId)!)
+        const failed = usedUrls.get(error.modelId)!
+        const source = await this.sourceUrls!.renew(error.modelId, failed)
+        if (sameSourceLocation(source, failed)) throw error
         await applyRenewedUrl(error.modelId, source)
         this.rangeSourceUrls.set(error.modelId, source)
       }
@@ -270,8 +273,9 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
   }
 
   /**
-   * A renewal or reopen that fails leaves the experiment failed with the error the worker
-   * recorded at open, so one experiment never fails the whole init.
+   * A renewal or reopen that fails, or a renewal that hands back the failed source, leaves the
+   * experiment failed with the error the worker recorded at open, so one experiment never fails
+   * the whole init.
    */
   private async reopen(modelId: string, signal?: AbortSignal): Promise<void> {
     const failed = this.rangeSourceUrls.get(modelId)
@@ -279,6 +283,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     try {
       const source = await this.sourceUrls.renew(modelId, failed)
       signal?.throwIfAborted()
+      if (sameSourceLocation(source, failed)) return
       const location = toSourceLocation(source)
       this.rangeSourceUrls.set(modelId, source)
       await this.request<SnapshotOpenFailure[]>(
