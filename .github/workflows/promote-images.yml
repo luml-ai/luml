@@ -40,16 +40,18 @@ jobs:
       image_tag: ${{ steps.set.outputs.image_tag }}
     steps:
       - id: set
+        env:
+          REF: ${{ github.ref }}
         run: |
-          case "${{ github.ref_name }}" in
-            staging)
+          case "$REF" in
+            refs/heads/staging)
               echo "image_tag=staging" >> "$GITHUB_OUTPUT"
               ;;
-            production)
+            refs/heads/production)
               echo "image_tag=latest" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "Unsupported promotion branch: ${{ github.ref_name }}; main is built by the publish-*.yml workflows" >&2
+              echo "Unsupported promotion ref: $REF; only the staging and production branches are promoted, main is built by the publish-*.yml workflows" >&2
               exit 1
               ;;
           esac

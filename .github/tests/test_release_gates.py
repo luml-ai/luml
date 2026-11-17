@@ -421,16 +421,20 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertEqual(set(workflow["on"]["push"]["paths"]), promoted_paths)
 
     def test_promotion_tag_resolution_accepts_promotion_branches_only(self):
-        script = resolve_script(PROMOTION)
+        step = load(PROMOTION)["jobs"]["resolve-image-tag"]["steps"][0]
+        self.assertEqual(step["env"]["REF"], "${{ github.ref }}")
+        self.assertNotIn("github.ref_name", step["run"])
         cases = [
-            ("staging", "staging"),
-            ("production", "latest"),
-            ("main", None),
-            ("feature/unapproved", None),
+            ("refs/heads/staging", "staging"),
+            ("refs/heads/production", "latest"),
+            ("refs/heads/main", None),
+            ("refs/heads/feature/unapproved", None),
+            ("refs/tags/staging", None),
+            ("refs/tags/production", None),
         ]
-        for ref_name, expected in cases:
-            with self.subTest(ref=ref_name):
-                result, values = run_step(render(script, "branch", ref_name), {})
+        for ref, expected in cases:
+            with self.subTest(ref=ref):
+                result, values = run_step(step["run"], {"REF": ref})
                 if expected is None:
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(values, {})
