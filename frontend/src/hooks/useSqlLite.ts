@@ -1,5 +1,6 @@
 import type { SqlJsStatic } from 'sql.js'
 import initSqlJs from 'sql.js'
+import sqlJsWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import { computed, ref } from 'vue'
 
 export const useSqlLite = () => {
@@ -12,7 +13,7 @@ export const useSqlLite = () => {
 
   async function initSql() {
     SQL.value = await initSqlJs({
-      locateFile: () => `/sql-wasm.wasm`,
+      locateFile: () => sqlJsWasmUrl,
     })
   }
 

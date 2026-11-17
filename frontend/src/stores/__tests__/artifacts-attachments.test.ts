@@ -45,6 +45,16 @@ function artifact(id = 'model'): Artifact {
   } as Artifact
 }
 
+/** Answers a ranged read with `value` as JSON (or text), padded to the requested length. */
+function rangedBody(value: unknown) {
+  return async (_url: string, config?: { headers?: Record<string, unknown> }) => {
+    const match = /^bytes=(\d+)-(\d+)$/.exec(String(config?.headers?.Range ?? '')) ?? []
+    const length = Number(match[2]) - Number(match[1]) + 1
+    const text = typeof value === 'string' ? value : JSON.stringify(value)
+    return { data: new TextEncoder().encode(text.padEnd(length, ' ')).buffer }
+  }
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((resolvePromise) => {
@@ -62,9 +72,7 @@ describe('artifact attachment loading', () => {
   })
 
   it('caches the downloaded index and downloader for the attachments view', async () => {
-    mockedAxios.get.mockResolvedValue({
-      data: { 'attachments/report.pdf': [0, 42] },
-    })
+    mockedAxios.get.mockImplementation(rangedBody({ 'attachments/report.pdf': [0, 42] }))
     const store = useArtifactsStore()
     const model = artifact()
     store.setCurrentArtifact(model)
@@ -78,7 +86,7 @@ describe('artifact attachment loading', () => {
   })
 
   it('marks an empty parsed index as empty', async () => {
-    mockedAxios.get.mockResolvedValue({ data: { 'attachments/': [0, 0] } })
+    mockedAxios.get.mockImplementation(rangedBody({ 'attachments/': [0, 0] }))
     const store = useArtifactsStore()
     const model = artifact()
     store.setCurrentArtifact(model)
@@ -115,7 +123,7 @@ describe('artifact attachment loading', () => {
   })
 
   it('treats malformed attachment index content as empty', async () => {
-    mockedAxios.get.mockResolvedValue({ data: { 'attachments/report.pdf': [90, 42] } })
+    mockedAxios.get.mockImplementation(rangedBody({ 'attachments/report.pdf': [90, 42] }))
     const store = useArtifactsStore()
     const model = artifact()
     store.setCurrentArtifact(model)
@@ -127,7 +135,7 @@ describe('artifact attachment loading', () => {
   })
 
   it('treats an attachment index that is not JSON as empty', async () => {
-    mockedAxios.get.mockResolvedValue({ data: 'ustar\u0000garbage' })
+    mockedAxios.get.mockImplementation(rangedBody('ustar\u0000garbage'))
     const store = useArtifactsStore()
     const model = artifact()
     store.setCurrentArtifact(model)
@@ -156,7 +164,7 @@ describe('artifact attachment loading', () => {
     const model = artifact()
     model.size = 2_000_000
     model.file_index['attachments.index.json'] = [100, 1_048_577]
-    mockedAxios.get.mockResolvedValue({ data: { 'attachments/report.pdf': [0, 42] } })
+    mockedAxios.get.mockImplementation(rangedBody({ 'attachments/report.pdf': [0, 42] }))
     store.setCurrentArtifact(model)
 
     await store.loadCurrentArtifactAttachments(model)
@@ -172,11 +180,11 @@ describe('artifact attachment loading', () => {
         ? firstUrl.promise
         : Promise.resolve({ url: 'https://download.test/second' })
     })
-    mockedAxios.get.mockImplementation((url) => {
-      return Promise.resolve({
-        data: url === 'https://download.test/first' ? { 'attachments/report.pdf': [0, 42] } : {},
-      })
-    })
+    mockedAxios.get.mockImplementation((url, config) =>
+      rangedBody(
+        url === 'https://download.test/first' ? { 'attachments/report.pdf': [0, 42] } : {},
+      )(url, config),
+    )
     const store = useArtifactsStore()
     const first = artifact('first')
     const second = artifact('second')
@@ -195,9 +203,7 @@ describe('artifact attachment loading', () => {
 
   it('can retry after an inspection failure', async () => {
     apiMocks.getDownloadUrl.mockRejectedValueOnce(new Error('temporary failure'))
-    mockedAxios.get.mockResolvedValue({
-      data: { 'attachments/report.pdf': [0, 42] },
-    })
+    mockedAxios.get.mockImplementation(rangedBody({ 'attachments/report.pdf': [0, 42] }))
     const store = useArtifactsStore()
     const model = artifact()
     store.setCurrentArtifact(model)
@@ -208,8 +214,8 @@ describe('artifact attachment loading', () => {
     expect(apiMocks.getDownloadUrl).toHaveBeenCalledTimes(2)
   })
 
-  it('refreshes the download URL before a later attachment read', async () => {
-    mockedAxios.get.mockResolvedValue({ data: { 'attachments/report.pdf': [0, 42] } })
+  it('reuses the download URL for a later attachment read', async () => {
+    mockedAxios.get.mockImplementation(rangedBody({ 'attachments/report.pdf': [0, 42] }))
     apiMocks.getDownloadUrl
       .mockResolvedValueOnce({ url: 'https://download.test/initial' })
       .mockResolvedValueOnce({ url: 'https://download.test/refreshed' })
@@ -225,8 +231,9 @@ describe('artifact attachment loading', () => {
       0,
     )
 
+    expect(apiMocks.getDownloadUrl).toHaveBeenCalledOnce()
     expect(mockedAxios.get).toHaveBeenLastCalledWith(
-      'https://download.test/refreshed',
+      'https://download.test/initial',
       expect.objectContaining({ headers: { Range: 'bytes=0-41' } }),
     )
   })

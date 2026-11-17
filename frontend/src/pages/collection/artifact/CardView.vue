@@ -88,8 +88,7 @@ function setForecastingMetadata(file: MetaEntry[]) {
 async function setHtmlData(model: ModelArtifact) {
   const htmlArchiveName = FnnxService.findHtmlCard(model.file_index)
   if (!htmlArchiveName) return
-  const url = await artifactsStore.getDownloadUrl(model.id)
-  const modelDownloader = new ModelDownloader(url)
+  const modelDownloader = new ModelDownloader(artifactsStore.downloadUrlSource(model.id))
   const arrayBuffer = await modelDownloader.getFileFromBucket<ArrayBuffer>(
     model.file_index,
     htmlArchiveName,
@@ -116,8 +115,7 @@ async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: Mod
   const metadataFileName = FnnxService.getModelMetadataFileName(model.file_index)
   if (!metadataFileName) return
   artifactsStore.setCurrentModelTag(tag)
-  const url = await artifactsStore.getDownloadUrl(model.id)
-  const modelDownloader = new ModelDownloader(url)
+  const modelDownloader = new ModelDownloader(artifactsStore.downloadUrlSource(model.id))
   const file = await modelDownloader.getFileFromBucket<MetaEntry[]>(
     model.file_index,
     metadataFileName,

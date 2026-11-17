@@ -1,0 +1,75 @@
+# Disposable storage and databases for the full-stack experiment snapshot suites; run.sh starts
+# it under a unique project name with ports it checked are free, and removes it at the end.
+# Everything lives in tmpfs or in memory, so nothing outlives `down`.
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: df_studio
+    ports:
+      - "127.0.0.1:${E2E_POSTGRES_PORT}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d df_studio"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:${E2E_REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "127.0.0.1:${E2E_MINIO_PORT}:9000"
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # A bucket and a non-root user whose secret key the expiry scenario rotates.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 minioadmin minioadmin
+        mc mb --ignore-existing local/e2e-snapshots
+        mc admin user add local e2euser e2e-secret-key-1
+        mc admin policy attach local readwrite --user e2euser
+    restart: "no"
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
+    command:
+      - azurite-blob
+      - --blobHost
+      - 0.0.0.0
+      - --inMemoryPersistence
+      - --loose
+      - --skipApiVersionCheck
+    ports:
+      - "127.0.0.1:${E2E_AZURITE_PORT}:10000"

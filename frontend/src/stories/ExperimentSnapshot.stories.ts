@@ -7,12 +7,123 @@ import type {
   ModelsInfo,
   EvalsInfo,
   SpansParams,
+  ExperimentMetricCatalog,
+  ExperimentResult,
+  ExperimentSnapshotStatus,
+  MetricBucket,
+  MetricBucketsRequest,
+  MetricBucketsResponse,
 } from '@luml/experiments'
 import { Toast } from 'primevue'
 import StorybookPageWrapper from './StorybookPageWrapper.vue'
 import type { GetEvalsByDatasetParams } from '../../../extras/js/packages/experiments/dist/interfaces/interfaces'
 import '@luml/experiments/style.css'
 import type { GetBatchExperimentsEvalsParams } from '../../../extras/js/packages/experiments/dist/providers/ExperimentSnapshotApiProvider.interface.js'
+
+type MockMetric = ExperimentSnapshotDynamicMetrics[string]
+
+function experimentIds(metrics: ExperimentSnapshotDynamicMetrics): string[] {
+  return [...new Set(Object.values(metrics).map((metric) => metric.modelId))]
+}
+
+function metricsOf(metrics: ExperimentSnapshotDynamicMetrics, modelId: string) {
+  return Object.entries(metrics).filter(([, metric]) => metric.modelId === modelId)
+}
+
+function mockStatuses(metrics: ExperimentSnapshotDynamicMetrics): ExperimentSnapshotStatus[] {
+  return experimentIds(metrics).map((modelId) => ({
+    modelId,
+    revision: 3,
+    transport: 'zip-full',
+    transportFallback: null,
+    unknownNewerRevision: false,
+    skippedMetricRows: 0,
+    error: null,
+  }))
+}
+
+function mockCatalogs(
+  metrics: ExperimentSnapshotDynamicMetrics,
+  modelIds = experimentIds(metrics),
+): ExperimentResult<ExperimentMetricCatalog>[] {
+  return modelIds.map((modelId) => ({
+    modelId,
+    ok: true,
+    value: {
+      revision: 3,
+      bucket_min_level: 3,
+      bucket_max_level: 12,
+      skipped_rows: 0,
+      metrics: metricsOf(metrics, modelId).map(([key, metric]) => ({
+        key,
+        first_step: Math.min(...metric.x),
+        last_step: Math.max(...metric.x),
+        count: metric.x.length,
+        min: Math.min(...metric.y),
+        max: Math.max(...metric.y),
+      })),
+    },
+  }))
+}
+
+function aggregateMetric(metric: MockMetric, request: MetricBucketsRequest): MetricBucket[] {
+  const width = 4 ** request.level
+  const buckets = new Map<number, MetricBucket>()
+  metric.x.forEach((step, index) => {
+    const value = metric.y[index] ?? 0
+    const inRange =
+      (request.start_step ?? -Infinity) <= step && step <= (request.end_step ?? Infinity)
+    if (!inRange) return
+    const bucket = Math.floor(step / width)
+    const current = buckets.get(bucket)
+    if (!current) {
+      buckets.set(bucket, {
+        bucket,
+        first_step: step,
+        last_step: step,
+        count: 1,
+        finite_count: 1,
+        min: value,
+        max: value,
+        sum: value,
+      })
+      return
+    }
+    current.first_step = Math.min(current.first_step, step)
+    current.last_step = Math.max(current.last_step, step)
+    current.count++
+    current.finite_count++
+    current.min = Math.min(current.min ?? value, value)
+    current.max = Math.max(current.max ?? value, value)
+    current.sum = (current.sum ?? 0) + value
+  })
+  return [...buckets.values()].sort((a, b) => a.bucket - b.bucket)
+}
+
+function mockBuckets(
+  metrics: ExperimentSnapshotDynamicMetrics,
+  request: MetricBucketsRequest,
+): ExperimentResult<MetricBucketsResponse>[] {
+  return (request.modelIds ?? experimentIds(metrics)).map((modelId) => ({
+    modelId,
+    ok: true,
+    value: {
+      level: request.level,
+      series: request.keys.map((key) => {
+        const metric = metrics[key]
+        if (!metric || metric.modelId !== modelId) {
+          return { key, first_step: null, last_step: null, buckets: [] }
+        }
+        return {
+          key,
+          first_step: Math.min(...metric.x),
+          last_step: Math.max(...metric.x),
+          buckets: aggregateMetric(metric, request),
+        }
+      }),
+    },
+  }))
+}
 
 const createMockProvider = (
   options: {
@@ -180,6 +291,12 @@ const createMockProvider = (
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
       if (shouldError) throw new Error('Failed to load static params')
       return staticParams
+    },
+    getExperimentStatuses: async () => mockStatuses(dynamicMetrics),
+    getMetricCatalogs: async (request) => mockCatalogs(dynamicMetrics, request?.modelIds),
+    getMetricBuckets: async (request) => {
+      if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
+      return mockBuckets(dynamicMetrics, request)
     },
     getDynamicMetricsNames: async () => {
       return Object.keys(dynamicMetrics)

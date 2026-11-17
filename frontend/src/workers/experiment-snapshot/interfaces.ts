@@ -1,8 +1,14 @@
-import type { ExperimentSnapshotDatabaseProvider } from '@luml/experiments'
+import type {
+  ExperimentSnapshotDatabaseProvider,
+  ExperimentSnapshotModelSource,
+  SnapshotSourceLocation,
+} from '@luml/experiments'
 
-export interface InitPayloadItem {
+export type InitPayloadItem = ExperimentSnapshotModelSource
+
+export interface ReopenPayload {
   modelId: string
-  buffer: ArrayBuffer
+  source: SnapshotSourceLocation
 }
 
 export interface CallPayload<
