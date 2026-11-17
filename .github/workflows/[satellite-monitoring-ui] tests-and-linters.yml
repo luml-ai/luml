@@ -4,10 +4,6 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'satellite/monitoring-ui/**'
   pull_request:
     branches: [main, staging, production]
     paths:

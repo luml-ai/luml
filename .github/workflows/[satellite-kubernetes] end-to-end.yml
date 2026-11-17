@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'satellite/kit/**'
       - 'satellite/implementations/kubernetes/**'

@@ -4,12 +4,6 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'extras/js/**'
-      - 'package.json'
-      - 'package-lock.json'
   pull_request:
     branches: [main, staging, production]
     paths:

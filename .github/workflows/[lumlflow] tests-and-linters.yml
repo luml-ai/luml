@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'lumlflow/**'
       - '!lumlflow/frontend/**'
@@ -15,6 +15,9 @@ on:
       - 'lumlflow/**'
       - '!lumlflow/frontend/**'
   workflow_call:
+
+env:
+  LUMLFLOW_BUILD_NO_FRONTEND: '1'
 
 jobs:
   checks:
@@ -43,24 +46,6 @@ jobs:
 
       - name: Type checking
         run: uv run --frozen mypy lumlflow/flow lumlflow_kernel lumlflow_typing
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: lumlflow
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          python-version: '3.12'
-          enable-cache: true
-          cache-dependency-glob: lumlflow/uv.lock
-
-      - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
 
       - name: Running unit tests
         run: uv run --frozen pytest tests/unit

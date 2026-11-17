@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'wasm/jupyter/**'
       - '.github/workflows/*wasm-jupyter*tests-and-linters.yml'

@@ -5,14 +5,13 @@ permissions:
 
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     tags:
       - "luml-relay/image/v*"
     paths:
-      - relay/Dockerfile
-      - relay/pyproject.toml
-      - relay/uv.lock
-      - relay/luml_relay/**
+      - relay/**
+      - sdk/python/api/**
+      - .github/workflows/publish-relay-image.yml
   workflow_dispatch:
 
 concurrency:
@@ -50,14 +49,8 @@ jobs:
             main)
               echo "image_tag=dev" >> "$GITHUB_OUTPUT"
               ;;
-            staging)
-              echo "image_tag=staging" >> "$GITHUB_OUTPUT"
-              ;;
-            production)
-              echo "image_tag=latest" >> "$GITHUB_OUTPUT"
-              ;;
             *)
-              echo "Unsupported publish branch: ${{ github.ref_name }}" >&2
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
               exit 1
               ;;
           esac

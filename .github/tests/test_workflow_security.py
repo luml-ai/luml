@@ -38,12 +38,15 @@ class WorkflowSecurityTests(unittest.TestCase):
                 self.assertIn(workflow.get("permissions"), ({}, {"contents": "read"}))
 
     def test_registry_publish_jobs_keep_their_required_permissions(self):
-        paths = [*WORKFLOWS.glob("publish-*-image.yml")]
-        paths.append(WORKFLOWS / "publish-kubernetes-satellite-chart.yml")
-        for path in paths:
-            workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
-            job = "publish-chart" if "chart" in path.name else "push-image"
-            with self.subTest(workflow=path.name, job=job):
+        jobs = {
+            path.name: "push-image" for path in WORKFLOWS.glob("publish-*-image*.yml")
+        }
+        jobs["publish-kubernetes-satellite-chart.yml"] = "publish-chart"
+        jobs["promote-images.yml"] = "promote"
+        self.assertIn("publish-satellite-images.yml", jobs)
+        for name, job in jobs.items():
+            workflow = yaml.load((WORKFLOWS / name).read_text(), Loader=yaml.BaseLoader)
+            with self.subTest(workflow=name, job=job):
                 self.assertEqual(
                     workflow["jobs"][job]["permissions"],
                     {"contents": "read", "packages": "write"},
