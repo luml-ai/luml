@@ -461,3 +461,16 @@ async def test_companion_authorizer_denial_refresh_removes_stale_allowed_verdict
     clock.now = 60
     assert await authorizer.authorize("key") is AuthorizationVerdict.UNAVAILABLE
     await authorizer.aclose()
+
+
+@pytest.mark.asyncio
+async def test_internal_sidecar_rejects_non_ascii_credentials() -> None:
+    app = create_sidecar_internal_application(
+        "secret-token", description=ModelDescription, health=lambda: asyncio.sleep(0, result=True)
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://sidecar",
+    ) as client:
+        response = await client.get("/healthz", headers={b"authorization": b"Bearer t\xe9"})
+    assert response.status_code == 403

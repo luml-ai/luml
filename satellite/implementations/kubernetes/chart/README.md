@@ -31,14 +31,18 @@ For OpenShift, add `-f chart/values-openshift.yaml`. The OpenShift preset:
 4. Still renders a standard Ingress, not a Route.
 
 The release name is the satellite identity inside its namespace. Use a different release name
-and host for each satellite that you install in the same namespace.
+and host for each satellite that you install in the same namespace. A satellite never takes
+over model objects (`luml-dep-<deployment id>`) that carry another release name. If you
+reinstall a satellite under a new release name, delete the model objects of the old release
+first. Otherwise a deployment whose objects already exist fails with "Kubernetes resource name
+is taken".
 
 ## Values
 
 | Group | Purpose |
 |---|---|
 | `satellite` | Token or existing token Secret, derivation key, platform URL, host/base URL, slug, image, pull secrets and resources |
-| `model`, `sidecar` | Model and serving images, sidecar authorization cache, recording defaults and resources |
+| `model`, `sidecar` | Model and serving images, artifact-fetch init container resources, sidecar authorization cache, recording defaults and resources |
 | `deploymentLimits` | User-visible replica, CPU, memory and health-check limits sent in the satellite capability declaration |
 | `gpu` | Whether the chart offers GPU fields, their limits, node selector, tolerations and runtime class |
 | `sharedCache` | Optional artifact-cache claim, size, storage class and access modes |
@@ -47,6 +51,13 @@ and host for each satellite that you install in the same namespace.
 | `monitoring` | Dashboard, worker, collector, session, retention and store configuration |
 | `networkPolicy`, `rbac`, `serviceAccount` | Namespaced access controls |
 | `probes` | Timeout and failure threshold for every probe this chart renders, including the ones the satellite gives model pods |
+
+`model.artifactFetch.resources` sets requests and limits for the init container that downloads
+and unpacks the model artifact before the model starts. The defaults are 100m CPU and 128Mi
+memory requested, 1 CPU and 512Mi memory at most; the download and unpacking stream to disk,
+so memory does not grow with the artifact size. Lower them when a LimitRange in the namespace
+caps containers below these values. New and redeployed models use the new values; running
+model pods keep theirs.
 
 `satellite.baseUrl` overrides URL derivation. Without it, the chart uses `https://` when you
 configure an Ingress TLS Secret or select the OpenShift preset. Otherwise it uses `http://`.
@@ -81,7 +92,9 @@ requirements.
 
 Set `satellite.existingSecret` and `satellite.existingSecretKey` to read the satellite token
 from an existing Secret. Otherwise the chart creates a token Secret from `satellite.token`.
-The chart rolls the satellite, dashboard and worker when that value changes.
+The chart rolls the satellite, dashboard and worker when that value or the derivation key
+changes. Their pod annotation holds a checksum keyed with the derivation key, so it cannot be
+used to check a guessed token. Upgrades that leave both credentials unchanged keep the pods.
 
 The chart always keeps the derivation key in a separate Secret. Set `satellite.derivationKey`
 on the first install. When the value is empty, Helm reads the existing key from the cluster.
@@ -106,8 +119,9 @@ Supply the exact decoded value as `satellite.derivationKey`. Replacing it with a
 generated key rotates credentials and invalidates existing companion and artifact tokens.
 
 A rotation of the satellite token alone leaves the derivation key and the model pods
-unchanged. Helm cannot checksum an existing token Secret. After you rotate one, restart the
-three Deployments:
+unchanged. Helm cannot checksum an existing token Secret. After you rotate one, set
+`satellite.credentialsRevision` to a new non-secret string, such as `rotation-2`, and apply the
+chart, or restart the three Deployments:
 
 ```shell
 kubectl rollout restart deployment -l luml.ai/satellite-id=my-satellite
