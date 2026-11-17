@@ -1,0 +1,138 @@
+name: Experiment Snapshots End-to-End
+
+# The full-stack suites of frontend/tests/stack: the platform (backend, Postgres, Redis, MinIO
+# and Azurite, the built frontend, experiments of this SDK and of luml-sdk 0.5.0) and Flow.
+on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - 'sdk/python/sdk/luml/experiments/**'
+      - 'sdk/python/sdk/luml/artifacts/**'
+      - 'sdk/python/sdk/tests/fixtures/experiment_snapshots/**'
+      - 'sdk/python/api/luml_api/**'
+      - 'extras/js/packages/experiments/**'
+      - 'frontend/src/pages/collection/artifact/**'
+      - 'frontend/src/pages/collection/compare/**'
+      - 'frontend/src/hooks/useExperimentSnapshotsDatabaseProvider.ts'
+      - 'frontend/src/workers/experiment-snapshot/**'
+      - 'frontend/src/lib/bucket-service/**'
+      - 'frontend/src/lib/fnnx/**'
+      - 'frontend/src/stores/artifacts/**'
+      - 'frontend/tests/stack/**'
+      - 'backend/luml/models/artifacts.py'
+      - 'backend/luml/clients/**'
+      - 'backend/luml/handlers/artifacts.py'
+      - 'backend/luml/handlers/bucket_secrets.py'
+      - 'backend/luml/api/**/artifacts*.py'
+      - 'backend/luml/schemas/bucket_secrets.py'
+      - 'lumlflow/lumlflow/api/experiments.py'
+      - 'lumlflow/lumlflow/handlers/experiments.py'
+      - 'lumlflow/lumlflow/schemas/experiments.py'
+      - 'lumlflow/frontend/src/**'
+      - 'package-lock.json'
+      - '.github/workflows/[experiment-snapshots] end-to-end.yml'
+  pull_request:
+    branches: [main, staging, production]
+    paths:
+      - 'sdk/python/sdk/luml/experiments/**'
+      - 'sdk/python/sdk/luml/artifacts/**'
+      - 'sdk/python/sdk/tests/fixtures/experiment_snapshots/**'
+      - 'sdk/python/api/luml_api/**'
+      - 'extras/js/packages/experiments/**'
+      - 'frontend/src/pages/collection/artifact/**'
+      - 'frontend/src/pages/collection/compare/**'
+      - 'frontend/src/hooks/useExperimentSnapshotsDatabaseProvider.ts'
+      - 'frontend/src/workers/experiment-snapshot/**'
+      - 'frontend/src/lib/bucket-service/**'
+      - 'frontend/src/lib/fnnx/**'
+      - 'frontend/src/stores/artifacts/**'
+      - 'frontend/tests/stack/**'
+      - 'backend/luml/models/artifacts.py'
+      - 'backend/luml/clients/**'
+      - 'backend/luml/handlers/artifacts.py'
+      - 'backend/luml/handlers/bucket_secrets.py'
+      - 'backend/luml/api/**/artifacts*.py'
+      - 'backend/luml/schemas/bucket_secrets.py'
+      - 'lumlflow/lumlflow/api/experiments.py'
+      - 'lumlflow/lumlflow/handlers/experiments.py'
+      - 'lumlflow/lumlflow/schemas/experiments.py'
+      - 'lumlflow/frontend/src/**'
+      - 'package-lock.json'
+      - '.github/workflows/[experiment-snapshots] end-to-end.yml'
+  workflow_dispatch:
+
+jobs:
+  end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [platform, flow]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ./package-lock.json
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Get Playwright version
+        id: pw-version
+        working-directory: frontend
+        run: |
+          VERSION=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        working-directory: frontend
+        run: npx playwright install-deps chromium
+
+      - name: Install Python dependencies
+        run: |
+          (cd sdk/python/sdk && uv sync --frozen --group dev)
+          if [ "${{ matrix.suite }}" = platform ]; then (cd backend && uv sync --frozen); fi
+          if [ "${{ matrix.suite }}" = flow ]; then (cd lumlflow && LUMLFLOW_BUILD_NO_FRONTEND=1 uv sync --frozen); fi
+
+      # Released luml-sdk 0.5.0 writes the old-format experiments, as in the SDK cross-version job.
+      - name: Install luml-sdk 0.5.0
+        run: |
+          uv venv --python 3.12 "$RUNNER_TEMP/luml-sdk-0.5.0"
+          VIRTUAL_ENV="$RUNNER_TEMP/luml-sdk-0.5.0" uv pip install --exclude-newer 2026-11-15 luml-sdk==0.5.0
+
+      - name: Run the ${{ matrix.suite }} suite
+        run: frontend/tests/stack/run.sh ${{ matrix.suite }}
+        env:
+          CI: 'true'
+          E2E_OLD_SDK_PYTHON: ${{ runner.temp }}/luml-sdk-0.5.0/bin/python
+          E2E_LOG_DIR: ${{ runner.temp }}/e2e-logs
+
+      - name: Upload traces and logs (failures only)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: experiment-snapshots-e2e-${{ matrix.suite }}
+          path: ${{ runner.temp }}/e2e-logs/
+          retention-days: 7

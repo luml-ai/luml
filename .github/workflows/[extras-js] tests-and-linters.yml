@@ -7,12 +7,16 @@ on:
       - 'extras/js/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'sdk/python/sdk/luml/experiments/backends/exp_migrations/**'
+      - 'sdk/python/sdk/tests/fixtures/experiment_snapshots/**'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'extras/js/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'sdk/python/sdk/luml/experiments/backends/exp_migrations/**'
+      - 'sdk/python/sdk/tests/fixtures/experiment_snapshots/**'
   workflow_call:
   workflow_dispatch:
 

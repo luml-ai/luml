@@ -59,6 +59,14 @@ jobs:
       - name: Run unit tests
         run: uv run --frozen pytest tests --ignore=tests/integrations
 
+      # luml-sdk 0.5.0 requires Python 3.12, the version this job runs.
+      - name: Run cross-version tests against luml-sdk 0.5.0
+        run: |
+          uv venv --python 3.12 "$RUNNER_TEMP/luml-sdk-0.5.0"
+          VIRTUAL_ENV="$RUNNER_TEMP/luml-sdk-0.5.0" uv pip install --exclude-newer 2026-11-15 luml-sdk==0.5.0
+          LUML_OLD_SDK_PYTHON="$RUNNER_TEMP/luml-sdk-0.5.0/bin/python" \
+            uv run --frozen pytest tests/experiments/test_metric_cross_version.py
+
   integration-tests:
     runs-on: ubuntu-latest
     steps:

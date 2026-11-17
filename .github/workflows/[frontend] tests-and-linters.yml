@@ -9,6 +9,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
+      - 'sdk/python/sdk/tests/fixtures/experiment_snapshots/**'
   pull_request:
     branches: [main, staging, production]
     paths:
@@ -17,6 +18,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
+      - 'sdk/python/sdk/tests/fixtures/experiment_snapshots/**'
   workflow_call:
   workflow_dispatch:
 
