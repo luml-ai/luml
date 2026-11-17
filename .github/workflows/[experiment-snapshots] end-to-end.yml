@@ -2,9 +2,13 @@ name: Experiment Snapshots End-to-End
 
 # The full-stack suites of frontend/tests/stack: the platform (backend, Postgres, Redis, MinIO
 # and Azurite, the built frontend, experiments of this SDK and of luml-sdk 0.5.0) and Flow.
+
+permissions:
+  contents: read
+
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'sdk/python/sdk/luml/experiments/**'
       - 'sdk/python/sdk/luml/artifacts/**'
@@ -70,16 +74,16 @@ jobs:
       matrix:
         suite: [platform, flow]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: ./package-lock.json
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -94,7 +98,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
@@ -131,7 +135,7 @@ jobs:
 
       - name: Upload traces and logs (failures only)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: experiment-snapshots-e2e-${{ matrix.suite }}
           path: ${{ runner.temp }}/e2e-logs/
