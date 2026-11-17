@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, type VueWrapper } from '@vue/test-utils'
 import PrimeVue from 'primevue/config'
 import Tooltip from 'primevue/tooltip'
 import { Select } from 'primevue'
@@ -16,20 +16,26 @@ vi.mock('@/helpers/texts', async (importOriginal) => {
 
 const MB = 1024 * 1024
 
+let mounted: VueWrapper[] = []
+
 function mountText(text: unknown, title = 'input.value') {
-  return mount(UiMultiTypeText, {
+  const wrapper = mount(UiMultiTypeText, {
     props: { title, text },
     global: { plugins: [[PrimeVue, { unstyled: true }]], directives: { tooltip: Tooltip } },
     attachTo: document.body,
   })
+  mounted.push(wrapper)
+  return wrapper
 }
 
 function mountViewer(text: string) {
-  return mount(JsonValueView, {
+  const wrapper = mount(JsonValueView, {
     props: { visible: true, title: 'input.value', value: text, text, bytes: utf8ByteLength(text) },
     global: { plugins: [[PrimeVue, { unstyled: true }]] },
     attachTo: document.body,
   })
+  mounted.push(wrapper)
+  return wrapper
 }
 
 function optionDisabled(wrapper: ReturnType<typeof mountViewer>, label: string) {
@@ -48,6 +54,9 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // Unmount before clearing the body: Vue cannot unmount an app whose DOM is already gone.
+  mounted.forEach((wrapper) => wrapper.unmount())
+  mounted = []
   vi.restoreAllMocks()
   document.body.innerHTML = ''
 })

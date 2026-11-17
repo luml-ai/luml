@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import Tooltip from 'primevue/tooltip'
@@ -12,6 +12,10 @@ vi.mock('primevue', async (importOriginal) => ({
   ...(await importOriginal<typeof import('primevue')>()),
   useToast: () => ({ add: vi.fn() }),
 }))
+
+// TabList updates its ink bar 150 ms after mount; once unmounted, that timer finds no DOM refs and
+// does nothing, so it cannot fire against a torn-down test environment.
+enableAutoUnmount(afterEach)
 
 type Deferred = {
   resolve: (payload: SpanPayload) => void

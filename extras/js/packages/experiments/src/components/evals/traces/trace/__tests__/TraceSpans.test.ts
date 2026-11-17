@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 import PrimeVue from 'primevue/config'
 import type { TraceSpan as TraceSpanType } from '@/interfaces/interfaces'
 import TraceSpans from '../TraceSpans.vue'
@@ -10,6 +10,8 @@ import { makeSpan, wideTree } from './spanFactory'
 
 // About ten 67px rows in view.
 const VIEWPORT = 670
+
+enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   mockVirtualLayout(VIEWPORT)
