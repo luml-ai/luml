@@ -14,7 +14,7 @@ CHART="$KUBERNETES_ROOT/chart"
 CLUSTER_NAME="luml-e2e-$PRESET"
 NAMESPACE="luml-e2e-$PRESET"
 RELEASE="luml-e2e"
-HOST="$PRESET.satellite.example.test"
+HOST="$PRESET.satellite.localhost"
 RANDOM_USER=10001
 if [[ "$PRESET" == "openshift" ]]; then
   RANDOM_USER=1000710000

@@ -588,7 +588,13 @@ class TickClock(FakeClock):
 @pytest.mark.parametrize(
     ("base_url", "application", "legacy", "expected"),
     [
-        ("http://satellite", True, False, [0, 120, 240]),
+        ("https://satellite", True, False, [0, 120, 240]),
+        ("http://localhost:8080", True, False, [0, 120, 240]),
+        ("http://dev.localhost:8080", True, False, [0, 120, 240]),
+        ("http://127.0.0.1:8080", True, False, [0, 120, 240]),
+        ("http://[::1]:8080", True, False, [0, 120, 240]),
+        ("http://satellite", True, False, list(range(0, 241, 2))),
+        ("http://192.168.1.5", True, False, list(range(0, 241, 2))),
         (None, True, False, list(range(0, 241, 2))),
         ("http://satellite", False, False, list(range(0, 241, 2))),
         ("http://satellite", True, True, list(range(0, 241, 2))),
@@ -656,7 +662,11 @@ async def test_wake_coalesces_and_survives_a_running_poll(monkeypatch: pytest.Mo
         ) as public,
     ):
         runtime = SatelliteRuntime(
-            configuration(), client, FakeDriver(), clock=clock, public_application=app
+            configuration(base_url="https://satellite"),
+            client,
+            FakeDriver(),
+            clock=clock,
+            public_application=app,
         )
         clock.runtime = runtime
         original_poll = runtime.poll
@@ -821,3 +831,42 @@ async def test_task_created_before_wake_starts_on_next_tick() -> None:
 
         clock.on_tick = on_tick
         await runtime.run_forever()
+
+
+@pytest.mark.asyncio
+async def test_health_failures_retry_with_independent_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi import FastAPI
+
+    platform = FakePlatform()
+    clock = TickClock(205)
+    health: list[float] = []
+    polls: list[float] = []
+    async with PlatformClient(
+        "http://platform", platform.token, transport=platform.transport
+    ) as client:
+        runtime = SatelliteRuntime(
+            configuration(base_url="https://satellite").model_copy(update={"POLL_INTERVAL_SEC": 2}),
+            client,
+            FakeDriver(),
+            clock=clock,
+            public_application=FastAPI(),
+            jitter=lambda ceiling: ceiling,
+        )
+        clock.runtime = runtime
+
+        async def poll() -> None:
+            polls.append(clock.monotonic())
+
+        async def health_pass() -> None:
+            health.append(clock.monotonic())
+            if len(health) in (1, 2, 3, 4, 6):
+                raise RuntimeError("unavailable")
+
+        monkeypatch.setattr(runtime, "poll", poll)
+        monkeypatch.setattr(runtime, "health_pass", health_pass)
+        await runtime.run_forever()
+
+    assert health == [60, 62, 66, 74, 82, 142, 144, 204]
+    assert polls == [0, 120]

@@ -247,12 +247,17 @@ def test_satellite_wake_accepts_empty_response_and_ignores_http_errors(
         _satellite_record(present_capabilities=["wake"])
     )
     satellite._bind(client_with_mocks, "/unused")
+    client_with_mocks._client.cookies.set(
+        "session", "platform-session", domain="sat.example"
+    )
     route = respx_mock.post(f"{SATELLITE_URL}/wake").mock(
         return_value=httpx.Response(status)
     )
     assert satellite.wake() is None
     assert route.call_count == 1
     assert route.calls[0].request.content == b""
+    assert "authorization" not in route.calls[0].request.headers
+    assert "cookie" not in route.calls[0].request.headers
 
 
 @pytest.mark.parametrize(
@@ -295,12 +300,17 @@ async def test_async_satellite_wake_accepts_empty_response_and_ignores_http_erro
         _satellite_record(present_capabilities=["wake"])
     )
     satellite._bind(async_client_with_mocks, "/unused")
+    async_client_with_mocks._client.cookies.set(
+        "session", "platform-session", domain="sat.example"
+    )
     route = respx_mock.post(f"{SATELLITE_URL}/wake").mock(
         return_value=httpx.Response(status)
     )
     assert await satellite.wake() is None
     assert route.call_count == 1
     assert route.calls[0].request.content == b""
+    assert "authorization" not in route.calls[0].request.headers
+    assert "cookie" not in route.calls[0].request.headers
 
 
 @pytest.mark.asyncio

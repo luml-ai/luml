@@ -2,7 +2,9 @@ import logging
 import random
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import suppress
+from ipaddress import ip_address
 from typing import Protocol, runtime_checkable
+from urllib.parse import urlsplit
 
 from luml_satellite.convergence import (
     Convergence,
@@ -209,7 +211,16 @@ class SatelliteRuntime:
             openapi=self._openapi_document(),
             logger=self.logger,
         )
-        self._wake_enabled = self._wake_available and "wake" in paired.capabilities
+        base_url = urlsplit(self.configuration.BASE_URL or "")
+        hostname = base_url.hostname or ""
+        loopback = hostname == "localhost" or hostname.endswith(".localhost")
+        with suppress(ValueError):
+            loopback = loopback or ip_address(hostname).is_loopback
+        # https pages cannot send wake hints to non-loopback http satellites
+        browser_reachable = base_url.scheme == "https" or (base_url.scheme == "http" and loopback)
+        self._wake_enabled = (
+            self._wake_available and "wake" in paired.capabilities and browser_reachable
+        )
         if self._on_paired is not None:
             self._on_paired(paired)
 
@@ -236,6 +247,7 @@ class SatelliteRuntime:
             self._mark_reconciled()
             next_health = self.clock.monotonic() + self.configuration.HEALTH_PASS_INTERVAL_SEC
             failures = 0
+            health_failures = 0
             last_poll: float | None = None
             retry_at = 0.0
             while not self._stopped:
@@ -270,10 +282,14 @@ class SatelliteRuntime:
                     try:
                         await self.health_pass()
                     except Exception as error:
+                        health_failures += 1
                         self.logger.warning("satellite health pass failed: %s", error)
-                    next_health = (
-                        self.clock.monotonic() + self.configuration.HEALTH_PASS_INTERVAL_SEC
-                    )
+                        next_health = self.clock.monotonic() + self._backoff_delay(health_failures)
+                    else:
+                        health_failures = 0
+                        next_health = (
+                            self.clock.monotonic() + self.configuration.HEALTH_PASS_INTERVAL_SEC
+                        )
                 if not self._stopped:
                     await self.clock.sleep(max(0.0, 1.0 - (self.clock.monotonic() - now)))
         finally:

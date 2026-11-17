@@ -283,7 +283,7 @@ BASE_URL=http://localhost
 | `MODEL_IMAGE` | `ghcr.io/luml-ai/luml-model-server:latest` | Image model containers start from. |
 | `MONITORING_FRAME_ANCESTORS` | `https://app.luml.ai` | Origins allowed to embed the monitoring dashboard, separated by spaces. |
 | `POLL_INTERVAL_SEC` | `2` | Task poll interval while work is in flight, and failure backoff base, in seconds. Also used when wake is unavailable. |
-| `IDLE_POLL_INTERVAL_SEC` | `120` | Task poll interval while idle when wake was negotiated. Must be greater than zero. |
+| `IDLE_POLL_INTERVAL_SEC` | `120` | Task poll interval while idle when wake was negotiated and `BASE_URL` uses HTTPS or HTTP loopback. Must be greater than zero. |
 
 **6. Launch the Satellite:**
 
@@ -375,4 +375,7 @@ capability. After the platform accepts it, clients can send an unauthenticated
 `POST /wake` to request a task poll on the next one-second tick. The signal is a
 best-effort hint: tasks remain in the platform queue until polled. Running work
 keeps the active poll interval, and health checks retain their own cadence.
+Long idle polling also requires an HTTPS `BASE_URL` or an HTTP loopback URL
+(`localhost`, a `.localhost` name, or a loopback IP). Other HTTP URLs keep the
+active poll interval because HTTPS browsers block wake requests to them.
 Upgrade the platform before upgrading Satellites that declare `wake`.

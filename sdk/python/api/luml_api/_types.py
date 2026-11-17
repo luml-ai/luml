@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from httpx import URL, HTTPError, InvalidURL
+from httpx import URL, AsyncClient, Client, HTTPError, InvalidURL
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from luml_api._exceptions import LumlAPIError
@@ -703,7 +703,8 @@ class Satellite(_SatelliteRecord):
             return
         try:
             url = _resolve_satellite_url(self.base_url, "/wake", self.id)
-            self._client.request("POST", url)
+            with Client(timeout=self._client.timeout) as client:
+                client.post(url)
         except (HTTPError, LumlAPIError):
             pass
 
@@ -787,7 +788,8 @@ class AsyncSatellite(_SatelliteRecord):
             return
         try:
             url = _resolve_satellite_url(self.base_url, "/wake", self.id)
-            await self._client.request("POST", url)
+            async with AsyncClient(timeout=self._client.timeout) as client:
+                await client.post(url)
         except (HTTPError, LumlAPIError):
             pass
 
