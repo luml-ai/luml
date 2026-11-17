@@ -23,6 +23,7 @@ from luml.experiments.backends._cursor import Cursor
 from luml.experiments.backends._exceptions import (
     ExperimentReaderTooOldError,
     ExperimentWriterTooOldError,
+    LegacyMetricRowsError,
     SQLiteVersionError,
 )
 from luml.experiments.backends._search_utils import (
@@ -436,6 +437,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self.pool = ConnectionPool(10)
         self._migrated_experiment_dbs: set[str] = set()
         self._writable_experiment_dbs: set[str] = set()
+        self._legacy_metric_rows: dict[str, LegacyMetricRowsError] = {}
         # Tagged with the write-buffer generation they were read in.
         self._experiment_schemas: dict[str, tuple[int, ExperimentSchema]] = {}
         self._experiment_db_paths: dict[str, str] = {}
@@ -495,7 +497,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         target = KNOWN_EXPERIMENT_REVISION if write else READ_MIGRATION_REVISION
         self._check_writable(experiment_id, schema, write=write)
         if schema.revision < target:
-            ExperimentMigrationRunner(conn).migrate(target)
+            try:
+                ExperimentMigrationRunner(conn).migrate(target)
+            except LegacyMetricRowsError as error:
+                # Revision 3 changes only the metric tables, so every other write
+                # still works at the revision the earlier migrations reached.
+                self._legacy_metric_rows[experiment_id] = error
             schema = read_experiment_schema(conn)
             self._check_readable(experiment_id, schema)
             self._check_writable(experiment_id, schema, write=write)
@@ -820,6 +827,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         db_path, generation = self._ensure_experiment_initialized(
             experiment_id, write=True
         )
+        legacy_rows = self._legacy_metric_rows.get(experiment_id)
+        if legacy_rows is not None:
+            raise LegacyMetricRowsError(legacy_rows.count, legacy_rows.example)
         value = float(value)
         key = _metric_key(key)
         if step is not None:
@@ -1511,6 +1521,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             self._experiment_db_paths.pop(experiment_id, None)
             self._migrated_experiment_dbs.discard(experiment_id)
             self._writable_experiment_dbs.discard(experiment_id)
+            self._legacy_metric_rows.pop(experiment_id, None)
             self._experiment_schemas.pop(experiment_id, None)
             self._write_buffer.discard(db_path)
             self.pool.remove_database(experiment_id, db_path, exp_dir)

@@ -14,6 +14,7 @@ from luml.experiments.backends._exceptions import (
     LegacyMetricRowsError,
     SQLiteVersionError,
 )
+from luml.experiments.backends.metric_store import METRIC_POINT_SQL
 from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.backends.sqlite import SQLiteBackend
 from tests.experiments.metric_helpers import (
@@ -301,24 +302,62 @@ def _revision2_store_with(tmp_path: Path, rows: list[tuple[Any, ...]]) -> Path:
     return store
 
 
-def test_unmigratable_rows_refuse_writes_at_the_call_and_keep_reads_working(
+def _metric_rows(db_path: Path) -> list[tuple[Any, ...]]:
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute(
+            "SELECT key, value, step, logged_at FROM dynamic_metrics ORDER BY key, step"
+        ).fetchall()
+    finally:
+        conn.close()
+
+
+def _write_everything_but_metrics(backend: SQLiteBackend) -> None:
+    backend.log_static(EXPERIMENT_ID, "lr", 0.1)
+    backend.log_attachment(EXPERIMENT_ID, "notes.txt", "hello")
+    backend.log_span(EXPERIMENT_ID, "t", "s", "n", 0, 1)
+    backend.log_eval_sample(EXPERIMENT_ID, "e1", "ds", {"q": 1})
+
+
+def _assert_metric_writes_refused(backend: SQLiteBackend) -> None:
+    metric_writes: list[Callable[[], object]] = [
+        lambda: backend.log_dynamic(EXPERIMENT_ID, "loss", 9.0),
+        lambda: backend.log_dynamic(EXPERIMENT_ID, "acc", 9.0, step=1),
+    ]
+    for write in metric_writes:
+        with pytest.raises(
+            LegacyMetricRowsError, match="key 'loss', step 2.5"
+        ) as raised:
+            write()
+        assert raised.value.count == 1
+        buffered = [
+            row for rows in backend._write_buffer._rows.values() for row in rows
+        ]
+        assert all(sql != METRIC_POINT_SQL for sql, _ in buffered)
+
+
+def _assert_non_metric_writes_persisted(backend: SQLiteBackend) -> None:
+    data = backend.get_experiment_data(EXPERIMENT_ID)
+    assert data.static_params["lr"] == 0.1
+    assert backend.get_attachment(EXPERIMENT_ID, "notes.txt") == b"hello"
+    assert backend.get_trace(EXPERIMENT_ID, "t") is not None
+    assert backend.get_eval(EXPERIMENT_ID, "e1") is not None
+
+
+def test_unmigratable_rows_refuse_only_metric_writes_and_keep_reads_working(
     tmp_path: Path,
 ) -> None:
     store = _revision2_store_with(tmp_path, [("loss", 7.0, 2.5, None)])
     db_path = store / EXPERIMENT_ID / "exp.db"
     before = schema_snapshot(db_path)
+    metric_rows = _metric_rows(db_path)
     backend = SQLiteBackend(str(store), flush_interval=3600)
-    writes: list[Callable[[], object]] = [
-        lambda: backend.log_dynamic(EXPERIMENT_ID, "loss", 9.0),
-        lambda: backend.log_dynamic(EXPERIMENT_ID, "acc", 9.0, step=1),
-        lambda: backend.log_span(EXPERIMENT_ID, "t", "s", "n", 0, 1),
-        lambda: backend.log_eval_sample(EXPERIMENT_ID, "e1", "ds", {"q": 1}),
-        lambda: backend.log_static(EXPERIMENT_ID, "lr", 0.1),
-    ]
-    for write in writes:
-        with pytest.raises(LegacyMetricRowsError, match="key 'loss', step 2.5"):
-            write()
-        assert backend._write_buffer._rows == {}
+
+    _assert_metric_writes_refused(backend)
+    _write_everything_but_metrics(backend)
+    _assert_metric_writes_refused(backend)
+    backend.flush()
+    _assert_non_metric_writes_persisted(backend)
 
     catalog = backend.get_metric_catalog(EXPERIMENT_ID)
     assert (catalog.revision, catalog.skipped_rows) == (2, 0)
@@ -341,6 +380,49 @@ def test_unmigratable_rows_refuse_writes_at_the_call_and_keep_reads_working(
     backend.flush()
     backend.close()
     assert schema_snapshot(db_path) == before
+    assert _metric_rows(db_path) == metric_rows
+
+    later = SQLiteBackend(str(store), flush_interval=0)
+    _assert_non_metric_writes_persisted(later)
+    _assert_metric_writes_refused(later)
+    later.log_static(EXPERIMENT_ID, "epochs", 3)
+    assert later.get_experiment_data(EXPERIMENT_ID).static_params["epochs"] == 3
+    with later.snapshot_experiment(EXPERIMENT_ID) as snapshot:
+        assert snapshot.schema_revision == 2
+        assert snapshot.fallback_reason is not None
+        assert "key 'loss', step 2.5" in snapshot.fallback_reason
+    later.close()
+    assert schema_snapshot(db_path) == before
+    assert _metric_rows(db_path) == metric_rows
+
+
+def test_unmigratable_rows_still_get_the_earlier_migrations(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    make_store(store, EXPERIMENT_ID)
+    db_path = store / EXPERIMENT_ID / "exp.db"
+    for suffix in ("", "-wal", "-shm"):
+        Path(f"{db_path}{suffix}").unlink(missing_ok=True)
+    conn = sqlite3.connect(db_path)
+    ExperimentMigrationRunner(conn).migrate(target_version=1)
+    conn.execute(LEGACY_INSERT, ("loss", 7.0, 2.5, None))
+    conn.commit()
+    conn.close()
+    backend = SQLiteBackend(str(store), flush_interval=0)
+
+    backend.log_attachment(EXPERIMENT_ID, "notes.txt", "hello")
+
+    attachments = backend.list_attachments(EXPERIMENT_ID)
+    assert [(a.name, a.size) for a in attachments] == [("notes.txt", 5)]
+    with pytest.raises(LegacyMetricRowsError):
+        backend.log_dynamic(EXPERIMENT_ID, "loss", 9.0)
+    backend.close()
+    conn = sqlite3.connect(db_path)
+    versions = conn.execute(
+        "SELECT version FROM exp_schema_migrations ORDER BY version"
+    ).fetchall()
+    conn.close()
+    assert versions == [(1,), (2,)]
+    assert _metric_rows(db_path) == [("loss", 7.0, 2.5, None)]
 
 
 def test_revision_2_bucket_span_ignores_real_steps_at_both_ends(

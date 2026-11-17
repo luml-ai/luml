@@ -283,7 +283,8 @@ class ExperimentTracker:
         Args:
             key: Metric name.
             value: Metric value (numeric).
-            step: Training step/epoch number.
+            step: Training step/epoch number. Must be an integer: a fractional
+                step such as 2.5 raises `TypeError`.
             experiment_id: Experiment ID. Uses current experiment if not specified.
 
         Example:

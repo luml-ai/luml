@@ -67,7 +67,8 @@ class LegacyMetricRowsError(LumlExperimentsError, ValueError):
         super().__init__(
             f"{count} metric rows have a step that is not an integer or a key that "
             f"is not text (first: {example}). The experiment stays at schema "
-            "revision 2: it can still be read, but this luml-sdk cannot write to it."
+            "revision 2: it can still be read and written to, but this luml-sdk "
+            "cannot log metrics to it."
         )
 
 
