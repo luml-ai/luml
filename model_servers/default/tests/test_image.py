@@ -429,3 +429,27 @@ for directory in ['/app/models', '/app/.micromamba', '/app/.cache/uv']:
             script,
         ]
     )
+
+
+@pytest.mark.parametrize("user", ["10001:0", f"{RANDOM_UID}:0"])
+def test_micromamba_registers_environments_with_read_only_server_code(
+    docker_cli: str, model_server_image: str, user: str
+) -> None:
+    result = _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--user",
+            user,
+            "--entrypoint",
+            "sh",
+            model_server_image,
+            "-c",
+            "micromamba create -n probe -y --offline >/dev/null && micromamba env list --json",
+        ]
+    )
+    envs = json.loads(result.stdout)["envs"]
+    assert "/app/.micromamba/envs/probe" in envs

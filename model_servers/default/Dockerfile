@@ -15,10 +15,10 @@ ENV HOME=/app \
     UV_LINK_MODE=copy
 COPY --from=uv /uv /bin/uv
 
-RUN mkdir -p /app/.cache/uv /app/.micromamba /app/models \
+RUN mkdir -p /app/.cache/uv /app/.micromamba /app/models /app/.conda /app/.mamba \
     && chown -R root:0 /app \
     && chmod -R a-w /app \
-    && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models
+    && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models /app/.conda /app/.mamba
 
 COPY pyproject.toml uv.lock /app/
 
@@ -29,7 +29,7 @@ COPY . /app/
 
 RUN chown -R root:0 /app \
     && chmod -R a-w /app \
-    && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models
+    && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models /app/.conda /app/.mamba
 
 ENV PYTHONPATH=/app
 
