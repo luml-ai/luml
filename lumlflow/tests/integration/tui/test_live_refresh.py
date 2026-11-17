@@ -576,6 +576,67 @@ class TestRefreshNow:
 
 
 class TestRefreshLifetime:
+    @pytest.mark.parametrize("screen_kind", ["home", "experiments", "detail"])
+    async def test_refresh_starting_after_shutdown_drops_result(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        screen_kind: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if screen_kind == "home":
+                screen = app.screen
+                callback_name = "_on_refresh_result"
+            elif screen_kind == "experiments":
+                screen = ExperimentsScreen(group_id=group.id)
+                callback_name = "_on_refresh_result"
+                await app.push_screen(screen)
+            else:
+                screen = ExperimentDetailScreen(experiment_id=experiment_id)
+                callback_name = "_on_refresh_details_result"
+                await app.push_screen(screen)
+            await settle_workers(pilot)
+            assert screen._facade is None
+            assert screen.facade is facade
+            callback = Mock()
+            monkeypatch.setattr(screen, callback_name, callback)
+            run_worker = screen.run_worker
+
+            def delay_worker(work, *args, **kwargs):
+                def delayed():
+                    started.set()
+                    try:
+                        assert release.wait(10), "worker was never released"
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(delayed, *args, **kwargs)
+
+            monkeypatch.setattr(screen, "run_worker", delay_worker)
+            screen.refresh_live()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                await app._shutdown()
+                assert not screen.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            callback.assert_not_called()
+
     @pytest.mark.parametrize("screen_kind", ["groups", "experiments", "detail"])
     @pytest.mark.parametrize("leave", ["pop", "unmount", "stop"])
     async def test_blocked_refresh_drops_result_after_leaving(

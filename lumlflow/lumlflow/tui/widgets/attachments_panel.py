@@ -50,6 +50,7 @@ from textual.widgets import Static, Tree
 from textual.widgets.tree import TreeNode
 
 from lumlflow.schemas.experiments import FileNode, FileNodeType
+from lumlflow.tui._facade import resolve_facade
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
 from lumlflow.tui.widgets.save_file_dialog import SaveFileDialog
@@ -308,10 +309,7 @@ class AttachmentsPanel(Widget):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        app = self.app
-        return getattr(app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -636,14 +634,14 @@ class AttachmentsPanel(Widget):
         facade = self.facade
         if facade is None:
             return
-        app = self._lumlflow_app
         result = facade.get_attachment(self._experiment_id, file_path)
         if not result.ok:
             err = result.error
             self.call_later(
-                app.show_toast,
-                f"Could not load file: {err.message if err else 'error'}",
-                severity="error",
+                lambda: self._lumlflow_app.show_toast(
+                    f"Could not load file: {err.message if err else 'error'}",
+                    severity="error",
+                ),
             )
             return
         data: bytes = result.unwrap() or b""
@@ -657,31 +655,32 @@ class AttachmentsPanel(Widget):
                     output.write(data)
             except FileExistsError:
                 self.call_later(
-                    app.push_screen,
-                    ConfirmDialog(
-                        title="Overwrite file?",
-                        message=f"{destination} already exists. Overwrite it?",
-                        confirm_label="Overwrite",
-                    ),
-                    lambda confirmed: (
-                        self._save_to_disk(file_path, dest, overwrite=True)
-                        if confirmed
-                        else None
+                    lambda: self._lumlflow_app.push_screen(
+                        ConfirmDialog(
+                            title="Overwrite file?",
+                            message=f"{destination} already exists. Overwrite it?",
+                            confirm_label="Overwrite",
+                        ),
+                        lambda confirmed: (
+                            self._save_to_disk(file_path, dest, overwrite=True)
+                            if confirmed
+                            else None
+                        ),
                     ),
                 )
                 return
         except OSError as exc:
+            message = f"Save failed: {exc}"
             self.call_later(
-                app.show_toast,
-                f"Save failed: {exc}",
-                severity="error",
+                lambda: self._lumlflow_app.show_toast(message, severity="error")
             )
             return
         self.call_later(
-            app.show_toast,
-            f"Saved to {destination}",
-            severity="success",
-            duration=3.0,
+            lambda: self._lumlflow_app.show_toast(
+                f"Saved to {destination}",
+                severity="success",
+                duration=3.0,
+            )
         )
 
     # ----- yank -----

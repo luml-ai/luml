@@ -37,6 +37,7 @@ from textual.containers import Container
 from textual.timer import Timer
 from textual.widgets import Static
 
+from lumlflow.tui._facade import resolve_facade
 from lumlflow.tui.data import DataFacade
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.run_manager import RunManager, RunSpec
@@ -166,9 +167,7 @@ class RunAttachScreen(BaseScreen):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        return getattr(self.app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:

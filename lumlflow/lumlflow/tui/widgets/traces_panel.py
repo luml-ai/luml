@@ -33,6 +33,7 @@ from lumlflow.schemas.experiments import (
     TracesSortBy,
     TraceState,
 )
+from lumlflow.tui._facade import resolve_facade
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.widgets.dialogs import (
     FilterEditorDialog,
@@ -225,10 +226,7 @@ class TracesPanel(Widget):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        app = self.app
-        return getattr(app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
