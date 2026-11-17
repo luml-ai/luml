@@ -156,7 +156,9 @@ class DatabaseServiceClass {
 
         const cleanPath = filePath.replace(/\/$/, '')
 
-        zip.file(cleanPath, fileData)
+        zip.file(cleanPath, fileData, {
+          base64: format === 'base64' && typeof content === 'string',
+        })
       } catch (e) {
         console.error(`Failed to process file ${filePath}:`, e)
         continue

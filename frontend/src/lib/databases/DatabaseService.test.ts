@@ -48,6 +48,80 @@ describe('notebook database operations', () => {
     await deleteDB(name)
   })
 
+  it('preserves binary, text, and notebook contents in the backup archive', async () => {
+    const db = await createNotebook(true)
+    const notebook = { cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 }
+    await db.put(
+      'files',
+      { path: 'model.luml', format: 'base64', content: 'bW9kZWwgYmluYXJ5IGRhdGE=' },
+      'model.luml',
+    )
+    await db.put(
+      'files',
+      { path: 'nested/binary.bin', format: 'base64', content: 'AP+A/g==' },
+      'nested/binary.bin',
+    )
+    await db.put(
+      'files',
+      { path: 'example.txt', format: 'text', content: 'café\nAP+A/g==' },
+      'example.txt',
+    )
+    await db.put(
+      'files',
+      { path: 'example.ipynb', format: 'json', content: notebook },
+      'example.ipynb',
+    )
+    db.close()
+
+    await DatabaseService.createBackup(name)
+
+    expect(saveAs).toHaveBeenCalledOnce()
+    const [blob] = vi.mocked(saveAs).mock.calls[0]
+    const zip = await JSZip.loadAsync(await (blob as Blob).arrayBuffer())
+    const model = await zip.file('model.luml')?.async('uint8array')
+    expect(model).toEqual(new TextEncoder().encode('model binary data'))
+    expect(model).toHaveLength(17)
+    expect(await zip.file('nested/binary.bin')?.async('uint8array')).toEqual(
+      new Uint8Array([0, 255, 128, 254]),
+    )
+    expect(await zip.file('example.txt')?.async('uint8array')).toEqual(
+      new TextEncoder().encode('café\nAP+A/g=='),
+    )
+    expect(await zip.file('example.ipynb')?.async('uint8array')).toEqual(
+      new TextEncoder().encode(JSON.stringify(notebook, null, 2)),
+    )
+    await deleteDB(name)
+  })
+
+  it('preserves an empty base64 file in the backup archive', async () => {
+    const db = await createNotebook(true)
+    await db.put('files', { path: 'empty.bin', format: 'base64', content: '' }, 'empty.bin')
+    db.close()
+
+    await DatabaseService.createBackup(name)
+
+    const [blob] = vi.mocked(saveAs).mock.calls[0]
+    const zip = await JSZip.loadAsync(await (blob as Blob).arrayBuffer())
+    expect(await zip.file('empty.bin')?.async('uint8array')).toEqual(new Uint8Array())
+    await deleteDB(name)
+  })
+
+  it('does not download a backup when base64 content cannot be decoded', async () => {
+    const db = await createNotebook(true)
+    await db.put('files', { path: 'invalid.bin', format: 'base64', content: 'a' }, 'invalid.bin')
+    await db.put(
+      'files',
+      { path: 'example.txt', format: 'text', content: 'example' },
+      'example.txt',
+    )
+    db.close()
+
+    await expect(DatabaseService.createBackup(name)).rejects.toThrow('Invalid base64 input')
+
+    expect(saveAs).not.toHaveBeenCalled()
+    await deleteDB(name)
+  })
+
   it.each(['metadata', 'edit'] as const)(
     'reports a blocked %s upgrade and completes after the external connection closes',
     async (operation) => {
