@@ -20,6 +20,7 @@
         :async-validate-callback="asyncValidateCallback"
         :count="filtersCount"
         @apply="filterChange"
+        @open="loadFilterKeys"
       />
       <TableEditColumns
         :button-icon="Bolt"
@@ -42,13 +43,16 @@ import type { ToolbarEmits, ToolbarProps } from './traces.interface'
 import type { FilterItem } from '../table/filter/filter.interface'
 import type { TypedColumnInfo } from '@/interfaces/interfaces'
 import { computed } from 'vue'
-import { Button, IconField, InputIcon, InputText } from 'primevue'
+import { Button, IconField, InputIcon, InputText, useToast } from 'primevue'
 import { Bolt, Download, Search } from 'lucide-vue-next'
 import { useTraceStore } from '@/store/trace'
 import TableEditColumns from '../table/TableEditColumns.vue'
 import TableFilter from '../table/filter/TableFilter.vue'
 import { useEvalsStore } from '@/store/evals'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 
+const toast = useToast()
 const evalStore = useEvalsStore()
 const traceStore = useTraceStore()
 
@@ -76,6 +80,14 @@ async function asyncValidateCallback(filters: FilterItem[]) {
   const filtersStrings = createFiltersString(filters)
   const results = await evalStore.getProvider.validateTracesFilter(filtersStrings)
   return results
+}
+
+async function loadFilterKeys() {
+  try {
+    await traceStore.getTypedColumns()
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error)))
+  }
 }
 
 function filterChange(filters: FilterItem[]) {

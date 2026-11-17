@@ -313,6 +313,9 @@ const createMockProvider = (
     getTraceSpans: async () => {
       return []
     },
+    getSpanPayload: async () => {
+      throw new Error('Span not found')
+    },
     buildSpanTree: async () => {
       return []
     },

@@ -119,7 +119,6 @@ onBeforeMount(async () => {
   try {
     traceStore.setArtifactId(props.artifactId)
     firstLoading.value = true
-    await traceStore.getTypedColumns()
     await getNextPage(true)
     tracesExists.value = traceStore.traces.length > 0
     await annotationsStore.getTracesAnnotationSummary(props.artifactId)

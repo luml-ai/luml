@@ -7,6 +7,7 @@ import type {
   GetEvalsByDatasetParams,
   GetTracesParams,
   ModelScores,
+  SpanPayload,
   SpansListType,
   TypedEvalsColumns,
   SpansParams,
@@ -366,6 +367,10 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getTraceSpans(modelId: string, traceId: string) {
     return this.call<SpansListType>('getTraceSpans', [modelId, traceId])
+  }
+
+  getSpanPayload(modelId: string, traceId: string, spanId: string) {
+    return this.call<SpanPayload>('getSpanPayload', [modelId, traceId, spanId])
   }
 
   getEvalsColumns(datasetId: string, signal?: AbortSignal) {

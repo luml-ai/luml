@@ -55,10 +55,22 @@ export interface ApiServiceInterface {
     signal?: AbortSignal,
   ) => Promise<MetricBucketsWire>
 
+  /**
+   * `GET experiments/{id}/traces/{trace_id}`. With `payloads: false` (`?payloads=false`) the
+   * spans come with null `attributes`, `events`, `links` and `status_message`.
+   */
   getTraceDetails: (
     modelId: string,
     traceId: string,
+    options?: { payloads?: boolean },
   ) => Promise<{ spans: SpanFromApi[]; trace_id: string }>
+
+  /**
+   * `GET experiments/{id}/traces/{trace_id}/spans/{span_id}`. Optional so API services
+   * written before the endpoint existed stay assignable; without it the span is read from
+   * `getTraceDetails`.
+   */
+  getSpan?: (modelId: string, traceId: string, spanId: string) => Promise<SpanFromApi>
 
   getExperimentTraces: (
     params: GetTracesParams & { experiment_id: string; cursor?: string | null },

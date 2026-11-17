@@ -25,6 +25,15 @@ const REVISION_3_TABLES = `
     ('bucket_min_level', '3'), ('bucket_max_level', '12');
 `
 
+const SPANS_TABLE = 'CREATE TABLE spans (trace_id TEXT, span_id TEXT);'
+
+const SUMMARY_TABLES = [
+  'snapshot_trace_summaries',
+  'snapshot_eval_score_stats',
+  'snapshot_span_attribute_keys',
+  'snapshot_eval_column_keys',
+]
+
 describe('readSnapshotTraits', () => {
   it('flags a revision newer than the viewer knows and reads it like the newest known one', async () => {
     const db = await memoryDatabase()
@@ -40,6 +49,10 @@ describe('readSnapshotTraits', () => {
       hasSpanAnnotations: true,
       metricLayout: 'metric-points',
       bucketLevels: { min: 3, max: 12 },
+      structuralTraces: false,
+      hasTraceSummaries: false,
+      hasScoreStats: false,
+      hasKeyCatalogs: false,
     })
   })
 
@@ -71,6 +84,10 @@ describe('readSnapshotTraits', () => {
       hasSpanAnnotations: false,
       metricLayout: 'dynamic-metrics',
       bucketLevels: null,
+      structuralTraces: false,
+      hasTraceSummaries: false,
+      hasScoreStats: false,
+      hasKeyCatalogs: false,
     })
   })
 
@@ -100,7 +117,50 @@ describe('readSnapshotTraits', () => {
       hasSpanAnnotations: false,
       metricLayout: 'dynamic-metrics',
       bucketLevels: null,
+      structuralTraces: false,
+      hasTraceSummaries: false,
+      hasScoreStats: false,
+      hasKeyCatalogs: false,
     })
+  })
+
+  it('reads span trees by structure from revision 3 on, and never before', async () => {
+    for (const revision of [0, 1, 2, 3, 4]) {
+      const db = await memoryDatabase()
+      db.run(`PRAGMA user_version = ${revision}; ${REVISION_2_TABLES} ${SPANS_TABLE}
+        ${revision >= 3 ? REVISION_3_TABLES : ''}`)
+      expect(readSnapshotTraits(db).structuralTraces).toBe(revision >= 3)
+    }
+  })
+
+  it('reads no span structure from a revision 3 DB without spans', async () => {
+    const db = await memoryDatabase()
+    db.run(`PRAGMA user_version = 3; ${REVISION_2_TABLES} ${REVISION_3_TABLES}`)
+
+    expect(readSnapshotTraits(db).structuralTraces).toBe(false)
+  })
+
+  it.each([
+    [[], { hasTraceSummaries: false, hasScoreStats: false, hasKeyCatalogs: false }],
+    [SUMMARY_TABLES, { hasTraceSummaries: true, hasScoreStats: true, hasKeyCatalogs: true }],
+    [
+      ['snapshot_trace_summaries', 'snapshot_eval_score_stats'],
+      { hasTraceSummaries: true, hasScoreStats: true, hasKeyCatalogs: false },
+    ],
+    [
+      ['snapshot_span_attribute_keys'],
+      { hasTraceSummaries: false, hasScoreStats: false, hasKeyCatalogs: false },
+    ],
+    [
+      ['snapshot_eval_score_stats', 'snapshot_span_attribute_keys', 'snapshot_eval_column_keys'],
+      { hasTraceSummaries: false, hasScoreStats: true, hasKeyCatalogs: true },
+    ],
+  ])('reads the derived tables %j as present', async (tables, expected) => {
+    const db = await memoryDatabase()
+    db.run(`PRAGMA user_version = 3; ${REVISION_2_TABLES} ${SPANS_TABLE} ${REVISION_3_TABLES}
+      ${tables.map((table) => `CREATE TABLE ${table} (id TEXT);`).join('\n')}`)
+
+    expect(readSnapshotTraits(db)).toMatchObject({ structuralTraces: true, ...expected })
   })
 
   it('knows every experiment DB migration the SDK ships', () => {

@@ -45,6 +45,9 @@ export interface ExperimentSnapshotProvider {
 
   getTraceSpans: (modelId: string, traceId: string) => Promise<SpansListType>
 
+  /** Payload fields of one span, for spans returned with `payloadLoaded: false`. */
+  getSpanPayload: (modelId: string, traceId: string, spanId: string) => Promise<SpanPayload>
+
   buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
 
   getTraceId: (params: SpansParams) => Promise<any>
@@ -203,7 +206,11 @@ export interface TraceSpan {
   children: TraceSpan[]
   dfs_span_type: SpanTypeEnum | null
   annotation_count: number | null
+  /** False when the provider left out attributes, events, links and status_message. */
+  payloadLoaded: boolean
 }
+
+export type SpanPayload = Pick<TraceSpan, 'attributes' | 'events' | 'links' | 'status_message'>
 
 export enum SpanTypeEnum {
   DEFAULT = 0,

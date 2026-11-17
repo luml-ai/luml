@@ -8,6 +8,7 @@ import type {
   ModelScores,
   ModelSnapshot,
   ScoreInfo,
+  SpanPayload,
   SpansListType,
   SpansParams,
   TraceSpan,
@@ -32,6 +33,17 @@ import {
   type SnapshotTraits,
 } from './ExperimentSnapshotTraits'
 import { readMetricBuckets, readMetricCatalog, readMetricKeys } from './snapshotMetricQueries'
+import {
+  EVAL_TRACE_SQL,
+  readEvalColumnKeys,
+  readScoreStats,
+  readSpanAttributeKeys,
+  readStructuralSpans,
+  summariesAnswerTraceFilters,
+  TRACE_EVALS_SQL,
+  traceSummariesQuery,
+  type EvalJsonColumn,
+} from './snapshotTraceQueries'
 import { SnapshotNeedsNewerReaderError, toExperimentReadError } from '../metric-buckets/errors'
 import type {
   ExperimentMetricCatalog,
@@ -567,10 +579,25 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       WHERE id IN (${placeholders})
       ORDER BY id
     `
+    // Eval ids are unique per dataset: the dataset makes it a primary-key lookup, which
+    // revision 3 snapshots, large ones, need instead of scanning every eval.
+    const datasetQuery = `
+      SELECT id, dataset_id, inputs, outputs, refs, scores, metadata
+      FROM evals
+      WHERE dataset_id = ? AND id IN (${placeholders})
+      ORDER BY id
+    `
 
     const snapshotsPromises = snapshots.map(async (snapshot) => {
-      if (!this.traitsOf(snapshot.database).hasExperimentTables) return []
-      const rows = this._getRowsByQueryAndParams(snapshot.database, query, pageIds)
+      const traits = this.traitsOf(snapshot.database)
+      if (!traits.hasExperimentTables) return []
+      const rows =
+        traits.structuralTraces && params.dataset_id
+          ? this._getRowsByQueryAndParams(snapshot.database, datasetQuery, [
+              params.dataset_id,
+              ...pageIds,
+            ])
+          : this._getRowsByQueryAndParams(snapshot.database, query, pageIds)
       const rowsPromises = rows.map(async (row) => {
         const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
         const annotationsList = await this.getEvalAnnotations(
@@ -653,6 +680,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   async getTraceSpans(modelId: string, traceId: string) {
     const db = this.openedDatabase(modelId)
     if (!db || !this.traitsOf(db).hasExperimentTables) return []
+    const traits = this.traitsOf(db)
+    if (traits.structuralTraces) {
+      return readStructuralSpans(db, traceId, traits.hasSpanAnnotations) as unknown as SpansListType
+    }
     const stmt = db.prepare(`
       SELECT trace_id, span_id, parent_span_id, name, kind,
              start_time_unix_nano, end_time_unix_nano,
@@ -672,6 +703,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
         events: safeParse(row.events as SqlValue),
         links: safeParse(row.links as SqlValue),
         annotation_count: annotationCount,
+        payloadLoaded: true,
       }
       rows.push(parsedRow)
     }
@@ -679,12 +711,33 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return rows as unknown as SpansListType
   }
 
+  async getSpanPayload(modelId: string, traceId: string, spanId: string): Promise<SpanPayload> {
+    const db = this.openedDatabase(modelId)
+    if (!db || !this.traitsOf(db).hasExperimentTables) throw new Error('Span not found')
+    const rows = this._getRowsByQueryAndParams(
+      db,
+      'SELECT attributes, events, links, status_message FROM spans WHERE trace_id = ? AND span_id = ?',
+      [traceId, spanId],
+    )
+    const row = rows[0] as SqlValue[] | undefined
+    if (!row) throw new Error('Span not found')
+    const [attributes, events, links, statusMessage] = row
+    return {
+      attributes: safeParse(attributes),
+      events: safeParse(events),
+      links: safeParse(links),
+      status_message: (statusMessage as string | null) ?? null,
+    }
+  }
+
   async getTraceId(args: SpansParams) {
     const db = this.openedDatabase(args.modelId)
     if (!db || !this.traitsOf(db).hasExperimentTables) return null
     const rows = this._getRowsByQueryAndParams(
       db,
-      'SELECT trace_id FROM eval_traces_bridge WHERE eval_dataset_id = ? AND eval_id = ? LIMIT 1',
+      this.traitsOf(db).structuralTraces
+        ? EVAL_TRACE_SQL
+        : 'SELECT trace_id FROM eval_traces_bridge WHERE eval_dataset_id = ? AND eval_id = ? LIMIT 1',
       [args.datasetId, args.evalId],
     )
     return rows[0]?.[0] ?? null
@@ -782,6 +835,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       const traits = this.traitsOf(snapshot.database)
       if (!traits.hasExperimentTables) return { modelId: snapshot.modelId, scores: [] }
       const { whereParts, params } = this.buildEvalsWhere(traits, undefined, search, filters)
+      if (traits.hasScoreStats && !whereParts.length) {
+        return { modelId: snapshot.modelId, scores: readScoreStats(snapshot.database, datasetId) }
+      }
       const rows = this._getRowsByQueryAndParams(
         snapshot.database,
         `SELECT scores FROM evals WHERE ${['scores IS NOT NULL', 'dataset_id = ?', ...whereParts].join(' AND ')}`,
@@ -990,14 +1046,15 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     if (!database || !this.traitsOf(database).hasExperimentTables) {
       return { attributes: [], annotations_feedback: [], annotations_expectations: [] }
     }
-    const queryResult = database.exec(`
+    const values = this.traitsOf(database).hasKeyCatalogs
+      ? readSpanAttributeKeys(database)
+      : database.exec(`
         SELECT je.key, je.type
         FROM spans, json_each(spans.attributes) AS je
         WHERE spans.attributes IS NOT NULL
         GROUP BY je.key
         ORDER BY je.key
-    `)
-    const values = queryResult[0]?.values || []
+    `)[0]?.values || []
     const columns = values.map((value) => {
       const [key, type] = value
       const name = this.parseValue(key, 'string')
@@ -1069,11 +1126,25 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const offset = params.page && params.limit ? (params.page - 1) * params.limit : 0
     const limitQuery = params.limit ? 'LIMIT ?' : ''
     const offsetQuery = offset ? 'OFFSET ?' : ''
-    const sortBy = ['created_at', 'execution_time', 'span_count'].find(
+    const sortBy = (['created_at', 'execution_time', 'span_count'] as const).find(
       (column) => column === params.sort_by,
     )
     if (!sortBy) throw new Error('Invalid trace sort column')
     const safeOrder = params.order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
+
+    if (traits.hasTraceSummaries && summariesAnswerTraceFilters(params.filters)) {
+      const summaries = traceSummariesQuery({
+        sortBy,
+        order: safeOrder,
+        search: params.search,
+        filters: params.filters,
+        limit: params.limit,
+        offset,
+      })
+      return this._getRowsByQueryAndParams(database, summaries.sql, summaries.params).map((row) =>
+        this.traceFromRow(database, row),
+      )
+    }
 
     const whereParts: string[] = []
     const whereParams: SqlValue[] = []
@@ -1127,26 +1198,30 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     if (offset) queryParams.push(offset)
     const rows = this._getRowsByQueryAndParams(database, query, queryParams)
 
-    return rows.map((row) => {
-      const [trace_id, execution_time, span_count, created_at, state] = row
-      const traceId = this.parseValue(trace_id, 'string')
-      const evals = this.getEvalsByTraceId(database, traceId)
-      return {
-        trace_id: traceId,
-        execution_time: this.parseValue(execution_time, 'float'),
-        span_count: this.parseValue(span_count, 'int'),
-        created_at: this.parseValue(created_at, 'string'),
-        state: this.parseValue(state, 'int'),
-        evals,
-        annotations: this.getTraceAnnotations(database, traceId),
-      }
-    })
+    return rows.map((row) => this.traceFromRow(database, row))
+  }
+
+  private traceFromRow(database: Database, row: SqlValue[]): Trace {
+    const [trace_id, execution_time, span_count, created_at, state] = row
+    const traceId = this.parseValue(trace_id, 'string')
+    const evals = this.getEvalsByTraceId(database, traceId)
+    return {
+      trace_id: traceId,
+      execution_time: this.parseValue(execution_time, 'float'),
+      span_count: this.parseValue(span_count, 'int'),
+      created_at: this.parseValue(created_at, 'string'),
+      state: this.parseValue(state, 'int'),
+      evals,
+      annotations: this.getTraceAnnotations(database, traceId),
+    }
   }
 
   private getEvalsByTraceId(database: Database, traceId: string): string[] {
     const rows = this._getRowsByQueryAndParams(
       database,
-      'SELECT eval_id FROM eval_traces_bridge WHERE trace_id = ?',
+      this.traitsOf(database).structuralTraces
+        ? TRACE_EVALS_SQL
+        : 'SELECT eval_id FROM eval_traces_bridge WHERE trace_id = ?',
       [traceId],
     )
     return rows.map((row) => this.parseValue(row[0], 'string'))
@@ -1362,23 +1437,22 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     }
   }
 
-  private extractEvalColumns(
-    database: Database,
-    column: 'inputs' | 'outputs' | 'refs' | 'scores' | 'metadata',
-    datasetId: string,
-  ) {
-    if (!this.traitsOf(database).hasExperimentTables) return []
-    const rows = this._getRowsByQueryAndParams(
-      database,
-      `
+  private extractEvalColumns(database: Database, column: EvalJsonColumn, datasetId: string) {
+    const traits = this.traitsOf(database)
+    if (!traits.hasExperimentTables) return []
+    const rows = traits.hasKeyCatalogs
+      ? readEvalColumnKeys(database, datasetId, column)
+      : this._getRowsByQueryAndParams(
+          database,
+          `
       SELECT je.key, je.type
       FROM evals, json_each(evals.${column}) AS je
       WHERE evals.${column} IS NOT NULL AND evals.dataset_id = ?
       GROUP BY je.key
       ORDER BY je.key
       `,
-      [datasetId],
-    )
+          [datasetId],
+        )
     return rows.map((row) => {
       const [key, type] = row
       const name = this.parseValue(key, 'string')

@@ -4,6 +4,7 @@ import type {
   ExperimentSnapshotProvider,
   GetEvalsByDatasetParams,
   GetTracesParams,
+  SpanPayload,
   SpansListType,
   SpansParams,
   TraceSpan,
@@ -239,10 +240,25 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     })
   }
 
+  /** With `getSpan` the tree comes without payloads; `getSpanPayload` loads one span. */
   async getTraceSpans(modelId: string, traceId: string): Promise<SpansListType> {
-    const { spans, trace_id } = await this.apiService.getTraceDetails(modelId, traceId)
-    const spansList = spans.map((span) => this.prepareSpan(span, trace_id))
+    const payloadLoaded = !this.apiService.getSpan
+    const { spans, trace_id } = payloadLoaded
+      ? await this.apiService.getTraceDetails(modelId, traceId)
+      : await this.apiService.getTraceDetails(modelId, traceId, { payloads: false })
+    const spansList = spans.map((span) => this.prepareSpan(span, trace_id, payloadLoaded))
     return spansList
+  }
+
+  async getSpanPayload(modelId: string, traceId: string, spanId: string): Promise<SpanPayload> {
+    const span = this.apiService.getSpan
+      ? await this.apiService.getSpan(modelId, traceId, spanId)
+      : (await this.apiService.getTraceDetails(modelId, traceId)).spans.find(
+          (item) => item.span_id === spanId,
+        )
+    if (!span) throw new Error('Span not found')
+    const { attributes, events, links, status_message } = this.prepareSpan(span, traceId)
+    return { attributes, events, links, status_message }
   }
 
   async buildSpanTree(spans: Omit<TraceSpan, 'children'>[]): Promise<TraceSpan[]> {
@@ -596,7 +612,11 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     }, initialAcc)
   }
 
-  private prepareSpan(span: SpanFromApi, traceId: string): Omit<TraceSpan, 'children'> {
+  private prepareSpan(
+    span: SpanFromApi,
+    traceId: string,
+    payloadLoaded = true,
+  ): Omit<TraceSpan, 'children'> {
     const { attributes, events, links, status_code, ...data } = span
     return {
       ...data,
@@ -605,6 +625,7 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
       attributes: attributes ? JSON.stringify(attributes) : '',
       events: events ? JSON.stringify(events) : '',
       links: links ? JSON.stringify(links) : '',
+      payloadLoaded,
     }
   }
 

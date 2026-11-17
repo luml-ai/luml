@@ -81,6 +81,21 @@ describe('ExperimentSnapshotWorkerProxy', () => {
     expectCleanedUp()
   })
 
+  it('forwards a span payload request to the worker', async () => {
+    const payload = { attributes: '{}', events: null, links: null, status_message: null }
+    const result = proxy.getSpanPayload('m1', 't1', 's1')
+    const [message] = worker.postMessage.mock.calls[0]
+
+    expect(message).toMatchObject({
+      type: 'call',
+      payload: { method: 'getSpanPayload', args: ['m1', 't1', 's1'] },
+    })
+    worker.respond({ type: 'result', requestId: message.requestId, data: payload })
+
+    await expect(result).resolves.toEqual(payload)
+    expectCleanedUp()
+  })
+
   it('rejects worker protocol errors and removes abort listeners', async () => {
     const controller = new AbortController()
     const removeListener = vi.spyOn(controller.signal, 'removeEventListener')

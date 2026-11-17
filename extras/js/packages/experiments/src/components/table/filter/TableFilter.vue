@@ -32,7 +32,7 @@
         content: { class: 'table-filter-popover-content' },
       }"
       @hide="isOpen = false"
-      @show="isOpen = true"
+      @show="onShow"
     >
       <div class="content">
         <div v-if="items.length" class="items">
@@ -108,6 +108,11 @@ const buttonIcon = computed(() => {
 
 function togglePopover(event: any) {
   popover.value.toggle(event)
+}
+
+function onShow() {
+  isOpen.value = true
+  emit('open')
 }
 
 async function apply(event: any) {

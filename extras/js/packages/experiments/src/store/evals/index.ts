@@ -5,6 +5,7 @@ import type {
   ExperimentSnapshotProvider,
   TraceSpan,
   BaseTraceInfo,
+  SpanPayload,
 } from '@/interfaces/interfaces'
 import type { DatasetData } from '@/components/evals/evals.interface'
 import { INITIAL_PARAMS } from './evals.data'
@@ -28,6 +29,9 @@ export function getSpansTimes(spans: Omit<TraceSpan, 'children'>[]): {
   )
 }
 
+// Payloads can be megabytes each: keep only the most recently loaded ones.
+const SPAN_PAYLOAD_CACHE_SIZE = 100
+
 function sameModelIds(left: readonly string[] | null, right: readonly string[] | null): boolean {
   if (!left || !right) return left === right
   return left.length === right.length && left.every((modelId, index) => modelId === right[index])
@@ -47,6 +51,8 @@ export const useEvalsStore = defineStore('evals', () => {
   const loading = ref(false)
   const evalsIdsList = ref<string[]>([])
   const currentEvalDataLoading = ref(false)
+  const spanPayloads = new Map<string, SpanPayload>()
+  const spanPayloadRequests = new Map<string, Promise<SpanPayload>>()
 
   const getProvider = computed(() => {
     if (!provider.value) throw new Error('Provider not found')
@@ -73,6 +79,7 @@ export const useEvalsStore = defineStore('evals', () => {
       return
     }
     provider.value = newProvider
+    clearSpanPayloads()
     store?.dispose()
     metricBucketStore.value = markRaw(new MetricBucketStore(rawProvider, { modelIds }))
   }
@@ -85,7 +92,56 @@ export const useEvalsStore = defineStore('evals', () => {
 
   function resetProvider() {
     provider.value = null
+    clearSpanPayloads()
     disposeMetricBucketStore()
+  }
+
+  function spanPayloadKey(modelId: string, traceId: string, spanId: string) {
+    return JSON.stringify([modelId, traceId, spanId])
+  }
+
+  function getCachedSpanPayload(
+    modelId: string,
+    traceId: string,
+    spanId: string,
+  ): SpanPayload | undefined {
+    return spanPayloads.get(spanPayloadKey(modelId, traceId, spanId))
+  }
+
+  /** Concurrent calls for one span share a request; a failed request is not cached. */
+  function loadSpanPayload(modelId: string, traceId: string, spanId: string) {
+    const key = spanPayloadKey(modelId, traceId, spanId)
+    const cached = spanPayloads.get(key)
+    if (cached) return Promise.resolve(cached)
+    const pending = spanPayloadRequests.get(key)
+    if (pending) return pending
+    const request = getProvider.value.getSpanPayload(modelId, traceId, spanId).then(
+      (payload) => {
+        if (spanPayloadRequests.get(key) === request) {
+          spanPayloadRequests.delete(key)
+          rememberSpanPayload(key, payload)
+        }
+        return payload
+      },
+      (error: unknown) => {
+        if (spanPayloadRequests.get(key) === request) spanPayloadRequests.delete(key)
+        throw error
+      },
+    )
+    spanPayloadRequests.set(key, request)
+    return request
+  }
+
+  function rememberSpanPayload(key: string, payload: SpanPayload) {
+    spanPayloads.set(key, payload)
+    if (spanPayloads.size <= SPAN_PAYLOAD_CACHE_SIZE) return
+    const oldest = spanPayloads.keys().next().value
+    if (oldest !== undefined) spanPayloads.delete(oldest)
+  }
+
+  function clearSpanPayloads() {
+    spanPayloads.clear()
+    spanPayloadRequests.clear()
   }
 
   function setCurrentEvalData(data: EvalsInfo[]) {
@@ -246,6 +302,8 @@ export const useEvalsStore = defineStore('evals', () => {
     resetSelectedTrace,
     selectedTrace,
     getTraceSpansTree,
+    getCachedSpanPayload,
+    loadSpanPayload,
     resetProvider,
     disposeMetricBucketStore,
     getProvider,

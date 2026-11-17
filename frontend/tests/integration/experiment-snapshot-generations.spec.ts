@@ -465,8 +465,9 @@ test('the largest frozen fixture opens and draws a chart without downloading its
   expect(drawn.series).toHaveLength(1)
   expectRangeReadsOnly(artifact)
   const bytes = requestsOf(name).reduce((sum, request) => sum + request.bytes, 0)
-  // A 432 KiB DB is only seven 64 KiB chunks: the catalog and one chart read at most four.
-  expect(bytes, `fetched ${bytes} of ${artifact.size}`).toBeLessThanOrEqual(4 * 64 * 1024)
+  // The DB of this fixture is 640 KiB, ten 64 KiB chunks. The trace and eval indexes sit
+  // before the metric leaves, so the chart reads two chunks the catalog did not: six in all.
+  expect(bytes, `fetched ${bytes} of ${artifact.size}`).toBeLessThanOrEqual(6 * 64 * 1024)
 })
 
 test('a large generation 2 experiment: open, chart, zoom read a small fraction of the DB', async ({

@@ -20,6 +20,7 @@ export const useTraceStore = defineStore('trace', () => {
   const loading = ref(false)
   const artifactId = ref<string | null>(null)
   const typedColumns = ref<TypedTracesColumns | null>(null)
+  let typedColumnsRequest: Promise<void> | null = null
 
   const typedColumnsList = computed<TypedColumnInfo[]>(() => {
     if (!typedColumns.value) return []
@@ -54,6 +55,7 @@ export const useTraceStore = defineStore('trace', () => {
   }
 
   function setArtifactId(id: string) {
+    if (artifactId.value !== id) resetTypedColumns()
     artifactId.value = id
   }
 
@@ -63,6 +65,7 @@ export const useTraceStore = defineStore('trace', () => {
     traces.value = []
     loading.value = false
     artifactId.value = null
+    resetTypedColumns()
   }
 
   async function refresh() {
@@ -94,10 +97,28 @@ export const useTraceStore = defineStore('trace', () => {
     }
   }, 500)
 
-  async function getTypedColumns() {
-    if (!artifactId.value) return
-    const data = await evalsStore.getProvider.getTracesColumns(artifactId.value)
-    typedColumns.value = data
+  /** Loaded once per artifact, when the filter editor first needs the keys. */
+  function getTypedColumns(): Promise<void> {
+    const id = artifactId.value
+    if (!id) return Promise.resolve()
+    if (!typedColumnsRequest) {
+      const request = evalsStore.getProvider.getTracesColumns(id).then(
+        (data) => {
+          if (typedColumnsRequest === request) typedColumns.value = data
+        },
+        (error: unknown) => {
+          if (typedColumnsRequest === request) typedColumnsRequest = null
+          throw error
+        },
+      )
+      typedColumnsRequest = request
+    }
+    return typedColumnsRequest
+  }
+
+  function resetTypedColumns() {
+    typedColumnsRequest = null
+    typedColumns.value = null
   }
 
   watch(requestParams, debouncedRequestParamsChange, { deep: true })

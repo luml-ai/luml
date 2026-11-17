@@ -47,7 +47,8 @@ interface ExpectedEval {
   inputs: Record<string, unknown>
   outputs: Record<string, unknown>
   refs: Record<string, unknown>
-  scores: Record<string, number>
+  /** The stored text where `JSON.parse` rejects it (a NaN score), as the viewer returns it. */
+  scores: Record<string, number> | string
   metadata: Record<string, unknown>
 }
 
@@ -55,6 +56,8 @@ interface ExpectedDataset {
   eval_ids: string[]
   evals: Record<string, ExpectedEval>
   average_scores: Record<string, number>
+  /** Keys the viewer's own key scan finds, per column; fixtures before 0.6.0 lack them. */
+  column_keys?: Record<string, Record<string, string>>
   linked: { eval_id: string; trace_id: string } | null
 }
 
@@ -86,6 +89,7 @@ const FIXTURE_NAMES = [
   'f_model_sdk_0_5_0',
   'g_raw_sdk_0_5_0',
   'h_raw_model_sdk_0_5_0',
+  'o_gen1_edge_sdk_0_5_0',
 ]
 const GENERATION_TWO_FIXTURE_NAMES = [
   'i_gen2_sdk_0_6_0',
@@ -144,8 +148,12 @@ function storedNumber(value: StoredMetricPoint['value']): number | null {
   return value
 }
 
-function columnNames(evals: ExpectedEval[], column: keyof ExpectedEval): string[] {
-  return [...new Set(evals.flatMap((item) => Object.keys(item[column])))].sort()
+function columnNames(dataset: ExpectedDataset, column: keyof ExpectedEval): string[] {
+  const keys = dataset.column_keys?.[column]
+  if (keys) return Object.keys(keys).sort()
+  return [
+    ...new Set(Object.values(dataset.evals).flatMap((item) => Object.keys(item[column]))),
+  ].sort()
 }
 
 const evalParams = (datasetId: string) => ({
@@ -255,11 +263,10 @@ describe.each([...FIXTURE_NAMES, ...GENERATION_TWO_FIXTURE_NAMES])(
           })
         }
 
-        const sampleList = Object.values(dataset.evals)
         const columns = await provider.getEvalsColumns(datasetId)
         for (const column of ['inputs', 'outputs', 'scores'] as const) {
           expect(columns[column].map((item) => item.name).sort()).toEqual(
-            columnNames(sampleList, column),
+            columnNames(dataset, column),
           )
         }
       }
@@ -346,10 +353,28 @@ describe.each([...FIXTURE_NAMES, ...GENERATION_TWO_FIXTURE_NAMES])(
         expect(spans.map((span) => span.name).sort()).toEqual(expectedTrace.span_names)
         for (const span of spans) {
           expect(span.dfs_span_type).toBe(expectedTrace.span_types[span.span_id])
-          expect(span.status_message).toBe(expectedTrace.status_messages[span.span_id] ?? null)
-          expect(span.events).toEqual(expectedTrace.events[span.span_id] ?? null)
-          expect(span.links).toEqual(expectedTrace.links[span.span_id] ?? null)
           annotationsOnSpans += span.annotation_count ?? 0
+          // Revision 3 snapshots return the tree without payloads; each span loads its own.
+          expect(span.payloadLoaded).toBe(!GENERATION_TWO_FIXTURE_NAMES.includes(name))
+          const payload = await provider.getSpanPayload(name, span.trace_id, span.span_id)
+          if (span.payloadLoaded) {
+            expect(payload).toEqual({
+              attributes: span.attributes,
+              events: span.events,
+              links: span.links,
+              status_message: span.status_message,
+            })
+          } else {
+            expect([span.attributes, span.events, span.links, span.status_message]).toEqual([
+              null,
+              null,
+              null,
+              null,
+            ])
+          }
+          expect(payload.status_message).toBe(expectedTrace.status_messages[span.span_id] ?? null)
+          expect(payload.events).toEqual(expectedTrace.events[span.span_id] ?? null)
+          expect(payload.links).toEqual(expectedTrace.links[span.span_id] ?? null)
         }
         const tree = await provider.buildSpanTree(spans)
         expect(tree.map((span) => span.name)).toEqual([expectedTrace.root_span])
@@ -505,6 +530,10 @@ describe('schema traits of published snapshot fixtures', () => {
     needsNewerReader: false,
     metricLayout: 'dynamic-metrics',
     bucketLevels: null,
+    structuralTraces: false,
+    hasTraceSummaries: false,
+    hasScoreStats: false,
+    hasKeyCatalogs: false,
   } as const
   const expectedTraits: Record<
     string,
@@ -519,6 +548,7 @@ describe('schema traits of published snapshot fixtures', () => {
     f_model_sdk_0_5_0: revision2,
     g_raw_sdk_0_5_0: revision2,
     h_raw_model_sdk_0_5_0: revision2,
+    o_gen1_edge_sdk_0_5_0: revision2,
   }
 
   it.each(FIXTURE_NAMES)('%s', async (name) => {
@@ -545,6 +575,10 @@ describe('schema traits of published snapshot fixtures', () => {
       needsNewerReader: false,
       metricLayout: 'metric-points',
       bucketLevels: { min: 3, max: 12 },
+      structuralTraces: true,
+      hasTraceSummaries: true,
+      hasScoreStats: true,
+      hasKeyCatalogs: true,
     })
   })
 })

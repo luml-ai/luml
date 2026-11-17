@@ -8,6 +8,7 @@ import type {
   ExperimentSnapshotStaticParams,
   ModelInfo,
   BaseTraceInfo,
+  SpanPayload,
 } from './interfaces/interfaces'
 import { ExperimentSnapshotDatabaseProvider } from './providers/ExperimentSnapshotDatabaseProvider'
 import { ExperimentSnapshotWorkerProxy } from './providers/ExperimentSnapshotWorkerProxy'
@@ -141,6 +142,7 @@ export type {
   ExperimentSnapshotProvider,
   ModelSnapshot,
   SpansParams,
+  SpanPayload,
   EvalsInfo,
   ModelsInfo,
   ExperimentSnapshotDynamicMetrics,

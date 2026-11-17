@@ -27,6 +27,12 @@ export interface SnapshotTraits {
   metricLayout: MetricLayout
   /** Levels stored in `metric_buckets`; null when the DB has none. */
   bucketLevels: BucketLevelRange | null
+  /** Revision 3 and later: span trees are read without payloads, which load per span. */
+  structuralTraces: boolean
+  /** Tables computed once at export (`snapshot_*`); a missing one means reading the base tables. */
+  hasTraceSummaries: boolean
+  hasScoreStats: boolean
+  hasKeyCatalogs: boolean
 }
 
 type RevisionTraits = Pick<
@@ -118,6 +124,10 @@ export function readSnapshotTraits(database: Database): SnapshotTraits {
     needsNewerReader,
     ...(needsNewerReader ? UNREADABLE_TRAITS : REVISION_TRAITS[closestKnownRevision(revision)]),
     bucketLevels: null,
+    structuralTraces: false,
+    hasTraceSummaries: false,
+    hasScoreStats: false,
+    hasKeyCatalogs: false,
   }
   if (needsNewerReader) return traits
   // SDKs before 0.1.0 zipped exp.db while its data was still in the WAL file, so a
@@ -133,5 +143,10 @@ export function readSnapshotTraits(database: Database): SnapshotTraits {
   if (traits.metricLayout === 'metric-points' && tables.has('metric_buckets')) {
     traits.bucketLevels = storedBucketLevels(info)
   }
+  traits.structuralTraces = revision >= 3 && tables.has('spans')
+  traits.hasTraceSummaries = tables.has('snapshot_trace_summaries')
+  traits.hasScoreStats = tables.has('snapshot_eval_score_stats')
+  traits.hasKeyCatalogs =
+    tables.has('snapshot_span_attribute_keys') && tables.has('snapshot_eval_column_keys')
   return traits
 }
