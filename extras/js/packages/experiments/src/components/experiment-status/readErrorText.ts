@@ -28,7 +28,8 @@ const READ_ERROR_TEXTS: Record<ExperimentReadErrorCode, string> = {
   [SNAPSHOT_SOURCE_REDIRECT]: 'The storage sent the request to another address, which refused it.',
   [SNAPSHOT_SOURCE_TOO_LARGE]:
     'The storage does not support range requests, and this experiment is too large to load in full.',
-  [SNAPSHOT_TOO_LARGE_FOR_BROWSER]: 'This experiment is too large to open in the browser.',
+  [SNAPSHOT_TOO_LARGE_FOR_BROWSER]:
+    'This experiment is too large to open in the browser. Upload it again with luml-sdk 0.6.0 or newer.',
   [SNAPSHOT_SOURCE_PAGE]:
     'The storage sent a web page instead of the data. The sign-in may have expired. Reload the page.',
   [SNAPSHOT_FORMAT]: 'This experiment is not a valid snapshot.',

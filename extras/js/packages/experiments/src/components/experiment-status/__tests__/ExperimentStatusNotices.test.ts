@@ -71,7 +71,7 @@ describe('ExperimentStatusNotices', () => {
   it('says a zipped experiment is too large to open in the browser', () => {
     const error = { code: 'snapshot-too-large-for-browser', message: 'unzips to 3811495936 bytes' }
     expect(noticesFor([status('a', { transport: 'zip-full', error } as const)])).toEqual([
-      'Run A: This experiment is too large to open in the browser. Its data is not shown.',
+      'Run A: This experiment is too large to open in the browser. Upload it again with luml-sdk 0.6.0 or newer. Its data is not shown.',
     ])
   })
 
