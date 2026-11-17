@@ -97,14 +97,14 @@ def _remove_stale_lock(lock_path: Path, timeout_seconds: float) -> bool:
             return False
         try:
             owner_pid = int(lock_path.read_text(encoding="ascii"))
-        except (ValueError, UnicodeError):
+        except ValueError, UnicodeError:
             owner_pid = 0
         if owner_pid > 0:
             try:
                 os.kill(owner_pid, 0)
             except PermissionError:
                 return False
-            except (ProcessLookupError, OverflowError, OSError):
+            except ProcessLookupError, OverflowError, OSError:
                 pass
             else:
                 return False

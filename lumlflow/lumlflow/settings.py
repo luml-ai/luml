@@ -10,7 +10,7 @@ _DEFAULT_STORE_PATH = "~/.luml/experiments"
 if TYPE_CHECKING:
     from lumlflow.tracker import TrackerProvider
 
-_tracker_provider: "TrackerProvider | None" = None
+_tracker_provider: TrackerProvider | None = None
 
 
 class Settings(BaseSettings):
@@ -41,7 +41,7 @@ def get_config() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
 
-def get_tracker() -> "TrackerProvider":
+def get_tracker() -> TrackerProvider:
     global _tracker_provider
 
     if _tracker_provider is None:

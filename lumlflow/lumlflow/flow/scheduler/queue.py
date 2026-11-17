@@ -89,7 +89,7 @@ class Abandoned:
 @dataclass
 class _Waiter:
     branch: str
-    future: "asyncio.Future[RunResult | None]"
+    future: asyncio.Future[RunResult | None]
     abandoned: bool = False
 
 
@@ -101,7 +101,7 @@ class _Flight:
     asked_step: int
     slug: str = ""
     waiters: list[_Waiter] = field(default_factory=list)
-    task: "asyncio.Task[None] | None" = None
+    task: asyncio.Task[None] | None = None
     mat_id: str | None = None
     preempted: bool = False
     stale: bool = False

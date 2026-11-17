@@ -3,7 +3,7 @@ name = "luml-prisma"
 version = "0.2.0"
 description = "Web UI for orchestrating coding agents in isolated Git worktrees"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18.4",
     "fastapi>=0.115.0",
@@ -50,7 +50,7 @@ dev = [
 [tool.ruff]
 line-length = 88
 indent-width = 4
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [
@@ -85,7 +85,7 @@ quote-style = "double"
 
 [tool.mypy]
 strict = true
-python_version = "3.12"
+python_version = "3.14"
 
 [[tool.mypy.overrides]]
 module = ["luml.*"]

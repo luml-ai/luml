@@ -108,15 +108,13 @@ class Planner:
             target, branch=branch, branch_id=branch_id, over=self._read(branch_id)
         )
 
-    def _read(self, branch_id: str) -> "_Branch":
+    def _read(self, branch_id: str) -> _Branch:
         return _Branch(
             here=self._store.index.slice_versions(branch_id),
             verdicts=staleness.derive_all(self._store.index, branch_id),
         )
 
-    def _plan(
-        self, target: str, *, branch: str, branch_id: str, over: "_Branch"
-    ) -> Plan:
+    def _plan(self, target: str, *, branch: str, branch_id: str, over: _Branch) -> Plan:
         here, verdicts = over.here, over.verdicts
         uid = self._resolve_target(target, branch=branch, here=here)
         if here[uid].manifest.classification == "note":
@@ -286,7 +284,7 @@ class Planner:
         *,
         branch: str,
         branch_id: str,
-        over: "_Branch",
+        over: _Branch,
     ) -> AutoVerdict:
         settings = self._store.manifest.settings
         plan = self._plan(verdict.slug, branch=branch, branch_id=branch_id, over=over)

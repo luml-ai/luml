@@ -4,7 +4,7 @@ MLflow plugin that redirects MLflow tracking to a [LUML](https://luml.ai) orbit.
 
 The plugin registers a tracking store, an artifact repository and a placeholder model-registry store for the `luml://` URI scheme. MLflow discovers them automatically.
 
-Requires Python 3.12 or later and MLflow 3.1 or later.
+Requires Python 3.14 or later and MLflow 3.1 or later.
 
 ## Installation
 

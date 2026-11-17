@@ -123,7 +123,7 @@ def ui(
         raise typer.Exit(code)
 
 
-def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> None:
+def _serving(record: DaemonRecord, *, directory: Path, no_browser: bool) -> None:
     _warn_if_non_loopback(record.web_host)
     typer.echo(f"directory: {directory}")
     typer.echo(f"lumlflow at {_url(record, directory)}")
@@ -134,7 +134,7 @@ def _serving(record: "DaemonRecord", *, directory: Path, no_browser: bool) -> No
 
 
 def _attach(
-    record: "DaemonRecord",
+    record: DaemonRecord,
     *,
     directory: Path,
     host: str,
@@ -181,7 +181,7 @@ def _tracker_store() -> str:
     return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
 
 
-def _url(record: "DaemonRecord", directory: Path) -> str:
+def _url(record: DaemonRecord, directory: Path) -> str:
     query = urlencode(
         {
             "token": record.token,

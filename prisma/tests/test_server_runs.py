@@ -20,7 +20,7 @@ from luml_prisma.services.pty_manager import PtyManager
 @pytest.fixture
 async def client(
     tmp_path: Path,
-) -> AsyncGenerator[AsyncClient, None]:
+) -> AsyncGenerator[AsyncClient]:
     db = Database()
     pty = PtyManager()
     config = load_config()

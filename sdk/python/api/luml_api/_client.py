@@ -147,57 +147,57 @@ class LumlClientBase(ABC):
 
     @cached_property
     @abstractmethod
-    def organizations(self) -> "OrganizationResource | AsyncOrganizationResource":
+    def organizations(self) -> OrganizationResource | AsyncOrganizationResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def bucket_secrets(self) -> "BucketSecretResource | AsyncBucketSecretResource":
+    def bucket_secrets(self) -> BucketSecretResource | AsyncBucketSecretResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def orbits(self) -> "OrbitResource | AsyncOrbitResource":
+    def orbits(self) -> OrbitResource | AsyncOrbitResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def collections(self) -> "CollectionResource | AsyncCollectionResource":
+    def collections(self) -> CollectionResource | AsyncCollectionResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def artifacts(self) -> "ArtifactResource | AsyncArtifactResource":
+    def artifacts(self) -> ArtifactResource | AsyncArtifactResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def tracks(self) -> "TrackResource | AsyncTrackResource":
+    def tracks(self) -> TrackResource | AsyncTrackResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def deployments(self) -> "DeploymentResource | AsyncDeploymentResource":
+    def deployments(self) -> DeploymentResource | AsyncDeploymentResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def satellites(self) -> "SatelliteResource | AsyncSatelliteResource":
+    def satellites(self) -> SatelliteResource | AsyncSatelliteResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def live_sessions(self) -> "LiveSessionResource | AsyncLiveSessionResource":
+    def live_sessions(self) -> LiveSessionResource | AsyncLiveSessionResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def flows(self) -> "FlowResource | AsyncFlowResource":
+    def flows(self) -> FlowResource | AsyncFlowResource:
         raise NotImplementedError()
 
     @cached_property
     @abstractmethod
-    def relays(self) -> "RelayResource | AsyncRelayResource":
+    def relays(self) -> RelayResource | AsyncRelayResource:
         raise NotImplementedError()
 
 
@@ -385,77 +385,77 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
         )
 
     @cached_property
-    def organizations(self) -> "AsyncOrganizationResource":
+    def organizations(self) -> AsyncOrganizationResource:
         """Organizations interface."""
         from luml_api.resources.organizations import AsyncOrganizationResource
 
         return AsyncOrganizationResource(self)
 
     @cached_property
-    def bucket_secrets(self) -> "AsyncBucketSecretResource":
+    def bucket_secrets(self) -> AsyncBucketSecretResource:
         """Bucket Secrets interface."""
         from luml_api.resources.bucket_secrets import AsyncBucketSecretResource
 
         return AsyncBucketSecretResource(self)
 
     @cached_property
-    def orbits(self) -> "AsyncOrbitResource":
+    def orbits(self) -> AsyncOrbitResource:
         """Orbits interface."""
         from luml_api.resources.orbits import AsyncOrbitResource
 
         return AsyncOrbitResource(self)
 
     @cached_property
-    def collections(self) -> "AsyncCollectionResource":
+    def collections(self) -> AsyncCollectionResource:
         """Collections interface."""
         from luml_api.resources.collections import AsyncCollectionResource
 
         return AsyncCollectionResource(self)
 
     @cached_property
-    def artifacts(self) -> "AsyncArtifactResource":
+    def artifacts(self) -> AsyncArtifactResource:
         """Artifacts interface."""
         from luml_api.resources.artifacts import AsyncArtifactResource
 
         return AsyncArtifactResource(self)
 
     @cached_property
-    def tracks(self) -> "AsyncTrackResource":
+    def tracks(self) -> AsyncTrackResource:
         """Tracks interface."""
         from luml_api.resources.tracks import AsyncTrackResource
 
         return AsyncTrackResource(self)
 
     @cached_property
-    def deployments(self) -> "AsyncDeploymentResource":
+    def deployments(self) -> AsyncDeploymentResource:
         """Deployments and their monitoring."""
         from luml_api.resources.deployments import AsyncDeploymentResource
 
         return AsyncDeploymentResource(self)
 
     @cached_property
-    def satellites(self) -> "AsyncSatelliteResource":
+    def satellites(self) -> AsyncSatelliteResource:
         """Satellites and their advertised operations."""
         from luml_api.resources.satellites import AsyncSatelliteResource
 
         return AsyncSatelliteResource(self)
 
     @cached_property
-    def live_sessions(self) -> "AsyncLiveSessionResource":
+    def live_sessions(self) -> AsyncLiveSessionResource:
         """Live sessions exposed through a relay."""
         from luml_api.resources.live_sessions import AsyncLiveSessionResource
 
         return AsyncLiveSessionResource(self)
 
     @cached_property
-    def flows(self) -> "AsyncFlowResource":
+    def flows(self) -> AsyncFlowResource:
         """Flows on the orbit's Flow page, each served through a live session."""
         from luml_api.resources.flows import AsyncFlowResource
 
         return AsyncFlowResource(self)
 
     @cached_property
-    def relays(self) -> "AsyncRelayResource":
+    def relays(self) -> AsyncRelayResource:
         """Relays that serve live sessions."""
         from luml_api.resources.relays import AsyncRelayResource
 
@@ -632,77 +632,77 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         )
 
     @cached_property
-    def organizations(self) -> "OrganizationResource":
+    def organizations(self) -> OrganizationResource:
         """Organizations interface."""
         from luml_api.resources.organizations import OrganizationResource
 
         return OrganizationResource(self)
 
     @cached_property
-    def bucket_secrets(self) -> "BucketSecretResource":
+    def bucket_secrets(self) -> BucketSecretResource:
         """Bucket Secrets interface."""
         from luml_api.resources.bucket_secrets import BucketSecretResource
 
         return BucketSecretResource(self)
 
     @cached_property
-    def orbits(self) -> "OrbitResource":
+    def orbits(self) -> OrbitResource:
         """Orbits interface."""
         from luml_api.resources.orbits import OrbitResource
 
         return OrbitResource(self)
 
     @cached_property
-    def collections(self) -> "CollectionResource":
+    def collections(self) -> CollectionResource:
         """Collections interface."""
         from luml_api.resources.collections import CollectionResource
 
         return CollectionResource(self)
 
     @cached_property
-    def artifacts(self) -> "ArtifactResource":
+    def artifacts(self) -> ArtifactResource:
         """Artifacts interface."""
         from luml_api.resources.artifacts import ArtifactResource
 
         return ArtifactResource(self)
 
     @cached_property
-    def tracks(self) -> "TrackResource":
+    def tracks(self) -> TrackResource:
         """Tracks interface."""
         from luml_api.resources.tracks import TrackResource
 
         return TrackResource(self)
 
     @cached_property
-    def deployments(self) -> "DeploymentResource":
+    def deployments(self) -> DeploymentResource:
         """Deployments and their monitoring."""
         from luml_api.resources.deployments import DeploymentResource
 
         return DeploymentResource(self)
 
     @cached_property
-    def satellites(self) -> "SatelliteResource":
+    def satellites(self) -> SatelliteResource:
         """Satellites and their advertised operations."""
         from luml_api.resources.satellites import SatelliteResource
 
         return SatelliteResource(self)
 
     @cached_property
-    def live_sessions(self) -> "LiveSessionResource":
+    def live_sessions(self) -> LiveSessionResource:
         """Live sessions exposed through a relay."""
         from luml_api.resources.live_sessions import LiveSessionResource
 
         return LiveSessionResource(self)
 
     @cached_property
-    def flows(self) -> "FlowResource":
+    def flows(self) -> FlowResource:
         """Flows on the orbit's Flow page, each served through a live session."""
         from luml_api.resources.flows import FlowResource
 
         return FlowResource(self)
 
     @cached_property
-    def relays(self) -> "RelayResource":
+    def relays(self) -> RelayResource:
         """Relays that serve live sessions."""
         from luml_api.resources.relays import RelayResource
 

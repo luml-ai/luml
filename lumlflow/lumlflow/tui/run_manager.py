@@ -303,7 +303,7 @@ class RunManager:
         pid = self._process.pid
         try:
             os.killpg(pid, sig)
-        except (ProcessLookupError, PermissionError, OSError):
+        except ProcessLookupError, PermissionError, OSError:
             # Fall back to direct signal on the process itself.
             try:
                 self._process.send_signal(sig)
@@ -316,7 +316,7 @@ class RunManager:
         except TimeoutError:
             try:
                 os.killpg(pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OSError):
+            except ProcessLookupError, PermissionError, OSError:
                 self._process.kill()
             while self.is_running:
                 await asyncio.sleep(0.05)

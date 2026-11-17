@@ -161,7 +161,7 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
     return router
 
 
-def _reported(half: "asyncio.Task[None]") -> None:
+def _reported(half: asyncio.Task[None]) -> None:
     if half.cancelled():
         return
     failure = half.exception()
@@ -194,7 +194,7 @@ async def _read(
     while True:
         try:
             message = json.loads(await socket.receive_text())
-        except (WebSocketDisconnect, RuntimeError, ValueError, UnicodeDecodeError):
+        except WebSocketDisconnect, RuntimeError, ValueError, UnicodeDecodeError:
             return
         if not isinstance(message, dict):
             continue
@@ -256,14 +256,14 @@ def _subscribed(
 def _cursor(value: Any) -> int:
     try:
         return max(0, int(value or 0))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
 
 
 async def _message(request: Request) -> dict[str, Any] | None:
     try:
         body = await request.json()
-    except (ValueError, UnicodeDecodeError):
+    except ValueError, UnicodeDecodeError:
         return None
     return body if isinstance(body, dict) else None
 

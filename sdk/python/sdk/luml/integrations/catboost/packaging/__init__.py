@@ -110,7 +110,7 @@ def _get_default_tags() -> list[str]:
 
 
 def save_catboost(
-    estimator: "Union[CatBoost, ctb.CatBoostClassifier, ctb.CatBoostRegressor]",  # noqa: UP007
+    estimator: Union[CatBoost, ctb.CatBoostClassifier, ctb.CatBoostRegressor],  # noqa: UP007
     inputs: Any,  # noqa: ANN401
     path: str | None = None,
     input_format: Literal["unified", "native"] = "unified",

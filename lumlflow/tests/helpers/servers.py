@@ -19,7 +19,7 @@ def stop_recorded(state_dir: Path) -> None:
         _end(record)
 
 
-def reap(child: "subprocess.Popen[Any]") -> None:
+def reap(child: subprocess.Popen[Any]) -> None:
     if child.poll() is None:
         child.terminate()
         try:

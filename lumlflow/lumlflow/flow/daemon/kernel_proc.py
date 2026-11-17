@@ -361,7 +361,7 @@ class KernelProcess:
             message = json.loads(
                 await asyncio.wait_for(reader.readline(), _AUTH_TIMEOUT_S)
             )
-        except (ValueError, TimeoutError):
+        except ValueError, TimeoutError:
             return False
         return (
             isinstance(message, dict)
@@ -475,7 +475,7 @@ class KernelProcess:
     async def _ask_shutdown(self) -> None:
         try:
             await self._call("shutdown", {}, timeout=_STOP_TIMEOUT_S)
-        except (KernelError, TimeoutError):
+        except KernelError, TimeoutError:
             pass
 
     async def _teardown(self) -> None:
@@ -693,7 +693,7 @@ def _run_payload(request: RunRequest) -> dict[str, Any]:
     }
 
 
-async def _settled(task: "asyncio.Task[None]", timeout: float) -> None:
+async def _settled(task: asyncio.Task[None], timeout: float) -> None:
     with contextlib.suppress(TimeoutError):
         await asyncio.wait_for(asyncio.shield(task), timeout)
 

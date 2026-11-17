@@ -205,7 +205,7 @@ class ArtifactResourceBase(ABC):
 class ArtifactResource(ArtifactResourceBase, ListedResource):
     """Resource for managing artifacts."""
 
-    def __init__(self, client: "LumlClient") -> None:
+    def __init__(self, client: LumlClient) -> None:
         self._client = client
 
     @validate_collection
@@ -1457,7 +1457,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
 class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
     """Resource for managing artifacts for async client."""
 
-    def __init__(self, client: "AsyncLumlClient") -> None:
+    def __init__(self, client: AsyncLumlClient) -> None:
         self._client = client
 
     @validate_collection

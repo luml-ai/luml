@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import BaseModel
 
 
-class PathSeparators(str, Enum):
+class PathSeparators(str, Enum):  # noqa: UP042
     COLON = "~c~"
     SLASH = "~s~"
     ENDTAG = "~~et~~"

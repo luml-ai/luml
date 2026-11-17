@@ -547,14 +547,14 @@ class InternalServerError(APIStatusError):
 class ArtifactDeleteError(LumlAPIError):
     """A single artifact stayed in the registry after a deletion attempt."""
 
-    failure: "ArtifactDeleteFailure"
+    failure: ArtifactDeleteFailure
     artifact_id: str
     name: str | None
-    reason: "ArtifactDeleteReason"
-    deployments: list["ArtifactDeleteDeployment"]
-    tracks: list["ArtifactDeleteTrack"]
+    reason: ArtifactDeleteReason
+    deployments: list[ArtifactDeleteDeployment]
+    tracks: list[ArtifactDeleteTrack]
 
-    def __init__(self, failure: "ArtifactDeleteFailure") -> None:
+    def __init__(self, failure: ArtifactDeleteFailure) -> None:
         self.failure = failure
         self.artifact_id = failure.artifact_id
         self.name = failure.name
@@ -571,7 +571,7 @@ class ArtifactBatchDeleteError(LumlAPIError):
 
     cause: Exception
     deleted: list[str]
-    failed: list["ArtifactDeleteFailure"]
+    failed: list[ArtifactDeleteFailure]
     not_completed: list[str]
 
     def __init__(
@@ -579,7 +579,7 @@ class ArtifactBatchDeleteError(LumlAPIError):
         cause: Exception,
         *,
         deleted: list[str],
-        failed: list["ArtifactDeleteFailure"],
+        failed: list[ArtifactDeleteFailure],
         not_completed: list[str],
     ) -> None:
         self.cause = cause

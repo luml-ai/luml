@@ -18,7 +18,7 @@ Install the SDK along with `langgraph` and the LLM provider library your agent w
 pip install "luml-sdk" langgraph langchain-openai
 ```
 
-*Note: the SDK requires Python 3.12 or later.*
+*Note: the SDK requires Python 3.14 or later.*
 
 ## Defining a Graph
 

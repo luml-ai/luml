@@ -2,7 +2,7 @@ FROM mambaorg/micromamba:2.9.0@sha256:7b93def90e48d6d7744938e31c29172e03b19bc9f5
 
 FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
 
-FROM python:3.13-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 COPY --from=micromamba /bin/micromamba /usr/local/bin/micromamba
 

@@ -90,7 +90,7 @@ class ConnectionPool:
         atexit.register(ConnectionPool._close_on_exit, weakref.ref(self))
 
     @staticmethod
-    def _close_on_exit(pool_ref: weakref.ReferenceType["ConnectionPool"]) -> None:
+    def _close_on_exit(pool_ref: weakref.ReferenceType[ConnectionPool]) -> None:
         if (pool := pool_ref()) is not None:
             pool.close_all()
 

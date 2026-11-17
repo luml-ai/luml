@@ -21,7 +21,7 @@ class CardBuilder:
         self._sections: list[str] = []
         self._has_plotly = False
 
-    def write(self, content: Any) -> "CardBuilder":  # noqa: ANN401
+    def write(self, content: Any) -> CardBuilder:  # noqa: ANN401
         """Write content to the card. Automatically detects content type."""
         if isinstance(content, str):
             self._write_text(content)
@@ -39,25 +39,25 @@ class CardBuilder:
             self._write_text(str(content))
         return self
 
-    def write_heading(self, text: str, level: int = 1) -> "CardBuilder":
+    def write_heading(self, text: str, level: int = 1) -> CardBuilder:
         level = max(1, min(6, level))
         self._sections.append(f"<h{level}>{self._escape_html(text)}</h{level}>")
         return self
 
-    def write_paragraph(self, text: str) -> "CardBuilder":
+    def write_paragraph(self, text: str) -> CardBuilder:
         self._sections.append(f"<p>{self._escape_html(text)}</p>")
         return self
 
-    def write_markdown(self, markdown: str) -> "CardBuilder":
+    def write_markdown(self, markdown: str) -> CardBuilder:
         html = self._markdown_to_html(markdown)
         self._sections.append(html)
         return self
 
-    def write_html(self, html: str) -> "CardBuilder":
+    def write_html(self, html: str) -> CardBuilder:
         self._sections.append(html)
         return self
 
-    def write_divider(self) -> "CardBuilder":
+    def write_divider(self) -> CardBuilder:
         self._sections.append("<hr>")
         return self
 

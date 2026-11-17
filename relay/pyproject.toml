@@ -3,7 +3,7 @@ name = "luml-relay"
 version = "0.1.0"
 description = "Relay and agent that expose local web services through LUML"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "httpx>=0.28.1,<1.0.0",
     "websockets>=15.0.1,<18.0.0",
@@ -46,7 +46,7 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 100
 indent-width = 4
 src = ["luml_relay", "tests"]
@@ -70,7 +70,7 @@ known-first-party = ["luml_relay"]
 split-on-trailing-comma = true
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 explicit_package_bases = true
 files = ["luml_relay", "tests"]

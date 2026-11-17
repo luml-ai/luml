@@ -48,7 +48,7 @@ def _get_default_tags() -> list[str]:
 
 def _add_io(
     builder: PyfuncBuilder,
-    estimator: "BaseEstimator",
+    estimator: BaseEstimator,
     inputs: Any,  # noqa: ANN401
 ) -> bool:
     """Declare the artifact's inputs and outputs; return whether it feeds on a frame."""
@@ -179,7 +179,7 @@ def _add_dependencies(  # noqa: C901
 
 
 def save_sklearn(  # noqa: C901
-    estimator: "BaseEstimator",
+    estimator: BaseEstimator,
     inputs: Any,  # noqa: ANN401
     path: str | None = None,
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",

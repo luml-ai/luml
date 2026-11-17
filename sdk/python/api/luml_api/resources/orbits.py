@@ -65,7 +65,7 @@ class OrbitResourceBase(ABC):
 class OrbitResource(OrbitResourceBase):
     """Resource for managing Orbits."""
 
-    def __init__(self, client: "LumlClient") -> None:
+    def __init__(self, client: LumlClient) -> None:
         self._client = client
 
     def get(self, orbit_value: str | None = None) -> Orbit | None:
@@ -342,7 +342,7 @@ class OrbitResource(OrbitResourceBase):
 class AsyncOrbitResource(OrbitResourceBase):
     """Resource for managing Orbits for async client."""
 
-    def __init__(self, client: "AsyncLumlClient") -> None:
+    def __init__(self, client: AsyncLumlClient) -> None:
         self._client = client
 
     async def get(self, orbit_value: str | None = None) -> Orbit | None:

@@ -17,7 +17,7 @@ class SweepReport:
     kept: int
 
 
-def sweep(store: "FlowStore") -> SweepReport:
+def sweep(store: FlowStore) -> SweepReport:
     blobs = list(_blobs(store.values.root))
     with store.index.protect_value_sweep() as pinned:
         keep = pinned | journal_referenced(store.journal)
@@ -32,7 +32,7 @@ def sweep(store: "FlowStore") -> SweepReport:
     return SweepReport(collected=collected, freed_bytes=freed, kept=kept)
 
 
-def disk_bytes(store: "FlowStore") -> int:
+def disk_bytes(store: FlowStore) -> int:
     total = 0
     for entry in store.store_dir.rglob("*"):
         try:

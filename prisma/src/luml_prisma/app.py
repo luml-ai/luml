@@ -69,7 +69,7 @@ async def _monitor_loop(app: FastAPI) -> None:
 @asynccontextmanager
 async def _lifespan(
     app: FastAPI,
-) -> AsyncGenerator[None, None]:
+) -> AsyncGenerator[None]:
     config: AppConfig = load_config()
     db = Database(config.db_path)
     pty = PtyManager()

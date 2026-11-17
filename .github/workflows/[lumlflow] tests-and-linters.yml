@@ -31,7 +31,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          python-version: '3.12'
+          python-version: '3.14'
           enable-cache: true
           cache-dependency-glob: lumlflow/uv.lock
 
@@ -61,7 +61,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          python-version: '3.12'
+          python-version: '3.14'
           enable-cache: true
           cache-dependency-glob: lumlflow/uv.lock
 
@@ -88,7 +88,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          python-version: '3.12'
+          python-version: '3.14'
           enable-cache: true
           cache-dependency-glob: lumlflow/uv.lock
 

@@ -18,7 +18,7 @@ _MAX_PASSES = 4
 
 
 class Reactor:
-    def __init__(self, session: "FlowSession", *, settle_s: float = SETTLE_S) -> None:
+    def __init__(self, session: FlowSession, *, settle_s: float = SETTLE_S) -> None:
         self._session = session
         self._settle_s = settle_s
         self._task: asyncio.Task[None] | None = None

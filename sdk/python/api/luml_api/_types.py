@@ -28,7 +28,7 @@ def is_uuid(value: str | None) -> bool:
     try:
         UUID(value)
         return True
-    except (ValueError, AttributeError, TypeError):
+    except ValueError, AttributeError, TypeError:
         return False
 
 
@@ -690,10 +690,10 @@ class _SatelliteRecord(BaseModel):
 class Satellite(_SatelliteRecord):
     """A Satellite record bound to its Platform and machine APIs."""
 
-    _client: "LumlClient" = PrivateAttr()
+    _client: LumlClient = PrivateAttr()
     _openapi_path: str = PrivateAttr()
 
-    def _bind(self, client: "LumlClient", openapi_path: str) -> None:
+    def _bind(self, client: LumlClient, openapi_path: str) -> None:
         self._client = client
         self._openapi_path = openapi_path
 
@@ -764,10 +764,10 @@ class Satellite(_SatelliteRecord):
 class AsyncSatellite(_SatelliteRecord):
     """Async Satellite record bound to its Platform and machine APIs."""
 
-    _client: "AsyncLumlClient" = PrivateAttr()
+    _client: AsyncLumlClient = PrivateAttr()
     _openapi_path: str = PrivateAttr()
 
-    def _bind(self, client: "AsyncLumlClient", openapi_path: str) -> None:
+    def _bind(self, client: AsyncLumlClient, openapi_path: str) -> None:
         self._client = client
         self._openapi_path = openapi_path
 

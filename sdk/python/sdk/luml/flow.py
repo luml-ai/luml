@@ -344,7 +344,7 @@ def _lumlflow_answers(port: int) -> bool:
         response = httpx.get(
             f"http://127.0.0.1:{port}{STATUS_PATH}", timeout=2.0, trust_env=False
         )
-    except (httpx.ConnectError, httpx.ConnectTimeout):
+    except httpx.ConnectError, httpx.ConnectTimeout:
         return False
     except httpx.HTTPError as error:
         raise in_use from error

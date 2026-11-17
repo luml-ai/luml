@@ -22,7 +22,7 @@ class Cursor:
         self.sort_by = sort_by
         self.order = order
 
-    def validate_for(self, sort_by: str, order: str) -> "Cursor | None":
+    def validate_for(self, sort_by: str, order: str) -> Cursor | None:
         if self.sort_by == sort_by and self.order == order:
             return self
         return None
@@ -36,7 +36,7 @@ class Cursor:
         ).decode()
 
     @classmethod
-    def decode(cls, cursor_str: str | None) -> "Cursor | None":
+    def decode(cls, cursor_str: str | None) -> Cursor | None:
         if not cursor_str:
             return None
         try:
@@ -57,7 +57,7 @@ class Cursor:
         sort_by: str = _CREATED_AT_KEY,
         order: str = "desc",
         json_sort_column: str | None = None,
-    ) -> "Cursor | None":
+    ) -> Cursor | None:
         if len(items) <= limit:
             return None
 
@@ -85,6 +85,6 @@ class Cursor:
     @classmethod
     def decode_and_validate(
         cls, cursor_str: str | None, sort_by: str, order: str
-    ) -> "Cursor | None":
+    ) -> Cursor | None:
         cursor = cls.decode(cursor_str)
         return cursor.validate_for(sort_by, order) if cursor else None

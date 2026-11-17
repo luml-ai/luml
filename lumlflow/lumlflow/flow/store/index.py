@@ -298,7 +298,7 @@ class Index:
         self._schema_version = self._prepare()
 
     @classmethod
-    def in_memory(cls) -> "Index":
+    def in_memory(cls) -> Index:
         return cls(Path(":memory:"))
 
     @staticmethod
@@ -333,7 +333,7 @@ class Index:
                 self._apply(transaction)
 
     @contextmanager
-    def probe(self, transaction: Transaction) -> Iterator["Index"]:
+    def probe(self, transaction: Transaction) -> Iterator[Index]:
         with self._lock:
             self._conn.execute("SAVEPOINT probe")
             try:
@@ -796,7 +796,7 @@ class Index:
                 "SELECT value FROM meta WHERE key = 'schema_version'"
             ).fetchone()
             return int(stored["value"]) if stored else -1
-        except (sqlite3.DatabaseError, ValueError):
+        except sqlite3.DatabaseError, ValueError:
             return -1
 
     def _set_meta(self, key: str, value: str) -> None:

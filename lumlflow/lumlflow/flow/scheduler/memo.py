@@ -34,7 +34,7 @@ def key_for(index: Index, version: VersionRow, inputs: Mapping[str, str]) -> str
 
 
 def lookup(
-    store: "FlowStore",
+    store: FlowStore,
     key: str,
     *,
     branch_id: str,
@@ -47,7 +47,7 @@ def lookup(
 
 
 def reusable(
-    store: "FlowStore",
+    store: FlowStore,
     mat: MaterializationRow,
     *,
     branch_id: str,
@@ -60,7 +60,7 @@ def reusable(
     return all(_has_bytes(store, mat, name) for name in require_values)
 
 
-def _has_bytes(store: "FlowStore", mat: MaterializationRow, output: str) -> bool:
+def _has_bytes(store: FlowStore, mat: MaterializationRow, output: str) -> bool:
     record = mat.outputs.get(output)
     return (
         record is not None

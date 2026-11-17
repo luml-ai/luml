@@ -159,7 +159,7 @@ class Slice:
     born: dict[str, int] = field(default_factory=dict)
     order: dict[str, Decimal] = field(default_factory=dict)
     eager: frozenset[str] = frozenset()
-    reactivity: "Callable[[], dict[str, planner.AutoVerdict]]" = dict
+    reactivity: Callable[[], dict[str, planner.AutoVerdict]] = dict
 
     @cached_property
     def auto(self) -> dict[str, planner.AutoVerdict]:
@@ -184,7 +184,7 @@ class Slice:
         return sorted(self.versions, key=place)
 
 
-def read(session: "FlowSession", branch: str) -> Slice:
+def read(session: FlowSession, branch: str) -> Slice:
     index = session.store.index
     record = session.store.branches.get(branch)
     baselines = index.baselines(record.branch_id)
@@ -206,7 +206,7 @@ def read(session: "FlowSession", branch: str) -> Slice:
     )
 
 
-def experiment_state(session: "FlowSession", ref: TrackerRef) -> ExperimentState:
+def experiment_state(session: FlowSession, ref: TrackerRef) -> ExperimentState:
     state = session.experiment_states.read(ref)
     if state.state != "unreachable":
         return state
@@ -221,7 +221,7 @@ def experiment_state(session: "FlowSession", ref: TrackerRef) -> ExperimentState
 
 
 def experiment_locations(
-    session: "FlowSession", experiment_id: str
+    session: FlowSession, experiment_id: str
 ) -> list[tuple[str, str]]:
     # Matched by id alone: ids are UUIDs, and a store that moved with its flow
     # no longer sits at the path recorded when the cell ran.
@@ -277,7 +277,7 @@ def cell(here: Slice, uid: str) -> dict[str, Any]:
 
 
 def cells(
-    session: "FlowSession",
+    session: FlowSession,
     branch: str,
     *,
     unsynced: bool = False,
@@ -297,7 +297,7 @@ def cells(
     }
 
 
-def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
+def show(session: FlowSession, branch: str, slug: str) -> dict[str, Any]:
     here = read(session, branch)
     uid = here.uid_of(slug)
     version = here.versions[uid]
@@ -334,7 +334,7 @@ def show(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
     }
 
 
-def logs(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
+def logs(session: FlowSession, branch: str, slug: str) -> dict[str, Any]:
     here = read(session, branch)
     mat = here.mats.get(here.uid_of(slug))
     return {
@@ -346,7 +346,7 @@ def logs(session: "FlowSession", branch: str, slug: str) -> dict[str, Any]:
     }
 
 
-def hygiene(session: "FlowSession") -> list[str]:
+def hygiene(session: FlowSession) -> list[str]:
     tree = session.store.index.workspace_tree()
     if tree is None:
         return []
@@ -355,7 +355,7 @@ def hygiene(session: "FlowSession") -> list[str]:
 
 
 def agent_sessions(
-    session: "FlowSession", *, leased: frozenset[str] = frozenset()
+    session: FlowSession, *, leased: frozenset[str] = frozenset()
 ) -> list[dict[str, Any]]:
     return [
         {
@@ -369,7 +369,7 @@ def agent_sessions(
 
 
 def tree(
-    session: "FlowSession", *, leased: frozenset[str] = frozenset()
+    session: FlowSession, *, leased: frozenset[str] = frozenset()
 ) -> dict[str, Any]:
     index = session.store.index
     bound = session.store.branches.bound_branch()
@@ -387,7 +387,7 @@ def tree(
 
 
 def graph(
-    session: "FlowSession",
+    session: FlowSession,
     branch: str,
     *,
     around: str | None = None,
@@ -419,7 +419,7 @@ def graph(
     }
 
 
-def diff(session: "FlowSession", branches: list[str]) -> dict[str, Any]:
+def diff(session: FlowSession, branches: list[str]) -> dict[str, Any]:
     slices = _compared(session, branches)
     definition: list[dict[str, Any]] = []
     materialization: list[dict[str, Any]] = []
@@ -460,7 +460,7 @@ def diff(session: "FlowSession", branches: list[str]) -> dict[str, Any]:
     }
 
 
-def export(session: "FlowSession", branch: str) -> dict[str, Any]:
+def export(session: FlowSession, branch: str) -> dict[str, Any]:
     here = read(session, branch)
     ordered = [here.versions[uid] for uid in planner.reading_order(here.versions)]
     carried = [
@@ -478,7 +478,7 @@ def export(session: "FlowSession", branch: str) -> dict[str, Any]:
     }
 
 
-def asset(session: "FlowSession", branch: str, target: str) -> dict[str, Any]:
+def asset(session: FlowSession, branch: str, target: str) -> dict[str, Any]:
     here = read(session, branch)
     slug, output, record = locate(here, target)
     uid = here.uid_of(slug)
@@ -520,7 +520,7 @@ def locate(here: Slice, target: str) -> tuple[str, str, OutputRecord | None]:
 
 
 def training_frames(
-    session: "FlowSession", model: MaterializationRow
+    session: FlowSession, model: MaterializationRow
 ) -> list[dict[str, str]]:
     found: list[dict[str, str]] = []
     for consumed in model.inputs.values():
@@ -577,7 +577,7 @@ def downstream_outputs(
     ]
 
 
-def context(session: "FlowSession", branch: str) -> dict[str, Any]:
+def context(session: FlowSession, branch: str) -> dict[str, Any]:
     here = read(session, branch)
     index = session.store.index
     checkpoint = index.checkpoint(here.branch.branch_id)
@@ -626,7 +626,7 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
     }
 
 
-def head(session: "FlowSession", branch: str, slug: str) -> VersionRow:
+def head(session: FlowSession, branch: str, slug: str) -> VersionRow:
     record = session.store.branches.get(branch)
     for version in session.store.index.slice_versions(record.branch_id).values():
         if version.slug == slug:
@@ -634,7 +634,7 @@ def head(session: "FlowSession", branch: str, slug: str) -> VersionRow:
     raise _missing(slug, branch)
 
 
-def failure(session: "FlowSession", mat: MaterializationRow | None) -> str | None:
+def failure(session: FlowSession, mat: MaterializationRow | None) -> str | None:
     if mat is None or mat.state == "succeeded":
         return None
     captured = _captured(session, mat)
@@ -648,20 +648,20 @@ def _docstring(source: str) -> str:
     return inspect.cleandoc(parsed.docstring or "") if parsed is not None else ""
 
 
-def _captured(session: "FlowSession", mat: MaterializationRow | None) -> str | None:
+def _captured(session: FlowSession, mat: MaterializationRow | None) -> str | None:
     if mat is None or mat.log_ref is None or not session.store.logs.exists(mat.log_ref):
         return None
     return session.store.logs.get(mat.log_ref).decode("utf-8", errors="replace")
 
 
-def _failed_by(session: "FlowSession", mat: MaterializationRow | None) -> str | None:
+def _failed_by(session: FlowSession, mat: MaterializationRow | None) -> str | None:
     if mat is None or mat.state == "succeeded":
         return None
     version = session.store.index.version(mat.version_id)
     return version.author if version is not None else None
 
 
-def _provenance(session: "FlowSession", version: VersionRow) -> dict[str, Any]:
+def _provenance(session: FlowSession, version: VersionRow) -> dict[str, Any]:
     index = session.store.index
     born = index.first_version(version.uid) or version
     line = index.transaction(version.created_step)
@@ -680,7 +680,7 @@ def _missing(slug: str, branch: str) -> CellNotFound:
     return CellNotFound(f"no cell named `{slug}` on `{branch}`")
 
 
-def _compared(session: "FlowSession", branches: list[str]) -> dict[str, Slice]:
+def _compared(session: FlowSession, branches: list[str]) -> dict[str, Slice]:
     if not MIN_COMPARED <= len(branches) <= MAX_COMPARED:
         raise FlowError(
             f"comparing takes {MIN_COMPARED} to {MAX_COMPARED} lanes, "
@@ -699,7 +699,7 @@ def _rank(name: str, version: VersionRow, mat: MaterializationRow | None) -> int
 
 
 def _branch(
-    session: "FlowSession",
+    session: FlowSession,
     record: BranchRow,
     *,
     checked_out: bool,
@@ -817,7 +817,7 @@ def _outputs(
 
 
 def _materialization_tracker(
-    session: "FlowSession",
+    session: FlowSession,
     mat: MaterializationRow | None,
     output: OutputRecord | None = None,
 ) -> dict[str, Any] | None:
@@ -869,9 +869,7 @@ def _materialization_tracker(
     }
 
 
-def _cell_tracker(
-    session: "FlowSession", here: Slice, uid: str
-) -> dict[str, Any] | None:
+def _cell_tracker(session: FlowSession, here: Slice, uid: str) -> dict[str, Any] | None:
     version = here.versions[uid]
     if not any(
         spec.type == "experiment" for spec in version.manifest.produces.values()
@@ -881,7 +879,7 @@ def _cell_tracker(
 
 
 def _failures(
-    session: "FlowSession", here: Slice, dirty: list[str]
+    session: FlowSession, here: Slice, dirty: list[str]
 ) -> list[dict[str, Any]]:
     failed = [uid for uid in dirty if here.verdicts[uid].state == "failed"]
     return [
@@ -894,7 +892,7 @@ def _failures(
 
 
 def _pending_cost(
-    session: "FlowSession", here: Slice, dirty: list[str]
+    session: FlowSession, here: Slice, dirty: list[str]
 ) -> dict[str, Any]:
     recompute: dict[str, None] = {}
     unknown: dict[str, None] = {}
@@ -967,7 +965,7 @@ def _version_side(branch: str, version: VersionRow) -> dict[str, Any]:
 
 
 def _integrity(
-    session: "FlowSession", slices: Mapping[str, Slice]
+    session: FlowSession, slices: Mapping[str, Slice]
 ) -> list[dict[str, Any]]:
     index = session.store.index
     named = {here.branch.branch_id: name for name, here in slices.items()}
@@ -1007,7 +1005,7 @@ def _result_side(branch: str, here: Slice, uid: str) -> dict[str, Any]:
     }
 
 
-def _preview(session: "FlowSession", record: OutputRecord | None) -> Any:
+def _preview(session: FlowSession, record: OutputRecord | None) -> Any:
     if record is None or record.preview_ref is None:
         return None
     if not session.store.previews.exists(record.preview_ref):
@@ -1046,7 +1044,7 @@ def _tracker_path(value: str | Path) -> Path:
     return Path(raw).expanduser().resolve()
 
 
-def _sdk_version_warning(session: "FlowSession", ref: TrackerRef) -> str | None:
+def _sdk_version_warning(session: FlowSession, ref: TrackerRef) -> str | None:
     index = session.store.index
     for branch in index.branches():
         for mat_id in index.baselines(branch.branch_id).values():

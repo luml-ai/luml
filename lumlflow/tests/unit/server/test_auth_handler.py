@@ -23,7 +23,7 @@ class _RaisingClient:
     def __init__(self, exc: Exception) -> None:
         self._exc = exc
 
-    def __enter__(self) -> "_RaisingClient":
+    def __enter__(self) -> _RaisingClient:
         return self
 
     def __exit__(self, *exc_info: object) -> None:

@@ -109,7 +109,7 @@ _PINNED: dict[Path, tuple[tuple[int, int], dict[str, str]]] = {}
 def _read_lock(path: Path) -> dict[str, str]:
     try:
         parsed = tomllib.loads(path.read_text("utf-8"))
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return {}
     entries = parsed.get("package")
     if not isinstance(entries, list):
@@ -153,7 +153,7 @@ def summary(before: Mapping[str, str], after: Mapping[str, str]) -> str:
 
 def sync(
     root: Path,
-    sessions: Iterable["FlowSession"],
+    sessions: Iterable[FlowSession],
     *,
     actor: str = "system",
     intent: str | None = None,

@@ -60,7 +60,7 @@ class Talk:
     def flow(self, name: str) -> FlowSession:
         return self.hub.session(name)
 
-    def held(self, *, label: str | None = None) -> "Held":
+    def held(self, *, label: str | None = None) -> Held:
         return Held(self.directory, label=label)
 
 

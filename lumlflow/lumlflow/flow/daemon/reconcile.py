@@ -60,7 +60,7 @@ class Reconciliation:
 
 
 def reconcile(
-    session: "FlowSession",
+    session: FlowSession,
     *,
     tier: Tier = "quiesce",
     actor: str | None = None,
@@ -129,7 +129,7 @@ def reconcile(
 
 
 def sync_workspace_code(
-    root: Path, sessions: Iterable["FlowSession"], *, actor: str = "system"
+    root: Path, sessions: Iterable[FlowSession], *, actor: str = "system"
 ) -> dict[Path, list[str]]:
     tree = scan_workspace(root)
     changed: dict[Path, list[str]] = {}
@@ -160,7 +160,7 @@ def sync_workspace_code(
 
 
 def _accept_files(
-    session: "FlowSession",
+    session: FlowSession,
     batch: Batch,
     *,
     branch: str,
@@ -225,7 +225,7 @@ def _accept_files(
 
 
 class _Level:
-    def __init__(self, session: "FlowSession", batch: Batch, *, branch: str) -> None:
+    def __init__(self, session: FlowSession, batch: Batch, *, branch: str) -> None:
         self._session = session
         self._batch = batch
         self._branch = branch
@@ -267,7 +267,7 @@ def _digest(path: Path) -> str | None:
 
 
 def _rewire(
-    session: "FlowSession",
+    session: FlowSession,
     accepted: AcceptedCell,
     batch: Batch,
     *,
@@ -287,7 +287,7 @@ def _rewire(
             continue
         try:
             source = path.read_bytes().decode("utf-8-sig")
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             unplaced.append(uid)
             continue
         cell = loader.parse(source).cell
@@ -309,7 +309,7 @@ def _rewire(
 
 
 def _accept_removals(
-    session: "FlowSession", batch: Batch, *, branch_id: str, seen: Collection[str]
+    session: FlowSession, batch: Batch, *, branch_id: str, seen: Collection[str]
 ) -> list[str]:
     if session.worktree.bound() is None:
         return []
@@ -325,7 +325,7 @@ def _accept_removals(
     return removed
 
 
-def _complete_projections(session: "FlowSession", branch_id: str) -> list[str]:
+def _complete_projections(session: FlowSession, branch_id: str) -> list[str]:
     """Sort out the files a store-side edit got ahead of.
 
     A file that diverged from the head but holds bytes from a version this lane

@@ -77,7 +77,7 @@ class Stream:
     frames are taken with `receive`, so an unread stream holds at most one window.
     """
 
-    def __init__(self, connection: "_Connection", opening: OpenFrame, window: int) -> None:
+    def __init__(self, connection: _Connection, opening: OpenFrame, window: int) -> None:
         self.id = opening.stream_id
         self.opening = opening
         self._connection = connection

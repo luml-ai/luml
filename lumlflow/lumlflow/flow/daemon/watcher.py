@@ -49,7 +49,7 @@ class WatchSet:
             return None
         try:
             relative = path.resolve().relative_to(self.workspace_dir)
-        except (ValueError, OSError):
+        except ValueError, OSError:
             return None
         parts = relative.parts
         for depth, part in enumerate(parts):
@@ -105,7 +105,7 @@ class Watches:
 
 
 class Watcher:
-    def __init__(self, hub: "Hub", *, debounce_s: float = DEBOUNCE_S) -> None:
+    def __init__(self, hub: Hub, *, debounce_s: float = DEBOUNCE_S) -> None:
         self.hub = hub
         self.debounce_s = debounce_s
         self._loop: asyncio.AbstractEventLoop | None = None

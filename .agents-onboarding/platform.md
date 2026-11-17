@@ -40,4 +40,4 @@ Docs: https://docs.luml.ai/documentation/Modules/Registry, https://docs.luml.ai/
 
 Flow is where work happens day to day. Anything worth keeping is uploaded from Flow to Core, where the team shares it, registers the model and deploys it. Local and shared are not a choice to make up front: people keep working in Flow and upload what matters. Prisma's winning model can go to the registry the same way.
 
-LUML needs Python 3.12 or newer.
+LUML needs Python 3.14 or newer.

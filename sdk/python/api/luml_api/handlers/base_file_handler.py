@@ -49,7 +49,7 @@ class BaseFileHandler(ABC):
         file_size: int,
         update_progress: Callable[[int], None],
         chunk_size: int | None = None,
-    ) -> Generator[bytes, None, None]:
+    ) -> Generator[bytes]:
         chunk_size = (
             self._calculate_optimal_chunk_size(file_size)
             if chunk_size is None

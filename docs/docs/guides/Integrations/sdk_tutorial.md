@@ -8,7 +8,7 @@ sidebar_position: 1
 
 The LUML SDK provides a Python interface for packaging trained ML models, recording experiment metadata, and uploading artifacts to the LUML platform. This guide walks through the full workflow: tracking an experiment, saving a scikit-learn model as a `.luml` file, attaching a model card, and uploading the result.
 
-*Note: the SDK requires Python 3.12 or later.*
+*Note: the SDK requires Python 3.14 or later.*
 
 ## Setup
 

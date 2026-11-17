@@ -427,7 +427,7 @@ def _build_trace_info(
     )
 
 
-def _span_record_to_mlflow(record: "SpanRecord") -> Span:
+def _span_record_to_mlflow(record: SpanRecord) -> Span:
     """Convert a luml ``SpanRecord`` back to an MLflow :class:`Span`.
 
     Constructs an OpenTelemetry ``ReadableSpan`` directly — the

@@ -622,7 +622,7 @@ def test_run_leaves_its_daemon_while_another_callers_run_is_active(
             """,
         )
 
-    def start(target: str) -> "subprocess.Popen[str]":
+    def start(target: str) -> subprocess.Popen[str]:
         process = subprocess.Popen(
             [sys.executable, "-m", "lumlflow.cli", "run", target, "--flow", "churn"],
             cwd=root,
@@ -1490,7 +1490,7 @@ def _wait_for_in_flight(record: DaemonRecord, runs: int, timeout: float = 30.0) 
 
 
 def _receive_caught_up(
-    stream: "websockets.sync.client.ClientConnection", timeout: float = 30.0
+    stream: websockets.sync.client.ClientConnection, timeout: float = 30.0
 ) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
