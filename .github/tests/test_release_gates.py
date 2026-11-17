@@ -422,7 +422,11 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertEqual(set(workflow["on"]["push"]["paths"]), promoted_paths)
 
     def test_promotion_tag_resolution_accepts_promotion_branches_only(self):
-        step = load(PROMOTION)["jobs"]["resolve-image-tag"]["steps"][0]
+        workflow = load(PROMOTION)
+        self.assertEqual(
+            workflow["concurrency"]["group"], "promote-images-${{ github.ref }}"
+        )
+        step = workflow["jobs"]["resolve-image-tag"]["steps"][0]
         self.assertEqual(step["env"]["REF"], "${{ github.ref }}")
         self.assertNotIn("github.ref_name", step["run"])
         cases = [

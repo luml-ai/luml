@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: promote-images-${{ github.ref_name }}
+  group: promote-images-${{ github.ref }}
   cancel-in-progress: true
 
 env:
