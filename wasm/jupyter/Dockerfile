@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 COPY --from=uv /uv /bin/uv
 

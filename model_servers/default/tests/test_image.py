@@ -286,7 +286,7 @@ def _wait_until_healthy(docker_cli: str, container_id: str, health_url: str) -> 
             with urllib.request.urlopen(health_url, timeout=2) as response:
                 if response.status == 200:
                     return
-        except (OSError, http.client.HTTPException):
+        except OSError, http.client.HTTPException:
             pass
         time.sleep(1)
 

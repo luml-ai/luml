@@ -43,7 +43,7 @@ class UvicornBaseService:
     ) -> Any:  # noqa: ANN401
         def decorator(func: Callable) -> Callable:
             async def wrapper(
-                service: "UvicornBaseService",
+                service: UvicornBaseService,
                 scope: dict[str, Any],  # noqa: ANN401
                 receive: Callable[[], Awaitable[dict[str, Any]]],  # noqa: ANN401
                 send: Callable[[dict[str, Any]], Awaitable[None]],  # noqa: ANN401
@@ -94,7 +94,7 @@ class UvicornBaseService:
     ) -> Any:  # noqa: ANN401
         def decorator(func: Callable) -> Callable:
             async def wrapper(
-                service: "UvicornBaseService",
+                service: UvicornBaseService,
                 scope: dict[str, Any],  # noqa: ANN401
                 receive: Callable[[], Awaitable[dict[str, Any]]],  # noqa: ANN401
                 send: Callable[[dict[str, Any]], Awaitable[None]],  # noqa: ANN401

@@ -28,7 +28,7 @@ class UvicornService(UvicornBaseService):
 
     def _add_builtin_endpoints(self) -> None:
         async def openapi_handler(
-            service: "UvicornService",
+            service: UvicornService,
             scope: dict[str, Any],  # noqa: ANN401
             receive: Callable[[], Awaitable[dict[str, Any]]],  # noqa: ANN401
             send: Callable[[dict[str, Any]], Awaitable[None]],  # noqa: ANN401
