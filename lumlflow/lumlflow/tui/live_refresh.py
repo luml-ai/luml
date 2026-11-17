@@ -27,7 +27,12 @@ returns nothing). Screens that don't implement it are simply skipped.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+from textual.message_pump import MessagePump
+from textual.types import NoActiveAppError
+from textual.worker import get_current_worker
 
 if TYPE_CHECKING:
     from textual.timer import Timer
@@ -152,4 +157,22 @@ class LiveRefreshScheduler:
             )
 
 
-__all__ = ("LiveRefreshable", "LiveRefreshScheduler")
+def post_from_worker(
+    node: MessagePump, callback: Callable[..., object], *args: Any
+) -> None:
+    """Run `callback` on the app thread from a thread worker, unless the
+    worker was cancelled or its node has left the app.
+
+    Refresh ticks start reads that can still be running when the app shuts
+    down; the node is then detached and `node.app` raises.
+    """
+
+    if get_current_worker().is_cancelled:
+        return
+    try:
+        node.app.call_from_thread(callback, *args)
+    except NoActiveAppError:
+        return
+
+
+__all__ = ("LiveRefreshable", "LiveRefreshScheduler", "post_from_worker")

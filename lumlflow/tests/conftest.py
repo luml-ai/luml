@@ -35,6 +35,11 @@ def settled_tui_apps(monkeypatch: pytest.MonkeyPatch) -> None:
     ) -> AsyncIterator[Pilot[Any]]:
         async with run_test(self, *args, **kwargs) as pilot:
             yield pilot
+            # `run_test` tears the app down without `exit()`, so stop the
+            # refresh ticks here or one can start a read after the settle.
+            stop_live_refresh = getattr(self, "stop_live_refresh", None)
+            if stop_live_refresh is not None:
+                stop_live_refresh()
             await settle_workers(pilot)
 
     monkeypatch.setattr(App, "run_test", settled)

@@ -12,10 +12,14 @@ fast — no real filesystem store, no wall-clock waits.
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
+from luml.experiments.backends.metric_store import choose_bucket_level
 from luml.experiments.tracker import ExperimentTracker
 from lumlflow.schemas.experiments import (
     ExperimentDetails,
@@ -23,6 +27,9 @@ from lumlflow.schemas.experiments import (
 )
 from lumlflow.tui import LumlflowApp
 from lumlflow.tui.data import DataFacade
+from lumlflow.tui.live_refresh import post_from_worker
+from lumlflow.tui.metric_series import MetricSeries
+from lumlflow.tui.screens import comparison as comparison_module
 from lumlflow.tui.screens.comparison import (
     ComparisonScreen,
     _diff_static_params,
@@ -32,6 +39,9 @@ from lumlflow.tui.screens.comparison import (
 from lumlflow.tui.screens.experiments import ExperimentsScreen
 from lumlflow.tui.widgets.panel_frame import PanelFrame
 from textual.widgets import DataTable, ListView, Static
+
+from tests.helpers.metrics import require_newer_reader
+from tests.helpers.tui import settle_workers
 
 
 @pytest.fixture
@@ -503,17 +513,135 @@ class TestMetricOverlay:
             for _ in range(40):
                 await pilot.pause()
                 both_loaded = (
-                    ea in screen._metric_histories
-                    and eb in screen._metric_histories
-                    and all(screen._metric_histories[k] is not None for k in (ea, eb))
+                    ea in screen._metric_series
+                    and eb in screen._metric_series
+                    and all(screen._metric_series[k] is not None for k in (ea, eb))
                 )
                 if both_loaded:
                     break
-            assert ea in screen._metric_histories
-            assert eb in screen._metric_histories
-            for history in screen._metric_histories.values():
+            assert ea in screen._metric_series
+            assert eb in screen._metric_series
+            for history in screen._metric_series.values():
                 assert history is not None
-                assert history.history  # at least one point per exp
+                assert history.has_points  # at least one point per exp
+
+    async def test_series_share_one_level_over_the_union_step_range(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+    ) -> None:
+        early = _seed_experiment(
+            tracker,
+            name="early",
+            metric_series={"loss": [(i, 1.0) for i in range(100)]},
+        )
+        late = _seed_experiment(
+            tracker,
+            name="late",
+            metric_series={"loss": [(i, 2.0) for i in range(5000, 5100)]},
+        )
+        app = _make_app(facade)
+        async with app.run_test(size=(120, 50)) as pilot:
+            details = [_fetch_details(facade, early), _fetch_details(facade, late)]
+            screen = _push_comparison(app, facade, details)
+            for _ in range(3):
+                await settle_workers(pilot)
+            budget = screen._chart_max_points()
+            series = screen._metric_series
+            loaded = [series[early], series[late]]
+            assert all(s is not None for s in loaded)
+            expected = choose_bucket_level(0, 5099, budget)
+            # The late run alone would fit a finer level than the union needs.
+            assert choose_bucket_level(5000, 5099, budget) < expected
+            assert [s.level for s in loaded if s is not None] == [expected] * 2
+            width = 4**expected
+            for s in loaded:
+                assert s is not None
+                for bucket in s.buckets:
+                    assert bucket.first_step // width == bucket.bucket
+                    assert bucket.last_step // width == bucket.bucket
+
+    async def test_an_unreadable_experiment_leaves_the_others_plotted(
+        self,
+        tmp_path: Path,
+        tracker: ExperimentTracker,
+    ) -> None:
+        readable = _seed_experiment(
+            tracker, name="ok", metric_series={"loss": [(i, 1.0) for i in range(5)]}
+        )
+        future = _seed_experiment(
+            tracker, name="new", metric_series={"loss": [(0, 1.0)]}
+        )
+        tracker.backend.close()
+        require_newer_reader(tmp_path / "experiments" / future / "exp.db")
+        facade = DataFacade(
+            tracker=ExperimentTracker(f"sqlite://{tmp_path / 'experiments'}")
+        )
+        app = _make_app(facade)
+        async with app.run_test(size=(120, 50)) as pilot:
+            details = [_fetch_details(facade, eid) for eid in (readable, future)]
+            screen = _push_comparison(app, facade, details)
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert screen._metric_series[future] is None
+            ok = screen._metric_series[readable]
+            assert ok is not None and ok.has_points
+            status = screen.query_one("#cmp-metric-status", Static)
+            assert "1 could not be read" in str(status.render())
+
+    async def test_a_replaced_series_fetch_does_not_post_its_result(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ea = _seed_experiment(tracker, name="alpha", metric_series={"loss": [(0, 1.0)]})
+        eb = _seed_experiment(tracker, name="beta", metric_series={"loss": [(0, 2.0)]})
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            details = [_fetch_details(facade, ea), _fetch_details(facade, eb)]
+            screen = _push_comparison(app, facade, details)
+            await settle_workers(pilot)
+
+            first_started = threading.Event()
+            release_first = threading.Event()
+            stale: dict[str, MetricSeries | None] = {}
+            fresh: dict[str, MetricSeries | None] = {}
+            replies = iter([stale, fresh])
+
+            def blocking_load(*_args: object) -> dict[str, MetricSeries | None]:
+                reply = next(replies)
+                if reply is stale:
+                    first_started.set()
+                    release_first.wait(timeout=5)
+                return reply
+
+            monkeypatch.setattr(
+                comparison_module, "load_comparison_series", blocking_load
+            )
+            post_attempts = threading.Semaphore(0)
+
+            def counted_post(*args: Any) -> None:  # noqa: ANN401
+                post_from_worker(*args)
+                post_attempts.release()
+
+            monkeypatch.setattr(comparison_module, "post_from_worker", counted_post)
+            posted: list[dict[str, MetricSeries | None]] = []
+            monkeypatch.setattr(
+                screen, "_on_series_result", lambda _key, series: posted.append(series)
+            )
+
+            replaced = screen._fetch_all_series("loss", max_points=80)
+            assert await asyncio.to_thread(first_started.wait, 5)
+            screen._fetch_all_series("loss", max_points=80)
+            await settle_workers(pilot)
+            release_first.set()
+            for _ in range(2):
+                assert await asyncio.to_thread(post_attempts.acquire, timeout=5)
+            await pilot.pause()
+
+            assert replaced.is_cancelled
+            assert len(posted) == 1 and posted[0] is fresh
 
 
 # ---------------------------------------------------------------------------

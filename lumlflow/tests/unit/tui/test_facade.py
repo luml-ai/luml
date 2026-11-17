@@ -219,23 +219,34 @@ class TestExperiments:
         assert again.error is not None
         assert again.error.code == 404
 
-    def test_metric_history_subsampled(
+    def test_metric_catalog_and_buckets(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
         exp_id = tracker.start_experiment(name="m")
         for step in range(50):
             tracker.log_dynamic("loss", float(step), step=step, experiment_id=exp_id)
-        res = facade.get_metric_history(exp_id, "loss", max_points=10)
-        assert res.ok
-        history = res.unwrap()
-        assert history.subsampled is True
-        assert len(history.history) <= 10
+        catalog = facade.get_metric_catalog(exp_id).unwrap()
+        buckets = facade.get_metric_buckets(exp_id, ["loss"], level=2).unwrap()
+        assert [(m.key, m.count) for m in catalog.metrics] == [("loss", 50)]
+        assert [b.count for b in buckets.series[0].buckets] == [16, 16, 16, 2]
 
-    def test_metric_history_not_found(self, facade: DataFacade) -> None:
-        res = facade.get_metric_history("nope", "loss")
+    def test_metric_reads_not_found(self, facade: DataFacade) -> None:
+        for res in (
+            facade.get_metric_catalog("nope"),
+            facade.get_metric_buckets("nope", ["loss"], level=0),
+        ):
+            assert not res.ok
+            assert res.error is not None
+            assert res.error.code == 404
+
+    def test_invalid_bucket_level_is_a_validation_error(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = tracker.start_experiment(name="m")
+        res = facade.get_metric_buckets(exp_id, ["loss"], level=99)
         assert not res.ok
         assert res.error is not None
-        assert res.error.code == 404
+        assert res.error.code == 422
 
 
 # ---------------------------------------------------------------------------

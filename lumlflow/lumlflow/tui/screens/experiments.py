@@ -35,6 +35,7 @@ from lumlflow.schemas.experiments import (
 )
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
+from lumlflow.tui.live_refresh import post_from_worker
 from lumlflow.tui.screens.base import BaseScreen
 from lumlflow.tui.widgets import BreadcrumbSegment, PaletteEntry, PanelFrame
 from lumlflow.tui.widgets.dialogs import (
@@ -1141,7 +1142,7 @@ class ExperimentsScreen(BaseScreen):
                 order=order,
                 search=self._combined_search(),
             )
-        self.app.call_from_thread(self._on_refresh_result, result)
+        post_from_worker(self, self._on_refresh_result, result)
 
     def _on_refresh_result(self, result: Result[Any]) -> None:
         if not result.ok:

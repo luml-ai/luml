@@ -1,9 +1,10 @@
+import math
 import os
 from datetime import datetime
 from enum import IntEnum, StrEnum
-from typing import Any
+from typing import Annotated, Any, NamedTuple
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, PlainSerializer, field_validator
 
 from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import BaseOrmConfig
@@ -93,6 +94,69 @@ class ExperimentMetricHistory(BaseModel):
     key: str
     subsampled: bool = False
     history: list[MetricPoint]
+
+
+def _encode_non_finite(value: float | None) -> float | str | None:
+    if value is None or math.isfinite(value):
+        return value
+    return "Infinity" if value > 0 else "-Infinity"
+
+
+# JSON has no infinities: they travel as the strings "Infinity" and "-Infinity",
+# which Pydantic also parses back to floats.
+WireFloat = Annotated[
+    float | None, PlainSerializer(_encode_non_finite, when_used="json")
+]
+
+
+class MetricSummary(BaseModel):
+    key: str
+    first_step: int
+    last_step: int
+    count: int | None
+    min: WireFloat
+    max: WireFloat
+
+
+class MetricCatalog(BaseModel):
+    revision: int
+    bucket_min_level: int | None
+    bucket_max_level: int | None
+    skipped_rows: int
+    metrics: list[MetricSummary]
+
+
+class MetricBucketsRequest(BaseModel):
+    keys: list[str]
+    start_step: int | None = None
+    end_step: int | None = None
+    level: int
+
+
+class MetricBucket(NamedTuple):
+    """Sent as a JSON array; `sum` covers finite values only."""
+
+    bucket: int
+    first_step: int
+    last_step: int
+    # Shadows `tuple.count` on purpose: the field names follow the contract.
+    count: int  # type: ignore[assignment]
+    finite_count: int
+    min: WireFloat
+    max: WireFloat
+    sum: float | None
+
+
+class MetricBucketSeries(BaseModel):
+    key: str
+    first_step: int | None
+    last_step: int | None
+    buckets: list[MetricBucket]
+
+
+class MetricBuckets(BaseModel):
+    level: int
+    series: list[MetricBucketSeries]
 
 
 class Span(BaseModel, BaseOrmConfig):

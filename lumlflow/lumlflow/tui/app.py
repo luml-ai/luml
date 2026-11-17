@@ -3,6 +3,7 @@
 from collections import deque
 from datetime import datetime
 
+from rich.console import RenderableType
 from textual.app import App, ComposeResult, ScreenError
 from textual.binding import Binding
 from textual.widget import Widget
@@ -296,6 +297,20 @@ class LumlflowApp(App[None]):
         if self._show_first_run_hint and not self._first_run_hint_shown:
             self._first_run_hint_shown = True
             self.call_after_refresh(self._show_first_run_hint_toast)
+
+    def exit(
+        self,
+        result: None = None,
+        return_code: int = 0,
+        message: RenderableType | None = None,
+    ) -> None:
+        # Textual stops timers only after the screens are torn down, so a tick
+        # in between would start a read for a screen that is already gone.
+        self.stop_live_refresh()
+        super().exit(result, return_code, message)
+
+    def stop_live_refresh(self) -> None:
+        self._refresh_scheduler.stop()
 
     # ----- Scopes / header sync -----
 

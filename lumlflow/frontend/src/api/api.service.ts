@@ -33,6 +33,11 @@ import type {
 } from '@/store/experiments/experiments.interface'
 import qs from 'qs'
 import type {
+  MetricBucketsRequestWire,
+  MetricBucketsWire,
+  MetricCatalogWire,
+} from '@luml/experiments'
+import type {
   CollectionInfo,
   OrbitInfo,
   OrganizationInfo,
@@ -118,6 +123,27 @@ export const apiService = {
     const { data } = await api.get<ExperimentMetricHistory>(
       `/experiments/${experimentId}/metrics/${encodeURIComponent(metricKey)}`,
       { params: { max_points: maxPoints }, signal },
+    )
+    return data
+  },
+
+  getExperimentMetricCatalog: async (experimentId: string, signal?: AbortSignal) => {
+    const { data } = await api.get<MetricCatalogWire>(
+      `/experiments/${experimentId}/metric-catalog`,
+      { signal },
+    )
+    return data
+  },
+
+  getExperimentMetricBuckets: async (
+    experimentId: string,
+    body: MetricBucketsRequestWire,
+    signal?: AbortSignal,
+  ) => {
+    const { data } = await api.post<MetricBucketsWire>(
+      `/experiments/${experimentId}/metric-buckets`,
+      body,
+      { signal },
     )
     return data
   },

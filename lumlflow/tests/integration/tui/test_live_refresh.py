@@ -13,6 +13,7 @@ on the wall-clock interval) so the suite stays fast and stable.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,9 @@ from lumlflow.tui.screens.experiments import ExperimentsScreen
 from lumlflow.tui.screens.groups import ALL_EXPERIMENTS_KEY, GroupsScreen
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
 from textual.widgets import DataTable
+from textual.worker import WorkerState
+
+from tests.helpers.tui import settle_workers
 
 
 @pytest.fixture
@@ -507,8 +511,8 @@ class TestExperimentDetailRefresh:
             # history for the lone metric.
             for _ in range(5):
                 await pilot.pause()
-            assert "loss" in screen._metric_history
-            initial_len = len(screen._metric_history["loss"].history)
+            assert "loss" in screen._metric_series
+            initial_len = len(screen._metric_series["loss"].buckets)
             assert initial_len >= 5
             # Out-of-band write more metric points.
             for step in range(5, 10):
@@ -518,9 +522,9 @@ class TestExperimentDetailRefresh:
             screen.refresh_live()
             for _ in range(5):
                 await pilot.pause()
-            history = screen._metric_history.get("loss")
+            history = screen._metric_series.get("loss")
             assert history is not None
-            assert len(history.history) >= initial_len
+            assert len(history.buckets) >= initial_len
 
 
 # ---------------------------------------------------------------------------
@@ -568,3 +572,46 @@ class TestRefreshNow:
             # Calling refresh_now is a no-op (no crash).
             app._refresh_scheduler.refresh_now()
             await pilot.pause()
+
+
+# ---------------------------------------------------------------------------
+# A refresh read for a screen that has left
+# ---------------------------------------------------------------------------
+
+
+class TestRefreshAfterItsScreenLeft:
+    async def test_a_refresh_started_on_a_detached_screen_is_dropped(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        """Regression: Textual stops the app's timers only after it has torn
+        the screens down, so a refresh tick could start a read for a detached
+        screen. Its worker then called `self.app` from the thread, which
+        raised `NoActiveAppError` and failed the app (flaky at test exit)."""
+
+        group = tracker.create_group("g")
+        exp_id = tracker.start_experiment(name="run", group=group.name)
+        app = _make_app(facade, auto_refresh=False)
+        async with app.run_test() as pilot:
+            screen = ExperimentDetailScreen(facade=facade, experiment_id=exp_id)
+            app.push_screen(screen)
+            await settle_workers(pilot)
+            app.pop_screen()
+            await settle_workers(pilot)
+            assert not screen.is_attached
+
+            worker = screen._refresh_details()
+            await asyncio.gather(worker.wait(), return_exceptions=True)
+            await pilot.pause()
+
+            assert worker.state == WorkerState.SUCCESS
+            assert app._exception is None
+
+    async def test_exit_stops_the_refresh_ticks(self, facade: DataFacade) -> None:
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            assert app._refresh_scheduler._timer is not None
+
+            app.exit()
+
+            assert app._refresh_scheduler._timer is None

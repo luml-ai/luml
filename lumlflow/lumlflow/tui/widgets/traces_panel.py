@@ -34,6 +34,7 @@ from lumlflow.schemas.experiments import (
     TraceState,
 )
 from lumlflow.tui.data import DataFacade, Result
+from lumlflow.tui.live_refresh import post_from_worker
 from lumlflow.tui.widgets.dialogs import (
     FilterEditorDialog,
     FilterValidation,
@@ -672,7 +673,7 @@ class TracesPanel(Widget):
             search=self._search or None,
             filters=filters,
         )
-        self.app.call_from_thread(self._on_refresh_result, result)
+        post_from_worker(self, self._on_refresh_result, result)
 
     def _on_refresh_result(self, result: Result[Any]) -> None:
         if not result.ok:
