@@ -258,9 +258,7 @@ class TracesPanel(Widget):
     def _fetch_page(self, *, reset: bool) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(
-                self._on_page_failure, "facade unavailable", reset
-            )
+            self.call_later(self._on_page_failure, "facade unavailable", reset)
             return
         try:
             sort_by = TracesSortBy(self._sort_by)
@@ -280,7 +278,7 @@ class TracesPanel(Widget):
             search=self._search or None,
             filters=filters,
         )
-        self.app.call_from_thread(self._on_page_result, result, reset)
+        self.call_later(self._on_page_result, result, reset)
 
     def _on_page_result(self, result: Result[Any], reset: bool) -> None:
         self._set_loading(False)
@@ -672,7 +670,7 @@ class TracesPanel(Widget):
             search=self._search or None,
             filters=filters,
         )
-        self.app.call_from_thread(self._on_refresh_result, result)
+        self.call_later(self._on_refresh_result, result)
 
     def _on_refresh_result(self, result: Result[Any]) -> None:
         if not result.ok:

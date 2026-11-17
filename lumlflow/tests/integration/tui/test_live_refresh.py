@@ -13,7 +13,10 @@ on the wall-clock interval) so the suite stays fast and stable.
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
@@ -26,6 +29,8 @@ from lumlflow.tui.screens.experiments import ExperimentsScreen
 from lumlflow.tui.screens.groups import ALL_EXPERIMENTS_KEY, GroupsScreen
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
 from textual.widgets import DataTable
+
+from tests.helpers.tui import settle_workers
 
 
 @pytest.fixture
@@ -568,3 +573,101 @@ class TestRefreshNow:
             # Calling refresh_now is a no-op (no crash).
             app._refresh_scheduler.refresh_now()
             await pilot.pause()
+
+
+class TestRefreshLifetime:
+    @pytest.mark.parametrize("screen_kind", ["groups", "experiments", "detail"])
+    @pytest.mark.parametrize("leave", ["pop", "unmount", "stop"])
+    async def test_blocked_refresh_drops_result_after_leaving(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        screen_kind: str,
+        leave: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if screen_kind == "groups":
+                screen = GroupsScreen(facade=facade)
+                read_name = "list_groups"
+                callback_name = "_on_refresh_result"
+            elif screen_kind == "experiments":
+                screen = ExperimentsScreen(facade=facade, group_id=group.id)
+                read_name = "list_group_experiments"
+                callback_name = "_on_refresh_result"
+            else:
+                screen = ExperimentDetailScreen(
+                    facade=facade, experiment_id=experiment_id
+                )
+                read_name = "get_experiment"
+                callback_name = "_on_refresh_details_result"
+            await app.push_screen(screen)
+            await settle_workers(pilot)
+            callback = Mock()
+            monkeypatch.setattr(screen, callback_name, callback)
+            read = getattr(facade, read_name)
+
+            def blocked_read(*args, **kwargs):
+                started.set()
+                assert release.wait(10), "refresh was never released"
+                return read(*args, **kwargs)
+
+            monkeypatch.setattr(facade, read_name, blocked_read)
+            run_worker = screen.run_worker
+
+            def observe_worker(work, *args, **kwargs):
+                # cancellation ends the worker task, but its thread keeps running.
+                def observed():
+                    try:
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(observed, *args, **kwargs)
+
+            monkeypatch.setattr(screen, "run_worker", observe_worker)
+            if leave == "unmount":
+
+                async def on_unmount(self):
+                    release.set()
+                    assert await asyncio.to_thread(finished.wait, 10)
+
+                monkeypatch.setattr(
+                    type(screen), "on_unmount", on_unmount, raising=False
+                )
+            screen.refresh_live()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                if leave in {"pop", "unmount"}:
+                    await app.pop_screen()
+                    await pilot.pause()
+                    assert not screen.is_attached
+                else:
+                    await app._shutdown()
+                    assert not app.is_running
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            callback.assert_not_called()
+
+    @pytest.mark.parametrize("trigger", ["_tick", "refresh_now"])
+    async def test_scheduler_does_nothing_after_shutdown(
+        self, facade: DataFacade, trigger: str
+    ) -> None:
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+        assert not app.screen_stack
+        getattr(app._refresh_scheduler, trigger)()

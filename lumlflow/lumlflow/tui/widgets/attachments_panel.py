@@ -329,9 +329,7 @@ class AttachmentsPanel(Widget):
         result = facade.list_attachments_tree(
             self._experiment_id, parent_path=parent_path
         )
-        self.app.call_from_thread(
-            self._on_children_result, result, parent_path, parent_node_id
-        )
+        self.call_later(self._on_children_result, result, parent_path, parent_node_id)
 
     def _on_children_result(
         self,
@@ -561,7 +559,7 @@ class AttachmentsPanel(Widget):
         if facade is None:
             return
         result = facade.get_attachment(self._experiment_id, file_path)
-        self.app.call_from_thread(self._on_preview_result, result, file_path)
+        self.call_later(self._on_preview_result, result, file_path)
 
     def _on_preview_result(self, result: Result[Any], file_path: str) -> None:
         # Drop the result if the user has moved on to another file.
@@ -638,11 +636,12 @@ class AttachmentsPanel(Widget):
         facade = self.facade
         if facade is None:
             return
+        app = self._lumlflow_app
         result = facade.get_attachment(self._experiment_id, file_path)
         if not result.ok:
             err = result.error
-            self.app.call_from_thread(
-                self._lumlflow_app.show_toast,
+            self.call_later(
+                app.show_toast,
                 f"Could not load file: {err.message if err else 'error'}",
                 severity="error",
             )
@@ -657,8 +656,8 @@ class AttachmentsPanel(Widget):
                 with destination.open("wb" if overwrite else "xb") as output:
                     output.write(data)
             except FileExistsError:
-                self.app.call_from_thread(
-                    self.app.push_screen,
+                self.call_later(
+                    app.push_screen,
                     ConfirmDialog(
                         title="Overwrite file?",
                         message=f"{destination} already exists. Overwrite it?",
@@ -672,14 +671,14 @@ class AttachmentsPanel(Widget):
                 )
                 return
         except OSError as exc:
-            self.app.call_from_thread(
-                self._lumlflow_app.show_toast,
+            self.call_later(
+                app.show_toast,
                 f"Save failed: {exc}",
                 severity="error",
             )
             return
-        self.app.call_from_thread(
-            self._lumlflow_app.show_toast,
+        self.call_later(
+            app.show_toast,
             f"Saved to {destination}",
             severity="success",
             duration=3.0,

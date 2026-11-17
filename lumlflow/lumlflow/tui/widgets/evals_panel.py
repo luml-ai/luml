@@ -362,7 +362,7 @@ class EvalsPanel(Widget):
         if facade is None:
             return
         result = facade.get_eval_dataset_ids(self._experiment_id)
-        self.app.call_from_thread(self._on_dataset_ids_result, result)
+        self.call_later(self._on_dataset_ids_result, result)
 
     def _on_dataset_ids_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -462,7 +462,7 @@ class EvalsPanel(Widget):
         result = facade.get_eval_columns(
             self._experiment_id, dataset_id=self._selected_dataset
         )
-        self.app.call_from_thread(self._on_columns_result, result)
+        self.call_later(self._on_columns_result, result)
 
     def _on_columns_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -527,7 +527,7 @@ class EvalsPanel(Widget):
             search=self._search or None,
             filters=filters,
         )
-        self.app.call_from_thread(self._on_averages_result, result)
+        self.call_later(self._on_averages_result, result)
 
     def _on_averages_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -577,9 +577,7 @@ class EvalsPanel(Widget):
     def _fetch_page(self, *, reset: bool) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(
-                self._on_page_failure, "facade unavailable", reset
-            )
+            self.call_later(self._on_page_failure, "facade unavailable", reset)
             return
         try:
             order = SortOrder(self._order)
@@ -596,7 +594,7 @@ class EvalsPanel(Widget):
             search=self._search or None,
             filters=filters,
         )
-        self.app.call_from_thread(self._on_page_result, result, reset)
+        self.call_later(self._on_page_result, result, reset)
 
     def _on_page_result(self, result: Result[Any], reset: bool) -> None:
         self._set_loading(False)
@@ -1041,7 +1039,7 @@ class EvalsPanel(Widget):
             search=self._search or None,
             filters=filters,
         )
-        self.app.call_from_thread(self._on_refresh_result, result)
+        self.call_later(self._on_refresh_result, result)
 
     def _on_refresh_result(self, result: Result[Any]) -> None:
         if not result.ok:

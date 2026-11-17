@@ -247,10 +247,10 @@ class EvalDetailScreen(BaseScreen):
     def _fetch_eval(self) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(self._on_eval_failure, "facade unavailable")
+            self.call_later(self._on_eval_failure, "facade unavailable")
             return
         result = facade.get_eval(self._experiment_id, self._eval_id)
-        self.app.call_from_thread(self._on_eval_result, result)
+        self.call_later(self._on_eval_result, result)
 
     def _on_eval_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -314,7 +314,7 @@ class EvalDetailScreen(BaseScreen):
         result = facade.list_eval_annotations(
             self._experiment_id, self._dataset_id, self._eval_id
         )
-        self.app.call_from_thread(self._on_annotations_result, result)
+        self.call_later(self._on_annotations_result, result)
 
     def _on_annotations_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -483,9 +483,7 @@ class EvalDetailScreen(BaseScreen):
         result = facade.create_eval_annotation(
             self._experiment_id, self._dataset_id, self._eval_id, body
         )
-        self.app.call_from_thread(
-            self._on_annotation_mutation_result, result, "created"
-        )
+        self.call_later(self._on_annotation_mutation_result, result, "created")
 
     @work(thread=True, group="eval-annotation-update")
     def _run_update_annotation(
@@ -495,9 +493,7 @@ class EvalDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.update_eval_annotation(self._experiment_id, annotation_id, body)
-        self.app.call_from_thread(
-            self._on_annotation_mutation_result, result, "updated"
-        )
+        self.call_later(self._on_annotation_mutation_result, result, "updated")
 
     def _on_annotation_mutation_result(self, result: Result[Any], verb: str) -> None:
         if not result.ok:
@@ -523,9 +519,7 @@ class EvalDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.delete_eval_annotation(self._experiment_id, annotation_id)
-        self.app.call_from_thread(
-            self._on_annotation_delete_result, result, annotation_id
-        )
+        self.call_later(self._on_annotation_delete_result, result, annotation_id)
 
     def _on_annotation_delete_result(
         self, result: Result[Any], annotation_id: str

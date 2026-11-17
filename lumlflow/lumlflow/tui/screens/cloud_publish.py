@@ -555,7 +555,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None:
             return
         result = facade.set_api_key(api_key)
-        self.app.call_from_thread(self._on_api_key_result, result)
+        self.call_later(self._on_api_key_result, result)
 
     def _on_api_key_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -582,7 +582,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None:
             return
         result = facade.has_api_key()
-        self.app.call_from_thread(self._on_initial_auth_state, result)
+        self.call_later(self._on_initial_auth_state, result)
 
     def _on_initial_auth_state(self, result: Result[Any]) -> None:
         # Mount the initial step body — even on failure we show the
@@ -616,7 +616,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None:
             return
         result = facade.list_organizations()
-        self.app.call_from_thread(self._on_orgs_result, result)
+        self.call_later(self._on_orgs_result, result)
 
     def _on_orgs_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -685,7 +685,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None or self._ctx.organization is None:
             return
         result = facade.list_orbits(self._ctx.organization.id)
-        self.app.call_from_thread(self._on_orbits_result, result)
+        self.call_later(self._on_orbits_result, result)
 
     def _on_orbits_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -742,7 +742,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None or self._ctx.organization is None or self._ctx.orbit is None:
             return
         result = facade.list_collections(self._ctx.organization.id, self._ctx.orbit.id)
-        self.app.call_from_thread(self._on_collections_result, result)
+        self.call_later(self._on_collections_result, result)
 
     def _on_collections_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -1131,7 +1131,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None:
             return
         result = facade.upload_artifact(form, job_id)
-        self.app.call_from_thread(self._on_upload_done, result, job_id)
+        self.call_later(self._on_upload_done, result, job_id)
 
     @work(thread=True, group="publish-upload")
     def _run_file_upload(self, form: UploadFileForm, job_id: str) -> None:
@@ -1139,7 +1139,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None:
             return
         result = facade.upload_file_artifact(form, job_id)
-        self.app.call_from_thread(self._on_upload_done, result, job_id)
+        self.call_later(self._on_upload_done, result, job_id)
 
     @work(thread=True, group="publish-upload")
     def _run_model_upload(self, form: UploadModelForm, job_id: str) -> None:
@@ -1147,7 +1147,7 @@ class CloudPublishScreen(BaseScreen):
         if facade is None:
             return
         result = facade.upload_model_artifact(form, job_id)
-        self.app.call_from_thread(self._on_upload_done, result, job_id)
+        self.call_later(self._on_upload_done, result, job_id)
 
     def _on_upload_done(self, result: Result[Any], _job_id: str) -> None:
         # The artifact handler swallows its own exceptions and writes
