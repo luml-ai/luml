@@ -210,7 +210,7 @@ def _extract_with_image(
 
 def _assert_writable_models_directory(payload: dict[str, object]) -> None:
     assert payload["uid"] == RANDOM_UID
-    assert payload["models_uid"] == 0
+    assert payload["models_uid"] == 10001
     assert payload["models_gid"] == 0
     mode = payload["models_mode"]
     assert isinstance(mode, int)
@@ -480,7 +480,7 @@ def test_pinned_micromamba_runs_offline_as_the_default_user(
     assert result.stdout.strip() == _pinned_micromamba_version()
 
 
-@pytest.mark.parametrize("user", ["10001:0", f"{RANDOM_UID}:0"])
+@pytest.mark.parametrize("user", ["10001:0", "10001:10001", f"{RANDOM_UID}:0"])
 def test_server_code_is_read_only_while_runtime_directories_are_writable(
     docker_cli: str, model_server_image: str, user: str
 ) -> None:
@@ -515,7 +515,7 @@ for directory in ['/app/models', '/app/.micromamba', '/app/.cache/uv']:
     )
 
 
-@pytest.mark.parametrize("user", ["10001:0", f"{RANDOM_UID}:0"])
+@pytest.mark.parametrize("user", ["10001:0", "10001:10001", f"{RANDOM_UID}:0"])
 def test_micromamba_registers_environments_with_read_only_server_code(
     docker_cli: str, model_server_image: str, user: str
 ) -> None:

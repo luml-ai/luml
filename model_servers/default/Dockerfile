@@ -18,6 +18,7 @@ COPY --from=uv /uv /bin/uv
 RUN mkdir -p /app/.cache/uv /app/.micromamba /app/models /app/.conda /app/.mamba \
     && chown -R root:0 /app \
     && chmod -R a-w /app \
+    && chown -R 10001:0 /app/.cache /app/.micromamba /app/models /app/.conda /app/.mamba \
     && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models /app/.conda /app/.mamba
 
 COPY pyproject.toml uv.lock /app/
@@ -29,6 +30,7 @@ COPY . /app/
 
 RUN chown -R root:0 /app \
     && chmod -R a-w /app \
+    && chown -R 10001:0 /app/.cache /app/.micromamba /app/models /app/.conda /app/.mamba \
     && chmod -R ug+rwX /app/.cache /app/.micromamba /app/models /app/.conda /app/.mamba
 
 ENV PYTHONPATH=/app
