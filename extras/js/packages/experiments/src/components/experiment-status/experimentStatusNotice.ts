@@ -37,6 +37,9 @@ export function experimentStatusNotice(
   if (status.skippedMetricRows !== null && status.skippedMetricRows > 0) {
     warnings.push(['skipped-rows', skippedRowsText(status.skippedMetricRows)])
   }
+  if (status.unsafeMetricSteps) {
+    warnings.push(['unsafe-steps', 'Metric steps above 2^53 are not shown.'])
+  }
   const infos: [string, string][] = []
   if (status.transportFallback === 'range-ignored') {
     infos.push([

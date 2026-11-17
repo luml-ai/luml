@@ -720,8 +720,11 @@ async function openProfile(page: Page, profile: StorageProfile): Promise<Settled
 }
 
 /** Preflights expected per session: Chromium caches one per URL for Access-Control-Max-Age. */
-function expectedPreflights(profile: StorageProfile): number {
-  return profile.auth === 'bearer' && profile.host === 'storage' ? 1 : 0
+function expectPreflights(profile: StorageProfile) {
+  const needed = profile.auth === 'bearer' && profile.host === 'storage'
+  // Without a Max-Age Chromium keeps a preflight for 5 s, which a slow run can outlast.
+  if (needed && profile.preflightMaxAge === null) expect(preflightCount()).toBeGreaterThan(0)
+  else expect(preflightCount()).toBe(needed ? 1 : 0)
 }
 
 const rangeProfiles = STORAGE_PROFILES.filter((profile) => profile.expected === 'raw-range')
@@ -769,7 +772,7 @@ for (const profile of rangeProfiles) {
       expect(answers.every((entry) => entry.bytes < fixture.tar.length)).toBe(true)
     })
 
-    expect(preflightCount()).toBe(expectedPreflights(profile))
+    expectPreflights(profile)
   })
 
   test(`${profile.name}: surfaces a permanent failure without looping`, async ({ page }) => {
@@ -886,6 +889,27 @@ for (const profile of STORAGE_PROFILES.filter((item) => item.expected === 'redir
       ['storage', 401, []],
     ])
     expect(profileSigns).toBe(1)
+  })
+}
+
+for (const profile of STORAGE_PROFILES.filter((item) => item.expected === 'network-error')) {
+  test(`${profile.name}: a storage the browser refuses fails cleanly after one renewal`, async ({
+    page,
+  }) => {
+    const opened = await openProfile(page, profile)
+    await page.waitForTimeout(200)
+
+    expect(opened).toMatchObject({ ok: true })
+    expect((await call(page, 'getExperimentStatuses')).value).toEqual([
+      expect.objectContaining({
+        error: { code: 'snapshot-source-expired', message: 'Snapshot request failed: TypeError' },
+      }),
+    ])
+    expect(storage.log.map((entry) => [entry.method, entry.credential])).toEqual([
+      ['GET', '1'],
+      ['GET', '2'],
+    ])
+    expect(profileSigns).toBe(2)
   })
 }
 

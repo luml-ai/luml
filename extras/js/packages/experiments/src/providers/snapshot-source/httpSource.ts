@@ -7,6 +7,7 @@ import {
   SnapshotSourceExpiredError,
   SnapshotSourcePageError,
   SnapshotSourceRedirectError,
+  SnapshotSourceTimeoutError,
   SnapshotSourceTooLargeError,
 } from './errors'
 import { SQLITE_HEADER_SIZE } from './sqliteHeader'
@@ -116,13 +117,21 @@ function responseHeaderOf(request: XMLHttpRequest, name: string): string | null 
   return line?.[1]?.trim() ?? null
 }
 
-/** Sync XHR is the only blocking HTTP API in a worker. */
+/**
+ * A storage that accepts the connection and never answers would block the worker thread for
+ * good: nothing on the main thread can interrupt a blocked `send()`.
+ */
+export const SYNC_RANGE_TIMEOUT_MS = 30_000
+
+/** Sync XHR is the only blocking HTTP API in a worker; a timeout throws a `TimeoutError`. */
 export function sendSyncXhr(
   location: SnapshotSourceLocation,
   headers: Record<string, string>,
 ): SyncRangeResponse {
   const request = new XMLHttpRequest()
   request.open('GET', location.url, false)
+  // Allowed for sync requests in workers only, which is where this runs.
+  request.timeout = SYNC_RANGE_TIMEOUT_MS
   request.responseType = 'arraybuffer'
   request.withCredentials = location.credentials === 'include'
   for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value)
@@ -402,6 +411,10 @@ export class HttpRangeFile implements RangeFile {
       }
       if (error instanceof RedirectDroppedHeadersError) {
         throw new SnapshotSourceRedirectError(this.modelId, error.message)
+      }
+      // Not an expired URL: renewing it would only wait as long again.
+      if (errorName(error) === 'TimeoutError') {
+        throw new SnapshotSourceTimeoutError(this.modelId, SYNC_RANGE_TIMEOUT_MS)
       }
       // A failed sync XHR's message names the URL, signature included.
       const reason = error instanceof RangeStatusError ? error.message : errorName(error)

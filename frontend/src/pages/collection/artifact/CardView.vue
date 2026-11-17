@@ -46,6 +46,7 @@ import type { MetaEntry } from '@fnnx-ai/common/dist/interfaces'
 import type { PromptOptimizationModelMetadataPayload } from '@/lib/data-processing/interfaces'
 import { ModelDownloader } from '@/lib/bucket-service'
 import JSZip from 'jszip'
+import { redactSecrets } from '@luml/experiments'
 import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardTabular.vue'
 import CollectionModelCardPromptOptimization from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardPromptOptimization.vue'
 import CollectionModelCardForecasting from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardForecasting.vue'
@@ -145,7 +146,9 @@ async function init() {
     loading.value = true
     await setMetadata()
   } catch (e) {
-    console.error(e)
+    // The raw error holds the presigned URL of the request.
+    const message = e instanceof Error ? e.message : String(e)
+    console.error(`Model card could not be loaded: ${redactSecrets(message)}`)
   } finally {
     loading.value = false
   }

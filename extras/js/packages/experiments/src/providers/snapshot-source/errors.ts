@@ -5,6 +5,8 @@ export const SNAPSHOT_SOURCE_TOO_LARGE = 'snapshot-source-too-large'
 export const SNAPSHOT_SOURCE_PAGE = 'snapshot-source-page'
 export const SNAPSHOT_TOO_LARGE_FOR_BROWSER = 'snapshot-too-large-for-browser'
 export const SNAPSHOT_FORMAT = 'snapshot-format'
+/** The same code as a metric request that got no answer in time. */
+export const SNAPSHOT_SOURCE_TIMED_OUT = 'timed-out'
 
 /**
  * A request for snapshot bytes failed. Presigned URLs can expire earlier than the platform
@@ -53,6 +55,22 @@ export class SnapshotSourceRedirectError extends Error {
   ) {
     super(message)
     this.name = 'SnapshotSourceRedirectError'
+  }
+}
+
+/**
+ * A range read got no answer in time. Not an expired URL: a renewed one would wait as long
+ * again, so it is not renewed, and the next read sends a new request.
+ */
+export class SnapshotSourceTimeoutError extends Error {
+  readonly code = SNAPSHOT_SOURCE_TIMED_OUT
+
+  constructor(
+    readonly modelId: string,
+    readonly limit: number,
+  ) {
+    super(`Snapshot range read got no answer within ${Math.round(limit / 1000)} s`)
+    this.name = 'SnapshotSourceTimeoutError'
   }
 }
 
@@ -140,6 +158,7 @@ type CodedSnapshotError =
   | SnapshotTooLargeForBrowserError
   | SnapshotSourcePageError
   | SnapshotFormatError
+  | SnapshotSourceTimeoutError
 
 export type SnapshotErrorCode = CodedSnapshotError['code']
 
@@ -159,6 +178,7 @@ const CODED_ERRORS = new Set<string>([
   SNAPSHOT_TOO_LARGE_FOR_BROWSER,
   SNAPSHOT_SOURCE_PAGE,
   SNAPSHOT_FORMAT,
+  SNAPSHOT_SOURCE_TIMED_OUT,
 ])
 
 export function snapshotErrorFields(error: unknown): SnapshotErrorFields | null {
@@ -192,6 +212,8 @@ export function snapshotErrorFromFields(fields: SnapshotErrorFields, message: st
       )
     case SNAPSHOT_SOURCE_PAGE:
       return new SnapshotSourcePageError(fields.modelId)
+    case SNAPSHOT_SOURCE_TIMED_OUT:
+      return new SnapshotSourceTimeoutError(fields.modelId, fields.limit ?? 0)
     case SNAPSHOT_FORMAT: {
       const error = new SnapshotFormatError(fields.modelId, '')
       error.message = message

@@ -111,16 +111,20 @@ function onTraceVisibleUpdate(value: boolean | undefined) {
 }
 
 onBeforeMount(async () => {
-  evalsStore.setProvider(props.provider)
+  evalsStore.setProvider(props.provider, props.modelsIds)
   initStaticParams()
 })
 
 onBeforeUnmount(() => {
   staticParamsController?.abort()
+  // Here and not on unmounted: an instance that replaces this one mounts before that runs.
+  evalsStore.disposeMetricBucketStore()
 })
 
 onUnmounted(() => {
   evalsStore.reset()
+  // Unless a replacing instance has set its provider already.
+  if (!evalsStore.metricBucketStore) evalsStore.resetProvider()
   document.documentElement.classList.remove('lock')
 })
 

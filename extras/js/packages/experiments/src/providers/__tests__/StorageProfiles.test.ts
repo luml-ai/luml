@@ -344,6 +344,37 @@ describe.each(byExpectation('redirect-error'))('$name storage', (profile) => {
   })
 })
 
+describe.each(byExpectation('network-error'))('$name storage', (profile) => {
+  it('fails to open with a clean error after one renewal, never looping', async () => {
+    const current = session(profile)
+    const logged: string[] = []
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+      logged.push(args.map(String).join(' '))
+    })
+
+    await open(current)
+    const [status] = await current.proxy.getExperimentStatuses()
+    const traces = await current.proxy.getAllTraces(traceParams)
+    const catalogs = await current.proxy.getMetricCatalogs()
+    vi.restoreAllMocks()
+
+    expect(status?.error).toEqual({
+      code: 'snapshot-source-expired',
+      message: 'Snapshot request failed: TypeError',
+    })
+    expect(traces).toEqual([])
+    expect(catalogs).toEqual([{ modelId: MODEL, ok: false, error: status?.error }])
+    expect(current.issuer.signs).toBe(2)
+    expect(current.state.log.map((entry) => [entry.method, entry.credential])).toEqual([
+      ['GET', '1'],
+      ['GET', '2'],
+    ])
+    for (const text of logged) {
+      expect(text).not.toMatch(/sig=|\/o\//)
+    }
+  })
+})
+
 describe('storage that cuts a range transfer short in the middle of the file', () => {
   const profile = STORAGE_PROFILES.find((item) => item.name === 'azure')!
 
@@ -375,6 +406,49 @@ describe('storage that cuts a range transfer short in the middle of the file', (
     expect(error).toMatchObject({ code: 'snapshot-source-expired', modelId: MODEL })
     expect(answers(current.state, before)).toHaveLength(2)
     expect(current.issuer.signs).toBe(2)
+  })
+})
+
+describe('a storage that accepts a range request and never answers', () => {
+  it('times out that read without renewing the URL, and the worker reads on afterwards', async () => {
+    const profile = STORAGE_PROFILES.find((item) => item.name === 's3')!
+    const state = newStorageState()
+    const transport = browserLikeTransport(
+      (request) =>
+        respondAsStorage(request, {
+          origins: ORIGINS,
+          state,
+          object: (name) => (name === FIXTURE ? ARTIFACT : undefined),
+        }),
+      ORIGINS,
+    )
+    let hung = false
+    const hanging: SnapshotTransport = {
+      fetch: transport.fetch,
+      readRangeSync: (location, offset, length) => {
+        // What a sync XHR throws once its timeout passed; its message names the URL.
+        if (hung) {
+          throw new DOMException(`Timeout while loading '${location.url}'`, 'TimeoutError')
+        }
+        return transport.readRangeSync(location, offset, length)
+      },
+    }
+    const issuer = locationIssuer(profile)
+    const worker = new InProcessWorker(hanging, 1024 * 1024 * 1024)
+    const proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker, {
+      sourceUrls: issuer,
+    })
+    await open({ state, proxy, issuer })
+    hung = true
+
+    const error = await rejection(proxy.getAllTraces(traceParams))
+
+    expect(error).toMatchObject({ code: 'timed-out', modelId: MODEL })
+    expect(String((error as Error).message)).not.toMatch(/sig=|\/o\//)
+    expect(issuer.signs).toBe(1)
+    hung = false
+    expect((await proxy.getAllTraces(traceParams)).length).toBeGreaterThan(0)
+    expect((await proxy.getExperimentStatuses())[0]?.error).toBeNull()
   })
 })
 

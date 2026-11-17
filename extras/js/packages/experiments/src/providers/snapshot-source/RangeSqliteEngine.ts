@@ -217,7 +217,13 @@ export class RangeSqliteEngine {
             flags: 'r',
           }),
       )
-      guard(() => database.exec('SELECT 1 FROM sqlite_master LIMIT 1'))
+      try {
+        guard(() => database.exec('SELECT 1 FROM sqlite_master LIMIT 1'))
+      } catch (error) {
+        // Closing runs xClose, which releases the file (up to a whole downloaded member).
+        database.close()
+        throw error
+      }
       return new RangeSnapshotDatabase(this.sqlite3, database, guard)
     } finally {
       this.registered.delete(name)

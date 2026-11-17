@@ -75,6 +75,15 @@ describe('ExperimentStatusNotices', () => {
     ])
   })
 
+  it('says metric steps above 2^53 are not shown', () => {
+    const wrapper = mountNotices([status('a', { unsafeMetricSteps: true }), status('b')])
+    const notices = wrapper.findAll('[data-testid="experiment-status-notice"]')
+    expect(notices.map((notice) => notice.text())).toEqual([
+      'Run A: Metric steps above 2^53 are not shown.',
+    ])
+    expect(notices[0]?.attributes('data-code')).toBe('unsafe-steps')
+  })
+
   it('says an experiment written by a newer version may not be shown in full', () => {
     expect(noticesFor([status('b', { unknownNewerRevision: true })])).toEqual([
       'Run B: This experiment was written by a newer version. Some data may not be shown.',

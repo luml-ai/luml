@@ -13,6 +13,18 @@ export interface StorageOrigins {
 
 export type StorageAuth = 'query-sig' | 'sas' | 'bearer' | 'session-cookie'
 
+/**
+ * `echo-origin`: the request's origin is allowed and the storage headers are exposed.
+ * `any-origin`: `*` on every answer, nothing exposed. `none`: no CORS headers at all.
+ */
+export type StorageCors = 'echo-origin' | 'any-origin' | 'none'
+
+interface StorageAnswer {
+  status: number
+  contentType: string
+  body: string
+}
+
 export interface StorageProfile {
   name: string
   host: StorageHost
@@ -21,13 +33,20 @@ export interface StorageProfile {
   rangeAnswer: 206 | 200 | 'whole'
   /** Whether a whole-object answer declares Content-Length; a buffering proxy may not. */
   wholeLength: boolean
+  cors: StorageCors
   exposeContentRange: boolean
   extraHeaders: Readonly<Record<string, string>>
-  expired: { status: number; contentType: string; body: string }
+  /** A revoked, expired or wrong credential. */
+  expired: StorageAnswer
+  /** A bearer storage's answer to a request without Authorization; `expired` when null. */
+  unauthenticated: StorageAnswer | null
   /** The issued URL answers with a redirect to a presigned URL on the storage origin. */
   redirect: { status: 302 | 307; targetNeedsAuth: boolean } | null
   preflightMaxAge: number | null
-  expected: 'raw-range' | 'raw-full' | 'redirect-error'
+  /** Sent on every answer instead of the headers a preflight asked for; null to echo them. */
+  allowHeaders: string | null
+  /** `network-error`: the browser refuses the answers, so the open fails. */
+  expected: 'raw-range' | 'raw-full' | 'redirect-error' | 'network-error'
   /** The storage may start ignoring Range mid-session (an S3 clone or a proxy). */
   rangeMayStop: boolean
 }
@@ -42,11 +61,32 @@ const AZURE_EXPIRED = {
   contentType: 'application/xml',
   body: '<?xml version="1.0" encoding="utf-8"?><Error><Code>AuthenticationFailed</Code><Message>Signed expiry time has to be after signed start time</Message></Error>',
 }
-const FILES_API_EXPIRED = {
+// A generic bearer API behind a redirecting proxy.
+const TOKEN_EXPIRED = {
   status: 401,
   contentType: 'application/json',
   body: '{"error_code":"UNAUTHENTICATED","message":"Token is expired."}',
 }
+// The Databricks workspace Files API 2.0, as measured live on 2026-11-17.
+const DATABRICKS_INVALID_TOKEN = {
+  status: 403,
+  contentType: 'application/json; charset=utf-8',
+  body: '{"error_code":403,"message":"Invalid access token. [ReqId: ef12c1e2-68d4-4ccc-809a-dbe0c6cb3d69]"}',
+}
+const DATABRICKS_NO_TOKEN = {
+  status: 401,
+  contentType: 'application/json; charset=utf-8',
+  body: '{"error_code":401,"message":"Credential was not sent or was of an unsupported type for this API. [ReqId: 11321611-38a9-4cd7-a02c-df0e4f6362d8]"}',
+}
+const DATABRICKS_HEADERS = {
+  'x-request-id': 'f1c2d3e4-0000-4000-8000-000000000001',
+  'cache-control': 'no-cache, no-store, must-revalidate',
+  expires: '0',
+  pragma: 'no-cache',
+  'content-disposition': 'attachment',
+}
+const DATABRICKS_ALLOW_HEADERS =
+  'Authorization, X-Databricks-Azure-Workspace-Resource-Id, X-Databricks-Org-Id, Content-Type, X-Databricks-Attribution-Tags'
 const PROXY_EXPIRED = { status: 403, contentType: 'text/plain', body: 'expired' }
 const AZURE_HEADERS = {
   'x-ms-request-id': 'b1c2d3',
@@ -60,11 +100,14 @@ const BASE: Omit<StorageProfile, 'name'> = {
   auth: 'query-sig',
   rangeAnswer: 206,
   wholeLength: true,
+  cors: 'echo-origin',
   exposeContentRange: false,
   extraHeaders: { 'x-amz-request-id': 'A1B2C3' },
   expired: S3_EXPIRED,
+  unauthenticated: null,
   redirect: null,
   preflightMaxAge: null,
+  allowHeaders: null,
   expected: 'raw-range',
   rangeMayStop: true,
 }
@@ -89,12 +132,20 @@ export const STORAGE_PROFILES: StorageProfile[] = [
     expired: AZURE_EXPIRED,
     rangeMayStop: false,
   }),
-  profile('files-api', {
+  profile('databricks-files-api', {
     auth: 'bearer',
-    exposeContentRange: true,
-    extraHeaders: { 'x-request-id': 'f1' },
-    expired: FILES_API_EXPIRED,
-    preflightMaxAge: 600,
+    cors: 'any-origin',
+    extraHeaders: DATABRICKS_HEADERS,
+    expired: DATABRICKS_INVALID_TOKEN,
+    unauthenticated: DATABRICKS_NO_TOKEN,
+    allowHeaders: DATABRICKS_ALLOW_HEADERS,
+    rangeMayStop: false,
+  }),
+  // Databricks presigned download URLs answer without any CORS header.
+  profile('no-cors', {
+    cors: 'none',
+    extraHeaders: {},
+    expected: 'network-error',
     rangeMayStop: false,
   }),
   profile('proxy', { host: 'page', extraHeaders: {}, expired: PROXY_EXPIRED }),
@@ -109,20 +160,20 @@ export const STORAGE_PROFILES: StorageProfile[] = [
     extraHeaders: {},
     redirect: { status: 307, targetNeedsAuth: false },
   }),
-  profile('files-api-redirect', {
+  profile('bearer-redirect', {
     host: 'page',
     auth: 'bearer',
     extraHeaders: {},
-    expired: FILES_API_EXPIRED,
+    expired: TOKEN_EXPIRED,
     redirect: { status: 302, targetNeedsAuth: false },
     preflightMaxAge: 600,
     rangeMayStop: false,
   }),
-  profile('files-api-redirect-needs-token', {
+  profile('bearer-redirect-needs-token', {
     host: 'page',
     auth: 'bearer',
     extraHeaders: {},
-    expired: FILES_API_EXPIRED,
+    expired: TOKEN_EXPIRED,
     redirect: { status: 307, targetNeedsAuth: true },
     preflightMaxAge: 600,
     expected: 'redirect-error',
@@ -284,6 +335,13 @@ function bearerOf(request: StorageRequest): string | null {
 }
 
 function corsHeaders(profile: StorageProfile, request: StorageRequest): Record<string, string> {
+  if (profile.cors === 'none') return {}
+  if (profile.cors === 'any-origin') {
+    return {
+      'Access-Control-Allow-Origin': '*',
+      ...(profile.allowHeaders ? { 'Access-Control-Allow-Headers': profile.allowHeaders } : {}),
+    }
+  }
   const origin = request.headers.origin
   if (!origin) return {}
   const exposed = [...Object.keys(profile.extraHeaders), 'ETag']
@@ -297,6 +355,10 @@ function corsHeaders(profile: StorageProfile, request: StorageRequest): Record<s
 }
 
 function preflight(profile: StorageProfile, request: StorageRequest): StorageResponse {
+  if (profile.cors === 'none') return { status: 500, headers: {}, body: new Uint8Array(0) }
+  if (profile.cors === 'any-origin') {
+    return { status: 200, headers: corsHeaders(profile, request), body: new Uint8Array(0) }
+  }
   const allowed = profile.auth === 'bearer' ? 'range, authorization' : 'range'
   return {
     status: 200,
@@ -368,7 +430,9 @@ function answer(
   const bytes = context.object(artifact)
   if (!bytes) return { status: 404, headers: {}, body: new Uint8Array(0) }
   if (credential === null || state.rejectAll || state.revoked.has(credential)) {
-    const { status, contentType, body } = profile.expired
+    const unauthenticated = !hop && profile.auth === 'bearer' && !request.headers.authorization
+    const { status, contentType, body } =
+      (unauthenticated && profile.unauthenticated) || profile.expired
     return {
       status,
       headers: { 'Content-Type': contentType },

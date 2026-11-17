@@ -71,7 +71,7 @@ export function browserLikeTransport(serve: Serve, origins: StorageOrigins) {
   }
 
   // Chromium caches a preflight per URL and header set for Access-Control-Max-Age seconds
-  // (5 without one); time does not pass here, so only a Max-Age makes an entry.
+  // (5 without one); time does not pass here, so only a Max-Age of 0 makes no entry.
   const preflightCache = new Set<string>()
 
   function preflight(url: URL, names: string[]): void {
@@ -92,7 +92,7 @@ export function browserLikeTransport(serve: Serve, origins: StorageOrigins) {
     if (!passesCors(response, false) || names.some((name) => !allowed.includes(name))) {
       throw new EmulatedNetworkError(`preflight of ${url.href} refused ${names.join(',')}`)
     }
-    if (Number(response.headers['Access-Control-Max-Age'] ?? 0) > 0) preflightCache.add(key)
+    if (Number(response.headers['Access-Control-Max-Age'] ?? 5) > 0) preflightCache.add(key)
   }
 
   function send(location: SnapshotSourceLocation, requestHeaders: Record<string, string>): Sent {

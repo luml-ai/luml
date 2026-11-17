@@ -2,6 +2,7 @@ import { BucketCache, type BucketCacheView } from './BucketCache'
 import { MetricReadTimeoutError, toExperimentReadError } from './errors'
 import { MAX_BUCKET_LEVEL } from './levels'
 import {
+  hasUnsafeSteps,
   planBucketRead,
   type BucketReadPlan,
   type BucketReadRequest,
@@ -46,6 +47,11 @@ export interface MetricBucketStoreOptions {
    * fetches of all charts in it are merged per experiment, level and bucket range.
    */
   debounceMs?: number
+  /**
+   * The provider's experiments. Given, the first catalog load reads each one in its own call
+   * with its own timeout, as refreshes do; otherwise all in one call.
+   */
+  modelIds?: string[]
   /**
    * A catalog load, refresh or bucket fetch without an answer after this fails with
    * `timed-out`, whether or not the provider honours the abort; 30 s by default.
@@ -188,6 +194,18 @@ function localModelIdsOf(statuses: ExperimentSnapshotStatus[]): Set<string> {
   )
 }
 
+/** Sets `unsafeMetricSteps` from the catalogs, whichever provider read them. */
+function markUnsafeSteps(
+  statuses: ExperimentSnapshotStatus[],
+  catalogs: Map<string, ExperimentMetricCatalog>,
+): ExperimentSnapshotStatus[] {
+  return statuses.map((status) =>
+    catalogs.get(status.modelId)?.metrics.some(hasUnsafeSteps)
+      ? { ...status, unsafeMetricSteps: true }
+      : status,
+  )
+}
+
 /**
  * Keys whose catalog entry changed, with the step from which their cached buckets are stale:
  * the old last step when the metric only grew past it, else null (all of it is stale, as an
@@ -219,6 +237,13 @@ function changedMetrics(
   }
   for (const key of old.keys()) changed.set(key, null)
   return changed
+}
+
+interface CatalogRead {
+  result: ExperimentResult<ExperimentMetricCatalog>
+  /** The call threw or timed out, rather than answering with this experiment's error. */
+  failed: boolean
+  error: unknown
 }
 
 interface FetchOutcome {
@@ -344,6 +369,7 @@ export class MetricBucketStore {
   private readonly plannerOptions: Partial<PlannerOptions>
   readonly debounceMs: number
   readonly requestTimeoutMs: number
+  readonly modelIds: readonly string[] | null
   private readonly lifetime = new AbortController()
   private catalogsPromise: Promise<MetricCatalogs> | null = null
   private readonly inFlight = new Map<number, SharedFetch>()
@@ -368,6 +394,7 @@ export class MetricBucketStore {
     this.plannerOptions = options.planner ?? {}
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+    this.modelIds = options.modelIds ? [...options.modelIds] : null
   }
 
   get disposed(): boolean {
@@ -391,7 +418,7 @@ export class MetricBucketStore {
   }
 
   private async readCatalogs(): Promise<MetricCatalogs> {
-    const results = await this.bounded((signal) => this.source.getMetricCatalogs(undefined, signal))
+    const results = await this.readFirstCatalogs()
     const statuses = await this.readStatuses()
     const loaded: MetricCatalogs = {
       catalogs: new Map(),
@@ -403,7 +430,52 @@ export class MetricBucketStore {
       if (result.ok) loaded.catalogs.set(result.modelId, result.value)
       else loaded.errors.set(result.modelId, result.error)
     }
+    loaded.statuses = markUnsafeSteps(loaded.statuses, loaded.catalogs)
     return loaded
+  }
+
+  /**
+   * Each experiment in its own call when the experiments are known. When every call failed,
+   * the load rejects, so the next call retries it.
+   */
+  private async readFirstCatalogs(): Promise<ExperimentResult<ExperimentMetricCatalog>[]> {
+    if (!this.modelIds) {
+      return this.bounded((signal) => this.source.getMetricCatalogs(undefined, signal))
+    }
+    const reads = await this.readCatalogsOneByOne(this.modelIds)
+    const [firstFailure, ...otherFailures] = reads.filter((read) => read.failed)
+    if (firstFailure && otherFailures.length + 1 === reads.length) throw firstFailure.error
+    return reads.map((read) => read.result)
+  }
+
+  /**
+   * One bounded call per experiment: a provider may wait for all its requests together (the
+   * API provider does), and one slow experiment must not time out the others.
+   */
+  private readCatalogsOneByOne(
+    modelIds: readonly string[],
+    refresh = false,
+  ): Promise<CatalogRead[]> {
+    return Promise.all(
+      modelIds.map(async (modelId): Promise<CatalogRead> => {
+        const request: MetricCatalogsRequest = { modelIds: [modelId], ...(refresh && { refresh }) }
+        try {
+          const results = await this.bounded((signal) =>
+            this.source.getMetricCatalogs(request, signal),
+          )
+          const result = results.find((item) => item.modelId === modelId) ?? {
+            modelId,
+            ok: false,
+            error: { code: READ_FAILED, message: `No catalog for experiment '${modelId}'` },
+          }
+          return { result, failed: false, error: null }
+        } catch (error) {
+          if (this.disposed) throw error
+          const result = { modelId, ok: false as const, error: toExperimentReadError(error) }
+          return { result, failed: true, error }
+        }
+      }),
+    )
   }
 
   /** Null when they could not be read: statuses only add notices and a budget exemption. */
@@ -480,16 +552,7 @@ export class MetricBucketStore {
     dropAll: boolean,
   ): Promise<Map<string, ExperimentReadError>> {
     const current = await this.loadCatalogs()
-    let results: ExperimentResult<ExperimentMetricCatalog>[]
-    try {
-      results = await this.bounded((signal) =>
-        this.source.getMetricCatalogs({ modelIds, refresh: true }, signal),
-      )
-    } catch (error) {
-      if (this.disposed) throw error
-      const failure = toExperimentReadError(error)
-      results = modelIds.map((modelId) => ({ modelId, ok: false, error: failure }))
-    }
+    const results = (await this.readCatalogsOneByOne(modelIds, true)).map((read) => read.result)
     const statuses = await this.readStatuses()
     const next: MetricCatalogs = {
       catalogs: new Map(current.catalogs),
@@ -519,6 +582,7 @@ export class MetricBucketStore {
       for (const [key, fromStep] of keys) this.dropMetric(result.modelId, key, fromStep)
       if (keys.size) changed.set(result.modelId, keys)
     }
+    next.statuses = markUnsafeSteps(next.statuses, next.catalogs)
     this.catalogsPromise = Promise.resolve(next)
     const changedKeys = new Map(
       [...changed].map(([modelId, keys]) => [modelId, new Set(keys.keys())]),
@@ -549,11 +613,38 @@ export class MetricBucketStore {
     this.pendingJobs.delete(subscription)
   }
 
-  /** @internal `overflow`: a chart's own answers, which count as fetched for its plan. */
+  /**
+   * @internal Plans the experiments together; when that throws, an experiment that cannot be
+   * planned on its own is left out with its error, so it never fails the others.
+   */
   plan(
     catalogs: MetricCatalogs,
     request: BucketReadRequest,
     overflow: BucketCache | null = null,
+  ): { plan: BucketReadPlan | null; failures: ChartError[] } {
+    try {
+      return { plan: this.planTogether(catalogs, request, overflow), failures: [] }
+    } catch (error) {
+      const failures: ChartError[] = []
+      const modelIds = request.modelIds.filter((modelId) => {
+        try {
+          this.planTogether(catalogs, { ...request, modelIds: [modelId] }, overflow)
+          return true
+        } catch (failure) {
+          failures.push({ modelId, error: toExperimentReadError(failure) })
+          return false
+        }
+      })
+      if (!failures.length) throw error
+      return { plan: this.planTogether(catalogs, { ...request, modelIds }, overflow), failures }
+    }
+  }
+
+  /** `overflow`: a chart's own answers, which count as fetched for its plan. */
+  private planTogether(
+    catalogs: MetricCatalogs,
+    request: BucketReadRequest,
+    overflow: BucketCache | null,
   ): BucketReadPlan | null {
     const shared = this.cache
     const view: BucketCacheView = overflow
@@ -884,7 +975,9 @@ class StoreSubscription implements ChartSubscription {
       })
       if (!sameRequest(this.overflowRequest, request)) this.overflow = null
       this.overflowRequest = request
-      plan = this.store.plan(catalogs, request, this.overflow)
+      const planned = this.store.plan(catalogs, request, this.overflow)
+      plan = planned.plan
+      errors.push(...planned.failures)
       fetches = (plan?.experiments ?? []).flatMap((experiment) =>
         experiment.fetches.map((fetch) => ({ modelId: experiment.modelId, fetch })),
       )

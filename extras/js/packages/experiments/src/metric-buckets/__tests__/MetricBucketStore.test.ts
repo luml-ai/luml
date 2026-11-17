@@ -86,6 +86,8 @@ class FakeSource implements MetricBucketSource {
   /** While set, catalog reads never answer and ignore their signal, as a stalled server. */
   catalogStalled = false
   catalogSignals: (AbortSignal | undefined)[] = []
+  /** Catalog reads that ask for one of these never answer. */
+  catalogStalledFor = new Set<string>()
   /** While set, bucket reads never answer and ignore their signal. */
   bucketsStalled = false
   statusRevision = 3
@@ -126,6 +128,11 @@ class FakeSource implements MetricBucketSource {
     this.catalogCalls.push(request)
     this.catalogSignals.push(signal)
     if (this.catalogStalled) return new Promise(() => {})
+    if (
+      (request?.modelIds ?? this.modelIds).some((modelId) => this.catalogStalledFor.has(modelId))
+    ) {
+      return new Promise(() => {})
+    }
     const results = (request?.modelIds ?? this.modelIds).map(
       (modelId): ExperimentResult<ExperimentMetricCatalog> => {
         if (this.catalogFailing.has(modelId)) {
@@ -794,6 +801,47 @@ describe('MetricBucketStore', () => {
     })
   })
 
+  describe('one experiment that cannot be planned', () => {
+    it('fails only that experiment of a comparison', async () => {
+      const { source, chart } = setup(['a', 'b'])
+      // A catalog the planner rejects: steps must be integers.
+      source.catalogPatches.set('b/loss', { last_step: STEPS + 0.5 })
+      chart.request({ ...REQUEST, modelIds: ['a', 'b'] })
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+
+      expect(summary(chart.state)).toEqual({
+        level: 5,
+        loading: false,
+        series: [['a', 5, true, 98]],
+        errors: [['b', 'read-failed']],
+      })
+    })
+
+    it('draws the steps of a metric inside +-(2^53 - 1) and flags the experiment', async () => {
+      const { source, store, chart } = setup(['a', 'b'])
+      source.catalogPatches.set('b/loss', { last_step: 2 ** 60 })
+      source.catalogPatches.set('b/acc', { first_step: 1.7e18, last_step: 1.8e18 })
+      chart.request({ ...REQUEST, modelIds: ['a', 'b'], keys: KEYS, endStep: STEPS - 1 })
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+
+      expect(summary(chart.state)).toEqual({
+        level: 5,
+        loading: false,
+        series: [
+          ['a', 5, true, 98],
+          ['a', 5, true, 98],
+          ['b', 5, true, 98],
+        ],
+        errors: [],
+      })
+      const { statuses } = await store.loadCatalogs()
+      expect(statuses.map((status) => [status.modelId, status.unsafeMetricSteps])).toEqual([
+        ['a', undefined],
+        ['b', true],
+      ])
+    })
+  })
+
   it('does not degrade the plan of a local experiment for its row cost', async () => {
     const source = new FakeSource(['a'], 'zip-full')
     const store = new MetricBucketStore(source, {
@@ -849,6 +897,29 @@ describe('MetricBucketStore', () => {
       await vi.advanceTimersByTimeAsync(DEBOUNCE)
       expect(summary(chart.state)).toMatchObject({ loading: false, series: [['a', 5, true, 98]] })
       expect(await store.loadCatalogs()).toMatchObject({ statuses: [{ modelId: 'a' }] })
+    })
+
+    it('times out a stalled catalog of one experiment without failing the others', async () => {
+      const source = new FakeSource(['a', 'b'])
+      const store = new MetricBucketStore(source, {
+        debounceMs: DEBOUNCE,
+        requestTimeoutMs: TIMEOUT,
+        modelIds: ['a', 'b'],
+      })
+      const chart = store.subscribe(() => {})
+      source.catalogStalledFor.add('a')
+      chart.request({ ...REQUEST, modelIds: ['a', 'b'] })
+      await vi.advanceTimersByTimeAsync(TIMEOUT + DEBOUNCE)
+
+      const catalogs = await store.loadCatalogs()
+      expect([...catalogs.catalogs.keys()]).toEqual(['b'])
+      expect(catalogs.errors.get('a')).toMatchObject({ code: 'timed-out' })
+      expect(summary(chart.state)).toEqual({
+        level: 5,
+        loading: false,
+        series: [['b', 5, true, 98]],
+        errors: [['a', 'timed-out']],
+      })
     })
 
     it('lets the refresh queue advance past a stalled refresh', async () => {

@@ -44,6 +44,11 @@ export interface ExperimentSnapshotStatus {
   unknownNewerRevision: boolean
   /** The catalog's `skipped_rows`; null until the catalog has been read. */
   skippedMetricRows: number | null
+  /**
+   * Set by the metric store: a catalog step is beyond +-(2^53 - 1), where steps arrive
+   * rounded, so only the steps inside that range are drawn.
+   */
+  unsafeMetricSteps?: boolean
   error: ExperimentReadError | null
 }
 

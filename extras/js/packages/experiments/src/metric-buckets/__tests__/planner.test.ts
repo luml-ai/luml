@@ -421,6 +421,43 @@ describe('planBucketRead', () => {
     if (level !== undefined) expect(plan?.requestedLevel).toBe(level)
   })
 
+  it('plans the part of a metric inside +-(2^53 - 1) and leaves out one wholly beyond', () => {
+    const unsafe: ExperimentMetricCatalog = {
+      ...rev3,
+      metrics: [entry('loss', -(2 ** 60), 2 ** 60), entry('time_ns', 1.7e18, 1.8e18)],
+    }
+    const request = { modelIds: ['new'], keys: ['loss', 'time_ns'], bucketBudget: 1000 }
+    const plan = (overrides: Partial<BucketReadRequest> = {}) =>
+      planBucketRead(new Map([['new', unsafe]]), { ...request, ...overrides }, new BucketCache())
+
+    for (const planned of [plan(), plan({ startStep: 1.7e18, endStep: 1.8e18 })]) {
+      expect(planned?.experiments[0]?.series.map((series) => series.key)).toEqual(['loss'])
+    }
+    expect([plan()?.startStep, plan()?.endStep]).toEqual([
+      -Number.MAX_SAFE_INTEGER,
+      Number.MAX_SAFE_INTEGER,
+    ])
+    expect(plan({ keys: ['time_ns'] })).toBeNull()
+  })
+
+  it('picks the level by the cost of experiments a coarser level makes cheaper', () => {
+    const large: ExperimentMetricCatalog = {
+      ...rev3,
+      metrics: [entry('loss', 0, 10 * MILLION - 1)],
+    }
+    const raw: ExperimentMetricCatalog = { ...rev2, metrics: [entry('loss', 0, 5 * MILLION - 1)] }
+    const plan = planBucketRead(
+      new Map([
+        ['new', large],
+        ['old', raw],
+      ]),
+      { modelIds: ['new', 'old'], keys: ['loss'], bucketBudget: 1000 },
+      new BucketCache(),
+    )
+
+    expect(plan).toMatchObject({ level: 7, requestedLevel: 7, degraded: false, overBudget: true })
+  })
+
   it('returns no plan for a range that holds no integer step', () => {
     for (const [startStep, endStep] of [
       [10.2, 10.8],

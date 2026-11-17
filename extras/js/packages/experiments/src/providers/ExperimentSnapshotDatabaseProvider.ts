@@ -252,7 +252,12 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       snapshot = { modelId, ...opened }
     }
     // Reading the traits reads pages, so a source failure surfaces here, at open.
-    this.snapshotTraits.set(snapshot.database, readSnapshotTraits(snapshot.database))
+    try {
+      this.snapshotTraits.set(snapshot.database, readSnapshotTraits(snapshot.database))
+    } catch (error) {
+      snapshot.database.close()
+      throw error
+    }
     return snapshot
   }
 

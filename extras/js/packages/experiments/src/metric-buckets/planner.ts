@@ -103,14 +103,36 @@ export function sourceForLevel(catalog: ExperimentMetricCatalog, level: number):
   return level <= max ? 'bucket-table' : 'coarse-aggregate'
 }
 
+const isSafeStep = (step: number) => Math.abs(step) <= Number.MAX_SAFE_INTEGER
+
+/**
+ * Whether an entry has a step beyond +-(2^53 - 1). Such steps arrive rounded (int64 read as a
+ * double, or a JSON number), so the planner works on the part inside that range only.
+ */
+export function hasUnsafeSteps(entry: MetricCatalogEntry): boolean {
+  return !isSafeStep(entry.first_step) || !isSafeStep(entry.last_step)
+}
+
+/** The entry clipped to +-(2^53 - 1); null when none of its steps is inside. */
+function safeEntry(entry: MetricCatalogEntry): MetricCatalogEntry | null {
+  if (!hasUnsafeSteps(entry)) return entry
+  const first = Math.max(entry.first_step, -Number.MAX_SAFE_INTEGER)
+  const last = Math.min(entry.last_step, Number.MAX_SAFE_INTEGER)
+  if (!(isSafeStep(first) && isSafeStep(last) && first <= last)) return null
+  return { ...entry, first_step: first, last_step: last }
+}
+
 function catalogEntries(
   catalog: ExperimentMetricCatalog,
   keys: string[],
 ): Map<string, MetricCatalogEntry> {
   const wanted = new Set(keys)
-  return new Map(
-    catalog.metrics.filter((entry) => wanted.has(entry.key)).map((entry) => [entry.key, entry]),
-  )
+  const entries = new Map<string, MetricCatalogEntry>()
+  for (const entry of catalog.metrics) {
+    const safe = wanted.has(entry.key) ? safeEntry(entry) : null
+    if (safe) entries.set(entry.key, safe)
+  }
+  return entries
 }
 
 const stepOrNull = (step: number | null | undefined) =>
@@ -259,6 +281,19 @@ function planAtLevel(
 }
 
 /**
+ * Whether a coarser level reads fewer rows of this experiment. One without stored bucket
+ * levels (revisions 0-2) reads every point in range at any level, so counting it in the cost
+ * that picks the level would only push the plan to where the other experiments cost least.
+ */
+function degradable(
+  catalogs: ReadonlyMap<string, ExperimentMetricCatalog>,
+  modelId: string,
+): boolean {
+  const catalog = catalogs.get(modelId)
+  return !!catalog && catalog.bucket_min_level !== null && catalog.bucket_max_level !== null
+}
+
+/**
  * Decides how to read a chart's buckets; pure, no I/O. All experiments are planned at one
  * level so their bucket boundaries line up. Returns null when there is nothing to show
  * (no visible range given and none of the series has points).
@@ -276,15 +311,20 @@ export function planBucketRead(
   // An unaligned range spans one bucket more than its width, which must stay under the cap.
   const budget = Math.min(Math.max(wholeBudget, 1), MAX_RETURNED_BUCKETS - 1)
   const requestedLevel = chooseBucketLevel(range[0], range[1], budget)
+  const remoteRows = (plan: BucketReadPlan, onlyDegradable: boolean) =>
+    plan.experiments.reduce(
+      (total, experiment) =>
+        localModelIds.has(experiment.modelId) ||
+        (onlyDegradable && !degradable(catalogs, experiment.modelId))
+          ? total
+          : total + experiment.cost.rows,
+      0,
+    )
   let cheapest: { plan: BucketReadPlan; rows: number } | null = null
   for (let level = requestedLevel; level <= MAX_BUCKET_LEVEL; level++) {
     const plan = planAtLevel(catalogs, request, cache, range, level, requestedLevel)
-    const rows = plan.experiments.reduce(
-      (total, experiment) =>
-        localModelIds.has(experiment.modelId) ? total : total + experiment.cost.rows,
-      0,
-    )
-    if (rows <= maxCostRows) return plan
+    const rows = remoteRows(plan, true)
+    if (rows <= maxCostRows) return { ...plan, overBudget: remoteRows(plan, false) > maxCostRows }
     if (!cheapest || rows < cheapest.rows) cheapest = { plan, rows }
   }
   return cheapest && { ...cheapest.plan, overBudget: true }

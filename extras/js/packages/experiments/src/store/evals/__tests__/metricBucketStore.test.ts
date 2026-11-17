@@ -45,4 +45,16 @@ describe('evals store metric bucket store', () => {
     expect(evals.metricBucketStore).toBe(first)
     expect(first?.disposed).toBe(false)
   })
+  it('replaces the store when the same provider is set for other experiments', () => {
+    const evals = useEvalsStore()
+    const same = provider()
+    evals.setProvider(same, ['a', 'c'])
+    const first = evals.metricBucketStore
+    evals.setProvider(same, ['a', 'c'])
+    expect(evals.metricBucketStore).toBe(first)
+    evals.setProvider(same, ['a', 'b'])
+
+    expect(first?.disposed).toBe(true)
+    expect(evals.metricBucketStore?.modelIds).toEqual(['a', 'b'])
+  })
 })

@@ -100,7 +100,6 @@ describe('a range-backed revision 3 experiment reads metadata first and buckets 
   beforeAll(async () => {
     small = await measure(bulkPoints(100_000))
     large = await measure(bulkPoints(400_000))
-    console.info('range costs', JSON.stringify({ small, large }))
   }, 120_000)
 
   // The probe reads the first chunk (header and schema) and seeds the cache with it; the

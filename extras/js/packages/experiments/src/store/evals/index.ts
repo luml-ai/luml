@@ -28,6 +28,11 @@ export function getSpansTimes(spans: Omit<TraceSpan, 'children'>[]): {
   )
 }
 
+function sameModelIds(left: readonly string[] | null, right: readonly string[] | null): boolean {
+  if (!left || !right) return left === right
+  return left.length === right.length && left.every((modelId, index) => modelId === right[index])
+}
+
 export const useEvalsStore = defineStore('evals', () => {
   const annotationsStore = useAnnotationsStore()
   const toast = useToast()
@@ -52,18 +57,35 @@ export const useEvalsStore = defineStore('evals', () => {
     return selectedEval.value?.evalId ?? ''
   })
 
-  function setProvider(newProvider: ExperimentSnapshotProvider) {
+  /**
+   * `modelIds`: the provider's experiments. A provider initialised again with others (the
+   * same worker proxy for another comparison) gets a new store, as its catalogs changed.
+   */
+  function setProvider(newProvider: ExperimentSnapshotProvider, modelIds?: string[]) {
     const rawProvider = toRaw(newProvider)
-    if (provider.value && toRaw(provider.value) === rawProvider && metricBucketStore.value) return
+    const store = metricBucketStore.value
+    if (
+      provider.value &&
+      toRaw(provider.value) === rawProvider &&
+      store &&
+      sameModelIds(store.modelIds, modelIds ?? null)
+    ) {
+      return
+    }
     provider.value = newProvider
+    store?.dispose()
+    metricBucketStore.value = markRaw(new MetricBucketStore(rawProvider, { modelIds }))
+  }
+
+  /** Frees the store's cached buckets; the next `setProvider` creates a new one. */
+  function disposeMetricBucketStore() {
     metricBucketStore.value?.dispose()
-    metricBucketStore.value = markRaw(new MetricBucketStore(rawProvider))
+    metricBucketStore.value = null
   }
 
   function resetProvider() {
     provider.value = null
-    metricBucketStore.value?.dispose()
-    metricBucketStore.value = null
+    disposeMetricBucketStore()
   }
 
   function setCurrentEvalData(data: EvalsInfo[]) {
@@ -225,6 +247,7 @@ export const useEvalsStore = defineStore('evals', () => {
     selectedTrace,
     getTraceSpansTree,
     resetProvider,
+    disposeMetricBucketStore,
     getProvider,
     metricBucketStore,
     initDatasets,
