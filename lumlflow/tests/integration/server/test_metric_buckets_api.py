@@ -8,7 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 from luml.experiments.tracker import ExperimentTracker
 from lumlflow.handlers import experiments as experiments_handler_module
-from lumlflow.schemas.experiments import MetricBuckets, MetricCatalog
+from lumlflow.schemas.experiments import (
+    MAX_KEYS_PER_BUCKET_REQUEST,
+    MetricBuckets,
+    MetricCatalog,
+)
 
 from tests.helpers.metrics import (
     Point,
@@ -364,6 +368,32 @@ def test_a_request_over_the_total_bucket_bound_stops_early(
     assert over_bound.json()["detail"]["code"] == "too-many-buckets"
     assert "30" in over_bound.json()["detail"]["message"]
     assert read_keys == keys[:4]
+
+
+def test_more_than_the_key_limit_is_422_before_any_read(
+    tracker: ExperimentTracker, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    experiment_id = tracker.start_experiment(name="keys")
+    log_points(tracker, experiment_id, "m", [(0, 1.0)])
+    keys = ["m"] + [f"unknown{index}" for index in range(MAX_KEYS_PER_BUCKET_REQUEST)]
+    sdk_read = tracker.get_metric_buckets
+    read_keys: list[str] = []
+
+    def counting_read(experiment_id: str, key: str, **kwargs: Any) -> Any:  # noqa: ANN401
+        read_keys.append(key)
+        return sdk_read(experiment_id, key, **kwargs)
+
+    monkeypatch.setattr(tracker, "get_metric_buckets", counting_read)
+
+    over_limit = post_buckets(client, experiment_id, keys, level=0)
+    reads_over_limit = len(read_keys)
+    at_limit = post_buckets(client, experiment_id, keys[:-1], level=0)
+
+    assert over_limit.status_code == 422
+    assert reads_over_limit == 0
+    assert at_limit.status_code == 200
+    assert len(at_limit.json()["series"]) == MAX_KEYS_PER_BUCKET_REQUEST
+    assert at_limit.json()["series"][0]["buckets"] == [[0, 0, 0, 1, 1, 1.0, 1.0, 1.0]]
 
 
 def test_a_database_for_a_newer_reader_is_409(store: Path) -> None:

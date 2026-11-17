@@ -12,7 +12,9 @@ fast — no real filesystem store, no wall-clock waits.
 
 from __future__ import annotations
 
+import asyncio
 import math
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +23,7 @@ from luml.experiments.tracker import ExperimentTracker
 from lumlflow.schemas.experiments import MetricBuckets, MetricCatalog
 from lumlflow.tui import LumlflowApp
 from lumlflow.tui.data import DataFacade, Result
-from lumlflow.tui.metric_series import bucket_averages
+from lumlflow.tui.metric_series import bucket_averages, level_for
 from lumlflow.tui.screens.experiment_detail import (
     TAB_DEFS,
     ExperimentDetailScreen,
@@ -44,6 +46,7 @@ from lumlflow.tui.widgets.panel_frame import PanelFrame
 from textual.containers import Container
 from textual.widgets import DataTable, Static
 
+from tests.helpers.metrics import revision2_experiment
 from tests.helpers.tui import settle_workers
 
 
@@ -1138,6 +1141,155 @@ class TestMetricsTab:
             xs, ys = bucket_averages(spiky)
             assert xs == [1.0, 2.0, 4.0, 5.0, 7.0, 8.0]
             assert ys == xs
+
+
+MetricReads = list[tuple[str, int | None, tuple[str, ...]]]
+
+
+def _count_metric_reads(facade: DataFacade) -> MetricReads:
+    """Record each catalog read and each bucket read (level, keys) of `facade`."""
+
+    calls: MetricReads = []
+    catalog_read = facade.get_metric_catalog
+    buckets_read = facade.get_metric_buckets
+
+    def counted_catalog(experiment_id: str) -> Result[MetricCatalog]:
+        calls.append(("catalog", None, ()))
+        return catalog_read(experiment_id)
+
+    def counted_buckets(
+        experiment_id: str, keys: list[str], *, level: int, **kwargs: Any
+    ) -> Result[MetricBuckets]:
+        calls.append(("buckets", level, tuple(keys)))
+        return buckets_read(experiment_id, keys, level=level, **kwargs)
+
+    facade.get_metric_catalog = counted_catalog  # type: ignore[method-assign]
+    facade.get_metric_buckets = counted_buckets  # type: ignore[method-assign]
+    return calls
+
+
+class TestMetricReads:
+    async def test_one_layout_pass_reads_the_catalog_once_and_each_level_once(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_experiment_with_metrics(
+            tracker, metric_keys=("a", "b"), points_per_metric=10
+        )
+        for step in range(10, 5000):
+            tracker.log_dynamic("long", 1.0, step=step, experiment_id=exp_id)
+        tracker.end_experiment(experiment_id=exp_id)
+        calls = _count_metric_reads(facade)
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            series = screen._metric_series
+            assert set(series) == {"a", "b", "long"}
+            long_level = series["long"].level
+            assert series["a"].level == series["b"].level == 0 < long_level
+            assert calls[0] == ("catalog", None, ())
+            assert sorted((level, sorted(keys)) for _, level, keys in calls[1:]) == [
+                (0, ["a", "b"]),
+                (long_level, ["long"]),
+            ]
+
+    async def test_a_request_during_a_drain_is_served_by_that_drain(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_experiment_with_metrics(
+            tracker, metric_keys=("a", "b"), points_per_metric=10
+        )
+        entered = threading.Event()
+        release = threading.Event()
+        catalog_read = facade.get_metric_catalog
+
+        def blocking_catalog(experiment_id: str) -> Result[MetricCatalog]:
+            if not entered.is_set():
+                entered.set()
+                release.wait(timeout=10)
+            return catalog_read(experiment_id)
+
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            assert screen._metric_series == {}
+            facade.get_metric_catalog = blocking_catalog  # type: ignore[method-assign]
+            screen._request_metric_series("a", max_points=50)
+            assert await asyncio.to_thread(entered.wait, 10)
+            screen._request_metric_series("b", max_points=50)
+            release.set()
+            await settle_workers(pilot)
+            assert set(screen._metric_series) == {"a", "b"}
+            assert screen._pending_metric_budgets == {}
+            assert screen._metric_loading is False
+
+    async def test_zoom_keeps_its_level_and_the_cell_gets_its_own_back(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        """A cell's request for the zoomed key in the same batch as the zoom
+        does not coarsen the zoom; closing the zoom restores the cell's level."""
+
+        exp_id = _seed_experiment_with_metrics(
+            tracker, metric_keys=("long",), points_per_metric=5000
+        )
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            cell = screen.query_one("#metrics-grid", MetricGrid).cells["long"]
+            zoom = screen.query_one("#metrics-zoom", MetricZoomView)
+            cell_level = level_for(0, 4999, cell.chart_max_points())
+            assert screen._metric_series["long"].level == cell_level
+
+            screen._open_zoom("long")
+            zoom_level = level_for(0, 4999, zoom.chart_max_points())
+            screen._request_metric_series("long", max_points=cell.chart_max_points())
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert zoom_level < cell_level
+            assert zoom._history is not None
+            assert zoom._history.level == zoom_level
+
+            screen._close_zoom()
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert cell._history is not None
+            assert cell._history.level == cell_level
+
+    @pytest.mark.parametrize("revision", [0, 1, 2])
+    async def test_a_released_sdk_experiment_draws_its_metrics(
+        self, facade: DataFacade, tmp_path: Path, revision: int
+    ) -> None:
+        exp_id, _ = revision2_experiment(
+            tmp_path / "experiments",
+            "loss",
+            [(step, step / 100) for step in range(500)],
+            revision=revision,
+        )
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            cell = screen.query_one("#metrics-grid", MetricGrid).cells["loss"]
+            history = cell._history
+            assert history is not None
+            assert history.summary is not None
+            assert history.summary.count is None
+            assert history.level == level_for(0, 499, cell.chart_max_points())
+            xs, ys = bucket_averages(history)
+            assert xs[0] == (4**history.level - 1) / 2
+            assert len(xs) == len(history.buckets) > 1
+            assert ys == pytest.approx([x / 100 for x in xs])
 
 
 # ---------------------------------------------------------------------------

@@ -14,7 +14,11 @@ from dataclasses import dataclass
 
 from luml.experiments.backends.metric_store import choose_bucket_level
 
-from lumlflow.schemas.experiments import MetricBucket, MetricSummary
+from lumlflow.schemas.experiments import (
+    MAX_KEYS_PER_BUCKET_REQUEST,
+    MetricBucket,
+    MetricSummary,
+)
 from lumlflow.tui.data import DataFacade, Result
 
 
@@ -78,7 +82,8 @@ def load_changed_series(
 ) -> Result[list[MetricSeries]]:
     """Series for the keys in `budgets` (key to bucket budget) whose catalog entry
     or level differs from `shown`. One catalog read, then one bucket read per
-    level; unchanged metrics read no buckets."""
+    level and per `MAX_KEYS_PER_BUCKET_REQUEST` keys; unchanged metrics read no
+    buckets."""
     catalog = facade.get_metric_catalog(experiment_id)
     if not catalog.ok or catalog.value is None:
         return Result[list[MetricSeries]](error=catalog.error)
@@ -96,7 +101,12 @@ def load_changed_series(
             loaded.append(MetricSeries(key=key, level=level, summary=None))
         else:
             keys_by_level[level].append(key)
-    for level, keys in keys_by_level.items():
+    batches = [
+        (level, keys[start : start + MAX_KEYS_PER_BUCKET_REQUEST])
+        for level, keys in keys_by_level.items()
+        for start in range(0, len(keys), MAX_KEYS_PER_BUCKET_REQUEST)
+    ]
+    for level, keys in batches:
         result = facade.get_metric_buckets(experiment_id, keys, level=level)
         if not result.ok or result.value is None:
             return Result[list[MetricSeries]](error=result.error)

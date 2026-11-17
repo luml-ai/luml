@@ -3,8 +3,14 @@ from pathlib import Path
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
-from lumlflow.schemas.experiments import MetricBucket, MetricSummary
-from lumlflow.tui.data import DataFacade
+from lumlflow.schemas.experiments import (
+    MetricBucket,
+    MetricBuckets,
+    MetricCatalog,
+    MetricSummary,
+)
+from lumlflow.tui import metric_series
+from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.metric_series import (
     MetricSeries,
     bucket_averages,
@@ -79,6 +85,50 @@ def test_load_changed_series_skips_what_is_already_shown(
     }
     assert again == []
     assert [(s.key, len(s.buckets)) for s in grown] == [("a", 11)]
+
+
+def test_load_changed_series_reads_each_level_in_batches_under_the_key_limit(
+    tracker: ExperimentTracker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(metric_series, "MAX_KEYS_PER_BUCKET_REQUEST", 2)
+    facade = DataFacade(tracker=tracker)
+    experiment_id = tracker.start_experiment(name="x")
+    short_keys = ["s0", "s1", "s2"]
+    for key in short_keys:
+        log_points(tracker, experiment_id, key, [(step, 1.0) for step in range(10)])
+    log_points(tracker, experiment_id, "long", [(step, 1.0) for step in range(300)])
+    calls: list[tuple[str, int | None, tuple[str, ...]]] = []
+    catalog_read = facade.get_metric_catalog
+    buckets_read = facade.get_metric_buckets
+
+    def counted_catalog(experiment_id: str) -> Result[MetricCatalog]:
+        calls.append(("catalog", None, ()))
+        return catalog_read(experiment_id)
+
+    def counted_buckets(
+        experiment_id: str, keys: list[str], *, level: int
+    ) -> Result[MetricBuckets]:
+        calls.append(("buckets", level, tuple(keys)))
+        return buckets_read(experiment_id, keys, level=level)
+
+    monkeypatch.setattr(facade, "get_metric_catalog", counted_catalog)
+    monkeypatch.setattr(facade, "get_metric_buckets", counted_buckets)
+    budgets = dict.fromkeys([*short_keys, "long"], 100)
+
+    loaded = load_changed_series(facade, experiment_id, budgets, {}).unwrap()
+
+    assert calls == [
+        ("catalog", None, ()),
+        ("buckets", 0, ("s0", "s1")),
+        ("buckets", 0, ("s2",)),
+        ("buckets", 1, ("long",)),
+    ]
+    assert {(s.key, s.level, len(s.buckets)) for s in loaded} == {
+        ("s0", 0, 10),
+        ("s1", 0, 10),
+        ("s2", 0, 10),
+        ("long", 1, 75),
+    }
 
 
 def test_load_comparison_series_marks_unknown_experiments_unreadable(

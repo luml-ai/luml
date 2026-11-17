@@ -126,8 +126,13 @@ class MetricCatalog(BaseModel):
     metrics: list[MetricSummary]
 
 
+MAX_KEYS_PER_BUCKET_REQUEST = 1000
+
+
 class MetricBucketsRequest(BaseModel):
-    keys: list[str]
+    # Each key is its own read under the tracker lock, and keys without points
+    # add nothing to the bucket bound, so the key count needs its own limit.
+    keys: list[str] = Field(max_length=MAX_KEYS_PER_BUCKET_REQUEST)
     start_step: int | None = None
     end_step: int | None = None
     level: int

@@ -28,7 +28,7 @@ from lumlflow.schemas.experiments import (
 from lumlflow.tui import LumlflowApp
 from lumlflow.tui.data import DataFacade
 from lumlflow.tui.live_refresh import post_from_worker
-from lumlflow.tui.metric_series import MetricSeries
+from lumlflow.tui.metric_series import MetricSeries, bucket_averages
 from lumlflow.tui.screens import comparison as comparison_module
 from lumlflow.tui.screens.comparison import (
     ComparisonScreen,
@@ -40,7 +40,7 @@ from lumlflow.tui.screens.experiments import ExperimentsScreen
 from lumlflow.tui.widgets.panel_frame import PanelFrame
 from textual.widgets import DataTable, ListView, Static
 
-from tests.helpers.metrics import require_newer_reader
+from tests.helpers.metrics import require_newer_reader, revision2_experiment
 from tests.helpers.tui import settle_workers
 
 
@@ -560,6 +560,39 @@ class TestMetricOverlay:
                 for bucket in s.buckets:
                     assert bucket.first_step // width == bucket.bucket
                     assert bucket.last_step // width == bucket.bucket
+
+    @pytest.mark.parametrize("revision", [0, 1, 2])
+    async def test_a_released_sdk_experiment_compares_with_a_current_one(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        tmp_path: Path,
+        revision: int,
+    ) -> None:
+        legacy, _ = revision2_experiment(
+            tmp_path / "experiments",
+            "loss",
+            [(i, 1.0) for i in range(300)],
+            revision=revision,
+        )
+        current = _seed_experiment(
+            tracker,
+            name="current",
+            metric_series={"loss": [(i, 2.0) for i in range(1000, 1300)]},
+        )
+        app = _make_app(facade)
+        async with app.run_test(size=(120, 50)) as pilot:
+            details = [_fetch_details(facade, legacy), _fetch_details(facade, current)]
+            screen = _push_comparison(app, facade, details)
+            for _ in range(3):
+                await settle_workers(pilot)
+            expected = choose_bucket_level(0, 1299, screen._chart_max_points())
+            for experiment_id, value in ((legacy, 1.0), (current, 2.0)):
+                series = screen._metric_series[experiment_id]
+                assert series is not None
+                assert series.level == expected
+                assert series.has_points
+                assert set(bucket_averages(series)[1]) == {value}
 
     async def test_an_unreadable_experiment_leaves_the_others_plotted(
         self,

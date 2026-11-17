@@ -1,3 +1,4 @@
+import json
 import math
 import sqlite3
 from pathlib import Path
@@ -45,10 +46,24 @@ def require_newer_reader(db_path: Path) -> None:
     conn.close()
 
 
+# What SDK releases before the migration runner created.
+REVISION0_DDL = """
+CREATE TABLE dynamic_metrics (
+    key TEXT,
+    value REAL,
+    step INTEGER,
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (key, step)
+);
+CREATE INDEX idx_dynamic_metrics_key_step ON dynamic_metrics (key, step);
+"""
+
+
 def revision2_experiment(
-    store: Path, key: str, points: list[Point]
+    store: Path, key: str, points: list[Point], *, revision: int = 2
 ) -> tuple[str, Path]:
-    """An experiment whose database is what released SDKs write: revision 2."""
+    """An experiment whose database is what released SDKs write: revision 2,
+    or the older `revision` 0 or 1."""
     setup = ExperimentTracker(f"sqlite://{store}")
     experiment_id = setup.start_experiment(name="released")
     setup.end_experiment(experiment_id)
@@ -58,7 +73,10 @@ def revision2_experiment(
         Path(f"{db_path}{suffix}").unlink(missing_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode = WAL")
-    ExperimentMigrationRunner(conn).migrate(target_version=2)
+    if revision == 0:
+        conn.executescript(REVISION0_DDL)
+    else:
+        ExperimentMigrationRunner(conn).migrate(target_version=revision)
     conn.executemany(
         LEGACY_INSERT,
         [
@@ -68,4 +86,13 @@ def revision2_experiment(
     )
     conn.commit()
     conn.close()
+    # Released SDKs list the logged metrics on the experiment row when it ends.
+    if points:
+        meta = sqlite3.connect(store / "meta.db")
+        meta.execute(
+            "UPDATE experiments SET dynamic_params = ? WHERE id = ?",
+            (json.dumps({key: max(points)[1]}), experiment_id),
+        )
+        meta.commit()
+        meta.close()
     return experiment_id, db_path

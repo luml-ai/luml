@@ -784,6 +784,10 @@ class ExperimentDetailScreen(BaseScreen):
         cached = self._metric_series.get(key)
         if cached is not None:
             self._show_metric_series(cached)
+        if key == self._zoomed_metric:
+            # A grid cell's request for the zoomed key must not replace the
+            # zoom view's finer level.
+            max_points = self._zoom_max_points() or max_points
         self._pending_metric_budgets[key] = max_points
         if not self._metric_loading:
             self._metric_loading = True
@@ -870,16 +874,25 @@ class ExperimentDetailScreen(BaseScreen):
         except Exception:
             pass
 
+    def _zoom_max_points(self) -> int | None:
+        try:
+            return self.query_one("#metrics-zoom", MetricZoomView).chart_max_points()
+        except Exception:
+            return None
+
     def _close_zoom(self) -> None:
         zoomed = self._zoomed_metric
         self._zoomed_metric = None
         self._show_metric_grid()
-        # Hand focus back to the cell that was zoomed so arrow keys
-        # continue from where the user left off.
         try:
             grid = self.query_one("#metrics-grid", MetricGrid)
         except Exception:
             return
+        # The zoomed cells hold the zoom level; this reads their own level
+        # back, and the other cells read buckets only if they changed.
+        grid.request_refresh_visible()
+        # Hand focus back to the cell that was zoomed so arrow keys
+        # continue from where the user left off.
         if zoomed is None or not grid.focus_cell(zoomed):
             grid.focus_first_cell()
 
