@@ -128,6 +128,14 @@ satellite-token
 {{- end -}}
 {{- end -}}
 
+{{- define "luml.credentialsChecksum" -}}
+{{- $token := .Values.satellite.token -}}
+{{- if .Values.satellite.existingSecret -}}
+{{- $token = printf "external:%s:%s" .Values.satellite.existingSecret .Values.satellite.existingSecretKey -}}
+{{- end -}}
+{{- list (include "luml.derivationKey" .) $token (toString .Values.satellite.credentialsRevision) | toJson | sha256sum -}}
+{{- end -}}
+
 {{- define "luml.monitoringSecretName" -}}
 {{- include "luml.componentName" (dict "root" . "suffix" "monitoring") -}}
 {{- end -}}

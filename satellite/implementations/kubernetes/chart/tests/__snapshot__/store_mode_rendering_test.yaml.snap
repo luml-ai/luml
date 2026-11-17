@@ -177,7 +177,7 @@ changes only the external store boundary:
       template:
         metadata:
           annotations:
-            luml.ai/credentials-revision: "0"
+            checksum/credentials: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
           labels:
             app.kubernetes.io/component: dashboard
             app.kubernetes.io/instance: store-mode
@@ -309,7 +309,7 @@ changes only the external store boundary:
       template:
         metadata:
           annotations:
-            luml.ai/credentials-revision: "0"
+            checksum/credentials: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
           labels:
             app.kubernetes.io/component: worker
             app.kubernetes.io/instance: store-mode
@@ -633,7 +633,7 @@ matches the standalone store rendering:
       template:
         metadata:
           annotations:
-            luml.ai/credentials-revision: "0"
+            checksum/credentials: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
           labels:
             app.kubernetes.io/component: dashboard
             app.kubernetes.io/instance: store-mode
@@ -755,7 +755,7 @@ matches the standalone store rendering:
       template:
         metadata:
           annotations:
-            luml.ai/credentials-revision: "0"
+            checksum/credentials: 03eca90d59cf04692b2fb845f8d49dbc5374498bcc937983c89d6c63d8b89c68
           labels:
             app.kubernetes.io/component: worker
             app.kubernetes.io/instance: store-mode

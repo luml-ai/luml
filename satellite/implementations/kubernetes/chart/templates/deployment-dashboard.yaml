@@ -16,7 +16,7 @@ spec:
       labels:
         {{- include "luml.selectorLabels" (dict "root" . "component" "dashboard") | nindent 8 }}
       annotations:
-        luml.ai/credentials-revision: {{ default .Release.Revision .Values.satellite.credentialsRevision | quote }}
+        checksum/credentials: {{ include "luml.credentialsChecksum" . | quote }}
     spec:
       automountServiceAccountToken: false
       securityContext:
