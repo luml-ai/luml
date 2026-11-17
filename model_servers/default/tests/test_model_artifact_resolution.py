@@ -304,3 +304,25 @@ def test_download_failure_traceback_does_not_disclose_signed_url(tmp_path: Path)
     formatted = "".join(traceback.format_exception(caught.value))
     assert "X-Amz-Signature" not in formatted
     assert "fresh" not in formatted
+
+
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [
+        (404, "Model artifact not found at URL"),
+        (500, "HTTP 500 error downloading model artifact"),
+    ],
+)
+@respx.mock
+def test_download_status_errors_keep_their_reason(
+    tmp_path: Path, status: int, message: str
+) -> None:
+    import traceback
+
+    from handlers.file_handler import FileHandler
+
+    respx.get(DOWNLOAD_URL).mock(return_value=httpx.Response(status))
+    with pytest.raises(ValueError, match=message) as caught:
+        FileHandler().download_file(DOWNLOAD_URL, tmp_path / "model.tar")
+    formatted = "".join(traceback.format_exception(caught.value))
+    assert "X-Amz-Signature" not in formatted

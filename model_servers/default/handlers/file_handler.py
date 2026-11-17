@@ -72,6 +72,8 @@ class FileHandler:
         except ArtifactAccessExpired:
             # kept distinct from the catch-all below: the caller retries this one
             raise
+        except ValueError:
+            raise
         except httpx.TimeoutException:
             raise ValueError("Download timeout") from None
         except httpx.ConnectError:
