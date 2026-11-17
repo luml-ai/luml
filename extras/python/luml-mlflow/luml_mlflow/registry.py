@@ -7,19 +7,54 @@ and the registry pages fail to load.
 
 This store exists only to make the registry *resolvable*: it constructs cleanly
 and returns empty results for the read/search calls the UI issues on load, so the
-registry pages render empty instead of erroring. Mutating operations are not
-supported and inherit the base store's ``NotImplementedError``.
+registry pages render empty instead of erroring. Registering a model raises an
+``MlflowException`` that says so; MLflow's base store would return ``None`` and
+crash later in the caller.
 """
 
 from typing import Any
 
-from mlflow.entities.model_registry import ModelVersion, RegisteredModel
+from mlflow.entities.model_registry import (
+    ModelVersion,
+    ModelVersionTag,
+    RegisteredModel,
+    RegisteredModelTag,
+)
+from mlflow.exceptions import MlflowException
+from mlflow.protos.databricks_pb2 import NOT_IMPLEMENTED
 from mlflow.store.entities import PagedList
 from mlflow.store.model_registry.abstract_store import AbstractStore
+
+NO_REGISTRY = (
+    "LUML has no MLflow model registry. Remove registered_model_name= and "
+    "mlflow.register_model(); the logged model stays in its run."
+)
 
 
 class LumlModelRegistryStore(AbstractStore):
     """Empty, read-only registry placeholder so the registry resolves for luml."""
+
+    def create_registered_model(
+        self,
+        name: str,
+        tags: list[RegisteredModelTag] | None = None,
+        description: str | None = None,
+        deployment_job_id: str | None = None,
+    ) -> RegisteredModel:
+        raise MlflowException(NO_REGISTRY, error_code=NOT_IMPLEMENTED)
+
+    def create_model_version(
+        self,
+        name: str,
+        source: str,
+        run_id: str | None = None,
+        tags: list[ModelVersionTag] | None = None,
+        run_link: str | None = None,
+        description: str | None = None,
+        local_model_path: str | None = None,
+        model_id: str | None = None,
+    ) -> ModelVersion:
+        raise MlflowException(NO_REGISTRY, error_code=NOT_IMPLEMENTED)
 
     def search_registered_models(
         self,

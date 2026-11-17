@@ -15,7 +15,7 @@ import sys
 import tarfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -214,6 +214,94 @@ def test_custom_tabular_pyfunc_runs_and_takes_a_profile(
     )
     check = _block("references/monitoring.md", "profile_status")
     exec(compile(check, "monitoring.md", "exec"), {"model_ref": model_ref})  # noqa: S102
+
+
+def _snapshot_members(path: str | Path) -> list[str]:
+    with tarfile.open(path) as archive:
+        return [name for name in archive.getnames() if "experiment_snapshot" in name]
+
+
+def test_upload_example_embeds_the_experiment_into_a_copy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    iris_frame: tuple[pd.DataFrame, pd.Series],
+) -> None:
+    from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+
+    monkeypatch.chdir(tmp_path)
+    features, target = iris_frame
+    tracker = ExperimentTracker("sqlite://./experiments")
+    experiment_id = tracker.start_experiment(name="upload")
+    tracker.log_model(
+        LogisticRegression(max_iter=500).fit(features, target),
+        name="iris",
+        inputs=features,
+    )
+    tracker.end_experiment()
+    (model,) = tracker.get_models(experiment_id)
+    assert model.path is not None
+    uploads: list[dict[str, Any]] = []
+
+    def upload(file_path: str, name: str, lineage_inputs: list[str] | None) -> None:
+        uploads.append({"name": name, "snapshot": _snapshot_members(file_path)})
+
+    client = SimpleNamespace(artifacts=SimpleNamespace(upload=upload))
+    namespace: dict[str, Any] = {}
+    example = _block("references/upload.md", "def upload_logged_model")
+    exec(compile(example, "upload.md", "exec"), namespace)  # noqa: S102
+
+    namespace["upload_logged_model"](tracker, client, model.id, experiment_id)
+
+    (uploaded,) = uploads
+    assert uploaded["name"] == "iris"
+    assert uploaded["snapshot"]
+    assert not _snapshot_members(Path("experiments") / model.path)
+
+
+LOCAL_TRANSFORMER = """\
+from sklearn.base import BaseEstimator, TransformerMixin
+
+
+class Doubler(BaseEstimator, TransformerMixin):
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return X * 2
+"""
+
+
+def test_local_module_example_bundles_a_module_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    iris_frame: tuple[pd.DataFrame, pd.Series],
+) -> None:
+    from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+    from sklearn.pipeline import make_pipeline  # type: ignore[import-untyped]
+
+    from luml.integrations.sklearn import save_sklearn
+
+    packaging = (SKILL_DIR / "references/packaging.md").read_text()
+    (example,) = re.findall(r"`extra_code_modules=(\[[^\]]+\])`", packaging)
+    (module_file,) = ast.literal_eval(example)
+    monkeypatch.chdir(tmp_path)
+    Path(module_file).write_text(LOCAL_TRANSFORMER)
+    module_name = Path(module_file).stem
+    features, target = iris_frame
+    try:
+        module = _load_module(module_name, tmp_path / module_file)
+        model = make_pipeline(module.Doubler(), LogisticRegression(max_iter=500))
+        ref = save_sklearn(
+            model.fit(features, target),
+            inputs=features,
+            path="pipeline.luml",
+            extra_code_modules=[module_file],
+        )
+    finally:
+        sys.modules.pop(module_name, None)
+
+    with tarfile.open(ref.path) as archive:
+        assert any(name.endswith(f"/{module_file}") for name in archive.getnames())
 
 
 def _verify_script() -> ModuleType:

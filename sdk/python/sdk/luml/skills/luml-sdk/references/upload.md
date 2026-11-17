@@ -27,6 +27,7 @@ self-hosted platform.
 
 Embed the experiment into a copy, never into the stored model. The stored model
 stays clean, and the snapshot is the experiment as it is at upload time.
+`model.path` is relative to the store folder, not to the working directory.
 
 ```python
 import shutil
@@ -38,9 +39,10 @@ from luml.artifacts.model import ModelReference
 
 def upload_logged_model(tracker, client, model_id, experiment_id, lineage=None):
     model = tracker.get_model(model_id)
+    stored = tracker.backend.base_path / model.path
     with tempfile.TemporaryDirectory() as directory:
-        copy = Path(directory) / Path(model.path).name
-        shutil.copy2(model.path, copy)
+        copy = Path(directory) / stored.name
+        shutil.copy2(stored, copy)
         tracker.link_to_model(ModelReference(str(copy)), experiment_id)
         return client.artifacts.upload(
             file_path=str(copy),

@@ -21,7 +21,11 @@ What the Flow side needs:
 - An orbit with a relay assigned. Without one, starting fails with
   `ConflictError`; an admin assigns relays in the web app.
 
-A Flow that is already running on the machine can be exposed by hand with
-`luml-relay expose 5000 --organization "<org>" --orbit "<orbit>" --label <name>`.
+A Flow that is already running on the machine gets its card the same way:
+`RelayedFlow` takes the port and the session token of the running Flow, as the
+SDK skill shows.
+
+`luml-relay expose 5000 --organization "<org>" --orbit "<orbit>" --label <name>`
+only gives the running Flow a public address. It adds no card to the Flow page.
 Pass Flow's session token, from the launch URL of `lumlflow ui`, with
 `--bearer-token`.

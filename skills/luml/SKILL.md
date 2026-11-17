@@ -70,7 +70,9 @@ Install the package first, for example `uv add luml_sdk` or
 `pip install luml_sdk`. The SDK's import name is `luml`, so its command is
 `python -m luml`. A skill's references are printed with
 `... skills show <skill> <file>`, and `... skills list` lists the skills a
-package has.
+package has. When the command fails with `No module named luml.__main__` or
+`No such command 'skills'`, the installed version is older than its skill:
+upgrade the package.
 
 Most work starts with the SDK skill. The others build on it.
 

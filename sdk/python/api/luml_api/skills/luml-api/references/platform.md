@@ -31,7 +31,7 @@ keeps only the record.
 - Types: `model`, `dataset`, `experiment`. A model can carry its experiment
   embedded, and the web app shows that experiment with it.
 - Statuses: `pending_upload` (the record exists, the file is still going up),
-  `uploaded`, `upload_failed`, `deletion_failed`.
+  `uploaded`, `upload_failed`, `pending_deletion`, `deletion_failed`.
 - A collection's type limits what it holds: `model`, `dataset`, `experiment`,
   their pairs (`model_dataset`, `dataset_experiment`, `model_experiment`) or
   `mixed`.

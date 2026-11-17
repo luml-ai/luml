@@ -1,6 +1,6 @@
 ---
 name: luml-sdk
-description: Track experiments and package models as self-contained LUML artifacts with the luml SDK (ML models, LLM chains and agents). Use when doing ML or LLM work: training, evaluating, comparing or saving models, building or evaluating LLM chains and agents, logging metrics, traces or eval scores, preparing datasets, or getting a model ready for deployment or monitoring.
+description: Track experiments and package models as self-contained LUML artifacts with the luml SDK (ML models, LLM chains and agents). Use when doing ML or LLM work, such as training, evaluating, comparing or saving models, building or evaluating LLM chains and agents, logging metrics, traces or eval scores, preparing datasets, or getting a model ready for deployment or monitoring.
 ---
 
 # LUML SDK
@@ -17,9 +17,10 @@ An artifact is one `.luml` file: a model, a dataset or an experiment.
   artifact is a file that does not change once it is made, except that
   experiment snapshots can be appended to a model.
 - **Self-contained.** A model artifact carries everything needed to run it:
-  the code (local modules are bundled, objects are pickled by value), the pip
-  runtime dependencies, the conda build dependencies, and the input and output
-  schema.
+  the code (its own source and the local modules you name), the pip runtime
+  dependencies, the conda build dependencies, and the input and output schema.
+  Local modules are not found by default; see
+  [references/packaging.md](references/packaging.md).
 - **Why.** A file that is passed around loses nothing. Every LUML module
   understands it: the registry shows the experiment embedded in a model, and a
   model deploys in one click because its schema and dependencies are known.

@@ -4,8 +4,8 @@ A skill is a directory `<package>/skills/<name>/` holding a `SKILL.md` and any
 reference files it links to. The CLI prints file contents rather than paths, so
 agents whose sandbox cannot read site-packages can still navigate a skill.
 
-This module is copied verbatim into luml, luml_api and lumlflow. A test in each
-package keeps the copies identical, so edit all three together.
+This module is copied verbatim into luml, luml_api, lumlflow and luml_mlflow. A
+test in each package keeps the copies identical, so edit all four together.
 """
 
 import argparse

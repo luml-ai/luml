@@ -54,10 +54,17 @@ client.tracks.get_artifact(track.id, entry.id)
 ```python
 from luml_api._types import StageUpsertIn
 
-client.tracks.update(track.id, stages=[StageUpsertIn(name="canary")])
+stages = [
+    StageUpsertIn(id=stage.id, name=stage.name)
+    for stage in client.tracks.list_stages(track.id)
+]
+client.tracks.update(track.id, stages=[*stages, StageUpsertIn(name="canary")])
 client.tracks.remove_artifact(track.id, entry.id)
 client.tracks.delete(track.id)
 ```
 
-A `StageUpsertIn` with an `id` renames that stage; without one it adds a stage.
+`stages` is the whole list: a stage that is left out is deleted, and the call
+fails with `ConflictError` when a version sits in it. So pass every current
+stage with its `id`. A `StageUpsertIn` with an `id` keeps or renames that
+stage; without one it adds a stage.
 Ask before removing versions or deleting a track.

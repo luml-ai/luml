@@ -30,7 +30,9 @@ artifact = client.artifacts.get("churn-model")      # by exact name or id; None 
 page = client.artifacts.list(search="churn", types=["model"], limit=20)
 for item in page.items:
     print(item.name, item.created_at)
-next_page = client.artifacts.list(search="churn", start_after=page.cursor)
+next_page = client.artifacts.list(
+    search="churn", types=["model"], limit=20, start_after=page.cursor
+)
 
 for item in client.artifacts.list_all(types=["dataset"]):
     print(item.name)

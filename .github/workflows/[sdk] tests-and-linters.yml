@@ -5,10 +5,14 @@ on:
     branches: [main, staging, production]
     paths:
       - 'sdk/python/sdk/**'
+      - 'skills/**'
+      - '.claude-plugin/**'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'sdk/python/sdk/**'
+      - 'skills/**'
+      - '.claude-plugin/**'
   workflow_dispatch:
   workflow_call:
 

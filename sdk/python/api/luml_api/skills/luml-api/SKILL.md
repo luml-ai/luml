@@ -19,7 +19,7 @@ does, tell the user. Do not write raw HTTP calls to the platform.
 
 ```bash
 pip install luml_api
-export LUML_API_KEY="luml_..."   # created in the web app, under account settings
+export LUML_API_KEY="..."   # created in the web app: user menu, API key
 ```
 
 ```python
@@ -35,7 +35,8 @@ client = LumlClient(organization="My org", orbit="Research", collection="Churn")
   defaults for later calls. When the user has exactly one organization, orbit
   or collection, it is chosen without being named. An orbit needs its
   organization, and a collection needs its orbit.
-- Change a default later with `client.collection = "Other collection"`.
+- Change a default later by id: `client.collection = other.id`. Only the
+  constructor looks names up.
 - Names are matched exactly and are case-sensitive.
 
 The async client has the same resources; set its defaults with

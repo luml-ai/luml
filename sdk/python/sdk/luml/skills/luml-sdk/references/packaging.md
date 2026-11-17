@@ -37,10 +37,11 @@ and passes the arguments below through.
   or predict time. Prefer this over replacing the defaults.
 - `dependencies="all"`: every package the environment imports. Use it when you
   cannot list them.
-- `extra_code_modules=["features"]`: bundle a local module or package that the
-  model needs, such as a custom transformer class. `"auto"` finds local modules
-  by itself. A local class that is not bundled is the most common reason an
-  artifact fails elsewhere.
+- `extra_code_modules=["features.py"]`: bundle a local module or package that
+  the model needs, such as a custom transformer class. Each entry is a path: a
+  module file or a package folder. `"auto"` finds local modules by itself.
+  Nothing is bundled by default, and a local class that is not bundled is the
+  most common reason an artifact fails elsewhere.
 
 ## Custom models (PyFunc)
 
@@ -62,7 +63,8 @@ How it works:
   inputs need. `add_fnnx_runtime_dependency()` adds fnnx itself.
 - Conda packages the environment needs before pip runs (system libraries,
   compilers, CUDA) go in `add_build_dependency("package")`.
-- Local helper modules go in `add_module("path/to/module")`.
+- Local helper modules go in `add_module("helpers.py")`: the path of a module
+  file or a package folder.
 
 ### Tabular model
 

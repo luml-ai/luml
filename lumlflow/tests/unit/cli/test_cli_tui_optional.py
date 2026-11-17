@@ -2,9 +2,12 @@
 `tui` extra (textual, textual-plotext) is not installed."""
 
 import sys
+from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from lumlflow.cli import app
+from lumlflow.settings import get_config
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -41,3 +44,35 @@ def test_tui_command_reraises_internal_import_errors(
     assert result.exit_code != 0
     assert "lumlflow[tui]" not in result.output + result.stderr
     assert isinstance(result.exception, ModuleNotFoundError)
+
+
+@pytest.fixture
+def fresh_config() -> Iterator[None]:
+    get_config.cache_clear()
+    yield
+    get_config.cache_clear()
+
+
+@pytest.mark.usefixtures("fresh_config")
+def test_tui_path_wins_over_the_store_variable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import lumlflow.tui
+
+    opened: list[str] = []
+
+    class App:
+        def __init__(self, *, store_uri: str, **_: object) -> None:
+            opened.append(store_uri)
+
+        def run(self) -> None:
+            return None
+
+    monkeypatch.setattr(lumlflow.tui, "LumlflowApp", App)
+    monkeypatch.setenv("BACKEND_STORE_URI", str(tmp_path / "from_variable"))
+    monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(tmp_path / "from_variable"))
+
+    result = runner.invoke(app, ["tui", "--path", str(tmp_path / "from_path")])
+
+    assert result.exit_code == 0
+    assert opened == [f"sqlite://{tmp_path / 'from_path'}"]

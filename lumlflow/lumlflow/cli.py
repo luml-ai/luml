@@ -251,7 +251,8 @@ def tui(
     ),
 ) -> None:
     if path is not None:
-        os.environ["BACKEND_STORE_URI"] = path
+        for name in ("BACKEND_STORE_URI", "LUML_BACKEND_STORE_URI"):
+            os.environ[name] = path
 
     from lumlflow.settings import get_config
 

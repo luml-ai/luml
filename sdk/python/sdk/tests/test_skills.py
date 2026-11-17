@@ -8,6 +8,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import pytest
+import yaml
 
 from luml import _skills
 from luml._skills import (
@@ -184,6 +185,20 @@ def test_packaged_skill_links_resolve(skill: str) -> None:
                 continue
             target = posixpath.normpath(posixpath.join(folder, link))
             assert target in available, f"{skill}/{path} links to missing {link}"
+
+
+@pytest.mark.parametrize(
+    "skill", [skill.name for skill in list_skills(files(PACKAGE) / "skills")]
+)
+def test_packaged_skill_front_matter_is_yaml(skill: str) -> None:
+    root = files(PACKAGE) / "skills"
+    front_matter = read_skill_file(root, skill).split("---\n")[1]
+
+    fields = yaml.safe_load(front_matter)
+
+    (listed,) = [info for info in list_skills(root) if info.name == skill]
+    assert fields["name"] == skill
+    assert fields["description"] == listed.description
 
 
 @pytest.mark.skipif(shutil.which("uv") is None, reason="needs uv to build a wheel")

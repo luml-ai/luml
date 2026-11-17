@@ -28,6 +28,9 @@ dataset_ref = save_tabular_dataset(
 - a dict of splits: `{"train": ..., "test": ...}`;
 - a dict of subsets of splits: `{"en": {"train": ...}, "de": {"train": ...}}`.
 
+A file path is stored as it is, without conversion, so `file_format` must be
+the format of that file.
+
 `chunk_size` splits large frames into several files.
 
 ## Hugging Face datasets

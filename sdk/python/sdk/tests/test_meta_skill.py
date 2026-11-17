@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO = Path(__file__).resolve().parents[4]
 META_SKILL = REPO / "skills/luml/SKILL.md"
@@ -27,6 +28,13 @@ def test_meta_skill_routes_to_every_package_skill() -> None:
 @pytest.mark.parametrize("name", list(SKILL_HOMES))
 def test_routed_skill_exists(name: str) -> None:
     assert (SKILL_HOMES[name] / name / "SKILL.md").is_file()
+
+
+def test_meta_skill_front_matter_is_yaml() -> None:
+    fields = yaml.safe_load(META_SKILL.read_text().split("---\n")[1])
+
+    assert fields["name"] == "luml"
+    assert fields["description"]
 
 
 def test_marketplace_points_at_the_plugin() -> None:

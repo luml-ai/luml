@@ -9,8 +9,10 @@ client.collections.list().items      # collections of the default orbit
 client.organization, client.orbit, client.collection   # current defaults (ids)
 ```
 
-Switch with `client.orbit = "Research"` or `client.collection = "Churn"`.
-Setting an orbit needs the organization, and a collection needs the orbit.
+Switch by id: `client.orbit = orbit.id` or `client.collection = collection.id`.
+Only the constructor looks names up; an assigned name is sent as it is and
+the next call fails. Setting an orbit needs the organization, and a collection
+needs the orbit.
 
 ## Collections
 
@@ -32,7 +34,8 @@ client.collections.update(description="...", collection_id=collection.id)
   `model_dataset`, `dataset_experiment`, `model_experiment` or `mixed`. Use
   `model_experiment` for models with their experiments, and `mixed` when
   unsure.
-- `collections.delete` deletes the collection with its artifacts. Ask first.
+- `collections.delete` deletes an empty collection. While the collection holds
+  artifacts it raises `ConflictError`; delete the artifacts first. Ask first.
 
 ## Satellites
 

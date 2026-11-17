@@ -42,7 +42,8 @@ This is the only LUML line in the code. The URI can also come from
   experiment when it finishes, to a collection named after the MLflow
   experiment. Write names as they are, spaces included; `%20` is not decoded.
 - The upload needs an API key: `LUML_API_KEY`, else `~/.luml.json`, else the
-  key Flow keeps in the system keyring. Logging to the local store needs none.
+  key Flow keeps in the system keyring, which is read only when Flow is
+  installed in the same environment. Logging to the local store needs none.
 
 ## MLflow words in LUML
 
@@ -56,7 +57,7 @@ user in LUML's words, and translate when they use MLflow's. LUML has no
 | Run | **Experiment**: one attempt with its params, metrics and attachments |
 | Params, metrics, tags | Static params, metrics, tags of that experiment |
 | Artifact (any logged file) | **Attachment**: a file inside an experiment. A LUML *artifact* is a whole item in the registry: a model, an experiment or a dataset |
-| Logged model (`log_model`) | **Model**: a `.luml` artifact, converted from the MLflow model |
+| Logged model (`log_model`) | **Model**: a LUML model artifact, converted from the MLflow model. Its file in the store is `<name>.fnnx` |
 | Registered model | **Track**: the versions of one model, with stages |
 | Model version | **Version** of a track |
 | Traces (inside a run) | Traces of that experiment |
@@ -77,15 +78,16 @@ refers to a LUML experiment.
 | The default experiment (no `set_experiment`) | `start_run` fails: `Experiment '0' not found` | Call `mlflow.set_experiment(...)` first |
 | Traces without an active run | Dropped with a warning | Trace inside `with mlflow.start_run():` |
 | `mlflow.genai.evaluate()` | Aggregate scores and traces are kept; per-sample scores are lost | Run evals with the SDK's `evaluate()` for per-sample results |
-| Model registry (`register_model`, stages, aliases) | Not supported; the registry is an empty placeholder | Upload, then use LUML tracks and stages (`python -m luml_api skills show luml-api`) |
+| Model registry (`register_model`, `registered_model_name=` in `log_model`, stages, aliases) | Not supported. `register_model` and `registered_model_name=` stop the script with an error that says LUML has no MLflow model registry; the logged model stays in its run | Remove these calls. Upload, then use LUML tracks and stages (`python -m luml_api skills show luml-api`) |
 | `log_inputs(datasets=...)` | Dropped with a warning | Save the dataset with the SDK's `save_tabular_dataset` |
 | Deleting, renaming or restoring MLflow experiments | Not supported | Manage the experiment groups in Flow |
 | Tags starting with `luml.` | Rejected; the plugin reserves them | Use another prefix |
 | Monitoring | Converted models carry no reference profile | Add one before upload: [references/monitoring.md](references/monitoring.md) |
 
-Unsupported calls log a warning and carry on. Set
-`LUML_MLFLOW_ON_UNSUPPORTED=raise` while migrating to turn them into errors and
-find every call the plugin drops.
+Registry calls fail as the table says. Every other unsupported call logs a
+warning and carries on. Set
+`LUML_MLFLOW_ON_UNSUPPORTED=raise` while migrating to turn those warnings into
+errors and find every call the plugin drops.
 
 ## Uploads
 
