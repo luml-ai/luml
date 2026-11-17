@@ -21,7 +21,7 @@ from pathlib import Path
 from luml.experiments.tracker import ExperimentTracker
 
 HERE = Path(__file__).resolve().parent
-NEW_STEPS = 5_000
+NEW_STEPS = 200_000
 LIVE_STEPS = 1_000
 
 

@@ -1,8 +1,16 @@
-import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test'
+import {
+  test,
+  expect,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type Request,
+} from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PRESIGNED_URL_MIN_RENEW_AGE_MS } from '../../src/lib/bucket-service/presigned-url-cache'
+import { SLOW_LINK, ThrottleProxy, VERY_SLOW_LINK, type ProxyConfig } from './proxy'
 
 // The platform end to end: the real backend, Postgres, Redis and object storage (MinIO through
 // an S3 bucket secret, Azurite through an Azure one), the frontend built from this worktree,
@@ -37,6 +45,8 @@ interface PlatformData {
   short_steps: number
   twin_key: string
   storages: Record<string, StorageData>
+  /** The same storages through their delaying proxies (throttle_proxy.mjs), fewer artifacts. */
+  proxied: Record<string, StorageData>
 }
 
 interface StorageRequest {
@@ -44,6 +54,10 @@ interface StorageRequest {
   range: [number, number] | null
   status: number
   bytes: number
+  /** From sending the request to its first byte, as the browser measured it. */
+  firstByteMs: number
+  /** To the last byte; NaN for a read the viewer cancelled. */
+  elapsedMs: number
 }
 
 interface ChartLine {
@@ -62,7 +76,15 @@ const FRONTEND = env('E2E_FRONTEND_URL')
 const data = JSON.parse(
   readFileSync(join(env('E2E_WORK_DIR'), 'platform.json'), 'utf-8'),
 ) as PlatformData
-const STORAGE_PORTS = [env('E2E_MINIO_PORT'), env('E2E_AZURITE_PORT')]
+const PROXIES = {
+  s3: new ThrottleProxy(env('E2E_MINIO_PROXY_PORT')),
+  azure: new ThrottleProxy(env('E2E_AZURITE_PROXY_PORT')),
+}
+const STORAGE_PORTS = [
+  env('E2E_MINIO_PORT'),
+  env('E2E_AZURITE_PORT'),
+  ...Object.values(PROXIES).map((proxy) => proxy.port),
+]
 const DOWNLOAD_URL = /\/artifacts\/([0-9a-f-]+)\/download-url/
 // Chart reads of a 1M-point metric: the catalog, one level of buckets and the B-tree pages on
 // the way, a few dozen pages of 16 KiB however large the DB is.
@@ -78,6 +100,7 @@ class NetworkLog {
     context: BrowserContext,
     private readonly artifacts: Record<string, PublishedArtifact>,
   ) {
+    const entries = new Map<Request, StorageRequest>()
     context.on('response', async (response) => {
       const url = new URL(response.url())
       const issued = DOWNLOAD_URL.exec(url.pathname)
@@ -86,15 +109,26 @@ class NetworkLog {
       const artifact = Object.values(this.artifacts).find((item) =>
         decodeURIComponent(url.pathname).endsWith(`/${item.bucket_location}`),
       )
+      const entry: StorageRequest = {
+        artifactId: artifact?.id ?? url.pathname,
+        range: null,
+        status: response.status(),
+        bytes: 0,
+        firstByteMs: response.request().timing().responseStart,
+        elapsedMs: NaN,
+      }
+      entries.set(response.request(), entry)
       const header = (await response.request().allHeaders())['range']
       const match = header ? /^bytes=(\d+)-(\d+)$/.exec(header) : null
       const length = Number(response.headers()['content-length'] ?? NaN)
-      this.storage.push({
-        artifactId: artifact?.id ?? url.pathname,
-        range: match ? [Number(match[1]), Number(match[2])] : null,
-        status: response.status(),
-        bytes: Number.isFinite(length) ? length : 0,
-      })
+      entry.range = match ? [Number(match[1]), Number(match[2])] : null
+      entry.bytes = Number.isFinite(length) ? length : 0
+      this.storage.push(entry)
+    })
+    // A read the viewer cancels once it has what it needs fails instead; it has no end time.
+    context.on('requestfinished', (request) => {
+      const entry = entries.get(request)
+      if (entry) entry.elapsedMs = request.timing().responseEnd
     })
   }
 
@@ -113,7 +147,7 @@ class NetworkLog {
 
 /**
  * Requests that touch the snapshot DB member. The page also reads other small members of the
- * same object (a model's manifest, a 2-byte probe of the object's end); those are not DB reads.
+ * same object (a model's manifest, the attachments index); those are not DB reads.
  */
 function memberReads(network: NetworkLog, artifact: PublishedArtifact): StorageRequest[] {
   const end = artifact.offset + artifact.size
@@ -424,11 +458,12 @@ for (const storageName of Object.keys(data.storages)) {
     if (storageName === 's3') {
       test('a presigned URL that stopped working mid-session is renewed once', async ({ page }) => {
         const large = artifact('large')
+        // The page's clock: a URL younger than the minimum renew age is not renewed.
+        await page.clock.install()
         await openSnapshot(page, storage, large)
         await settledChart(page, 'train/loss', [large.id])
         expect(network.issuesOf(large)).toBe(1)
-        // A URL younger than this is not renewed.
-        await page.waitForTimeout(PRESIGNED_URL_MIN_RENEW_AGE_MS)
+        await page.clock.fastForward(PRESIGNED_URL_MIN_RENEW_AGE_MS + 1_000)
 
         // A key rotation: MinIO refuses every URL signed with the old key from now on.
         execFileSync(
@@ -459,3 +494,237 @@ for (const storageName of Object.keys(data.storages)) {
     }
   })
 }
+
+/** Every storage request of `artifact` the browser saw took at least the link's latency. */
+function expectSlowed(network: NetworkLog, artifact: PublishedArtifact, link: ProxyConfig) {
+  const requests = network.of(artifact)
+  expect(requests.length, `${artifact.name}: no storage reads`).toBeGreaterThan(0)
+  for (const request of requests) {
+    expect(request.firstByteMs, JSON.stringify(request)).toBeGreaterThanOrEqual(link.latencyMs! - 5)
+  }
+}
+
+/**
+ * Opens a page while the proxy holds every read of `held`, switches the theme to dark and back
+ * meanwhile, then lets the reads go: the page answers while its data is on the way. An
+ * old-format experiment shows skeletons until its download ends, a new-format one a spinner.
+ */
+async function expectUsableWhileLoading(
+  page: Page,
+  proxy: ThrottleProxy,
+  held: PublishedArtifact[],
+  open: () => Promise<void>,
+) {
+  await proxy.configure({
+    stallMatching: held.map((item) => escapeRegExp(item.bucket_location)).join('|'),
+  })
+  await open()
+  const card = chartCard(page, 'train/loss')
+  const loading = page.locator('.p-skeleton').or(card.locator('.p-progressspinner'))
+  await expect(loading.first()).toBeVisible()
+  const root = page.locator('html')
+  await page.getByText('Dark', { exact: true }).click()
+  await expect(root).toHaveAttribute('data-theme', 'dark')
+  await page.getByText('Light', { exact: true }).click()
+  await expect(root).not.toHaveAttribute('data-theme', 'dark')
+  expect(await page.locator('[data-testid="metric-plot"] .scatterlayer .trace').count()).toBe(0)
+  await proxy.configure({ stallMatching: null })
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+test.describe('slow network to storage', () => {
+  const storage = data.proxied.s3!
+  const proxy = PROXIES.s3
+  const artifact = (label: string) => storage.artifacts[label]!
+  let network: NetworkLog
+
+  test.beforeEach(async ({ context }) => {
+    await proxy.reset()
+    network = new NetworkLog(context, storage.artifacts)
+  })
+
+  test.afterAll(async () => {
+    await proxy.reset()
+  })
+
+  test('a large new-format experiment draws, stays usable and zooms on a slow link', async ({
+    page,
+  }) => {
+    const large = artifact('large')
+    await proxy.configure(SLOW_LINK)
+    await expectUsableWhileLoading(page, proxy, [large], () => openSnapshot(page, storage, large))
+    const [before] = await settledChart(page, 'train/loss', [large.id])
+    expect(before!.x.length).toBeGreaterThan(30)
+    expect(before!.x.at(-1)).toBeGreaterThan(data.large.points_per_key * 0.99)
+    expect(before!.y.every((value) => value === null || (value > 0 && value < 1.1))).toBe(true)
+    expectRangeReads(network, large)
+    expectSlowed(network, large, SLOW_LINK)
+    expect(network.bytesOf(large)).toBeLessThan(large.size * MAX_FRACTION_PER_VIEW)
+
+    const card = chartCard(page, 'train/loss')
+    const levelBefore = await displayedLevel(card)
+    const readsBefore = network.of(large).length
+    await dragZoom(page, card, 0.4)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    const [after] = await settledChart(page, 'train/loss', [large.id])
+    expect(after!.x.at(-1)! - after!.x[0]!).toBeLessThan(before!.x.at(-1)! * 0.2)
+    expect(network.of(large).length).toBeGreaterThan(readsBefore)
+    expectRangeReads(network, large)
+    expectSlowed(network, large, SLOW_LINK)
+    expect(network.bytesOf(large)).toBeLessThan(large.size * MAX_FRACTION_PER_VIEW)
+    await expectNoNotices(page)
+  })
+
+  test('an old-format experiment is downloaded whole and drawn on a slow link', async ({
+    page,
+  }) => {
+    const old = artifact('old')
+    await proxy.configure(SLOW_LINK)
+    await expectUsableWhileLoading(page, proxy, [old], () => openSnapshot(page, storage, old))
+    const [line] = await settledChart(page, 'train/loss', [old.id])
+    expect(line!.x.length).toBeGreaterThan(10)
+    expect(line!.x.at(-1)).toBeGreaterThan(data.regular_steps * 0.99)
+    expectWholeDownload(network, old)
+    // The whole member at the link's rate, plus its latency.
+    const [download] = memberReads(network, old)
+    expect(download!.elapsedMs).toBeGreaterThanOrEqual(
+      SLOW_LINK.latencyMs! + (old.size / SLOW_LINK.bytesPerSecond!) * 1000 * 0.9,
+    )
+    await expectNoNotices(page)
+  })
+
+  test('old and new experiments are compared on a slow link', async ({ page }) => {
+    const compared = [artifact('old'), artifact('new_a')]
+    await proxy.configure(SLOW_LINK)
+    await expectUsableWhileLoading(page, proxy, compared, () =>
+      openCompare(page, storage, compared),
+    )
+    const lines = await settledChart(
+      page,
+      'train/loss',
+      compared.map((item) => item.id),
+    )
+    for (const item of compared) {
+      const line = lines.find((candidate) => candidate.modelId === item.id)!
+      expect(line.x.at(-1), item.name).toBeGreaterThan(data.regular_steps * 0.99)
+      expectSlowed(network, item, SLOW_LINK)
+    }
+    expectWholeDownload(network, compared[0]!)
+    expectRangeReads(network, compared[1]!)
+    await expectNoNotices(page)
+  })
+
+  test('a new-format experiment loads on a very slow link without a timeout', async ({ page }) => {
+    const small = artifact('new_a')
+    await proxy.configure(VERY_SLOW_LINK)
+    await openSnapshot(page, storage, small)
+    const [line] = await settledChart(page, 'train/loss', [small.id])
+    expect(line!.x.at(-1)).toBeGreaterThan(data.regular_steps * 0.99)
+    expectRangeReads(network, small)
+    expectSlowed(network, small, VERY_SLOW_LINK)
+    await expectNoNotices(page)
+  })
+
+  test('storage that ignores Range: the experiment is loaded in full and says so', async ({
+    page,
+  }) => {
+    const small = artifact('new_a')
+    // Paced to about two objects a second, so a reader that stops early is seen to stop.
+    await proxy.configure({ stripRange: true, bytesPerSecond: small.file_size * 2 })
+    await openSnapshot(page, storage, small)
+    const [line] = await settledChart(page, 'train/loss', [small.id])
+    expect(line!.x.at(-1)).toBeGreaterThan(data.regular_steps * 0.99)
+    const notice = page.getByTestId('experiment-status-notice')
+    await expect(notice).toHaveAttribute('data-code', 'range-ignored')
+    await expect(notice).toHaveText(/so the experiment was loaded in full\./)
+    // The DB header read answered with the whole object, then one full download; no page reads.
+    const requests = memberReads(network, small)
+    expect(requests.map((request) => [request.status, request.range !== null])).toEqual([
+      [200, true],
+      [200, false],
+    ])
+    expect(requests.every((request) => request.bytes === small.file_size)).toBe(true)
+    // The attachments index read got the whole object too; it stopped well before the end.
+    const end = small.offset + small.size
+    const otherReads = (await proxy.requests()).filter((request) => {
+      const range = request.range ? /^bytes=(\d+)-(\d+)$/.exec(request.range) : null
+      return (
+        decodeURIComponent(request.path).endsWith(`/${small.bucket_location}`) &&
+        range !== null &&
+        (Number(range[2]) < small.offset || Number(range[1]) >= end)
+      )
+    })
+    expect(otherReads.length).toBeGreaterThan(0)
+    for (const request of otherReads) {
+      expect(request.bytes, JSON.stringify(request)).toBeLessThan(small.file_size / 2)
+    }
+  })
+
+  test('a read that never gets an answer shows a timeout, and the next read recovers', async ({
+    page,
+  }) => {
+    test.setTimeout(240_000)
+    const large = artifact('large')
+    await openSnapshot(page, storage, large)
+    await settledChart(page, 'train/loss', [large.id])
+    const card = chartCard(page, 'train/loss')
+    const levelBefore = await displayedLevel(card)
+
+    // Every storage read from now on hangs; the viewer's own Range timeout ends it.
+    await proxy.configure({ stallMatching: escapeRegExp(large.bucket_location) })
+    await dragZoom(page, card, 0.4)
+    await expect(card, 'chart shows the read error').toHaveAttribute('data-state', 'error', {
+      timeout: 180_000,
+    })
+    await card.getByTestId('chart-error').hover()
+    await expect(page.getByText(/large: The request timed out\./)).toBeVisible()
+    expect((await proxy.requests()).some((request) => request.stalled)).toBe(true)
+
+    await proxy.configure({ stallMatching: null })
+    await dragZoom(page, card, 0.6)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    const [line] = await settledChart(page, 'train/loss', [large.id])
+    expect(line!.x.length).toBeGreaterThan(30)
+  })
+})
+
+test.describe('Azure storage through its proxy', () => {
+  const storage = data.proxied.azure!
+  const proxy = PROXIES.azure
+
+  test.afterEach(async () => {
+    await proxy.reset()
+  })
+
+  test('a SAS URL that stopped working mid-session is renewed once', async ({ page, context }) => {
+    const network = new NetworkLog(context, storage.artifacts)
+    const large = storage.artifacts.large!
+    // The page's clock: a URL younger than the minimum renew age is not renewed.
+    await page.clock.install()
+    await openSnapshot(page, storage, large)
+    await settledChart(page, 'train/loss', [large.id])
+    expect(network.issuesOf(large)).toBe(1)
+    await page.clock.fastForward(PRESIGNED_URL_MIN_RENEW_AGE_MS + 1_000)
+    // The backend's SAS expiry has whole seconds, and the page clock does not move it: a renewal
+    // in the same wall-clock second as the first URL is that URL again, refused too.
+    await new Promise((resolve) => setTimeout(resolve, 1_050 - (Date.now() % 1_000)))
+
+    // Azurite itself refuses the SAS signatures it served so far, as after a key rotation.
+    await proxy.configure({ refuseSeen: true })
+    const card = chartCard(page, 'train/loss')
+    const levelBefore = await displayedLevel(card)
+    const readsBefore = network.of(large).length
+    await dragZoom(page, card, 0.6)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    const [line] = await settledChart(page, 'train/loss', [large.id])
+    expect(line!.x.length).toBeGreaterThan(30)
+    const later = network.of(large).slice(readsBefore)
+    expect(later.filter((request) => request.status === 403)).toHaveLength(1)
+    expect(later.filter((request) => request.status === 206).length).toBeGreaterThan(0)
+    expect(network.issuesOf(large)).toBe(2)
+    await expectNoNotices(page)
+  })
+})

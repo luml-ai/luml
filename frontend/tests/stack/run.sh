@@ -87,9 +87,17 @@ build_extras() {
   (cd "$REPO/extras/js/packages/attachments" && npx vite build >"$LOGS/build-attachments.log" 2>&1)
 }
 
+# A delaying proxy (throttle_proxy.mjs) in front of a local port; the slow-network specs set it.
+start_proxy() {
+  local listen=$1 target=$2 name=$3
+  node "$HERE/throttle_proxy.mjs" "$listen" "$target" >"$LOGS/proxy-$name.log" 2>&1 &
+  PIDS+=($!)
+  wait_for "the $name proxy" "http://127.0.0.1:$listen/__e2e/log" 30
+}
+
 start_platform() {
   for name in E2E_POSTGRES_PORT E2E_REDIS_PORT E2E_MINIO_PORT E2E_AZURITE_PORT E2E_BACKEND_PORT \
-    E2E_FRONTEND_PORT; do
+    E2E_FRONTEND_PORT E2E_MINIO_PROXY_PORT E2E_AZURITE_PROXY_PORT; do
     free_port "$name"
   done
   export E2E_COMPOSE_PROJECT="$PROJECT" E2E_COMPOSE_FILE="$HERE/compose.yml"
@@ -98,6 +106,8 @@ start_platform() {
   COMPOSE_UP=1
   docker compose -p "$PROJECT" -f "$HERE/compose.yml" up -d --wait postgres redis minio azurite >"$LOGS/compose-up.log" 2>&1
   docker compose -p "$PROJECT" -f "$HERE/compose.yml" run --rm minio-init >>"$LOGS/compose-up.log" 2>&1
+  start_proxy "$E2E_MINIO_PROXY_PORT" "$E2E_MINIO_PORT" minio
+  start_proxy "$E2E_AZURITE_PROXY_PORT" "$E2E_AZURITE_PORT" azurite
 
   # The dev env file is docker-compose syntax (unquoted values with spaces), so not sourced.
   while IFS= read -r line; do
@@ -114,6 +124,10 @@ start_platform() {
   # Azurite's well-known development account; the container is created by azurite_setup.py.
   export E2E_AZURE_CONTAINER=e2e-snapshots
   export E2E_AZURE_CONNECTION_STRING="DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:$E2E_AZURITE_PORT/devstoreaccount1;"
+  # The same account through its proxy, for the bucket secret of the slow-network specs (its own
+  # container: a bucket name may have one secret per endpoint).
+  export E2E_AZURE_PROXIED_CONTAINER=e2e-snapshots-proxied
+  export E2E_AZURE_PROXIED_CONNECTION_STRING="${E2E_AZURE_CONNECTION_STRING/$E2E_AZURITE_PORT/$E2E_AZURITE_PROXY_PORT}"
 
   log "migrating and seeding"
   (cd "$REPO/backend" && uv run --frozen alembic upgrade head >"$LOGS/migrate.log" 2>&1)
@@ -123,6 +137,8 @@ start_platform() {
     -c "UPDATE organizations SET orbits_limit = 10, artifacts_limit = 500" >>"$LOGS/seed.log" 2>&1
   (cd "$REPO/backend" && uv run --frozen python "$HERE/azurite_setup.py" \
     "$E2E_AZURE_CONNECTION_STRING" "$E2E_AZURE_CONTAINER" "$E2E_FRONTEND_URL" >"$LOGS/azurite-setup.log" 2>&1)
+  (cd "$REPO/backend" && uv run --frozen python "$HERE/azurite_setup.py" \
+    "$E2E_AZURE_CONNECTION_STRING" "$E2E_AZURE_PROXIED_CONTAINER" "$E2E_FRONTEND_URL" >>"$LOGS/azurite-setup.log" 2>&1)
 
   log "starting the backend"
   (cd "$REPO/backend" && exec uv run --frozen uvicorn luml.server:app --host 127.0.0.1 \
@@ -153,6 +169,7 @@ start_platform() {
 
 start_flow() {
   free_port E2E_FLOW_PORT
+  free_port E2E_FLOW_PROXY_PORT
   export E2E_FLOW_DIR="$WORK/flow"
   mkdir -p "$E2E_FLOW_DIR"
   build_extras
@@ -174,6 +191,7 @@ start_flow() {
     --host 127.0.0.1 --port "$E2E_FLOW_PORT" --no-browser >"$LOGS/flow.log" 2>&1) &
   PIDS+=($!)
   wait_for "Flow" "$E2E_FLOW_URL/"
+  start_proxy "$E2E_FLOW_PROXY_PORT" "$E2E_FLOW_PORT" flow
 }
 
 export E2E_LOGS="$LOGS" E2E_REPO="$REPO" E2E_HERE="$HERE"

@@ -37,6 +37,8 @@ SHORT_STEPS = 40
 # Debugging only: generated artifacts are kept and reused there (deterministic).
 CACHE = os.environ.get("E2E_ARTIFACT_CACHE")
 TWIN_KEY = "train/long_running_metric/with_a_fairly_long_key_name"
+# Published once more to each storage through its delaying proxy (throttle_proxy.mjs).
+PROXIED_LABELS = {"s3": ("large", "old", "new_a"), "azure": ("large",)}
 
 
 @dataclass
@@ -205,14 +207,15 @@ def build_artifacts(work: Path) -> tuple[dict[str, tuple[Path, str]], str]:
     return artifacts, old_source
 
 
-def bucket_secret(client: LumlClient, storage: str) -> str:
+def bucket_secret(client: LumlClient, storage: str, proxied: bool) -> str:
     if storage == "s3":
+        port = env("E2E_MINIO_PROXY_PORT" if proxied else "E2E_MINIO_PORT")
         secret = client.bucket_secrets.create(
             type=BucketType.S3,
-            endpoint=f"127.0.0.1:{env('E2E_MINIO_PORT')}",
+            endpoint=f"127.0.0.1:{port}",
             bucket_name="e2e-snapshots",
-            access_key="e2euser",
-            secret_key="e2e-secret-key-1",
+            access_key="e2eproxied" if proxied else "e2euser",
+            secret_key="e2e-proxied-key" if proxied else "e2e-secret-key-1",
             region="us-east-1",
             secure=False,
             cert_check=False,
@@ -220,21 +223,31 @@ def bucket_secret(client: LumlClient, storage: str) -> str:
     else:
         secret = client.bucket_secrets.create(
             type=BucketType.AZURE,
-            endpoint=env("E2E_AZURE_CONNECTION_STRING"),
-            bucket_name=env("E2E_AZURE_CONTAINER"),
+            endpoint=env(
+                "E2E_AZURE_PROXIED_CONNECTION_STRING"
+                if proxied
+                else "E2E_AZURE_CONNECTION_STRING"
+            ),
+            bucket_name=env(
+                "E2E_AZURE_PROXIED_CONTAINER" if proxied else "E2E_AZURE_CONTAINER"
+            ),
             region="",
         )
     return secret.id
 
 
 def publish(
-    client: LumlClient, storage: str, artifacts: dict[str, tuple[Path, str]]
+    client: LumlClient,
+    storage: str,
+    artifacts: dict[str, tuple[Path, str]],
+    proxied: bool = False,
 ) -> dict[str, Any]:
-    secret_id = bucket_secret(client, storage)
-    orbit = client.orbits.create(name=f"e2e {storage}", bucket_secret_id=secret_id)
+    secret_id = bucket_secret(client, storage, proxied)
+    name = f"{storage} proxied" if proxied else storage
+    orbit = client.orbits.create(name=f"e2e {name}", bucket_secret_id=secret_id)
     client.orbit = orbit.id
     collection = client.collections.create(
-        name=f"snapshots {storage}", description="e2e", type=CollectionType.MIXED
+        name=f"snapshots {name}", description="e2e", type=CollectionType.MIXED
     )
     published: dict[str, Published] = {}
     for label, (path, kind) in artifacts.items():
@@ -286,6 +299,15 @@ def main() -> None:
         "twin_key": TWIN_KEY,
         "storages": {
             storage: publish(client, storage, artifacts) for storage in storages
+        },
+        "proxied": {
+            storage: publish(
+                client,
+                storage,
+                {label: artifacts[label] for label in PROXIED_LABELS[storage]},
+                proxied=True,
+            )
+            for storage in storages
         },
     }
     (work / "platform.json").write_text(json.dumps(result, indent=2))
