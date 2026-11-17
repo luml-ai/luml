@@ -32,7 +32,9 @@ PUBLISHERS = {
         "ui-tests": "[satellite-monitoring-ui] tests-and-linters.yml",
     },
     "[relay] publish-image.yml": {"tests": "[relay] tests-and-linters.yml"},
-    "[model-server] publish-image.yml": {"tests": "[model-server] tests-and-linters.yml"},
+    "[model-server] publish-image.yml": {
+        "tests": "[model-server] tests-and-linters.yml"
+    },
 }
 RELEASES = {**DEPLOYS, **PUBLISHERS}
 IMAGE_TAGS = {
