@@ -12,7 +12,7 @@ on:
       - model_servers/default/**
       - satellite/.env.example
       - satellite/docker-compose.yml
-      - .github/workflows/publish-model-server-image.yml
+      - '.github/workflows/\[model-server\] publish-image.yml'
   workflow_dispatch:
 
 concurrency:
@@ -51,7 +51,7 @@ jobs:
               echo "image_tag=dev" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by [images] promote.yml" >&2
               exit 1
               ;;
           esac

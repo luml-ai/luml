@@ -11,7 +11,7 @@ on:
     paths:
       - relay/**
       - sdk/python/api/**
-      - .github/workflows/publish-relay-image.yml
+      - '.github/workflows/\[relay\] publish-image.yml'
   workflow_dispatch:
 
 concurrency:
@@ -50,7 +50,7 @@ jobs:
               echo "image_tag=dev" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by [images] promote.yml" >&2
               exit 1
               ;;
           esac

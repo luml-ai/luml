@@ -79,7 +79,7 @@ def test_compose_keeps_field_install_names_and_uses_the_moved_context(
 
 
 def test_publish_workflow_keeps_the_image_and_release_tag_contract() -> None:
-    workflow = (REPOSITORY_ROOT / ".github/workflows/publish-model-server-image.yml").read_text()
+    workflow = (REPOSITORY_ROOT / ".github/workflows/[model-server] publish-image.yml").read_text()
 
     assert '      - "satellite/model-server/v*"' in workflow
     assert "IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-model-server" in workflow

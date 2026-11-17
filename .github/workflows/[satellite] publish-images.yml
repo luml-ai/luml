@@ -22,7 +22,7 @@ on:
       - satellite/Caddyfile
       - docs/docs/guides/satellite.md
       - frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
-      - .github/workflows/publish-satellite-images.yml
+      - '.github/workflows/\[satellite\] publish-images.yml'
   workflow_dispatch:
 
 concurrency:
@@ -78,7 +78,7 @@ jobs:
               echo "images={\"include\":[$agent,$kubernetes,$monitoring,$serving]}" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by [images] promote.yml" >&2
               exit 1
               ;;
           esac
