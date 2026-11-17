@@ -8,6 +8,7 @@ Needs a Python with a released luml-sdk installed, so it is skipped by default:
         tests/experiments/test_metric_cross_version.py
 """
 
+import contextlib
 import io
 import json
 import os
@@ -17,6 +18,7 @@ import subprocess
 import tarfile
 import time
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -64,25 +66,35 @@ result["latest"] = backend.get_experiment("exp").dynamic_params
 print(json.dumps(result))
 """
 
+# Without a step count, the writers below log until a line arrives on stdin (or
+# stdin closes), so the test, not the machine speed, decides how long they live.
 OLD_WRITER = """
-import sys, time
+import sys, threading, time
 from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.backends.sqlite import SQLiteBackend
 backend = SQLiteBackend(sys.argv[1])
 backend.initialize_experiment("exp", "default", "old")
+steps = int(sys.argv[2]) if len(sys.argv) > 2 else None
+stop = threading.Event()
+threading.Thread(target=lambda: (sys.stdin.readline(), stop.set()), daemon=True).start()
 print("ready", flush=True)
-for step in range(int(sys.argv[2])):
+step = 0
+while step < steps if steps is not None else not stop.is_set():
     backend.log_dynamic("exp", "loss", step * 0.5)
     backend.log_dynamic("exp", "acc", step * 0.25, step=step)
+    step += 1
     time.sleep(0.001)
-print("done", flush=True)
+print(f"done {step}", flush=True)
 """
+CONCURRENT_READS = 6
+WRITER_TIMEOUT = 120
 
 
 def _old_sdk(script: str, *args: str) -> subprocess.Popen[str]:
     assert OLD_PYTHON is not None
     return subprocess.Popen(
         [OLD_PYTHON, "-I", "-c", script, *args],
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -125,27 +137,53 @@ def test_released_sdk_reads_revision_3_and_its_writes_fail_cleanly(
     conn.close()
 
 
+def _wait_for_progress(
+    count: Callable[[], int], above: int, writer: subprocess.Popen[str]
+) -> int:
+    """Returns `count()` once it exceeds `above`, proving the writer progressed."""
+    deadline = time.monotonic() + WRITER_TIMEOUT
+    while (current := count()) <= above:
+        assert writer.poll() is None, "the writer exited before it was stopped"
+        assert time.monotonic() < deadline, "the writer made no progress"
+        time.sleep(0.01)
+    return current
+
+
+def _stop_writer(writer: subprocess.Popen[str]) -> str:
+    stdout, stderr = writer.communicate("stop\n", timeout=WRITER_TIMEOUT)
+    assert writer.returncode == 0, stderr
+    return stdout
+
+
+def _kill_if_running(writer: subprocess.Popen[str]) -> None:
+    if writer.poll() is None:
+        writer.kill()
+        writer.communicate()
+
+
 def test_reading_a_store_a_released_sdk_is_writing(tmp_path: Path) -> None:
     store = tmp_path / "store"
-    steps = 1500
-    old = _old_sdk(OLD_WRITER, str(store), str(steps))
-    assert old.stdout is not None
-    assert old.stdout.readline().strip() == "ready"
-    db_path = store / EXP_ID / "exp.db"
+    old = _old_sdk(OLD_WRITER, str(store))
+    try:
+        assert old.stdout is not None
+        assert old.stdout.readline().strip() == "ready"
+        reader = SQLiteBackend(str(store))
 
-    reader = SQLiteBackend(str(store))
-    reads = 0
-    while old.poll() is None:
-        history = reader.get_experiment_metric_history(EXP_ID, "loss")
-        assert [p["step"] for p in history] == list(range(len(history)))
-        reader.get_metric_catalog(EXP_ID)
-        reader.get_metric_buckets(EXP_ID, "acc", 3)
-        reader.get_experiment_data(EXP_ID)
-        reads += 1
-        time.sleep(0.01)
-    _, stderr = old.communicate(timeout=120)
-    assert old.returncode == 0, stderr
-    assert reads > 5
+        def read_history() -> int:
+            history = reader.get_experiment_metric_history(EXP_ID, "loss")
+            assert [p["step"] for p in history] == list(range(len(history)))
+            return len(history)
+
+        seen = 0
+        for _ in range(CONCURRENT_READS):
+            seen = _wait_for_progress(read_history, seen, old)
+            reader.get_metric_catalog(EXP_ID)
+            reader.get_metric_buckets(EXP_ID, "acc", 3)
+            reader.get_experiment_data(EXP_ID)
+        steps = int(_stop_writer(old).split()[-1])
+    finally:
+        _kill_if_running(old)
+    db_path = store / EXP_ID / "exp.db"
 
     assert schema_snapshot(db_path)[1] == 2
     catalog = reader.get_metric_catalog(EXP_ID)
@@ -373,13 +411,17 @@ def test_released_sdk_reads_a_generation_2_snapshot_like_the_live_store(
 
 
 OLD_TRACE_EVAL_WRITER = """
-import json, sys
+import json, sys, threading
 from luml.experiments.backends.data_types import AnnotationKind, AnnotationValueType
 from luml.experiments.backends.sqlite import SQLiteBackend
 b = SQLiteBackend(sys.argv[1])
+stop = threading.Event()
+threading.Thread(target=lambda: (sys.stdin.readline(), stop.set()), daemon=True).start()
 print("ready", flush=True)
 relogged = {}
-for t in range(int(sys.argv[2])):
+t = 0
+# At least 11 traces, so the relogged t10 the test inspects exists.
+while not stop.is_set() or t <= 10:
     trace = f"t{t}"
     for s in range(4):
         b.log_span(
@@ -405,7 +447,8 @@ for t in range(int(sys.argv[2])):
             relogged[trace] = "accepted"
         except Exception as error:
             relogged[trace] = f"{type(error).__name__}: {error}"
-print(json.dumps(relogged), flush=True)
+    t += 1
+print(json.dumps({"traces": t, "relogged": relogged}), flush=True)
 """
 
 
@@ -430,28 +473,31 @@ def test_released_sdk_writes_traces_and_evals_to_revision_3_while_this_one_reads
     backend.close()
     db_path = store / EXP_ID / "exp.db"
     schema_before = schema_snapshot(db_path)
-    traces = 300
 
-    old = _old_sdk(OLD_TRACE_EVAL_WRITER, str(store), str(traces))
-    assert old.stdout is not None
-    assert old.stdout.readline().strip() == "ready"
-    reader = SQLiteBackend(str(store))
-    reads = 0
-    while old.poll() is None:
-        page = reader.get_experiment_traces(EXP_ID, limit=5)
-        for record in page.items:
-            structure = reader.get_trace_structure(EXP_ID, record.trace_id)
-            if structure is not None:
-                assert all(span.attributes is None for span in structure.spans)
-                reader.get_span(EXP_ID, record.trace_id, structure.spans[0].span_id)
-        reader.get_experiment_evals(EXP_ID, dataset_id="ds", limit=5)
-        reader.get_evals_average_scores(EXP_ID, dataset_id="ds")
-        reads += 1
-        time.sleep(0.005)
-    stdout, stderr = old.communicate(timeout=120)
-    assert old.returncode == 0, stderr
-    relogged = json.loads(stdout.strip().splitlines()[-1])
-    assert reads > 5
+    def stored_evals() -> int:
+        with contextlib.closing(sqlite3.connect(db_path)) as conn:
+            return conn.execute("SELECT count(*) FROM evals").fetchone()[0]
+
+    old = _old_sdk(OLD_TRACE_EVAL_WRITER, str(store))
+    try:
+        assert old.stdout is not None
+        assert old.stdout.readline().strip() == "ready"
+        reader = SQLiteBackend(str(store))
+        seen = 0
+        for _ in range(CONCURRENT_READS):
+            seen = _wait_for_progress(stored_evals, seen, old)
+            page = reader.get_experiment_traces(EXP_ID, limit=5)
+            for record in page.items:
+                structure = reader.get_trace_structure(EXP_ID, record.trace_id)
+                if structure is not None:
+                    assert all(span.attributes is None for span in structure.spans)
+                    reader.get_span(EXP_ID, record.trace_id, structure.spans[0].span_id)
+            reader.get_experiment_evals(EXP_ID, dataset_id="ds", limit=5)
+            reader.get_evals_average_scores(EXP_ID, dataset_id="ds")
+        result = json.loads(_stop_writer(old).strip().splitlines()[-1])
+    finally:
+        _kill_if_running(old)
+    traces, relogged = result["traces"], result["relogged"]
 
     assert relogged == {f"t{t}": "accepted" for t in range(0, traces, 10)}
     assert schema_snapshot(db_path) == schema_before

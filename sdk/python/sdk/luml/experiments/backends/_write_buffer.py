@@ -220,6 +220,7 @@ class WriteBuffer:
         self._lock = GuardedLock(threading.Lock())
         self._stop = threading.Event()
         self._flusher: threading.Thread | None = None
+        self._flusher_start_failed = False
         self._exit_hook = functools.partial(
             WriteBuffer._flush_on_exit, weakref.ref(self)
         )
@@ -356,13 +357,26 @@ class WriteBuffer:
         return True
 
     def _start_flusher(self) -> None:
-        self._flusher = threading.Thread(
+        flusher = threading.Thread(
             target=WriteBuffer._run_flusher,
             args=(weakref.ref(self), self._stop, self.flush_interval),
             name="luml-write-buffer",
             daemon=True,
         )
-        self._flusher.start()
+        try:
+            flusher.start()
+        except RuntimeError:
+            # The row is already queued: raising would make a caller that retries log
+            # it twice. Without the timer it is written by the next flush or close.
+            if not self._flusher_start_failed:
+                self._flusher_start_failed = True
+                logger.warning(
+                    "Could not start the write buffer's flush timer; buffered rows "
+                    "are written at the next flush or close",
+                    exc_info=True,
+                )
+            return
+        self._flusher = flusher
 
     def _flush_lock_unsafe(self, db_path: str) -> threading.Lock:
         flush_lock = self._flush_locks.get(db_path)
@@ -423,7 +437,14 @@ class WriteBuffer:
         if _thread_state.buffer_locks_held:
             return
         with self._lock:
-            db_paths = list(self._rows)
+            # A flush takes its rows out of the queue under the flush lock and commits
+            # them before releasing it: a held lock may stand for rows still in flight.
+            in_flight = [
+                db_path
+                for db_path, flush_lock in self._flush_locks.items()
+                if flush_lock.locked() and db_path not in self._rows
+            ]
+            db_paths = list(self._rows) + in_flight
         first_error: BaseException | None = None
         for db_path in db_paths:
             try:
@@ -507,7 +528,9 @@ class WriteBuffer:
         with self._lock:
             self._stop.set()
             self._stop = threading.Event()
-            self._flusher = None
+            flusher, self._flusher = self._flusher, None
+        if flusher is not None and flusher is not threading.current_thread():
+            flusher.join()
         self.flush_all()
 
     def _prepare(

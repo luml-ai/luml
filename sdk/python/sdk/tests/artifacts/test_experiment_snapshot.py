@@ -586,43 +586,71 @@ def _rows_count(path: Path, table: str) -> int:
         conn.close()
 
 
+# Logs until a line arrives on stdin (or stdin closes), so the test, not the
+# machine speed, decides how long the writer stays alive.
 OTHER_PROCESS_WRITER = """
 import sys
+import threading
 from luml.experiments.backends.sqlite import SQLiteBackend
 backend = SQLiteBackend(sys.argv[1], flush_interval=0.01)
+stop = threading.Event()
+threading.Thread(target=lambda: (sys.stdin.readline(), stop.set()), daemon=True).start()
 print("ready", flush=True)
-for step in range(int(sys.argv[2])):
+step = 0
+while not stop.is_set():
     backend.log_dynamic("exp", "proc", step * 0.5, step=step)
     backend.log_dynamic("exp", "proc", -1.0, step=step // 3)
     if step % 100 == 0:
         backend.log_span("exp", "tp", f"s{step}", "op", 1, 2)
+    step += 1
 backend.close()
-print("done", flush=True)
+print(f"done {step}", flush=True)
 """
+
+
+def _wait_for_live_rows_above(
+    path: Path, rows: int, writer: subprocess.Popen[str]
+) -> None:
+    deadline = time.monotonic() + FORK_TIMEOUT
+    while _rows_count(path, "metric_points") <= rows:
+        assert writer.poll() is None, "the writer exited before it was stopped"
+        assert time.monotonic() < deadline, "the writer made no progress"
+        time.sleep(0.01)
 
 
 def test_export_while_another_process_logs_is_consistent(
     tracker: ExperimentTracker, store: Path, tmp_path: Path
 ) -> None:
-    steps = 6000
     writer = subprocess.Popen(
-        [sys.executable, "-c", OTHER_PROCESS_WRITER, str(store), str(steps)],
+        [sys.executable, "-c", OTHER_PROCESS_WRITER, str(store)],
         cwd=SDK_ROOT,
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert writer.stdout is not None
-    assert writer.stdout.readline().strip() == "ready"
-    exports = 0
-    while writer.poll() is None:
-        artifact = tmp_path / f"exp{exports}.tar"
-        tracker.export(str(artifact), experiment_id=EXP_ID)
-        _assert_consistent_snapshot(artifact, tmp_path / f"{exports}.db")
-        exports += 1
-    _, stderr = writer.communicate(timeout=120)
+    try:
+        assert writer.stdout is not None
+        assert writer.stdout.readline().strip() == "ready"
+        counts = [_rows_count(_db_path(store), "metric_points")]
+        for attempt in range(3):
+            # Waiting for new live rows proves the writer progressed since the
+            # previous snapshot, so each export races real concurrent writes.
+            _wait_for_live_rows_above(_db_path(store), counts[-1], writer)
+            artifact = tmp_path / f"exp{attempt}.tar"
+            tracker.export(str(artifact), experiment_id=EXP_ID)
+            counts.append(
+                _assert_consistent_snapshot(artifact, tmp_path / f"{attempt}.db")
+            )
+            assert writer.poll() is None, "the writer exited during the export"
+        stdout, stderr = writer.communicate("stop\n", timeout=FORK_TIMEOUT)
+    finally:
+        if writer.poll() is None:
+            writer.kill()
+            writer.communicate()
     assert writer.returncode == 0, stderr
-    assert exports >= 2
+    assert counts == sorted(set(counts))
+    steps = int(stdout.split()[-1])
 
     tracker.export(str(tmp_path / "final.tar"), experiment_id=EXP_ID)
     _assert_consistent_snapshot(tmp_path / "final.tar", tmp_path / "final.db")

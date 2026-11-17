@@ -564,6 +564,240 @@ def test_flush_waits_for_a_flush_in_progress(
     assert [point["step"] for point in history] == [0]
 
 
+IN_FLIGHT_ROWS = 50
+
+
+class _TimerBatchInFlight:
+    """Holds the timer flusher inside its first write until `release`, then lets a
+    call run on another thread and reports when that call returns or starts waiting
+    (for the experiment's connection, or for the flusher thread to end)."""
+
+    def __init__(
+        self,
+        store: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        fail_first_write: bool = False,
+    ) -> None:
+        self._writing = threading.Event()
+        self._release = threading.Event()
+        self.progress = threading.Event()
+        self.returned = threading.Event()
+        self.errors: list[BaseException] = []
+        self._thread: threading.Thread | None = None
+        original_write = WriteBuffer._write
+        held = False
+
+        def holding_write(
+            buffer: WriteBuffer,
+            conn: sqlite3.Connection,
+            db_path: str,
+            rows: list[Any],
+        ) -> None:
+            nonlocal held
+            if threading.current_thread().name == "luml-write-buffer" and not held:
+                held = True
+                self._writing.set()
+                self._release.wait()
+                if fail_first_write:
+                    raise sqlite3.OperationalError("database is locked")
+            original_write(buffer, conn, db_path, rows)
+
+        monkeypatch.setattr(WriteBuffer, "_write", holding_write)
+        self.backend = SQLiteBackend(str(store), flush_interval=0.001)
+        buffer = self.backend._write_buffer
+        # Started only once every row is queued, so its first batch holds them all.
+        buffer._start_flusher = lambda: None  # type: ignore[method-assign]
+        self.backend.initialize_experiment(EXP_ID, "default", "in-flight")
+        for step in range(IN_FLIGHT_ROWS):
+            self.backend.log_dynamic(EXP_ID, "loss", float(step), step=step)
+        del buffer._start_flusher
+        with buffer._lock:
+            buffer._start_flusher()
+        self._writing.wait()
+        assert not buffer._rows
+        write_lock = self.backend.pool._write_locks[_db_path(store)]
+        monkeypatch.setattr(
+            write_lock, "_lock", _SignallingLock(write_lock._lock, self.progress)
+        )
+        flusher = buffer._flusher
+        assert flusher is not None
+        original_join = flusher.join
+
+        def signalling_join(timeout: float | None = None) -> None:
+            self.progress.set()
+            original_join(timeout)
+
+        monkeypatch.setattr(flusher, "join", signalling_join)
+
+    def call(self, target: Callable[[], object]) -> None:
+        def run() -> None:
+            try:
+                target()
+            except BaseException as error:
+                self.errors.append(error)
+            finally:
+                self.returned.set()
+                self.progress.set()
+
+        self._thread = threading.Thread(target=run)
+        self._thread.start()
+        self.progress.wait()
+
+    def release(self) -> None:
+        self._release.set()
+        assert self._thread is not None
+        self._thread.join()
+
+
+def test_close_waits_for_a_timer_flush_in_flight(
+    store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    in_flight = _TimerBatchInFlight(store, monkeypatch)
+    flusher = in_flight.backend._write_buffer._flusher
+    assert flusher is not None
+
+    in_flight.call(in_flight.backend.close)
+
+    assert not in_flight.returned.is_set()
+    in_flight.release()
+    assert in_flight.errors == []
+    assert not flusher.is_alive()
+    assert _count_rows(store, "metric_points") == IN_FLIGHT_ROWS
+
+
+def test_flush_all_waits_for_a_timer_flush_in_flight(
+    store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    in_flight = _TimerBatchInFlight(store, monkeypatch)
+
+    in_flight.call(in_flight.backend.flush)
+
+    assert not in_flight.returned.is_set()
+    in_flight.release()
+    assert in_flight.errors == []
+    assert _count_rows(store, "metric_points") == IN_FLIGHT_ROWS
+    in_flight.backend.close()
+
+
+def test_flush_of_one_experiment_waits_for_a_timer_flush_in_flight(
+    store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    in_flight = _TimerBatchInFlight(store, monkeypatch)
+    history: list[dict[str, Any]] = []
+
+    def flush_and_read() -> None:
+        in_flight.backend.flush(EXP_ID)
+        assert _count_rows(store, "metric_points") == IN_FLIGHT_ROWS
+        history.extend(in_flight.backend.get_experiment_metric_history(EXP_ID, "loss"))
+
+    in_flight.call(flush_and_read)
+
+    assert not in_flight.returned.is_set()
+    in_flight.release()
+    assert in_flight.errors == []
+    assert len(history) == IN_FLIGHT_ROWS
+    in_flight.backend.close()
+
+
+def test_export_waits_for_a_timer_flush_in_flight(
+    store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    in_flight = _TimerBatchInFlight(store, monkeypatch)
+    exported: list[int] = []
+
+    def export() -> None:
+        with in_flight.backend.snapshot_experiment(EXP_ID) as snapshot:
+            conn = sqlite3.connect(snapshot.path)
+            try:
+                exported.append(
+                    conn.execute("SELECT COUNT(*) FROM metric_points").fetchone()[0]
+                )
+            finally:
+                conn.close()
+
+    in_flight.call(export)
+
+    assert not in_flight.returned.is_set()
+    in_flight.release()
+    assert in_flight.errors == []
+    assert exported == [IN_FLIGHT_ROWS]
+    in_flight.backend.close()
+
+
+def test_close_writes_a_timer_batch_whose_write_failed_in_flight(
+    store: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    in_flight = _TimerBatchInFlight(store, monkeypatch, fail_first_write=True)
+
+    with caplog.at_level(logging.WARNING):
+        in_flight.call(in_flight.backend.close)
+        assert not in_flight.returned.is_set()
+        in_flight.release()
+
+    assert in_flight.errors == []
+    assert any("retrying" in record.getMessage() for record in caplog.records)
+    assert _count_rows(store, "metric_points") == IN_FLIGHT_ROWS
+
+
+def test_flusher_that_cannot_start_leaves_rows_to_close_and_starts_later(
+    store: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    backend = SQLiteBackend(str(store), flush_interval=NO_TIMER_FLUSH)
+    backend.initialize_experiment(EXP_ID, "default", "no-timer")
+    original_start = threading.Thread.start
+
+    def failing_start(thread: threading.Thread) -> None:
+        if thread.name == "luml-write-buffer":
+            raise RuntimeError("can't start new thread")
+        original_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", failing_start)
+    with caplog.at_level(logging.WARNING):
+        backend.log_dynamic(EXP_ID, "loss", 0.0, step=0)
+        backend.log_dynamic(EXP_ID, "loss", 1.0, step=1)
+    assert backend._write_buffer._flusher is None
+    assert [r.getMessage() for r in caplog.records if "timer" in r.getMessage()] == [
+        "Could not start the write buffer's flush timer; buffered rows are written "
+        "at the next flush or close"
+    ]
+
+    monkeypatch.setattr(threading.Thread, "start", original_start)
+    backend.log_dynamic(EXP_ID, "loss", 2.0, step=2)
+    flusher = backend._write_buffer._flusher
+    assert flusher is not None
+    assert flusher.is_alive()
+
+    backend.close()
+
+    assert not flusher.is_alive()
+    assert _count_rows(store, "metric_points") == 3
+
+
+def test_process_that_closes_and_exits_at_once_keeps_every_row(store: Path) -> None:
+    script = """
+import os, sys, time
+from luml.experiments.backends.sqlite import SQLiteBackend
+backend = SQLiteBackend(sys.argv[1], flush_interval=0.05)
+backend.initialize_experiment(sys.argv[2], "default", "exit")
+for step in range(int(sys.argv[3])):
+    backend.log_dynamic(sys.argv[2], "loss", step * 0.5, step=step)
+# Closes as soon as the timer takes the last rows, most often while it writes them.
+while backend._write_buffer._rows:
+    time.sleep(0)
+backend.close()
+os._exit(0)
+"""
+    rows = 20_000
+    subprocess.run(
+        [sys.executable, "-c", script, str(store), EXP_ID, str(rows)],
+        check=True,
+        capture_output=True,
+        timeout=120,
+    )
+
+    assert _count_rows(store, "metric_points") == rows
+
+
 def test_delete_discards_buffered_rows(backend: SQLiteBackend, store: Path) -> None:
     backend.log_dynamic(EXP_ID, "loss", 0.1, step=0)
     _log_span(backend, "span-1")
