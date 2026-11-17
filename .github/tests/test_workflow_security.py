@@ -37,6 +37,32 @@ class WorkflowSecurityTests(unittest.TestCase):
             with self.subTest(workflow=path.name):
                 self.assertIn(workflow.get("permissions"), ({}, {"contents": "read"}))
 
+    def test_filter_patterns_have_no_reversed_character_ranges(self):
+        # GitHub rejects the whole workflow file when a filter glob such as
+        # "[experiment-snapshots]" holds a range like "t-s".
+        filter_keys = (
+            "branches",
+            "branches-ignore",
+            "tags",
+            "tags-ignore",
+            "paths",
+            "paths-ignore",
+        )
+        for path in WORKFLOWS.glob("*.y*ml"):
+            workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+            triggers = workflow.get("on")
+            if not isinstance(triggers, dict):
+                continue
+            for event in triggers.values():
+                if not isinstance(event, dict):
+                    continue
+                for key in filter_keys:
+                    for pattern in event.get(key, []):
+                        for char_class in re.findall(r"\[([^\]]*)\]", pattern):
+                            for start, end in re.findall(r"(.)-(.)", char_class):
+                                with self.subTest(workflow=path.name, pattern=pattern):
+                                    self.assertLessEqual(start, end)
+
     def test_registry_publish_jobs_keep_their_required_permissions(self):
         jobs = {
             path.name: "push-image" for path in WORKFLOWS.glob("publish-*-image*.yml")

@@ -47,7 +47,7 @@ on:
       - 'lumlflow/uv.lock'
       - 'lumlflow/frontend/src/**'
       - 'package-lock.json'
-      - '.github/workflows/[experiment-snapshots] end-to-end.yml'
+      - '.github/workflows/*experiment-snapshots*end-to-end.yml'
   pull_request:
     branches: [main, staging, production]
     paths:
@@ -88,7 +88,7 @@ on:
       - 'lumlflow/uv.lock'
       - 'lumlflow/frontend/src/**'
       - 'package-lock.json'
-      - '.github/workflows/[experiment-snapshots] end-to-end.yml'
+      - '.github/workflows/*experiment-snapshots*end-to-end.yml'
   workflow_dispatch:
 
 jobs:
