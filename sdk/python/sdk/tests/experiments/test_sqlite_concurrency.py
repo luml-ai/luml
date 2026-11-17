@@ -8,6 +8,7 @@ import pytest
 
 from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.backends.sqlite import ConnectionPool, SQLiteBackend
+from tests.experiments.metric_helpers import make_revision2_store
 
 
 def test_concurrent_static_and_dynamic_writes(
@@ -69,17 +70,17 @@ def test_concurrent_metadata_updates_preserve_all_keys(
     }
 
 
-def test_concurrent_lazy_migration_runs_once(
-    backend_with_experiment: tuple[SQLiteBackend, str],
-) -> None:
-    backend, experiment_id = backend_with_experiment
-    backend._migrated_experiment_dbs.clear()
+def test_concurrent_lazy_migration_runs_once(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    experiment_id = "exp"
+    make_revision2_store(store, experiment_id)
+    backend = SQLiteBackend(str(store))
     barrier = threading.Barrier(8)
     migrate = ExperimentMigrationRunner.migrate
 
     def initialize(_: int) -> None:
         barrier.wait()
-        backend._ensure_experiment_initialized(experiment_id)
+        backend._ensure_experiment_initialized(experiment_id, write=True)
 
     with (
         patch.object(ExperimentMigrationRunner, "migrate", autospec=True) as migration,

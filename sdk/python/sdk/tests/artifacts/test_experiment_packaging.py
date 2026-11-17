@@ -1,5 +1,3 @@
-import io
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -55,19 +53,17 @@ def test_tar_contains_expected_files(
     ref = save_experiment(tracker, exp_id, output_path=str(tmp_path / "exp.tar"))
     files = ref.list_files()
     assert "manifest.json" in files
-    assert "exp.db.zip" in files
+    assert "exp.db" in files
     assert "attachments.tar" in files
     assert "attachments.index.json" in files
 
 
-def test_db_zip_contains_exp_db(
+def test_exp_db_is_an_uncompressed_sqlite_database(
     experiment_with_data: tuple[ExperimentTracker, str], tmp_path: Path
 ) -> None:
     tracker, exp_id = experiment_with_data
     ref = save_experiment(tracker, exp_id, output_path=str(tmp_path / "exp.tar"))
-    db_zip_bytes = ref.extract_file("exp.db.zip")
-    with zipfile.ZipFile(io.BytesIO(db_zip_bytes)) as zf:
-        assert "exp.db" in zf.namelist()
+    assert ref.extract_file("exp.db").startswith(b"SQLite format 3\x00")
 
 
 def test_manifest_content(
@@ -100,4 +96,4 @@ def test_save_without_attachments(tracker: ExperimentTracker, tmp_path: Path) ->
     ref = save_experiment(tracker, exp_id, output_path=str(tmp_path / "exp.tar"))
     assert ref.validate() is True
     assert "manifest.json" in ref.list_files()
-    assert "exp.db.zip" in ref.list_files()
+    assert "exp.db" in ref.list_files()

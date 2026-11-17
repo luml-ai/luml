@@ -259,3 +259,60 @@ class ExpectationSummaryItem:
 class AnnotationSummary:
     feedback: list[FeedbackSummaryItem]
     expectations: list[ExpectationSummaryItem]
+
+
+@dataclass
+class MetricSummary:
+    """`min` and `max` cover numeric values, infinities included.
+
+    `count`, `min` and `max` are None below schema revision 3, where only the
+    (key, step) index is read.
+    """
+
+    key: str
+    first_step: int
+    last_step: int
+    count: int | None
+    min: float | None
+    max: float | None
+
+
+@dataclass
+class MetricCatalog:
+    """The stored bucket levels are None below schema revision 3.
+
+    `skipped_rows` counts the rows of revisions 0-2 that the catalog and the buckets
+    leave out: a key that is not text or a NULL, text or BLOB step. Rows with a
+    fractional REAL step are left out too but not counted.
+    """
+
+    revision: int
+    metrics: list[MetricSummary]
+    bucket_min_level: int | None = None
+    bucket_max_level: int | None = None
+    skipped_rows: int = 0
+
+
+@dataclass
+class MetricBucket:
+    """`sum` covers finite values only, so the average is `sum / finite_count`."""
+
+    bucket: int
+    first_step: int
+    last_step: int
+    count: int
+    finite_count: int
+    min: float | None
+    max: float | None
+    sum: float | None
+
+
+@dataclass
+class MetricBuckets:
+    """`first_step` and `last_step` span the whole metric; None for an unknown key."""
+
+    key: str
+    level: int
+    first_step: int | None
+    last_step: int | None
+    buckets: list[MetricBucket] = field(default_factory=list)

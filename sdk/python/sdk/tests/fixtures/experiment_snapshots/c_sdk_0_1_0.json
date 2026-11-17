@@ -1,0 +1,347 @@
+{
+  "artifact": "c_sdk_0_1_0.tar",
+  "era": "first release with migrations",
+  "producer": "luml-sdk==0.1.0 (PyPI)",
+  "generation": "real code",
+  "artifact_kind": "experiment",
+  "generation_log": {
+    "non_finite_metric_logging": {
+      "nan": "accepted",
+      "inf": "accepted"
+    }
+  },
+  "snapshot_member": "exp.db.zip",
+  "user_version": 2,
+  "recorded_revisions": [
+    1,
+    2
+  ],
+  "tables": [
+    "attachments",
+    "dynamic_metrics",
+    "eval_annotations",
+    "eval_traces_bridge",
+    "evals",
+    "exp_schema_migrations",
+    "span_annotations",
+    "spans",
+    "static_params"
+  ],
+  "indexes": [],
+  "attachments_columns": [
+    "id",
+    "name",
+    "file_path",
+    "created_at",
+    "size"
+  ],
+  "expected": {
+    "static_params": {
+      "learning_rate": 0.001,
+      "epochs": 40,
+      "optimizer": "adam",
+      "use_amp": true,
+      "layers": [
+        64,
+        32
+      ],
+      "config": {
+        "dropout": 0.1,
+        "seed": 7
+      },
+      "dataset_name": "Größe – 東京 ✓"
+    },
+    "metrics": {
+      "train_loss": {
+        "count": 40,
+        "first_step": 0,
+        "last_step": 39,
+        "first": 2.0,
+        "last": 0.032846,
+        "min": 0.032846,
+        "max": 2.0
+      },
+      "val_accuracy": {
+        "count": 40,
+        "first_step": 0,
+        "last_step": 39,
+        "first": 0.5,
+        "last": 0.89,
+        "min": 0.5,
+        "max": 25.0
+      },
+      "lr_schedule": {
+        "count": 25,
+        "first_step": 0,
+        "last_step": 24,
+        "first": 0.001,
+        "last": 0.00052,
+        "min": 0.00052,
+        "max": 0.001
+      }
+    },
+    "non_finite_metric": {
+      "name": "unstable_loss",
+      "logged": [
+        [
+          0,
+          "1.0"
+        ],
+        [
+          1,
+          "0.5"
+        ],
+        [
+          2,
+          "nan"
+        ],
+        [
+          3,
+          "0.25"
+        ],
+        [
+          4,
+          "inf"
+        ],
+        [
+          5,
+          "0.125"
+        ]
+      ],
+      "stored": [
+        {
+          "step": 0,
+          "value": 1.0,
+          "sqlite_type": "real"
+        },
+        {
+          "step": 1,
+          "value": 0.5,
+          "sqlite_type": "real"
+        },
+        {
+          "step": 2,
+          "value": null,
+          "sqlite_type": "null"
+        },
+        {
+          "step": 3,
+          "value": 0.25,
+          "sqlite_type": "real"
+        },
+        {
+          "step": 4,
+          "value": "Infinity",
+          "sqlite_type": "real"
+        },
+        {
+          "step": 5,
+          "value": 0.125,
+          "sqlite_type": "real"
+        }
+      ]
+    },
+    "attachments": 2,
+    "traces": [
+      {
+        "trace_id": "0af7651916cd43dd8448eb211c80319c",
+        "span_count": 4,
+        "root_span": "agent_run",
+        "span_names": [
+          "agent_run",
+          "llm_call",
+          "suche_überprüfen",
+          "tool_call"
+        ],
+        "max_depth": 3,
+        "execution_time": 900000000,
+        "linked_evals": [
+          "e1"
+        ],
+        "span_types": {
+          "b7ad6b7169203331": 0,
+          "c1d2e3f4a5b6c7d8": 1,
+          "d1e2f3a4b5c6d7e8": 3,
+          "e1f2a3b4c5d6e7f8": 0
+        },
+        "status_messages": {
+          "e1f2a3b4c5d6e7f8": "index timeout"
+        },
+        "events": {
+          "d1e2f3a4b5c6d7e8": [
+            {
+              "name": "retry",
+              "timestamp": 1760000000460000000,
+              "attributes": {
+                "attempt": 1
+              }
+            }
+          ]
+        },
+        "links": {
+          "d1e2f3a4b5c6d7e8": [
+            {
+              "trace_id": "1bf8762a27de54ee9559fc322d91420d",
+              "span_id": "f1a2b3c4d5e6f7a8",
+              "attributes": {}
+            }
+          ]
+        }
+      },
+      {
+        "trace_id": "1bf8762a27de54ee9559fc322d91420d",
+        "span_count": 2,
+        "root_span": "summarize",
+        "span_names": [
+          "llm_call",
+          "summarize"
+        ],
+        "max_depth": 2,
+        "execution_time": 500000000,
+        "linked_evals": [
+          "s1"
+        ],
+        "span_types": {
+          "f1a2b3c4d5e6f7a8": 0,
+          "a8b7c6d5e4f3a2b1": 1
+        },
+        "status_messages": {},
+        "events": {},
+        "links": {}
+      }
+    ],
+    "datasets": {
+      "qa_set": {
+        "eval_ids": [
+          "e1",
+          "e2",
+          "e3"
+        ],
+        "evals": {
+          "e1": {
+            "inputs": {
+              "question": "What is LUML?"
+            },
+            "outputs": {
+              "answer": "An ML platform"
+            },
+            "refs": {
+              "answer": "An ML platform"
+            },
+            "scores": {
+              "exact_match": 1.0,
+              "relevance": 0.9
+            },
+            "metadata": {
+              "source": "docs"
+            }
+          },
+          "e2": {
+            "inputs": {
+              "question": "What is Flow?"
+            },
+            "outputs": {
+              "answer": "A tracker"
+            },
+            "refs": {
+              "answer": "The experiment tracker"
+            },
+            "scores": {
+              "exact_match": 0.0,
+              "relevance": 0.6
+            },
+            "metadata": {
+              "source": "faq"
+            }
+          },
+          "e3": {
+            "inputs": {
+              "question": "Ist es quelloffen? 東京"
+            },
+            "outputs": {
+              "answer": "Ja"
+            },
+            "refs": {
+              "answer": "Ja"
+            },
+            "scores": {
+              "exact_match": 1.0,
+              "relevance": 0.75
+            },
+            "metadata": {
+              "source": "faq"
+            }
+          }
+        },
+        "average_scores": {
+          "exact_match": 0.6666666666666666,
+          "relevance": 0.75
+        },
+        "linked": {
+          "eval_id": "e1",
+          "trace_id": "0af7651916cd43dd8448eb211c80319c"
+        }
+      },
+      "summaries": {
+        "eval_ids": [
+          "s1",
+          "s2",
+          "s3"
+        ],
+        "evals": {
+          "s1": {
+            "inputs": {
+              "document": "release notes"
+            },
+            "outputs": {
+              "summary": "Bug fixes"
+            },
+            "refs": {},
+            "scores": {
+              "rouge": 0.4
+            },
+            "metadata": {}
+          },
+          "s2": {
+            "inputs": {
+              "document": "changelog"
+            },
+            "outputs": {
+              "summary": "New flags"
+            },
+            "refs": {},
+            "scores": {},
+            "metadata": {}
+          },
+          "s3": {
+            "inputs": {
+              "document": "roadmap"
+            },
+            "outputs": {},
+            "refs": {},
+            "scores": {
+              "rouge": 0.2
+            },
+            "metadata": {}
+          }
+        },
+        "average_scores": {
+          "rouge": 0.30000000000000004
+        },
+        "linked": {
+          "eval_id": "s1",
+          "trace_id": "1bf8762a27de54ee9559fc322d91420d"
+        }
+      }
+    },
+    "eval_annotations": 4,
+    "span_annotations": 2,
+    "eval_annotation_rationales": [
+      [
+        "e1",
+        "helpful",
+        "Matches the docs"
+      ]
+    ]
+  }
+}

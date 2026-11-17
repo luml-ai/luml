@@ -2,26 +2,42 @@
 import atexit
 import contextlib
 import json
+import logging
+import operator
 import re
+import shutil
 import sqlite3
 import tarfile
 import threading
+import time
 import uuid
 import weakref
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path, PureWindowsPath
-from typing import Any, Literal
+from typing import Any, Literal, SupportsIndex
 
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.backends._cursor import Cursor
+from luml.experiments.backends._exceptions import (
+    ExperimentReaderTooOldError,
+    ExperimentWriterTooOldError,
+    SQLiteVersionError,
+)
 from luml.experiments.backends._search_utils import (
     SearchEvalsUtils,
     SearchExperimentsUtils,
     SearchTracesUtils,
 )
+from luml.experiments.backends._snapshot import ExperimentSnapshot, snapshot_database
 from luml.experiments.backends._sqlite_pagination_mixin import SQLitePaginationMixin
+from luml.experiments.backends._write_buffer import (
+    DEFAULT_FLUSH_INTERVAL,
+    GuardedLock,
+    WriteBuffer,
+    defer_while_locked,
+)
 from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
@@ -41,6 +57,8 @@ from luml.experiments.backends.data_types import (
     FeedbackSummaryItem,
     FileNode,
     Group,
+    MetricBuckets,
+    MetricCatalog,
     Model,
     PaginatedResponse,
     SpanRecord,
@@ -50,9 +68,19 @@ from luml.experiments.backends.data_types import (
     TraceState,
     TraceTypedColumns,
 )
+from luml.experiments.backends.metric_store import (
+    METRIC_POINT_SQL,
+    MetricWriteHook,
+    fetch_metric_buckets,
+    fetch_metric_catalog,
+)
 from luml.experiments.backends.migration_runner import (
+    KNOWN_EXPERIMENT_REVISION,
+    READ_MIGRATION_REVISION,
     ExperimentMigrationRunner,
+    ExperimentSchema,
     MetaDBMigrationRunner,
+    read_experiment_schema,
 )
 from luml.experiments.utils import guess_span_type
 from luml.utils.tar import create_and_index_tar
@@ -77,15 +105,71 @@ def _adapt_datetime(dt: datetime) -> str:
 sqlite3.register_converter("TIMESTAMP", _parse_timestamp)
 sqlite3.register_adapter(datetime, _adapt_datetime)
 
+logger = logging.getLogger(__name__)
+_warned_newer_revisions: set[str] = set()
+# Schema revision 3 has a generated column, which older SQLite cannot parse.
+MIN_SQLITE_VERSION = (3, 31, 0)
+
+_LOGGED_AT_FROM_MS = "strftime('%Y-%m-%d %H:%M:%S', logged_ms / 1000, 'unixepoch')"
+_HAS_POINTS = "EXISTS (SELECT 1 FROM metric_points p WHERE p.metric_id = k.id)"
+
+
+def _metric_step(step: SupportsIndex | float) -> int:
+    """Bucket indexes are integer shifts of the step, so steps must be integers."""
+    if isinstance(step, float):
+        if not step.is_integer():
+            raise TypeError(f"Metric step must be an integer, got {step!r}")
+        return int(step)
+    return operator.index(step)
+
+
+def _metric_key(key: object) -> str:
+    if type(key) is str and key.isascii():
+        return key
+    # The TEXT column stored numbers as their text before revision 3 as well.
+    if isinstance(key, int | float) and not isinstance(key, bool):
+        return str(key)
+    if not isinstance(key, str):
+        raise TypeError(f"Metric key must be a string, got {type(key).__name__}")
+    # A key that cannot be bound would fail in the write hook at every flush; the
+    # round trip also turns a str subclass into a plain, safely hashable str.
+    try:
+        return key.encode().decode()
+    except UnicodeEncodeError as error:
+        raise ValueError(f"Metric key must be valid UTF-8 text: {error}") from error
+
+
+_connections_inherited_at_fork: list[sqlite3.Connection] = []
+# A reader's open snapshot keeps SQLite from rewinding the WAL, which then grows by every
+# write made meanwhile; without a limit the file keeps that size after the reader ends.
+WAL_SIZE_LIMIT = 8 * 1024 * 1024
+
+
+class DeletedDatabaseError(sqlite3.OperationalError):
+    """The database was deleted while the caller waited for its connection."""
+
+
+def _sqlite_utc_now() -> str:
+    """The text SQLite's CURRENT_TIMESTAMP would produce at this moment."""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+
+
+def _utc_now_ms() -> int:
+    return time.time_ns() // 1_000_000
+
 
 class ConnectionPool:
     def __init__(self, max_connections: int = 10) -> None:
         self.max_connections = max_connections
         self._connections: dict[str, sqlite3.Connection] = {}
-        self._write_locks: dict[str, threading.RLock] = {}
+        self._write_locks: dict[str, GuardedLock] = {}
         self._checkouts: dict[str, int] = {}
         self._pending_closes: set[str] = set()
-        self._lock = threading.RLock()
+        # Connections of deleted databases that threads still hold. They leave the pool
+        # at once, so nothing reuses them, and close when the last holder is done.
+        self._retired_checkouts: dict[sqlite3.Connection, int] = {}
+        self._retired_locks: dict[sqlite3.Connection, GuardedLock] = {}
+        self._lock = GuardedLock(threading.RLock(), buffer_lock=False)
         self._active_experiments: set[str] = set()
         atexit.register(ConnectionPool._close_on_exit, weakref.ref(self))
 
@@ -96,8 +180,9 @@ class ConnectionPool:
 
     @contextlib.contextmanager
     def get_connection(
-        self, db_path: str | Path, *, write: bool = False
+        self, db_path: str | Path, *, write: bool = False, create: bool = True
     ) -> Iterator[sqlite3.Connection]:
+        """With `create=False` a missing database raises instead of being created."""
         db_path = str(db_path)
 
         with self._lock:
@@ -106,19 +191,28 @@ class ConnectionPool:
                     self._evict_inactive_connection()
 
                 conn = sqlite3.Connection(
-                    db_path,
+                    db_path
+                    if create
+                    else Path(db_path).absolute().as_uri() + "?mode=rw",
                     check_same_thread=False,
                     detect_types=sqlite3.PARSE_DECLTYPES,
+                    uri=not create,
                 )
                 try:
                     conn.execute("PRAGMA foreign_keys = ON")
                     conn.execute("PRAGMA journal_mode = WAL")
+                    # In WAL mode NORMAL cannot corrupt the database; a power loss
+                    # can only drop the last commits, in exchange for no fsync per commit.
+                    conn.execute("PRAGMA synchronous = NORMAL")
+                    conn.execute(f"PRAGMA journal_size_limit = {WAL_SIZE_LIMIT}")
                 except BaseException:
                     conn.close()
                     raise
 
                 self._connections[db_path] = conn
-                self._write_locks[db_path] = threading.RLock()
+                self._write_locks[db_path] = GuardedLock(
+                    threading.RLock(), buffer_lock=False
+                )
                 self._checkouts[db_path] = 0
 
             conn = self._connections[db_path]
@@ -126,7 +220,11 @@ class ConnectionPool:
             self._checkouts[db_path] += 1
 
         try:
-            with write_lock if write else contextlib.nullcontext():
+            # Reads take the lock too: a connection used by two threads at once mixes
+            # their statements and transactions.
+            with write_lock:
+                if conn in self._retired_checkouts:
+                    raise DeletedDatabaseError(f"{db_path} was deleted")
                 try:
                     yield conn
                 except BaseException:
@@ -135,9 +233,56 @@ class ConnectionPool:
                     raise
         finally:
             with self._lock:
-                self._checkouts[db_path] -= 1
-                if not self._checkouts[db_path] and db_path in self._pending_closes:
-                    self._close_connection_unsafe(db_path)
+                if conn in self._retired_checkouts:
+                    self._check_in_retired_unsafe(conn)
+                else:
+                    self._checkouts[db_path] -= 1
+                    if not self._checkouts[db_path] and db_path in self._pending_closes:
+                        self._close_connection_unsafe(db_path)
+
+    @property
+    def lock(self) -> GuardedLock:
+        return self._lock
+
+    def connection_locks(self) -> list[GuardedLock]:
+        """The locks guarding each connection, the meta database's first, as the lock
+        order requires."""
+        current = sorted(
+            self._write_locks.copy().items(),
+            key=lambda item: not item[0].endswith("meta.db"),
+        )
+        return [lock for _, lock in current] + list(self._retired_locks.copy().values())
+
+    def remove_database(
+        self, experiment_id: str, db_path: str, directory: Path
+    ) -> None:
+        """Closes the connection to `db_path` and removes `directory`.
+
+        Connections open only under the pool lock, so holding it through the removal
+        keeps a reader from re-creating the WAL files in a half-removed directory.
+        """
+        with self._lock:
+            self._active_experiments.discard(experiment_id)
+            self._retire_connection_unsafe(db_path)
+            if directory.exists():
+                shutil.rmtree(directory)
+
+    def _retire_connection_unsafe(self, db_path: str) -> None:
+        if not self._checkouts.get(db_path):
+            self._close_connection_unsafe(db_path)
+            return
+        conn = self._connections.pop(db_path)
+        self._retired_checkouts[conn] = self._checkouts.pop(db_path)
+        self._retired_locks[conn] = self._write_locks.pop(db_path)
+        self._pending_closes.discard(db_path)
+
+    def _check_in_retired_unsafe(self, conn: sqlite3.Connection) -> None:
+        self._retired_checkouts[conn] -= 1
+        if not self._retired_checkouts[conn]:
+            del self._retired_checkouts[conn]
+            del self._retired_locks[conn]
+            with contextlib.suppress(sqlite3.Error):
+                conn.close()
 
     def mark_experiment_active(self, experiment_id: str) -> None:
         with self._lock:
@@ -186,9 +331,24 @@ class ConnectionPool:
             self._close_connection_unsafe(str(db_path))
 
     def close_all(self) -> None:
+        if defer_while_locked(self.close_all):
+            return
         with self._lock:
             for db_path in list(self._connections.keys()):
                 self._close_connection_unsafe(db_path)
+
+    def reset_after_fork(self) -> None:
+        # Closing a connection inherited from the parent would act on lock and WAL
+        # state the parent still owns, so the child keeps them alive and never uses them.
+        _connections_inherited_at_fork.extend(self._connections.values())
+        _connections_inherited_at_fork.extend(self._retired_checkouts)
+        self._connections = {}
+        self._write_locks = {}
+        self._checkouts = {}
+        self._pending_closes = set()
+        self._retired_checkouts = {}
+        self._retired_locks = {}
+        self._lock = GuardedLock(threading.RLock(), buffer_lock=False)
 
     def get_stats(self) -> dict[str, Any]:  # noqa: ANN401
         with self._lock:
@@ -258,39 +418,175 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def __init__(
         self,
         config: str,
+        flush_interval: float = DEFAULT_FLUSH_INTERVAL,
     ) -> None:
+        """
+        Metrics, spans, eval samples and eval-trace links are buffered and committed
+        every `flush_interval` seconds, and before any other access to their
+        experiment, at end, export and close. `flush_interval=0` commits every call.
+        """
+        if sqlite3.sqlite_version_info < MIN_SQLITE_VERSION:
+            raise SQLiteVersionError(
+                sqlite3.sqlite_version, ".".join(map(str, MIN_SQLITE_VERSION))
+            )
         self.base_path = Path(config)
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.meta_db_path = self.base_path / "meta.db"
 
         self.pool = ConnectionPool(10)
         self._migrated_experiment_dbs: set[str] = set()
+        self._writable_experiment_dbs: set[str] = set()
+        # Tagged with the write-buffer generation they were read in.
+        self._experiment_schemas: dict[str, tuple[int, ExperimentSchema]] = {}
+        self._experiment_db_paths: dict[str, str] = {}
+        self._write_buffer = WriteBuffer(
+            self.pool, flush_interval, hook=MetricWriteHook()
+        )
 
         self._initialize_meta_db()
         weakref.finalize(self, self.pool.close_all)
+        weakref.finalize(self, self._write_buffer.close)
 
-    def _ensure_experiment_initialized(self, experiment_id: str) -> None:
+    def _ensure_experiment_initialized(
+        self, experiment_id: str, *, write: bool = False
+    ) -> tuple[str, int]:
+        """Returns the database path and the generation that log calls hand to the
+        write buffer, which refuses their rows once the experiment is deleted.
+
+        Readers never migrate past revision 2, which released SDKs also bring older
+        databases to: a process with an older SDK may still be writing this one.
+        Only a write migrates to the latest revision.
+        """
+        ready = (
+            self._writable_experiment_dbs if write else self._migrated_experiment_dbs
+        )
+        cached_path = self._experiment_db_paths.get(experiment_id)
+        if cached_path is not None and experiment_id in ready:
+            generation = self._write_buffer.generation(cached_path)
+            # A delete empties the cache before it starts a new generation, so a hit
+            # after reading the generation proves the generation is not newer.
+            if self._experiment_db_paths.get(experiment_id) == cached_path:
+                return cached_path, generation
+
         db_path = self._get_experiment_db_path(experiment_id)
+        with self._write_buffer.database_lock(str(db_path)):
+            generation = self._write_buffer.generation(str(db_path))
+            if not db_path.exists():
+                raise ValueError(f"Experiment {experiment_id} not initialized")
 
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not initialized")
+            if experiment_id not in ready:
+                with self._open_experiment(experiment_id, write=True) as (conn, schema):
+                    if experiment_id not in ready:
+                        self._prepare_schema(
+                            experiment_id, conn, schema, generation, write=write
+                        )
+            self._experiment_db_paths[experiment_id] = str(db_path)
+        return str(db_path), generation
 
-        if experiment_id not in self._migrated_experiment_dbs:
-            with self._get_experiment_connection(experiment_id, write=True) as conn:
-                if experiment_id not in self._migrated_experiment_dbs:
-                    ExperimentMigrationRunner(conn).migrate()
-                    self._migrated_experiment_dbs.add(experiment_id)
+    def _prepare_schema(
+        self,
+        experiment_id: str,
+        conn: sqlite3.Connection,
+        schema: ExperimentSchema,
+        generation: int,
+        *,
+        write: bool,
+    ) -> None:
+        target = KNOWN_EXPERIMENT_REVISION if write else READ_MIGRATION_REVISION
+        self._check_writable(experiment_id, schema, write=write)
+        if schema.revision < target:
+            ExperimentMigrationRunner(conn).migrate(target)
+            schema = read_experiment_schema(conn)
+            self._check_readable(experiment_id, schema)
+            self._check_writable(experiment_id, schema, write=write)
+        self._experiment_schemas[experiment_id] = (generation, schema)
+        self._migrated_experiment_dbs.add(experiment_id)
+        if write:
+            self._writable_experiment_dbs.add(experiment_id)
+
+    @staticmethod
+    def _check_writable(
+        experiment_id: str, schema: ExperimentSchema, *, write: bool
+    ) -> None:
+        if write and schema.min_writer_revision > KNOWN_EXPERIMENT_REVISION:
+            raise ExperimentWriterTooOldError(
+                experiment_id, schema.revision, schema.min_writer_revision
+            )
+
+    def _check_readable(self, experiment_id: str, schema: ExperimentSchema) -> None:
+        if schema.min_reader_revision > KNOWN_EXPERIMENT_REVISION:
+            raise ExperimentReaderTooOldError(
+                experiment_id, schema.revision, schema.min_reader_revision
+            )
+        db_path = str(self._get_experiment_db_path(experiment_id))
+        if (
+            schema.revision > KNOWN_EXPERIMENT_REVISION
+            and db_path not in _warned_newer_revisions
+        ):
+            _warned_newer_revisions.add(db_path)
+            logger.warning(
+                "Experiment %s uses schema revision %s, newer than the %s this "
+                "luml-sdk knows; using it as revision %s",
+                experiment_id,
+                schema.revision,
+                KNOWN_EXPERIMENT_REVISION,
+                KNOWN_EXPERIMENT_REVISION,
+            )
+
+    def _experiment_schema(
+        self, experiment_id: str, conn: sqlite3.Connection, generation: int
+    ) -> ExperimentSchema:
+        cached = self._experiment_schemas.get(experiment_id)
+        if cached is not None and cached[0] == generation:
+            return cached[1]
+        schema = read_experiment_schema(conn)
+        self._check_readable(experiment_id, schema)
+        self._experiment_schemas[experiment_id] = (generation, schema)
+        return schema
+
+    def flush(self, experiment_id: str | None = None) -> None:
+        if experiment_id is None:
+            self._write_buffer.flush_all()
+        else:
+            self._write_buffer.flush(str(self._get_experiment_db_path(experiment_id)))
+
+    def close(self) -> None:
+        try:
+            self._write_buffer.close()
+        finally:
+            self.pool.close_all()
 
     def _get_meta_connection(
         self, *, write: bool = False
     ) -> contextlib.AbstractContextManager[sqlite3.Connection]:
         return self.pool.get_connection(self.meta_db_path, write=write)
 
+    @contextlib.contextmanager
     def _get_experiment_connection(
         self, experiment_id: str, *, write: bool = False
-    ) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+    ) -> Iterator[sqlite3.Connection]:
+        with self._open_experiment(experiment_id, write=write) as (conn, _):
+            yield conn
+
+    @contextlib.contextmanager
+    def _open_experiment(
+        self, experiment_id: str, *, write: bool = False
+    ) -> Iterator[tuple[sqlite3.Connection, ExperimentSchema]]:
+        """Yields a connection and the schema it reads with, refusing a database
+        that needs a newer reader before any query of the caller runs."""
         db_path = self._get_experiment_db_path(experiment_id)
-        return self.pool.get_connection(db_path, write=write)
+        self._write_buffer.flush(str(db_path))
+        generation = self._write_buffer.generation(str(db_path))
+        with contextlib.ExitStack() as stack:
+            try:
+                conn = stack.enter_context(
+                    self.pool.get_connection(db_path, write=write, create=False)
+                )
+            except sqlite3.OperationalError as error:
+                if db_path.exists() and not isinstance(error, DeletedDatabaseError):
+                    raise
+                raise ValueError(f"Experiment {experiment_id} not found") from error
+            yield conn, self._experiment_schema(experiment_id, conn, generation)
 
     def _get_experiment_dir(self, experiment_id: str) -> Path:
         if not isinstance(experiment_id, str) or not re.fullmatch(
@@ -357,12 +653,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         exp_dir = self._get_experiment_dir(experiment_id)
         exp_dir.mkdir(exist_ok=True)
         self._get_attachments_dir(experiment_id).mkdir(exist_ok=True)
+        db_path = self._get_experiment_db_path(experiment_id)
+        self._write_buffer.mark_created(str(db_path))
+        generation = self._write_buffer.generation(str(db_path))
 
-        with self.pool.get_connection(
-            self._get_experiment_db_path(experiment_id), write=True
-        ) as conn:
-            ExperimentMigrationRunner(conn).migrate()
-            self._migrated_experiment_dbs.add(experiment_id)
+        with self.pool.get_connection(db_path, write=True) as conn:
+            schema = read_experiment_schema(conn)
+            self._check_readable(experiment_id, schema)
+            self._prepare_schema(experiment_id, conn, schema, generation, write=True)
 
     @staticmethod
     def _row_to_model(row: sqlite3.Row) -> Model:
@@ -473,7 +771,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             value (Any): The value of the static parameter. It can be of type string, integer,
                 float, boolean, or any serializable object.
         """
-        self._ensure_experiment_initialized(experiment_id)
+        self._ensure_experiment_initialized(experiment_id, write=True)
 
         with self._get_experiment_connection(experiment_id, write=True) as conn:
             cursor = conn.cursor()
@@ -519,25 +817,44 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             None
         """
-        self._ensure_experiment_initialized(experiment_id)
-        with self._get_experiment_connection(experiment_id, write=True) as conn:
-            cursor = conn.cursor()
+        db_path, generation = self._ensure_experiment_initialized(
+            experiment_id, write=True
+        )
+        value = float(value)
+        key = _metric_key(key)
+        if step is not None:
+            step = _metric_step(step)
+        logged_ms = _utc_now_ms()
+        buffer = self._write_buffer
+        buffer.make_room(db_path)
+        # Enqueueing under the lock keeps a concurrent explicit step from landing after
+        # the counter is seeded from the database; a delete waits for the lock too.
+        with buffer.database_lock(db_path):
+            next_step = buffer.next_step(db_path, key)
             if step is None:
-                cursor.execute(
-                    "SELECT MAX(step) FROM dynamic_metrics WHERE key = ?", (key,)
-                )
-                result = cursor.fetchone()
-                step = 0 if result[0] is None else result[0] + 1
+                if next_step is None:
+                    if not buffer.accepts(db_path, generation):
+                        raise ValueError(f"Experiment {experiment_id} not initialized")
+                    with self._get_experiment_connection(experiment_id) as conn:
+                        result = conn.execute(
+                            "SELECT MAX(step) FROM metric_points WHERE metric_id = "
+                            "(SELECT id FROM metric_keys WHERE key = ?)",
+                            (key,),
+                        ).fetchone()
+                    # Validated like an explicit step: the write hook shifts it.
+                    next_step = 0 if result[0] is None else _metric_step(result[0]) + 1
+                step = next_step
 
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO dynamic_metrics (key, value, step)
-                VALUES (?, ?, ?)
-            """,
-                (key, float(value), step),
-            )
-
-            conn.commit()
+            if not buffer.enqueue(
+                db_path,
+                generation,
+                METRIC_POINT_SQL,
+                (key, step, value, logged_ms),
+                metric_point=True,
+            ):
+                raise ValueError(f"Experiment {experiment_id} not initialized")
+            if next_step is not None:
+                buffer.set_next_step(db_path, key, max(next_step, step + 1))
 
     def log_attachment(
         self, experiment_id: str, name: str, data: bytes | str, binary: bool = False
@@ -558,7 +875,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Raises:
             ValueError: If the provided `data` is not of type `bytes` or `str`.
         """
-        self._ensure_experiment_initialized(experiment_id)
+        self._ensure_experiment_initialized(experiment_id, write=True)
 
         if not isinstance(data, bytes | str):
             raise ValueError("Attachment data must be bytes or str")
@@ -645,41 +962,44 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Raises:
             ValueError: If the specified experiment does not exist, or has not been initialized.
         """
-        self._ensure_experiment_initialized(experiment_id)
+        db_path, generation = self._ensure_experiment_initialized(
+            experiment_id, write=True
+        )
 
         attributes_json = json.dumps(attributes) if attributes else None
         events_json = json.dumps(events) if events else None
         links_json = json.dumps(links) if links else None
 
-        with self._get_experiment_connection(experiment_id, write=True) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO spans (
-                    trace_id, span_id, parent_span_id, name, kind,
-                    start_time_unix_nano, end_time_unix_nano,
-                    status_code, status_message,
-                    attributes, events, links, trace_flags, dfs_span_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    trace_id,
-                    span_id,
-                    parent_span_id,
-                    name,
-                    kind,
-                    start_time_unix_nano,
-                    end_time_unix_nano,
-                    status_code,
-                    status_message,
-                    attributes_json,
-                    events_json,
-                    links_json,
-                    trace_flags,
-                    guess_span_type(attributes).value if attributes else 0,
-                ),
-            )
-            conn.commit()
+        if not self._write_buffer.append(
+            db_path,
+            generation,
+            """
+            INSERT OR REPLACE INTO spans (
+                trace_id, span_id, parent_span_id, name, kind,
+                start_time_unix_nano, end_time_unix_nano,
+                status_code, status_message,
+                attributes, events, links, trace_flags, dfs_span_type, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                trace_id,
+                span_id,
+                parent_span_id,
+                name,
+                kind,
+                start_time_unix_nano,
+                end_time_unix_nano,
+                status_code,
+                status_message,
+                attributes_json,
+                events_json,
+                links_json,
+                trace_flags,
+                guess_span_type(attributes).value if attributes else 0,
+                _sqlite_utc_now(),
+            ),
+        ):
+            raise ValueError(f"Experiment {experiment_id} not initialized")
 
     def log_eval_sample(
         self,
@@ -715,32 +1035,39 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             metadata: A dictionary containing additional metadata information related to
                 the evaluation sample. It can be None if no metadata is provided.
         """
-        self._ensure_experiment_initialized(experiment_id)
+        db_path, generation = self._ensure_experiment_initialized(
+            experiment_id, write=True
+        )
         inputs_json = json.dumps(inputs)
         outputs_json = json.dumps(outputs) if outputs else None
         references_json = json.dumps(references) if references else None
         scores_json = json.dumps(scores) if scores else None
         metadata_json = json.dumps(metadata) if metadata else None
+        # REPLACE deletes the old row, so created_at restarts too, as with the defaults.
+        now = _sqlite_utc_now()
 
-        with self._get_experiment_connection(experiment_id, write=True) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO evals (
-                    id, dataset_id, inputs, outputs, refs, scores, metadata, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """,
-                (
-                    eval_id,
-                    dataset_id,
-                    inputs_json,
-                    outputs_json,
-                    references_json,
-                    scores_json,
-                    metadata_json,
-                ),
-            )
-            conn.commit()
+        if not self._write_buffer.append(
+            db_path,
+            generation,
+            """
+            INSERT OR REPLACE INTO evals (
+                id, dataset_id, inputs, outputs, refs, scores, metadata,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                eval_id,
+                dataset_id,
+                inputs_json,
+                outputs_json,
+                references_json,
+                scores_json,
+                metadata_json,
+                now,
+                now,
+            ),
+        ):
+            raise ValueError(f"Experiment {experiment_id} not initialized")
 
     def link_eval_sample_to_trace(
         self,
@@ -760,8 +1087,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             eval_id: Identifier of the evaluation to be linked.
             trace_id: Identifier of the trace to be associated with the evaluation sample.
         """
-        self._ensure_experiment_initialized(experiment_id)
-        with self._get_experiment_connection(experiment_id, write=True) as conn:
+        db_path, generation = self._ensure_experiment_initialized(
+            experiment_id, write=True
+        )
+        with self._get_experiment_connection(experiment_id) as conn:
             cursor = conn.cursor()
 
             cursor.execute(
@@ -777,18 +1106,17 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             if not cursor.fetchone():
                 raise ValueError(f"Trace {trace_id} not found")
 
-            bridge_id = str(uuid.uuid4())
-
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO eval_traces_bridge (
-                    id, eval_dataset_id, eval_id, trace_id
-                ) VALUES (?, ?, ?, ?)
-                """,
-                (bridge_id, eval_dataset_id, eval_id, trace_id),
-            )
-
-            conn.commit()
+        if not self._write_buffer.append(
+            db_path,
+            generation,
+            """
+            INSERT OR REPLACE INTO eval_traces_bridge (
+                id, eval_dataset_id, eval_id, trace_id, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (str(uuid.uuid4()), eval_dataset_id, eval_id, trace_id, _sqlite_utc_now()),
+        ):
+            raise ValueError(f"Experiment {experiment_id} not initialized")
 
     def get_experiment_data(self, experiment_id: str) -> ExperimentData:  # noqa: ANN401, C901
         """
@@ -807,7 +1135,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If the experiment with the given experiment ID is not found.
         """
         self._ensure_experiment_initialized(experiment_id)
-        with self._get_experiment_connection(experiment_id) as conn:
+        with self._open_experiment(experiment_id) as (conn, schema):
             cursor = conn.cursor()
 
             cursor.execute("SELECT key, value, value_type FROM static_params")
@@ -816,7 +1144,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 static_params[key] = self._convert_static_param_value(value, value_type)
 
             cursor.execute(
-                "SELECT key, value, step FROM dynamic_metrics ORDER BY key, step"
+                "SELECT k.key, p.value, p.step FROM metric_keys k "
+                "JOIN metric_points p ON p.metric_id = k.id ORDER BY k.key, p.step"
+                if schema.has_metric_points
+                else "SELECT key, value, step FROM dynamic_metrics ORDER BY key, step"
             )
             dynamic_metrics: dict[str, list[dict[str, Any]]] = {}
             for key, value, step in cursor.fetchall():
@@ -832,37 +1163,38 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     "created_at": created_at,
                 }
 
-            with self._get_meta_connection() as meta_conn:
-                meta_cursor = meta_conn.cursor()
-                meta_cursor.execute(
-                    "SELECT name, created_at, status, group_id, tags, duration, description, "
-                    "metadata, upload_status "
-                    "FROM experiments WHERE id = ?",
-                    (experiment_id,),
-                )
-                meta_row = meta_cursor.fetchone()
+        # The experiment lock is released first: other readers take meta, then experiment.
+        with self._get_meta_connection() as meta_conn:
+            meta_cursor = meta_conn.cursor()
+            meta_cursor.execute(
+                "SELECT name, created_at, status, group_id, tags, duration, description, "
+                "metadata, upload_status "
+                "FROM experiments WHERE id = ?",
+                (experiment_id,),
+            )
+            meta_row = meta_cursor.fetchone()
 
-                if not meta_row:
-                    msg = f"Experiment {experiment_id} not found"
-                    raise ValueError(msg)
+            if not meta_row:
+                msg = f"Experiment {experiment_id} not found"
+                raise ValueError(msg)
 
-                return ExperimentData(
-                    experiment_id=experiment_id,
-                    metadata=ExperimentMetaData(
-                        name=meta_row[0],
-                        created_at=meta_row[1],
-                        status=meta_row[2],
-                        group_id=meta_row[3],
-                        tags=json.loads(meta_row[4]) if meta_row[4] else [],
-                        duration=meta_row[5],
-                        description=meta_row[6],
-                        metadata=json.loads(meta_row[7]) if meta_row[7] else {},
-                        upload_status=meta_row[8] or "unknown",
-                    ),
-                    static_params=static_params,
-                    dynamic_metrics=dynamic_metrics,
-                    attachments=attachments,
-                )
+            return ExperimentData(
+                experiment_id=experiment_id,
+                metadata=ExperimentMetaData(
+                    name=meta_row[0],
+                    created_at=meta_row[1],
+                    status=meta_row[2],
+                    group_id=meta_row[3],
+                    tags=json.loads(meta_row[4]) if meta_row[4] else [],
+                    duration=meta_row[5],
+                    description=meta_row[6],
+                    metadata=json.loads(meta_row[7]) if meta_row[7] else {},
+                    upload_status=meta_row[8] or "unknown",
+                ),
+                static_params=static_params,
+                dynamic_metrics=dynamic_metrics,
+                attachments=attachments,
+            )
 
     def get_attachment(self, experiment_id: str, name: str) -> bytes:
         """
@@ -1053,9 +1385,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             for experiment_id in experiment_ids:
                 if not self._get_experiment_db_path(experiment_id).exists():
                     continue
-                with self._get_experiment_connection(experiment_id) as exp_conn:
+                with self._open_experiment(experiment_id) as (exp_conn, schema):
                     exp_cursor = exp_conn.cursor()
-                    exp_cursor.execute("SELECT DISTINCT key FROM dynamic_metrics")
+                    exp_cursor.execute(
+                        f"SELECT key FROM metric_keys k WHERE {_HAS_POINTS}"
+                        if schema.has_metric_points
+                        else "SELECT DISTINCT key FROM dynamic_metrics"
+                    )
                     keys.update(row[0] for row in exp_cursor.fetchall())
 
             return sorted(keys)
@@ -1167,13 +1503,17 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Args:
             experiment_id (str): The unique identifier of the experiment to delete.
         """
-        self.pool.mark_experiment_inactive(experiment_id)
-
         exp_dir = self._get_experiment_dir(experiment_id)
-        if exp_dir.exists():
-            import shutil
-
-            shutil.rmtree(exp_dir)
+        db_path = str(exp_dir / "exp.db")
+        # Held through the removal, so a first use or a step-counter seed cannot
+        # reopen the files while they are being removed.
+        with self._write_buffer.database_lock(db_path):
+            self._experiment_db_paths.pop(experiment_id, None)
+            self._migrated_experiment_dbs.discard(experiment_id)
+            self._writable_experiment_dbs.discard(experiment_id)
+            self._experiment_schemas.pop(experiment_id, None)
+            self._write_buffer.discard(db_path)
+            self.pool.remove_database(experiment_id, db_path, exp_dir)
 
         with self._get_meta_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -1620,7 +1960,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             >>> dest_path
             "/storage/exp-001/models/model-abc/resnet50.pt"
         """
-        self._ensure_experiment_initialized(experiment_id)
+        self._ensure_experiment_initialized(experiment_id, write=True)
 
         import shutil
 
@@ -2424,6 +2764,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
 
     def fail_experiment(self, experiment_id: str) -> None:
+        self.flush(experiment_id)
         with self._get_meta_connection(write=True) as meta_conn:
             meta_cursor = meta_conn.cursor()
             meta_cursor.execute(
@@ -2450,7 +2791,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Args:
             experiment_id (str): The unique identifier of the experiment to be finalized.
         """
-        with self._get_experiment_connection(experiment_id, write=True) as exp_conn:
+        with self._open_experiment(experiment_id, write=True) as (exp_conn, schema):
             exp_cursor = exp_conn.cursor()
 
             exp_cursor.execute("SELECT key, value, value_type FROM static_params")
@@ -2459,7 +2800,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 static_params[key] = self._convert_static_param_value(value, value_type)
 
             exp_cursor.execute(
+                f"""
+                SELECT k.key, (SELECT p.value FROM metric_points p WHERE p.metric_id = k.id
+                               ORDER BY p.step DESC LIMIT 1)
+                FROM metric_keys k WHERE {_HAS_POINTS}
                 """
+                if schema.has_metric_points
+                else """
                 SELECT key, value FROM dynamic_metrics dm1
                 WHERE step = (SELECT MAX(step) FROM dynamic_metrics dm2 WHERE dm2.key = dm1.key)
                 """
@@ -2520,9 +2867,39 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
-        with sqlite3.connect(db_path, check_same_thread=False) as conn:
+        with self._get_experiment_connection(experiment_id, write=True) as conn:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
         return DiskFile(db_path)
+
+    @contextlib.contextmanager
+    def snapshot_experiment(self, experiment_id: str) -> Iterator[ExperimentSnapshot]:
+        """
+        Yields a compacted, self-contained copy of the experiment database for
+        publishing, removed again when the context exits.
+
+        Rows buffered so far are flushed first. The copy is one consistent point in
+        time even while other threads or processes write; their writes are not
+        blocked. A copy below schema revision 3 is migrated to it, unless its rows
+        cannot be stored at revision 3: the snapshot then keeps the source revision
+        and says why in `fallback_reason`. The live database is never changed.
+        Temporary files go next to the database.
+
+        Args:
+            experiment_id (str): The experiment to copy.
+
+        Yields:
+            ExperimentSnapshot: The copy, its schema revision and the artifact
+                generation it is published as.
+
+        Raises:
+            ValueError: If the experiment does not exist.
+            ExportSpaceError: If the disk is too full for the temporary files.
+        """
+        with self._open_experiment(experiment_id):
+            pass
+        db_path = self._get_experiment_db_path(experiment_id)
+        with snapshot_database(self.pool, experiment_id, db_path) as snapshot:
+            yield snapshot
 
     def export_attachments(
         self, experiment_id: str
@@ -2569,14 +2946,31 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._ensure_experiment_initialized(experiment_id)
 
-        with self._get_experiment_connection(experiment_id) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step",
+        with self._open_experiment(experiment_id) as (conn, schema):
+            if not schema.has_metric_points:
+                cursor = conn.execute(
+                    "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step",
+                    (key,),
+                )
+                return [
+                    {"value": value, "step": step, "logged_at": logged_at}
+                    for value, step, logged_at in cursor.fetchall()
+                ]
+            # The text the dynamic_metrics view shows, parsed as the TIMESTAMP column
+            # of earlier revisions is.
+            cursor = conn.execute(
+                f"SELECT value, step, {_LOGGED_AT_FROM_MS} FROM metric_points "
+                "WHERE metric_id = (SELECT id FROM metric_keys WHERE key = ?) ORDER BY step",
                 (key,),
             )
             return [
-                {"value": value, "step": step, "logged_at": logged_at}
+                {
+                    "value": value,
+                    "step": step,
+                    "logged_at": None
+                    if logged_at is None
+                    else _parse_timestamp(logged_at.encode()),
+                }
                 for value, step, logged_at in cursor.fetchall()
             ]
 
@@ -3895,6 +4289,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
+        self._ensure_experiment_initialized(experiment_id, write=True)
         annotation_id = str(uuid.uuid4())
         with self._get_experiment_connection(experiment_id, write=True) as conn:
             conn.execute(
@@ -4027,6 +4422,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
+        self._ensure_experiment_initialized(experiment_id, write=True)
         annotation_id = str(uuid.uuid4())
         with self._get_experiment_connection(experiment_id, write=True) as conn:
             conn.execute(
@@ -4160,6 +4556,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         """
         self._require_annotation_tables(experiment_id)
+        self._ensure_experiment_initialized(experiment_id, write=True)
         table = "eval_annotations" if target == "eval" else "span_annotations"
         with self._get_experiment_connection(experiment_id, write=True) as conn:
             sets: list[str] = []
@@ -4210,6 +4607,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         if not self._has_annotation_tables(experiment_id):
             return
+        self._ensure_experiment_initialized(experiment_id, write=True)
         table = "eval_annotations" if target == "eval" else "span_annotations"
         with self._get_experiment_connection(experiment_id, write=True) as conn:
             conn.execute(f"DELETE FROM {table} WHERE id = ?", (annotation_id,))  # noqa: S608
@@ -4568,3 +4966,59 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         with self.pool.get_connection(db_path) as conn:
             row = conn.execute("PRAGMA user_version").fetchone()
             return row[0] if row else 0
+
+    def get_metric_catalog(self, experiment_id: str) -> MetricCatalog:
+        """
+        Summarises every metric of an experiment without reading its points: first
+        and last step, point count, and the smallest and largest numeric value.
+        Below revision 3 only the (key, step) index is read, so the count, smallest
+        and largest value are None; a file without that index is scanned instead.
+
+        Args:
+            experiment_id (str): The experiment to summarise.
+
+        Returns:
+            MetricCatalog: The schema revision, the stored bucket levels (None below
+                revision 3) and one summary per metric, ordered by key.
+        """
+        self._ensure_experiment_initialized(experiment_id)
+        with self._open_experiment(experiment_id) as (conn, schema):
+            return fetch_metric_catalog(conn, schema)
+
+    def get_metric_buckets(
+        self,
+        experiment_id: str,
+        key: str,
+        level: int,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> MetricBuckets:
+        """
+        Aggregates a metric into buckets of `4 ** level` steps; bucket `b` holds the
+        steps whose `step >> (2 * level)` is `b`.
+
+        Every bucket that has points and intersects the inclusive step range is
+        returned whole, ordered by bucket index. Results are the same whichever
+        schema revision or storage level serves them.
+
+        Args:
+            experiment_id (str): The experiment to read.
+            key (str): The metric key.
+            level (int): The bucket level, 0 for one bucket per point.
+            start_step (int | None): First step of the range; the metric's first
+                step when None.
+            end_step (int | None): Last step of the range; the metric's last step
+                when None.
+
+        Returns:
+            MetricBuckets: The buckets and the metric's overall step range, which is
+                None for an unknown key.
+
+        Raises:
+            TooManyBucketsError: If more than 20,000 buckets would be returned.
+        """
+        self._ensure_experiment_initialized(experiment_id)
+        with self._open_experiment(experiment_id) as (conn, schema):
+            return fetch_metric_buckets(
+                conn, schema, key, level, start_step=start_step, end_step=end_step
+            )

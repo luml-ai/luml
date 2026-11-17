@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
+from contextlib import AbstractContextManager
 from typing import Any, Literal
 
 from luml.artifacts._base import _BaseFile
+from luml.experiments.backends._snapshot import ExperimentSnapshot
+from luml.experiments.backends._write_buffer import DEFAULT_FLUSH_INTERVAL
 from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
@@ -16,6 +19,8 @@ from luml.experiments.backends.data_types import (
     ExperimentData,
     FileNode,
     Group,
+    MetricBuckets,
+    MetricCatalog,
     Model,
     PaginatedResponse,
     TraceColumns,
@@ -28,7 +33,9 @@ from luml.experiments.backends.data_types import (
 
 class Backend(ABC):
     @abstractmethod
-    def __init__(self, config: str) -> None:
+    def __init__(
+        self, config: str, flush_interval: float = DEFAULT_FLUSH_INTERVAL
+    ) -> None:
         pass
 
     @abstractmethod
@@ -335,6 +342,12 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def snapshot_experiment(
+        self, experiment_id: str
+    ) -> AbstractContextManager[ExperimentSnapshot]:
+        pass
+
+    @abstractmethod
     def export_attachments(
         self, experiment_id: str
     ) -> tuple[_BaseFile, _BaseFile] | None:
@@ -535,6 +548,21 @@ class Backend(ABC):
 
     @abstractmethod
     def get_experiment_ddl_version(self, experiment_id: str) -> int:
+        pass
+
+    @abstractmethod
+    def get_metric_catalog(self, experiment_id: str) -> MetricCatalog:
+        pass
+
+    @abstractmethod
+    def get_metric_buckets(
+        self,
+        experiment_id: str,
+        key: str,
+        level: int,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> MetricBuckets:
         pass
 
     @abstractmethod
