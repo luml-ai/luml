@@ -596,8 +596,8 @@ class TickClock(FakeClock):
         ("http://satellite", True, False, list(range(0, 241, 2))),
         ("http://192.168.1.5", True, False, list(range(0, 241, 2))),
         (None, True, False, list(range(0, 241, 2))),
-        ("http://satellite", False, False, list(range(0, 241, 2))),
-        ("http://satellite", True, True, list(range(0, 241, 2))),
+        ("https://satellite", False, False, list(range(0, 241, 2))),
+        ("https://satellite", True, True, list(range(0, 241, 2))),
     ],
 )
 async def test_idle_poll_cadence_requires_negotiated_wake(
@@ -723,7 +723,9 @@ async def test_wake_does_not_shorten_failure_backoff(monkeypatch: pytest.MonkeyP
         ) as public,
     ):
         runtime = SatelliteRuntime(
-            configuration(health_interval=3).model_copy(update={"POLL_INTERVAL_SEC": 2}),
+            configuration(health_interval=3, base_url="https://satellite").model_copy(
+                update={"POLL_INTERVAL_SEC": 2}
+            ),
             client,
             FakeDriver(),
             clock=clock,
@@ -774,7 +776,7 @@ async def test_active_work_keeps_polling_without_wake(
         "http://platform", platform.token, transport=platform.transport
     ) as client:
         runtime = SatelliteRuntime(
-            configuration().model_copy(update={"POLL_INTERVAL_SEC": 2}),
+            configuration(base_url="https://satellite").model_copy(update={"POLL_INTERVAL_SEC": 2}),
             client,
             driver,
             clock=clock,
@@ -815,7 +817,11 @@ async def test_task_created_before_wake_starts_on_next_tick() -> None:
         ) as public,
     ):
         runtime = SatelliteRuntime(
-            configuration(), client, driver, clock=clock, public_application=app
+            configuration(base_url="https://satellite"),
+            client,
+            driver,
+            clock=clock,
+            public_application=app,
         )
         clock.runtime = runtime
 
