@@ -34,6 +34,7 @@ from lumlflow.schemas.experiments import (
     UpdateExperiment,
 )
 from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.screens.base import BaseScreen
@@ -341,7 +342,7 @@ class ExperimentsScreen(BaseScreen):
     def _fetch_page(self, *, reset: bool) -> None:
         facade = self.facade
         if facade is None:
-            self.call_later(self._on_page_failure, "facade unavailable", reset)
+            post_worker_result(self, self._on_page_failure, "facade unavailable", reset)
             return
         try:
             order = SortOrder(self._order)
@@ -359,7 +360,7 @@ class ExperimentsScreen(BaseScreen):
                         if groups_res.error
                         else "could not list groups"
                     )
-                    self.call_later(self._on_page_failure, message, reset)
+                    post_worker_result(self, self._on_page_failure, message, reset)
                     return
                 group_ids = [g.id for g in groups_res.unwrap().items]
                 self._all_group_ids_cache = group_ids
@@ -367,7 +368,8 @@ class ExperimentsScreen(BaseScreen):
                 # No groups at all → empty result page, no crash.
                 from lumlflow.schemas.experiments import PaginatedExperiments
 
-                self.call_later(
+                post_worker_result(
+                    self,
                     self._on_page_result,
                     Result.success(PaginatedExperiments(items=[], cursor=None)),
                     reset,
@@ -391,7 +393,7 @@ class ExperimentsScreen(BaseScreen):
                 order=order,
                 search=self._combined_search(),
             )
-        self.call_later(self._on_page_result, result, reset)
+        post_worker_result(self, self._on_page_result, result, reset)
 
     def _combined_search(self) -> str | None:
         """Combine free-text search with the advanced filter expression.
@@ -953,7 +955,7 @@ class ExperimentsScreen(BaseScreen):
         if facade is None:
             return
         result = facade.update_experiment(experiment_id, body)
-        self.call_later(self._on_update_result, result, experiment_id)
+        post_worker_result(self, self._on_update_result, result, experiment_id)
 
     def _on_update_result(self, result: Result[Any], experiment_id: str) -> None:
         if not result.ok:
@@ -1017,7 +1019,7 @@ class ExperimentsScreen(BaseScreen):
         if facade is None:
             return
         result = facade.delete_experiment(experiment_id)
-        self.call_later(self._on_delete_result, result, experiment_id)
+        post_worker_result(self, self._on_delete_result, result, experiment_id)
 
     def _on_delete_result(self, result: Result[Any], experiment_id: str) -> None:
         if not result.ok:
@@ -1136,7 +1138,7 @@ class ExperimentsScreen(BaseScreen):
                 order=order,
                 search=self._combined_search(),
             )
-        self.call_later(self._on_refresh_result, result)
+        post_worker_result(self, self._on_refresh_result, result)
 
     def _on_refresh_result(self, result: Result[Any]) -> None:
         if not result.ok:

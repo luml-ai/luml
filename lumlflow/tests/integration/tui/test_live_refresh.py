@@ -28,6 +28,8 @@ from lumlflow.tui.screens.experiment_detail import ExperimentDetailScreen
 from lumlflow.tui.screens.experiments import ExperimentsScreen
 from lumlflow.tui.screens.groups import ALL_EXPERIMENTS_KEY, GroupsScreen
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
+from textual._context import active_app
+from textual.events import Callback
 from textual.widgets import DataTable
 
 from tests.helpers.tui import settle_workers
@@ -721,6 +723,105 @@ class TestRefreshLifetime:
                 release.set()
             assert await asyncio.to_thread(finished.wait, 10)
             assert errors == []
+            callback.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "screen_kind",
+        ["groups", "experiments", "detail", "attachments", "evals", "traces"],
+    )
+    @pytest.mark.parametrize("leave", ["pop", "stop"])
+    async def test_detach_during_result_enqueue_drops_callback(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        screen_kind: str,
+        leave: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if screen_kind == "groups":
+                screen = GroupsScreen(facade=facade)
+                callback_name = "_on_refresh_result"
+            elif screen_kind == "experiments":
+                screen = ExperimentsScreen(facade=facade, group_id=group.id)
+                callback_name = "_on_refresh_result"
+            else:
+                screen = ExperimentDetailScreen(
+                    facade=facade, experiment_id=experiment_id
+                )
+                callback_name = "_on_refresh_details_result"
+            await app.push_screen(screen)
+            await settle_workers(pilot)
+            if screen_kind in {"attachments", "evals", "traces"}:
+                screen = screen.query_one(f"#pane-{screen_kind}-panel")
+                callback_name = (
+                    "_on_children_result"
+                    if screen_kind == "attachments"
+                    else "_on_refresh_result"
+                )
+            callback = Mock()
+            monkeypatch.setattr(screen, callback_name, callback)
+            check_enabled = screen.check_message_enabled
+            main_thread = threading.get_ident()
+
+            def blocked_check(message):
+                if (
+                    isinstance(message, Callback)
+                    and threading.get_ident() != main_thread
+                ):
+                    # native post_message has already checked its closing flags.
+                    assert not screen._closing and not screen._closed
+                    started.set()
+                    assert release.wait(10), "result enqueue was never released"
+                return check_enabled(message)
+
+            monkeypatch.setattr(screen, "check_message_enabled", blocked_check)
+            run_worker = screen.run_worker
+
+            def observe_worker(work, *args, **kwargs):
+                def observed():
+                    try:
+                        # textual's executor does not copy the app context.
+                        with pytest.raises(LookupError):
+                            active_app.get()
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(observed, *args, **kwargs)
+
+            monkeypatch.setattr(screen, "run_worker", observe_worker)
+            if screen_kind == "attachments":
+                screen._fetch_children(parent_path=None, parent_node_id=None)
+            elif screen_kind in {"evals", "traces"}:
+                screen._refresh_visible_window(limit=1)
+            else:
+                screen.refresh_live()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                if leave == "pop":
+                    await app.pop_screen()
+                    await pilot.pause()
+                else:
+                    await app._shutdown()
+                assert not screen.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            if leave == "pop":
+                await pilot.pause()
             callback.assert_not_called()
 
     @pytest.mark.parametrize("trigger", ["_tick", "refresh_now"])

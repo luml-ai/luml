@@ -31,6 +31,7 @@ from lumlflow.schemas.experiment_groups import (
     UpdateGroup,
 )
 from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.screens.base import BaseScreen
@@ -290,7 +291,7 @@ class GroupsScreen(BaseScreen):
     def _fetch_page(self, *, reset: bool) -> None:
         facade = self.facade
         if facade is None:
-            self.call_later(self._on_page_failure, "facade unavailable", reset)
+            post_worker_result(self, self._on_page_failure, "facade unavailable", reset)
             return
         try:
             sort_by = GroupsSortBy(self._sort_by)
@@ -307,7 +308,7 @@ class GroupsScreen(BaseScreen):
             order=order,
             search=self._search,
         )
-        self.call_later(self._on_page_result, result, reset)
+        post_worker_result(self, self._on_page_result, result, reset)
 
     def _on_page_result(self, result: Result[Any], reset: bool) -> None:
         self._set_loading(False)
@@ -710,7 +711,7 @@ class GroupsScreen(BaseScreen):
         if facade is None:
             return
         result = facade.update_group(group_id, body)
-        self.call_later(self._on_update_result, result, group_id)
+        post_worker_result(self, self._on_update_result, result, group_id)
 
     def _on_update_result(self, result: Result[Any], group_id: str) -> None:
         if not result.ok:
@@ -765,7 +766,7 @@ class GroupsScreen(BaseScreen):
         if facade is None:
             return
         result = facade.delete_group(group_id)
-        self.call_later(self._on_delete_result, result, group_id)
+        post_worker_result(self, self._on_delete_result, result, group_id)
 
     def _on_delete_result(self, result: Result[Any], group_id: str) -> None:
         if not result.ok:
@@ -881,7 +882,7 @@ class GroupsScreen(BaseScreen):
             order=order,
             search=self._search,
         )
-        self.call_later(self._on_refresh_result, result)
+        post_worker_result(self, self._on_refresh_result, result)
 
     def _on_refresh_result(self, result: Result[Any]) -> None:
         if not result.ok:

@@ -49,6 +49,7 @@ from lumlflow.schemas.annotations import (
 )
 from lumlflow.schemas.experiments import Span, TraceDetails
 from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.screens.base import BaseScreen
@@ -402,10 +403,10 @@ class TraceDetailScreen(BaseScreen):
     def _fetch_trace(self) -> None:
         facade = self.facade
         if facade is None:
-            self.call_later(self._on_trace_failure, "facade unavailable")
+            post_worker_result(self, self._on_trace_failure, "facade unavailable")
             return
         result = facade.get_trace(self._experiment_id, self._trace_id)
-        self.call_later(self._on_trace_result, result)
+        post_worker_result(self, self._on_trace_result, result)
 
     def _on_trace_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -646,7 +647,7 @@ class TraceDetailScreen(BaseScreen):
         result = facade.list_span_annotations(
             self._experiment_id, self._trace_id, span_id
         )
-        self.call_later(self._on_span_annotations_result, result, span_id)
+        post_worker_result(self, self._on_span_annotations_result, result, span_id)
 
     def _on_span_annotations_result(self, result: Result[Any], span_id: str) -> None:
         if span_id != self._selected_span_id:
@@ -827,7 +828,9 @@ class TraceDetailScreen(BaseScreen):
         result = facade.create_span_annotation(
             self._experiment_id, self._trace_id, span_id, body
         )
-        self.call_later(self._on_annotation_mutation_result, result, span_id, "created")
+        post_worker_result(
+            self, self._on_annotation_mutation_result, result, span_id, "created"
+        )
 
     @work(thread=True, group="span-annotation-update")
     def _run_update_annotation(
@@ -838,7 +841,9 @@ class TraceDetailScreen(BaseScreen):
             return
         result = facade.update_span_annotation(self._experiment_id, annotation_id, body)
         span_id = self._selected_span_id or ""
-        self.call_later(self._on_annotation_mutation_result, result, span_id, "updated")
+        post_worker_result(
+            self, self._on_annotation_mutation_result, result, span_id, "updated"
+        )
 
     def _on_annotation_mutation_result(
         self, result: Result[Any], span_id: str, verb: str
@@ -871,8 +876,8 @@ class TraceDetailScreen(BaseScreen):
             return
         result = facade.delete_span_annotation(self._experiment_id, annotation_id)
         span_id = self._selected_span_id or ""
-        self.call_later(
-            self._on_annotation_delete_result, result, annotation_id, span_id
+        post_worker_result(
+            self, self._on_annotation_delete_result, result, annotation_id, span_id
         )
 
     def _on_annotation_delete_result(
