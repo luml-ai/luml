@@ -26,6 +26,7 @@ import httpx
 import trace_data
 from luml_api import LumlClient
 from luml_api._types import ArtifactStatus, BucketType, CollectionType
+from old_sdk import old_sdk_python
 
 from luml.experiments.tracker import ExperimentTracker
 
@@ -125,13 +126,12 @@ def new_experiment(
     return out
 
 
-def old_experiment(work: Path) -> tuple[Path, str]:
+def old_experiment(work: Path, python: str | None) -> tuple[Path, str]:
     """Generation 1 by released luml-sdk 0.5.0 when its venv is there, else frozen."""
-    python = os.environ.get("E2E_OLD_SDK_PYTHON")
     out = work / "old_sdk_0_5_0.tar"
     if CACHE and out.exists():
         return out, "luml-sdk 0.5.0"
-    if python and Path(python).exists():
+    if python:
         subprocess.run(
             [python, "-I", str(OLD_SDK_SCRIPT), str(work / "old-store"), str(out)],
             check=True,
@@ -143,10 +143,9 @@ def old_experiment(work: Path) -> tuple[Path, str]:
     )
 
 
-def fallback_experiment(work: Path) -> Path | None:
+def fallback_experiment(work: Path, python: str | None) -> Path | None:
     """Legacy rows stored by luml-sdk 0.5.0, exported by this SDK (old format kept)."""
-    python = os.environ.get("E2E_OLD_SDK_PYTHON")
-    if not (python and Path(python).exists()):
+    if not python:
         return None
     out = work / "fallback.tar"
     if CACHE and out.exists():
@@ -161,7 +160,7 @@ def fallback_experiment(work: Path) -> Path | None:
     return out
 
 
-def trace_experiments(work: Path) -> dict[str, Path]:
+def trace_experiments(work: Path, python: str | None) -> dict[str, Path]:
     """The same traces and evals (trace_data.py) by this SDK and by luml-sdk 0.5.0."""
     started = time.monotonic()
     outputs = {"traces_new": work / "traces_new.tar"}
@@ -174,8 +173,7 @@ def trace_experiments(work: Path) -> dict[str, Path]:
         tracker.end_experiment()
         tracker.export(str(outputs["traces_new"]), experiment_id)
         shutil.rmtree(store)
-    python = os.environ.get("E2E_OLD_SDK_PYTHON")
-    if python and Path(python).exists():
+    if python:
         outputs["traces_old"] = work / "traces_old.tar"
         if not (CACHE and outputs["traces_old"].exists()):
             store = work / "traces-old-store"
@@ -283,12 +281,16 @@ def build_artifacts(work: Path) -> tuple[dict[str, tuple[Path, str]], str]:
         "model_gen2": (FIXTURES / "j_gen2_model_sdk_0_6_0.tar", "model"),
         "model_gen1": (FIXTURES / "f_model_sdk_0_5_0.tar", "model"),
     }
-    fallback = fallback_experiment(work)
+    python = old_sdk_python(
+        "the old-format experiment is the frozen l_gen1_twin.tar, and the tests of "
+        "the fallback and traces_old experiments are skipped"
+    )
+    fallback = fallback_experiment(work, python)
     if fallback:
         artifacts["fallback"] = (fallback, "experiment")
-    old_path, old_source = old_experiment(work)
+    old_path, old_source = old_experiment(work, python)
     artifacts["old"] = (old_path, "experiment")
-    for label, path in trace_experiments(work).items():
+    for label, path in trace_experiments(work, python).items():
         artifacts[label] = (path, "experiment")
     large_size = artifacts["large"][0].stat().st_size
     if large_size > 150 * 1024 * 1024:

@@ -140,57 +140,6 @@ export async function clickFirstTrace(page: Page, traceId: string) {
   await traceRows(page).first().getByRole('button', { name: traceId, exact: true }).click()
 }
 
-/** PrimeVue's error toast, in the toast host of the platform and of Flow. */
-const ERROR_TOAST = '.p-toast-message-error'
-
-export function errorToasts(page: Page): Locator {
-  return page.locator(ERROR_TOAST)
-}
-
-/**
- * Records, from the page's first script on, every error toast shown (a toast goes after 3 s, so
- * one shown and gone before the check still counts), every uncaught error and unhandled
- * rejection, and console errors about the snapshot worker. Call before the page is opened.
- */
-export async function recordErrors(page: Page): Promise<() => Promise<string[]>> {
-  const seenByNode: string[] = []
-  page.on('pageerror', (error) => seenByNode.push(`page error: ${error.message}`))
-  page.on('console', (message) => {
-    if (message.type() === 'error' && /worker|terminated/i.test(message.text()))
-      seenByNode.push(`console error: ${message.text()}`)
-  })
-  await page.addInitScript((selector) => {
-    // Toasts are kept as elements and read when checked: their text may come after insertion.
-    const seen: (string | Element)[] = []
-    Object.assign(window, { __e2eErrors: seen })
-    window.addEventListener('unhandledrejection', (event) =>
-      seen.push(`unhandled rejection: ${String(event.reason)}`),
-    )
-    new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (!(node instanceof Element)) continue
-          const toasts = node.matches(selector) ? [node] : [...node.querySelectorAll(selector)]
-          for (const toast of toasts) {
-            // Vue's TransitionGroup adds and removes an empty, hidden clone of each toast that
-            // moves when another one comes or goes.
-            if (toast.classList.contains('p-toast-message-move') || seen.includes(toast)) continue
-            seen.push(toast)
-          }
-        }
-      }
-    }).observe(document, { childList: true, subtree: true })
-  }, ERROR_TOAST)
-  return async () => [
-    ...seenByNode,
-    ...(await page.evaluate(() =>
-      ((window as unknown as { __e2eErrors?: (string | Element)[] }).__e2eErrors ?? []).map(
-        (item) => (typeof item === 'string' ? item : `toast: ${item.textContent?.trim()}`),
-      ),
-    )),
-  ]
-}
-
 /**
  * Runs the timers a closed view left behind at once, as time would run them (the traces table
  * reloads 500 ms after its parameters change, and they are reset when it closes). The page's

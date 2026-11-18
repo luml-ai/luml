@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import random
 import sqlite3
 import subprocess
@@ -20,6 +19,7 @@ import time
 from pathlib import Path
 
 import trace_data
+from old_sdk import old_sdk_python
 
 from luml.experiments.tracker import ExperimentTracker
 
@@ -48,8 +48,11 @@ def main() -> None:
     result: dict[str, object] = {"store": str(store)}
     trace_seconds = 0.0
 
-    python = os.environ.get("E2E_OLD_SDK_PYTHON")
-    if python and Path(python).exists():
+    python = old_sdk_python(
+        "the old-schema tests are skipped and the comparisons leave the old "
+        "experiment out"
+    )
+    if python:
         subprocess.run(
             [
                 python,

@@ -14,7 +14,8 @@
 # Environment: E2E_STORAGES (default "s3,azure"), E2E_OLD_SDK_PYTHON, E2E_KEEP_WORK=1 keeps the
 # work directory, E2E_SKIP_BUILD=1 reuses the extras dist and the last frontend (see
 # E2E_FRONTEND_DIST) and Flow builds,
-# E2E_PORT_BASE (default 41100) where the free-port search starts.
+# E2E_PORT_BASE (default 41100) where the free-port search starts, E2E_STRICT=1 (CI) makes a
+# missing or broken luml-sdk 0.5.0 venv and any skipped, flaky or not run test fail the run.
 set -euo pipefail
 set -m
 
@@ -42,6 +43,10 @@ cleanup() {
     docker compose -p "$PROJECT" -f "$HERE/compose.yml" logs --no-color >"$LOGS/compose.log" 2>&1 || true
     docker compose -p "$PROJECT" -f "$HERE/compose.yml" down -v --remove-orphans >/dev/null 2>&1 || true
   fi
+  # CI uploads the logs of a failed run: no query strings or fragments, which hold signed storage
+  # URLs (Azurite's access log) and Flow's tokens (its start line).
+  find "$LOGS" -maxdepth 1 -name '*.log' -exec sed -i -E \
+    's/\?[^[:space:]"]*//g; s/#[[:alnum:]_-]*token=[^[:space:]"]*//g' {} + 2>/dev/null || true
   if [[ "${E2E_KEEP_WORK:-0}" != 1 && -z "${E2E_LOG_DIR:-}" ]]; then
     rm -rf "$WORK"
   else
@@ -231,6 +236,8 @@ fi
 log "running the browser specs"
 cd "$FRONTEND"
 # In the background and waited for, so Ctrl-C runs the trap at once, which stops it too.
+export E2E_RESULTS="$WORK/results.json"
 npx playwright test -c "$HERE/playwright.config.ts" "$@" &
 PIDS+=($!)
 wait $!
+if [[ "${E2E_STRICT:-0}" == 1 ]]; then node "$HERE/check_results.mjs" "$E2E_RESULTS"; fi

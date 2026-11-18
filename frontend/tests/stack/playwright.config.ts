@@ -2,7 +2,16 @@ import { defineConfig, devices } from '@playwright/test'
 
 // Full-stack suites; run through run.sh, which starts the stack and sets the E2E_* variables.
 const suite = process.env.E2E_SUITE ?? 'all'
-const specs = { platform: /platform\.spec\.ts/, flow: /flow\.spec\.ts/, all: /\.spec\.ts/ }
+// The error guard's own tests run with each suite.
+const specs = {
+  platform: /(platform|error_guard)\.spec\.ts/,
+  flow: /(flow|error_guard)\.spec\.ts/,
+  all: /\.spec\.ts/,
+}
+// run.sh reads the results to fail a run with skipped or flaky tests (E2E_STRICT=1).
+const results = process.env.E2E_RESULTS
+  ? [['json', { outputFile: process.env.E2E_RESULTS }] as const]
+  : []
 
 export default defineConfig({
   testDir: '.',
@@ -19,10 +28,13 @@ export default defineConfig({
         ['github'],
         ['list'],
         ['html', { open: 'never', outputFolder: `${process.env.E2E_LOGS}/report` }],
+        ...results,
       ]
-    : [['list']],
+    : [['list'], ...results],
   use: {
-    trace: 'retain-on-failure',
+    // A trace holds every request's URL and headers (signed storage URLs, cookies), and CI
+    // uploads the logs of a failed run: no traces there.
+    trace: process.env.CI ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
     actionTimeout: 15_000,
     navigationTimeout: 60_000,

@@ -1,16 +1,9 @@
-import {
-  test,
-  expect,
-  type BrowserContext,
-  type Locator,
-  type Page,
-  type Request,
-  type Response,
-} from '@playwright/test'
+import type { BrowserContext, Locator, Page, Request, Response } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { PRESIGNED_URL_MIN_RENEW_AGE_MS } from '../../src/lib/bucket-service/presigned-url-cache'
+import { ERROR_TOAST, expect, test } from './error_guard'
 import {
   SLOW_LINK,
   ThrottleProxy,
@@ -20,14 +13,12 @@ import {
 } from './proxy'
 import {
   clickFirstTrace,
-  errorToasts,
   expectAverageScores,
   expectLargeValue,
   expectRegularTrace,
   expectTracesSortedAndPaged,
   expectVirtualisedTree,
   openTrace,
-  recordErrors,
   rowCells,
   runLeftTimers,
   scoreTexts,
@@ -823,8 +814,12 @@ for (const storageName of Object.keys(data.storages)) {
     })
 
     if (storageName === 's3') {
-      test('a presigned URL that stopped working mid-session is renewed once', async ({ page }) => {
+      test('a presigned URL that stopped working mid-session is renewed once', async ({
+        page,
+        errors,
+      }) => {
         const large = artifact('large')
+        errors.expect(refusedRead(large))
         // The page's clock: a URL younger than the minimum renew age is not renewed.
         await page.clock.install()
         await openSnapshot(page, storage, large)
@@ -900,6 +895,15 @@ async function expectUsableWhileLoading(
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** Storage refusing a read of `artifact`, as the test makes it (an error the guard allows). */
+function refusedRead(artifact: PublishedArtifact) {
+  return {
+    kind: 'response',
+    status: 403,
+    url: new RegExp(`/${escapeRegExp(artifact.bucket_location)}$`),
+  } as const
 }
 
 test.describe('slow network to storage', () => {
@@ -1060,12 +1064,14 @@ test.describe('slow network to storage', () => {
   test('traces of a new-format experiment on a slow link: the same reads, each step in time', async ({
     page,
     browser,
+    errors,
   }) => {
     const traces = artifact('traces_new')
     const baselineContext = await browser.newContext({
       storageState: BROWSER_STATE,
       viewport: { width: 1440, height: 1000 },
     })
+    await errors.watch(baselineContext)
     const baseline = await traceSteps(
       await baselineContext.newPage(),
       new NetworkLog(baselineContext, storage.artifacts),
@@ -1090,8 +1096,10 @@ test.describe('slow network to storage', () => {
 
   test('a span payload read that fails says so, and selecting the span again loads it', async ({
     page,
+    errors,
   }) => {
     const traces = artifact('traces_new')
+    errors.expect(refusedRead(traces))
     const { large } = TRACES.big
     await openTraceSnapshot(page, storage, traces)
     await openTrace(page, TRACES.big.trace_id)
@@ -1170,36 +1178,34 @@ test.describe('slow network to storage', () => {
       .toBe(0)
   }
 
-  test('a trace read that fails shows an error toast', async ({ page }) => {
-    // The control for the tests below: the toast they expect not to see is seen here.
+  test('a trace read that fails shows an error toast', async ({ page, errors }) => {
+    // The control for the error guard in the tests below: the toast it fails them on is seen
+    // here, and declared.
     const traces = artifact('traces_new')
-    const errors = await recordErrors(page)
+    errors.expect({ kind: 'toast', text: /Snapshot range read failed: .* status 403/ })
+    errors.expect(refusedRead(traces))
     await showBigTraceFirst(page, traces)
     await proxy.configure({ refuseMatching: escapeRegExp(traces.bucket_location) })
     await clickFirstTrace(page, TRACES.big.trace_id)
-    await expect(errorToasts(page).first()).toBeVisible()
-    await expect.poll(errors).toContainEqual(expect.stringMatching(/^toast: /))
+    await expect(page.locator(`.${ERROR_TOAST}`).first()).toBeVisible()
     await network.settled()
   })
 
+  // "Shows no error": the error guard fails these on any error toast or error left behind.
   test('leaving a loaded new-format experiment shows no error', async ({ page }) => {
     // Nothing is read when it is left: what this shows is not about cancelled reads.
     const large = artifact('large')
-    const errors = await recordErrors(page)
     await page.clock.install()
     await openSnapshot(page, storage, large)
     await settledChart(page, 'train/loss', [large.id])
     await network.settled()
     await leaveExperiment(page, large)
-    expect(await errors()).toEqual([])
-    await expect(errorToasts(page)).toHaveCount(0)
   })
 
   test('leaving a new-format experiment while its first reads are held shows no error', async ({
     page,
   }) => {
     const large = artifact('large')
-    const errors = await recordErrors(page)
     await page.clock.install()
     await proxy.configure({ stallMatching: escapeRegExp(large.bucket_location) })
     await openSnapshot(page, storage, large)
@@ -1220,22 +1226,17 @@ test.describe('slow network to storage', () => {
     await expect(view.locator('> .p-skeleton').first()).toBeVisible()
     await expect(chartCard(page, 'train/loss')).toHaveCount(0)
     await leaveWhileHeld(page, large)
-    expect(await errors()).toEqual([])
-    await expect(errorToasts(page)).toHaveCount(0)
   })
 
   test('leaving a new-format experiment while a trace read is held shows no error', async ({
     page,
   }) => {
     const traces = artifact('traces_new')
-    const errors = await recordErrors(page)
     await page.clock.install()
     await showBigTraceFirst(page, traces)
     await proxy.configure({ stallMatching: escapeRegExp(traces.bucket_location) })
     await clickFirstTrace(page, TRACES.big.trace_id)
     await leaveWhileHeld(page, traces)
-    expect(await errors()).toEqual([])
-    await expect(errorToasts(page)).toHaveCount(0)
 
     // Back in the app's history: the experiment opens again with fresh reads and no dialog.
     await proxy.configure({ stallMatching: null })
@@ -1246,8 +1247,6 @@ test.describe('slow network to storage', () => {
     await expectAverageScores(page, TRACES.averages)
     await expect(traceDialog(page)).toHaveCount(0)
     await network.settled()
-    expect(await errors()).toEqual([])
-    await expect(errorToasts(page)).toHaveCount(0)
   })
 })
 
@@ -1259,9 +1258,14 @@ test.describe('Azure storage through its proxy', () => {
     await proxy.reset()
   })
 
-  test('a SAS URL that stopped working mid-session is renewed once', async ({ page, context }) => {
+  test('a SAS URL that stopped working mid-session is renewed once', async ({
+    page,
+    context,
+    errors,
+  }) => {
     const network = new NetworkLog(context, storage.artifacts)
     const large = storage.artifacts.large!
+    errors.expect(refusedRead(large))
     // The page's clock: a URL younger than the minimum renew age is not renewed.
     await page.clock.install()
     await openSnapshot(page, storage, large)

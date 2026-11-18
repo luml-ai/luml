@@ -1,11 +1,11 @@
-import { test, expect, type Locator, type Page, type Request } from '@playwright/test'
+import type { Locator, Page, Request } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { expect, test } from './error_guard'
 import { SLOW_LINK, ThrottleProxy } from './proxy'
 import {
   clickFirstTrace,
-  errorToasts,
   evalRows,
   expectAverageScores,
   expectLargeValue,
@@ -13,7 +13,6 @@ import {
   expectTracesSortedAndPaged,
   expectVirtualisedTree,
   openTrace,
-  recordErrors,
   rowCells,
   runLeftTimers,
   scoreTexts,
@@ -298,6 +297,7 @@ for (const [format, key] of [
   })
 }
 
+// "Shows no error": the error guard fails these on any error toast or error left behind.
 test.describe('leaving an experiment in Flow', () => {
   test.beforeEach(async () => {
     await PROXY.reset()
@@ -310,7 +310,6 @@ test.describe('leaving an experiment in Flow', () => {
   test('leaving an experiment while a trace read is held shows no error', async ({ page }) => {
     const experiment = data.traces
     const traceRead = `/api/experiments/${experiment.id}/traces/${TRACES.big.trace_id}`
-    const errors = await recordErrors(page)
     await page.clock.install()
     await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`, SLOW_FLOW)
     await sortLongestFirst(page, TRACES)
@@ -335,8 +334,6 @@ test.describe('leaving an experiment in Flow', () => {
     await expect.poll(async () => (await held())[0]!.endedAt).toBeGreaterThan(0)
     await browserDone
     await runLeftTimers(page)
-    expect(await errors()).toEqual([])
-    await expect(errorToasts(page)).toHaveCount(0)
 
     // Back in the app's history: the experiment opens again and lists its traces.
     await page.goBack()
@@ -366,7 +363,6 @@ test.describe('leaving an experiment in Flow', () => {
       const left = data.traces
       const next = data.new
       const listRead = `/api/experiments/${left.id}/${list}`
-      const errors = await recordErrors(page)
       await page.clock.install()
       await PROXY.configure({ stallMatching: `^${listRead}\\?` })
       const held = async () =>
@@ -389,8 +385,6 @@ test.describe('leaving an experiment in Flow', () => {
       // An empty table has one row, for its empty message.
       await expect(traceRows(page).getByRole('button', { name: /^trace-/ })).toHaveCount(0)
       await expect(evalRows(page)).toHaveCount(0)
-      expect(await errors()).toEqual([])
-      await expect(errorToasts(page)).toHaveCount(0)
     })
   }
 })
