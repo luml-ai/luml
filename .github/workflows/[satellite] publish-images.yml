@@ -84,6 +84,7 @@ jobs:
           esac
 
   push-image:
+    name: push-image (${{ matrix.image }})
     needs: [resolve-image-tag, kit-tests, docker-tests, kubernetes-tests, ui-tests]
     runs-on: ubuntu-latest
     permissions:

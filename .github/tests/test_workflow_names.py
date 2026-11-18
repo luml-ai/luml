@@ -28,6 +28,22 @@ class WorkflowNameTests(unittest.TestCase):
             with self.subTest(workflow=path.name):
                 self.assertRegex(path.name, r"^\[[a-z-]+\] .+\.yml$")
 
+    def test_matrix_jobs_keep_short_names(self):
+        for path in WORKFLOWS.glob("*.yml"):
+            for job_id, job in load(path.name)["jobs"].items():
+                matrix = job.get("strategy", {}).get("matrix")
+                if matrix is None:
+                    continue
+                with self.subTest(workflow=path.name, job=job_id):
+                    if "name" in job:
+                        self.assertRegex(
+                            job["name"], r"^[a-z-]+ \(\$\{\{ matrix\.[a-z-]+ \}\}\)$"
+                        )
+                    else:
+                        self.assertIsInstance(matrix, dict)
+                        self.assertEqual(len(matrix), 1)
+                        self.assertNotIn("include", matrix)
+
     def test_workflow_changes_match_their_trigger_filters(self):
         triggers = {
             "[satellite] publish-images.yml": [

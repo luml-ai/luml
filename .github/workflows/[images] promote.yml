@@ -57,6 +57,7 @@ jobs:
           esac
 
   promote:
+    name: promote (${{ matrix.name }})
     needs: resolve-image-tag
     runs-on: ubuntu-latest
     permissions:
