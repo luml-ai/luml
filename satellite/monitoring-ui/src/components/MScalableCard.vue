@@ -1,7 +1,7 @@
 <template>
-  <div ref="card" class="scalable-card" :class="variant">
-    <div class="header">
-      <div class="header-text">
+  <div class="scalable-card" :class="variant">
+    <div class="header" :class="{ floating: !title }">
+      <div v-if="title" class="header-text">
         <h3 class="title">{{ title }}</h3>
         <span v-if="subtitle" class="subtitle">{{ subtitle }}</span>
       </div>
@@ -27,9 +27,10 @@
       dismissable-mask
       :draggable="false"
       :style="dialogStyle"
+      :pt="{ mask: { style: { '--px-mask-background': 'transparent' } } }"
     >
       <template #header>
-        <div class="header-text">
+        <div v-if="title" class="header-text">
           <h3 class="title">{{ title }}</h3>
           <span v-if="subtitle" class="subtitle">{{ subtitle }}</span>
         </div>
@@ -45,27 +46,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue'
-import { useElementSize, useWindowSize } from '@vueuse/core'
 import { Maximize2, Minimize2 } from 'lucide-vue-next'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 
-const MAX_DIALOG_WIDTH = 800
-const VIEWPORT_GAP = 32
+const DIALOG_GAP = 15
 
 interface Props {
-  title: string
+  title?: string
   subtitle?: string
   variant?: 'bordered' | 'block'
-  dialogRatio?: number
 }
 
 interface Slots {
   default: (props: { scaled: boolean }) => unknown
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   variant: 'bordered',
 })
 
@@ -73,33 +70,17 @@ defineSlots<Slots>()
 
 const isScaled = defineModel<boolean>('scaled', { default: false })
 
-const card = useTemplateRef<HTMLDivElement>('card')
-
-const { width: cardWidth, height: cardHeight } = useElementSize(card, undefined, {
-  box: 'border-box',
-})
-const { width: windowWidth, height: windowHeight } = useWindowSize()
-
-const dialogRatio = computed(() => {
-  if (props.dialogRatio && props.dialogRatio > 0) return props.dialogRatio
-  if (!cardWidth.value || !cardHeight.value) return null
-  return cardHeight.value / cardWidth.value
-})
-
-const dialogStyle = computed(() => {
-  const ratio = dialogRatio.value
-  if (!ratio) return { width: `${MAX_DIALOG_WIDTH}px` }
-  const width = Math.min(
-    MAX_DIALOG_WIDTH,
-    windowWidth.value - VIEWPORT_GAP,
-    (windowHeight.value - VIEWPORT_GAP) / ratio,
-  )
-  return { width: `${width}px`, height: `${width * ratio}px` }
-})
+const dialogStyle = {
+  width: `calc(100vw - ${2 * DIALOG_GAP}px)`,
+  height: `calc(100vh - ${2 * DIALOG_GAP}px)`,
+  maxWidth: 'none',
+  maxHeight: 'none',
+}
 </script>
 
 <style scoped>
 .scalable-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -118,6 +99,14 @@ const dialogStyle = computed(() => {
 .header {
   position: relative;
   padding-right: 35px;
+}
+
+.header.floating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  padding-right: 0;
 }
 
 .header-text {

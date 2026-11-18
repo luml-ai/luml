@@ -55,10 +55,12 @@ export function getDistributionCategories(distribution: FeatureDistribution): st
 }
 
 export function getDistributionSeries(distribution: FeatureDistribution) {
-  return [
+  const hasCurrent = distribution.bins.some((bin) => bin.current != null)
+  const series = [
     { name: 'Reference', data: distribution.bins.map((bin) => bin.reference ?? 0) },
     { name: 'Current', data: distribution.bins.map((bin) => bin.current ?? 0) },
   ]
+  return hasCurrent ? series : series.slice(0, 1)
 }
 
 export function getFeatureDriftEmptyState(

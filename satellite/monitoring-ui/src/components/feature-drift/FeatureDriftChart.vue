@@ -1,5 +1,5 @@
 <template>
-  <MScalableCard :variant="variant" :title="title" :subtitle="subtitle" :dialog-ratio="dialogRatio">
+  <MScalableCard :variant="variant" :title="title" :subtitle="subtitle">
     <template #default="{ scaled }">
       <div class="chart" :class="{ scaled, fixed: height }">
         <div v-if="isEmpty" class="chart-empty">{{ emptyText }}</div>
@@ -17,7 +17,6 @@ import MScalableCard from '@/components/MScalableCard.vue'
 interface Props {
   title: string
   subtitle?: string
-  dialogRatio?: number
   emptyText: string
   isEmpty?: boolean
   variant?: 'bordered' | 'block'

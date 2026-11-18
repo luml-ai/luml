@@ -13,7 +13,6 @@
       subtitle="Reference vs logged, from the training PCA basis."
       empty-text="No PCA projection available for this window."
       :is-empty="isEmpty"
-      :dialog-ratio="PCA_DIALOG_RATIO"
     >
       <PcaProjectionChart :multivariate="multivariate" />
     </FeatureDriftChart>
@@ -24,7 +23,7 @@
 import { computed } from 'vue'
 import { Tag } from 'primevue'
 import type { MultivariatePanel } from '@/api/monitoring/interfaces'
-import { PCA_DIALOG_RATIO, STATUS_TAG_TOKENS } from '@/constants/drift'
+import { STATUS_TAG_TOKENS } from '@/constants/drift'
 import { getSeverityLabel, getSeverityTagSeverity } from '@/utils/alerts'
 import FeatureDriftChart from '@/components/feature-drift/FeatureDriftChart.vue'
 import PcaProjectionChart from '@/components/feature-drift/PcaProjectionChart.vue'

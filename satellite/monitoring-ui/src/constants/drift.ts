@@ -14,8 +14,6 @@ export const PCA_RANGE_QUANTILE = 0.01
 
 export const PCA_RANGE_PADDING = 0.05
 
-export const PCA_DIALOG_RATIO = 0.7
-
 export const PCA_LEGEND_ITEMS = [
   { key: 'reference', label: 'Reference (training)' },
   { key: 'current', label: 'Logged (current window)' },
