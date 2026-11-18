@@ -12,7 +12,7 @@ on:
       - model_servers/default/**
       - satellite/.env.example
       - satellite/docker-compose.yml
-      - '.github/workflows/\[model-server\] publish-image.yml'
+      - '.github/workflows/*model-server*publish-image.yml'
   workflow_dispatch:
 
 concurrency:

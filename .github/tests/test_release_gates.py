@@ -96,6 +96,11 @@ def load(name):
     return yaml.load((WORKFLOWS / name).read_text(), Loader=yaml.BaseLoader)
 
 
+def trigger_path(name):
+    package, action = name.removeprefix("[").split("] ", 1)
+    return f".github/workflows/*{package}*{action}"
+
+
 def dependencies(jobs, name):
     needs = jobs[name].get("needs", [])
     if isinstance(needs, str):
@@ -277,10 +282,7 @@ class ReleaseGateTests(unittest.TestCase):
                 self.assertNotIn("workflow_run", workflow["on"])
                 self.assertEqual(set(workflow["on"]["push"]["branches"]), {"main"})
                 self.assertEqual(set(workflow["on"]["push"]["tags"]), set(tags))
-                self.assertIn(
-                    ".github/workflows/" + name.replace("[", r"\[").replace("]", r"\]"),
-                    workflow["on"]["push"]["paths"],
-                )
+                self.assertIn(trigger_path(name), workflow["on"]["push"]["paths"])
                 publish = workflow["jobs"]["push-image"]
                 checkouts = [
                     step
@@ -421,7 +423,7 @@ class ReleaseGateTests(unittest.TestCase):
                 publisher_paths = set(load(publisher)["on"]["push"]["paths"])
                 self.assertEqual(set(entry["paths"].splitlines()), publisher_paths)
                 promoted_paths |= publisher_paths
-        promoted_paths.add(".github/workflows/\\[images\\] promote.yml")
+        promoted_paths.add(trigger_path(PROMOTION))
         self.assertEqual(set(workflow["on"]["push"]["paths"]), promoted_paths)
 
     def test_promotion_tag_resolution_accepts_promotion_branches_only(self):

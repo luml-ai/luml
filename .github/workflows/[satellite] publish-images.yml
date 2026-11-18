@@ -22,7 +22,7 @@ on:
       - satellite/Caddyfile
       - docs/docs/guides/satellite.md
       - frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
-      - '.github/workflows/\[satellite\] publish-images.yml'
+      - '.github/workflows/*satellite*publish-images.yml'
   workflow_dispatch:
 
 concurrency:
