@@ -813,7 +813,3 @@ it touches. A task that changes `@luml/attachments` also runs `type-check`, `tes
   - [ ] The route, the database and attachments providers over the archive member
     endpoint, and the read-only tabs with the banner (Experiment from a `.luml`)
   - [ ] Tests with a small experiment archive fixture
-
-- [ ] Remove the design prototype
-  - [ ] Delete `SPEC-design/`: it is spec material and must not reach `main`. CI rejects
-    `SPEC.md` and `codie/**` there but does not catch this folder
