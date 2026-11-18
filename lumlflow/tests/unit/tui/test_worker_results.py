@@ -1,5 +1,3 @@
-"""Worker delivery keeps app lookup stable without changing callback ownership."""
-
 import asyncio
 from unittest.mock import Mock
 

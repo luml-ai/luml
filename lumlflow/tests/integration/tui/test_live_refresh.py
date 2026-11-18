@@ -687,7 +687,6 @@ class TestRefreshLifetime:
             run_worker = screen.run_worker
 
             def observe_worker(work, *args, **kwargs):
-                # cancellation ends the worker task, but its thread keeps running.
                 def observed():
                     try:
                         return work()
@@ -777,7 +776,6 @@ class TestRefreshLifetime:
                     isinstance(message, Callback)
                     and threading.get_ident() != main_thread
                 ):
-                    # native post_message has already checked its closing flags.
                     assert not screen._closing and not screen._closed
                     started.set()
                     assert release.wait(10), "result enqueue was never released"
@@ -789,7 +787,6 @@ class TestRefreshLifetime:
             def observe_worker(work, *args, **kwargs):
                 def observed():
                     try:
-                        # textual's executor does not copy the app context.
                         with pytest.raises(LookupError):
                             active_app.get()
                         return work()

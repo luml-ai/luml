@@ -1,5 +1,3 @@
-"""Facade lookup is safe for detached screens and panels."""
-
 import asyncio
 from unittest.mock import Mock
 

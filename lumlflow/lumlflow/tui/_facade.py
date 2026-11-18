@@ -1,5 +1,3 @@
-"""Facade lookup shared by screens and panels."""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -18,7 +16,5 @@ def resolve_facade(widget: Widget, explicit: DataFacade | None) -> DataFacade | 
     try:
         app = widget.app
     except NoActiveAppError:
-        # a queued worker may start after its widget detaches.
         return None
-    # do not construct the app's lazy facade for chrome-only screens.
     return getattr(app, "_facade", None)

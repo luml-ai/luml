@@ -1,5 +1,3 @@
-"""Worker result delivery scoped to the owning widget."""
-
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -18,7 +16,6 @@ def post_worker_result(
         app = owner.app
     except NoActiveAppError:
         return False
-    # keep app lookup stable if the owner detaches inside textual's enqueue.
     token = active_app.set(app)
     try:
         return owner.call_later(callback, *args, **kwargs)
