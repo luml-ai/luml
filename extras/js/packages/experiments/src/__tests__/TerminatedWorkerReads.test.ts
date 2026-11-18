@@ -504,6 +504,31 @@ describe('a read that ends after its view closed', () => {
     expect(useEvalsStore().datasets).toBeNull()
   })
 
+  it('the evals list reads the next page asked for while a page was loading', async () => {
+    const pages: ReturnType<typeof deferred<EvalsInfo[]>>[] = []
+    const provider = datasetProvider(pages)
+    setProvider(provider)
+    const wrapper = mountView(EvalsDatasetsList, { modelsInfo: {}, loaderHeight: '10px' })
+    await flushPromises()
+    pages[0]!.resolve([evalRow])
+    await flushPromises()
+
+    const nextPage = setupFunction(wrapper, 'getNextPage')('d1')
+    await flushPromises()
+    await setupFunction(wrapper, 'getNextPage')('d1')
+    expect(useEvalsStore().loading).toBe(true)
+    pages[1]!.resolve([{ ...evalRow, id: 'e2' }])
+    await nextPage
+    await flushPromises()
+
+    expect(provider.getNextEvalsByDatasetId).toHaveBeenCalledTimes(3)
+    pages[2]!.resolve([{ ...evalRow, id: 'e3' }])
+    await flushPromises()
+
+    expect(useEvalsStore().datasets?.[0]?.data.map((row) => row.id)).toEqual(['e1', 'e2', 'e3'])
+    expect(useEvalsStore().loading).toBe(false)
+  })
+
   it('the evals list reloads with the new sort when it changed while a page was loading', async () => {
     const pages: ReturnType<typeof deferred<EvalsInfo[]>>[] = []
     const provider = datasetProvider(pages)

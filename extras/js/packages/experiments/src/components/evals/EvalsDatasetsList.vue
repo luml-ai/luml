@@ -39,13 +39,18 @@ let closed = false
 // Reads share the provider's page cursors, so a sort or filter change waits for the read
 // in flight instead of being dropped.
 const pendingReloads = new Set<string>()
+// A table asks for its next page only when its scrolled range changes, so that request
+// waits for the read in flight too.
+const pendingNextPages = new Set<string>()
 
 async function getNextPage(datasetId: string, reset: boolean = false) {
+  // The loading flag belongs to the read in flight; a refused request must not clear it.
+  if (evalsStore.loading) {
+    if (reset) pendingReloads.add(datasetId)
+    else pendingNextPages.add(datasetId)
+    return
+  }
   try {
-    if (evalsStore.loading) {
-      if (reset) pendingReloads.add(datasetId)
-      return
-    }
     evalsStore.setLoading(true)
     await evalsStore.getNextDatasetPage(datasetId, reset)
   } catch (error: unknown) {
@@ -73,10 +78,17 @@ async function init() {
 watch(
   () => evalsStore.loading,
   (loading) => {
-    const [datasetId] = pendingReloads
-    if (loading || closed || datasetId === undefined) return
-    pendingReloads.delete(datasetId)
-    getNextPage(datasetId, true)
+    if (loading || closed) return
+    const [reloadId] = pendingReloads
+    if (reloadId !== undefined) {
+      pendingReloads.delete(reloadId)
+      getNextPage(reloadId, true)
+      return
+    }
+    const [nextPageId] = pendingNextPages
+    if (nextPageId === undefined) return
+    pendingNextPages.delete(nextPageId)
+    getNextPage(nextPageId)
   },
 )
 

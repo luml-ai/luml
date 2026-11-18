@@ -35,6 +35,13 @@ export const useTraceStore = defineStore('trace', () => {
   // view and Flow does not cancel reads, so an answer to an older read must be dropped.
   let listVersion = 0
   let reloadPending = false
+  // The parameters the listed rows were read with. Until the reload for new parameters ends,
+  // a next page would continue the old list's cursor with the new parameters.
+  let listedParamsJson: string | null = null
+
+  function isListCurrent() {
+    return listedParamsJson === JSON.stringify(requestParams.value)
+  }
 
   function isCurrentRead(version: number, paramsJson?: string) {
     if (version !== listVersion) return false
@@ -53,6 +60,7 @@ export const useTraceStore = defineStore('trace', () => {
     if (!isCurrentRead(version, paramsJson)) return
     if (reset) {
       traces.value = []
+      listedParamsJson = paramsJson
     }
     traces.value = [...traces.value, ...data]
     if (reset && artifactId.value) {
@@ -79,6 +87,7 @@ export const useTraceStore = defineStore('trace', () => {
   function reset() {
     listVersion++
     reloadPending = false
+    listedParamsJson = null
     requestParams.value = { ...INITIAL_REQUEST_PARAMS }
     evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
     traces.value = []
@@ -172,6 +181,7 @@ export const useTraceStore = defineStore('trace', () => {
     requestParams,
     setRequestParams,
     loading,
+    isListCurrent,
     getNextPage,
     setLoading,
     reset,

@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 import type { SortParams, TracesWrapperProps } from './traces.interface'
-import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { useToast, Skeleton } from 'primevue'
 import { ListTree } from 'lucide-vue-next'
 import { showReadErrorToast } from '@/lib/primevue/data/toasts'
@@ -105,10 +105,17 @@ function onSearchUpdate(search: string) {
 
 // The store outlives this view: a read that ends after it closed leaves the store alone.
 let closed = false
+// The table asks for the next page only when its scrolled range changes, so a request made
+// while another read runs, or before the reload for new parameters, is kept for later.
+let nextPagePending = false
 
 async function getNextPage(reset: boolean = false) {
+  // The loading flag belongs to the read in flight; a refused request must not clear it.
+  if (traceStore.loading || (!reset && !traceStore.isListCurrent())) {
+    if (!reset) nextPagePending = true
+    return
+  }
   try {
-    if (traceStore.loading) return
     traceStore.setLoading(true)
     await traceStore.getNextPage(reset)
   } catch (error) {
@@ -117,6 +124,15 @@ async function getNextPage(reset: boolean = false) {
     if (!closed) traceStore.setLoading(false)
   }
 }
+
+watch(
+  () => traceStore.loading,
+  (loading) => {
+    if (loading || closed || !nextPagePending) return
+    nextPagePending = false
+    getNextPage()
+  },
+)
 
 onBeforeMount(async () => {
   try {

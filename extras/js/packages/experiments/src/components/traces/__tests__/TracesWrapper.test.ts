@@ -8,6 +8,7 @@ import type { ExperimentSnapshotProvider } from '@/interfaces/interfaces'
 import { useEvalsStore } from '@/store/evals'
 import { useTraceStore } from '@/store/trace'
 import TracesWrapper from '../TracesWrapper.vue'
+import TracesTable from '../TracesTable.vue'
 import TableFilter from '../../table/filter/TableFilter.vue'
 
 vi.mock('primevue', async (importOriginal) => ({
@@ -50,6 +51,99 @@ function openFilterEditor(wrapper: ReturnType<typeof mountWrapper>) {
   wrapper.findComponent(TableFilter).findComponent(Popover).vm.$emit('show')
   return flushPromises()
 }
+
+describe('TracesWrapper next page requests', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((done) => (resolve = done))
+    return { promise, resolve }
+  }
+
+  let summaryRead: ReturnType<typeof deferred<typeof summary>> | null
+
+  function setupPagingProvider() {
+    summaryRead = null
+    const provider = setupProvider()
+    provider.getTraces.mockImplementation(async () =>
+      Array.from({ length: 20 }, (_, index) => ({ trace_id: `t${index}` })),
+    )
+    provider.getTracesAnnotationSummary.mockImplementation(() =>
+      summaryRead ? summaryRead.promise : Promise.resolve(summary),
+    )
+    return provider
+  }
+
+  function askForNextPage(wrapper: ReturnType<typeof mountWrapper>) {
+    wrapper.findComponent(TracesTable).vm.$emit('get-next-page')
+  }
+
+  /** Changes the sort; the debounced reload ends with its annotation summary read held. */
+  async function sortWithSummaryHeld(wrapper: ReturnType<typeof mountWrapper>) {
+    summaryRead = deferred()
+    wrapper.findComponent(TracesTable).vm.$emit('sort', {
+      sortField: 'execution_time',
+      sortOrder: 'desc',
+    })
+    await vi.advanceTimersByTimeAsync(500)
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reads the next page asked for while a reload was still loading', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    await sortWithSummaryHeld(wrapper)
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+
+    askForNextPage(wrapper)
+    await flushPromises()
+    expect(useTraceStore().loading).toBe(true)
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+
+    summaryRead!.resolve(summary)
+    await flushPromises()
+
+    expect(provider.getTraces).toHaveBeenCalledTimes(3)
+    expect(provider.getTraces).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort_by: 'execution_time', order: 'desc' }),
+    )
+    expect(useTraceStore().traces).toHaveLength(40)
+    expect(useTraceStore().loading).toBe(false)
+  })
+
+  it('reads the next page asked for before a sort reload only after that reload', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    wrapper.findComponent(TracesTable).vm.$emit('sort', {
+      sortField: 'execution_time',
+      sortOrder: 'desc',
+    })
+    await flushPromises()
+
+    askForNextPage(wrapper)
+    await flushPromises()
+    expect(provider.getTraces).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(500)
+    await flushPromises()
+
+    expect(provider.resetTracesRequestParams).toHaveBeenCalledTimes(2)
+    expect(provider.getTraces).toHaveBeenCalledTimes(3)
+    expect(provider.resetTracesRequestParams.mock.invocationCallOrder[1]).toBeLessThan(
+      provider.getTraces.mock.invocationCallOrder[2]!,
+    )
+    expect(useTraceStore().traces).toHaveLength(40)
+  })
+})
 
 describe('TracesWrapper filter keys', () => {
   beforeEach(() => {
