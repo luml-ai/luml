@@ -287,8 +287,9 @@ class SearchUtils:
         cls._validate_comparison(stripped)
         left, comparator_token, right = stripped
         comp = cls._get_identifier(
-            left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS
-        )  # ty: ignore[missing-attribute]
+            left.value,
+            cls.VALID_SEARCH_ATTRIBUTE_KEYS,  # ty: ignore[missing-attribute]
+        )
         comp["comparator"] = comparator_token.value.upper()
         comp["value"] = cls._get_value(comp["type"], comp["key"], right)
         return comp

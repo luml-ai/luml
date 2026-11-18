@@ -140,9 +140,10 @@ def _disambiguate_scorer_names(scorers: list[BaseScorer]) -> None:
             continue
         if not (hasattr(scorer, "_input_key") and hasattr(scorer, "_client")):
             continue
-        groups.setdefault(scorer.default_name(), []).append(
-            scorer
-        )  # ty: ignore[missing-attribute]
+        groups.setdefault(
+            scorer.default_name(),  # ty: ignore[missing-attribute]
+            [],
+        ).append(scorer)
 
     for base, group in groups.items():
         if len(group) < 2:
