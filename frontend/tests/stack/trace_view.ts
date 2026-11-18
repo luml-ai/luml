@@ -21,6 +21,8 @@ interface SpanExpectation {
 
 /** Traces the viewer reads a page (the `limit` of its trace store's first request). */
 const TRACES_PAGE_SIZE = 20
+/** The `itemSize` of the traces table's virtual scroller. */
+const TRACES_ROW_HEIGHT = 44
 
 /** What trace_data.py's `expected()` says the views show. */
 export interface TraceData {
@@ -113,10 +115,20 @@ export async function expectTracesSortedAndPaged(page: Page, data: TraceData) {
     has: page.getByRole('button', { name: paged, exact: true }),
   })
   const scroller = page.locator('.traces-table .p-virtualscroller')
+  // Scrolled to the trace's place: while the list is shorter the browser stops at its end,
+  // which asks for the next page. Scrolling to the end each time could pass the trace's rows
+  // before they are drawn, as the pages after it come in between two checks.
+  const position = longestFirstPosition(data.traces[paged]!.index)
   await expect
     .poll(
       async () => {
-        await scroller.evaluate((element) => element.scrollTo(0, element.scrollHeight))
+        await scroller.evaluate(
+          (element, { position, rowHeight }) => {
+            const header = element.querySelector('thead')?.offsetHeight ?? 0
+            element.scrollTo(0, header + position * rowHeight - element.clientHeight / 2)
+          },
+          { position, rowHeight: TRACES_ROW_HEIGHT },
+        )
         return row.count()
       },
       { message: `${paged} on the second page`, timeout: 30_000 },
