@@ -14,7 +14,7 @@ Flow can already preview files: the Attachments tab of an experiment uses the sh
 
 This spec follows a product proposal and a UI design approved on 2026-11-17. Both are
 internal; everything needed to build the feature is in this file, and the approved screens
-are in `codie/design/LM-1113/` (see Frontend). Codes in brackets (`B-#`, `TQ-#`, `S-#`) are
+are in `SPEC-design/` (see Design prototype). Codes in brackets (`B-#`, `TQ-#`, `S-#`) are
 the proposal's item numbers, kept only for traceability.
 
 ## Solution (at a glance)
@@ -37,6 +37,7 @@ the proposal's item numbers, kept only for traceability.
 - A file watcher on the listed folder and the open file locks a file that changes while an
   agent session is active, read-only in the editor until 180 s after its last change
   (B-15, TQ-7).
+- Agents can inspect a `.luml` through a new MCP tool (B-07).
 - Everything stays local; the only network calls are the explicit LUML uploads (B-08).
 
 ## Why this approach
@@ -70,403 +71,355 @@ the proposal's item numbers, kept only for traceability.
 
 # Design
 
-## Architecture overview
+## Overview
 
-```
-WorkspacesPage ─► workspace store ─► POST /api/flow/rpc ─► Api (daemon)
-     │                               workspace.list {hidden}        ├─ workspace.py helpers
-     │                               file.* / flow.move / flow.*    ├─ Hub (sessions)
-     │                               file.inspect / file.publish    └─ ArtifactHandler.upload_file
-     │
-     ├─► WorkspaceFileViewer ─► GET /api/flow/file?path=…            (bytes, Range)
-     │                          GET /api/flow/file/entry?path=…&entry=…   (one tar member)
-     │
-     └─► WS /api/flow/stream {"subscribe":"files", directory, file} ◄─ FileWatch
-                              files_changed / file_locks frames
-```
+The Workspace page talks only to the local daemon, over three channels that exist today.
 
-Daemon code: `lumlflow/lumlflow/flow/daemon/`. Flow frontend: `lumlflow/frontend/src/`.
-Shared preview: `extras/js/packages/attachments/`.
+- **RPC.** Listing, file operations, text read / write, `.luml` inspection and upload are
+  methods on the daemon's `Api`, called over `POST /api/flow/rpc` and the socket.
+- **HTTP.** File bytes and single members of a `.luml` archive are served by two new `GET`
+  endpoints, so the browser can stream and read byte ranges.
+- **Stream.** Outside changes and agent locks arrive on a new `files` channel of
+  `/api/flow/stream`.
 
-## 1. Paths (every new method and endpoint)
+Daemon code is in `lumlflow/lumlflow/flow/daemon/`, the Flow frontend in
+`lumlflow/frontend/src/`, the shared preview in `extras/js/packages/attachments/`.
 
-- New helper `Api._file_path(params, key="path") -> Path`: requires an absolute path,
-  expands it, resolves the **parent** and keeps the last component as given, so a symlink
-  stays the link itself; requires it to exist (`os.path.lexists`; except for targets of
-  create). No root confinement: the boundary is what the daemon's OS user can access, the
-  same as browsing today.
-- **Symlinks:** listed as their target's kind (file or folder) with `is_link: true`;
-  previews and `file.read_text` / `file.write_text` read and write the target. Rename,
-  move and delete act on the link only (`unlink` for a link to a folder, never
-  `rmtree` through it). A broken link is listed as a file with `size: null` and shows the
-  no-preview card (Frontend §1).
-- **OS errors** (`PermissionError`, read-only filesystem, disk full, …) are returned as kind
-  `OsError` with the OS message (e.g. "Permission denied"); the frontend shows an error
-  toast. Writes are atomic; a failed cross-filesystem `file.move` removes the partial copy
-  and leaves the source in place.
-- New names (`name` params) must be one path component: not empty, no `/` or `\`, not `.`
-  or `..`. Reuse the checks in `Hub._new_flow_ref`.
-- Refused for the `file.*` methods with kind `NotAFile`: a `.flow` directory or a path
-  inside one (notebooks go through `flow.*`), and anything inside `.lumlflow`.
-- Refused for rename / move / delete with kind `Protected`: the filesystem root, the
-  user's home directory itself, and the folder `lumlflow ui` runs in (`Api.directory`)
-  itself. Their contents are not protected.
-- Errors use the existing `{"error": {message, kind}}` shape of `/api/flow/rpc`; the
-  frontend maps `kind` to a toast.
+## Paths
 
-## 2. Listing (`workspace.list`, extended; TQ-10)
+Every new method and endpoint takes absolute paths and applies the same rules.
 
-- Params: `{directory?, hidden?: bool = false, offset?: int = 0, limit?: int = 2000}`.
-- `list_directory(root, hidden)` also collects plain files (`entry.is_file()`), with
-  `size` (bytes) and `modified` (ISO 8601, from `st_mtime`, UTC). Folders gain `modified`.
-- `hidden = false` (default): skip names starting with `.` and names in `EXCLUDED_DIRS`
-  (`flow/dsl/tree.py`), for files and folders. `.gitignore` is not applied.
-  `hidden = true`: list everything except `.lumlflow`.
-- **Paging (big folders):** entries are ordered as the UI shows them (flows, then
-  folders, then files; each by name, case-insensitive) and the page is
-  `[offset, offset + limit)` of that order. `limit` is capped at 2000.
-- Response: `{directory, flows, folders: [{name, path, modified}], files: [{name, path,
-  size: int | null, modified, is_link}], total: int, next_offset: int | null}` (folders
-  also carry `is_link`) (`next_offset` is `null` on the
-  last page).
-- Frontend: `WorkspaceListing` gains `files`, `total`, `next_offset`; the store maps files
-  to `type: 'file'` items (`ITEM_TYPE_ORDER` already has `file`). When `next_offset` is set,
-  the listing ends with "Showing {n} of {total} items" and **Show more**, which loads the
-  next page and appends it. A refresh (`files_changed`, an operation) reloads the pages
-  already shown. **Show hidden** toggle in the listing header, remembered in `localStorage`
-  (`lumlflow.workspace.showHidden`). Empty text becomes "This directory is empty".
+- **No root confinement.** The boundary is what the daemon's OS user can access, the same
+  as browsing today.
+- **Existence.** A path must exist, except the target of a create.
+- **Symlinks.** A link is never resolved away: the path's parent is resolved and the last
+  component is kept as given. A link is listed as its target's kind (file or folder) and
+  marked as a link. Previews and text read / write act on the target. Rename, move and
+  delete act on the link only; deleting a link to a folder never removes the target's
+  contents. A broken link is listed as a file with unknown size and shows the no-preview
+  card.
+- **Names.** A new name is one path component: not empty, no `/` or `\`, not `.` or `..`.
+  Reuse the checks for new notebook names in `Hub._new_flow_ref`.
+- **Writes** are atomic. A failed move across filesystems removes the partial copy and
+  leaves the source in place.
 
-## 3. Reading files
+Refusals use the existing error shape of `/api/flow/rpc` (message and kind). The frontend
+maps the kind to its wording.
 
-- **`GET /api/flow/file?path=<abs>`** (`web.py`, token as for `/api/flow/download`):
-  `_file_path` checks, must be a regular file, then Starlette `FileResponse` with a guessed
-  media type and `Content-Disposition: inline`. `FileResponse` serves `Range` requests, so
-  audio, video, PDF and Parquet can be read partially.
-- **`GET /api/flow/file/entry?path=<abs .luml>&entry=<member>`**: streams one member of a
-  `.luml` tar with `tarfile` (no extraction to disk), with `Range` support computed from
-  the member's offset and size. Unknown member → 404.
-- **`file.inspect {path}`** (RPC, in `_SILENT`) for a `.luml`:
+| Kind | Refused when |
+|---|---|
+| `NotAFile` | A `file.*` method gets a `.flow` directory, a path inside one, or anything inside `.lumlflow`. Notebooks go through `flow.*`. |
+| `Protected` | Rename, move or delete of the filesystem root, the user's home directory, or the folder `lumlflow ui` runs in. Their contents are not protected. |
+| `AlreadyExists` | The target name exists. The message reads `"{name}" already exists`. |
+| `FlowOpen` | Rename, move or delete touches an open notebook and the caller did not ask to close it. Carries the open notebooks' names and paths. |
+| `OsError` | The OS refuses (no permission, read-only filesystem, disk full). Carries the OS message, e.g. "Permission denied". |
+| `TooLarge`, `NotText` | A text read of a file over 2 MB, or one that is not UTF-8 or contains NUL bytes. |
+| `FileConflict` | A text write to a file that changed on disk since it was read. Carries the file's current modification time. |
+| `FileLocked` | A text write to a file an agent holds a lock on. Carries the lock's label. |
 
-  ```
-  {
-    kind: "experiment" | "model" | "dataset" | "unknown",
-    manifest: object | null,           // manifest.json, parsed
-    files: [{path, size}],             // tar members, directories omitted
-    dataset?: {
-      variant: "tabular" | "hf",
-      splits: [{subset, split, format: "parquet" | "csv" | "arrow",
-                files: [member, ...], num_rows: int | null}]
-    }
-  }
-  ```
+## Listing
 
-  - `kind` (TQ-2): `manifest.artifact_type` when `"experiment"` or `"dataset"`; else
-    `"model"` if `fnnx.extras.reader.Reader` opens the file (as
-    `ModelReference.validate`); else `"unknown"` (no-preview card).
-  - Tabular splits come from the manifest payload (`subsets → splits → chunk_files`,
-    `num_rows`, `-1` → `null`). HF splits come from the payload `subsets: {config:
-    [split]}` and the tar members `data/<config>/<split>/*.arrow`, sorted; `num_rows` from
-    `data/<config>/<split>/dataset_info.json` if present, else `null`.
-  - Reads only `manifest.json`, `dataset_info.json` and the tar index.
-- MCP: new tool `file-inspect` → `file.inspect`, scope `workspace`, read-only (B-07).
-  Plain files: agents use their shell.
+`workspace.list` gains plain files, each with size, modified time (UTC) and a link flag.
+Folders gain the modified time and the link flag (TQ-10).
 
-## 4. File and folder operations (B-14, TQ-5)
+- **Hidden entries.** By default the listing skips names that start with `.` and names in
+  `EXCLUDED_DIRS` (`flow/dsl/tree.py`), for files and folders alike. With the hidden option
+  on, it lists everything except `.lumlflow`. `.gitignore` is not applied.
+- **Paging.** Entries are ordered as the UI shows them: notebooks, then folders, then
+  files, each by name, case-insensitive. The caller asks for an offset and a limit; the
+  limit defaults to 2,000 and cannot be higher. The response gives the total number of
+  entries and where the next page starts, or nothing on the last page.
 
-New RPC methods in `Api.methods`, not in `_SILENT`. Each returns `{path}` (the new path).
+## Reading files
 
-| Method | Params | Behaviour |
-|---|---|---|
-| `file.rename` | `{path, name, close_open?}` | File or folder. `AlreadyExists` if the target exists. |
-| `file.move` | `{path, to, close_open?}` | `to` is an existing folder, not `path` or inside it. `AlreadyExists` if `to/<name>` exists. |
-| `file.delete` | `{path, close_open?}` | Permanent: `unlink` or `shutil.rmtree`. |
-| `file.mkdir` | `{directory, name}` | New empty folder. `AlreadyExists` if the name exists. |
-| `file.create` | `{directory, name}` | Empty file, `open(…, "x")`. `AlreadyExists` if the name exists. |
-| `flow.move` | `{flow, to, close_open?}` | Moves a `.flow` into folder `to`, like `Hub.rename_flow`. |
+- **File bytes: `GET /api/flow/file`.** Serves a regular file by absolute path, inline,
+  with a guessed media type and the same token check as `/api/flow/download`. It must
+  answer `Range` requests, so audio, video, PDF and Parquet are read partially.
+- **Archive member: `GET /api/flow/file/entry`.** Serves one member of a `.luml` tar by
+  name, with `Range` support, without extracting the archive to disk. An unknown member
+  is a 404.
+- **`file.inspect`** describes a `.luml`: its kind (experiment, model, dataset or unknown),
+  the parsed manifest, and the archive's files with sizes. For a dataset it also gives the
+  variant (tabular or Hugging Face) and the splits; each split has its subset, name, format
+  (Parquet, CSV or Arrow), member files and row count when known. It reads only the
+  manifest, `dataset_info.json` and the tar index, and does not count as agent activity
+  (`_SILENT`).
+  - **Kind (TQ-2).** The manifest's `artifact_type` when it is experiment or dataset;
+    otherwise model if `fnnx.extras.reader.Reader` opens the file (the check
+    `ModelReference.validate` uses); otherwise unknown.
+  - **Tabular splits** come from the manifest payload (subsets, splits, chunk files, row
+    counts; a count of `-1` means unknown).
+  - **Hugging Face splits** come from the payload's subsets and the `.arrow` members under
+    `data/<config>/<split>/`, sorted. The row count comes from that split's
+    `dataset_info.json` if present.
+- **MCP.** A new read-only tool `file-inspect` in scope `workspace` calls `file.inspect`.
+  For plain files agents use their shell.
 
-- Same filesystem: `Path.rename`; otherwise `shutil.move`.
-- **Open notebooks.** A session is open while `Hub.opened()` has it (sessions close only
-  after `SESSION_IDLE_S`, 60 min). Before rename / move / delete, collect the open
-  sessions whose `ref.path` is the target or inside it.
-  - None → proceed.
-  - Some and `close_open` is not `true` → refuse with kind `FlowOpen` and
-    `{flows: [{name, path}]}`.
-  - Some and `close_open: true` → `Hub.close_session` for each, then proceed.
-  - **This changes `flow.rename` and `flow.delete`:** they gain `close_open` and refuse with
-    `FlowOpen` instead of closing silently. `flow.duplicate` is unchanged. The CLI
-    (`lumlflow/lumlflow/flow/cli.py`, `flow delete`) always passes `close_open: true`, so
-    its behaviour does not change.
-- `AlreadyExists` messages read `"{name}" already exists`; the frontend shows them under
-  the name field.
-- **Cells that read a renamed / deleted file (TQ-6):** not tracked; dialogs warn (Frontend
-  §6).
+## File and folder operations
 
-## 5. Editing text files (B-15, TQ-7)
+Six new RPC methods. Each returns the resulting path and counts as agent activity (B-14,
+TQ-5).
 
-- Editable: any regular file up to 2 MB whose content decodes as UTF-8, except `.luml`.
-  The check is done by `file.read_text`; the frontend shows **Edit** only after it
-  succeeds.
-- **`file.read_text {path}`** (in `_SILENT`) → `{text, mtime_ns, size}`. Refuses
-  `TooLarge` (> 2 MB) and `NotText` (not UTF-8, or contains NUL bytes).
-- **`file.write_text {path, text, base_mtime_ns, force?: bool}`**:
-  1. Locked by an agent (§6) → refuse `FileLocked {label}`, even with `force`.
-  2. `stat().st_mtime_ns != base_mtime_ns` and not `force` → refuse `FileConflict
-     {mtime_ns}`.
-  3. Write with `atomic_write_bytes` (`flow/atomic.py`), keeping the file's mode; record
-     `(path, new mtime_ns)` in `FileWatch.own_writes`; return `{mtime_ns, size}`.
+| Method | Behaviour |
+|---|---|
+| `file.rename` | Renames a file or folder in place. |
+| `file.move` | Moves a file or folder into an existing folder. The folder cannot be the item itself or inside it. |
+| `file.delete` | Deletes permanently; a folder goes with everything in it. |
+| `file.mkdir` | Creates an empty folder in a directory. |
+| `file.create` | Creates an empty file in a directory. Never overwrites. |
+| `flow.move` | Moves a notebook into a folder, as `Hub.rename_flow` renames one. |
 
-## 6. File watcher and agent locks (B-15, TQ-7)
+**Open notebooks.** A notebook is open while `Hub.opened()` has its session; sessions close
+only after 60 minutes idle (`SESSION_IDLE_S`). Rename, move and delete look for open
+notebooks at the target or inside it. If there are any, the call is refused with `FlowOpen`
+unless it carries the `close_open` flag; with the flag, those sessions are closed first.
 
-- **`FileWatch`** (new, `flow/daemon/filewatch.py`), one per daemon. Each `files`
-  subscriber registers `{directory, file?}`; the watcher keeps a refcounted watchdog watch
-  on each distinct directory, **non-recursive**, plus the parent directory of each open
-  file. Uses `TolerantInotifyObserver` on Linux, like `watcher.py`. Ignores `.lumlflow`
-  and `.flow` directories (cells have their own watcher and claims).
-- **Events** (debounced 300 ms per path):
-  1. Any create / delete / move / modify in a watched directory → `{type:
-     "files_changed", directory}` to subscribers of that directory.
-  2. Modify or create of a file, unless `own_writes` holds that path with the same
-     `mtime_ns`, while at least one agent holds a lease (`Daemon._client_leases`):
-     - exactly one leased agent → lock owner = that agent (`actor`, `label`);
-     - several → lock owner = `{actor: null, label: "an agent"}`.
-     Store `FileLock {path, actor, label, since, last}` (refresh `last` on later changes)
-     and send `{type: "file_locks", locks: [...], idle_after_s: CLAIM_IDLE_S}` to
-     subscribers watching that path's directory.
-- **Expiry:** a lock ends `CLAIM_IDLE_S` (180 s) after `last`, or when its actor's lease
-  ends (`forget_agent`); a lock with `actor: null` ends when no agent holds a lease. The
-  existing claim sweep in `main.py` also sweeps file locks and sends `file_locks`.
-- **Stream:** `/api/flow/stream` accepts `{"subscribe": "files", "directory": <abs>,
-  "file"?: <abs>}` and answers `{type: "caught_up", channel: "files", locks,
-  claim_idle_s}`. The page re-subscribes when the directory or open file changes.
-- **Known limits (accepted):** writes by the person's own tools outside Flow while an
-  agent is leased are attributed to the agent; an agent write between open and save is
-  caught by the `mtime` check, not the lock.
+This changes `flow.rename` and `flow.delete`: today they close an open notebook silently,
+now they follow the same rule. `flow.duplicate` is unchanged. The CLI command
+`flow delete` (`lumlflow/lumlflow/flow/cli.py`) always sets the flag, so its behaviour
+does not change.
 
-## 7. Upload `.luml` to LUML (B-09, B-10, B-11, TQ-3)
+Cells that read a renamed, moved or deleted file are not tracked (TQ-6). The dialogs only
+warn.
 
-- **`file.publish {path, organization_id, orbit_id, collection_id, artifact: {name,
-  description, tags}}`**: must be a `.luml`; `_spawn_upload` with
-  `ArtifactHandler.upload_file` (`handlers/luml/artifacts.py`). Returns `{job_id}`;
-  progress is followed like `asset.publish`.
-- `upload_file` uploads any `.luml` via `luml_api` `artifacts.upload`, which reads the
-  manifest generically and supports `artifact_type: "dataset"`. No new upload code for
-  datasets (TQ-3).
+## Editing text files
 
-## Frontend
+A file is editable when it is a regular file of at most 2 MB that decodes as UTF-8, has no
+NUL bytes, and is not a `.luml` (B-15, TQ-7).
 
-The approved UI is described here in full and built as a design prototype under
-`codie/design/LM-1113/prototype/`. Sample data in the prototype (names, sizes, agent
-"Claude") is illustrative.
+- **`file.read_text`** applies that check and returns the text with the file's
+  modification time at full precision. It does not count as agent activity.
+- **`file.write_text`** takes the text and the modification time the edit started from.
+  The checks run in this order:
+  - an agent lock on the file refuses the write, even when forced;
+  - a different modification time on disk refuses the write, unless forced;
+  - otherwise the file is written atomically (`flow/atomic.py`), keeping its mode, and the
+    new modification time is returned.
+- The daemon remembers its own writes so that the file watcher does not take them for an
+  agent's.
 
-**Design prototype.** The Vue files of the approved design, one folder per component:
-`WorkspacesPage/` (`WorkspacesPage.vue`, `WorkspaceFileViewer.vue`,
-`LumlPackagePreview.vue`), `WorkspaceFolder/` (`WorkspaceFolder.vue`,
-`WorkspaceFolderItem.vue`) and `AttachmentsView/`. The `*.stories.ts` files list every
-drawn state with its props; `sample.ts` holds the sample content. Read the prototype for
-**how the UI looks**: markup, layout, spacing, colours, icons, texts and the states drawn.
-It does **not** cover the logic:
+## File watcher and agent locks
 
-- it is not working code and does not run in `lumlflow/frontend`: it takes static props
-  and sample data, has no API calls, store, routing, stream or events;
-- its imports point to the design app: `@/ui` is PrimeVue (plus copies of the app's own
-  wrappers such as `LumlflowCard`, `LumlflowDialog`, `LumlflowConfirmDialog`,
-  `AttachmentsPreviewDataTable`), `@/components`, `@/blocks` and `@/pages` are copies of
-  existing Flow and attachments components; use the real ones in the app;
-- `highlight.ts` is a stand-in for syntax highlighting (the app uses CodeMirror, §2), and
-  the image, PDF, audio and video samples are placeholders;
-- the **Move to…** folder select only lists sample folders (the app's picker can go up,
-  §6).
+Agents write files through their own shell, so the daemon learns about a change only by
+watching the disk. One watcher per daemon serves the `files` channel of `/api/flow/stream`.
 
-Behaviour, data and edge cases come from this spec. Where the prototype and the text
-disagree, the text wins; copy the look, not the code structure. Not in the prototype: **Show hidden**, **Show more**, the "moved or deleted" state, the
-`FlowOpen` and unsaved-changes dialogs, the read-only experiment route, and the layout on
-narrow screens; build them from existing Flow components in the same style.
+**What is watched.** A subscriber names the directory it lists and, optionally, the file it
+has open. The watcher watches each subscribed directory and the parent of each open file,
+not recursively, and drops a watch when its last subscriber leaves. It uses the tolerant
+inotify observer on Linux, as `watcher.py` does, and ignores `.lumlflow` and `.flow`
+directories, because cells have their own watcher and claims. Events are debounced by
+about 300 ms per path.
 
-Components to reuse (all in `lumlflow/frontend/src/`): the Workspace page frame and tabs,
-`WorkspacePath.vue` (breadcrumb), `CreateNewFlow.vue` (**+ New notebook**), the open-flows
-summary, `LumlflowCard`, `LumlflowDialog` (the 600 px layout of "Create new notebook"),
-`LumlflowConfirmDialog`, `UiCodeEditor`, the PrimeVue `Button`, `SelectButton`, `Select`,
-`Message`, `Tabs`, and the attachments table (`AttachmentsPreviewDataTable` in
-`@luml/attachments`). Icons are `lucide-vue-next`.
+**What is sent.** Any change in a watched directory tells that directory's subscribers
+that it changed. A change to the lock list sends the current locks, with the idle time, to
+the subscribers watching the locked file's directory. A new subscriber gets the current
+locks on catch-up, as on the other channels. The page subscribes again when the directory
+or the open file changes.
 
-### 1. Workspace page
+**Lock rule.** A file gets a lock when it is created or modified while at least one agent
+holds a lease (`Daemon._client_leases`), unless the change is the daemon's own write.
 
-**Nothing open** — the page as today, with file rows in the listing.
+- One leased agent: the lock belongs to that agent and carries its label.
+- Several leased agents: the lock has no owner and the label "an agent".
+- Later changes to the file extend the lock.
 
-- Order: notebooks, then folders, then files, each by name.
-- `WorkspaceFolderItem.vue`, `file` branch: row height and hover as folder rows; icon by
-  preview type (`FileCode` code, `Sheet` table, `FileImage` image, `FileAudio` audio,
-  `FileVideo` video, `FileText` text / Markdown / PDF, `Package` `.luml`, `File` other),
-  16 px; name; size right-aligned in the muted colour (`1.84KB`, `12.6MB`). A symlink adds
-  a small `Link` icon after the type icon. A click opens the file; the open file's row
-  keeps the selected fill `--p-menu-item-focus-background`.
-- Below the listing, in one row: **+ New notebook** (as today), **New folder**
-  (`FolderPlus`), **New file** (`FilePlus`), all text buttons.
-- **Show hidden**: a small toggle at the right of the listing header, remembered in
-  `localStorage` (`lumlflow.workspace.showHidden`, read and written in try/catch).
-- **Show more**: when `next_offset` is set, the listing ends with "Showing {n} of {total}
-  items" and a text button **Show more**, which loads the next page and appends it.
-- Empty directory: "This directory is empty".
+**Expiry.** A lock ends `CLAIM_IDLE_S` (180 s) after the file's last change, or when its
+owner's lease ends. A lock without an owner ends when no agent holds a lease. The existing
+claim sweep in `main.py` also sweeps file locks and announces the result.
 
-**A file open** — the listing becomes a 400 px column on the left and the viewer card
-fills the rest; clicking another file swaps the viewer; the viewer's X closes it and the
-listing takes the full width again. Route query `?directory=…&file=…` keeps the selection
-on reload and back.
+**Known limits (accepted).** Writes by the person's own tools outside Flow while an agent
+is leased are attributed to the agent. An agent write between open and save is caught by
+the modification-time check, not by the lock.
 
-`WorkspaceFileViewer.vue` (new), a `LumlflowCard`:
+## Uploading a `.luml` to LUML
 
-- **Header:** name; then size and "Modified {YYYY-MM-DD HH:mm}" in the muted colour; below,
-  the full path with a copy button (`Copy`); an X (`X`, "Close preview") at the right. File
-  actions are in the row menu, not in the header.
-- **Body** by type:
-  - `.luml` → `LumlPackagePreview` (§3);
-  - a type the preview supports → `FilePreview` from `@luml/attachments` reading
-    `GET /api/flow/file`; text and code also get **Edit** (§4);
-  - any other file: try `file.read_text`; if it succeeds, plain text with **Edit**;
-    otherwise the no-preview card;
-  - **No-preview card:** the header stays and the body says "No preview for this file
-    type". Same layout for "File is empty" and, over the preview size limit, "File is too
-    large for preview".
+`file.publish` uploads a `.luml` file, and nothing else, to a chosen organization, orbit
+and collection with an artifact name, description and tags. It starts an upload job
+through `_spawn_upload` with `ArtifactHandler.upload_file` (`handlers/luml/artifacts.py`)
+and returns the job id; progress is followed as for `asset.publish` (B-09, B-10, B-11).
 
-- Above text content, one row: on the left the Rendered / Raw (Markdown) or Pretty / Raw
-  (JSON, YAML) `SelectButton`, size small, when the type has one; on the right **Edit**
-  (text button, `Pencil` icon).
-- Images and SVG are centred on a bordered surface; audio and video use the browser's
-  player; PDF and HTML fill the body in a frame (HTML in a sandboxed iframe).
-- Tables (CSV, XML, Parquet, Arrow) use the attachments table: 10 rows per page, page
-  sizes 10 / 20 / 50, small size.
-- Listing and viewer refresh on `files_changed`.
-- **File gone:** if the open file no longer exists after a refresh (deleted or moved from
-  outside), the viewer keeps its header and the body says "This file was moved or
-  deleted"; unsaved edits stay visible and copyable; the X returns to the listing.
-- **Unsaved edits + operation:** rename, move or delete of the file being edited, or of a
-  folder containing it, first asks "You have unsaved changes in {name}. Discard them and
-  continue?" (**Discard and continue** / **Cancel**), as a `LumlflowConfirmDialog`.
+No new upload code is needed for datasets: `upload_file` goes through `luml_api`
+`artifacts.upload`, which reads the manifest generically and supports the dataset type
+(TQ-3).
 
-### 2. `@luml/attachments` (shared)
+## Design prototype
 
-- **Exports:** `FilePreview`, `useFilePreview(name, getBlob, size)` (no tree needed),
-  `getFileType`, `FILE_TYPES`, and the language map for CodeMirror.
-- **Types (at least the current ones):** keep all current ones; add images `gif`, `webp`;
-  text `log`; code `toml`, `ini`, `cfg`, `sh`, `sql`, `jsx`, `tsx`, `css`; table
-  `parquet`, `arrow`. Detection stays by extension.
-- **Size:** keep the 10 MB limit, except audio, video and PDF (streamed by URL) and Parquet
-  (partial read), which have no limit.
-- **Highlighting (B-12, TQ-8):** `CodePreview` uses a read-only CodeMirror 6 view
-  (`EditorState.readOnly`, `EditorView.editable.of(false)`) with `python`, `javascript`
-  (js, ts, jsx, tsx), `json`, `yaml`, `markdown`, `css`, `sql`, `xml` (xml, html);
-  colours from the `--ui-code-*` variables used by Flow's editor
-  (`components/ui/code-editor/code-editor.const.ts`). `txt` and `log` stay plain
-  monospaced text.
-- **Toggles (B-13):** Markdown → Rendered (marked + DOMPurify, as today) / Raw (highlighted).
-  JSON → Pretty (`JSON.stringify(…, null, 2)`) / Raw. YAML → Pretty (`js-yaml` load + dump)
-  / Raw. Default Rendered / Pretty; invalid JSON / YAML shows Raw with "Can't parse".
-- **Tables (B-06):** `TablePreview` gains Parquet via `hyparquet` (schema + first 1,000
-  rows, reading only the needed byte ranges through an async-buffer over the URL or blob)
-  and Arrow IPC via `apache-arrow` `tableFromIPC` (first 1,000 rows), paged in the table
-  as above. Footer: "Showing first 1,000 of N rows" when N is known. CSV / XML unchanged.
-- The same changes show in Flow's and LUML's Attachments tabs (a `.parquet` attachment
-  opens as a table there too); no other change to those tabs.
+The approved UI is built as a prototype in `SPEC-design/`: Vue files for the Workspace
+page, the file viewer, the `.luml` view, the listing rows and the attachments view, with
+stories that list every drawn state. The prototype is the reference for **how the UI
+looks**: layout, spacing, colours, icons, texts and states. Copy the look, not the code
+structure.
 
-### 3. `.luml` view (`LumlPackagePreview`)
+The prototype is not the reference for behaviour.
 
-- Calls `file.inspect`, then shows, top to bottom:
-  - a row "For full overview" with the actions on the right (secondary small buttons with
-    14 px icons):
-    - **experiment:** **Open in Experiments** (`FlaskConical`, §5) and **Upload experiment
-      to LUML** (`CloudUpload`);
-    - **model:** **Upload model to LUML** (`CloudUpload`);
-    - **dataset:** **Upload dataset to LUML** (`CloudUpload`);
-  - **dataset only — Data:** `Tabs` with one tab per `subset / split`; each tab previews the
-    first file of the split (Parquet / CSV / Arrow) via `/api/flow/file/entry` in the
-    attachments table, 1,000 rows; total rows from `num_rows` when known;
-  - **Manifest:** the whole `manifest.json` as highlighted YAML, scrolling after 320 px;
-  - **Contents:** the files in the archive, `File` / `Folder` icon, path, size on the right.
-  - **unknown kind:** the no-preview card.
-- A file in **Contents** opens in `FilePreview` via `/api/flow/file/entry`.
+- It is not working code. It takes static props and sample data and has no API calls,
+  store, routing, stream or events. Its sample names, sizes and the agent "Claude" are
+  illustrative.
+- Its imports point to copies of PrimeVue and of Flow's own components. Use the real ones:
+  the Workspace page frame, the breadcrumb, **+ New notebook**, the "Create new notebook"
+  dialog, the confirm dialog, the card, the code editor and the attachments table.
+- Its syntax highlighting and its image, PDF, audio and video samples are stand-ins.
+- Its **Move to…** folder field lists only sample folders.
 
-### 4. Editing (B-15)
+Behaviour, data and edge cases come from this spec, and where the prototype and this text
+disagree, the text wins. These are not in the prototype and are built from existing Flow
+components in the same style: **Show hidden**, **Show more**, the "moved or deleted"
+state, the open-notebook and unsaved-changes dialogs, the symlink mark, the note under
+rename and move, and the read-only experiment route.
 
-- **Edit** swaps the highlighted text for `UiCodeEditor` (language from the shared map,
-  full body height) and, in the row above it, the view toggle for **Cancel** (text button)
-  and **Save** (primary), both small, on the right.
-- **Changed on disk:** when the file changes on disk during an edit (`files_changed` and a
-  newer `mtime`) or `file.write_text` returns `FileConflict`, a warning `Message` (small)
-  appears above the editor: "This file changed on disk after you started to edit it." with
-  **Overwrite** (saves with `force: true`) and **Reload** (text button; takes the file from
-  disk and drops the edit).
+## Workspace page
 
-- **Agent lock** (from `file_locks` frames), drawn like a cell an agent works on: the
-  card's border takes the agent's colour; under the header a strip in that colour with a
-  `Lock` icon (14 px) and "{label} is working on this file" (e.g. "Claude is working on
-  this file", or "An agent is working on this file" when `actor` is null), with the tooltip
-  "Read-only until 3 minutes after the agent's last change to this file."; the body is
-  dimmed and **Edit** is disabled. Colour: `agentColor(actor)` (`store/flow`
-  `AGENT_COLORS`), neutral when `actor` is null.
+With nothing open, the page is as today, with file rows in the listing.
 
-- **Lock during an edit:** the editor turns read-only and the strip appears; the person's
+- **Rows.** A file row shows an icon by preview type, the name and the size. A symlink
+  gets a small link icon. A click opens the file, and the open file's row stays selected.
+- **Create.** **New folder** and **New file** sit next to **+ New notebook** below the
+  listing.
+- **Show hidden** is a toggle in the listing header. The choice is remembered in the
+  browser across reloads.
+- **Show more.** When more entries exist, the listing ends with "Showing {n} of {total}
+  items" and **Show more**, which appends the next page. A refresh reloads the pages
+  already shown.
+- **Empty directory:** "This directory is empty".
+
+With a file open, the listing becomes a narrow column on the left and the viewer fills the
+rest. Clicking another file swaps the viewer; closing the viewer gives the listing the
+full width again. The directory and the open file are in the route query, so reload and
+back keep the selection.
+
+The viewer header shows the name, size, modified time and the full path with a copy
+button. File actions are in the row menu, not in the header. The body depends on the file:
+
+- a `.luml` gets the `.luml` view;
+- a type the shared preview supports is shown by it, reading the file bytes endpoint;
+- any other file is tried with `file.read_text` and shown as plain text if that succeeds;
+- everything else gets the no-preview card: the header stays and the body says "No preview
+  for this file type". The same card says "File is empty" or, over the preview size limit,
+  "File is too large for preview".
+
+Text and code previews and the plain-text fallback get **Edit**, shown only after
+`file.read_text` succeeds.
+
+The listing and the viewer refresh when the watcher reports a change.
+
+- **File gone.** If the open file no longer exists after a refresh, the viewer keeps its
+  header and the body says "This file was moved or deleted". Unsaved edits stay visible
+  and copyable.
+- **Unsaved edits and an operation.** Rename, move or delete of the file being edited, or
+  of a folder that contains it, first asks "You have unsaved changes in {name}. Discard
+  them and continue?" with **Discard and continue** and **Cancel**.
+
+## Shared preview package
+
+`@luml/attachments` previews files only inside its attachments tree today. It gains a
+standalone preview that needs no tree, and everything below shows in the Workspace and in
+Flow's and LUML's Attachments tabs alike. Those tabs get no other change.
+
+- **Exports.** The standalone preview component, the file-type detection, and the
+  extension-to-language map that the Flow editor reuses.
+- **Types.** All current types stay. New: images `gif`, `webp`; text `log`; code `toml`,
+  `ini`, `cfg`, `sh`, `sql`, `jsx`, `tsx`, `css`; tables `parquet`, `arrow`. Detection
+  stays by extension.
+- **Size.** The 10 MB preview limit stays, except for audio, video and PDF, which are
+  streamed by URL, and Parquet, which is read partially.
+- **Highlighting (B-12, TQ-8).** Code is shown in a read-only CodeMirror 6 view with the
+  colours of Flow's editor (the `--ui-code-*` variables in
+  `components/ui/code-editor/code-editor.const.ts`). Highlighted: Python, JavaScript and
+  TypeScript with their JSX forms, JSON, YAML, Markdown, CSS, SQL, XML and HTML. `txt` and
+  `log` stay plain monospaced text.
+- **Toggles (B-13).** Markdown has Rendered (as today) and Raw (highlighted source). JSON
+  and YAML have Pretty (re-formatted) and Raw (the file as on disk). The default is
+  Rendered or Pretty. JSON or YAML that does not parse shows Raw with "Can't parse" and no
+  toggle.
+- **Tables (B-06).** Parquet is read with `hyparquet`: the schema and the first 1,000
+  rows, fetching only the byte ranges it needs from the URL or blob. Arrow IPC is read
+  with `apache-arrow`, first 1,000 rows. Both use the existing paginated table, with the
+  footer "Showing first 1,000 of N rows" when N is known. CSV and XML are unchanged.
+
+## `.luml` view
+
+The view calls `file.inspect` and shows, top to bottom:
+
+- **Actions**, in a row labelled "For full overview": for an experiment **Open in
+  Experiments** and **Upload experiment to LUML**; for a model **Upload model to LUML**;
+  for a dataset **Upload dataset to LUML**.
+- **Data**, for a dataset only: one tab per subset / split. Each tab shows the first file
+  of the split as a table, read through the archive member endpoint, with the first 1,000
+  rows and the split's total rows when known.
+- **Manifest:** the whole manifest as highlighted YAML.
+- **Contents:** the archive's files with sizes. A click opens the file in the shared
+  preview, read through the archive member endpoint.
+
+An unknown kind shows the no-preview card.
+
+The upload buttons open the existing `UploadModal.vue`, extended to publish a file through
+`file.publish`. The artifact name defaults to the manifest's name.
+
+## Editing
+
+**Edit** replaces the preview with Flow's code editor, with **Cancel** and **Save** in
+place of the view toggle (B-15).
+
+- **Changed on disk.** When the file changes on disk during an edit, or a save is refused
+  with `FileConflict`, a warning above the editor says "This file changed on disk after you
+  started to edit it." **Overwrite** saves the person's text with force. **Reload** takes
+  the file from disk and drops the edit.
+- **Agent lock.** A locked file is drawn like a cell an agent works on: the card's border
+  and a strip under the header take the agent's colour (the same colour the agent has on
+  cells, `AGENT_COLORS` in `store/flow`), the body is dimmed and **Edit** is disabled. The
+  strip says "{label} is working on this file", with the tooltip "Read-only until 3 minutes
+  after the agent's last change to this file." A lock without an owner uses a neutral
+  colour and "An agent is working on this file".
+- **Lock during an edit.** The editor turns read-only and the strip appears. The person's
   unsaved text stays visible and copyable. When the lock ends, the changed-on-disk warning
-  offers **Overwrite** / **Reload**.
+  offers **Overwrite** and **Reload**.
 
-### 5. Experiment from a `.luml` (B-09, TQ-4)
+## Experiment from a `.luml`
 
-- New route `workspaces/experiment?path=<abs .luml>` rendering the experiment details tabs
-  (overview, metrics, traces, evals, attachments) read-only:
-  - `exp.db.zip` (via `/file/entry`) → unzip → `sql.js`, as the main frontend's
-    `frontend/src/hooks/useSqlLite.ts` → the snapshot provider from `@luml/experiments`;
-  - `attachments.tar` + `attachments.index.json` → `TarAttachmentsProvider` with byte
-    ranges from `/file/entry`.
-- No rename, delete, tag or upload actions; a banner names the file.
+**Open in Experiments** goes to a new route under the Workspace page that takes the file's
+path and renders the experiment details tabs (overview, metrics, traces, evals,
+attachments) read-only (B-09, TQ-4).
 
-### 6. Row menu and dialogs (B-14)
+- The experiment database is `exp.db.zip` in the archive: fetched through the archive
+  member endpoint, unzipped, and opened in the browser with `sql.js`, as the main frontend
+  does in `frontend/src/hooks/useSqlLite.ts`. It feeds the snapshot provider of
+  `@luml/experiments`.
+- Attachments come from `attachments.tar` and `attachments.index.json` through
+  `TarAttachmentsProvider`, with byte ranges from the archive member endpoint.
+- There are no rename, delete, tag or upload actions. A banner names the file.
 
-- Files and folders get the notebooks' ⋮ menu with **Rename**, **Move to…**, **Delete** (no
-  Duplicate); notebooks gain **Move to…** and keep their items.
-- **Rename** is inline, as in `WorkspaceFolderItemFlow.vue`, with a small secondary
-  **Save** button (smaller than the notebook row's).
-- **Move to…:** a `LumlflowDialog` (600 px, layout of "Create new notebook"), header
-  "MOVE TO", text "Move **{name}** to:", a folder field, and a full-width rounded **Move**
-  button, disabled until a folder is chosen. The folder field opens a picker that starts at
-  the current directory, lists its folders, and can go up to the parent and into a folder
-  (operations work anywhere the page can browse); the chosen path shows in the field.
+## Row menu and dialogs
 
-- **New folder** / **New file:** the same dialog as "Create new notebook": header "CREATE
-  NEW FOLDER" / "CREATE NEW FILE", required **Name** field (placeholder "Name your folder"
-  / "Name your file, e.g. notes.md"), full-width rounded **Create folder** / **Create file**,
-  disabled while the name is empty. Errors under the field in red, small: `"{name}" already
-  exists` (`AlreadyExists`) and the name-rule message for an invalid name. A created file
-  opens in the viewer.
+Files and folders get the notebooks' row menu with **Rename**, **Move to…** and **Delete**.
+Notebooks gain **Move to…** and keep their items (B-14).
 
-- **Delete** uses `LumlflowConfirmDialog`:
-  - file: header "Delete {name}?", text "This action is permanent and cannot be undone.
-    Cells that read this file will fail the next time they run.", buttons **Cancel** and
-    **Delete file** (warn, outlined);
-  - folder: header "Delete {name}?", text "The folder and everything in it are deleted. This
-    action is permanent and cannot be undone.", buttons **Cancel** and **Delete folder**.
-
-- Rename and move of a file show an inline note under the field: "Cells that read this file
-  by path are not updated."
-- **`FlowOpen`:** `LumlflowConfirmDialog` "{n} open notebook(s) will be closed: {names}.
-  Running cells stop and agents working in them lose their session. Close and continue?"
-  (**Close and continue** / **Cancel**) → repeats the call with `close_open: true`.
-- Errors from operations show as an error toast with the message (`kind` decides the
-  wording for known kinds, the OS message for `OsError`).
-
-### 7. Upload
-
-- `UploadModal.vue` gets a `publishFile` prop beside `publish` / `publishExperiment`; the
-  name defaults to the manifest's `name`.
+- **Rename** is inline, as in `WorkspaceFolderItemFlow.vue`.
+- **Move to…** opens a dialog with a folder field and a **Move** button, disabled until a
+  folder is chosen. The folder picker starts at the current directory, lists its folders,
+  and can go up to the parent and into a folder, because operations work anywhere the page
+  can browse.
+- **New folder** and **New file** use the layout of "Create new notebook" with a required
+  name. `AlreadyExists` and an invalid name show as an error under the field. A created
+  file opens in the viewer.
+- **Delete** asks for confirmation. The texts are in the prototype: both say the action is
+  permanent, and the file text adds that cells that read the file will fail the next time
+  they run.
+- **Note under rename and move of a file:** "Cells that read this file by path are not
+  updated."
+- **Open notebooks.** On `FlowOpen` a confirm dialog says "{n} open notebook(s) will be
+  closed: {names}. Running cells stop and agents working in them lose their session. Close
+  and continue?" **Close and continue** repeats the call with `close_open`; **Cancel**
+  changes nothing.
+- **Other errors** show as an error toast: worded by kind for known kinds, the OS message
+  for `OsError`.
 
 ## Dependencies
 
 - `@luml/attachments`: `hyparquet`, `apache-arrow` (21.1.0, as the main frontend),
-  `js-yaml`, `@codemirror/view`, `@codemirror/state`, `@codemirror/language`,
-  `@codemirror/lang-python`, `@codemirror/lang-javascript`, `@codemirror/lang-json`,
-  `@codemirror/lang-yaml`, `@codemirror/lang-markdown`, `@codemirror/lang-css`,
-  `@codemirror/lang-sql`, `@codemirror/lang-xml` (as peer dependencies where Flow already
-  has them).
+  `js-yaml`, and CodeMirror 6 with the language packs for the highlighted languages, as
+  peer dependencies where Flow already has them.
 - Flow frontend: `sql.js` and the unzip library the main frontend uses for `exp.db.zip`.
-- Backend: none new (`watchdog`, `tarfile`, `fnnx` already used).
+- Backend: none new (`watchdog`, `tarfile`, `fnnx` are already used).
 
 ## Trade-offs
 
@@ -477,8 +430,8 @@ on reload and back.
 - **Operations anywhere on disk:** consistent with browsing, but a bug can touch any file
   the user can; mitigated by `Protected` paths, name checks and confirm dialogs.
 - **Lock attribution** is per lease, not per write; several agents give a generic lock.
-- **`flow.rename` / `flow.delete` change behaviour** (refuse while open); the CLI passes
-  `close_open: true` to keep today's behaviour.
+- **`flow.rename` / `flow.delete` change behaviour** (refuse while open); the CLI sets
+  `close_open` to keep today's behaviour.
 - **Listing pages of 2,000:** fast first paint for huge folders; a file past the loaded
   pages is found only after **Show more** (no search in this version).
 
@@ -643,7 +596,7 @@ it by path are not updated
 ## Scenario: Rename to an existing name
 **Given** `a.csv` and `b.csv`
 **When** the person renames `a.csv` to `b.csv`
-**Then** the rename is refused with "b.csv already exists" and nothing changes
+**Then** the rename is refused with `"b.csv" already exists` and nothing changes
 
 ## Scenario: Invalid name
 **Given** any file
@@ -786,123 +739,81 @@ and **Close** returns to the listing
 
 # Tasks
 
-Backend tasks first (daemon in `lumlflow/lumlflow/flow/daemon/`, tests in
-`lumlflow/tests/unit/daemon/`), then frontend. Each task ends with its checks passing:
-backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-check`,
-`test:ci` of every package it touches. Tasks that change `@luml/attachments` also run
-`type-check`, `test:ci` and `build` of `frontend/` (main LUML app) and `lumlflow/frontend/`.
+Backend tasks come first (daemon in `lumlflow/lumlflow/flow/daemon/`, tests in
+`lumlflow/tests/unit/daemon/`), then frontend. Each task covers the scenarios of its area
+with tests and ends with its checks passing: backend `ruff`, `mypy` and
+`pytest lumlflow/tests/unit`; frontend `lint`, `type-check` and `test:ci` of every package
+it touches. A task that changes `@luml/attachments` also runs `type-check`, `test:ci` and
+`build` of `frontend/` (the main LUML app) and `lumlflow/frontend/`.
 
-- [ ] **1. Paths helper and listing with files** (Design §1, §2)
-  - [ ] `Api._file_path` (parent resolved, last component kept), name validation reusing
-    `Hub._new_flow_ref` checks, `NotAFile`, `Protected`, `OsError` mapping
-  - [ ] `list_directory(root, hidden)`: files with `size`, `modified`, `is_link`; folders
-    with `modified`, `is_link`; broken links; hidden rule; ordering and
-    `offset` / `limit` (max 2000), `total`, `next_offset`
-  - [ ] `workspace.list` params and response; update `test_workspace.py`
-  - [ ] Tests: names (`..`, `/`, empty), protected paths, symlink kept as link, hidden on /
-    off, `.lumlflow` never listed, paging of 4,500 entries
+- [ ] List plain files in the workspace listing
+  - [ ] Shared path rules (Paths): symlinks kept as links, name checks, `NotAFile`,
+    `Protected` and `OsError`
+  - [ ] `workspace.list` with files, hidden entries and paging (Listing); update
+    `test_workspace.py`
+  - [ ] Tests: invalid names, protected paths, links and broken links, hidden on and off,
+    `.lumlflow` never listed, paging of 4,500 entries
 
-- [ ] **2. File bytes and `.luml` inspection** (Design §3)
-  - [ ] `GET /api/flow/file` in `web.py` (token, regular file, `FileResponse`, Range)
-  - [ ] `GET /api/flow/file/entry` (tar member streaming with Range, 404 on unknown member)
-  - [ ] `file.inspect` (kind detection via `artifact_type` / fnnx `Reader`; tabular and HF
-    split lists; `num_rows`); add to `_SILENT`
-  - [ ] MCP tool `file-inspect` in `mcp.py`; update `test_mcp.py`
-  - [ ] Tests with small fixture archives built by the SDK (`save_tabular_dataset`, HF
-    dataset if `datasets` is available in tests, an experiment via the tracker, a model)
-    and a non-luml tar
+- [ ] Serve file bytes and inspect and upload luml files
+  - [ ] The two `GET` endpoints in `web.py`, both with `Range` (Reading files)
+  - [ ] `file.inspect` and the MCP tool `file-inspect` (`mcp.py`, `test_mcp.py`)
+  - [ ] `file.publish` (Uploading a `.luml` to LUML), tested with a mocked LUML client
+  - [ ] Tests with small archives built by the SDK: tabular dataset, Hugging Face dataset
+    if `datasets` is available in tests, experiment, model, and a tar that is not a `.luml`
 
-- [ ] **3. File and folder operations** (Design §4)
-  - [ ] `file.rename`, `file.move` (same / cross filesystem, rollback), `file.delete`
-    (unlink / rmtree, links never followed), `file.mkdir`, `file.create` (name required,
-    `"{name}" already exists`)
-  - [ ] `flow.move`; `close_open` and `FlowOpen` in all operations, including
-    `flow.rename` and `flow.delete`; open sessions found under a folder
-  - [ ] CLI `flow delete` passes `close_open: true` (`cli.py`)
-  - [ ] Tests: each scenario under *Operations* that the daemon decides (exists, invalid
-    name, into itself, protected, open notebook refused / closed, symlink delete,
-    permission error)
+- [ ] Add file and folder operations to the daemon
+  - [ ] The six methods of File and folder operations, including the move across
+    filesystems
+  - [ ] The open-notebook rule in all of them and in `flow.rename` and `flow.delete`; the
+    CLI `flow delete` keeps its behaviour
+  - [ ] Tests for every *Operations* scenario the daemon decides
 
-- [ ] **4. Text read / write with conflict check** (Design §5)
-  - [ ] `file.read_text` (2 MB, UTF-8, NUL check) and `file.write_text` (`FileConflict`,
-    `force`, atomic write keeping the mode, returns `mtime_ns`)
-  - [ ] `FileLocked` check calls an interface that task 5 implements (stub returns no lock)
-  - [ ] Tests: too large, not text, conflict, force, mode kept
+- [ ] Add text editing with a file watcher and agent locks to the daemon
+  - [ ] `file.read_text` and `file.write_text` (Editing text files)
+  - [ ] The watcher and the `files` channel of `/api/flow/stream`, with the lock rule and
+    expiry (File watcher and agent locks)
+  - [ ] Tests in the style of `test_cell_claims.py` and `test_stream.py`: size, text and
+    conflict checks, forced write, mode kept; one agent, several agents, no agent, own
+    write not locked, expiry, lease end, write refused while locked
 
-- [ ] **5. File watcher and agent locks** (Design §6)
-  - [ ] `filewatch.py`: refcounted non-recursive watches per subscribed directory and open
-    file's parent; ignore `.lumlflow` and `.flow`; 300 ms debounce
-  - [ ] `files` subscription on `/api/flow/stream` (`caught_up`, `files_changed`,
-    `file_locks`)
-  - [ ] Lock attribution from `Daemon._client_leases` (one agent / several → "an agent"),
-    `own_writes` skip, expiry with `CLAIM_IDLE_S` and on lease end, sweep in `main.py`
-  - [ ] Wire `file.write_text` to refuse `FileLocked`
-  - [ ] Tests (as `test_cell_claims.py` / `test_stream.py`): one agent, several agents, no
-    agent, own write not locked, expiry, lease end
+- [ ] Extend the shared attachments preview
+  - [ ] Standalone preview and the exports, new types and the size rule (Shared preview
+    package)
+  - [ ] Highlighting and the Rendered / Raw and Pretty / Raw toggles
+  - [ ] Parquet and Arrow tables, tested with small fixtures
+  - [ ] Flow's and LUML's Attachments tabs still build and pass
 
-- [ ] **6. Upload a `.luml` file** (Design §7)
-  - [ ] `file.publish` via `_spawn_upload` + `ArtifactHandler.upload_file`; `.luml` only
-  - [ ] Tests with a mocked LUML client: job created, progress completes, non-`.luml`
-    refused
+- [ ] Show files in the Workspace listing and open them in a viewer
+  - [ ] File rows, **Show hidden**, **Show more** and the store behind them (Workspace
+    page)
+  - [ ] The split layout with the route query, and the viewer with all its body states
+  - [ ] The `files` channel subscription: refresh on change and the "moved or deleted"
+    state
+  - [ ] Look as in `SPEC-design/WorkspaceFolder/` and `SPEC-design/WorkspacesPage/`
 
-- [ ] **7. `@luml/attachments`: exports, types, highlighting, toggles** (Frontend §2)
-  - [ ] Export `FilePreview`, standalone `useFilePreview`, `getFileType`, `FILE_TYPES`,
-    language map
-  - [ ] New extensions; size rule (10 MB, except audio / video / PDF)
-  - [ ] Read-only CodeMirror in `CodePreview` with the listed language packs and
-    `--ui-code-*` colours; `txt` / `log` plain
-  - [ ] Markdown Rendered / Raw, JSON and YAML Pretty / Raw, "Can't parse" fallback
-  - [ ] Tests for type detection, toggles, invalid JSON / YAML; check Flow's and LUML's
-    Attachments tabs still build and pass
+- [ ] Add the row menu and dialogs for file operations
+  - [ ] Row menu, inline rename, **Move to…** with the folder picker, **Delete**, **New
+    file** and **New folder** (Row menu and dialogs)
+  - [ ] The open-notebook and unsaved-changes dialogs, and error toasts by kind
+  - [ ] Look as in `SPEC-design/WorkspacesPage/WorkspacesPage.vue` and
+    `SPEC-design/WorkspaceFolder/WorkspaceFolderItem.vue`
 
-- [ ] **8. `@luml/attachments`: Parquet and Arrow tables** (Frontend §2, B-06)
-  - [ ] `hyparquet` reader over URL / blob with partial reads; `apache-arrow` IPC reader;
-    first 1,000 rows, "Showing first 1,000 of N rows"
-  - [ ] Tests with small Parquet and Arrow fixtures; check both apps
+- [ ] Add text editing with conflict and agent lock states
+  - [ ] Edit, Save and Cancel with Flow's code editor (Editing)
+  - [ ] The changed-on-disk warning and the agent lock, also during an edit
+  - [ ] Look as in `SPEC-design/WorkspacesPage/WorkspaceFileViewer.vue`
 
-- [ ] **9. Workspace listing and file viewer** (Frontend §1)
-  - [ ] API types and calls for the new `workspace.list` fields and paging; store items of
-    `type: 'file'`; **Show more**; **Show hidden** (localStorage, try/catch)
-  - [ ] `WorkspaceFolderItem.vue` file rows (click, icon, size, selected, link icon)
-  - [ ] `WorkspacesPage.vue` split layout and `?file=`; `WorkspaceFileViewer.vue` (header,
-    `FilePreview` over `/api/flow/file`, plain-text fallback via `file.read_text`,
-    no-preview / empty / too-large states)
-  - [ ] `files` stream subscription; refresh on `files_changed`; "moved or deleted" state
-  - [ ] Match the look of `prototype/WorkspaceFolder/` and `prototype/WorkspacesPage/`
-    (`WorkspacesPage.vue`, `WorkspaceFileViewer.vue`)
-  - [ ] Tests for the store (paging, hidden, refresh) and viewer states
+- [ ] Add the luml file view and upload
+  - [ ] The view for experiment, model, dataset and unknown kinds (`.luml` view), tested
+    per kind with a mocked `file.inspect`
+  - [ ] Upload through `UploadModal.vue` for all three kinds
+  - [ ] Look as in `SPEC-design/WorkspacesPage/LumlPackagePreview.vue`
 
-- [ ] **10. Row menu, dialogs and operations** (Frontend §6)
-  - [ ] ⋮ menu for files, folders and notebooks; inline rename with Save; **Move to…**
-    dialog with a folder picker that can go up; **Delete** confirms; **New file** / **New
-    folder** dialogs with name errors
-  - [ ] `FlowOpen` close-and-continue dialog; unsaved-changes dialog; error toasts by `kind`
-  - [ ] Match the look of the dialogs in `prototype/WorkspacesPage/WorkspacesPage.vue`,
-    the row menu and inline rename in `prototype/WorkspaceFolder/WorkspaceFolderItem.vue`
-  - [ ] Tests for the store actions and dialog flows
-
-- [ ] **11. Editing with locks and conflicts** (Frontend §4)
-  - [ ] `UiCodeEditor` with the shared language map; Edit / Save / Cancel
-  - [ ] Agent strip, coloured border and dimmed body with `agentColor` / neutral colour;
-    read-only during a lock; keep unsaved text; changed-on-disk warning with Overwrite /
-    Reload (during an edit, after a lock, on `FileConflict`)
-  - [ ] Match the look of the editing, conflict and agent states in
-    `prototype/WorkspacesPage/WorkspaceFileViewer.vue`
-  - [ ] Tests for lock, conflict and save flows
-
-- [ ] **12. `.luml` view and upload** (Frontend §3, §7)
-  - [ ] `LumlPackagePreview` for experiment, model, dataset (split tabs via
-    `/api/flow/file/entry`), unknown; archive file list opening `FilePreview`
-  - [ ] `UploadModal` `publishFile`; buttons for all three kinds
-  - [ ] Match the look of `prototype/WorkspacesPage/LumlPackagePreview.vue`
-  - [ ] Tests per kind with mocked `file.inspect`
-
-- [ ] **13. Experiment from a `.luml` (read-only route)** (Frontend §5)
-  - [ ] Route `workspaces/experiment?path=`; `exp.db.zip` → unzip → `sql.js` provider
-    (as `frontend/src/hooks/useSqlLite.ts`); `TarAttachmentsProvider` over `/file/entry`
-  - [ ] Experiment tabs rendered read-only, banner with the file name, no write actions
+- [ ] Open an experiment from a luml file read-only
+  - [ ] The route, the database and attachments providers over the archive member
+    endpoint, and the read-only tabs with the banner (Experiment from a `.luml`)
   - [ ] Tests with a small experiment archive fixture
 
-- [ ] **14. Remove the design references** (Frontend)
-  - [ ] Delete `codie/design/LM-1113/` (the design prototype): they are spec material
-    and must not reach `main`, where CI rejects `codie/**`
+- [ ] Remove the design prototype
+  - [ ] Delete `SPEC-design/`: it is spec material and must not reach `main`. CI rejects
+    `SPEC.md` and `codie/**` there but does not catch this folder
