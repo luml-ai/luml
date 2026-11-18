@@ -84,9 +84,10 @@ import { CircuitBoard, FileText, Minimize2, Maximize2, ListTree } from 'lucide-v
 import { Button, useToast } from 'primevue'
 import { computed, onBeforeMount, onMounted, ref } from 'vue'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { useAnnotationsStore } from '@/store/annotations'
 import { getErrorMessage, isEmpty } from '@/helpers/helpers'
+import { isSnapshotWorkerTerminated } from '@/providers/snapshot-source/errors'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 import EvalsScoresSingle from '../../scores/single/EvalsScoresSingle.vue'
 import AnnotationsButton from '../../../annotations/AnnotationsButton.vue'
@@ -160,8 +161,8 @@ async function showSpans() {
     const { datasetId, evalId } = evalsStore.selectedEval
     const trace = await evalsStore.getEvalSpansTree(props.id, datasetId, evalId)
     evalsStore.setSelectedTrace(trace, props.id)
-  } catch {
-    toast.add(simpleErrorToast('Failed to load spans'))
+  } catch (error) {
+    showReadErrorToast(toast, error, 'Failed to load spans')
   }
 }
 
@@ -188,7 +189,7 @@ onBeforeMount(async () => {
       String(evalsStore.selectedEval?.evalId),
     )
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))
+    showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to get annotations'))
   }
 })
 
@@ -197,8 +198,12 @@ onMounted(async () => {
     spansExist.value = false
   } else {
     const { datasetId, evalId } = evalsStore.selectedEval
-    const traceId = await evalsStore.getTraceId(props.id, datasetId, evalId)
-    spansExist.value = !!traceId
+    try {
+      const traceId = await evalsStore.getTraceId(props.id, datasetId, evalId)
+      spansExist.value = !!traceId
+    } catch (error) {
+      if (!isSnapshotWorkerTerminated(error)) throw error
+    }
   }
 })
 </script>

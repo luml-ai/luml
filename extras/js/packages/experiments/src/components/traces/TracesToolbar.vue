@@ -49,7 +49,7 @@ import { useTraceStore } from '@/store/trace'
 import TableEditColumns from '../table/TableEditColumns.vue'
 import TableFilter from '../table/filter/TableFilter.vue'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 
 const toast = useToast()
@@ -86,7 +86,7 @@ async function loadFilterKeys() {
   try {
     await traceStore.getTypedColumns()
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   }
 }
 

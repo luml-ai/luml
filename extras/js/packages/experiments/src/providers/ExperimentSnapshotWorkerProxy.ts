@@ -31,6 +31,7 @@ import type {
   SnapshotTransportStats,
 } from './ExperimentSnapshotDatabaseProvider'
 import {
+  ExperimentSnapshotWorkerTerminatedError,
   isSnapshotSourceExpired,
   redactSecrets,
   SNAPSHOT_SOURCE_EXPIRED,
@@ -105,7 +106,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     if (this.terminated) return
     this.terminated = true
     this.worker.terminate()
-    const error = new Error('Experiment snapshot worker was terminated')
+    const error = new ExperimentSnapshotWorkerTerminatedError()
     this.pendingRequests.forEach((fail) => fail(error))
   }
 
@@ -115,7 +116,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     transfer: Transferable[] = [],
   ): Promise<T> {
     if (this.terminated) {
-      return Promise.reject(new Error('Experiment snapshot worker was terminated'))
+      return Promise.reject(new ExperimentSnapshotWorkerTerminatedError())
     }
     const requestId = crypto.randomUUID()
 

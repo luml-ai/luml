@@ -294,7 +294,7 @@ import { computed, ref } from 'vue'
 import { getErrorMessage, getFormattedExecutionTime } from '@/helpers/helpers'
 import { SORTED_FIELDS, TRACE_STATE_MAP } from './traces.const'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { watch } from 'vue'
 import { nextTick } from 'vue'
 import FeedbackSubheader from '../evals/FeedbackSubheader.vue'
@@ -392,7 +392,7 @@ async function showEval(evalId: string, evalsIds: string[]) {
     evalsStore.setEvalsIdsList(evalsIds)
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   }
 }
 
@@ -401,7 +401,7 @@ async function showTrace(traceId: string) {
     const snapsTree = await evalsStore.getTraceSpansTree(props.artifactId, traceId)
     evalsStore.setSelectedTrace(snapsTree, props.artifactId)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   }
 }
 

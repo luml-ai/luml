@@ -21,7 +21,7 @@ import type { DatasetListProps, FilterInterface, SortParams } from './evals.inte
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { COMPARISON_LIMIT } from '../../store/evals/evals.data'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { useToast, Skeleton } from 'primevue'
 import EvalsDataset from './EvalsDataset.vue'
 
@@ -41,7 +41,7 @@ async function getNextPage(datasetId: string, reset: boolean = false) {
     await evalsStore.getNextDatasetPage(datasetId, reset)
   } catch (error: unknown) {
     const messageText = error instanceof Error ? error.message : 'Failed to load evals dataset'
-    toast.add(simpleErrorToast(messageText))
+    showReadErrorToast(toast, error, messageText)
   } finally {
     evalsStore.setLoading(false)
   }
@@ -54,7 +54,7 @@ async function init() {
     await evalsStore.initDatasets(isComparison.value ? COMPARISON_LIMIT : undefined)
   } catch (error: unknown) {
     const messageText = error instanceof Error ? error.message : 'Failed to load evals datasets'
-    toast.add(simpleErrorToast(messageText))
+    showReadErrorToast(toast, error, messageText)
   } finally {
     evalsStore.setLoading(false)
     initialLoading.value = false

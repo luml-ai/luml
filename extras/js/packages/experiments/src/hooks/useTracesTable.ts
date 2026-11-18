@@ -5,7 +5,7 @@ import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
 import type { GetTracesParams } from '@/interfaces/interfaces'
 import { computed, ref, type Ref } from 'vue'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { useToast } from 'primevue'
 import { formattedDate, getErrorMessage } from '@/helpers/helpers'
 import { downloadFileFromBlob } from '@/helpers/files'
@@ -102,7 +102,7 @@ export const useTracesTable = (
       const blob = new Blob([csv], { type: 'text/csv' })
       downloadFileFromBlob(blob, `traces.csv`)
     } catch (error) {
-      toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to export CSV')))
+      showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to export CSV'))
     } finally {
       exportLoading.value = false
     }

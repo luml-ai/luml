@@ -32,7 +32,7 @@ import type { SortParams, TracesWrapperProps } from './traces.interface'
 import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { useToast, Skeleton } from 'primevue'
 import { ListTree } from 'lucide-vue-next'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useAnnotationsStore } from '@/store/annotations'
 import { useTracesTable } from '@/hooks/useTracesTable'
@@ -109,7 +109,7 @@ async function getNextPage(reset: boolean = false) {
     traceStore.setLoading(true)
     await traceStore.getNextPage(reset)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
     traceStore.setLoading(false)
   }
@@ -123,7 +123,7 @@ onBeforeMount(async () => {
     tracesExists.value = traceStore.traces.length > 0
     await annotationsStore.getTracesAnnotationSummary(props.artifactId)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
     firstLoading.value = false
     traceStore.setLoading(false)

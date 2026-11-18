@@ -45,7 +45,7 @@ import { useEvalsStore } from '../../store/evals'
 import { useDebounceFn } from '@vueuse/core'
 import { Braces } from 'lucide-vue-next'
 import { useAnnotationsStore } from '@/store/annotations'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useToast } from 'primevue'
 import UiCard from '../ui/UiCard.vue'
@@ -131,7 +131,7 @@ async function fetchAverageScores() {
       [...filter.filters],
     )
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to fetch average scores')))
+    showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to fetch average scores'))
   }
 }
 

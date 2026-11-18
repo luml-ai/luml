@@ -27,7 +27,7 @@ import TracesInputs from './inputs/TracesInputs.vue'
 import TracesModels from './models/TracesModels.vue'
 import EvalsTabs from './EvalsTabs.vue'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useMinLoading } from '@/hooks/useMinLoading'
 import { computed } from 'vue'
@@ -69,7 +69,7 @@ async function onCurrentEvalIdUpdate(evalId: string) {
     const evalData = await evalsStore.getProvider.getEvalById(artifactId, evalId)
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
     evalsStore.setCurrentEvalDataLoading(false)
   }

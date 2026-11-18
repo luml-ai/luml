@@ -79,7 +79,7 @@ import { Tabs, TabList, Tab, TabPanels, TabPanel, useToast } from 'primevue'
 import { getErrorMessage, getFormattedTime, getSpanTypeData, safeParse } from '@/helpers/helpers'
 import { useAnnotationsStore } from '@/store/annotations'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import UiMultiTypeText from '../../../../ui/UiMultiTypeText.vue'
 import AnnotationsButton from '../../../../annotations/AnnotationsButton.vue'
 import AnnotationsView from '../../../../annotations/view/AnnotationsView.vue'
@@ -162,7 +162,7 @@ async function getAnnotations() {
     annotationsLoading.value = true
     await annotationsStore.getSpanAnnotations(props.artifactId, props.traceId, props.data.span_id)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))
+    showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to get annotations'))
   } finally {
     annotationsLoading.value = false
   }

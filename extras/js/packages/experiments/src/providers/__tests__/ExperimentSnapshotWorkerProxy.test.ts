@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { ExperimentSnapshotWorkerProxy } from '../ExperimentSnapshotWorkerProxy'
 import {
+  isSnapshotWorkerTerminated,
   SNAPSHOT_RANGE_UNSUPPORTED,
   SNAPSHOT_SOURCE_EXPIRED,
   SNAPSHOT_SOURCE_REDIRECT,
@@ -201,17 +202,34 @@ describe('ExperimentSnapshotWorkerProxy', () => {
     const second = proxy.init([])
     proxy.terminate()
 
-    await expect(first).rejects.toThrow(/terminated/i)
-    await expect(second).rejects.toThrow(/terminated/i)
+    for (const result of [first, second]) {
+      const error = await result.catch((reason: unknown) => reason)
+      expect(error).toMatchObject({
+        name: 'ExperimentSnapshotWorkerTerminatedError',
+        message: 'Experiment snapshot worker was terminated',
+      })
+      expect(isSnapshotWorkerTerminated(error)).toBe(true)
+    }
     expect(worker.terminate).toHaveBeenCalledOnce()
     expectCleanedUp()
+  })
+
+  it('does not report a worker that failed on its own as terminated', async () => {
+    const result = proxy.getUniqueDatasetsIds()
+    worker.dispatchEvent(new ErrorEvent('error', { message: 'worker crashed' }))
+
+    const error = await result.catch((reason: unknown) => reason)
+    expect(error).toMatchObject({ name: 'Error', message: 'worker crashed' })
+    expect(isSnapshotWorkerTerminated(error)).toBe(false)
   })
 
   it('rejects requests made after termination without posting them', async () => {
     proxy.terminate()
     proxy.terminate()
 
-    await expect(proxy.resetTracesRequestParams()).rejects.toThrow(/terminated/i)
+    const error = await proxy.resetTracesRequestParams().catch((reason: unknown) => reason)
+    expect(error).toMatchObject({ message: 'Experiment snapshot worker was terminated' })
+    expect(isSnapshotWorkerTerminated(error)).toBe(true)
     expect(worker.postMessage).not.toHaveBeenCalled()
     expect(worker.terminate).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)

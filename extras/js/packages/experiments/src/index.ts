@@ -32,8 +32,10 @@ import {
   type SnapshotSourceRef,
 } from './providers/snapshot-source/sourceLocation'
 import {
+  ExperimentSnapshotWorkerTerminatedError,
   isSnapshotRangeUnsupported,
   isSnapshotSourceExpired,
+  isSnapshotWorkerTerminated,
   redactSecrets,
   SNAPSHOT_FORMAT,
   SNAPSHOT_RANGE_UNSUPPORTED,
@@ -214,6 +216,8 @@ export {
   useTraceStore,
   isSnapshotRangeUnsupported,
   isSnapshotSourceExpired,
+  isSnapshotWorkerTerminated,
+  ExperimentSnapshotWorkerTerminatedError,
   SNAPSHOT_RANGE_UNSUPPORTED,
   SNAPSHOT_SOURCE_EXPIRED,
   SNAPSHOT_SOURCE_REDIRECT,

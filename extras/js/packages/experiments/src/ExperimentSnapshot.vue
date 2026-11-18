@@ -53,7 +53,7 @@ import type {
   ModelsInfo,
 } from './interfaces/interfaces'
 import { useToast, Skeleton } from 'primevue'
-import { simpleErrorToast } from './lib/primevue/data/toasts'
+import { showReadErrorToast } from './lib/primevue/data/toasts'
 import { useEvalsStore } from './store/evals'
 import { useDynamicMetricsStore } from './store/dynamic-metrics'
 import { provideTheme } from './lib/theme/ThemeProvider'
@@ -93,12 +93,15 @@ const showStaticParams = computed(() => {
 
 async function initStaticParams() {
   staticParamsController?.abort()
-  staticParamsController = new AbortController()
+  const controller = new AbortController()
+  staticParamsController = controller
   try {
     staticParamsLoading.value = true
-    staticParams.value = await props.provider.getStaticParamsList(staticParamsController.signal)
-  } catch {
-    toast.add(simpleErrorToast('Failed to load static params'))
+    staticParams.value = await props.provider.getStaticParamsList(controller.signal)
+  } catch (error) {
+    // Aborted only when the view unmounts or reloads them.
+    if (controller.signal.aborted) return
+    showReadErrorToast(toast, error, 'Failed to load static params')
   } finally {
     staticParamsLoading.value = false
   }

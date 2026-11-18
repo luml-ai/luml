@@ -7,7 +7,7 @@ import { useEvalsStore } from '../evals'
 import { useDebounceFn } from '@vueuse/core'
 import { useAnnotationsStore } from '../annotations'
 import { useToast } from 'primevue'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 
 export const useTraceStore = defineStore('trace', () => {
@@ -79,7 +79,7 @@ export const useTraceStore = defineStore('trace', () => {
         await annotationsStore.getTracesAnnotationSummary(artifactId.value)
       }
     } catch (error) {
-      toast.add(simpleErrorToast(getErrorMessage(error)))
+      showReadErrorToast(toast, error, getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -91,7 +91,7 @@ export const useTraceStore = defineStore('trace', () => {
       setLoading(true)
       await getNextPage(true)
     } catch (error) {
-      toast.add(simpleErrorToast(getErrorMessage(error)))
+      showReadErrorToast(toast, error, getErrorMessage(error))
     } finally {
       setLoading(false)
     }

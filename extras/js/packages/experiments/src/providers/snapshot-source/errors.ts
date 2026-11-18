@@ -132,6 +132,24 @@ export class SnapshotFormatError extends Error {
   }
 }
 
+const WORKER_TERMINATED_NAME = 'ExperimentSnapshotWorkerTerminatedError'
+
+/**
+ * The worker was terminated on purpose because its view closed: the read was cancelled, not
+ * failed. A worker that crashes rejects with a plain `Error` instead.
+ */
+export class ExperimentSnapshotWorkerTerminatedError extends Error {
+  constructor() {
+    super('Experiment snapshot worker was terminated')
+    this.name = WORKER_TERMINATED_NAME
+  }
+}
+
+/** Checks the name, not the class: the error can come from another bundle of this package. */
+export function isSnapshotWorkerTerminated(error: unknown): boolean {
+  return (error as { name?: unknown } | null)?.name === WORKER_TERMINATED_NAME
+}
+
 export function isSnapshotSourceExpired(error: unknown): error is SnapshotSourceExpiredError {
   return (
     typeof error === 'object' &&

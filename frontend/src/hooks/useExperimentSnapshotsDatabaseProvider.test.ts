@@ -1,5 +1,6 @@
 import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useExperimentSnapshotsDatabaseProvider } from './useExperimentSnapshotsDatabaseProvider'
@@ -7,6 +8,8 @@ import {
   READ_FAILED,
   SNAPSHOT_SOURCE_EXPIRED,
   SNAPSHOT_TOO_LARGE_FOR_BROWSER,
+  useEvalsStore,
+  useTraceStore,
   type ExperimentSnapshotWorkerProxy,
 } from '@luml/experiments'
 
@@ -36,6 +39,13 @@ const mocks = vi.hoisted(() => {
   }
   return store
 })
+
+const toastAdd = vi.hoisted(() => vi.fn())
+
+vi.mock('primevue', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('primevue')>()),
+  useToast: () => ({ add: toastAdd }),
+}))
 
 vi.mock('@/stores/artifacts', () => ({
   useArtifactsStore: () => mocks,
@@ -198,6 +208,26 @@ describe('experiment snapshot worker lifecycle', () => {
     await expect(provider.resetEvalsDatasetsRequestParams()).rejects.toThrow(/terminated/i)
     expect(worker.terminate).toHaveBeenCalledOnce()
     expect(worker.listeners.size).toBe(0)
+  })
+
+  it('shows no toast for a viewer read cut off when the closed view terminates the worker', async () => {
+    setActivePinia(createPinia())
+    const wrapper = mount(Harness)
+    const worker = workers[0]
+    await initialize(worker, init([]))
+    useEvalsStore().setProvider(mocks.experimentSnapshotProvider as ExperimentSnapshotWorkerProxy)
+
+    const refresh = useTraceStore().refresh()
+    expect(worker.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ payload: expect.objectContaining({ method: 'getFreshTraces' }) }),
+    )
+    wrapper.unmount()
+    mocks.resetExperimentSnapshotProvider()
+    await refresh
+    await flushPromises()
+
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    expect(toastAdd).not.toHaveBeenCalled()
   })
 
   it('reuses the worker when the provider is reset while the view is mounted', async () => {

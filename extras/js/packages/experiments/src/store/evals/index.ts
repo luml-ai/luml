@@ -11,7 +11,7 @@ import type { DatasetData } from '@/components/evals/evals.interface'
 import { INITIAL_PARAMS } from './evals.data'
 import { useAnnotationsStore } from '../annotations'
 import { useToast } from 'primevue'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { MetricBucketStore } from '@/metric-buckets/MetricBucketStore'
 
@@ -266,7 +266,7 @@ export const useEvalsStore = defineStore('evals', () => {
       })
       await Promise.all(annotationsPromises)
     } catch (error) {
-      toast.add(simpleErrorToast(getErrorMessage(error)))
+      showReadErrorToast(toast, error, getErrorMessage(error))
     } finally {
       setLoading(false)
     }
