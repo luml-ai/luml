@@ -1,6 +1,7 @@
 """acceptance checks for dependency locks and local development bindings."""
 
 import ipaddress
+import json
 import re
 import shlex
 import subprocess
@@ -121,6 +122,23 @@ class DependencyHygieneTests(unittest.TestCase):
                     self.assertGreaterEqual(
                         tuple(map(int, version.split("."))), (1, 45, 1)
                     )
+
+    def test_backend_image_starts_from_built_production_environment(self):
+        dockerfile = (ROOT / "backend/Dockerfile").read_text()
+        builder, runtime = dockerfile.split("FROM base AS runtime", 1)
+        sync = re.search(r"\buv sync ([^\n]+)", builder)
+        self.assertIsNotNone(sync)
+        self.assertIn("--frozen", shlex.split(sync[1]))
+        self.assertIn("--no-dev", shlex.split(sync[1]))
+        self.assertIn("COPY --from=builder /app/.venv /app/.venv", runtime)
+        self.assertIn('PATH="/app/.venv/bin:$PATH"', runtime)
+        self.assertRegex(runtime, r"\bUV_NO_SYNC=1\b")
+        self.assertNotRegex(runtime, r"(?m)^ENTRYPOINT\b")
+        commands = re.findall(r"(?m)^CMD (.+)$", runtime)
+        self.assertEqual(len(commands), 1)
+        command = json.loads(commands[0])
+        self.assertEqual(command[0], "uvicorn")
+        self.assertIn("luml.server:app", command)
 
     def test_jupyter_locks_patched_lite_packages(self):
         lock = project_file("wasm/jupyter/uv.lock")

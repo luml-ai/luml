@@ -65,6 +65,31 @@ ruff check . --fix        # Lint and fix any fixable errors.
 ruff check path/to/code/  # Lint files in `path/to/code`.
 ```
 
+## Container startup and migrations
+
+The production image starts Uvicorn directly from its built virtual environment.
+It does not resolve or install dependencies at startup, and excludes the dev
+dependency group.
+
+For deployments with `MIGRATIONS_IN_APP_PLATFORM=true`, configure the App Platform
+`PRE_DEPLOY` job to use the backend image and run this command from `/app`:
+
+```bash
+alembic upgrade head
+```
+
+The image exposes Alembic through `PATH`; migration jobs use the dependencies
+already installed in the image. Give the job the same environment variables as the
+backend service: `migrations/env.py` imports the application models, which load the
+full application settings, so `POSTGRESQL_DSN` alone is not enough. The platform
+job configuration is managed outside this repository.
+
+To inspect migration heads without database or network access:
+
+```bash
+docker run --rm --network none <backend-image> alembic heads
+```
+
 ## Microsoft OAuth
 
 Microsoft sign-in uses the ID token's `email` claim after validating its signature,
