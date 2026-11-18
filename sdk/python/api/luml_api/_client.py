@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from httpx import URL
+from httpx2 import URL
 
 from luml_api._base_client import AsyncBaseClient, SyncBaseClient
 from luml_api._exceptions import (

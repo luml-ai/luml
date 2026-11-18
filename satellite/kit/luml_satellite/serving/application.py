@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Annotated, Any, Protocol, cast
 from uuid import UUID
 
-import httpx
+import httpx2
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
@@ -92,7 +92,7 @@ class StartingGate:
 class _ComputeProxy:
     def __init__(
         self,
-        upstream_client: httpx.AsyncClient,
+        upstream_client: httpx2.AsyncClient,
         secret_source: SecretSource,
         recorder: Recorder,
         transform: ServingTransform,
@@ -160,14 +160,14 @@ class _ComputeProxy:
                 timeout=self._upstream_timeout_seconds,
             )
             upstream = await self._upstream_client.send(upstream_request, stream=True)
-        except httpx.TimeoutException as error:
+        except httpx2.TimeoutException as error:
             return await self._error_response(
                 session,
                 started_at,
                 504,
                 f"Upstream request timed out: {type(error).__name__}",
             )
-        except httpx.RequestError as error:
+        except httpx2.RequestError as error:
             return await self._error_response(
                 session,
                 started_at,
@@ -178,7 +178,7 @@ class _ComputeProxy:
         if upstream.status_code >= 400:
             try:
                 body = await upstream.aread()
-            except httpx.TimeoutException as error:
+            except httpx2.TimeoutException as error:
                 await upstream.aclose()
                 return await self._error_response(
                     session,
@@ -186,7 +186,7 @@ class _ComputeProxy:
                     504,
                     f"Upstream request timed out: {type(error).__name__}",
                 )
-            except httpx.RequestError as error:
+            except httpx2.RequestError as error:
                 await upstream.aclose()
                 return await self._error_response(
                     session,
@@ -227,7 +227,7 @@ class _ComputeProxy:
 
         try:
             body = await upstream.aread()
-        except httpx.TimeoutException as error:
+        except httpx2.TimeoutException as error:
             await upstream.aclose()
             return await self._error_response(
                 session,
@@ -235,7 +235,7 @@ class _ComputeProxy:
                 504,
                 f"Upstream request timed out: {type(error).__name__}",
             )
-        except httpx.RequestError as error:
+        except httpx2.RequestError as error:
             await upstream.aclose()
             return await self._error_response(
                 session,
@@ -346,7 +346,7 @@ def create_serving_application(
     *,
     recorder: Recorder | None = None,
     transform: ServingTransform | None = None,
-    upstream_client: httpx.AsyncClient | None = None,
+    upstream_client: httpx2.AsyncClient | None = None,
     starting_gate: StartingGate | None = None,
     single_deployment_id: str | None = None,
     not_hosted: bool = False,
@@ -367,7 +367,7 @@ def create_serving_application(
         raise ValueError("authorization_unavailable_status_code must be an error status")
 
     active_gate = starting_gate or StartingGate()
-    client = upstream_client or httpx.AsyncClient(timeout=upstream_timeout_seconds)
+    client = upstream_client or httpx2.AsyncClient(timeout=upstream_timeout_seconds)
     active_logger = logger or logging.getLogger("luml_satellite.serving")
     proxy = _ComputeProxy(
         client,
@@ -608,7 +608,7 @@ def _request_headers(request: Request, transformed: TransformedRequest) -> dict[
     return headers
 
 
-def _response_headers(headers: httpx.Headers, *, streaming: bool) -> dict[str, str]:
+def _response_headers(headers: httpx2.Headers, *, streaming: bool) -> dict[str, str]:
     excluded = {*_HOP_BY_HOP_HEADERS, "x-event-id"}
     if not streaming:
         excluded.update({"content-encoding", "content-length"})
@@ -621,7 +621,7 @@ def _event_headers(session: RecordingSession | None) -> dict[str, str]:
     return {"X-Event-Id": session.event_id}
 
 
-async def _response_stream(response: httpx.Response) -> AsyncIterator[bytes]:
+async def _response_stream(response: httpx2.Response) -> AsyncIterator[bytes]:
     if response.is_stream_consumed:
         yield response.content
         return
@@ -629,7 +629,7 @@ async def _response_stream(response: httpx.Response) -> AsyncIterator[bytes]:
         yield chunk
 
 
-def _upstream_error_detail(response: httpx.Response, body: bytes) -> str:
+def _upstream_error_detail(response: httpx2.Response, body: bytes) -> str:
     try:
         payload: object = json.loads(body)
     except json.JSONDecodeError, UnicodeDecodeError:

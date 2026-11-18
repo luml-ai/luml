@@ -5,7 +5,7 @@ from contextlib import suppress
 from typing import Any, cast
 
 import aiodocker
-import httpx
+import httpx2
 import uvicorn
 from fastapi import FastAPI
 from luml_satellite import (
@@ -63,7 +63,7 @@ def build_runtime(
     platform: PlatformClient,
     driver: DockerDriver,
     *,
-    upstream_transport: httpx.AsyncBaseTransport | None = None,
+    upstream_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> SatelliteRuntime:
     tokens = TokenDeriver(configuration.SATELLITE_TOKEN, configuration.DERIVATION_KEY)
     artifacts = ArtifactResolver(
@@ -129,7 +129,7 @@ async def run_async(
     configuration: DockerConfiguration | None = None,
     *,
     docker_client: aiodocker.Docker | None = None,
-    platform_transport: httpx.AsyncBaseTransport | None = None,
+    platform_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> None:
     active_configuration = configuration or DockerConfiguration()
     logging.basicConfig(level=active_configuration.LOG_LEVEL.upper())

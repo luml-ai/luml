@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 
 from tests.helpers import deployment_record, task_record
@@ -79,10 +79,10 @@ def _wait_for_server(base_url: str, server: subprocess.Popen[str]) -> None:
             stdout, stderr = server.communicate()
             pytest.fail(f"fake platform exited during startup:\n{stdout}\n{stderr}")
         try:
-            response = httpx.get(f"{base_url}/satellites/v1/contract", timeout=0.2)
+            response = httpx2.get(f"{base_url}/satellites/v1/contract", timeout=0.2)
             if response.status_code == 200:
                 return
-        except httpx.HTTPError:
+        except httpx2.HTTPError:
             pass
         time.sleep(0.02)
     pytest.fail("fake platform did not start within ten seconds")

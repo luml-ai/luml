@@ -3,7 +3,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any, cast
 
-import httpx
+import httpx2
 import pytest
 from luml_satellite import PlatformClient, TokenDeriver
 from luml_satellite.container import (
@@ -339,8 +339,8 @@ async def test_main_composition_pairs_reconciles_and_serves_against_the_fake_pla
         try:
             await runtime.pair()
             application = cast(Any, runtime.public_application)
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=application),
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=application),
                 base_url="http://satellite",
             ) as client:
                 gated = await client.get(
@@ -353,8 +353,8 @@ async def test_main_composition_pairs_reconciles_and_serves_against_the_fake_pla
                     json={"api_key": "access-key"},
                 )
             await runtime.reconcile()
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=application),
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=application),
                 base_url="http://satellite",
             ) as client:
                 response = await client.get(
@@ -460,8 +460,8 @@ async def test_composed_artifact_and_compute_routes_keep_the_existing_contract()
             await case.run_and_assert(runtime.polling, fake_platform)
             application = cast(Any, runtime.public_application)
             token = TokenDeriver(config.SATELLITE_TOKEN).artifact_token(case.deployment_id)
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=application),
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=application),
                 base_url="http://satellite",
             ) as client:
                 artifact = await client.get(
@@ -526,8 +526,8 @@ async def test_listing_uses_the_all_in_one_monitoring_workers_last_window() -> N
                 window_end,
             )
             application = cast(Any, runtime.public_application)
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=application),
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=application),
                 base_url="http://satellite",
             ) as client:
                 response = await client.get(

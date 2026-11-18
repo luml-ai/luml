@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite import (
@@ -341,19 +341,19 @@ async def test_runtime_retries_running_task_timeout_with_fresh_backoff() -> None
     transport = platform.transport
     running_requests = 0
 
-    async def handle_request(request: httpx.Request) -> httpx.Response:
+    async def handle_request(request: httpx2.Request) -> httpx2.Response:
         nonlocal running_requests
         if request.url.path == "/satellites/v1/tasks" and request.url.params["status"] == "running":
             running_requests += 1
             if running_requests == 1:
-                raise httpx.ReadTimeout("running task listing timed out", request=request)
+                raise httpx2.ReadTimeout("running task listing timed out", request=request)
         return await transport.handle_async_request(request)
 
     clock = FakeClock()
     async with PlatformClient(
         "http://platform",
         platform.token,
-        transport=httpx.MockTransport(handle_request),
+        transport=httpx2.MockTransport(handle_request),
     ) as client:
         runtime = ActualOnePassRuntime(
             configuration(),

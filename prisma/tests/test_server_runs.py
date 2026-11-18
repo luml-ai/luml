@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 
 from luml_prisma.config import load_config
 from luml_prisma.database import Database

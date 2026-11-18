@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass, field
 from typing import cast
 
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI
 
@@ -126,9 +126,9 @@ def local_deployment(
     )
 
 
-async def app_client(application: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=application),
+async def app_client(application: FastAPI) -> AsyncIterator[httpx2.AsyncClient]:
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=application),
         base_url="http://satellite",
     ) as client:
         yield client
@@ -136,8 +136,8 @@ async def app_client(application: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
 
 @pytest.mark.asyncio
 async def test_routes_authorization_unknown_route_and_openapi_contract() -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"prediction": 42})
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"prediction": 42})
 
     gate = StartingGate()
     gate.mark_ready()
@@ -149,7 +149,7 @@ async def test_routes_authorization_unknown_route_and_openapi_contract() -> None
             "unavailable": AuthorizationVerdict.UNAVAILABLE,
         }
     )
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment()),
         authorizer,
@@ -226,11 +226,11 @@ async def test_routes_authorization_unknown_route_and_openapi_contract() -> None
 
 @pytest.mark.asyncio
 async def test_starting_gate_only_blocks_deployment_routes() -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"prediction": 42})
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"prediction": 42})
 
     gate = StartingGate()
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment()),
         FakeAuthorizer(),
@@ -315,11 +315,11 @@ async def test_starting_gate_only_blocks_deployment_routes() -> None:
 
 @pytest.mark.asyncio
 async def test_single_deployment_and_not_hosted_modes() -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"prediction": 42})
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"prediction": 42})
 
     gate = StartingGate(starting=False)
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     registry = Registry(local_deployment(), local_deployment(OTHER_DEPLOYMENT_ID))
     single = create_serving_application(
         registry,
@@ -376,16 +376,16 @@ async def test_secret_injection_sampling_and_trace_context(
     upstream_bodies: list[dict[str, object]] = []
     upstream_trace_headers: list[str | None] = []
 
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         upstream_bodies.append(json.loads(await request.aread()))
         upstream_trace_headers.append(request.headers.get("traceparent"))
-        return httpx.Response(200, json={"prediction": 42})
+        return httpx2.Response(200, json={"prediction": 42})
 
     deployment = local_deployment(
         secrets={"api_key": "secret-id"},
         policy=RecordingPolicy(sample_rate=0.5, body_max_bytes=1024),
     )
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(deployment),
         FakeAuthorizer(),
@@ -435,15 +435,15 @@ async def test_secret_injection_sampling_and_trace_context(
 
 @pytest.mark.asyncio
 async def test_monitoring_off_and_noop_recorder_emit_no_event_header() -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             json={"prediction": 42},
             headers={"X-Event-Id": "upstream-event"},
         )
 
     capturing = CapturingRecorder()
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     off_application = create_serving_application(
         Registry(local_deployment(monitoring=False)),
         FakeAuthorizer(),
@@ -486,13 +486,13 @@ async def test_monitoring_off_and_noop_recorder_emit_no_event_header() -> None:
 async def test_caller_supplied_secret_attribute_is_not_replaced_or_recorded() -> None:
     upstream_body: dict[str, object] = {}
 
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         upstream_body.update(json.loads(await request.aread()))
-        return httpx.Response(200, json={"prediction": 42})
+        return httpx2.Response(200, json={"prediction": 42})
 
     secrets = FakeSecretSource({"api_key": "stored-secret"})
     recorder = CapturingRecorder()
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment(secrets={"api_key": "secret-id"})),
         FakeAuthorizer(),
@@ -524,15 +524,15 @@ async def test_caller_supplied_secret_attribute_is_not_replaced_or_recorded() ->
 async def test_transformed_request_is_declared_as_json_without_a_caller_content_type() -> None:
     upstream_content_type: str | None = None
 
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         nonlocal upstream_content_type
         upstream_content_type = request.headers.get("content-type")
         assert json.loads(await request.aread())["dynamic_attributes"] == {
             "api_key": "stored-secret"
         }
-        return httpx.Response(200, json={"prediction": 42})
+        return httpx2.Response(200, json={"prediction": 42})
 
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment(secrets={"api_key": "secret-id"})),
         FakeAuthorizer(),
@@ -561,15 +561,15 @@ async def test_recording_and_injection_caps_apply_independently(
     recorder = InferenceInstrumentation(fake_telemetry.setup, random_source=lambda: 0.0)
     upstream_bodies: list[dict[str, object]] = []
 
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         upstream_bodies.append(json.loads(await request.aread()))
-        return httpx.Response(200, json={"prediction": 42})
+        return httpx2.Response(200, json={"prediction": 42})
 
     deployment = local_deployment(
         secrets={"api_key": "secret-id"},
         policy=RecordingPolicy(body_max_bytes=1024),
     )
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(deployment),
         FakeAuthorizer(),
@@ -609,11 +609,11 @@ async def test_recording_and_injection_caps_apply_independently(
 async def test_invalid_json_is_local_only_when_the_transform_needs_to_parse_it() -> None:
     upstream_bodies: list[bytes] = []
 
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         upstream_bodies.append(await request.aread())
-        return httpx.Response(422, json={"error": "upstream rejected body"})
+        return httpx2.Response(422, json={"error": "upstream rejected body"})
 
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     monitored = create_serving_application(
         Registry(local_deployment()),
         FakeAuthorizer(),
@@ -655,11 +655,11 @@ async def test_invalid_json_is_local_only_when_the_transform_needs_to_parse_it()
 async def test_upstream_error_keeps_its_status_and_envelope_and_is_recorded(
     fake_telemetry: FakeTelemetry,
 ) -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(422, json={"error": "bad input"})
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(422, json={"error": "bad input"})
 
     recorder = InferenceInstrumentation(fake_telemetry.setup, random_source=lambda: 0.0)
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment()),
         FakeAuthorizer(),
@@ -688,8 +688,8 @@ async def test_upstream_error_keeps_its_status_and_envelope_and_is_recorded(
 
 @pytest.mark.asyncio
 async def test_buffered_response_drops_consumed_content_encoding() -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             content=gzip.compress(b'{"prediction":42}'),
             headers={
@@ -698,7 +698,7 @@ async def test_buffered_response_drops_consumed_content_encoding() -> None:
             },
         )
 
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment(monitoring=False)),
         FakeAuthorizer(),
@@ -722,8 +722,8 @@ async def test_buffered_response_drops_consumed_content_encoding() -> None:
 
 @pytest.mark.asyncio
 async def test_pass_through_drops_encoding_from_an_already_consumed_response() -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
             200,
             content=gzip.compress(b'{"prediction":42}'),
             headers={
@@ -732,7 +732,7 @@ async def test_pass_through_drops_encoding_from_an_already_consumed_response() -
             },
         )
 
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment(monitoring=False)),
         FakeAuthorizer(),
@@ -759,20 +759,20 @@ async def test_pass_through_drops_encoding_from_an_already_consumed_response() -
 @pytest.mark.parametrize(
     ("failure", "expected_status", "expected_type"),
     [
-        (httpx.ReadTimeout("slow model"), 504, "ReadTimeout"),
-        (httpx.ConnectError("connection refused"), 502, "ConnectError"),
+        (httpx2.ReadTimeout("slow model"), 504, "ReadTimeout"),
+        (httpx2.ConnectError("connection refused"), 502, "ConnectError"),
     ],
 )
 async def test_upstream_transport_failures_are_named(
-    failure: httpx.RequestError,
+    failure: httpx2.RequestError,
     expected_status: int,
     expected_type: str,
 ) -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         raise failure
 
     recorder = CapturingRecorder()
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment()),
         FakeAuthorizer(),
@@ -800,15 +800,15 @@ async def test_upstream_transport_failures_are_named(
 async def test_unavailable_secret_is_named_and_never_forwarded() -> None:
     calls = 0
 
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(200, json={})
+        return httpx2.Response(200, json={})
 
     secrets = FakeSecretSource()
     secrets.unavailable = "api_key"
     recorder = CapturingRecorder()
-    upstream_client = httpx.AsyncClient(transport=httpx.MockTransport(upstream))
+    upstream_client = httpx2.AsyncClient(transport=httpx2.MockTransport(upstream))
     application = create_serving_application(
         Registry(local_deployment(secrets={"api_key": "secret-id"})),
         FakeAuthorizer(),
@@ -839,24 +839,24 @@ async def test_pass_through_streams_a_large_body_without_recording_it() -> None:
     largest_chunk = 0
     traceparent: str | None = None
 
-    class ResponseStream(httpx.AsyncByteStream):
+    class ResponseStream(httpx2.AsyncByteStream):
         def __init__(self, content: bytes) -> None:
             self.content = content
 
         async def __aiter__(self) -> AsyncIterator[bytes]:
             yield self.content
 
-    class StreamingTransport(httpx.AsyncBaseTransport):
-        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+    class StreamingTransport(httpx2.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
             nonlocal total_received, largest_chunk, traceparent
             traceparent = request.headers.get("traceparent")
             stream = request.stream
-            assert isinstance(stream, httpx.AsyncByteStream)
+            assert isinstance(stream, httpx2.AsyncByteStream)
             async for chunk in stream:
                 total_received += len(chunk)
                 largest_chunk = max(largest_chunk, len(chunk))
             payload = json.dumps({"received": total_received}).encode()
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 headers={"content-type": "application/json"},
                 stream=ResponseStream(payload),
@@ -868,7 +868,7 @@ async def test_pass_through_streams_a_large_body_without_recording_it() -> None:
             yield chunk
 
     recorder = CapturingRecorder(headers={"traceparent": "00-trace-span-01"})
-    upstream_client = httpx.AsyncClient(transport=StreamingTransport())
+    upstream_client = httpx2.AsyncClient(transport=StreamingTransport())
     application = create_serving_application(
         Registry(local_deployment(policy=RecordingPolicy(body_max_bytes=4096))),
         FakeAuthorizer(),

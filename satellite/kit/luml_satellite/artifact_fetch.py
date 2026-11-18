@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-import httpx
+import httpx2
 
 from luml_satellite.workload import presigned_expiry
 
@@ -64,7 +64,7 @@ class FetchConfiguration:
 def fetch_artifact(
     configuration: FetchConfiguration,
     *,
-    client: httpx.Client | None = None,
+    client: httpx2.Client | None = None,
     now: datetime | None = None,
 ) -> Path:
     target = configuration.cache_dir / configuration.artifact_id
@@ -75,7 +75,7 @@ def fetch_artifact(
 
     configuration.cache_dir.mkdir(parents=True, exist_ok=True)
     owned_client = client is None
-    active_client = client or httpx.Client(follow_redirects=True, trust_env=False)
+    active_client = client or httpx2.Client(follow_redirects=True, trust_env=False)
     download_partial = _partial_path(configuration.cache_dir, configuration.artifact_id, "archive")
     staging = _partial_path(configuration.cache_dir, configuration.artifact_id, "staging")
     try:
@@ -164,7 +164,7 @@ def _latest_modified_at(path: Path) -> float | None:
     return latest
 
 
-def _download(client: httpx.Client, url: str, destination: Path) -> None:
+def _download(client: httpx2.Client, url: str, destination: Path) -> None:
     try:
         with client.stream("GET", url) as response:
             if response.status_code == 403:
@@ -176,12 +176,12 @@ def _download(client: httpx.Client, url: str, destination: Path) -> None:
     except ArtifactLinkRefused:
         destination.unlink(missing_ok=True)
         raise
-    except (httpx.HTTPError, OSError) as error:
+    except (httpx2.HTTPError, OSError) as error:
         destination.unlink(missing_ok=True)
         raise ArtifactFetchError(f"artifact download failed: {error}") from error
 
 
-def _refresh_link(client: httpx.Client, configuration: FetchConfiguration) -> str:
+def _refresh_link(client: httpx2.Client, configuration: FetchConfiguration) -> str:
     if not (
         configuration.satellite_address
         and configuration.deployment_id
@@ -197,7 +197,7 @@ def _refresh_link(client: httpx.Client, configuration: FetchConfiguration) -> st
         )
         response.raise_for_status()
         payload = response.json()
-    except (httpx.HTTPError, ValueError) as error:
+    except (httpx2.HTTPError, ValueError) as error:
         raise ArtifactFetchError(f"artifact link refresh failed: {error}") from error
     if not isinstance(payload, dict):
         raise ArtifactFetchError("artifact link refresh returned an invalid response")

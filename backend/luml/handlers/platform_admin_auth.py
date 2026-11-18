@@ -8,7 +8,7 @@ from time import time
 from typing import Any
 from urllib.parse import urlencode
 
-import httpx
+import httpx2
 import jwt
 from jwt.exceptions import InvalidTokenError
 
@@ -215,7 +215,7 @@ class PlatformAdminAuthHandler:
 
     async def _verified_google_admin_email(self, code: str) -> str:
         assert self.config.google_redirect_uri is not None
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx2.AsyncClient(timeout=10.0) as client:
             access_token = await self._google_provider.exchange_code_for_token(
                 client, code, redirect_uri=self.config.google_redirect_uri
             )

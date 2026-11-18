@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 from urllib.parse import parse_qs
 from uuid import UUID
 
-import httpx
+import httpx2
 
 from luml_satellite._version import SATELLITE_API_VERSION
 from luml_satellite.wire.contract import CLIENT_OPERATIONS
@@ -92,8 +92,8 @@ class FakePlatform:
     contract_openapi: dict[str, Any] = field(default_factory=lambda: default_contract_openapi())
 
     @property
-    def transport(self) -> httpx.ASGITransport:
-        return httpx.ASGITransport(app=self)
+    def transport(self) -> httpx2.ASGITransport:
+        return httpx2.ASGITransport(app=self)
 
     @property
     def deployment_transitions(self) -> list[RecordedTransition]:

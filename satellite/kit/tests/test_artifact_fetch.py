@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite.artifact_fetch import (
@@ -24,10 +24,10 @@ def test_fetch_cache_hit_makes_no_http_request(tmp_path: Path) -> None:
     target.mkdir()
     (target / "manifest.json").write_text("{}", encoding="utf-8")
 
-    def unexpected_request(request: httpx.Request) -> httpx.Response:
+    def unexpected_request(request: httpx2.Request) -> httpx2.Response:
         raise AssertionError(f"unexpected request to {request.url}")
 
-    with httpx.Client(transport=httpx.MockTransport(unexpected_request)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(unexpected_request)) as client:
         result = fetch_artifact(
             FetchConfiguration(
                 "artifact",
@@ -46,12 +46,12 @@ def test_fetch_replaces_an_empty_artifact_directory(tmp_path: Path) -> None:
     archive = _archive({"manifest.json": b"{}"})
     requests = 0
 
-    def download(request: httpx.Request) -> httpx.Response:
+    def download(request: httpx2.Request) -> httpx2.Response:
         nonlocal requests
         requests += 1
-        return httpx.Response(200, content=archive)
+        return httpx2.Response(200, content=archive)
 
-    with httpx.Client(transport=httpx.MockTransport(download)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(download)) as client:
         result = fetch_artifact(
             FetchConfiguration(
                 "artifact",
@@ -69,11 +69,11 @@ def test_fetch_replaces_an_empty_artifact_directory(tmp_path: Path) -> None:
 def test_fetch_downloads_unpacks_and_leaves_no_partial_files(tmp_path: Path) -> None:
     archive = _archive({"manifest.json": b'{"name": "fixture"}', "model.bin": b"data"})
 
-    def download(request: httpx.Request) -> httpx.Response:
+    def download(request: httpx2.Request) -> httpx2.Response:
         assert request.url == "https://store.example/artifact"
-        return httpx.Response(200, content=archive)
+        return httpx2.Response(200, content=archive)
 
-    with httpx.Client(transport=httpx.MockTransport(download)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(download)) as client:
         target = fetch_artifact(
             FetchConfiguration(
                 artifact_id="artifact",
@@ -92,16 +92,16 @@ def test_concurrent_fetches_share_the_completed_artifact(tmp_path: Path) -> None
     archive = _archive({"manifest.json": b"{}"})
     downloads_ready = Barrier(2)
 
-    def download(request: httpx.Request) -> httpx.Response:
+    def download(request: httpx2.Request) -> httpx2.Response:
         downloads_ready.wait()
-        return httpx.Response(200, content=archive)
+        return httpx2.Response(200, content=archive)
 
     configuration = FetchConfiguration(
         artifact_id="artifact",
         download_url="https://store.example/artifact",
         cache_dir=tmp_path,
     )
-    with httpx.Client(transport=httpx.MockTransport(download)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(download)) as client:
 
         def fetch() -> Path:
             return fetch_artifact(configuration, client=client)
@@ -118,12 +118,12 @@ def test_fetch_refreshes_once_after_a_403_and_second_run_hits_cache(tmp_path: Pa
     archive = _archive({"manifest.json": b"{}"})
     requests: list[tuple[str, str | None]] = []
 
-    def route(request: httpx.Request) -> httpx.Response:
+    def route(request: httpx2.Request) -> httpx2.Response:
         requests.append((str(request.url), request.headers.get("X-Artifact-Token")))
         if request.url == "https://store.example/expired":
-            return httpx.Response(403)
+            return httpx2.Response(403)
         if request.url == "http://satellite/satellites/deployments/deployment/artifact":
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "artifact_id": "artifact",
@@ -131,7 +131,7 @@ def test_fetch_refreshes_once_after_a_403_and_second_run_hits_cache(tmp_path: Pa
                 },
             )
         if request.url == "https://store.example/fresh":
-            return httpx.Response(200, content=archive)
+            return httpx2.Response(200, content=archive)
         raise AssertionError(f"unexpected request to {request.url}")
 
     configuration = FetchConfiguration(
@@ -142,7 +142,7 @@ def test_fetch_refreshes_once_after_a_403_and_second_run_hits_cache(tmp_path: Pa
         deployment_id="deployment",
         artifact_token="token",
     )
-    with httpx.Client(transport=httpx.MockTransport(route)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(route)) as client:
         first = fetch_artifact(configuration, client=client)
         second = fetch_artifact(configuration, client=client)
 
@@ -162,20 +162,20 @@ def test_fetch_refreshes_an_already_expired_link_before_downloading(tmp_path: Pa
     archive = _archive({"manifest.json": b"{}"})
     requested: list[str] = []
 
-    def route(request: httpx.Request) -> httpx.Response:
+    def route(request: httpx2.Request) -> httpx2.Response:
         requested.append(str(request.url))
         if request.url.host == "satellite":
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "artifact_id": "artifact",
                     "url": "https://store.example/fresh",
                 },
             )
-        return httpx.Response(200, content=archive)
+        return httpx2.Response(200, content=archive)
 
     expired = "https://store.example/expired?X-Amz-Date=20200101T000000Z&X-Amz-Expires=1"
-    with httpx.Client(transport=httpx.MockTransport(route)) as client:
+    with httpx2.Client(transport=httpx2.MockTransport(route)) as client:
         fetch_artifact(
             FetchConfiguration(
                 artifact_id="artifact",
@@ -197,21 +197,21 @@ def test_fetch_refreshes_an_already_expired_link_before_downloading(tmp_path: Pa
 def test_fetch_does_not_refresh_a_refused_fresh_link_twice(tmp_path: Path) -> None:
     refreshes = 0
 
-    def route(request: httpx.Request) -> httpx.Response:
+    def route(request: httpx2.Request) -> httpx2.Response:
         nonlocal refreshes
         if request.url.host == "satellite":
             refreshes += 1
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "artifact_id": "artifact",
                     "url": "https://store.example/still-refused",
                 },
             )
-        return httpx.Response(403)
+        return httpx2.Response(403)
 
     with (
-        httpx.Client(transport=httpx.MockTransport(route)) as client,
+        httpx2.Client(transport=httpx2.MockTransport(route)) as client,
         pytest.raises(ArtifactFetchError, match="refused"),
     ):
         fetch_artifact(
@@ -330,11 +330,11 @@ def test_fetch_configuration_reads_the_init_container_environment(tmp_path: Path
 
 
 def test_failed_unpack_leaves_no_partial_files(tmp_path: Path) -> None:
-    def invalid_archive(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=b"not a tar archive")
+    def invalid_archive(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, content=b"not a tar archive")
 
     with (
-        httpx.Client(transport=httpx.MockTransport(invalid_archive)) as client,
+        httpx2.Client(transport=httpx2.MockTransport(invalid_archive)) as client,
         pytest.raises(ArtifactFetchError, match="unpack failed"),
     ):
         fetch_artifact(

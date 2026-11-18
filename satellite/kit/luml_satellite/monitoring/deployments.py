@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterable
 from typing import Any, Protocol
 from uuid import UUID
 
-import httpx
+import httpx2
 
 from luml_satellite.monitoring.compute.models import (
     LocalDeployment,
@@ -54,7 +54,7 @@ class PlatformDeploymentSource:
         token_deriver: TokenDeriver,
         *,
         refresh_seconds: float = 60.0,
-        client: httpx.AsyncClient | None = None,
+        client: httpx2.AsyncClient | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if refresh_seconds <= 0:
@@ -162,7 +162,7 @@ class PlatformDeploymentSource:
             )
             response.raise_for_status()
             payload = response.json()
-        except httpx.HTTPError, ValueError:
+        except httpx2.HTTPError, ValueError:
             logger.warning("Failed to read sidecar %s for %s", path, deployment_id)
             return None
         if not isinstance(payload, dict):
@@ -170,9 +170,9 @@ class PlatformDeploymentSource:
         nested = payload.get(path)
         return nested if isinstance(nested, dict) else payload
 
-    def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(self) -> httpx2.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=15.0)
+            self._client = httpx2.AsyncClient(timeout=15.0)
         return self._client
 
 

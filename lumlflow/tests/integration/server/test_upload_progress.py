@@ -2,7 +2,7 @@ import asyncio
 import json
 
 import anyio.to_thread
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI
 from lumlflow.api import luml
@@ -82,8 +82,8 @@ async def test_terminal_upload_events(store: ProgressStore, status: str) -> None
 
     app = FastAPI()
     app.include_router(luml.luml_router)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app), base_url="http://test"
     ) as client:
         response = await client.get("/api/luml/artifact/job/progress")
 

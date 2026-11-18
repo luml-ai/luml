@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-import httpx
+import httpx2
 
 DEFAULT_BASE_URL = "https://api.luml.ai"
 REQUEST_TIMEOUT_SECONDS = 10.0
@@ -58,13 +58,13 @@ class RelayApi:
         self,
         base_url: str,
         relay_token: str,
-        transport: httpx.AsyncBaseTransport | None = None,
+        transport: httpx2.AsyncBaseTransport | None = None,
         timeout: float = REQUEST_TIMEOUT_SECONDS,
         max_in_flight: int = MAX_REQUESTS_IN_FLIGHT,
     ) -> None:
         self._timeout = timeout
         self._slots = asyncio.Semaphore(max_in_flight)
-        self._client = httpx.AsyncClient(
+        self._client = httpx2.AsyncClient(
             base_url=base_url.rstrip("/") + _PREFIX,
             headers={"authorization": f"Bearer {relay_token}"},
             transport=transport,
@@ -143,13 +143,13 @@ class RelayApi:
 
     async def _send(
         self, method: str, path: str, body: dict[str, Any] | None = None
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         try:
-            # httpx bounds each phase of a request; this bounds the whole of it, including
+            # httpx2 bounds each phase of a request; this bounds the whole of it, including
             # the wait for a slot, so a request that cannot get one in time fails too.
             async with asyncio.timeout(self._timeout), self._slots:
                 response = await self._client.request(method, path, json=body)
-        except (httpx.HTTPError, TimeoutError) as error:
+        except (httpx2.HTTPError, TimeoutError) as error:
             raise LumlUnavailableError(f"LUML cannot be reached: {error!r}") from error
         if response.status_code in (401, 403):
             raise RelayTokenRefusedError(f"LUML answered {response.status_code}")

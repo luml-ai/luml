@@ -23,7 +23,7 @@ def test_project_uses_the_kit_and_async_kubernetes_client() -> None:
 
 
 def test_package_reaches_the_platform_only_through_the_kit_client() -> None:
-    forbidden_http_clients = {"aiohttp", "httpx", "requests", "urllib3"}
+    forbidden_http_clients = {"aiohttp", "httpx", "httpx2", "requests", "urllib3"}
     platform_client_imports: list[Path] = []
 
     for path in SOURCE_ROOT.glob("*.py"):

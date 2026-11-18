@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite.testing import FakePlatform
@@ -65,7 +65,7 @@ async def test_deprecated_artifact_routes_and_artifact_bytes() -> None:
     platform.add_artifact(ARTIFACT_ID, b"fixture", {"name": "fixture.tar.gz"})
     headers = {"Authorization": "Bearer test-token"}
 
-    async with httpx.AsyncClient(
+    async with httpx2.AsyncClient(
         base_url="http://platform", transport=platform.transport, headers=headers
     ) as client:
         metadata = await client.get(f"/satellites/v1/model_artifacts/{ARTIFACT_ID}")
@@ -89,7 +89,7 @@ async def test_fake_platform_control_state_can_inspect_and_seed_runtime_records(
     deployment = deployment_record()
     task = task_record()
 
-    async with httpx.AsyncClient(
+    async with httpx2.AsyncClient(
         base_url="http://platform",
         transport=platform.transport,
         headers=headers,
@@ -120,7 +120,7 @@ async def test_fake_platform_control_state_can_inspect_and_seed_runtime_records(
 async def test_fake_platform_control_state_requires_authentication_and_valid_records() -> None:
     platform = FakePlatform()
 
-    async with httpx.AsyncClient(
+    async with httpx2.AsyncClient(
         base_url="http://platform",
         transport=platform.transport,
     ) as client:

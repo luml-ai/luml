@@ -5,7 +5,7 @@ from time import time
 from typing import Any
 from uuid import uuid4
 
-import httpx
+import httpx2
 import jwt
 from argon2 import (
     PasswordHasher,
@@ -369,7 +369,7 @@ class AuthHandler:
         if not self.oauth_provider:
             raise AuthError("OAuth provider is not configured for this handler", 500)
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx2.AsyncClient(timeout=10.0) as client:
             oauth_token = await self.oauth_provider.exchange_code_for_token(
                 client, code
             )

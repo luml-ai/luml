@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any
 
-import httpx
+import httpx2
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -89,7 +89,7 @@ async def _do_upload(
             "Uploading %s (%d bytes) for upload %s",
             model_path, len(file_content), upload_id,
         )
-        async with httpx.AsyncClient() as client:
+        async with httpx2.AsyncClient() as client:
             resp = await client.put(
                 presigned_url,
                 content=file_content,
