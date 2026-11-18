@@ -43,3 +43,19 @@ export const SEVERITY_CARD_SEVERITIES: Record<Severity, CardSeverity | null> = {
   [Severity.WARNING]: CardSeverity.WARNING,
   [Severity.CRITICAL]: CardSeverity.DANGER,
 }
+
+export const ALERTS_COLUMN_WIDTHS = {
+  name: 260,
+  seen: 170,
+  value: 140,
+  type: 140,
+  duration: 120,
+}
+
+export enum AlertSortField {
+  NAME = 'name',
+  SEEN = 'last_seen',
+  VALUE = 'current_value',
+  TYPE = 'severity',
+  DURATION = 'duration_seconds',
+}
