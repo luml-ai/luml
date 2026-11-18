@@ -106,9 +106,16 @@ describe('notebook database operations', () => {
     await deleteDB(name)
   })
 
-  it('does not download a backup when base64 content cannot be decoded', async () => {
+  it('backs up the other files and reports the ones whose base64 cannot be decoded', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     const db = await createNotebook(true)
     await db.put('files', { path: 'invalid.bin', format: 'base64', content: 'a' }, 'invalid.bin')
+    await db.put(
+      'files',
+      { path: 'data-url.luml', format: 'base64', content: 'data:octet/stream;base64,AP8=' },
+      'data-url.luml',
+    )
+    await db.put('files', { path: 'model.luml', format: 'base64', content: 'AP8=' }, 'model.luml')
     await db.put(
       'files',
       { path: 'example.txt', format: 'text', content: 'example' },
@@ -116,9 +123,24 @@ describe('notebook database operations', () => {
     )
     db.close()
 
-    await expect(DatabaseService.createBackup(name)).rejects.toThrow('Invalid base64 input')
+    const skippedFiles = await DatabaseService.createBackup(name)
 
-    expect(saveAs).not.toHaveBeenCalled()
+    expect(skippedFiles.sort()).toEqual(['data-url.luml', 'invalid.bin'])
+    expect(saveAs).toHaveBeenCalledOnce()
+    const [blob] = vi.mocked(saveAs).mock.calls[0]
+    const zip = await JSZip.loadAsync(await (blob as Blob).arrayBuffer())
+    expect(Object.keys(zip.files).sort()).toEqual(['example.txt', 'model.luml'])
+    expect(await zip.file('model.luml')?.async('uint8array')).toEqual(new Uint8Array([0, 255]))
+    expect(await zip.file('example.txt')?.async('string')).toBe('example')
+    await deleteDB(name)
+  })
+
+  it('reports no skipped files when every file is backed up', async () => {
+    const db = await createNotebook(true)
+    await db.put('files', { path: 'model.luml', format: 'base64', content: 'AP8=' }, 'model.luml')
+    db.close()
+
+    await expect(DatabaseService.createBackup(name)).resolves.toEqual([])
     await deleteDB(name)
   })
 
