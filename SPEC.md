@@ -254,9 +254,8 @@ New RPC methods in `Api.methods`, not in `_SILENT`. Each returns `{path}` (the n
 
 ## Frontend
 
-The approved UI is described here in full, drawn in the screenshots under
-`codie/design/LM-1113/` (1440 × 900, light theme), and built as a design prototype under
-`codie/design/LM-1113/prototype/`. Sample data in the drawings (names, sizes, agent
+The approved UI is described here in full and built as a design prototype under
+`codie/design/LM-1113/prototype/`. Sample data in the prototype (names, sizes, agent
 "Claude") is illustrative.
 
 **Design prototype.** The Vue files of the approved design, one folder per component:
@@ -278,8 +277,8 @@ It does **not** cover the logic:
 - the **Move to…** folder select only lists sample folders (the app's picker can go up,
   §6).
 
-Behaviour, data and edge cases come from this spec. Where the prototype or a screenshot
-and the text disagree, the text wins; copy the look, not the code structure. Not drawn: **Show hidden**, **Show more**, the "moved or deleted" state, the
+Behaviour, data and edge cases come from this spec. Where the prototype and the text
+disagree, the text wins; copy the look, not the code structure. Not in the prototype: **Show hidden**, **Show more**, the "moved or deleted" state, the
 `FlowOpen` and unsaved-changes dialogs, the read-only experiment route, and the layout on
 narrow screens; build them from existing Flow components in the same style.
 
@@ -292,9 +291,7 @@ summary, `LumlflowCard`, `LumlflowDialog` (the 600 px layout of "Create new note
 
 ### 1. Workspace page
 
-**Nothing open** — the page as today, with file rows in the listing:
-
-![Files listed, nothing open](codie/design/LM-1113/01-files-listed.png)
+**Nothing open** — the page as today, with file rows in the listing.
 
 - Order: notebooks, then folders, then files, each by name.
 - `WorkspaceFolderItem.vue`, `file` branch: row height and hover as folder rows; icon by
@@ -316,8 +313,6 @@ fills the rest; clicking another file swaps the viewer; the viewer's X closes it
 listing takes the full width again. Route query `?directory=…&file=…` keeps the selection
 on reload and back.
 
-![Code file open](codie/design/LM-1113/04-code-file.png)
-
 `WorkspaceFileViewer.vue` (new), a `LumlflowCard`:
 
 - **Header:** name; then size and "Modified {YYYY-MM-DD HH:mm}" in the muted colour; below,
@@ -332,12 +327,6 @@ on reload and back.
   - **No-preview card:** the header stays and the body says "No preview for this file
     type". Same layout for "File is empty" and, over the preview size limit, "File is too
     large for preview".
-
-![Markdown, rendered](codie/design/LM-1113/05-markdown-file.png)
-![JSON, pretty](codie/design/LM-1113/06-json-pretty.png)
-![Parquet as a table](codie/design/LM-1113/07-parquet-file.png)
-![No preview](codie/design/LM-1113/08-not-previewable.png)
-![Too large](codie/design/LM-1113/09-too-large.png)
 
 - Above text content, one row: on the left the Rendered / Raw (Markdown) or Pretty / Raw
   (JSON, YAML) `SelectButton`, size small, when the type has one; on the right **Edit**
@@ -381,10 +370,6 @@ on reload and back.
 
 ### 3. `.luml` view (`LumlPackagePreview`)
 
-![.luml experiment](codie/design/LM-1113/10-luml-experiment.png)
-![.luml model](codie/design/LM-1113/11-luml-model.png)
-![.luml dataset](codie/design/LM-1113/12-luml-dataset.png)
-
 - Calls `file.inspect`, then shows, top to bottom:
   - a row "For full overview" with the actions on the right (secondary small buttons with
     14 px icons):
@@ -402,8 +387,6 @@ on reload and back.
 
 ### 4. Editing (B-15)
 
-![Editing a file](codie/design/LM-1113/17-editing-file.png)
-
 - **Edit** swaps the highlighted text for `UiCodeEditor` (language from the shared map,
   full body height) and, in the row above it, the view toggle for **Cancel** (text button)
   and **Save** (primary), both small, on the right.
@@ -413,8 +396,6 @@ on reload and back.
   **Overwrite** (saves with `force: true`) and **Reload** (text button; takes the file from
   disk and drops the edit).
 
-![Changed on disk](codie/design/LM-1113/18-edit-conflict.png)
-
 - **Agent lock** (from `file_locks` frames), drawn like a cell an agent works on: the
   card's border takes the agent's colour; under the header a strip in that colour with a
   `Lock` icon (14 px) and "{label} is working on this file" (e.g. "Claude is working on
@@ -422,8 +403,6 @@ on reload and back.
   "Read-only until 3 minutes after the agent's last change to this file."; the body is
   dimmed and **Edit** is disabled. Colour: `agentColor(actor)` (`store/flow`
   `AGENT_COLORS`), neutral when `actor` is null.
-
-![Agent working on the file](codie/design/LM-1113/19-agent-working-on-file.png)
 
 - **Lock during an edit:** the editor turns read-only and the strip appears; the person's
   unsaved text stays visible and copyable. When the lock ends, the changed-on-disk warning
@@ -441,9 +420,6 @@ on reload and back.
 
 ### 6. Row menu and dialogs (B-14)
 
-![Row menu](codie/design/LM-1113/02-file-menu-open.png)
-![Renaming a file](codie/design/LM-1113/03-file-renaming.png)
-
 - Files and folders get the notebooks' ⋮ menu with **Rename**, **Move to…**, **Delete** (no
   Duplicate); notebooks gain **Move to…** and keep their items.
 - **Rename** is inline, as in `WorkspaceFolderItemFlow.vue`, with a small secondary
@@ -454,8 +430,6 @@ on reload and back.
   the current directory, lists its folders, and can go up to the parent and into a folder
   (operations work anywhere the page can browse); the chosen path shows in the field.
 
-![Move to dialog](codie/design/LM-1113/13-move-dialog.png)
-
 - **New folder** / **New file:** the same dialog as "Create new notebook": header "CREATE
   NEW FOLDER" / "CREATE NEW FILE", required **Name** field (placeholder "Name your folder"
   / "Name your file, e.g. notes.md"), full-width rounded **Create folder** / **Create file**,
@@ -463,17 +437,12 @@ on reload and back.
   exists` (`AlreadyExists`) and the name-rule message for an invalid name. A created file
   opens in the viewer.
 
-![New file, name taken](codie/design/LM-1113/16-new-file-dialog.png)
-
 - **Delete** uses `LumlflowConfirmDialog`:
   - file: header "Delete {name}?", text "This action is permanent and cannot be undone.
     Cells that read this file will fail the next time they run.", buttons **Cancel** and
     **Delete file** (warn, outlined);
   - folder: header "Delete {name}?", text "The folder and everything in it are deleted. This
     action is permanent and cannot be undone.", buttons **Cancel** and **Delete folder**.
-
-![Delete file](codie/design/LM-1113/14-delete-file-confirm.png)
-![Delete folder](codie/design/LM-1113/15-delete-folder-confirm.png)
 
 - Rename and move of a file show an inline note under the field: "Cells that read this file
   by path are not updated."
@@ -900,7 +869,7 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
     no-preview / empty / too-large states)
   - [ ] `files` stream subscription; refresh on `files_changed`; "moved or deleted" state
   - [ ] Match the look of `prototype/WorkspaceFolder/` and `prototype/WorkspacesPage/`
-    (`WorkspacesPage.vue`, `WorkspaceFileViewer.vue`) and screenshots 01, 04–09
+    (`WorkspacesPage.vue`, `WorkspaceFileViewer.vue`)
   - [ ] Tests for the store (paging, hidden, refresh) and viewer states
 
 - [ ] **10. Row menu, dialogs and operations** (Frontend §6)
@@ -909,8 +878,7 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
     folder** dialogs with name errors
   - [ ] `FlowOpen` close-and-continue dialog; unsaved-changes dialog; error toasts by `kind`
   - [ ] Match the look of the dialogs in `prototype/WorkspacesPage/WorkspacesPage.vue`,
-    the row menu and inline rename in `prototype/WorkspaceFolder/WorkspaceFolderItem.vue`,
-    and screenshots 02, 03, 13–16
+    the row menu and inline rename in `prototype/WorkspaceFolder/WorkspaceFolderItem.vue`
   - [ ] Tests for the store actions and dialog flows
 
 - [ ] **11. Editing with locks and conflicts** (Frontend §4)
@@ -919,15 +887,14 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
     read-only during a lock; keep unsaved text; changed-on-disk warning with Overwrite /
     Reload (during an edit, after a lock, on `FileConflict`)
   - [ ] Match the look of the editing, conflict and agent states in
-    `prototype/WorkspacesPage/WorkspaceFileViewer.vue` and screenshots 17–19
+    `prototype/WorkspacesPage/WorkspaceFileViewer.vue`
   - [ ] Tests for lock, conflict and save flows
 
 - [ ] **12. `.luml` view and upload** (Frontend §3, §7)
   - [ ] `LumlPackagePreview` for experiment, model, dataset (split tabs via
     `/api/flow/file/entry`), unknown; archive file list opening `FilePreview`
   - [ ] `UploadModal` `publishFile`; buttons for all three kinds
-  - [ ] Match the look of `prototype/WorkspacesPage/LumlPackagePreview.vue` and
-    screenshots 10–12
+  - [ ] Match the look of `prototype/WorkspacesPage/LumlPackagePreview.vue`
   - [ ] Tests per kind with mocked `file.inspect`
 
 - [ ] **13. Experiment from a `.luml` (read-only route)** (Frontend §5)
@@ -937,5 +904,5 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
   - [ ] Tests with a small experiment archive fixture
 
 - [ ] **14. Remove the design references** (Frontend)
-  - [ ] Delete `codie/design/LM-1113/` (screenshots and prototype): they are spec material
+  - [ ] Delete `codie/design/LM-1113/` (the design prototype): they are spec material
     and must not reach `main`, where CI rejects `codie/**`
