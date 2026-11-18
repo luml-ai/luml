@@ -475,17 +475,17 @@ class CloudPublishScreen(BaseScreen):
         # (its populate call was gated on `_body_ready`); render it now
         # so the fresh picker is never silently empty.
         self._body_ready = True
-        self._apply_cached_step_data()
+        await self._apply_cached_step_data()
         # Focus the most useful widget on the new step.
         self.call_after_refresh(self._focus_default_widget)
 
-    def _apply_cached_step_data(self) -> None:
+    async def _apply_cached_step_data(self) -> None:
         if self._step == "org" and self._orgs:
-            self._populate_org_list()
+            await self._populate_org_list()
         elif self._step == "orbit" and self._orbits:
-            self._populate_orbit_list()
+            await self._populate_orbit_list()
         elif self._step == "collection" and self._collections:
-            self._populate_collection_list()
+            await self._populate_collection_list()
 
     def _build_step_body(self) -> list[Any]:
         builders: dict[_Step, Callable[[], list[Any]]] = {
@@ -618,7 +618,7 @@ class CloudPublishScreen(BaseScreen):
         result = facade.list_organizations()
         post_worker_result(self, self._on_orgs_result, result)
 
-    def _on_orgs_result(self, result: Result[Any]) -> None:
+    async def _on_orgs_result(self, result: Result[Any]) -> None:
         if not result.ok:
             err = result.error
             message = err.message if err else "Failed to list organizations"
@@ -640,16 +640,16 @@ class CloudPublishScreen(BaseScreen):
         # Only render when the step body is fully mounted — otherwise
         # the swap re-applies this cache once mounting completes.
         if self._body_ready:
-            self._populate_org_list()
+            await self._populate_org_list()
 
-    def _populate_org_list(self) -> None:
+    async def _populate_org_list(self) -> None:
         """Render `_orgs` into the picker (no-op until it is mounted)."""
 
         try:
             view = self.query_one("#publish-org-list", ListView)
         except Exception:
             return
-        view.clear()
+        await view.clear()
         if not self._orgs:
             view.append(ListItem(Static("(no organizations)"), id="publish-org-empty"))
             return
@@ -687,7 +687,7 @@ class CloudPublishScreen(BaseScreen):
         result = facade.list_orbits(self._ctx.organization.id)
         post_worker_result(self, self._on_orbits_result, result)
 
-    def _on_orbits_result(self, result: Result[Any]) -> None:
+    async def _on_orbits_result(self, result: Result[Any]) -> None:
         if not result.ok:
             err = result.error
             message = err.message if err else "Failed to list orbits"
@@ -697,16 +697,16 @@ class CloudPublishScreen(BaseScreen):
         # Only render when the step body is fully mounted — otherwise
         # the swap re-applies this cache once mounting completes.
         if self._body_ready:
-            self._populate_orbit_list()
+            await self._populate_orbit_list()
 
-    def _populate_orbit_list(self) -> None:
+    async def _populate_orbit_list(self) -> None:
         """Render `_orbits` into the picker (no-op until it is mounted)."""
 
         try:
             view = self.query_one("#publish-orbit-list", ListView)
         except Exception:
             return
-        view.clear()
+        await view.clear()
         if not self._orbits:
             view.append(ListItem(Static("(no orbits)"), id="publish-orbit-empty"))
             return
@@ -744,7 +744,7 @@ class CloudPublishScreen(BaseScreen):
         result = facade.list_collections(self._ctx.organization.id, self._ctx.orbit.id)
         post_worker_result(self, self._on_collections_result, result)
 
-    def _on_collections_result(self, result: Result[Any]) -> None:
+    async def _on_collections_result(self, result: Result[Any]) -> None:
         if not result.ok:
             err = result.error
             message = err.message if err else "Failed to list collections"
@@ -755,16 +755,16 @@ class CloudPublishScreen(BaseScreen):
         # Only render when the step body is fully mounted — otherwise
         # the swap re-applies this cache once mounting completes.
         if self._body_ready:
-            self._populate_collection_list()
+            await self._populate_collection_list()
 
-    def _populate_collection_list(self) -> None:
+    async def _populate_collection_list(self) -> None:
         """Render `_collections` into the picker (no-op until mounted)."""
 
         try:
             view = self.query_one("#publish-collection-list", ListView)
         except Exception:
             return
-        view.clear()
+        await view.clear()
         if not self._collections:
             view.append(
                 ListItem(
