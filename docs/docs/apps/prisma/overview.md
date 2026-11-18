@@ -26,6 +26,26 @@ luml-prisma
 
 The browser UI is hosted at [app.luml.ai/prisma](https://app.luml.ai/prisma) and connects to the local engine over HTTP and WebSockets when opened. If the default port is unavailable or the engine runs on a different host, the connection URL can be changed from the offline screen or via the indicator in the page header.
 
+## Artifact upload storage
+
+Before uploading artifacts, configure the exact hostname of the bucket that
+receives the presigned upload URLs. This is required for existing installations
+as well as new ones. In `~/.luml/prisma/config.toml`, set:
+
+```toml
+upload_bucket_host = "my-bucket.s3.eu-west-1.amazonaws.com"
+```
+
+Use the hostname from your storage configuration, without a scheme, port, or
+path. If `LUML_PRISMA_DATA_DIR` is set, `config.toml` lives in that directory.
+Alternatively, set `LUML_PRISMA_UPLOAD_BUCKET_HOST` in the engine's environment;
+it overrides the TOML setting. Restart the engine after changing configuration.
+
+Prisma accepts only HTTPS upload URLs on port 443 whose hostname exactly matches
+this setting. Credentials, fragments, other hosts, and redirects are rejected.
+Uploads are disabled until a bucket hostname is configured; rejected URLs leave
+the queued artifact available for retry.
+
 ## Coding Agents
 
 Prisma drives external coding CLIs rather than calling LLM APIs directly. At least one supported CLI must be installed and available on the system `PATH`. The list of agents shown in the creation forms is determined at startup; the engine inspects `PATH` and lists only the CLIs that are actually present.
