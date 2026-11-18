@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
 import type { DatasetListProps, FilterInterface, SortParams } from './evals.interface'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { COMPARISON_LIMIT } from '../../store/evals/evals.data'
 import { showReadErrorToast } from '@/lib/primevue/data/toasts'
@@ -34,16 +34,25 @@ const initialLoading = ref(true)
 
 const isComparison = computed(() => Object.keys(props.modelsInfo).length > 1)
 
+// The store outlives this view: a read that ends after it closed leaves the store alone.
+let closed = false
+// Reads share the provider's page cursors, so a sort or filter change waits for the read
+// in flight instead of being dropped.
+const pendingReloads = new Set<string>()
+
 async function getNextPage(datasetId: string, reset: boolean = false) {
   try {
-    if (evalsStore.loading) return
+    if (evalsStore.loading) {
+      if (reset) pendingReloads.add(datasetId)
+      return
+    }
     evalsStore.setLoading(true)
     await evalsStore.getNextDatasetPage(datasetId, reset)
   } catch (error: unknown) {
     const messageText = error instanceof Error ? error.message : 'Failed to load evals dataset'
     showReadErrorToast(toast, error, messageText)
   } finally {
-    evalsStore.setLoading(false)
+    if (!closed) evalsStore.setLoading(false)
   }
 }
 
@@ -56,10 +65,20 @@ async function init() {
     const messageText = error instanceof Error ? error.message : 'Failed to load evals datasets'
     showReadErrorToast(toast, error, messageText)
   } finally {
-    evalsStore.setLoading(false)
+    if (!closed) evalsStore.setLoading(false)
     initialLoading.value = false
   }
 }
+
+watch(
+  () => evalsStore.loading,
+  (loading) => {
+    const [datasetId] = pendingReloads
+    if (loading || closed || datasetId === undefined) return
+    pendingReloads.delete(datasetId)
+    getNextPage(datasetId, true)
+  },
+)
 
 function onFilterChange(datasetId: string, filter: FilterInterface) {
   const dataset = evalsStore.datasets?.find((item) => item.params.dataset_id === datasetId)
@@ -78,6 +97,10 @@ function onSort(datasetId: string, sortParams: SortParams) {
 }
 
 onMounted(init)
+
+onBeforeUnmount(() => {
+  closed = true
+})
 
 onUnmounted(() => {
   evalsStore.reset()

@@ -53,6 +53,9 @@ export const useEvalsStore = defineStore('evals', () => {
   const currentEvalDataLoading = ref(false)
   const spanPayloads = new Map<string, SpanPayload>()
   const spanPayloadRequests = new Map<string, Promise<SpanPayload>>()
+  // Bumped on reset and on a provider change. The store outlives its view and Flow does not
+  // cancel reads, so an answer to a read that started before must be dropped.
+  let datasetsVersion = 0
 
   const getProvider = computed(() => {
     if (!provider.value) throw new Error('Provider not found')
@@ -78,6 +81,7 @@ export const useEvalsStore = defineStore('evals', () => {
     ) {
       return
     }
+    datasetsVersion++
     provider.value = newProvider
     clearSpanPayloads()
     store?.dispose()
@@ -91,6 +95,7 @@ export const useEvalsStore = defineStore('evals', () => {
   }
 
   function resetProvider() {
+    datasetsVersion++
     provider.value = null
     clearSpanPayloads()
     disposeMetricBucketStore()
@@ -193,13 +198,18 @@ export const useEvalsStore = defineStore('evals', () => {
   }
 
   async function initDatasets(limit?: number) {
+    const version = datasetsVersion
     const datasetsIds = await getProvider.value.getUniqueDatasetsIds()
+    if (version !== datasetsVersion) return
     const promises = datasetsIds.map((datasetId) => initDataset(datasetId, limit))
     await Promise.all(promises)
   }
 
   async function initDataset(datasetId: string, limit?: number) {
+    const version = datasetsVersion
+    const isCurrent = () => version === datasetsVersion
     const columns = await getProvider.value.getEvalsColumns(datasetId)
+    if (!isCurrent()) return
     const existing = datasets.value?.find((item) => item.params.dataset_id === datasetId)
     const effectiveLimit = limit ?? existing?.params.limit ?? INITIAL_PARAMS.limit
     const params = {
@@ -208,17 +218,27 @@ export const useEvalsStore = defineStore('evals', () => {
       limit: effectiveLimit,
     }
     await getProvider.value.resetDatasetPage(datasetId)
+    if (!isCurrent()) return
     const data = await getProvider.value.getNextEvalsByDatasetId(params)
+    if (!isCurrent()) return
     await annotationsStore.getEvalsDatasetAnnotationsSummary(datasetId)
+    if (!isCurrent()) return
     setDatasetData({ columns, data, params })
   }
 
   async function getNextDatasetPage(datasetId: string, reset: boolean = false) {
     const dataset = datasets.value?.find((item) => item.params.dataset_id === datasetId)
     if (!dataset) throw new Error('Dataset not found')
+    const version = datasetsVersion
     const params = toRaw(dataset.params)
+    const paramsJson = JSON.stringify(params)
+    // Rows for older sort or filters are dropped: the reload for the current ones follows.
+    const isCurrent = () =>
+      version === datasetsVersion && paramsJson === JSON.stringify(toRaw(dataset.params))
     if (reset) await getProvider.value.resetDatasetPage(datasetId)
+    if (!isCurrent()) return
     const newData = await getProvider.value.getNextEvalsByDatasetId(params)
+    if (!isCurrent()) return
     dataset.data = reset ? newData : [...dataset.data, ...newData]
   }
 
@@ -227,6 +247,7 @@ export const useEvalsStore = defineStore('evals', () => {
   }
 
   function reset() {
+    datasetsVersion++
     resetSelectedTrace()
     resetCurrentEvalData()
     resetDatasets()
@@ -249,6 +270,7 @@ export const useEvalsStore = defineStore('evals', () => {
 
   async function refresh() {
     if (loading.value) return
+    const version = datasetsVersion
     setLoading(true)
     try {
       if (!datasets.value) return
@@ -257,6 +279,7 @@ export const useEvalsStore = defineStore('evals', () => {
         getProvider.value.getFreshEvalsByDatasetId(item),
       )
       const data = await Promise.all(promises)
+      if (version !== datasetsVersion || !datasets.value) return
       datasets.value = datasets.value.map((item, index) => {
         if (!data[index]) return item
         return { ...item, data: data[index] }
@@ -268,7 +291,8 @@ export const useEvalsStore = defineStore('evals', () => {
     } catch (error) {
       showReadErrorToast(toast, error, getErrorMessage(error))
     } finally {
-      setLoading(false)
+      // After a reset the loading flag belongs to the next experiment's view.
+      if (version === datasetsVersion) setLoading(false)
     }
   }
 

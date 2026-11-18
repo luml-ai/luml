@@ -61,17 +61,23 @@ const visible = defineModel<boolean>('visible')
 const evalsStore = useEvalsStore()
 const showLoader = useMinLoading(computed(() => evalsStore.currentEvalDataLoading))
 
+let latestEvalRequest = 0
+
 async function onCurrentEvalIdUpdate(evalId: string) {
+  const request = ++latestEvalRequest
+  // A tab clicked later, or a dialog closed or opened for another eval meanwhile, wins.
+  const shown = evalsStore.currentEvalData
   try {
     evalsStore.setCurrentEvalDataLoading(true)
-    const artifactId = evalsStore.currentEvalData?.[0]?.modelId
+    const artifactId = shown?.[0]?.modelId
     if (!artifactId) return
     const evalData = await evalsStore.getProvider.getEvalById(artifactId, evalId)
+    if (request !== latestEvalRequest || evalsStore.currentEvalData !== shown) return
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
     showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
-    evalsStore.setCurrentEvalDataLoading(false)
+    if (request === latestEvalRequest) evalsStore.setCurrentEvalDataLoading(false)
   }
 }
 </script>

@@ -4,7 +4,12 @@ import { createPinia, setActivePinia } from 'pinia'
 import { computed, nextTick, ref, type Component } from 'vue'
 import PrimeVue from 'primevue/config'
 import Tooltip from 'primevue/tooltip'
-import type { EvalsInfo, GetTracesParams, TraceSpan } from '@/interfaces/interfaces'
+import type {
+  EvalsInfo,
+  ExperimentSnapshotProvider,
+  GetTracesParams,
+  TraceSpan,
+} from '@/interfaces/interfaces'
 import { ExperimentSnapshotWorkerProxy } from '@/providers/ExperimentSnapshotWorkerProxy'
 import { useEvalsStore } from '@/store/evals'
 import { INITIAL_PARAMS } from '@/store/evals/evals.data'
@@ -132,6 +137,7 @@ const sites: { site: string; detail: string; run: () => Promise<unknown> }[] = [
     run: async () => {
       vi.useFakeTimers()
       try {
+        useTraceStore().setArtifactId('m1')
         useTraceStore().setRequestParams({ search: 'x' })
         await nextTick()
         await vi.advanceTimersByTimeAsync(500)
@@ -320,6 +326,209 @@ describe('reads of a closed experiment', () => {
     wrapper.unmount()
     await flushPromises()
 
+    expect(toastAdd).not.toHaveBeenCalled()
+  })
+})
+
+describe('a view that closed', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    toastAdd.mockClear()
+    uncaughtInView.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('the traces wrapper goes no further when its first page was dropped by the close', async () => {
+    const worker = new FakeWorker()
+    const proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker)
+    const evalsStore = useEvalsStore()
+    evalsStore.setProvider(proxy)
+    const summary = vi.spyOn(proxy, 'getTracesAnnotationSummary')
+    const wrapper = mountView(TracesWrapper, { artifactId: 'm1' })
+    await flushPromises()
+
+    wrapper.unmount()
+    evalsStore.resetProvider()
+    // The next experiment's trace list is loading already.
+    useTraceStore().setLoading(true)
+    proxy.terminate()
+    await flushPromises()
+
+    expect(summary).not.toHaveBeenCalled()
+    expect(useTraceStore().loading).toBe(true)
+    expect(toastAdd).not.toHaveBeenCalled()
+    expect(uncaughtInView).not.toHaveBeenCalled()
+  })
+
+  it('an evals dataset drops the filter reload it scheduled just before the close', async () => {
+    vi.useFakeTimers()
+    const averageScores = vi.fn(() => Promise.resolve({}))
+    const evalsStore = useEvalsStore()
+    evalsStore.setProvider({
+      getDatasetAverageScores: averageScores,
+    } as unknown as ExperimentSnapshotWorkerProxy)
+    const wrapper = mountView(EvalsDataset, {
+      data: [],
+      modelsInfo: {},
+      columns: { inputs: [], outputs: [], refs: [], scores: [], metadata: [] },
+      datasetId: 'd1',
+    })
+    await flushPromises()
+    await setupFunction(wrapper, 'filtersChange')(['scores.accuracy > 0.5'])
+    await nextTick()
+
+    wrapper.unmount()
+    evalsStore.resetProvider()
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(averageScores).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('filter-change')).toBeUndefined()
+    expect(toastAdd).not.toHaveBeenCalled()
+  })
+})
+
+describe('a read that ends after its view closed', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((done) => (resolve = done))
+    return { promise, resolve }
+  }
+
+  function setProvider(provider: object) {
+    useEvalsStore().setProvider(provider as unknown as ExperimentSnapshotProvider)
+  }
+
+  const datasetProvider = (pages: ReturnType<typeof deferred<EvalsInfo[]>>[]) => ({
+    getUniqueDatasetsIds: vi.fn(() => Promise.resolve(['d1'])),
+    getEvalsColumns: vi.fn(() =>
+      Promise.resolve({ inputs: [], outputs: [], refs: [], scores: [], metadata: [] }),
+    ),
+    resetDatasetPage: vi.fn(() => Promise.resolve()),
+    getNextEvalsByDatasetId: vi.fn(() => {
+      const page = deferred<EvalsInfo[]>()
+      pages.push(page)
+      return page.promise
+    }),
+    getEvalsDatasetAnnotationsSummary: vi.fn(() => Promise.resolve(null)),
+    resetEvalsDatasetsRequestParams: vi.fn(() => Promise.resolve()),
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    toastAdd.mockClear()
+    uncaughtInView.mockClear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('a trace link of the traces table opens no trace dialog', async () => {
+    const spans = deferred<TraceSpan[]>()
+    setProvider({
+      getTraceSpans: vi.fn(() => spans.promise),
+      buildSpanTree: vi.fn(() => Promise.resolve([])),
+    })
+    const wrapper = mountView(TracesTable, { data: [], selectedColumns: [], artifactId: 'm1' })
+    const read = setupFunction(wrapper, 'showTrace')('t1')
+    wrapper.unmount()
+    spans.resolve([makeSpan('s1')])
+    await read
+
+    expect(useEvalsStore().selectedTrace).toBeNull()
+  })
+
+  it('an eval link of the traces table opens no eval dialog', async () => {
+    const evalData = deferred<EvalsInfo>()
+    setProvider({ getEvalById: vi.fn(() => evalData.promise) })
+    const wrapper = mountView(TracesTable, { data: [], selectedColumns: [], artifactId: 'm1' })
+    const read = setupFunction(wrapper, 'showEval')('e1', ['e1', 'e2'])
+    wrapper.unmount()
+    evalData.resolve(evalRow)
+    await read
+
+    expect(useEvalsStore().currentEvalData).toBeNull()
+    expect(useEvalsStore().evalsIdsList).toEqual([])
+  })
+
+  it('the trace button of a closed eval dialog opens no trace dialog', async () => {
+    const spans = deferred<TraceSpan[]>()
+    setProvider({
+      getEvalAnnotations: vi.fn(() => Promise.resolve([])),
+      getTraceId: vi.fn(() => Promise.resolve('t1')),
+      getTraceSpans: vi.fn(() => spans.promise),
+      buildSpanTree: vi.fn(() => Promise.resolve([])),
+    })
+    useEvalsStore().setCurrentEvalData([evalRow])
+    const wrapper = mountView(TracesModel, { id: 'm1', name: 'model' })
+    await flushPromises()
+    const read = setupFunction(wrapper, 'showSpans')()
+    wrapper.unmount()
+    spans.resolve([makeSpan('s1')])
+    await read
+
+    expect(useEvalsStore().selectedTrace).toBeNull()
+  })
+
+  it('an eval dialog closed while the next eval loads stays closed', async () => {
+    const evalData = deferred<EvalsInfo>()
+    setProvider({ getEvalById: vi.fn(() => evalData.promise) })
+    const evalsStore = useEvalsStore()
+    evalsStore.setCurrentEvalData([evalRow])
+    const wrapper = mountView(TracesDialog, { modelsInfo: {} })
+    const read = setupFunction(wrapper, 'onCurrentEvalIdUpdate')('e2')
+    evalsStore.resetCurrentEvalData()
+    evalData.resolve({ ...evalRow, id: 'e2' })
+    await read
+
+    expect(evalsStore.currentEvalData).toBeNull()
+  })
+
+  it('the evals list leaves the loading flag of the next view alone', async () => {
+    const pages: ReturnType<typeof deferred<EvalsInfo[]>>[] = []
+    setProvider(datasetProvider(pages))
+    const wrapper = mountView(EvalsDatasetsList, { modelsInfo: {}, loaderHeight: '10px' })
+    await flushPromises()
+    expect(pages).toHaveLength(1)
+    wrapper.unmount()
+    // The next experiment's list is loading already.
+    useEvalsStore().setLoading(true)
+    pages[0]!.resolve([evalRow])
+    await flushPromises()
+
+    expect(useEvalsStore().loading).toBe(true)
+    expect(useEvalsStore().datasets).toBeNull()
+  })
+
+  it('the evals list reloads with the new sort when it changed while a page was loading', async () => {
+    const pages: ReturnType<typeof deferred<EvalsInfo[]>>[] = []
+    const provider = datasetProvider(pages)
+    setProvider(provider)
+    const wrapper = mountView(EvalsDatasetsList, { modelsInfo: {}, loaderHeight: '10px' })
+    await flushPromises()
+    pages[0]!.resolve([evalRow])
+    await flushPromises()
+
+    const nextPage = setupFunction(wrapper, 'getNextPage')('d1')
+    await flushPromises()
+    await setupFunction(wrapper, 'onSort')('d1', { sortField: 'created_at', sortOrder: 'asc' })
+    pages[1]!.resolve([{ ...evalRow, id: 'old-sort' }])
+    await nextPage
+    await flushPromises()
+
+    expect(provider.getNextEvalsByDatasetId).toHaveBeenCalledTimes(3)
+    expect(provider.getNextEvalsByDatasetId).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort_by: 'created_at', order: 'asc' }),
+    )
+    pages[2]!.resolve([{ ...evalRow, id: 'new-sort' }])
+    await flushPromises()
+
+    expect(useEvalsStore().datasets?.[0]?.data.map((row) => row.id)).toEqual(['new-sort'])
+    expect(useEvalsStore().loading).toBe(false)
     expect(toastAdd).not.toHaveBeenCalled()
   })
 })

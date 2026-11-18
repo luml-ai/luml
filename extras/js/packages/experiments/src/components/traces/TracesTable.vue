@@ -290,7 +290,7 @@ import {
   useToast,
 } from 'primevue'
 import type { TableEmits, TableProps } from './traces.interface'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { getErrorMessage, getFormattedExecutionTime } from '@/helpers/helpers'
 import { SORTED_FIELDS, TRACE_STATE_MAP } from './traces.const'
 import { useEvalsStore } from '@/store/evals'
@@ -386,9 +386,14 @@ function onSort(event: DataTableSortEvent) {
   })
 }
 
+// The evals store outlives this view: a dialog read that ends after it closed must not open
+// the dialog over the next experiment.
+let closed = false
+
 async function showEval(evalId: string, evalsIds: string[]) {
   try {
     const evalData = await evalsStore.getProvider.getEvalById(props.artifactId, evalId)
+    if (closed) return
     evalsStore.setEvalsIdsList(evalsIds)
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
@@ -399,6 +404,7 @@ async function showEval(evalId: string, evalsIds: string[]) {
 async function showTrace(traceId: string) {
   try {
     const snapsTree = await evalsStore.getTraceSpansTree(props.artifactId, traceId)
+    if (closed) return
     evalsStore.setSelectedTrace(snapsTree, props.artifactId)
   } catch (error) {
     showReadErrorToast(toast, error, getErrorMessage(error))
@@ -417,6 +423,10 @@ watch(
     })
   },
 )
+
+onBeforeUnmount(() => {
+  closed = true
+})
 </script>
 
 <style scoped>

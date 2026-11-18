@@ -40,7 +40,7 @@ import type {
   SortParams,
   TableColumn,
 } from './evals.interface'
-import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { useDebounceFn } from '@vueuse/core'
 import { Braces } from 'lucide-vue-next'
@@ -135,7 +135,11 @@ async function fetchAverageScores() {
   }
 }
 
+// A filter typed just before the view closed fires its debounced reload after the close.
+let closed = false
+
 function onFilterChange() {
+  if (closed) return
   emit('filter-change', filter)
   fetchAverageScores()
 }
@@ -149,6 +153,10 @@ const debouncedOnFilterChange = useDebounceFn(onFilterChange, 300)
 onBeforeMount(fetchAverageScores)
 
 watch(filter, debouncedOnFilterChange)
+
+onBeforeUnmount(() => {
+  closed = true
+})
 </script>
 
 <style scoped>

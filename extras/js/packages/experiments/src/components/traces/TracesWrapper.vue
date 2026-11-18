@@ -103,6 +103,9 @@ function onSearchUpdate(search: string) {
   traceStore.setRequestParams({ search })
 }
 
+// The store outlives this view: a read that ends after it closed leaves the store alone.
+let closed = false
+
 async function getNextPage(reset: boolean = false) {
   try {
     if (traceStore.loading) return
@@ -111,7 +114,7 @@ async function getNextPage(reset: boolean = false) {
   } catch (error) {
     showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
-    traceStore.setLoading(false)
+    if (!closed) traceStore.setLoading(false)
   }
 }
 
@@ -120,17 +123,19 @@ onBeforeMount(async () => {
     traceStore.setArtifactId(props.artifactId)
     firstLoading.value = true
     await getNextPage(true)
+    if (closed) return
     tracesExists.value = traceStore.traces.length > 0
     await annotationsStore.getTracesAnnotationSummary(props.artifactId)
   } catch (error) {
     showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
     firstLoading.value = false
-    traceStore.setLoading(false)
+    if (!closed) traceStore.setLoading(false)
   }
 })
 
 onBeforeUnmount(async () => {
+  closed = true
   traceStore.reset()
 })
 </script>

@@ -31,12 +31,26 @@ export const useTraceStore = defineStore('trace', () => {
     return formattedEntries.flat()
   })
 
+  // Bumped when the list is reset or moved to another experiment. The store outlives its
+  // view and Flow does not cancel reads, so an answer to an older read must be dropped.
+  let listVersion = 0
+  let reloadPending = false
+
+  function isCurrentRead(version: number, paramsJson?: string) {
+    if (version !== listVersion) return false
+    return paramsJson === undefined || paramsJson === JSON.stringify(requestParams.value)
+  }
+
   async function getNextPage(reset: boolean = false) {
-    const params = JSON.parse(JSON.stringify(requestParams.value))
+    const version = listVersion
+    const paramsJson = JSON.stringify(requestParams.value)
+    const params = JSON.parse(paramsJson)
     if (reset) {
       evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
     }
     const data = await evalsStore.getProvider.getTraces(params)
+    // Rows for older parameters: the reload for the current ones follows.
+    if (!isCurrentRead(version, paramsJson)) return
     if (reset) {
       traces.value = []
     }
@@ -55,11 +69,16 @@ export const useTraceStore = defineStore('trace', () => {
   }
 
   function setArtifactId(id: string) {
-    if (artifactId.value !== id) resetTypedColumns()
+    if (artifactId.value !== id) {
+      listVersion++
+      resetTypedColumns()
+    }
     artifactId.value = id
   }
 
   function reset() {
+    listVersion++
+    reloadPending = false
     requestParams.value = { ...INITIAL_REQUEST_PARAMS }
     evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
     traces.value = []
@@ -70,10 +89,12 @@ export const useTraceStore = defineStore('trace', () => {
 
   async function refresh() {
     if (loading.value) return
+    const version = listVersion
     setLoading(true)
     try {
-      const params = JSON.parse(JSON.stringify(requestParams.value))
-      const data = await evalsStore.getProvider.getFreshTraces(params)
+      const paramsJson = JSON.stringify(requestParams.value)
+      const data = await evalsStore.getProvider.getFreshTraces(JSON.parse(paramsJson))
+      if (!isCurrentRead(version, paramsJson)) return
       traces.value = [...data]
       if (artifactId.value) {
         await annotationsStore.getTracesAnnotationSummary(artifactId.value)
@@ -81,21 +102,37 @@ export const useTraceStore = defineStore('trace', () => {
     } catch (error) {
       showReadErrorToast(toast, error, getErrorMessage(error))
     } finally {
-      setLoading(false)
+      // After a reset the loading flag belongs to the next experiment's view.
+      if (isCurrentRead(version)) setLoading(false)
     }
   }
 
-  const debouncedRequestParamsChange = useDebounceFn(async () => {
+  async function reloadForParams() {
+    // A reload scheduled before the view closed: its provider may be gone.
+    if (!artifactId.value) return
+    // Reads share the provider's page cursors, so they run one at a time.
+    if (loading.value) {
+      reloadPending = true
+      return
+    }
+    const version = listVersion
+    setLoading(true)
     try {
-      if (loading.value) return
-      setLoading(true)
       await getNextPage(true)
     } catch (error) {
       showReadErrorToast(toast, error, getErrorMessage(error))
     } finally {
-      setLoading(false)
+      if (isCurrentRead(version)) setLoading(false)
     }
-  }, 500)
+  }
+
+  const debouncedRequestParamsChange = useDebounceFn(reloadForParams, 500)
+
+  watch(loading, (isLoading) => {
+    if (isLoading || !reloadPending) return
+    reloadPending = false
+    reloadForParams()
+  })
 
   /** Loaded once per artifact, when the filter editor first needs the keys. */
   function getTypedColumns(): Promise<void> {
@@ -121,7 +158,14 @@ export const useTraceStore = defineStore('trace', () => {
     typedColumns.value = null
   }
 
-  watch(requestParams, debouncedRequestParamsChange, { deep: true })
+  // reset() sets the parameters too; that is a close, not a change to reload for.
+  watch(
+    requestParams,
+    () => {
+      if (artifactId.value) debouncedRequestParamsChange()
+    },
+    { deep: true },
+  )
 
   return {
     traces,
