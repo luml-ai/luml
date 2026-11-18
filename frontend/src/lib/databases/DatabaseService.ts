@@ -7,6 +7,15 @@ const DATABASE_PREFIX = 'jl_'
 const FILES_STORE = 'files'
 const AVAILABLE_FILES_EXTENSIONS = ['.dfs', '.fnnx', '.pyfnx', '.luml']
 
+function decodeBase64(content: string) {
+  const binary = atob(content)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
 class DatabaseServiceClass {
   async getDatabases() {
     if (!indexedDB.databases) {
@@ -109,6 +118,7 @@ class DatabaseServiceClass {
       db.close()
     }
     const zip = new jszip()
+    const skippedFiles: string[] = []
 
     for (const file of allFiles) {
       const filePath = file.path || file.name
@@ -145,6 +155,8 @@ class DatabaseServiceClass {
           (typeof content === 'object' && content !== null && !(content instanceof Date))
         ) {
           fileData = JSON.stringify(content, null, 2)
+        } else if (format === 'base64' && typeof content === 'string') {
+          fileData = decodeBase64(content)
         } else if (typeof content === 'string') {
           fileData = content
         } else if (content === null || content === undefined || content === '') {
@@ -159,6 +171,7 @@ class DatabaseServiceClass {
         zip.file(cleanPath, fileData)
       } catch (e) {
         console.error(`Failed to process file ${filePath}:`, e)
+        skippedFiles.push(filePath)
         continue
       }
     }
@@ -176,6 +189,7 @@ class DatabaseServiceClass {
       compressionOptions: { level: 6 },
     })
     saveAs(zipBlob, `${databaseName}-backup.zip`)
+    return skippedFiles
   }
 
   async getFileBlob(file: LumlFile) {

@@ -142,7 +142,14 @@ function onBackupClick() {
     },
     accept: async () => {
       try {
-        await notebooksStore.createBackup(props.notebook.name)
+        const skippedFiles = await notebooksStore.createBackup(props.notebook.name)
+        if (skippedFiles.length) {
+          toast.add({
+            severity: 'warn',
+            summary: 'Backup is incomplete',
+            detail: `These files could not be read and are not in the backup: ${skippedFiles.join(', ')}`,
+          })
+        }
       } catch (e: unknown) {
         toast.add({
           severity: 'error',
