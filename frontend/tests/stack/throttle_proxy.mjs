@@ -9,6 +9,7 @@
 // Controlled over the same port under /__e2e/ (the specs call it from Node):
 //   POST /__e2e/config  {latencyMs, bytesPerSecond, throttleMatching, stallMatching, stripRange,
 //                        refuseSeen, refuseMatching, refuseOverlapping}
+//   POST /__e2e/release the held requests answered; later matching ones are held still
 //   GET  /__e2e/log     the requests served since the last reset
 //   POST /__e2e/reset   default config, empty log, held requests answered
 import { renameSync, writeFileSync } from 'node:fs'
@@ -107,6 +108,8 @@ async function control(request, response, path) {
     config = { ...config, ...(await readJson(request)) }
     if (config.refuseSeen) refusedSignatures = new Set(seenSignatures)
     if (!config.stallMatching) releaseHeld()
+  } else if (path === '/__e2e/release' && request.method === 'POST') {
+    releaseHeld()
   } else if (path === '/__e2e/reset' && request.method === 'POST') {
     config = { ...DEFAULT_CONFIG }
     log = []

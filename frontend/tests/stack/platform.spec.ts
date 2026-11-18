@@ -11,17 +11,28 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { PRESIGNED_URL_MIN_RENEW_AGE_MS } from '../../src/lib/bucket-service/presigned-url-cache'
-import { SLOW_LINK, ThrottleProxy, VERY_SLOW_LINK, type ProxyConfig } from './proxy'
 import {
+  SLOW_LINK,
+  ThrottleProxy,
+  VERY_SLOW_LINK,
+  type ProxiedRequest,
+  type ProxyConfig,
+} from './proxy'
+import {
+  clickFirstTrace,
+  errorToasts,
   expectAverageScores,
   expectLargeValue,
   expectRegularTrace,
-  expectTraceRow,
+  expectTracesSortedAndPaged,
   expectVirtualisedTree,
   openTrace,
+  recordErrors,
   rowCells,
+  runLeftTimers,
   scoreTexts,
   searchEval,
+  sortLongestFirst,
   spanAttribute,
   spanRow,
   traceDialog,
@@ -671,34 +682,7 @@ for (const storageName of Object.keys(data.storages)) {
           )
         }
 
-        const duration = page.getByRole('columnheader', { name: 'execution time' })
-        await duration.click()
-        for (const [position, id] of ['trace-0000', 'trace-0001', 'trace-0002'].entries()) {
-          const expected = TRACES.traces[id]!
-          await expectTraceRow(traceRows(page).nth(position), id, expected, expected.eval_id)
-        }
-        await duration.click()
-        await expectTraceRow(traceRows(page).first(), TRACES.big.trace_id, TRACES.big, null)
-        const longest = TRACES.traces['trace-0299']!
-        await expectTraceRow(traceRows(page).nth(1), 'trace-0299', longest, longest.eval_id)
-
-        // 20 traces a page: the table asks for the next one when it is scrolled to its end.
-        const paged = 'trace-0262'
-        const row = traceRows(page).filter({
-          has: page.getByRole('button', { name: paged, exact: true }),
-        })
-        const scroller = page.locator('.traces-table .p-virtualscroller')
-        await expect
-          .poll(
-            async () => {
-              await scroller.evaluate((element) => element.scrollTo(0, element.scrollHeight))
-              return row.count()
-            },
-            { message: `${paged} on the second page`, timeout: 30_000 },
-          )
-          .toBe(1)
-        const expected = TRACES.traces[paged]!
-        await expectTraceRow(row, paged, expected, expected.eval_id)
+        await expectTracesSortedAndPaged(page, TRACES)
         expectReads(traces)
         await expectNoNotices(page)
       })
@@ -1139,6 +1123,131 @@ test.describe('slow network to storage', () => {
     await expectLargeValue(spanAttribute(dialog, large.key), large.chars!, large.start)
     expect(refused()).toHaveLength(refusedCount)
     await expectNoNotices(page)
+  })
+
+  /** Sorted longest first, so the big trace is the first row without a search (which reads). */
+  async function showBigTraceFirst(page: Page, traces: PublishedArtifact) {
+    await openTraceSnapshot(page, storage, traces)
+    await sortLongestFirst(page, TRACES)
+    await network.settled()
+  }
+
+  /** Reads of `item` the proxy holds that the browser has not given up on yet. */
+  async function heldReads(item: PublishedArtifact): Promise<ProxiedRequest[]> {
+    return (await proxy.requests()).filter(
+      (request) =>
+        request.stalled &&
+        request.endedAt === 0 &&
+        decodeURIComponent(request.path).endsWith(`/${item.bucket_location}`),
+    )
+  }
+
+  /**
+   * Leaves the experiment by the collection's link in the breadcrumbs, inside the app as a user
+   * does (a reload would take the toast host with it), then runs the timers it left.
+   */
+  async function leaveExperiment(page: Page, item: PublishedArtifact) {
+    await page.locator(`a[href$="/collection/${storage.collection_id}"]`).first().click()
+    await page.waitForURL(collectionUrl(storage))
+    await expect(
+      page.getByRole('row').filter({ has: page.getByText(item.name, { exact: true }) }),
+    ).toBeVisible()
+    await network.settled()
+    await runLeftTimers(page)
+  }
+
+  /**
+   * Leaves while reads are held and waits until the browser has cancelled every one: the snapshot
+   * worker is gone, so its pending reads were rejected.
+   */
+  async function leaveWhileHeld(page: Page, item: PublishedArtifact) {
+    await expect
+      .poll(async () => (await heldReads(item)).length, { message: 'a read is held' })
+      .toBeGreaterThan(0)
+    await leaveExperiment(page, item)
+    await expect
+      .poll(async () => (await heldReads(item)).length, { message: 'held reads cancelled' })
+      .toBe(0)
+  }
+
+  test('a trace read that fails shows an error toast', async ({ page }) => {
+    // The control for the tests below: the toast they expect not to see is seen here.
+    const traces = artifact('traces_new')
+    const errors = await recordErrors(page)
+    await showBigTraceFirst(page, traces)
+    await proxy.configure({ refuseMatching: escapeRegExp(traces.bucket_location) })
+    await clickFirstTrace(page, TRACES.big.trace_id)
+    await expect(errorToasts(page).first()).toBeVisible()
+    await expect.poll(errors).toContainEqual(expect.stringMatching(/^toast: /))
+    await network.settled()
+  })
+
+  test('leaving a loaded new-format experiment shows no error', async ({ page }) => {
+    // Nothing is read when it is left: what this shows is not about cancelled reads.
+    const large = artifact('large')
+    const errors = await recordErrors(page)
+    await page.clock.install()
+    await openSnapshot(page, storage, large)
+    await settledChart(page, 'train/loss', [large.id])
+    await network.settled()
+    await leaveExperiment(page, large)
+    expect(await errors()).toEqual([])
+    await expect(errorToasts(page)).toHaveCount(0)
+  })
+
+  test('leaving a new-format experiment while its first reads are held shows no error', async ({
+    page,
+  }) => {
+    const large = artifact('large')
+    const errors = await recordErrors(page)
+    await page.clock.install()
+    await proxy.configure({ stallMatching: escapeRegExp(large.bucket_location) })
+    await openSnapshot(page, storage, large)
+    // The worker reads one page run at a time, so each held read is let go until the opened
+    // experiment's view is mounted; its own first reads (static params, metrics) are then held.
+    const view = page.locator('.view-wrapper > .content')
+    await expect
+      .poll(
+        async () => {
+          if (await view.count()) return true
+          if ((await heldReads(large)).length) await proxy.release()
+          return false
+        },
+        { message: 'the experiment view is mounted', intervals: [100], timeout: 60_000 },
+      )
+      .toBe(true)
+    // Static params and metrics are loading: skeletons and no chart yet.
+    await expect(view.locator('> .p-skeleton').first()).toBeVisible()
+    await expect(chartCard(page, 'train/loss')).toHaveCount(0)
+    await leaveWhileHeld(page, large)
+    expect(await errors()).toEqual([])
+    await expect(errorToasts(page)).toHaveCount(0)
+  })
+
+  test('leaving a new-format experiment while a trace read is held shows no error', async ({
+    page,
+  }) => {
+    const traces = artifact('traces_new')
+    const errors = await recordErrors(page)
+    await page.clock.install()
+    await showBigTraceFirst(page, traces)
+    await proxy.configure({ stallMatching: escapeRegExp(traces.bucket_location) })
+    await clickFirstTrace(page, TRACES.big.trace_id)
+    await leaveWhileHeld(page, traces)
+    expect(await errors()).toEqual([])
+    await expect(errorToasts(page)).toHaveCount(0)
+
+    // Back in the app's history: the experiment opens again with fresh reads and no dialog.
+    await proxy.configure({ stallMatching: null })
+    await page.goBack()
+    await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+      timeout: 60_000,
+    })
+    await expectAverageScores(page, TRACES.averages)
+    await expect(traceDialog(page)).toHaveCount(0)
+    await network.settled()
+    expect(await errors()).toEqual([])
+    await expect(errorToasts(page)).toHaveCount(0)
   })
 })
 

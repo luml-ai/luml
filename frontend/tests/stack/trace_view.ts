@@ -19,6 +19,9 @@ interface SpanExpectation {
   value?: string
 }
 
+/** Traces the viewer reads a page (the `limit` of its trace store's first request). */
+const TRACES_PAGE_SIZE = 20
+
 /** What trace_data.py's `expected()` says the views show. */
 export interface TraceData {
   dataset: string
@@ -78,6 +81,123 @@ export async function expectTraceRow(
   const evals = row.getByRole('button', { name: /^eval-/ })
   if (evalId) await expect(evals).toHaveText([evalId])
   else await expect(evals).toHaveCount(0)
+}
+
+/**
+ * Sorts the traces table by execution time (no two traces share one) both ways, then scrolls it
+ * to a trace on its second page.
+ */
+export async function expectTracesSortedAndPaged(page: Page, data: TraceData) {
+  // trace_data.py: a regular trace takes (10 + index) ms and the big one is the longest, so
+  // shortest first a regular trace sits at its index, and longest first after the big one.
+  const regular = Object.entries(data.traces).sort(([, a], [, b]) => a.index - b.index)
+  const longestFirstPosition = (index: number) => data.trace_count - 1 - index
+  const duration = page.getByRole('columnheader', { name: 'execution time' })
+  await duration.click()
+  for (const [id, expected] of regular.slice(0, 3)) {
+    await expectTraceRow(traceRows(page).nth(expected.index), id, expected, expected.eval_id)
+  }
+  await duration.click()
+  await expectTraceRow(traceRows(page).first(), data.big.trace_id, data.big, null)
+  const [longestId, longest] = regular.at(-1)!
+  expect(longestFirstPosition(longest.index)).toBe(1)
+  await expectTraceRow(traceRows(page).nth(1), longestId, longest, longest.eval_id)
+
+  // The table asks for the next page when it is scrolled to its end.
+  const onSecondPage = regular.filter(
+    ([, trace]) => Math.floor(longestFirstPosition(trace.index) / TRACES_PAGE_SIZE) === 1,
+  )
+  expect(onSecondPage).toHaveLength(1)
+  const paged = onSecondPage[0]![0]
+  const row = traceRows(page).filter({
+    has: page.getByRole('button', { name: paged, exact: true }),
+  })
+  const scroller = page.locator('.traces-table .p-virtualscroller')
+  await expect
+    .poll(
+      async () => {
+        await scroller.evaluate((element) => element.scrollTo(0, element.scrollHeight))
+        return row.count()
+      },
+      { message: `${paged} on the second page`, timeout: 30_000 },
+    )
+    .toBe(1)
+  const expected = data.traces[paged]!
+  await expectTraceRow(row, paged, expected, expected.eval_id)
+}
+
+/** Sorted longest first, so the big trace is the first row without a search (which reads). */
+export async function sortLongestFirst(page: Page, data: TraceData) {
+  const duration = page.getByRole('columnheader', { name: 'execution time' })
+  const firstId = traceRows(page).first().locator('td').first()
+  await duration.click()
+  await expect(firstId).toHaveText('trace-0000')
+  await duration.click()
+  await expect(firstId).toHaveText(data.big.trace_id)
+}
+
+export async function clickFirstTrace(page: Page, traceId: string) {
+  await traceRows(page).first().getByRole('button', { name: traceId, exact: true }).click()
+}
+
+/** PrimeVue's error toast, in the toast host of the platform and of Flow. */
+const ERROR_TOAST = '.p-toast-message-error'
+
+export function errorToasts(page: Page): Locator {
+  return page.locator(ERROR_TOAST)
+}
+
+/**
+ * Records, from the page's first script on, every error toast shown (a toast goes after 3 s, so
+ * one shown and gone before the check still counts), every uncaught error and unhandled
+ * rejection, and console errors about the snapshot worker. Call before the page is opened.
+ */
+export async function recordErrors(page: Page): Promise<() => Promise<string[]>> {
+  const seenByNode: string[] = []
+  page.on('pageerror', (error) => seenByNode.push(`page error: ${error.message}`))
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /worker|terminated/i.test(message.text()))
+      seenByNode.push(`console error: ${message.text()}`)
+  })
+  await page.addInitScript((selector) => {
+    // Toasts are kept as elements and read when checked: their text may come after insertion.
+    const seen: (string | Element)[] = []
+    Object.assign(window, { __e2eErrors: seen })
+    window.addEventListener('unhandledrejection', (event) =>
+      seen.push(`unhandled rejection: ${String(event.reason)}`),
+    )
+    new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (!(node instanceof Element)) continue
+          const toasts = node.matches(selector) ? [node] : [...node.querySelectorAll(selector)]
+          for (const toast of toasts) {
+            // Vue's TransitionGroup adds and removes an empty, hidden clone of each toast that
+            // moves when another one comes or goes.
+            if (toast.classList.contains('p-toast-message-move') || seen.includes(toast)) continue
+            seen.push(toast)
+          }
+        }
+      }
+    }).observe(document, { childList: true, subtree: true })
+  }, ERROR_TOAST)
+  return async () => [
+    ...seenByNode,
+    ...(await page.evaluate(() =>
+      ((window as unknown as { __e2eErrors?: (string | Element)[] }).__e2eErrors ?? []).map(
+        (item) => (typeof item === 'string' ? item : `toast: ${item.textContent?.trim()}`),
+      ),
+    )),
+  ]
+}
+
+/**
+ * Runs the timers a closed view left behind at once, as time would run them (the traces table
+ * reloads 500 ms after its parameters change, and they are reset when it closes). The page's
+ * clock must be installed before the page opened.
+ */
+export async function runLeftTimers(page: Page) {
+  await page.clock.runFor(2_000)
 }
 
 /** Narrows the traces table to one trace by its search box and opens it. */

@@ -49,6 +49,11 @@ export class ThrottleProxy {
     await this.call('POST', 'config', config)
   }
 
+  /** Answers the requests held now; stallMatching still holds the later ones. */
+  async release(): Promise<void> {
+    await this.call('POST', 'release')
+  }
+
   async requests(): Promise<ProxiedRequest[]> {
     return (await (await this.call('GET', 'log')).json()) as ProxiedRequest[]
   }

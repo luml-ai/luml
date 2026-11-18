@@ -1,20 +1,28 @@
-import { test, expect, type Locator, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page, type Request } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SLOW_LINK, ThrottleProxy } from './proxy'
 import {
+  clickFirstTrace,
+  errorToasts,
+  evalRows,
   expectAverageScores,
   expectLargeValue,
   expectRegularTrace,
+  expectTracesSortedAndPaged,
   expectVirtualisedTree,
   openTrace,
+  recordErrors,
   rowCells,
+  runLeftTimers,
   scoreTexts,
   searchEval,
+  sortLongestFirst,
   spanAttribute,
   spanRow,
   traceDialog,
+  traceRows,
   type TraceData,
 } from './trace_view'
 
@@ -251,6 +259,19 @@ for (const [format, key] of [
     if (experiment.db) expect(userVersion(experiment.db)).toBe(experiment.user_version)
   })
 
+  test(`the traces of a ${format}-schema experiment are listed, sorted and paged`, async ({
+    page,
+  }) => {
+    test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
+    const experiment = data[key]!
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`)
+    await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+      timeout: 60_000,
+    })
+    await expectTracesSortedAndPaged(page, TRACES)
+    if (experiment.db) expect(userVersion(experiment.db)).toBe(experiment.user_version)
+  })
+
   test(`the evals of a ${format}-schema experiment: scores, rows and the eval's trace`, async ({
     page,
   }) => {
@@ -275,6 +296,112 @@ for (const [format, key] of [
     await expectRegularTrace(traceDialog(page), expected.index)
     if (experiment.db) expect(userVersion(experiment.db)).toBe(experiment.user_version)
   })
+}
+
+test.describe('leaving an experiment in Flow', () => {
+  test.beforeEach(async () => {
+    await PROXY.reset()
+  })
+
+  test.afterEach(async () => {
+    await PROXY.reset()
+  })
+
+  test('leaving an experiment while a trace read is held shows no error', async ({ page }) => {
+    const experiment = data.traces
+    const traceRead = `/api/experiments/${experiment.id}/traces/${TRACES.big.trace_id}`
+    const errors = await recordErrors(page)
+    await page.clock.install()
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`, SLOW_FLOW)
+    await sortLongestFirst(page, TRACES)
+    await PROXY.configure({ stallMatching: `^${traceRead}\\?` })
+    const isTraceRead = (request: Request) => new URL(request.url()).pathname === traceRead
+    const browserDone = Promise.race([
+      page.waitForEvent('requestfinished', isTraceRead),
+      page.waitForEvent('requestfailed', isTraceRead),
+    ])
+    await clickFirstTrace(page, TRACES.big.trace_id)
+    const held = async () =>
+      (await PROXY.requests()).filter((request) => request.path === traceRead && request.stalled)
+    await expect.poll(async () => (await held()).length, { message: 'the read is held' }).toBe(1)
+
+    // The breadcrumbs, inside the app as a user leaves (a reload would take the toast host too).
+    await page.getByRole('link', { name: 'Groups', exact: true }).click()
+    await page.waitForURL((url) => !url.pathname.includes(experiment.id))
+    await expect(page.getByText('e2e', { exact: true }).first()).toBeVisible()
+    await expect(traceRows(page)).toHaveCount(0)
+    await PROXY.configure({ stallMatching: null })
+    // Answered now, or cancelled by the page before: either way the page has handled it.
+    await expect.poll(async () => (await held())[0]!.endedAt).toBeGreaterThan(0)
+    await browserDone
+    await runLeftTimers(page)
+    expect(await errors()).toEqual([])
+    await expect(errorToasts(page)).toHaveCount(0)
+
+    // Back in the app's history: the experiment opens again and lists its traces.
+    await page.goBack()
+    await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+      timeout: 60_000,
+    })
+    // The trace answered after the close opens no dialog by itself.
+    await expect(traceDialog(page)).toHaveCount(0)
+  })
+
+  for (const { tab, list, nextShown } of [
+    {
+      tab: 'traces',
+      list: 'traces',
+      nextShown: (page: Page) => page.getByText('No traces found...'),
+    },
+    {
+      tab: 'evals',
+      list: 'evals',
+      nextShown: (page: Page) => page.getByText('No evals found in this experiment'),
+    },
+  ]) {
+    test(`the ${tab} read of a left experiment does not reach the next experiment's list`, async ({
+      page,
+    }) => {
+      // Only the left experiment has traces and evals, so any row in the next one is a leak.
+      const left = data.traces
+      const next = data.new
+      const listRead = `/api/experiments/${left.id}/${list}`
+      const errors = await recordErrors(page)
+      await page.clock.install()
+      await PROXY.configure({ stallMatching: `^${listRead}\\?` })
+      const held = async () =>
+        (await PROXY.requests()).filter((request) => request.path === listRead && request.stalled)
+      await open(page, `/experiments/${left.group_id}/${left.id}/${tab}`, SLOW_FLOW)
+      await expect.poll(async () => (await held()).length, { message: 'the read is held' }).toBe(1)
+
+      await page.getByRole('link', { name: 'Groups', exact: true }).click()
+      await page.waitForURL((url) => !url.pathname.includes(left.id))
+      await navigateInApp(page, `/experiments/${next.group_id}/${next.id}/${tab}`)
+      await expect(nextShown(page)).toBeVisible({ timeout: 60_000 })
+
+      const isListRead = (request: Request) => new URL(request.url()).pathname === listRead
+      const browserDone = page.waitForEvent('requestfinished', isListRead)
+      await PROXY.release()
+      await expect.poll(async () => (await held())[0]!.endedAt).toBeGreaterThan(0)
+      await browserDone
+      await runLeftTimers(page)
+      await expect(nextShown(page)).toBeVisible()
+      // An empty table has one row, for its empty message.
+      await expect(traceRows(page).getByRole('button', { name: /^trace-/ })).toHaveCount(0)
+      await expect(evalRows(page)).toHaveCount(0)
+      expect(await errors()).toEqual([])
+      await expect(errorToasts(page)).toHaveCount(0)
+    })
+  }
+})
+
+/** In the running app, as its links go: its stores keep what the left experiment put there. */
+async function navigateInApp(page: Page, path: string) {
+  await page.evaluate((target) => {
+    history.pushState(null, '', target)
+    dispatchEvent(new PopStateEvent('popstate'))
+  }, path)
+  await page.waitForURL((url) => url.pathname === path)
 }
 
 /** Another process appends to the live experiment; the refresh button shows the new points. */
