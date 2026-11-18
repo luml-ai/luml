@@ -24,6 +24,7 @@ onMounted(headerStore.loadHeader)
 <style scoped>
 .app {
   min-height: 100vh;
+  padding: 0 16px;
 }
 
 .title {

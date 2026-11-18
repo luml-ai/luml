@@ -16,15 +16,3 @@
 .p-popover::after {
   display: none;
 }
-
-:root {
-  --scrollbar-thumb-color: var(--p-surface-300);
-}
-
-[data-theme='dark'] {
-  --scrollbar-thumb-color: var(--p-surface-600);
-}
-
-* {
-  scrollbar-color: var(--scrollbar-thumb-color) transparent;
-}
