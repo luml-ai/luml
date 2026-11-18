@@ -155,7 +155,7 @@ class EvalDetailScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="eval-detail-body"):
             with Vertical(id="eval-fields-pane"):
                 yield Static("Loading eval…", id="eval-detail-header")

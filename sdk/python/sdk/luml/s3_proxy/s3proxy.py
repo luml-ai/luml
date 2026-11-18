@@ -207,14 +207,16 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
     def _resolve_file_path(self, req: S3Request) -> Path | None:
         try:
-            return self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
+            return self.get_file_path(
+                req.bucket, req.key
+            )  # ty: ignore[invalid-argument-type]
         except ValueError as e:
             self.send_error_response(400, "InvalidArgument", str(e))
             return None
 
     def check_auth(self) -> bool:
         try:
-            self.server.get_auth().validate_request(  # type: ignore[attr-defined]
+            self.server.get_auth().validate_request(  # ty: ignore[missing-attribute]
                 dict(self.headers), self.command, self.path
             )
             self.log_message("[AUTH] Authentication successful")
@@ -403,14 +405,16 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         upload_id = os.urandom(16).hex()
 
-        self.server.multipart_uploads[upload_id] = MultipartUpload(  # type: ignore[attr-defined]
-            bucket=req.bucket,  # type: ignore[arg-type]
-            key=req.key,  # type: ignore[arg-type]
+        self.server.multipart_uploads[upload_id] = (
+            MultipartUpload(  # ty: ignore[missing-attribute]
+                bucket=req.bucket,  # ty: ignore[invalid-argument-type]
+                key=req.key,  # ty: ignore[invalid-argument-type]
+            )
         )
 
         response = InitiateMultipartUploadResponse(
-            bucket=req.bucket,  # type: ignore[arg-type]
-            key=req.key,  # type: ignore[arg-type]
+            bucket=req.bucket,  # ty: ignore[invalid-argument-type]
+            key=req.key,  # ty: ignore[invalid-argument-type]
             upload_id=upload_id,
         )
         self.send_s3_response(200, response.to_xml())
@@ -419,7 +423,9 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         upload_id = req.query_params["uploadId"]
         part_number = int(req.query_params["partNumber"])
 
-        multipart_uploads = self.server.multipart_uploads  # type: ignore[attr-defined]
+        multipart_uploads = (
+            self.server.multipart_uploads
+        )  # ty: ignore[missing-attribute]
         if upload_id not in multipart_uploads:
             self.send_error_response(
                 404, "NoSuchUpload", "The specified upload does not exist"
@@ -454,7 +460,9 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
     def _handle_complete_multipart(self, req: S3Request) -> None:
         upload_id = req.query_params["uploadId"]
 
-        multipart_uploads = self.server.multipart_uploads  # type: ignore[attr-defined]
+        multipart_uploads = (
+            self.server.multipart_uploads
+        )  # ty: ignore[missing-attribute]
         if upload_id not in multipart_uploads:
             self.send_error_response(
                 404, "NoSuchUpload", "The specified upload does not exist"
@@ -492,8 +500,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         response = CompleteMultipartUploadResponse(
             location=f"/{req.bucket}/{req.key}",
-            bucket=req.bucket,  # type: ignore[arg-type]
-            key=req.key,  # type: ignore[arg-type]
+            bucket=req.bucket,  # ty: ignore[invalid-argument-type]
+            key=req.key,  # ty: ignore[invalid-argument-type]
             etag=etag,
         )
         self.send_s3_response(200, response.to_xml())
@@ -501,7 +509,9 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
     def _handle_abort_multipart(self, req: S3Request) -> None:
         upload_id = req.query_params["uploadId"]
 
-        multipart_uploads = self.server.multipart_uploads  # type: ignore[attr-defined]
+        multipart_uploads = (
+            self.server.multipart_uploads
+        )  # ty: ignore[missing-attribute]
         if upload_id not in multipart_uploads:
             self.send_error_response(
                 404, "NoSuchUpload", "The specified upload does not exist"

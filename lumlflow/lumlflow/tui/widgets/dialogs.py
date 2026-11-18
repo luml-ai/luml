@@ -176,7 +176,7 @@ class ConfirmDialog(BaseDialog[bool]):
             destructive=destructive,
         )
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         # We need to render the buttons with Cancel-first for destructive
         # confirms so the eye lands on the safe option.
         with Vertical():
@@ -224,7 +224,7 @@ class RunQuitDialog(BaseDialog[str | None]):
     confirm_label = "Quit (detach)"
     terminate_label = "Terminate"
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         with Vertical():
             yield Label(self.title_text, id="dialog-title")
             if self.message is not None:

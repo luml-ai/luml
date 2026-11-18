@@ -286,7 +286,9 @@ class SearchUtils:
         stripped = [token for token in comparison.tokens if not token.is_whitespace]
         cls._validate_comparison(stripped)
         left, comparator_token, right = stripped
-        comp = cls._get_identifier(left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS)  # type: ignore[attr-defined]
+        comp = cls._get_identifier(
+            left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS
+        )  # ty: ignore[missing-attribute]
         comp["comparator"] = comparator_token.value.upper()
         comp["value"] = cls._get_value(comp["type"], comp["key"], right)
         return comp
@@ -1049,7 +1051,7 @@ class SearchEvalsUtils(SearchUtils):
         cls.parse_search_filter(filter_string)
 
     @classmethod
-    def to_sql(cls, filter_string: str | None) -> tuple[str, list]:  # type: ignore[override]
+    def to_sql(cls, filter_string: str | None) -> tuple[str, list]:
         """Parse filter_string into a SQL WHERE clause.
 
         Returns:
@@ -1458,7 +1460,7 @@ class SearchTracesUtils(SearchUtils):
         cls.parse_search_filter(filter_string)
 
     @classmethod
-    def to_sql(cls, filter_string: str | None) -> tuple[str, list]:  # type: ignore[override]
+    def to_sql(cls, filter_string: str | None) -> tuple[str, list]:
         """Parse filter_string into a WHERE clause for the trace summary query.
 
         Returns:

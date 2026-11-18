@@ -185,7 +185,7 @@ class BucketSecretHandler:
         secret_data: BucketSecretCreateIn | BucketSecret,
     ) -> BucketSecretUrls:
         object_name = "test_file"
-        storage_service = create_storage_client(secret_data.type)(secret_data)  # type: ignore[arg-type]
+        storage_service = create_storage_client(secret_data.type)(secret_data)  # ty: ignore[invalid-argument-type]
 
         return BucketSecretUrls(
             presigned_url=await storage_service.get_upload_url(object_name),
@@ -249,7 +249,7 @@ class BucketSecretHandler:
             secret.organization_id, user_id, Resource.ARTIFACT, Action.CREATE, orbit_id
         )
 
-        storage_service = create_storage_client(secret.type)(secret)  # type: ignore[arg-type]
+        storage_service = create_storage_client(secret.type)(secret)  # ty: ignore[invalid-argument-type]
 
         return await storage_service.create_multipart_upload(
             data.bucket_location, data.size, data.upload_id

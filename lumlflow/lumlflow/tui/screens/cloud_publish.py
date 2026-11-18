@@ -292,7 +292,7 @@ class CloudPublishScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="publish-body"):
             with Vertical(id="publish-sidebar"):
                 yield Static(

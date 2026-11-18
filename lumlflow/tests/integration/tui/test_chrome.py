@@ -151,10 +151,10 @@ class TestChromeVisibleOnPushedScreens:
 
     async def test_footer_lives_on_active_screen_not_default(self) -> None:
         class _Child(BaseScreen):
-            def compose_content(self) -> Iterable:  # type: ignore[override]
+            def compose_content(self) -> Iterable:
                 yield PanelFrame(title="Child", id="child-panel")
 
-            def footer_scopes(self):  # type: ignore[override]
+            def footer_scopes(self):
                 return ("global", "list")
 
         app = LumlflowApp(show_first_run_hint=False)
@@ -178,10 +178,10 @@ class TestChromeVisibleOnPushedScreens:
 
     async def test_breadcrumb_visible_after_drill_in(self) -> None:
         class _Child(BaseScreen):
-            def compose_content(self) -> Iterable:  # type: ignore[override]
+            def compose_content(self) -> Iterable:
                 yield PanelFrame(title="Child", id="child-panel")
 
-            def breadcrumb_segments(self):  # type: ignore[override]
+            def breadcrumb_segments(self):
                 from lumlflow.tui.widgets import BreadcrumbSegment
 
                 return (BreadcrumbSegment("Groups"), BreadcrumbSegment("child"))
@@ -239,7 +239,7 @@ class TestPanelFrame:
 
     async def test_title_appears_in_border(self) -> None:
         class _S(BaseScreen):
-            def compose(self) -> Iterable:  # type: ignore[override]
+            def compose(self) -> Iterable:
                 yield PanelFrame(title="My Panel", id="p")
 
         app = LumlflowApp(show_first_run_hint=False, home_screen_factory=_S)
@@ -252,7 +252,7 @@ class TestPanelFrame:
 
     async def test_subtitle_appears_in_border(self) -> None:
         class _S(BaseScreen):
-            def compose(self) -> Iterable:  # type: ignore[override]
+            def compose(self) -> Iterable:
                 yield PanelFrame(
                     title="Groups", subtitle="3 items · sort: name ↑", id="p"
                 )
@@ -266,7 +266,7 @@ class TestPanelFrame:
 
     async def test_focused_panel_uses_accent_border(self) -> None:
         class _S(BaseScreen):
-            def compose(self) -> Iterable:  # type: ignore[override]
+            def compose(self) -> Iterable:
                 yield PanelFrame(title="P", id="p")
 
         app = LumlflowApp(show_first_run_hint=False, home_screen_factory=_S)
@@ -284,7 +284,7 @@ class TestPanelFrame:
 
     async def test_title_and_subtitle_can_be_updated_after_mount(self) -> None:
         class _S(BaseScreen):
-            def compose(self) -> Iterable:  # type: ignore[override]
+            def compose(self) -> Iterable:
                 yield PanelFrame(title="A", id="p")
 
         app = LumlflowApp(show_first_run_hint=False, home_screen_factory=_S)
@@ -306,7 +306,7 @@ class _TwoPaneScreen(BaseScreen):
     just like the production `HomeScreen`.
     """
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         with PanelFrame(title="Left", id="left-frame"):
             yield Input(placeholder="left", id="left-input")
         with PanelFrame(title="Right", id="right-frame"):
@@ -380,7 +380,7 @@ class TestBaseScreenPanelFocus:
         self,
     ) -> None:
         class _Screen(BaseScreen):
-            def compose(self) -> Iterable:  # type: ignore[override]
+            def compose(self) -> Iterable:
                 yield Input(placeholder="a", id="a")
                 yield Input(placeholder="b", id="b")
 
@@ -419,7 +419,7 @@ class TestPanelFrameNesting:
 
     async def test_nearest_panel_is_marked(self) -> None:
         class _S(BaseScreen):
-            def compose(self) -> Iterable:  # type: ignore[override]
+            def compose(self) -> Iterable:
                 with PanelFrame(title="Outer", id="outer"):
                     with Vertical():
                         with PanelFrame(title="Inner", id="inner"):

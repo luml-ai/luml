@@ -568,7 +568,7 @@ class GreptimeQueryStore:
         if status_code is None:
             status_code = 200 if status == "success" else 500
         try:
-            latency = float(attrs.get(_ATTR_LATENCY))  # type: ignore[arg-type]
+            latency = float(attrs.get(_ATTR_LATENCY, 0.0) or 0.0)
         except TypeError, ValueError:
             latency = 0.0
         return InferenceEvent(

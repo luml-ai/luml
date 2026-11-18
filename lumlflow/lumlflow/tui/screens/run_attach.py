@@ -124,7 +124,7 @@ class RunAttachScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="run-body"):
             yield Static("", id="run-meta")
             yield RunLogPane(id="run-log")

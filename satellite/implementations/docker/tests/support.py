@@ -1,4 +1,5 @@
 import asyncio
+import builtins
 from collections import defaultdict, deque
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -35,7 +36,7 @@ class FakeContainer:
         *,
         status: str = "created",
         status_after_start: str = "running",
-        logs: list[str] | None = None,
+        logs: builtins.list[str] | None = None,
     ) -> None:
         self.owner = owner
         self.name = name
@@ -44,7 +45,7 @@ class FakeContainer:
         self.status_after_start = status_after_start
         self.logs = list(logs or [])
         self.show_errors: deque[BaseException] = deque()
-        self.networks: dict[str, list[str]] = {}
+        self.networks: dict[str, builtins.list[str]] = {}
         self.start_count = 0
         self.delete_count = 0
 
@@ -90,7 +91,7 @@ class FakeContainer:
         stderr: bool = False,
         follow: bool = False,
         tail: int | None = None,
-    ) -> list[str]:
+    ) -> builtins.list[str]:
         del stdout, stderr, follow
         return self.logs if tail is None else self.logs[-tail:]
 
@@ -102,10 +103,10 @@ class FakeContainers:
     def __init__(self) -> None:
         self.containers: dict[str, FakeContainer] = {}
         self.get_effects: dict[str, deque[BaseException]] = defaultdict(deque)
-        self.created_configs: list[tuple[str, dict[str, Any]]] = []
-        self.deleted_names: list[str] = []
+        self.created_configs: builtins.list[tuple[str, dict[str, Any]]] = []
+        self.deleted_names: builtins.list[str] = []
         self.next_status_after_start = "running"
-        self.next_logs: list[str] = []
+        self.next_logs: builtins.list[str] = []
         self.active_creates = 0
         self.max_active_creates = 0
         self._unnamed = 0
@@ -116,7 +117,7 @@ class FakeContainers:
         *,
         status: str = "running",
         labels: Mapping[str, str] | None = None,
-        logs: list[str] | None = None,
+        logs: builtins.list[str] | None = None,
     ) -> FakeContainer:
         container = FakeContainer(
             self,
@@ -179,7 +180,7 @@ class FakeContainers:
         except KeyError as error:
             raise DockerError(404, "No such container") from error
 
-    async def list(self, *, all: bool = False) -> list[FakeContainer]:
+    async def list(self, *, all: bool = False) -> builtins.list[FakeContainer]:
         del all
         return list(self.containers.values())
 
@@ -201,7 +202,7 @@ class FakeVolume:
 class FakeVolumes:
     def __init__(self) -> None:
         self.volumes: dict[str, FakeVolume] = {}
-        self.deleted: list[str] = []
+        self.deleted: builtins.list[str] = []
 
     def add(self, name: str, *, in_use: bool = False) -> FakeVolume:
         volume = FakeVolume(self, name, in_use=in_use)
@@ -214,14 +215,14 @@ class FakeVolumes:
         except KeyError as error:
             raise DockerError(404, "No such volume") from error
 
-    async def list(self) -> dict[str, list[dict[str, str]]]:
+    async def list(self) -> dict[str, builtins.list[dict[str, str]]]:
         return {"Volumes": [{"Name": name} for name in self.volumes]}
 
 
 class FakeImages:
     def __init__(self) -> None:
         self.available: set[str] = {"alpine:3.22.1"}
-        self.pulled: list[str] = []
+        self.pulled: builtins.list[str] = []
 
     async def get(self, name: str) -> dict[str, str]:
         if name not in self.available:
@@ -238,7 +239,7 @@ class FakeNetwork:
         self.owner = owner
         self.name = name
         self.config = config
-        self.connected: list[dict[str, Any]] = []
+        self.connected: builtins.list[dict[str, Any]] = []
 
     async def show(self) -> dict[str, Any]:
         return dict(self.config)
@@ -258,7 +259,7 @@ class FakeNetworks:
     def __init__(self, containers: FakeContainers) -> None:
         self.containers = containers
         self.networks: dict[str, FakeNetwork] = {}
-        self.created_configs: list[dict[str, Any]] = []
+        self.created_configs: builtins.list[dict[str, Any]] = []
 
     async def get(self, name: str) -> FakeNetwork:
         try:
@@ -295,7 +296,7 @@ def agent_container(
     *,
     name: str = "agent-host",
     labels: dict[str, str] | None = None,
-    networks: dict[str, list[str]] | None = None,
+    networks: dict[str, builtins.list[str]] | None = None,
 ) -> FakeContainer:
     container = FakeContainer(fake.containers, name, {"Labels": labels or {}})
     container.networks = dict(networks or {})
@@ -359,7 +360,7 @@ def start_context(**overrides: object) -> StartContext:
         "recording_policy": RecordingPolicy(),
     }
     values.update(overrides)
-    return StartContext(**values)  # type: ignore[arg-type]
+    return StartContext(**values)
 
 
 def upstream_transport(*, healthy: bool = True) -> httpx.MockTransport:

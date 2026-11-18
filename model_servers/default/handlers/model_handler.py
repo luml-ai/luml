@@ -17,7 +17,7 @@ from fnnx.envs.conda import CondaLikeEnvManager, install_micromamba
 
 from clients.agent_client import AgentClient
 from conda_manager import ModelCondaManager
-from utils.logging import log_success  # type: ignore
+from utils.logging import log_success
 
 from .file_handler import ArtifactAccessExpired, FileHandler
 

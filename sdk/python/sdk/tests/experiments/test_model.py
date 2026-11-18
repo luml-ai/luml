@@ -439,7 +439,7 @@ class TestLogModel:
 
         mock_save = MagicMock(return_value=fake_ref)
         fake_module = ModuleType("luml.integrations.sklearn.packaging")
-        fake_module.save_sklearn = mock_save  # type: ignore[attr-defined]
+        fake_module.save_sklearn = mock_save
 
         monkeypatch.setitem(
             __import__("sys").modules,

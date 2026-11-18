@@ -302,13 +302,17 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
         self._orbit = await self._validate_orbit(orbit)
         self._collection = await self._validate_collection(collection)
 
-    async def _validate_organization(self, org_value: str | None) -> str | None:  # type: ignore[override]
+    async def _validate_organization(
+        self, org_value: str | None
+    ) -> str | None:  # ty: ignore[incompatible-method-override]
         all_organizations = await self.organizations.list()
         return self._validate_default_resource(
             org_value, all_organizations, OrganizationResourceNotFoundError
         )
 
-    async def _validate_orbit(self, orbit_value: str | None) -> str | None:  # type: ignore[override]
+    async def _validate_orbit(
+        self, orbit_value: str | None
+    ) -> str | None:  # ty: ignore[incompatible-method-override]
         if not orbit_value and not self._organization:
             return None
 
@@ -348,7 +352,9 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
                 )
         return None
 
-    async def _validate_collection(self, collection_value: str | None) -> str | None:  # type: ignore[override]
+    async def _validate_collection(
+        self, collection_value: str | None
+    ) -> str | None:  # ty: ignore[incompatible-method-override]
         if not collection_value and (not self._organization or not self._orbit):
             return None
 
@@ -385,77 +391,97 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
         )
 
     @cached_property
-    def organizations(self) -> "AsyncOrganizationResource":
+    def organizations(
+        self,
+    ) -> "AsyncOrganizationResource":  # ty: ignore[incompatible-mutable-override]
         """Organizations interface."""
         from luml_api.resources.organizations import AsyncOrganizationResource
 
         return AsyncOrganizationResource(self)
 
     @cached_property
-    def bucket_secrets(self) -> "AsyncBucketSecretResource":
+    def bucket_secrets(
+        self,
+    ) -> "AsyncBucketSecretResource":  # ty: ignore[incompatible-mutable-override]
         """Bucket Secrets interface."""
         from luml_api.resources.bucket_secrets import AsyncBucketSecretResource
 
         return AsyncBucketSecretResource(self)
 
     @cached_property
-    def orbits(self) -> "AsyncOrbitResource":
+    def orbits(
+        self,
+    ) -> "AsyncOrbitResource":  # ty: ignore[incompatible-mutable-override]
         """Orbits interface."""
         from luml_api.resources.orbits import AsyncOrbitResource
 
         return AsyncOrbitResource(self)
 
     @cached_property
-    def collections(self) -> "AsyncCollectionResource":
+    def collections(
+        self,
+    ) -> "AsyncCollectionResource":  # ty: ignore[incompatible-mutable-override]
         """Collections interface."""
         from luml_api.resources.collections import AsyncCollectionResource
 
         return AsyncCollectionResource(self)
 
     @cached_property
-    def artifacts(self) -> "AsyncArtifactResource":
+    def artifacts(
+        self,
+    ) -> "AsyncArtifactResource":  # ty: ignore[incompatible-mutable-override]
         """Artifacts interface."""
         from luml_api.resources.artifacts import AsyncArtifactResource
 
         return AsyncArtifactResource(self)
 
     @cached_property
-    def tracks(self) -> "AsyncTrackResource":
+    def tracks(
+        self,
+    ) -> "AsyncTrackResource":  # ty: ignore[incompatible-mutable-override]
         """Tracks interface."""
         from luml_api.resources.tracks import AsyncTrackResource
 
         return AsyncTrackResource(self)
 
     @cached_property
-    def deployments(self) -> "AsyncDeploymentResource":
+    def deployments(
+        self,
+    ) -> "AsyncDeploymentResource":  # ty: ignore[incompatible-mutable-override]
         """Deployments and their monitoring."""
         from luml_api.resources.deployments import AsyncDeploymentResource
 
         return AsyncDeploymentResource(self)
 
     @cached_property
-    def satellites(self) -> "AsyncSatelliteResource":
+    def satellites(
+        self,
+    ) -> "AsyncSatelliteResource":  # ty: ignore[incompatible-mutable-override]
         """Satellites and their advertised operations."""
         from luml_api.resources.satellites import AsyncSatelliteResource
 
         return AsyncSatelliteResource(self)
 
     @cached_property
-    def live_sessions(self) -> "AsyncLiveSessionResource":
+    def live_sessions(
+        self,
+    ) -> "AsyncLiveSessionResource":  # ty: ignore[incompatible-mutable-override]
         """Live sessions exposed through a relay."""
         from luml_api.resources.live_sessions import AsyncLiveSessionResource
 
         return AsyncLiveSessionResource(self)
 
     @cached_property
-    def flows(self) -> "AsyncFlowResource":
+    def flows(self) -> "AsyncFlowResource":  # ty: ignore[incompatible-mutable-override]
         """Flows on the orbit's Flow page, each served through a live session."""
         from luml_api.resources.flows import AsyncFlowResource
 
         return AsyncFlowResource(self)
 
     @cached_property
-    def relays(self) -> "AsyncRelayResource":
+    def relays(
+        self,
+    ) -> "AsyncRelayResource":  # ty: ignore[incompatible-mutable-override]
         """Relays that serve live sessions."""
         from luml_api.resources.relays import AsyncRelayResource
 
@@ -632,77 +658,91 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         )
 
     @cached_property
-    def organizations(self) -> "OrganizationResource":
+    def organizations(
+        self,
+    ) -> "OrganizationResource":  # ty: ignore[incompatible-mutable-override]
         """Organizations interface."""
         from luml_api.resources.organizations import OrganizationResource
 
         return OrganizationResource(self)
 
     @cached_property
-    def bucket_secrets(self) -> "BucketSecretResource":
+    def bucket_secrets(
+        self,
+    ) -> "BucketSecretResource":  # ty: ignore[incompatible-mutable-override]
         """Bucket Secrets interface."""
         from luml_api.resources.bucket_secrets import BucketSecretResource
 
         return BucketSecretResource(self)
 
     @cached_property
-    def orbits(self) -> "OrbitResource":
+    def orbits(self) -> "OrbitResource":  # ty: ignore[incompatible-mutable-override]
         """Orbits interface."""
         from luml_api.resources.orbits import OrbitResource
 
         return OrbitResource(self)
 
     @cached_property
-    def collections(self) -> "CollectionResource":
+    def collections(
+        self,
+    ) -> "CollectionResource":  # ty: ignore[incompatible-mutable-override]
         """Collections interface."""
         from luml_api.resources.collections import CollectionResource
 
         return CollectionResource(self)
 
     @cached_property
-    def artifacts(self) -> "ArtifactResource":
+    def artifacts(
+        self,
+    ) -> "ArtifactResource":  # ty: ignore[incompatible-mutable-override]
         """Artifacts interface."""
         from luml_api.resources.artifacts import ArtifactResource
 
         return ArtifactResource(self)
 
     @cached_property
-    def tracks(self) -> "TrackResource":
+    def tracks(self) -> "TrackResource":  # ty: ignore[incompatible-mutable-override]
         """Tracks interface."""
         from luml_api.resources.tracks import TrackResource
 
         return TrackResource(self)
 
     @cached_property
-    def deployments(self) -> "DeploymentResource":
+    def deployments(
+        self,
+    ) -> "DeploymentResource":  # ty: ignore[incompatible-mutable-override]
         """Deployments and their monitoring."""
         from luml_api.resources.deployments import DeploymentResource
 
         return DeploymentResource(self)
 
     @cached_property
-    def satellites(self) -> "SatelliteResource":
+    def satellites(
+        self,
+    ) -> "SatelliteResource":  # ty: ignore[incompatible-mutable-override]
         """Satellites and their advertised operations."""
         from luml_api.resources.satellites import SatelliteResource
 
         return SatelliteResource(self)
 
     @cached_property
-    def live_sessions(self) -> "LiveSessionResource":
+    def live_sessions(
+        self,
+    ) -> "LiveSessionResource":  # ty: ignore[incompatible-mutable-override]
         """Live sessions exposed through a relay."""
         from luml_api.resources.live_sessions import LiveSessionResource
 
         return LiveSessionResource(self)
 
     @cached_property
-    def flows(self) -> "FlowResource":
+    def flows(self) -> "FlowResource":  # ty: ignore[incompatible-mutable-override]
         """Flows on the orbit's Flow page, each served through a live session."""
         from luml_api.resources.flows import FlowResource
 
         return FlowResource(self)
 
     @cached_property
-    def relays(self) -> "RelayResource":
+    def relays(self) -> "RelayResource":  # ty: ignore[incompatible-mutable-override]
         """Relays that serve live sessions."""
         from luml_api.resources.relays import RelayResource
 

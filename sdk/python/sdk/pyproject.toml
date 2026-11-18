@@ -56,7 +56,7 @@ dev = [
     "langchain-openai>=1.1.7",
     "langgraph>=1.0.7",
     "matplotlib>=3.10.8",
-    "mypy==1.15.0",
+    "ty==0.0.104",
     "pydoc-markdown>=4.8.2",
     "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
@@ -139,3 +139,9 @@ combine-as-imports = true
 force-wrap-aliases = true
 known-first-party = ["luml"]
 split-on-trailing-comma = true
+
+[tool.ty.src]
+include = ["luml"]
+
+[tool.ty.terminal]
+error-on-warning = true

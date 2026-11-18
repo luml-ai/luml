@@ -2,11 +2,11 @@ import os
 import tempfile
 from typing import Any, Literal, Union
 
-import catboost as ctb  # type: ignore[import-untyped]
+import catboost as ctb
 import numpy as np
 import pandas as pd
-from catboost import CatBoost  # type: ignore[import-untyped]
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from catboost import CatBoost
+from fnnx.extras.builder import PyfuncBuilder
 from pydantic import BaseModel
 
 from luml._constants import FNNX_PRODUCER_NAME

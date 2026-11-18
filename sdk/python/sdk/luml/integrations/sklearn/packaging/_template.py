@@ -3,8 +3,8 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
-from fnnx.utils import to_thread  # type: ignore[import-not-found, import-untyped]
-from fnnx.variants.pyfunc import (  # type: ignore[import-not-found, import-untyped]
+from fnnx.utils import to_thread
+from fnnx.variants.pyfunc import (
     PyFunc,
 )
 
@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 
 class SKlearnPyFunc(PyFunc):
     def warmup(self) -> None:
-        import numpy as np  # type: ignore[import-not-found]
-        from cloudpickle import load  # type: ignore[import-not-found, import-untyped]
+        import numpy as np
+        from cloudpickle import load
 
         self.np = np
         pickled_estimator_path = self.fnnx_context.get_filepath("estimator.pkl")
@@ -66,7 +66,7 @@ class SKlearnPyFunc(PyFunc):
         Stacking mixed columns into one array upcasts everything to strings, and a
         ColumnTransformer selecting columns by name cannot work on an array at all.
         """
-        import pandas as pd  # type: ignore[import-not-found]
+        import pandas as pd
 
         dtypes: dict[str, type[float] | type[int] | type[object]] = {
             "float": float,

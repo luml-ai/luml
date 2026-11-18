@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import cast
@@ -41,7 +41,7 @@ def mock_collaborators[H](handler: H) -> CollaboratorMocks[H]:
     transaction_errors: list[BaseException] = []
 
     @asynccontextmanager
-    async def transaction() -> AsyncIterator[AsyncSession]:
+    async def transaction() -> AsyncGenerator[AsyncSession]:
         try:
             yield session
         except BaseException as error:

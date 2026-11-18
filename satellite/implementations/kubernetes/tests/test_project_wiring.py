@@ -17,7 +17,8 @@ def test_project_uses_the_kit_and_async_kubernetes_client() -> None:
         "path": "../../kit",
         "editable": True,
     }
-    assert project["tool"]["mypy"]["strict"] is True
+    assert project["tool"]["ty"]["src"]["include"] == ["luml_satellite_kubernetes", "tests", "e2e"]
+    assert project["tool"]["ty"]["terminal"]["error-on-warning"] is True
     assert project["tool"]["ruff"]["target-version"] == "py314"
 
 

@@ -4,8 +4,8 @@ from collections.abc import Callable, Sequence
 from typing import Any, Literal, cast
 from warnings import warn
 
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
-from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
+from fnnx.extras.builder import PyfuncBuilder
+from fnnx.extras.pydantic_models.manifest import (
     JSON,
     Var,
 )
@@ -47,9 +47,11 @@ def _build_schemas(graph: Pregel) -> tuple[type[BaseModel], type[BaseModel]]:
 
     context_schema = graph.get_context_jsonschema()
     if context_schema is not None:
-        input_fields["context"] = (context_schema, ...)  # type: ignore
+        input_fields["context"] = (context_schema, ...)
 
-    input_schema = create_model("InputModel", __base__=BaseModel, **input_fields)  # type: ignore
+    input_schema = create_model(
+        "InputModel", __base__=BaseModel, **input_fields
+    )  # ty: ignore[no-matching-overload]
 
     output_schema = create_model(
         "OutputModel",
@@ -205,7 +207,7 @@ def save_langgraph(  # noqa: C901
             raise TypeError("Callable did not return a Pregel instance")
 
     if graph_creator_callable:
-        import cloudpickle  # type: ignore[import-untyped]
+        import cloudpickle
 
         with tempfile.NamedTemporaryFile(
             "wb",

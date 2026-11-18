@@ -184,7 +184,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_exception_handler(
-        ApplicationError, _handle_app_error,  # type: ignore[arg-type]
+        ApplicationError, _handle_app_error,  # ty: ignore[invalid-argument-type]
     )
     app.include_router(aggregate_router())
     return app

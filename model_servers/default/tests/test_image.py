@@ -133,7 +133,7 @@ def test_default_command_starts_offline_without_installing_dev_dependencies(
     probe.write_text(
         "from importlib.util import find_spec\n"
         "import httpx, uvicorn\n"
-        "assert all(find_spec(name) is None for name in ('mypy', 'pytest', 'ruff'))\n"
+        "assert all(find_spec(name) is None for name in ('ty', 'pytest', 'ruff'))\n"
         "print('started')\n"
     )
 

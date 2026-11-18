@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
@@ -77,7 +78,7 @@ class OrbitOrm(TimestampMixin, Base):
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    collections: Mapped[list[CollectionOrm]] = relationship(  # noqa: F821
+    collections: Mapped[list[CollectionOrm]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
@@ -89,7 +90,7 @@ class OrbitOrm(TimestampMixin, Base):
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    deployments: Mapped[list[DeploymentOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    deployments: Mapped[list[DeploymentOrm]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
@@ -150,3 +151,7 @@ class OrbitOrm(TimestampMixin, Base):
     @classmethod
     def to_orbits_list(cls, orbits: Sequence[OrbitOrm]) -> list[Orbit]:
         return [Orbit.model_validate(orbit) for orbit in orbits]
+
+
+if TYPE_CHECKING:
+    from luml.models.deployment import DeploymentOrm

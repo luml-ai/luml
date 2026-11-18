@@ -6,7 +6,7 @@ import re
 import stat
 import sys
 import textwrap
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -143,7 +143,7 @@ def fake_venv(root: Path) -> Path:
 @contextlib.asynccontextmanager
 async def flow_kernel(
     root: Path, *, flow: str = "churn", on_event: OnEvent | None = None
-) -> AsyncIterator[KernelProcess]:
+) -> AsyncGenerator[KernelProcess]:
     flow_dir = root / f"{flow}{FLOW_SUFFIX}"
     if not store_dir(flow_dir).is_dir():
         FlowStore.init(flow_dir).close()
@@ -175,7 +175,7 @@ def run_request(
         version_id="01J000000000000000000000VE",
         source=textwrap.dedent(source).strip() + "\n",
         produces={
-            name: OutputSpec(type=spec)  # type: ignore[arg-type]
+            name: OutputSpec(type=spec)
             for name, spec in (produces or {"summary": "asset"}).items()
         },
         params=dict(params or {}),
@@ -204,7 +204,7 @@ class LocalDaemon:
 @contextlib.asynccontextmanager
 async def daemon_api(
     root: Path, *, tracker: TrackerProvider | None = None
-) -> AsyncIterator[Api]:
+) -> AsyncGenerator[Api]:
     hub = Hub(tracker=tracker)
     try:
         yield Api(hub, directory=root)

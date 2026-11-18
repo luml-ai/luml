@@ -215,7 +215,7 @@ class TestLockfile:
             nonlocal reads
             if self.name == envs.LOCK_FILE:
                 reads += 1
-            return original(self, *args, **kwargs)  # type: ignore[arg-type]
+            return original(self, *args, **kwargs)
 
         with patch.object(Path, "read_text", counted):
             for _ in range(10):

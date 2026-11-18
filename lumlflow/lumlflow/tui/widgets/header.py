@@ -99,7 +99,7 @@ class StatusHeader(Horizontal):
         self._store_indicator = _StatusIndicator("", id="status-store")
         self._spinner_index = 0
 
-    def compose(self):  # type: ignore[override]
+    def compose(self):
         yield self._title
         yield self._breadcrumb
         yield self._loading_indicator

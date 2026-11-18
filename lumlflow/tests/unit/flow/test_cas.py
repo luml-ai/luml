@@ -76,7 +76,7 @@ class TestPutFile:
 
         def recording_replace(source: object, target: object) -> None:
             order.append("replace")
-            real_replace(source, target)  # type: ignore[arg-type]
+            real_replace(source, target)
 
         monkeypatch.setattr(os, "fsync", recording_fsync)
         monkeypatch.setattr(os, "replace", recording_replace)

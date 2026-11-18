@@ -277,7 +277,7 @@ class ComparisonScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         # A scrollable body: on short terminals the stacked cards used
         # to clip silently inside a plain Container — now they scroll,
         # and the j/k/g/G bindings below have a real target.

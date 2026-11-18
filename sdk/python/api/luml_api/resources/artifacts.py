@@ -319,7 +319,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         return find_by_value(
             list(self.list_all(collection_id=collection_id, search=name)),
             name,
-            condition=lambda m: m.name == name or m.file_name == name,
+            condition=lambda m: m is not None
+            and (m.name == name or m.file_name == name),
         )
 
     def _get_by_name(self, collection_id: str | None, name: str) -> Artifact | None:
@@ -1582,7 +1583,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 )
             ],
             name,
-            condition=lambda m: m.name == name or m.file_name == name,
+            condition=lambda m: m is not None
+            and (m.name == name or m.file_name == name),
         )
 
     async def _get_by_name(

@@ -31,7 +31,7 @@ try:
     try:
         import numpy as np
     except ImportError:
-        np = None  # type: ignore[assignment]
+        np = None
 
     from fnnx.device import DeviceMap
     from fnnx.handlers.local import LocalHandlerConfig
@@ -136,7 +136,7 @@ try:
                     body = text
                 else:
                     try:
-                        raw = response.json()  # type: ignore[union-attr]
+                        raw = response.json()
                         body = json.dumps(raw)
                     except Exception:
                         body = None

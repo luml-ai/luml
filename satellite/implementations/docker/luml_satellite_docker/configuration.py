@@ -3,7 +3,7 @@ from pydantic import Field
 
 
 class DockerConfiguration(SatelliteConfiguration):
-    BASE_URL: str = "http://localhost"
+    BASE_URL: str = "http://localhost"  # ty: ignore[incompatible-mutable-override]
     MODEL_IMAGE: str = "luml-random-svc:latest"
     MODEL_SERVER_PORT: int = Field(default=8080, ge=1, le=65535)
     DOCKER_NETWORK_NAME: str = ""

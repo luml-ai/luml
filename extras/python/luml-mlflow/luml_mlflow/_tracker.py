@@ -1,18 +1,19 @@
 import json
 import sqlite3
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from luml.experiments.backends.sqlite import SQLiteBackend
 from luml.experiments.tracker import ExperimentTracker
 
 from luml_mlflow.config import get_settings
 
 
-def _wrap_public_methods_with_lock(cls: type) -> type:
+def _wrap_public_methods_with_lock[T: type](cls: T) -> T:
     parent = cls.__bases__[0]
     for name in list(vars(parent)):
         if name.startswith("_"):
@@ -24,7 +25,7 @@ def _wrap_public_methods_with_lock(cls: type) -> type:
         def _make_locked(method_name: str) -> Callable[..., Any]:
             def locked(self: Any, *args: Any, **kwargs: Any) -> Any:
                 with self._lock:
-                    return getattr(super(cls, self), method_name)(*args, **kwargs)
+                    return getattr(super(cls, self), method_name)(*args, **kwargs)  # ty: ignore[invalid-super-argument]
 
             locked.__name__ = method_name
             locked.__qualname__ = f"{cls.__name__}.{method_name}"
@@ -42,9 +43,11 @@ class ThreadSafeTracker(ExperimentTracker):
 
 
 @contextmanager
-def store_connection(tracker: ThreadSafeTracker) -> Iterator[sqlite3.Connection]:
+def store_connection(tracker: ThreadSafeTracker) -> Generator[sqlite3.Connection]:
     """Serialize plugin writes in a transaction shared across processes."""
-    conn = sqlite3.connect(tracker.backend.meta_db_path, timeout=30)
+    conn = sqlite3.connect(
+        cast(SQLiteBackend, tracker.backend).meta_db_path, timeout=30
+    )
     try:
         with conn:
             conn.execute("BEGIN IMMEDIATE")

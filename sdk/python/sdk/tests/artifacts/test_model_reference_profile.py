@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import pytest
 from numpy.typing import NDArray
-from sklearn.linear_model import LinearRegression  # type: ignore[import-untyped]
+from sklearn.linear_model import LinearRegression
 
 from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn import save_sklearn

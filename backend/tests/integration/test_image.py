@@ -57,7 +57,7 @@ for package in ('build-essential', 'libffi-dev', 'libssl-dev'):
     result = subprocess.run(['dpkg-query', '-W', '-f=${Status}', package],
                             capture_output=True, text=True)
     assert result.stdout.strip() != 'install ok installed'
-for name in ('mypy', 'pytest', 'ruff'):
+for name in ('ty', 'pytest', 'ruff'):
     assert importlib.util.find_spec(name) is None
 assert Path('/app/luml/server.py').is_file()
 assert Path('/app/migrations/env.py').is_file()

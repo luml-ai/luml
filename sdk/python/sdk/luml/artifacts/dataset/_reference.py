@@ -9,7 +9,9 @@ from luml.card.builder import CardBuilder
 
 
 class DatasetReference(DiskReference):
-    def get_manifest(self) -> DatasetArtifactManifest:  # type: ignore[override]
+    def get_manifest(
+        self,
+    ) -> DatasetArtifactManifest:  # ty: ignore[incompatible-method-override]
         raw = super().get_manifest()
         return DatasetArtifactManifest.model_validate(raw)
 

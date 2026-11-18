@@ -28,7 +28,7 @@ class CreateUser(_UserBase): ...
 
 
 class User(_UserBase, BaseOrmConfig):
-    id: UUID
+    id: UUID  # ty: ignore[incompatible-mutable-override]
 
 
 class UserOut(BaseModel, BaseOrmConfig):

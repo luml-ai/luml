@@ -31,5 +31,7 @@ class HFDatasetPayload(BaseModel):
 
 
 class DatasetArtifactManifest(ArtifactManifest):
-    variant: Literal["tabular", "hf"]
-    payload: TabularDatasetPayload | HFDatasetPayload
+    variant: Literal["tabular", "hf"]  # ty: ignore[incompatible-mutable-override]
+    payload: (
+        TabularDatasetPayload | HFDatasetPayload
+    )  # ty: ignore[incompatible-mutable-override]

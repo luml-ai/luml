@@ -296,7 +296,7 @@ class TrackResource(TrackResourceBase, ListedResource):
         return find_by_value(
             list(self._auto_paginate(self.list, search=name)),
             name,
-            condition=lambda t: t.name == name,
+            condition=lambda t: t is not None and t.name == name,
         )
 
     @validate_orbit
@@ -1004,7 +1004,7 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
                 async for track in self._auto_paginate_async(self.list, search=name)
             ],
             name,
-            condition=lambda t: t.name == name,
+            condition=lambda t: t is not None and t.name == name,
         )
 
     @validate_orbit

@@ -1574,7 +1574,7 @@ class TestSearchUtilsBaseExtras:
 
     def test_base_get_value_not_implemented(self) -> None:
         with pytest.raises(NotImplementedError):
-            SearchUtils._get_value("attribute", "k", None)  # type: ignore[arg-type]
+            SearchUtils._get_value("attribute", "k", None)
 
     def test_base_parse_search_filter_empty_returns_empty(self) -> None:
         assert SearchUtils.parse_search_filter(None) == []
@@ -1665,11 +1665,11 @@ class TestSearchUtilsBaseGetComparison:
             VALID_SEARCH_ATTRIBUTE_KEYS: set = {"name"}
 
             @classmethod
-            def _get_identifier(cls, raw: str, valid: set) -> dict:  # type: ignore[override]
+            def _get_identifier(cls, raw: str, valid: set) -> dict:
                 return {"type": "attribute", "key": raw.strip()}
 
             @classmethod
-            def _get_value(cls, identifier_type: str, key: str, token: Any) -> str:  # type: ignore[override]  # noqa: ANN401
+            def _get_value(cls, identifier_type: str, key: str, token: Any) -> str:  # noqa: ANN401
                 return token.value.strip("'\"")
 
         parsed = sqlparse.parse('name = "bert"')
