@@ -642,7 +642,9 @@ class TestMetricOverlay:
             fresh: dict[str, MetricSeries | None] = {}
             replies = iter([stale, fresh])
 
-            def blocking_load(*_args: object) -> dict[str, MetricSeries | None]:
+            def blocking_load(
+                *_args: object, **_kwargs: object
+            ) -> dict[str, MetricSeries | None]:
                 reply = next(replies)
                 if reply is stale:
                     first_started.set()
@@ -931,7 +933,7 @@ class TestBodyScrolling:
 
 class TestLoaderLifetime:
     @pytest.mark.parametrize(
-        ("leave", "expected_reads"), [("discard", 6), ("quit", 6), ("back", 9)]
+        ("leave", "expected_reads"), [("discard", 1), ("quit", 1), ("back", 9)]
     )
     async def test_loader_stops_once_screen_is_discarded(
         self,
@@ -1016,3 +1018,140 @@ class TestLoaderLifetime:
                         break
                     await pilot.pause(0.01)
                 assert set(screen._metric_series) == expected
+
+
+class TestSupersededLoader:
+    """A metric switch cancels the initial loader (same exclusive group), but
+    that loader is the only one that reads the evals."""
+
+    @pytest.fixture
+    def experiments(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> list[ExperimentDetails]:
+        return [
+            _fetch_details(
+                facade,
+                _seed_experiment(
+                    tracker,
+                    name=f"exp-{index}",
+                    metric_series={"loss": [(0, 1.0)], "acc": [(0, 0.5)]},
+                    evals=[("e-1", "ds-1", {}, {}, {}, {"accuracy": 0.5})],
+                ),
+            )
+            for index in range(3)
+        ]
+
+    @staticmethod
+    def _block_first_read(
+        facade: DataFacade, monkeypatch: pytest.MonkeyPatch
+    ) -> tuple[list[str], threading.Event, threading.Event]:
+        reads: list[str] = []
+        started = threading.Event()
+        release = threading.Event()
+        for read_name in (
+            "get_metric_catalog",
+            "get_metric_buckets",
+            "get_eval_dataset_ids",
+        ):
+            read = getattr(facade, read_name)
+
+            def recorded(*args, _read=read, _name=read_name, **kwargs):
+                reads.append(_name)
+                if len(reads) == 1:
+                    started.set()
+                    assert release.wait(10), "loader was never released"
+                return _read(*args, **kwargs)
+
+            monkeypatch.setattr(facade, read_name, recorded)
+        return reads, started, release
+
+    @staticmethod
+    def _count_finished_workers(
+        screen: ComparisonScreen, monkeypatch: pytest.MonkeyPatch
+    ) -> threading.Semaphore:
+        # Thread workers keep running after cancellation, so `worker.wait()`
+        # returns before they stop: count the threads that really returned.
+        finished = threading.Semaphore(0)
+        run_worker = screen.run_worker
+
+        def observe_worker(work, *args, **kwargs):
+            def observed():
+                try:
+                    return work()
+                finally:
+                    finished.release()
+
+            return run_worker(observed, *args, **kwargs)
+
+        monkeypatch.setattr(screen, "run_worker", observe_worker)
+        return finished
+
+    async def test_a_metric_switch_still_loads_the_evals_once(
+        self,
+        facade: DataFacade,
+        experiments: list[ExperimentDetails],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        reads, started, release = self._block_first_read(facade, monkeypatch)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = ComparisonScreen(facade=facade, experiments=experiments)
+            finished = self._count_finished_workers(screen, monkeypatch)
+            dataset_results: list[str] = []
+            on_dataset_ids = screen._on_dataset_ids_result
+
+            def record_dataset_ids(experiment_id: str, dataset_ids: list[str]) -> None:
+                dataset_results.append(experiment_id)
+                on_dataset_ids(experiment_id, dataset_ids)
+
+            monkeypatch.setattr(screen, "_on_dataset_ids_result", record_dataset_ids)
+            await app.push_screen(screen)
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                screen._selected_metric = "acc"
+                screen._refresh_metric_chart()
+                assert await asyncio.to_thread(finished.acquire, timeout=10)
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.acquire, timeout=10)
+            await settle_workers(pilot)
+
+            # The superseded loader read one catalog and then stopped its
+            # series reads; the switch read 3 catalogs and 3 bucket sets.
+            assert reads.count("get_metric_catalog") == 4
+            assert reads.count("get_metric_buckets") == 3
+            assert reads.count("get_eval_dataset_ids") == 3
+            assert sorted(dataset_results) == sorted(exp.id for exp in experiments)
+            assert {
+                eid: series.key if series else None
+                for eid, series in screen._metric_series.items()
+            } == {exp.id: "acc" for exp in experiments}
+
+    async def test_a_discarded_screen_reads_no_evals(
+        self,
+        facade: DataFacade,
+        experiments: list[ExperimentDetails],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        reads, started, release = self._block_first_read(facade, monkeypatch)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = ComparisonScreen(facade=facade, experiments=experiments)
+            finished = self._count_finished_workers(screen, monkeypatch)
+            await app.push_screen(screen)
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                screen._selected_metric = "acc"
+                screen._refresh_metric_chart()
+                assert await asyncio.to_thread(finished.acquire, timeout=10)
+                app._jump_home()
+                await pilot.pause()
+                assert not screen.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.acquire, timeout=10)
+
+            assert reads.count("get_metric_catalog") == 4
+            assert reads.count("get_eval_dataset_ids") == 0

@@ -27,6 +27,7 @@ from textual import work
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import DataTable, ListItem, ListView, Static
+from textual.worker import get_current_worker
 from textual_plotext import PlotextPlot
 
 from lumlflow.schemas.experiments import (
@@ -543,7 +544,12 @@ class ComparisonScreen(BaseScreen):
 
     def _load_series(self, facade: DataFacade, key: str, max_points: int) -> bool:
         ids = [exp.id for exp in self._experiments]
-        series = load_comparison_series(facade, ids, key, max_points)
+        worker = get_current_worker()
+        series = load_comparison_series(
+            facade, ids, key, max_points, is_cancelled=lambda: worker.is_cancelled
+        )
+        if series is None:
+            return False
         return post_from_worker(self, self._on_series_result, key, series)
 
     @work(thread=True, exclusive=True, group="cmp-data")
@@ -563,8 +569,12 @@ class ComparisonScreen(BaseScreen):
         if facade is None:
             return
         key = self._selected_metric
+        # A metric switch cancels this worker as well (same group), yet only
+        # this worker loads the evals: stop only once the screen itself has
+        # stopped. Textual clears `is_running` before unmount cancels workers.
         if key is not None:
-            if not self._load_series(facade, key, self._chart_max_points()):
+            loaded = self._load_series(facade, key, self._chart_max_points())
+            if not loaded and not self.is_running:
                 return
         # Eval scores follow the histories so the metric chart fills
         # in first (most likely to be visible above the fold).

@@ -140,7 +140,10 @@ def test_load_comparison_series_marks_unknown_experiments_unreadable(
     log_points(tracker, with_key, "m", [(0, 1.0), (1, 3.0)])
     log_points(tracker, without_key, "other", [(0, 1.0)])
 
-    loaded = load_comparison_series(facade, [with_key, without_key, "gone"], "m", 50)
+    loaded = load_comparison_series(
+        facade, [with_key, without_key, "gone"], "m", 50, is_cancelled=lambda: False
+    )
+    assert loaded is not None
 
     assert loaded["gone"] is None
     assert loaded[without_key] == MetricSeries(key="m", level=0, summary=None)
@@ -150,3 +153,41 @@ def test_load_comparison_series_marks_unknown_experiments_unreadable(
         key="m", first_step=0, last_step=1, count=2, min=1.0, max=3.0
     )
     assert bucket_averages(plotted) == ([0.0, 1.0], [1.0, 3.0])
+
+
+@pytest.mark.parametrize(
+    ("checks_before_cancel", "expected_reads"),
+    [(1, ["catalog"]), (2, ["catalog", "catalog"])],
+)
+def test_a_cancelled_comparison_load_stops_reading_and_returns_nothing(
+    tracker: ExperimentTracker,
+    monkeypatch: pytest.MonkeyPatch,
+    checks_before_cancel: int,
+    expected_reads: list[str],
+) -> None:
+    facade = DataFacade(tracker=tracker)
+    first = tracker.start_experiment(name="first")
+    log_points(tracker, first, "m", [(0, 1.0)])
+    reads: list[str] = []
+    for name, read in (
+        ("catalog", facade.get_metric_catalog),
+        ("buckets", facade.get_metric_buckets),
+    ):
+
+        def recorded(*args, _read=read, _name=name, **kwargs):
+            reads.append(_name)
+            return _read(*args, **kwargs)
+
+        monkeypatch.setattr(facade, f"get_metric_{name}", recorded)
+    checks: list[None] = []
+
+    def is_cancelled() -> bool:
+        checks.append(None)
+        return len(checks) > checks_before_cancel
+
+    loaded = load_comparison_series(
+        facade, [first, "gone"], "m", 50, is_cancelled=is_cancelled
+    )
+
+    assert loaded is None
+    assert reads == expected_reads

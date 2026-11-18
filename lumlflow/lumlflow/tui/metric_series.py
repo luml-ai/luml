@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from luml.experiments.backends.metric_store import choose_bucket_level
@@ -123,14 +124,22 @@ def load_changed_series(
 
 
 def load_comparison_series(
-    facade: DataFacade, experiment_ids: list[str], key: str, max_buckets: int
-) -> dict[str, MetricSeries | None]:
+    facade: DataFacade,
+    experiment_ids: list[str],
+    key: str,
+    max_buckets: int,
+    *,
+    is_cancelled: Callable[[], bool],
+) -> dict[str, MetricSeries | None] | None:
     """One series per experiment (None when it could not be read), all at the
     level chosen for the union of their step ranges so bucket boundaries line
-    up across the compared experiments."""
+    up across the compared experiments. Returns None, without reading further,
+    once `is_cancelled` is true, so a partial set is never plotted."""
     summaries: dict[str, MetricSummary | None] = {}
     result: dict[str, MetricSeries | None] = {}
     for experiment_id in experiment_ids:
+        if is_cancelled():
+            return None
         catalog = facade.get_metric_catalog(experiment_id)
         if not catalog.ok or catalog.value is None:
             result[experiment_id] = None
@@ -151,6 +160,8 @@ def load_comparison_series(
         if summary is None:
             result[experiment_id] = MetricSeries(key=key, level=level, summary=None)
             continue
+        if is_cancelled():
+            return None
         buckets = facade.get_metric_buckets(
             experiment_id,
             [key],
