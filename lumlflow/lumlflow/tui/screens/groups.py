@@ -30,6 +30,8 @@ from lumlflow.schemas.experiment_groups import (
     GroupsSortBy,
     UpdateGroup,
 )
+from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.live_refresh import post_from_worker
@@ -252,15 +254,7 @@ class GroupsScreen(BaseScreen):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        app = self.app
-        # Only return the app's facade if one has already been
-        # constructed — accessing the lazy `app.facade` property would
-        # otherwise build a default `DataFacade()` (which touches the
-        # default tracker / filesystem) during chrome-only tests.
-        prebuilt = getattr(app, "_facade", None)
-        return prebuilt
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -298,9 +292,7 @@ class GroupsScreen(BaseScreen):
     def _fetch_page(self, *, reset: bool) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(
-                self._on_page_failure, "facade unavailable", reset
-            )
+            post_worker_result(self, self._on_page_failure, "facade unavailable", reset)
             return
         try:
             sort_by = GroupsSortBy(self._sort_by)
@@ -317,7 +309,7 @@ class GroupsScreen(BaseScreen):
             order=order,
             search=self._search,
         )
-        self.app.call_from_thread(self._on_page_result, result, reset)
+        post_worker_result(self, self._on_page_result, result, reset)
 
     def _on_page_result(self, result: Result[Any], reset: bool) -> None:
         self._set_loading(False)
@@ -720,7 +712,7 @@ class GroupsScreen(BaseScreen):
         if facade is None:
             return
         result = facade.update_group(group_id, body)
-        self.app.call_from_thread(self._on_update_result, result, group_id)
+        post_worker_result(self, self._on_update_result, result, group_id)
 
     def _on_update_result(self, result: Result[Any], group_id: str) -> None:
         if not result.ok:
@@ -775,7 +767,7 @@ class GroupsScreen(BaseScreen):
         if facade is None:
             return
         result = facade.delete_group(group_id)
-        self.app.call_from_thread(self._on_delete_result, result, group_id)
+        post_worker_result(self, self._on_delete_result, result, group_id)
 
     def _on_delete_result(self, result: Result[Any], group_id: str) -> None:
         if not result.ok:
@@ -831,6 +823,10 @@ class GroupsScreen(BaseScreen):
             self.load_next_page()
 
     # ----- loading indicator -----
+
+    def on_unmount(self) -> None:
+        if self._loading:
+            self._set_loading(False)
 
     def _set_loading(self, loading: bool) -> None:
         self._loading = loading

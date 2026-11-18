@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 from luml_mlflow.store import LumlTrackingStore
+from mlflow.tracing.client import TracingClient
 
 
 def _make_span(
@@ -122,6 +123,7 @@ _TRACE_BUFFERED = "abc00000000000000000000000000008"
 _TRACE_RUNLESS_EVICT = "abc00000000000000000000000000009"
 _TRACE_NO_LINKS = "abc00000000000000000000000000010"
 _TRACE_SPANS_LOC = "abc00000000000000000000000000011"
+_TRACE_SEARCH = "abc00000000000000000000000000012"
 
 
 def test_span_tree_round_trip_with_active_run(
@@ -267,6 +269,39 @@ def test_search_traces_filters_by_experiment_id(
     assert {t.trace_id for t in infos_all} == {_TRACE_1, _TRACE_2}
     # Default ordering is request_time desc.
     assert infos_all[0].request_time >= infos_all[1].request_time
+
+
+def test_client_search_returns_full_traces(
+    store: LumlTrackingStore, run: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # MLflow caches stores by URI, so a store from another test could answer.
+    monkeypatch.setattr(TracingClient, "store", store)
+    exp_id, run_id = run
+    store.start_trace(
+        _make_trace_info(trace_id=_TRACE_SEARCH, experiment_id=exp_id, run_id=run_id)
+    )
+    store.log_spans(
+        exp_id,
+        [_make_span(trace_id=_TRACE_SEARCH, span_id="0000000000000001", name="root")],
+    )
+
+    traces = TracingClient("luml://local").search_traces(locations=[exp_id])
+
+    assert [trace.info.trace_id for trace in traces] == [_TRACE_SEARCH]
+    assert [span.name for span in traces[0].data.spans] == ["root"]
+
+
+def test_batch_get_traces_keeps_to_the_given_experiments(
+    store: LumlTrackingStore, run: tuple[str, str]
+) -> None:
+    exp_id, run_id = run
+    store.start_trace(
+        _make_trace_info(trace_id=_TRACE_SEARCH, experiment_id=exp_id, run_id=run_id)
+    )
+
+    assert store.batch_get_traces([_TRACE_SEARCH], experiment_ids=["other"]) == []
+    (trace,) = store.batch_get_traces([_TRACE_SEARCH], experiment_ids=[exp_id])
+    assert trace.info.trace_id == _TRACE_SEARCH
 
 
 def test_log_spans_creates_trace_index_when_start_trace_missing(

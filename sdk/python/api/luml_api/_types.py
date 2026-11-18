@@ -79,11 +79,13 @@ class ArtifactType(StrEnum):
 
 class ArtifactStatus(StrEnum):
     """
-    Options: "pending_upload", "uploaded", "upload_failed", "deletion_failed"
+    Options: "pending_upload", "uploaded", "pending_deletion", "upload_failed",
+    "deletion_failed"
     """
 
     PENDING_UPLOAD = "pending_upload"
     UPLOADED = "uploaded"
+    PENDING_DELETION = "pending_deletion"
     UPLOAD_FAILED = "upload_failed"
     DELETION_FAILED = "deletion_failed"
 
@@ -461,6 +463,7 @@ class Deployment(BaseModel):
     status: str
     monitoring_mode: str = "off"
     description: str | None = None
+    error_message: dict[str, Any] | None = None
     created_by_user: str | None = None
     tags: list[str] | None = None
     created_at: str

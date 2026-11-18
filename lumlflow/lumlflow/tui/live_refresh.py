@@ -30,12 +30,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from textual.message_pump import MessagePump
-from textual.types import NoActiveAppError
 from textual.worker import get_current_worker
+
+from lumlflow.tui._worker_results import post_worker_result
 
 if TYPE_CHECKING:
     from textual.timer import Timer
+    from textual.widget import Widget
 
     from lumlflow.tui.app import LumlflowApp
 
@@ -144,6 +145,8 @@ class LiveRefreshScheduler:
         demand without enabling continuous refresh.
         """
 
+        if not self._app.screen_stack:
+            return
         screen = self._app.screen
         if not isinstance(screen, LiveRefreshable):
             return
@@ -157,22 +160,17 @@ class LiveRefreshScheduler:
             )
 
 
-def post_from_worker(
-    node: MessagePump, callback: Callable[..., object], *args: Any
-) -> None:
-    """Run `callback` on the app thread from a thread worker, unless the
-    worker was cancelled or its node has left the app.
+def post_from_worker(node: Widget, callback: Callable[..., object], *args: Any) -> bool:
+    """Run `callback` on `node` from a thread worker, unless the worker was
+    cancelled or `node` has left the app. Returns False when it was dropped.
 
     Refresh ticks start reads that can still be running when the app shuts
-    down; the node is then detached and `node.app` raises.
+    down or the screen is closed.
     """
 
     if get_current_worker().is_cancelled:
-        return
-    try:
-        node.app.call_from_thread(callback, *args)
-    except NoActiveAppError:
-        return
+        return False
+    return post_worker_result(node, callback, *args)
 
 
 __all__ = ("LiveRefreshable", "LiveRefreshScheduler", "post_from_worker")

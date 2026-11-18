@@ -145,6 +145,16 @@ def test_deployment_get_by_id_addresses_it_directly(mock_sync_client: Mock) -> N
     assert deployment.monitoring_url == MONITORING_URL
 
 
+def test_failed_deployment_carries_its_error(mock_sync_client: Mock) -> None:
+    error = {"reason": "container exited", "error": "ImportError"}
+    mock_sync_client.get.return_value = _record(status="failed", error_message=error)
+
+    deployment = DeploymentResource(mock_sync_client).get(DEPLOYMENT_ID)
+
+    assert deployment is not None
+    assert deployment.error_message == error
+
+
 def test_monitoring_resolves_the_satellite_from_the_deployment(
     mock_sync_client: Mock,
 ) -> None:

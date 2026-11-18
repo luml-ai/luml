@@ -13,6 +13,7 @@ screen is exercised through Textual's headless `App.run_test()` + the
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -42,6 +43,8 @@ from lumlflow.tui.screens.cloud_publish import (
 )
 from lumlflow.tui.screens.experiments import ExperimentsScreen
 from textual.widgets import Input, ListView, RadioButton, RadioSet, Static
+
+from tests.helpers.tui import settle_workers
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -551,6 +554,61 @@ class TestTargetSelection:
                 screen.action_back_or_cancel()
                 await pilot.pause()
                 assert screen._step == "org"
+
+    @pytest.mark.parametrize("delivery", ["during_swap", "after_cached_rows"])
+    async def test_reselecting_org_replaces_cached_orbit_rows(
+        self, facade: DataFacade, delivery: str
+    ) -> None:
+        calls = 0
+        release = threading.Event()
+
+        def list_orbits(*args: Any, **kwargs: Any) -> list[Orbit]:
+            nonlocal calls
+            calls += 1
+            if calls > 1 and delivery == "after_cached_rows":
+                assert release.wait(10), "orbit fetch was never released"
+            return [_orbit("orb-1", "Main"), _orbit("orb-2", "Side")]
+
+        with (
+            patch.object(facade.auth, "has_api_key", return_value=True),
+            patch.object(facade.luml, "get_luml_organizations", return_value=[_org()]),
+            patch.object(facade.luml, "get_luml_orbits", side_effect=list_orbits),
+        ):
+            app = _make_app(facade)
+            async with app.run_test() as pilot:
+                await pilot.pause()
+                screen = _push_publish(app, facade)
+                await _wait_until(pilot, lambda: screen._orgs, label="organizations")
+                screen._select_org_at(0)
+                await _wait_until(
+                    pilot,
+                    lambda: len(_list_children(screen, "publish-orbit-list")) == 2,
+                    label="the orbit list",
+                )
+                screen.action_back_or_cancel()
+                await _wait_until(
+                    pilot,
+                    lambda: len(_list_children(screen, "publish-org-list")) == 1,
+                    label="the org list",
+                )
+                screen._select_org_at(0)
+                try:
+                    await _wait_until(
+                        pilot,
+                        lambda: (
+                            screen._step == "orbit"
+                            and screen._body_ready
+                            and len(_list_children(screen, "publish-orbit-list")) == 2
+                        ),
+                        label="the cached orbit rows",
+                    )
+                finally:
+                    release.set()
+                await settle_workers(pilot)
+                assert calls == 2
+                assert [
+                    item.id for item in _list_children(screen, "publish-orbit-list")
+                ] == ["publish-orbit-orb-1", "publish-orbit-orb-2"]
 
 
 # ---------------------------------------------------------------------------

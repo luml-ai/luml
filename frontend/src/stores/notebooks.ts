@@ -39,7 +39,7 @@ export const useNotebooksStore = defineStore('notebooks', () => {
   }
 
   async function createBackup(name: string) {
-    await DatabaseService.createBackup(name)
+    return DatabaseService.createBackup(name)
   }
 
   return {

@@ -654,9 +654,10 @@ class TestMetricOverlay:
             )
             post_attempts = threading.Semaphore(0)
 
-            def counted_post(*args: Any) -> None:  # noqa: ANN401
-                post_from_worker(*args)
+            def counted_post(*args: Any) -> bool:  # noqa: ANN401
+                delivered = post_from_worker(*args)
                 post_attempts.release()
+                return delivered
 
             monkeypatch.setattr(comparison_module, "post_from_worker", counted_post)
             posted: list[dict[str, MetricSeries | None]] = []
@@ -926,3 +927,92 @@ class TestBodyScrolling:
             screen.action_body_half_page_up()
             await pilot.pause()
             assert body.scroll_y == 0
+
+
+class TestLoaderLifetime:
+    @pytest.mark.parametrize(
+        ("leave", "expected_reads"), [("discard", 6), ("quit", 6), ("back", 9)]
+    )
+    async def test_loader_stops_once_screen_is_discarded(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        leave: str,
+        expected_reads: int,
+    ) -> None:
+        experiments = [
+            _fetch_details(
+                facade,
+                _seed_experiment(
+                    tracker,
+                    name=f"exp-{index}",
+                    metric_series={"loss": [(0, 1.0), (1, 0.5)]},
+                ),
+            )
+            for index in range(3)
+        ]
+        reads: list[str] = []
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        for read_name in (
+            "get_metric_catalog",
+            "get_metric_buckets",
+            "get_eval_dataset_ids",
+        ):
+            read = getattr(facade, read_name)
+
+            def recorded(*args, _read=read, _name=read_name, **kwargs):
+                reads.append(_name)
+                if len(reads) == 1:
+                    started.set()
+                    assert release.wait(10), "loader was never released"
+                return _read(*args, **kwargs)
+
+            monkeypatch.setattr(facade, read_name, recorded)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            screen = ComparisonScreen(facade=facade, experiments=experiments)
+            run_worker = screen.run_worker
+
+            def observe_worker(work, *args, **kwargs):
+                def observed():
+                    try:
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(observed, *args, **kwargs)
+
+            monkeypatch.setattr(screen, "run_worker", observe_worker)
+            await app.push_screen(screen)
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                if leave == "discard":
+                    app._jump_home()
+                    await pilot.pause()
+                    assert not screen.is_attached
+                elif leave == "back":
+                    app._go_back()
+                    await pilot.pause()
+                    assert app.screen is not screen
+                else:
+                    await app._shutdown()
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            assert len(reads) == expected_reads
+            if leave == "back":
+                expected = {experiment.id for experiment in experiments}
+                for _ in range(100):
+                    if set(screen._metric_series) == expected:
+                        break
+                    await pilot.pause(0.01)
+                assert set(screen._metric_series) == expected

@@ -33,6 +33,8 @@ from lumlflow.schemas.experiments import (
     TracesSortBy,
     TraceState,
 )
+from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.live_refresh import post_from_worker
 from lumlflow.tui.widgets.dialogs import (
@@ -226,10 +228,7 @@ class TracesPanel(Widget):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        app = self.app
-        return getattr(app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -259,9 +258,7 @@ class TracesPanel(Widget):
     def _fetch_page(self, *, reset: bool) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(
-                self._on_page_failure, "facade unavailable", reset
-            )
+            post_worker_result(self, self._on_page_failure, "facade unavailable", reset)
             return
         try:
             sort_by = TracesSortBy(self._sort_by)
@@ -281,7 +278,7 @@ class TracesPanel(Widget):
             search=self._search or None,
             filters=filters,
         )
-        self.app.call_from_thread(self._on_page_result, result, reset)
+        post_worker_result(self, self._on_page_result, result, reset)
 
     def _on_page_result(self, result: Result[Any], reset: bool) -> None:
         self._set_loading(False)
@@ -630,6 +627,10 @@ class TracesPanel(Widget):
             self.load_next_page()
 
     # ----- loading -----
+
+    def on_unmount(self) -> None:
+        if self._loading:
+            self._set_loading(False)
 
     def _set_loading(self, loading: bool) -> None:
         self._loading = loading

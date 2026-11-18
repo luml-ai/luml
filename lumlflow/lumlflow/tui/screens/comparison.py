@@ -33,6 +33,8 @@ from lumlflow.schemas.experiments import (
     ExperimentDetails,
     ExperimentStatus,
 )
+from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.live_refresh import post_from_worker
@@ -395,9 +397,7 @@ class ComparisonScreen(BaseScreen):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        return getattr(self.app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -541,10 +541,10 @@ class ComparisonScreen(BaseScreen):
             return
         self._load_series(facade, key, max_points)
 
-    def _load_series(self, facade: DataFacade, key: str, max_points: int) -> None:
+    def _load_series(self, facade: DataFacade, key: str, max_points: int) -> bool:
         ids = [exp.id for exp in self._experiments]
         series = load_comparison_series(facade, ids, key, max_points)
-        post_from_worker(self, self._on_series_result, key, series)
+        return post_from_worker(self, self._on_series_result, key, series)
 
     @work(thread=True, exclusive=True, group="cmp-data")
     def _load_all_data(self) -> None:
@@ -564,27 +564,34 @@ class ComparisonScreen(BaseScreen):
             return
         key = self._selected_metric
         if key is not None:
-            self._load_series(facade, key, self._chart_max_points())
+            if not self._load_series(facade, key, self._chart_max_points()):
+                return
         # Eval scores follow the histories so the metric chart fills
         # in first (most likely to be visible above the fold).
         for exp in self._experiments:
             ds_result = facade.get_eval_dataset_ids(exp.id)
             if not ds_result.ok:
-                self.app.call_from_thread(self._on_dataset_ids_failure, exp.id)
+                if not post_worker_result(self, self._on_dataset_ids_failure, exp.id):
+                    return
                 continue
             dataset_ids = list(ds_result.unwrap() or [])
-            self.app.call_from_thread(self._on_dataset_ids_result, exp.id, dataset_ids)
+            if not post_worker_result(
+                self, self._on_dataset_ids_result, exp.id, dataset_ids
+            ):
+                return
             for ds_id in dataset_ids:
                 avg_result = facade.get_eval_average_scores(exp.id, dataset_id=ds_id)
                 if not avg_result.ok:
                     continue
                 averages = dict(avg_result.unwrap() or {})
-                self.app.call_from_thread(
+                if not post_worker_result(
+                    self,
                     self._on_average_scores_result,
                     exp.id,
                     ds_id,
                     averages,
-                )
+                ):
+                    return
 
     def _on_series_result(
         self, key: str, series: dict[str, MetricSeries | None]

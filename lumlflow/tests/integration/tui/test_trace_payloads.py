@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
-from lumlflow.schemas.experiments import Span
+from lumlflow.schemas.experiments import Span, TraceDetails
 from lumlflow.tui import LumlflowApp
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.screens.trace_detail import (
@@ -32,15 +35,31 @@ class RecordingFacade(DataFacade):
         self.span_reads: list[str] = []
         self.failing_spans: set[str] = set()
         self.blocked_spans: dict[str, threading.Event] = {}
+        self.span_read_started = threading.Event()
+        self.span_read_finished = threading.Event()
+        self.structure_gate: threading.Event | None = None
+        self.structure_started = threading.Event()
 
     def get_span(self, experiment_id: str, trace_id: str, span_id: str) -> Result[Span]:
         self.span_reads.append(span_id)
-        gate = self.blocked_spans.get(span_id)
-        if gate is not None:
-            gate.wait(timeout=10)
-        if span_id in self.failing_spans:
-            return Result.failure(500, "disk I/O error")
-        return super().get_span(experiment_id, trace_id, span_id)
+        self.span_read_started.set()
+        try:
+            gate = self.blocked_spans.get(span_id)
+            if gate is not None:
+                gate.wait(timeout=10)
+            if span_id in self.failing_spans:
+                return Result.failure(500, "disk I/O error")
+            return super().get_span(experiment_id, trace_id, span_id)
+        finally:
+            self.span_read_finished.set()
+
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> Result[TraceDetails]:
+        self.structure_started.set()
+        if self.structure_gate is not None:
+            assert self.structure_gate.wait(timeout=10), "structure never released"
+        return super().get_trace_structure(experiment_id, trace_id)
 
 
 @pytest.fixture
@@ -273,3 +292,89 @@ async def test_payload_cache_is_bounded_and_keeps_recent_and_shown_spans(
         assert "child-b" not in screen._span_payloads
         assert "role = child-a" in _attrs(screen)
         assert facade.span_reads == ["root", "child-a", "child-b"]
+
+
+def _observe_worker_threads(
+    screen: TraceDetailScreen, monkeypatch: pytest.MonkeyPatch
+) -> tuple[threading.Event, list[BaseException]]:
+    finished = threading.Event()
+    errors: list[BaseException] = []
+    run_worker = screen.run_worker
+
+    def observe_worker(work: Callable[[], Any], *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def observed() -> Any:  # noqa: ANN401
+            try:
+                return work()
+            except BaseException as exc:
+                errors.append(exc)
+                raise
+            finally:
+                finished.set()
+
+        return run_worker(observed, *args, **kwargs)
+
+    monkeypatch.setattr(screen, "run_worker", observe_worker)
+    return finished, errors
+
+
+async def test_structure_read_for_a_closed_screen_is_dropped(
+    facade: RecordingFacade,
+    tracker: ExperimentTracker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exp_id = _seed(tracker)
+    facade.structure_gate = threading.Event()
+    app = LumlflowApp(facade=facade)
+    async with app.run_test() as pilot:
+        await settle_workers(pilot)
+        screen = TraceDetailScreen(
+            facade=facade, experiment_id=exp_id, trace_id=TRACE_ID
+        )
+        delivered = Mock()
+        monkeypatch.setattr(screen, "_on_trace_result", delivered)
+        finished, errors = _observe_worker_threads(screen, monkeypatch)
+        await app.push_screen(screen)
+        try:
+            assert await asyncio.to_thread(facade.structure_started.wait, 10)
+            await app.pop_screen()
+            await pilot.pause()
+            assert not screen.is_attached
+        finally:
+            facade.structure_gate.set()
+        assert await asyncio.to_thread(finished.wait, 10)
+        await pilot.pause()
+
+        assert errors == []
+        delivered.assert_not_called()
+        assert app._exception is None
+
+
+async def test_span_read_for_a_closed_screen_is_dropped(
+    facade: RecordingFacade,
+    tracker: ExperimentTracker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exp_id = _seed(tracker)
+    app = LumlflowApp(facade=facade)
+    async with app.run_test() as pilot:
+        screen = await _open(pilot, facade, exp_id)
+        gate = threading.Event()
+        facade.blocked_spans["child-a"] = gate
+        facade.span_read_started.clear()
+        facade.span_read_finished.clear()
+        delivered = Mock()
+        monkeypatch.setattr(screen, "_on_span_payload_result", delivered)
+
+        screen._set_selected_span("child-a")
+        try:
+            assert await asyncio.to_thread(facade.span_read_started.wait, 10)
+            await app.pop_screen()
+            await pilot.pause()
+            assert not screen.is_attached
+        finally:
+            gate.set()
+        assert await asyncio.to_thread(facade.span_read_finished.wait, 10)
+        await pilot.pause()
+
+        delivered.assert_not_called()
+        assert app._exception is None

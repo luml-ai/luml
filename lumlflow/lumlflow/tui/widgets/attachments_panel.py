@@ -50,6 +50,8 @@ from textual.widgets import Static, Tree
 from textual.widgets.tree import TreeNode
 
 from lumlflow.schemas.experiments import FileNode, FileNodeType
+from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
 from lumlflow.tui.widgets.save_file_dialog import SaveFileDialog
@@ -308,10 +310,7 @@ class AttachmentsPanel(Widget):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        app = self.app
-        return getattr(app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -329,8 +328,8 @@ class AttachmentsPanel(Widget):
         result = facade.list_attachments_tree(
             self._experiment_id, parent_path=parent_path
         )
-        self.app.call_from_thread(
-            self._on_children_result, result, parent_path, parent_node_id
+        post_worker_result(
+            self, self._on_children_result, result, parent_path, parent_node_id
         )
 
     def _on_children_result(
@@ -561,7 +560,7 @@ class AttachmentsPanel(Widget):
         if facade is None:
             return
         result = facade.get_attachment(self._experiment_id, file_path)
-        self.app.call_from_thread(self._on_preview_result, result, file_path)
+        post_worker_result(self, self._on_preview_result, result, file_path)
 
     def _on_preview_result(self, result: Result[Any], file_path: str) -> None:
         # Drop the result if the user has moved on to another file.
@@ -641,10 +640,12 @@ class AttachmentsPanel(Widget):
         result = facade.get_attachment(self._experiment_id, file_path)
         if not result.ok:
             err = result.error
-            self.app.call_from_thread(
-                self._lumlflow_app.show_toast,
-                f"Could not load file: {err.message if err else 'error'}",
-                severity="error",
+            post_worker_result(
+                self,
+                lambda: self._lumlflow_app.show_toast(
+                    f"Could not load file: {err.message if err else 'error'}",
+                    severity="error",
+                ),
             )
             return
         data: bytes = result.unwrap() or b""
@@ -657,32 +658,35 @@ class AttachmentsPanel(Widget):
                 with destination.open("wb" if overwrite else "xb") as output:
                     output.write(data)
             except FileExistsError:
-                self.app.call_from_thread(
-                    self.app.push_screen,
-                    ConfirmDialog(
-                        title="Overwrite file?",
-                        message=f"{destination} already exists. Overwrite it?",
-                        confirm_label="Overwrite",
-                    ),
-                    lambda confirmed: (
-                        self._save_to_disk(file_path, dest, overwrite=True)
-                        if confirmed
-                        else None
+                post_worker_result(
+                    self,
+                    lambda: self._lumlflow_app.push_screen(
+                        ConfirmDialog(
+                            title="Overwrite file?",
+                            message=f"{destination} already exists. Overwrite it?",
+                            confirm_label="Overwrite",
+                        ),
+                        lambda confirmed: (
+                            self._save_to_disk(file_path, dest, overwrite=True)
+                            if confirmed
+                            else None
+                        ),
                     ),
                 )
                 return
         except OSError as exc:
-            self.app.call_from_thread(
-                self._lumlflow_app.show_toast,
-                f"Save failed: {exc}",
-                severity="error",
+            message = f"Save failed: {exc}"
+            post_worker_result(
+                self, lambda: self._lumlflow_app.show_toast(message, severity="error")
             )
             return
-        self.app.call_from_thread(
-            self._lumlflow_app.show_toast,
-            f"Saved to {destination}",
-            severity="success",
-            duration=3.0,
+        post_worker_result(
+            self,
+            lambda: self._lumlflow_app.show_toast(
+                f"Saved to {destination}",
+                severity="success",
+                duration=3.0,
+            ),
         )
 
     # ----- yank -----

@@ -746,7 +746,7 @@ class TrackResource(TrackResourceBase, ListedResource):
         )
         response = self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/{tracked_artifact_id}",
-            json=self._client.filter_none({"stage_id": stage_id}),
+            json={"stage_id": stage_id},
             params={"force": force},
         )
         return TrackEntry.model_validate(response)
@@ -1490,7 +1490,7 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
         )
         response = await self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/{tracked_artifact_id}",
-            json=self._client.filter_none({"stage_id": stage_id}),
+            json={"stage_id": stage_id},
             params={"force": force},
         )
         return TrackEntry.model_validate(response)
