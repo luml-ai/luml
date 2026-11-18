@@ -11,7 +11,7 @@ on:
     paths:
       - relay/**
       - sdk/python/api/**
-      - '.github/workflows/\[relay\] publish-image.yml'
+      - '.github/workflows/*relay*publish-image.yml'
   workflow_dispatch:
 
 concurrency:
