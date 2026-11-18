@@ -50,6 +50,8 @@ from lumlflow.schemas.experiments import (
     ExperimentStatus,
 )
 from lumlflow.schemas.models import Model, UpdateModel
+from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.screens.base import BaseScreen
@@ -613,9 +615,7 @@ class ExperimentDetailScreen(BaseScreen):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        return getattr(self.app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -627,10 +627,10 @@ class ExperimentDetailScreen(BaseScreen):
     def _fetch_details(self) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(self._on_details_failure, "facade unavailable")
+            post_worker_result(self, self._on_details_failure, "facade unavailable")
             return
         result = facade.get_experiment(self._experiment_id)
-        self.app.call_from_thread(self._on_details_result, result)
+        post_worker_result(self, self._on_details_result, result)
 
     def _on_details_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -1145,7 +1145,7 @@ class ExperimentDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.update_model(model_id, body)
-        self.app.call_from_thread(self._on_model_update_result, result, model_id)
+        post_worker_result(self, self._on_model_update_result, result, model_id)
 
     def _on_model_update_result(self, result: Result[Any], model_id: str) -> None:
         if not result.ok:
@@ -1202,7 +1202,7 @@ class ExperimentDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.delete_model(model_id)
-        self.app.call_from_thread(self._on_model_delete_result, result, model_id)
+        post_worker_result(self, self._on_model_delete_result, result, model_id)
 
     def _on_model_delete_result(self, result: Result[Any], model_id: str) -> None:
         if not result.ok:
@@ -1385,7 +1385,7 @@ class ExperimentDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.get_experiment(self._experiment_id)
-        self.app.call_from_thread(self._on_refresh_details_result, result)
+        post_worker_result(self, self._on_refresh_details_result, result)
 
     def _on_refresh_details_result(self, result: Result[Any]) -> None:
         if not result.ok:
