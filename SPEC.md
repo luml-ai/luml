@@ -743,73 +743,30 @@ Backend tasks come first (daemon in `lumlflow/lumlflow/flow/daemon/`, tests in
 `lumlflow/tests/unit/daemon/`), then frontend. Each task covers the scenarios of its area
 with tests and ends with its checks passing: backend `ruff`, `mypy` and
 `pytest lumlflow/tests/unit`; frontend `lint`, `type-check` and `test:ci` of every package
-it touches. A task that changes `@luml/attachments` also runs `type-check`, `test:ci` and
-`build` of `frontend/` (the main LUML app) and `lumlflow/frontend/`.
+it touches. Frontend tasks take the look from the named `SPEC-design/` files.
 
-- [ ] List plain files in the workspace listing
-  - [ ] Shared path rules (Paths): symlinks kept as links, name checks, `NotAFile`,
-    `Protected` and `OsError`
-  - [ ] `workspace.list` with files, hidden entries and paging (Listing); update
-    `test_workspace.py`
-  - [ ] Tests: invalid names, protected paths, links and broken links, hidden on and off,
-    `.lumlflow` never listed, paging of 4,500 entries
-
-- [ ] Serve file bytes and inspect and upload luml files
-  - [ ] The two `GET` endpoints in `web.py`, both with `Range` (Reading files)
-  - [ ] `file.inspect` and the MCP tool `file-inspect` (`mcp.py`, `test_mcp.py`)
-  - [ ] `file.publish` (Uploading a `.luml` to LUML), tested with a mocked LUML client
-  - [ ] Tests with small archives built by the SDK: tabular dataset, Hugging Face dataset
-    if `datasets` is available in tests, experiment, model, and a tar that is not a `.luml`
-
-- [ ] Add file and folder operations to the daemon
-  - [ ] The six methods of File and folder operations, including the move across
-    filesystems
-  - [ ] The open-notebook rule in all of them and in `flow.rename` and `flow.delete`; the
-    CLI `flow delete` keeps its behaviour
-  - [ ] Tests for every *Operations* scenario the daemon decides
+- [ ] Add the file API to the daemon
+  - [ ] Everything in Paths, Listing, Reading files, File and folder operations and
+    Uploading a `.luml` to LUML, including the MCP tool and the CLI `flow delete`
+  - [ ] Update `test_workspace.py` and `test_mcp.py`; build the `.luml` test archives
+    with the SDK (tabular dataset, Hugging Face dataset if `datasets` is available in
+    tests, experiment, model) and mock the LUML client for the upload
 
 - [ ] Add text editing with a file watcher and agent locks to the daemon
-  - [ ] `file.read_text` and `file.write_text` (Editing text files)
-  - [ ] The watcher and the `files` channel of `/api/flow/stream`, with the lock rule and
-    expiry (File watcher and agent locks)
-  - [ ] Tests in the style of `test_cell_claims.py` and `test_stream.py`: size, text and
-    conflict checks, forced write, mode kept; one agent, several agents, no agent, own
-    write not locked, expiry, lease end, write refused while locked
+  - [ ] Everything in Editing text files and File watcher and agent locks
+  - [ ] Tests in the style of `test_cell_claims.py` and `test_stream.py`
 
 - [ ] Extend the shared attachments preview
-  - [ ] Standalone preview and the exports, new types and the size rule (Shared preview
-    package)
-  - [ ] Highlighting and the Rendered / Raw and Pretty / Raw toggles
-  - [ ] Parquet and Arrow tables, tested with small fixtures
-  - [ ] Flow's and LUML's Attachments tabs still build and pass
+  - [ ] Everything in Shared preview package, with small Parquet and Arrow fixtures
+  - [ ] Also run `type-check`, `test:ci` and `build` of `frontend/` (the main LUML app)
+    and `lumlflow/frontend/`, so both Attachments tabs still build and pass
 
-- [ ] Show files in the Workspace listing and open them in a viewer
-  - [ ] File rows, **Show hidden**, **Show more** and the store behind them (Workspace
-    page)
-  - [ ] The split layout with the route query, and the viewer with all its body states
-  - [ ] The `files` channel subscription: refresh on change and the "moved or deleted"
-    state
-  - [ ] Look as in `SPEC-design/WorkspaceFolder/` and `SPEC-design/WorkspacesPage/`
+- [ ] Add files to the Workspace page with a viewer, operations and editing
+  - [ ] Everything in Workspace page, Row menu and dialogs and Editing
+  - [ ] Look: `SPEC-design/WorkspaceFolder/`, and `WorkspacesPage.vue` and
+    `WorkspaceFileViewer.vue` in `SPEC-design/WorkspacesPage/`
 
-- [ ] Add the row menu and dialogs for file operations
-  - [ ] Row menu, inline rename, **Move to…** with the folder picker, **Delete**, **New
-    file** and **New folder** (Row menu and dialogs)
-  - [ ] The open-notebook and unsaved-changes dialogs, and error toasts by kind
-  - [ ] Look as in `SPEC-design/WorkspacesPage/WorkspacesPage.vue` and
-    `SPEC-design/WorkspaceFolder/WorkspaceFolderItem.vue`
-
-- [ ] Add text editing with conflict and agent lock states
-  - [ ] Edit, Save and Cancel with Flow's code editor (Editing)
-  - [ ] The changed-on-disk warning and the agent lock, also during an edit
-  - [ ] Look as in `SPEC-design/WorkspacesPage/WorkspaceFileViewer.vue`
-
-- [ ] Add the luml file view and upload
-  - [ ] The view for experiment, model, dataset and unknown kinds (`.luml` view), tested
-    per kind with a mocked `file.inspect`
-  - [ ] Upload through `UploadModal.vue` for all three kinds
-  - [ ] Look as in `SPEC-design/WorkspacesPage/LumlPackagePreview.vue`
-
-- [ ] Open an experiment from a luml file read-only
-  - [ ] The route, the database and attachments providers over the archive member
-    endpoint, and the read-only tabs with the banner (Experiment from a `.luml`)
-  - [ ] Tests with a small experiment archive fixture
+- [ ] Add the luml file view with upload and the read-only experiment
+  - [ ] Everything in `.luml` view and Experiment from a `.luml`, tested per kind with a
+    mocked `file.inspect` and a small experiment archive
+  - [ ] Look: `SPEC-design/WorkspacesPage/LumlPackagePreview.vue`
