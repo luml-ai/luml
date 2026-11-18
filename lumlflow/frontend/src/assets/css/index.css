@@ -1,6 +1,6 @@
 @import './fonts';
 @import './tailwind';
-@import './theme';
+@import '@luml/design-tokens/index.css';
 @import './primevue';
 
 html {

@@ -1,0 +1,14 @@
+{
+  "name": "@luml/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./index.css": "./index.css",
+    "./light-theme.css": "./light-theme.css",
+    "./dark-theme.css": "./dark-theme.css"
+  },
+  "scripts": {
+    "build": "node build.mjs && prettier --write light-theme.css dark-theme.css"
+  }
+}

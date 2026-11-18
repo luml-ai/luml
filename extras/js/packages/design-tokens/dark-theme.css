@@ -342,8 +342,6 @@
   --p-autocomplete-hover-border-color: #71717a;
   --p-autocomplete-focus-border-color: #1d4ed8;
   --p-autocomplete-focus-ring-color: #00000000;
-  --p-autocomplete-focus-ring-width: [object Object];
-  --p-autocomplete-focus-ring-offset: [object Object];
   --p-autocomplete-invalid-border-color: #fca5a5;
   --p-autocomplete-invalid-placeholder-color: #f87171;
   --p-autocomplete-color: #ffffff;
@@ -1237,8 +1235,6 @@
   --p-inputtext-hover-border-color: #71717a;
   --p-inputtext-focus-border-color: #1d4ed8;
   --p-inputtext-focus-ring-color: #00000000;
-  --p-inputtext-focus-ring-width: [object Object];
-  --p-inputtext-focus-ring-offset: [object Object];
   --p-inputtext-invalid-border-color: #fca5a5;
   --p-inputtext-invalid-placeholder-color: #f87171;
   --p-inputtext-color: #ffffff;
@@ -1405,8 +1401,6 @@
   --p-cascadeselect-hover-border-color: #71717a;
   --p-cascadeselect-focus-border-color: #1d4ed8;
   --p-cascadeselect-focus-ring-color: #00000000;
-  --p-cascadeselect-focus-ring-width: [object Object];
-  --p-cascadeselect-focus-ring-offset: [object Object];
   --p-cascadeselect-invalid-border-color: #fca5a5;
   --p-cascadeselect-invalid-placeholder-color: #f87171;
   --p-cascadeselect-color: #ffffff;
@@ -1450,8 +1444,6 @@
   --p-select-hover-border-color: #71717a;
   --p-select-focus-border-color: #1d4ed8;
   --p-select-focus-ring-color: #00000000;
-  --p-select-focus-ring-width: [object Object];
-  --p-select-focus-ring-offset: [object Object];
   --p-select-invalid-border-color: #fca5a5;
   --p-select-invalid-placeholder-color: #f87171;
   --p-select-color: #ffffff;
@@ -1520,8 +1512,6 @@
   --p-textarea-hover-border-color: #71717a;
   --p-textarea-focus-border-color: #1d4ed8;
   --p-textarea-focus-ring-color: #00000000;
-  --p-textarea-focus-ring-width: [object Object];
-  --p-textarea-focus-ring-offset: [object Object];
   --p-textarea-invalid-border-color: #fca5a5;
   --p-textarea-invalid-placeholder-color: #f87171;
   --p-textarea-color: #ffffff;
@@ -1551,8 +1541,6 @@
   --p-multiselect-hover-border-color: #71717a;
   --p-multiselect-focus-border-color: #1d4ed8;
   --p-multiselect-focus-ring-color: #00000000;
-  --p-multiselect-focus-ring-width: [object Object];
-  --p-multiselect-focus-ring-offset: [object Object];
   --p-multiselect-invalid-border-color: #fca5a5;
   --p-multiselect-invalid-placeholder-color: #f87171;
   --p-multiselect-color: #ffffff;
@@ -1600,8 +1588,6 @@
   --p-treeselect-hover-border-color: #71717a;
   --p-treeselect-focus-border-color: #1d4ed8;
   --p-treeselect-focus-ring-color: #00000000;
-  --p-treeselect-focus-ring-width: [object Object];
-  --p-treeselect-focus-ring-offset: [object Object];
   --p-treeselect-invalid-border-color: #fca5a5;
   --p-treeselect-invalid-placeholder-color: #f87171;
   --p-treeselect-color: #ffffff;

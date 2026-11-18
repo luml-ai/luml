@@ -15,12 +15,12 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "style": "npx style-dictionary build --config style-dictionary.config.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"
   },
   "dependencies": {
+    "@luml/design-tokens": "*",
     "@primevue/themes": "^4.3.9",
     "@vueuse/core": "^14.1.0",
     "apexcharts": "^5.10.6",

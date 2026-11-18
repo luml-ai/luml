@@ -1,6 +1,9 @@
 {
 	"name": "@luml/workspace",
 	"private": true,
+	"scripts": {
+		"tokens": "npm run build -w @luml/design-tokens"
+	},
 	"workspaces": [
 		"frontend",
 		"extras/js/packages/*",

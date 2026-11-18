@@ -5,12 +5,14 @@ on:
     branches: [main, staging, production]
     paths:
       - 'satellite/monitoring-ui/**'
+      - 'extras/js/packages/design-tokens/**'
       - 'package.json'
       - 'package-lock.json'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'satellite/monitoring-ui/**'
+      - 'extras/js/packages/design-tokens/**'
       - 'package.json'
       - 'package-lock.json'
   workflow_call:

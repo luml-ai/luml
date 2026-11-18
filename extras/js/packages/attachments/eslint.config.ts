@@ -38,7 +38,6 @@ export default defineConfigWithVueTs(
     '**/coverage/**',
     'eslint.config.ts',
     'vite.config.*',
-    'style-dictionary.config.*',
   ]),
 
   ...pluginVue.configs['flat/essential'],

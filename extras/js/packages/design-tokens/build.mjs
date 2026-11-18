@@ -1,4 +1,7 @@
+import { fileURLToPath } from 'node:url'
 import StyleDictionary from 'style-dictionary'
+
+const root = fileURLToPath(new URL('./', import.meta.url))
 
 StyleDictionary.registerTransform({
   name: 'name/cti/kebab-prefixed',
@@ -45,37 +48,29 @@ StyleDictionary.registerTransformGroup({
   transforms: ['name/cti/kebab-prefixed', 'value/px', 'value/boxShadow'],
 })
 
-export default {
-  source: ['tokens/tokens-styles-light.json'], // for light
-  // source: ['tokens/tokens-styles-dark.json'], // for dark
-  platforms: {
-    light: {
-      transformGroup: 'custom/css',
-      buildPath: 'src/demo/assets/theme/',
-      files: [
-        {
-          destination: 'light-theme.css',
-          format: 'css/variables',
-          options: {
-            selector: 'body',
+const themes = [
+  { name: 'light', selector: 'body' },
+  { name: 'dark', selector: "[data-theme='dark'] body" },
+]
+
+for (const { name, selector } of themes) {
+  const sd = new StyleDictionary({
+    log: { errors: { brokenReferences: 'console' } },
+    source: [`${root}tokens/tokens-styles-${name}.json`],
+    platforms: {
+      css: {
+        transformGroup: 'custom/css',
+        buildPath: root,
+        files: [
+          {
+            destination: `${name}-theme.css`,
+            format: 'css/variables',
+            options: { selector },
+            filter: (token) => !String(token.$value).includes('{'),
           },
-          filter: (token) => token.filePath.includes('light'),
-        },
-      ],
+        ],
+      },
     },
-    dark: {
-      transformGroup: 'custom/css',
-      buildPath: 'src/demo/assets/theme/',
-      files: [
-        {
-          destination: 'dark-theme.css',
-          format: 'css/variables',
-          options: {
-            selector: "[data-theme='dark'] body",
-          },
-          filter: (token) => token.filePath.includes('dark'),
-        },
-      ],
-    },
-  },
+  })
+  await sd.buildAllPlatforms()
 }

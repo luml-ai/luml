@@ -40,7 +40,6 @@ export default defineConfigWithVueTs(
     '**/__tests__/**',
     'eslint.config.ts',
     'vite.config.*',
-    'style-dictionary.config.*',
   ]),
 
   ...pluginVue.configs['flat/essential'],
