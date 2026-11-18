@@ -536,7 +536,10 @@ class ComparisonScreen(BaseScreen):
             return
         for exp in self._experiments:
             result = facade.get_metric_history(exp.id, key, max_points=max_points)
-            post_worker_result(self, self._on_history_result, exp.id, key, result)
+            if not post_worker_result(
+                self, self._on_history_result, exp.id, key, result
+            ):
+                return
 
     @work(thread=True, exclusive=True, group="cmp-data")
     def _load_all_data(self) -> None:
@@ -559,28 +562,36 @@ class ComparisonScreen(BaseScreen):
             width = self._chart_max_points()
             for exp in self._experiments:
                 result = facade.get_metric_history(exp.id, key, max_points=width)
-                post_worker_result(self, self._on_history_result, exp.id, key, result)
+                if not post_worker_result(
+                    self, self._on_history_result, exp.id, key, result
+                ):
+                    return
         # Eval scores follow the histories so the metric chart fills
         # in first (most likely to be visible above the fold).
         for exp in self._experiments:
             ds_result = facade.get_eval_dataset_ids(exp.id)
             if not ds_result.ok:
-                post_worker_result(self, self._on_dataset_ids_failure, exp.id)
+                if not post_worker_result(self, self._on_dataset_ids_failure, exp.id):
+                    return
                 continue
             dataset_ids = list(ds_result.unwrap() or [])
-            post_worker_result(self, self._on_dataset_ids_result, exp.id, dataset_ids)
+            if not post_worker_result(
+                self, self._on_dataset_ids_result, exp.id, dataset_ids
+            ):
+                return
             for ds_id in dataset_ids:
                 avg_result = facade.get_eval_average_scores(exp.id, dataset_id=ds_id)
                 if not avg_result.ok:
                     continue
                 averages = dict(avg_result.unwrap() or {})
-                post_worker_result(
+                if not post_worker_result(
                     self,
                     self._on_average_scores_result,
                     exp.id,
                     ds_id,
                     averages,
-                )
+                ):
+                    return
 
     def _on_history_result(
         self, experiment_id: str, key: str, result: Result[Any]
