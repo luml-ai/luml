@@ -254,10 +254,32 @@ New RPC methods in `Api.methods`, not in `_SILENT`. Each returns `{path}` (the n
 
 ## Frontend
 
-The approved UI is described here in full and drawn in the screenshots under
-`codie/design/LM-1113/` (1440 × 900, light theme). Sample data in the drawings (names,
-sizes, agent "Claude") is illustrative. Where a screenshot and the text disagree, the text
-wins. Not drawn: **Show hidden**, **Show more**, the "moved or deleted" state, the
+The approved UI is described here in full, drawn in the screenshots under
+`codie/design/LM-1113/` (1440 × 900, light theme), and built as a design prototype under
+`codie/design/LM-1113/prototype/`. Sample data in the drawings (names, sizes, agent
+"Claude") is illustrative.
+
+**Design prototype.** The Vue files of the approved design, one folder per component:
+`WorkspacesPage/` (`WorkspacesPage.vue`, `WorkspaceFileViewer.vue`,
+`LumlPackagePreview.vue`), `WorkspaceFolder/` (`WorkspaceFolder.vue`,
+`WorkspaceFolderItem.vue`) and `AttachmentsView/`. The `*.stories.ts` files list every
+drawn state with its props; `sample.ts` holds the sample content. Read the prototype for
+**how the UI looks**: markup, layout, spacing, colours, icons, texts and the states drawn.
+It does **not** cover the logic:
+
+- it is not working code and does not run in `lumlflow/frontend`: it takes static props
+  and sample data, has no API calls, store, routing, stream or events;
+- its imports point to the design app: `@/ui` is PrimeVue (plus copies of the app's own
+  wrappers such as `LumlflowCard`, `LumlflowDialog`, `LumlflowConfirmDialog`,
+  `AttachmentsPreviewDataTable`), `@/components`, `@/blocks` and `@/pages` are copies of
+  existing Flow and attachments components; use the real ones in the app;
+- `highlight.ts` is a stand-in for syntax highlighting (the app uses CodeMirror, §2), and
+  the image, PDF, audio and video samples are placeholders;
+- the **Move to…** folder select only lists sample folders (the app's picker can go up,
+  §6).
+
+Behaviour, data and edge cases come from this spec. Where the prototype or a screenshot
+and the text disagree, the text wins; copy the look, not the code structure. Not drawn: **Show hidden**, **Show more**, the "moved or deleted" state, the
 `FlowOpen` and unsaved-changes dialogs, the read-only experiment route, and the layout on
 narrow screens; build them from existing Flow components in the same style.
 
@@ -877,6 +899,8 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
     `FilePreview` over `/api/flow/file`, plain-text fallback via `file.read_text`,
     no-preview / empty / too-large states)
   - [ ] `files` stream subscription; refresh on `files_changed`; "moved or deleted" state
+  - [ ] Match the look of `prototype/WorkspaceFolder/` and `prototype/WorkspacesPage/`
+    (`WorkspacesPage.vue`, `WorkspaceFileViewer.vue`) and screenshots 01, 04–09
   - [ ] Tests for the store (paging, hidden, refresh) and viewer states
 
 - [ ] **10. Row menu, dialogs and operations** (Frontend §6)
@@ -884,6 +908,9 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
     dialog with a folder picker that can go up; **Delete** confirms; **New file** / **New
     folder** dialogs with name errors
   - [ ] `FlowOpen` close-and-continue dialog; unsaved-changes dialog; error toasts by `kind`
+  - [ ] Match the look of the dialogs in `prototype/WorkspacesPage/WorkspacesPage.vue`,
+    the row menu and inline rename in `prototype/WorkspaceFolder/WorkspaceFolderItem.vue`,
+    and screenshots 02, 03, 13–16
   - [ ] Tests for the store actions and dialog flows
 
 - [ ] **11. Editing with locks and conflicts** (Frontend §4)
@@ -891,12 +918,16 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
   - [ ] Agent strip, coloured border and dimmed body with `agentColor` / neutral colour;
     read-only during a lock; keep unsaved text; changed-on-disk warning with Overwrite /
     Reload (during an edit, after a lock, on `FileConflict`)
+  - [ ] Match the look of the editing, conflict and agent states in
+    `prototype/WorkspacesPage/WorkspaceFileViewer.vue` and screenshots 17–19
   - [ ] Tests for lock, conflict and save flows
 
 - [ ] **12. `.luml` view and upload** (Frontend §3, §7)
   - [ ] `LumlPackagePreview` for experiment, model, dataset (split tabs via
     `/api/flow/file/entry`), unknown; archive file list opening `FilePreview`
   - [ ] `UploadModal` `publishFile`; buttons for all three kinds
+  - [ ] Match the look of `prototype/WorkspacesPage/LumlPackagePreview.vue` and
+    screenshots 10–12
   - [ ] Tests per kind with mocked `file.inspect`
 
 - [ ] **13. Experiment from a `.luml` (read-only route)** (Frontend §5)
@@ -904,3 +935,7 @@ backend `ruff` + `mypy` + `pytest lumlflow/tests/unit`; frontend `lint`, `type-c
     (as `frontend/src/hooks/useSqlLite.ts`); `TarAttachmentsProvider` over `/file/entry`
   - [ ] Experiment tabs rendered read-only, banner with the file name, no write actions
   - [ ] Tests with a small experiment archive fixture
+
+- [ ] **14. Remove the design references** (Frontend)
+  - [ ] Delete `codie/design/LM-1113/` (screenshots and prototype): they are spec material
+    and must not reach `main`, where CI rejects `codie/**`
