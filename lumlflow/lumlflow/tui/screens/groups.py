@@ -823,6 +823,10 @@ class GroupsScreen(BaseScreen):
 
     # ----- loading indicator -----
 
+    def on_unmount(self) -> None:
+        if self._loading:
+            self._set_loading(False)
+
     def _set_loading(self, loading: bool) -> None:
         self._loading = loading
         self._lumlflow_app.set_loading(loading)

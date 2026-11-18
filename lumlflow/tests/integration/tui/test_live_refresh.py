@@ -830,3 +830,76 @@ class TestRefreshLifetime:
             await settle_workers(pilot)
         assert not app.screen_stack
         getattr(app._refresh_scheduler, trigger)()
+
+    @pytest.mark.parametrize("owner_kind", ["groups", "experiments", "traces", "evals"])
+    async def test_discarded_page_fetch_releases_loading(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        owner_kind: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if owner_kind == "groups":
+                screen = GroupsScreen(facade=facade)
+                read_name = "list_groups"
+            elif owner_kind == "experiments":
+                screen = ExperimentsScreen(facade=facade, group_id=group.id)
+                read_name = "list_group_experiments"
+            else:
+                screen = ExperimentDetailScreen(
+                    facade=facade, experiment_id=experiment_id
+                )
+                read_name = f"list_{owner_kind}"
+            await app.push_screen(screen)
+            await settle_workers(pilot)
+            owner = screen
+            if owner_kind in {"traces", "evals"}:
+                screen.action_jump_tab(owner_kind)
+                await settle_workers(pilot)
+                owner = screen.query_one(f"#pane-{owner_kind}-panel")
+            assert not app._loading_state
+            read = getattr(facade, read_name)
+
+            def blocked_read(*args, **kwargs):
+                started.set()
+                assert release.wait(10), "page fetch was never released"
+                return read(*args, **kwargs)
+
+            monkeypatch.setattr(facade, read_name, blocked_read)
+            run_worker = owner.run_worker
+
+            def observe_worker(work, *args, **kwargs):
+                def observed():
+                    try:
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(observed, *args, **kwargs)
+
+            monkeypatch.setattr(owner, "run_worker", observe_worker)
+            owner.load_first_page()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                assert app._loading_state
+                app._jump_home()
+                await pilot.pause()
+                assert not owner.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            await pilot.pause()
+            assert errors == []
+            assert not app._loading_state
