@@ -190,3 +190,50 @@ def test_normal_http_attachments_work(client: TestClient) -> None:
         client.get(path, params={"parent_path": "nested"}).json()[0]["path"]
         == "nested/report.txt"
     )
+
+
+def test_attachment_byte_ranges_require_authentication(client: TestClient) -> None:
+    tracker = experiments_handler.tracker
+    experiment_id = tracker.start_experiment(name="ranges")
+    tracker.log_attachment("nested/data.csv", "abcdef", experiment_id=experiment_id)
+    url = f"/api/experiments/{experiment_id}/attachments/content"
+    params = {"file_path": "nested/data.csv"}
+    headers = {"Range": "bytes=2-4"}
+    assert client.get(url, params=params, headers=headers).status_code == 401
+    client.headers["Authorization"] = f"Bearer {client.app.state.session_token}"
+    part = client.get(url, params=params, headers=headers)
+    assert part.status_code == 206
+    assert part.content == b"cde"
+    assert part.headers["content-range"] == "bytes 2-4/6"
+
+
+def test_native_preview_authorizes_ranges_only_for_the_selected_attachment(
+    client: TestClient,
+) -> None:
+    tracker = experiments_handler.tracker
+    experiment = tracker.start_experiment(name="native preview")
+    tracker.log_attachment("a.wav", "abcdef", experiment_id=experiment)
+    tracker.log_attachment("b.wav", "xyz", experiment_id=experiment)
+    issue = f"/api/experiments/{experiment}/attachments/preview"
+    params = {"file_path": "a.wav"}
+    assert client.post(issue, params=params).status_code == 401
+    ticket = client.post(
+        issue,
+        params=params,
+        headers={"Authorization": f"Bearer {client.app.state.session_token}"},
+    ).json()
+    scoped = {
+        **params,
+        "experiment_id": experiment,
+        "expires": ticket["expires"],
+        "signature": ticket["signature"],
+    }
+    path = "/api/experiments/preview/content"
+    response = client.get(path, params=scoped, headers={"Range": "bytes=1-3"})
+    assert response.status_code == 206
+    assert response.content == b"bcd"
+    assert client.get(path, params={**scoped, "file_path": "b.wav"}).status_code == 401
+    with patch(
+        "lumlflow.api.experiments.time.time", return_value=ticket["expires"] + 1
+    ):
+        assert client.get(path, params=scoped).status_code == 401

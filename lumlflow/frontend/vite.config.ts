@@ -1,10 +1,11 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { attachmentPreviewWorker } from '../../extras/js/attachmentPreviewWorker'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig(({ mode }) => ({
-  plugins: [vue(), tailwindcss()],
+  plugins: [attachmentPreviewWorker(), vue(), tailwindcss()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

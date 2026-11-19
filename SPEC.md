@@ -756,9 +756,9 @@ it touches. Frontend tasks take the look from the named `SPEC-design/` files.
   - [x] Everything in Editing text files and File watcher and agent locks
   - [x] Tests in the style of `test_cell_claims.py` and `test_stream.py`
 
-- [ ] Extend the shared attachments preview
-  - [ ] Everything in Shared preview package, with small Parquet and Arrow fixtures
-  - [ ] Also run `type-check`, `test:ci` and `build` of `frontend/` (the main LUML app)
+- [x] Extend the shared attachments preview
+  - [x] Everything in Shared preview package, with small Parquet and Arrow fixtures
+  - [x] Also run `type-check`, `test:ci` and `build` of `frontend/` (the main LUML app)
     and `lumlflow/frontend/`, so both Attachments tabs still build and pass
 
 - [ ] Add files to the Workspace page with a viewer, operations and editing

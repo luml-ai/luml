@@ -7,31 +7,35 @@
     </template>
     <template v-else>
       <FileTree :tree="provider.getTree()" :selected="selectedFile" @select="handleSelect" />
-      <FilePreview
-        :is-downloading="isDownloading"
-        :file-name="fileName"
-        :file-size="fileSize"
-        :file-path="filePath"
-        :file-type="fileType"
-        :preview-state="previewState"
-        :error-message="previewError || undefined"
-        :content-url="contentUrl"
-        :text-content="textContent"
-        :content-blob="contentBlob"
-        @copy-path="handleCopyPath"
-        @download="handleDownload"
-      />
+      <div class="file-preview card">
+        <FilePreviewHeader
+          v-if="selectedFile"
+          :file-name="selectedFile.name"
+          :file-size="selectedFile.size ?? 0"
+          :file-path="selectedFile.path ?? ''"
+          :is-downloading="isDownloading"
+          @copy-path="handleCopyPath"
+          @download="handleDownload"
+        />
+        <FilePreview
+          ref="preview"
+          v-if="selectedFile && source"
+          :file-name="selectedFile.name"
+          :file-size="selectedFile.size"
+          :source="source"
+          :supports-partial-preview="provider.supportsPartialPreview?.(selectedFile.path ?? '')"
+        />
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue'
+import { computed, ref } from 'vue'
 import { useToast } from 'primevue'
 import FileTree from './components/FileTree.vue'
 import FilePreview from './components/FilePreview.vue'
-import { useFilePreview } from './hooks/useFilePreview'
-import { getFileType } from './utils/fileTypes'
+import FilePreviewHeader from './components/preview/FilePreviewHeader.vue'
 import type { ModelAttachmentsProvider, FileNode } from './interfaces/interfaces'
 
 interface Props {
@@ -42,25 +46,21 @@ const props = defineProps<Props>()
 
 const toast = useToast()
 const selectedFile = ref<FileNode | null>(null)
+const preview = ref<InstanceType<typeof FilePreview>>()
 const isDownloading = ref(false)
 
-const {
-  error: previewError,
-  contentUrl,
-  textContent,
-  contentBlob,
-  downloadFile,
-  previewState,
-} = useFilePreview({
-  file: toRef(() => selectedFile.value),
-  provider: toRef(() => props.provider),
+const source = computed(() => {
+  const file = selectedFile.value
+  const provider = props.provider
+  if (!file?.path) return
+  const path = file.path
+  return async () =>
+    provider.getPreviewSource
+      ? provider.getPreviewSource(path, file.size)
+      : (await provider.getAttachmentContent(path)).blob
 })
 
 const isEmpty = computed(() => props.provider.isEmpty())
-const fileName = computed(() => selectedFile.value?.name || '')
-const fileSize = computed(() => selectedFile.value?.size || 0)
-const filePath = computed(() => selectedFile.value?.path || '')
-const fileType = computed(() => (selectedFile.value ? getFileType(selectedFile.value.name) : null))
 
 function handleSelect(node: FileNode) {
   if (node.type === 'file') {
@@ -90,10 +90,19 @@ async function handleCopyPath() {
 }
 
 async function handleDownload() {
-  if (!selectedFile.value || isDownloading.value) return
+  if (!selectedFile.value?.path || isDownloading.value) return
   try {
     isDownloading.value = true
-    await downloadFile(selectedFile.value.name)
+    const { name, path } = selectedFile.value
+    const blob =
+      preview.value?.contentBlob ?? (await props.provider.getAttachmentContent(path)).blob
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = name
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(link.href)
   } catch (error) {
     console.error('Failed to download file:', error)
     toast.add({
@@ -112,6 +121,14 @@ async function handleDownload() {
 .attachments-wrapper {
   display: flex;
   gap: 16px;
+}
+
+.file-preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .empty-state {
