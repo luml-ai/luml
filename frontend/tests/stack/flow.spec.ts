@@ -9,6 +9,7 @@ import {
   evalRows,
   expectAverageScores,
   expectLargeValue,
+  expectNextPageAfterHeldReload,
   expectRegularTrace,
   expectTracesSortedAndPaged,
   expectVirtualisedTree,
@@ -16,6 +17,7 @@ import {
   rowCells,
   runLeftTimers,
   scoreTexts,
+  scrollToEndOnce,
   searchEval,
   sortLongestFirst,
   spanAttribute,
@@ -387,6 +389,77 @@ test.describe('leaving an experiment in Flow', () => {
       await expect(evalRows(page)).toHaveCount(0)
     })
   }
+})
+
+test.describe('paging while a list reloads in Flow', () => {
+  test.beforeEach(async () => {
+    await PROXY.reset()
+  })
+
+  test.afterEach(async () => {
+    await PROXY.reset()
+  })
+
+  test('the traces list asked for its next page during a reload loads it once the reload ends', async ({
+    page,
+  }) => {
+    const experiment = data.traces
+    // The reload shows its rows, then reads the annotation summary with the list still loading.
+    const summaryRead = `/api/experiments/${experiment.id}/traces/annotations/summary`
+    const requests = async () =>
+      (await PROXY.requests()).filter((item) => item.path === summaryRead)
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`, SLOW_FLOW)
+    await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+      timeout: 60_000,
+    })
+    await expectNextPageAfterHeldReload(page, TRACES, {
+      hold: async () => {
+        // The summary read of the shortest-first reload has its answer.
+        await expect
+          .poll(async () => (await requests()).filter((item) => item.endedAt === 0).length)
+          .toBe(0)
+        await PROXY.configure({ stallMatching: `^${summaryRead}` })
+      },
+      isHeld: async () => (await requests()).some((item) => item.stalled && item.endedAt === 0),
+      release: () => PROXY.configure({ stallMatching: null }),
+    })
+  })
+
+  test('the evals list asked for its next page during a reload loads it once, after the reload', async ({
+    page,
+  }) => {
+    const experiment = data.traces
+    // A sort reloads the dataset's rows by this read, with the list loading until it ends.
+    const listRead = `/api/experiments/${experiment.id}/evals`
+    const reads = async () => (await PROXY.requests()).filter((item) => item.path === listRead)
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/evals`, SLOW_FLOW)
+    await expectAverageScores(page, TRACES.averages)
+    await expect.poll(async () => (await reads()).some((item) => item.endedAt === 0)).toBe(false)
+    await PROXY.configure({ stallMatching: `^${listRead}\\?` })
+    await page.getByRole('columnheader', { name: 'accuracy' }).click()
+    await expect
+      .poll(
+        async () => (await reads()).filter((item) => item.stalled && item.endedAt === 0).length,
+        {
+          message: 'the reload is held',
+        },
+      )
+      .toBe(1)
+    await scrollToEndOnce(page.locator('.evals-table .p-virtualscroller'))
+    await PROXY.configure({ stallMatching: null })
+    const rows = evalRows(page)
+    await expect(
+      rows.and(page.locator('[data-p-index="20"]')),
+      'the second page, with no more scrolling',
+    ).toHaveCount(1)
+    await expect.poll(async () => (await reads()).some((item) => item.endedAt === 0)).toBe(false)
+    // Each eval once: a request let through during the reload would add a page twice.
+    const ids = await rows.evaluateAll((items) =>
+      items.map((item) => item.querySelector('button')?.textContent?.trim() ?? ''),
+    )
+    expect(ids.length).toBeGreaterThan(1)
+    expect(new Set(ids).size, ids.join(' ')).toBe(ids.length)
+  })
 })
 
 /** In the running app, as its links go: its stores keep what the left experiment put there. */

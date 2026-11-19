@@ -32,6 +32,9 @@ PIDS=()
 COMPOSE_UP=0
 
 log() { printf '[e2e] %s\n' "$*" >&2; }
+# Query strings, fragments with a token, and signatures, keys and tokens in text (error_guard.ts
+# redacts the same in test failures).
+REDACT='s/\?[^[:space:]"]*//g; s/#[[:alnum:]_-]*token=[^[:space:]"]*//g; s/(sig|signature|X-Amz-[[:alnum:]_-]+|AccountKey|SharedAccessSignature|token|Credential)=[^[:space:]&;"'"'"']+/\1=<redacted>/gI'
 
 cleanup() {
   local status=$?
@@ -45,8 +48,7 @@ cleanup() {
   fi
   # CI uploads the logs of a failed run: no query strings or fragments, which hold signed storage
   # URLs (Azurite's access log) and Flow's tokens (its start line).
-  find "$LOGS" -maxdepth 1 -name '*.log' -exec sed -i -E \
-    's/\?[^[:space:]"]*//g; s/#[[:alnum:]_-]*token=[^[:space:]"]*//g' {} + 2>/dev/null || true
+  find "$LOGS" -maxdepth 1 -name '*.log' -exec sed -i -E "$REDACT" {} + 2>/dev/null || true
   if [[ "${E2E_KEEP_WORK:-0}" != 1 && -z "${E2E_LOG_DIR:-}" ]]; then
     rm -rf "$WORK"
   else
@@ -188,7 +190,7 @@ start_platform() {
   log "writing and publishing experiments"
   export E2E_WORK_DIR="$WORK"
   export E2E_OLD_SDK_PYTHON="${E2E_OLD_SDK_PYTHON:-}"
-  (cd "$REPO/sdk/python/sdk" && uv run --frozen python "$HERE/prepare_platform.py" 2>&1 | tee "$LOGS/prepare-platform.log" >&2)
+  (cd "$REPO/sdk/python/sdk" && uv run --frozen python "$HERE/prepare_platform.py" 2>&1 | sed -E "$REDACT" | tee "$LOGS/prepare-platform.log" >&2)
 }
 
 start_flow() {
@@ -204,7 +206,7 @@ start_flow() {
   log "writing the Flow stores"
   export E2E_OLD_SDK_PYTHON="${E2E_OLD_SDK_PYTHON:-}"
   (cd "$REPO/sdk/python/sdk" && uv run --frozen python "$HERE/prepare_flow.py" "$E2E_FLOW_DIR" \
-    2>&1 | tee "$LOGS/prepare-flow.log" >&2)
+    2>&1 | sed -E "$REDACT" | tee "$LOGS/prepare-flow.log" >&2)
   log "starting the Flow server"
   # Own state dir: a Flow daemon of the user (or another run) is never discovered and reused.
   export E2E_FLOW_TOKEN="e2e-flow-session-token"

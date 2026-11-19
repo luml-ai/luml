@@ -21,8 +21,6 @@ interface SpanExpectation {
 
 /** Traces the viewer reads a page (the `limit` of its trace store's first request). */
 const TRACES_PAGE_SIZE = 20
-/** The `itemSize` of the traces table's virtual scroller. */
-const TRACES_ROW_HEIGHT = 44
 
 /** What trace_data.py's `expected()` says the views show. */
 export interface TraceData {
@@ -117,23 +115,24 @@ export async function expectTracesSortedAndPaged(page: Page, data: TraceData) {
   const scroller = page.locator('.traces-table .p-virtualscroller')
   // Scrolled to the trace's place: while the list is shorter the browser stops at its end,
   // which asks for the next page. Scrolling to the end each time could pass the trace's rows
-  // before they are drawn, as the pages after it come in between two checks.
+  // before they are drawn, as the pages after it come in between two checks. The row height is
+  // measured (the virtual scroller's itemSize, which the table's cells are sized to).
   const position = longestFirstPosition(data.traces[paged]!.index)
   await expect
     .poll(
       async () => {
-        await scroller.evaluate(
-          (element, { position, rowHeight }) => {
-            const header = element.querySelector('thead')?.offsetHeight ?? 0
-            element.scrollTo(0, header + position * rowHeight - element.clientHeight / 2)
-          },
-          { position, rowHeight: TRACES_ROW_HEIGHT },
-        )
+        await scroller.evaluate((element, position) => {
+          const header = element.querySelector('thead')?.offsetHeight ?? 0
+          const rowHeight = element.querySelector('tbody tr')!.getBoundingClientRect().height
+          element.scrollTo(0, header + position * rowHeight - element.clientHeight / 2)
+        }, position)
         return row.count()
       },
       { message: `${paged} on the second page`, timeout: 30_000 },
     )
     .toBe(1)
+  // PrimeVue numbers the rows of a virtual scroller by their place in the whole list.
+  await expect(row).toHaveAttribute('data-p-index', String(position))
   const expected = data.traces[paged]!
   await expectTraceRow(row, paged, expected, expected.eval_id)
 }
@@ -146,6 +145,60 @@ export async function sortLongestFirst(page: Page, data: TraceData) {
   await expect(firstId).toHaveText('trace-0000')
   await duration.click()
   await expect(firstId).toHaveText(data.big.trace_id)
+}
+
+/**
+ * Scrolls a table's virtual scroller to its end; resolves once the scroll event, and so the
+ * scroller's handler of it (which asks for the next page), has run.
+ */
+export async function scrollToEndOnce(scroller: Locator) {
+  await scroller.evaluate(
+    (element) =>
+      new Promise<void>((resolve) => {
+        element.addEventListener('scroll', () => resolve(), { once: true })
+        element.scrollTo(0, element.scrollHeight)
+      }),
+  )
+}
+
+/** The read the test holds to keep the traces list's reload, and its `loading` flag, going. */
+export interface HeldReload {
+  hold: () => Promise<void>
+  /** True once the read waits in the proxy. */
+  isHeld: () => Promise<boolean>
+  release: () => Promise<void>
+}
+
+/**
+ * Sorts longest first and holds the read the reload makes after showing its rows, scrolls the
+ * table to its end once meanwhile, lets the read go and expects the second page with no more scrolling: the table asks
+ * for a page only when its scrolled range changes, so a request refused during the reload must
+ * be kept and sent once the reload ends.
+ */
+export async function expectNextPageAfterHeldReload(
+  page: Page,
+  data: TraceData,
+  reload: HeldReload,
+) {
+  const duration = page.getByRole('columnheader', { name: 'execution time' })
+  const firstId = traceRows(page).first().locator('td').first()
+  await duration.click()
+  await expect(firstId).toHaveText('trace-0000')
+  await reload.hold()
+  await duration.click()
+  await expect.poll(reload.isHeld, { message: 'the reload read is held' }).toBe(true)
+  await expect(firstId).toHaveText(data.big.trace_id)
+  const lastOfPage = TRACES_PAGE_SIZE - 1
+  await expect(traceRows(page).last()).toHaveAttribute('data-p-index', String(lastOfPage))
+  await scrollToEndOnce(page.locator('.traces-table .p-virtualscroller'))
+  await reload.release()
+  // Longest first: the big trace, then the regular ones from the last index down.
+  const firstOfNextPage = TRACES_PAGE_SIZE
+  const index = data.trace_count - 1 - firstOfNextPage
+  const next = page.locator(`.traces-table tbody tr[data-p-index="${firstOfNextPage}"]`)
+  await expect(next.locator('td').first(), 'the second page, with no more scrolling').toHaveText(
+    `trace-${String(index).padStart(4, '0')}`,
+  )
 }
 
 export async function clickFirstTrace(page: Page, traceId: string) {

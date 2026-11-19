@@ -1,5 +1,13 @@
 import type { BrowserContext, Page } from '@playwright/test'
-import { ErrorGuard, ERROR_TOAST, expect, test } from './error_guard'
+import {
+  ErrorGuard,
+  ERROR_TOAST,
+  expect,
+  newUnwatchedContext,
+  redact,
+  test,
+  THIRD_PARTY,
+} from './error_guard'
 
 // The guard itself, on a page of its own served by the test (no stack needed): it reports each
 // kind of error, keeps signed query strings out of its message, allows what a test declares and
@@ -13,6 +21,10 @@ async function serveApp(context: BrowserContext) {
     if (path === '/app') return route.fulfill({ contentType: 'text/html', body: '<p>app</p>' })
     if (path === '/refused') return route.abort('connectionrefused')
     if (path === '/slow') return new Promise(() => undefined)
+    if (path === '/late') {
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      return route.fulfill({ status: 503, body: 'late' })
+    }
     return route.fulfill({ status: 500, body: 'failed' })
   })
 }
@@ -62,7 +74,8 @@ test.describe('the error guard', () => {
   let page: Page
 
   test.beforeEach(async ({ browser }) => {
-    context = await browser.newContext()
+    // Not watched by the fixture, which would fail these tests on the errors they cause.
+    context = await newUnwatchedContext(browser)
     guard = new ErrorGuard()
     await guard.watch(context)
     await serveApp(context)
@@ -122,6 +135,115 @@ test.describe('the error guard', () => {
     expect(await guard.problems(true)).toBeNull()
   })
 
+  test('a toast that becomes an error toast by its class alone is reported', async () => {
+    await page.evaluate((toastClass) => {
+      const toast = document.createElement('div')
+      toast.className = 'p-toast-message p-toast-message-info'
+      toast.textContent = 'Became an error'
+      document.body.append(toast)
+      setTimeout(() => toast.classList.replace('p-toast-message-info', toastClass), 50)
+    }, ERROR_TOAST)
+    // Seen as it changes, not only by the scan at the end.
+    await expect.poll(() => guard.recorded.length).toBe(1)
+    expect(await guard.problems()).toBe(
+      ['1 unexpected error(s) in the browser:', `  toast: Became an error ${APP}/app`].join('\n'),
+    )
+  })
+
+  test('errors shown in the page are reported; warnings and info notices are not', async () => {
+    await page.evaluate(() => {
+      document.body.innerHTML = `
+        <div data-testid="metric-chart" data-metric-key="train/loss">
+          <svg data-testid="chart-error"></svg>
+        </div>
+        <div data-testid="experiment-status-notice" class="p-message p-message-error">
+          Read failed
+        </div>
+        <div data-testid="experiment-status-notice" class="p-message p-message-warn">Skipped</div>
+        <div data-testid="experiment-status-notice" class="p-message p-message-info">Full</div>
+        <div class="state-content warning">Too big</div>
+        <div class="table-preview"><p><span class="error">Not this one</span></p></div>`
+      const later = () => {
+        const preview = document.createElement('div')
+        preview.className = 'state-content error'
+        preview.textContent = 'Preview failed'
+        document.body.append(preview)
+        const table = document.querySelector('.table-preview')!
+        const error = document.createElement('div')
+        error.className = 'error'
+        error.textContent = 'Table failed'
+        table.append(error)
+      }
+      setTimeout(later, 50)
+    })
+    await expect.poll(() => guard.recorded.length).toBe(4)
+    const problems = await guard.problems()
+    const lines = problems!.split('\n')
+    expect(lines[0]).toBe('4 unexpected error(s) in the browser:')
+    expect(lines.slice(1).sort()).toEqual(
+      [
+        `  error state: chart train/loss ${APP}/app`,
+        `  error state: Read failed ${APP}/app`,
+        `  error state: Preview failed ${APP}/app`,
+        `  error state: Table failed ${APP}/app`,
+      ].sort(),
+    )
+  })
+
+  test('a request to the internet is reported; the known third parties are answered', async () => {
+    // From a blank page: Chromium refuses a page whose document no server sent (the test's route
+    // answers APP) access to loopback, where the answers come from.
+    const blank = await context.newPage()
+    const answers = await blank.evaluate(async () => {
+      const read = async (url: string) => {
+        try {
+          const response = await fetch(url)
+          return `${response.status} ${await response.text()}`
+        } catch (error) {
+          return String(error)
+        }
+      }
+      return [
+        await read('https://api.github.com/repos/luml-ai/luml'),
+        await read('https://fonts.googleapis.com/css?family=Inter'),
+        await read('https://api.github.com/unknown'),
+        await read('https://example.org/data?token=secret-token'),
+      ]
+    })
+    expect(answers).toEqual([
+      `200 ${THIRD_PARTY[0]!.body}`,
+      '200 ',
+      '404 not a known third-party call',
+      'TypeError: Failed to fetch',
+    ])
+    const problems = await guard.problems()
+    expect(problems!.split('\n').sort()).toEqual(
+      [
+        '2 unexpected error(s) in the browser:',
+        '  response: GET 404 https://api.github.com/unknown',
+        '  external request: GET https://example.org/data',
+      ].sort(),
+    )
+    expect(problems).not.toMatch(/secret/)
+  })
+
+  test('errors that come after the test body are still reported', async () => {
+    // The request is under way when the test ends; its error response comes a second later.
+    const sent = page.waitForEvent('request', (request) => request.url().endsWith('/late'))
+    await page.evaluate(() => {
+      void fetch('/late').catch(() => undefined)
+      setTimeout(() => console.error('Late text'))
+    })
+    await sent
+    expect(await guard.problems()).toBe(
+      [
+        '2 unexpected error(s) in the browser:',
+        '  console error: Late text',
+        `  response: GET 503 ${APP}/late`,
+      ].join('\n'),
+    )
+  })
+
   test('a toast of an earlier document of the page still counts', async () => {
     await page.evaluate((toastClass) => {
       const toast = document.createElement('div')
@@ -135,6 +257,28 @@ test.describe('the error guard', () => {
       ['1 unexpected error(s) in the browser:', `  toast: Before reload ${APP}/app`].join('\n'),
     )
   })
+})
+
+test('redacts signatures, keys, tokens and credentials in message text', () => {
+  const probes: [string, string][] = [
+    ['GET https://h/x?X-Amz-Signature=s1&a=b', 'GET https://h/x'],
+    ['read /blob?sv=1&sig=s2 failed', 'read /blob failed'],
+    ['sig=s3&se=2026 expired', 'sig=<redacted>&se=2026 expired'],
+    [
+      'X-Amz-Credential=s4/2026 X-Amz-Signature=s5',
+      'X-Amz-Credential=<redacted> X-Amz-Signature=<redacted>',
+    ],
+    ['AccountKey=s6==;BlobEndpoint=http://h', 'AccountKey=<redacted>;BlobEndpoint=http://h'],
+    ['SharedAccessSignature=s7;x', 'SharedAccessSignature=<redacted>;x'],
+    ['signature=s8 Credential=s9', 'signature=<redacted> Credential=<redacted>'],
+    ['token=s10 and session-token=s11', 'token=<redacted> and session-token=<redacted>'],
+    ['Authorization: Basic s12 sent', 'Authorization: <redacted> sent'],
+    ['Authorization: Bearer s13', 'Authorization: <redacted>'],
+    ['Bearer s14', 'Bearer <redacted>'],
+    ['open http://h/app#session-token=s15', 'open http://h/app'],
+  ]
+  for (const [text, expected] of probes) expect(redact(text), text).toBe(expected)
+  expect(probes.map(([text]) => redact(text)).join(' ')).not.toMatch(/s\d/)
 })
 
 // The fixture of every stack test. Expected to fail: a guard that stops failing turns them red.
@@ -151,5 +295,22 @@ test.describe('the error guard fixture', () => {
     errors.expect({ kind: 'toast', text: /Never shown/ })
     await serveApp(page.context())
     await page.goto(`${APP}/app`)
+  })
+
+  test('fails a test whose own context shows an undeclared error', async ({ browser }) => {
+    test.fail()
+    const context = await browser.newContext()
+    await serveApp(context)
+    const page = await context.newPage()
+    await page.goto(`${APP}/app`)
+    await page.evaluate(() => console.error('In a context of the test'))
+    await context.close()
+  })
+
+  test('fails a test that asks the internet', async ({ page }) => {
+    test.fail()
+    await serveApp(page.context())
+    await page.goto(`${APP}/app`)
+    await page.evaluate(() => fetch('https://example.org/').catch(() => undefined))
   })
 })

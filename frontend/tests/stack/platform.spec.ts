@@ -1036,9 +1036,11 @@ test.describe('slow network to storage', () => {
 
   test('a read that never gets an answer shows a timeout, and the next read recovers', async ({
     page,
+    errors,
   }) => {
     test.setTimeout(240_000)
     const large = artifact('large')
+    errors.expect({ kind: 'error state', text: /^chart train\/loss$/ })
     await openSnapshot(page, storage, large)
     await settledChart(page, 'train/loss', [large.id])
     const card = chartCard(page, 'train/loss')
@@ -1064,14 +1066,13 @@ test.describe('slow network to storage', () => {
   test('traces of a new-format experiment on a slow link: the same reads, each step in time', async ({
     page,
     browser,
-    errors,
   }) => {
     const traces = artifact('traces_new')
+    // Watched by the error guard too, as every context the test opens.
     const baselineContext = await browser.newContext({
       storageState: BROWSER_STATE,
       viewport: { width: 1440, height: 1000 },
     })
-    await errors.watch(baselineContext)
     const baseline = await traceSteps(
       await baselineContext.newPage(),
       new NetworkLog(baselineContext, storage.artifacts),
