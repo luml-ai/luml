@@ -7,6 +7,8 @@ from typing import Any
 from urllib.parse import quote
 
 import pytest
+from luml import save_experiment
+from luml.experiments.tracker import ExperimentTracker
 from lumlflow.flow.daemon import client, docs, mcp
 from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import FlowSession, Hub
@@ -592,6 +594,22 @@ def test_a_cell_resource_reads_back_under_a_name_that_needs_escaping(
 
     assert "#" not in listed[0]
     assert "class Score" in read_back[4]["result"]["contents"][0]["text"]
+
+
+def test_inspect_reads_a_workspace_archive_without_opening_a_notebook(
+    talk: Talk, workspace: Path
+) -> None:
+    tracker = ExperimentTracker(f"sqlite://{workspace / 'tracker'}")
+    experiment = tracker.start_experiment(name="run-42")
+    tracker.end_experiment(experiment)
+    path = workspace / "run-42.luml"
+    ref = save_experiment(tracker, experiment, output_path=str(path))
+    answers = talk(hello(), tool(1, "file-inspect", {"path": str(path)}))
+    inspected = answered(answers, 1)
+    assert inspected["kind"] == "experiment"
+    assert inspected["manifest"]["name"] == ref.get_manifest().name
+    assert {entry["name"] for entry in inspected["files"]} == set(ref.list_files())
+    assert talk.hub.opened() == []
 
 
 def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):

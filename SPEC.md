@@ -745,10 +745,10 @@ with tests and ends with its checks passing: backend `ruff`, `mypy` and
 `pytest lumlflow/tests/unit`; frontend `lint`, `type-check` and `test:ci` of every package
 it touches. Frontend tasks take the look from the named `SPEC-design/` files.
 
-- [ ] Add the file API to the daemon
-  - [ ] Everything in Paths, Listing, Reading files, File and folder operations and
+- [x] Add the file API to the daemon
+  - [x] Everything in Paths, Listing, Reading files, File and folder operations and
     Uploading a `.luml` to LUML, including the MCP tool and the CLI `flow delete`
-  - [ ] Update `test_workspace.py` and `test_mcp.py`; build the `.luml` test archives
+  - [x] Update `test_workspace.py` and `test_mcp.py`; build the `.luml` test archives
     with the SDK (tabular dataset, Hugging Face dataset if `datasets` is available in
     tests, experiment, model) and mock the LUML client for the upload
 

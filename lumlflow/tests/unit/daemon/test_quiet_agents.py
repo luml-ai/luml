@@ -77,6 +77,29 @@ async def _present(daemon: Daemon) -> dict[str, tuple[str, bool]]:
     }
 
 
+async def test_confirmed_rename_ends_only_the_affected_agent_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_workspace(tmp_path / "project", flows=("churn", "sales"))
+    async with _daemon(root, monkeypatch) as (daemon, _clock):
+        agent = await _connect(daemon)
+        try:
+            for flow in ("churn", "sales"):
+                await agent.call(
+                    "agent.begin", {"flow": flow, "actor": "pair", "lease": True}
+                )
+            await daemon.api.flow_rename(
+                {"flow": "churn", "name": "report", "close_open": True}
+            )
+            moved = await agent.call("tree", {"flow": "report"})
+            other = await agent.call("tree", {"flow": "sales"})
+            assert moved["agent_sessions"] == []
+            assert other["agent_sessions"][0]["leased"]
+            assert daemon._leases() == {(str(root / "sales.flow"), "pair", "pair")}
+        finally:
+            agent.writer.close()
+
+
 async def test_a_quiet_agent_leaves_and_its_next_call_brings_it_back(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

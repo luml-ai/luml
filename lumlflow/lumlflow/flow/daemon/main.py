@@ -61,7 +61,7 @@ class Daemon:
         self.directory = directory.resolve()
         self.instance_id = secrets.token_hex(16)
         self.streams = Streams()
-        self.hub = Hub(streams=self.streams)
+        self.hub = Hub(streams=self.streams, drop_leases=self._drop_flow_leases)
         self.api = Api(
             self.hub,
             directory=self.directory,
@@ -383,6 +383,16 @@ class Daemon:
         for key in [key for key in self._last_call if key[1] == actor]:
             del self._last_call[key]
 
+    def _drop_flow_leases(self, flow: str) -> None:
+        for leases in (*self._client_leases.values(), *self._quiet.values()):
+            for lease in tuple(leases):
+                if lease[0] == flow:
+                    leases.remove(lease)
+                    self._last_call.pop((flow, lease[1]), None)
+                    self.api.forget_agent(lease[1], flow=flow)
+                    self.api.end_activity(flow, actor=lease[1])
+        self._announce_agents(flow)
+
     def _leases(self) -> Leases:
         return {
             lease
@@ -521,7 +531,9 @@ class Daemon:
                 writer,
                 request_id,
                 error=_error(
-                    FLOW_ERROR, str(failure), data={"kind": type(failure).__name__}
+                    FLOW_ERROR,
+                    str(failure),
+                    data={"kind": type(failure).__name__, **vars(failure)},
                 ),
             )
         except asyncio.CancelledError:
@@ -673,6 +685,7 @@ _SILENT = frozenset(
         "agent.end",
         "status",
         "workspace.list",
+        "file.inspect",
         "flows.open",
         "flow.open",
         "tree",

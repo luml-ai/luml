@@ -877,7 +877,7 @@ def flow_delete(
         typer.confirm(
             f"delete `{name}` and everything it recorded?", abort=True, default=False
         )
-    result = _call("flow.delete", flow=name, as_json=as_json)
+    result = _call("flow.delete", {"close_open": True}, flow=name, as_json=as_json)
     _emit(result, as_json, [f"deleted `{result['deleted']}` ({result['path']})"])
 
 

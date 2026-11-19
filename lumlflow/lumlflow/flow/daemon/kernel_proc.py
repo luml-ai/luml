@@ -158,6 +158,8 @@ class KernelProcess:
                 raise
             except KernelError as death:
                 tracked = self._tracked_runs.pop(request.run_id, None)
+                if tracked is None and request.run_id in self._cancelled_runs:
+                    return RunResult(state="cancelled")
                 if tracked is None or self._fail_experiment is None:
                     raise KernelError(
                         f"the kernel stopped while `{request.slug}` was running: "
