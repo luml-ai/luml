@@ -3,20 +3,33 @@
 import asyncio
 import ctypes
 import errno
+import hashlib
 import logging
 import os
+import re
 import shutil
 import stat
 import sys
 import tempfile
-from collections.abc import Awaitable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from lumlflow.flow.errors import AlreadyExists, FlowError, NotAFile, OsError, Protected
+from lumlflow.flow import atomic
+from lumlflow.flow.errors import (
+    AlreadyExists,
+    FileConflict,
+    FlowError,
+    NotAFile,
+    NotText,
+    OsError,
+    Protected,
+    TooLarge,
+)
 from lumlflow.flow.store.flowstore import FLOW_SUFFIX, STORE_DIRNAME
 
 logger = logging.getLogger(__name__)
+MAX_TEXT_BYTES = 2 * 1024 * 1024
 
 
 async def finish_operation(work: Awaitable[object]) -> None:
@@ -108,13 +121,208 @@ def item_path(path: str) -> Path:
         return value
 
 
+def _regular_target(value: Path) -> Path:
+    with os_errors():
+        target = _resolve(value)
+        _ordinary(target)
+        if not stat.S_ISREG(target.stat().st_mode):
+            raise NotAFile(f"`{value}` is not a regular file")
+        return target
+
+
 def regular_file(path: str) -> Path:
     value = item_path(path)
-    with os_errors():
-        _ordinary(_resolve(value))
-        if not stat.S_ISREG(value.stat().st_mode):
-            raise NotAFile(f"`{value}` is not a regular file")
+    _regular_target(value)
     return value
+
+
+def text_target(path: str, check_lock: Callable[[Path], None] | None = None) -> Path:
+    entry = item_path(path)
+    target = _regular_target(entry)
+    if check_lock is not None:
+        check_lock(target)
+    if ".luml" in {entry.suffix.lower(), target.suffix.lower()}:
+        raise NotText(f"`{entry}` is a .luml archive")
+    return target
+
+
+def _check_text(data: bytes) -> None:
+    if len(data) > MAX_TEXT_BYTES:
+        raise TooLarge("text files must be at most 2 MB")
+    if b"\0" in data:
+        raise NotText("text files cannot contain NUL bytes")
+
+
+def _conflict(path: Path, info: os.stat_result) -> FileConflict:
+    return FileConflict(f"`{path}` changed on disk", mtime_ns=str(info.st_mtime_ns))
+
+
+def _same_version(before: os.stat_result, after: os.stat_result) -> bool:
+    return (
+        os.path.samestat(before, after)
+        and before.st_ctime_ns == after.st_ctime_ns
+        and before.st_mtime_ns == after.st_mtime_ns
+        and before.st_size == after.st_size
+        and before.st_mode == after.st_mode
+    )
+
+
+def read_text(
+    path: Path,
+    *,
+    for_write: bool = False,
+    expected: str | None = None,
+    revision: str | None = None,
+) -> tuple[str, os.stat_result, str]:
+    # A concurrent rename must not pair the bytes of one file with the timestamp
+    # of its successor. Nonblocking open also handles a regular file becoming a FIFO.
+    flags = os.O_RDWR if for_write else os.O_RDONLY
+    flags |= getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_BINARY", 0)
+    with os_errors(), os.fdopen(os.open(path, flags), "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise NotAFile(f"`{path}` is not a regular file")
+        # If an in-place edit overlaps the read, take one fresh snapshot.
+        for _ in range(2):
+            if expected is not None and expected != str(info.st_mtime_ns):
+                raise _conflict(path, info)
+            if info.st_size > MAX_TEXT_BYTES:
+                if revision is not None:
+                    raise _conflict(path, info)
+                raise TooLarge("text files must be at most 2 MB")
+            data = handle.read(MAX_TEXT_BYTES + 1)
+            after = os.fstat(handle.fileno())
+            if _same_version(info, after):
+                break
+            handle.seek(0)
+            info = after
+        else:
+            if expected is not None:
+                raise _conflict(path, info)
+            raise FlowError(f"`{path}` kept changing while it was read")
+        digest = hashlib.sha256(data).hexdigest()
+        if revision is not None and revision != digest:
+            raise _conflict(path, info)
+        _check_text(data)
+        try:
+            return data.decode("utf-8"), info, digest
+        except UnicodeDecodeError as error:
+            raise NotText("text files must be UTF-8") from error
+
+
+def _preserve_access(path: Path, staged: Path, info: os.stat_result) -> None:
+    if sys.platform == "win32":
+        # A sibling inherits its parent's security descriptor. Check that its
+        # owner, group and DACL match before replacing the destination.
+        from ctypes import wintypes
+
+        def security(file: Path) -> bytes:
+            required = wintypes.DWORD()
+            get_security = ctypes.windll.advapi32.GetFileSecurityW
+            flags = 0x7  # OWNER | GROUP | DACL_SECURITY_INFORMATION
+            get_security(str(file), flags, None, 0, ctypes.byref(required))
+            buffer = ctypes.create_string_buffer(required.value)
+            if not get_security(
+                str(file), flags, buffer, len(buffer), ctypes.byref(required)
+            ):
+                raise ctypes.WinError()
+            return buffer.raw
+
+        if security(path) != security(staged):
+            raise PermissionError(errno.EACCES, "cannot preserve file access controls")
+    else:
+        temp = staged.stat()
+        if (temp.st_uid, temp.st_gid) != (info.st_uid, info.st_gid):
+            os.chown(staged, info.st_uid, info.st_gid)
+        if sys.platform == "darwin":
+            libc = ctypes.CDLL(None, use_errno=True)
+            # COPYFILE_ACL copies just the access control list.
+            if libc.copyfile(os.fsencode(path), os.fsencode(staged), None, 1):
+                code = ctypes.get_errno()
+                raise OSError(code, os.strerror(code))
+        elif hasattr(os, "listxattr"):
+            # A default ACL on the parent can also add an ACL to the
+            # temporary file that was absent from the original.
+            acl_names = {"system.posix_acl_access", "system.nfs4_acl"}
+            source = acl_names.intersection(os.listxattr(path))
+            for key in acl_names.intersection(os.listxattr(staged)) - source:
+                os.removexattr(staged, key)
+            for key in source:
+                os.setxattr(staged, key, os.getxattr(path, key))
+        else:
+            raise OSError(errno.ENOTSUP, "cannot preserve file access controls")
+    staged.chmod(stat.S_IMODE(info.st_mode))
+
+
+def write_text(
+    path: Path,
+    text: object,
+    mtime_ns: object,
+    revision: object,
+    *,
+    force: object,
+    check_lock: Callable[[Path], None],
+) -> tuple[os.stat_result, str]:
+    if not isinstance(force, bool):
+        raise FlowError("force must be a boolean")
+    if not isinstance(mtime_ns, str) or not re.fullmatch(r"-?[0-9]+", mtime_ns):
+        raise FlowError("mtime_ns must be a decimal string from file.read_text")
+    expected_mtime = expected_revision = None
+    if not force:
+        if not isinstance(revision, str):
+            raise FlowError("revision must be a string from file.read_text")
+        expected_mtime = mtime_ns
+        expected_revision = revision
+    read_text(path, for_write=True, expected=expected_mtime, revision=expected_revision)
+    if not isinstance(text, str):
+        raise FlowError("text must be a string")
+    if len(text) > MAX_TEXT_BYTES:
+        raise TooLarge("text files must be at most 2 MB")
+    try:
+        data = text.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise NotText("text files must be UTF-8") from error
+    _check_text(data)
+
+    with os_errors(), atomic.staged_bytes(path, data) as staged:
+        info = staged.stat()
+
+        def prepare() -> None:
+            nonlocal info
+            for _ in range(3):
+                check_lock(path)
+                _, current, _ = read_text(
+                    path,
+                    for_write=True,
+                    expected=expected_mtime,
+                    revision=expected_revision,
+                )
+                _preserve_access(path, staged, current)
+                info = staged.stat()
+                if info.st_mtime_ns <= current.st_mtime_ns:
+                    # FAT timestamps can be two seconds apart.
+                    for increment in (1, 2_000_000_000):
+                        os.utime(
+                            staged,
+                            ns=(info.st_atime_ns, current.st_mtime_ns + increment),
+                        )
+                        info = staged.stat()
+                        if info.st_mtime_ns > current.st_mtime_ns:
+                            break
+                    else:
+                        raise FlowError("could not advance the file modification time")
+                after = path.lstat()
+                if _same_version(current, after):
+                    break
+                if not force:
+                    raise _conflict(path, after)
+            else:
+                raise FlowError(f"`{path}` kept changing during the save")
+
+        atomic.replace_retry(staged, path, before_replace=prepare)
+    atomic.fsync_dir(path.parent)
+    return info, hashlib.sha256(data).hexdigest()
 
 
 def directory_path(path: str) -> Path:
@@ -138,13 +346,13 @@ def target_path(parent: Path, name: str, *, directory: bool) -> Path:
     return target
 
 
-def create(target: Path, *, folder: bool) -> Path:
+def create(target: Path, *, folder: bool) -> os.stat_result | None:
     with os_errors():
         if folder:
             target.mkdir()
-        else:
-            target.touch(exist_ok=False)
-    return target
+            return None
+        with target.open("xb") as handle:
+            return os.fstat(handle.fileno())
 
 
 def check_destination(source: Path, target: Path) -> None:
@@ -217,10 +425,11 @@ def _versions(root: Path) -> dict[Path, tuple[int, ...]]:
     return versions
 
 
-def move(source: Path, target: Path) -> None:
+def move(source: Path, target: Path) -> tuple[os.stat_result, os.stat_result]:
+    original_info = source.lstat()
     try:
         _rename(source, target)
-        return
+        return original_info, original_info
     except OSError as error:
         if error.errno != errno.EXDEV:
             raise
@@ -241,6 +450,7 @@ def move(source: Path, target: Path) -> None:
         try:
             if _versions(original) != versions:
                 raise FlowError(f"`{source}` changed during the move")
+            info = copy.lstat()
             _rename(copy, target)
         except BaseException:
             try:
@@ -259,3 +469,4 @@ def move(source: Path, target: Path) -> None:
             logger.warning(
                 "could not clean up moved item at %s", holding, exc_info=True
             )
+        return original_info, info

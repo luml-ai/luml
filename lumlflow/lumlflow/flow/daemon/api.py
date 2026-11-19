@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Literal, get_args
 
 from lumlflow.flow.daemon import envs, files, handoff, harnesses, queries, workspace
+from lumlflow.flow.daemon.file_watcher import FileWatcher, Sessions
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.projections import Projection
 from lumlflow.flow.daemon.workspace import FlowRef
@@ -134,6 +135,7 @@ class Api:
         stop: Callable[[], None] | None = None,
         attachments: AttachmentCheck | None = None,
         leases: LeaseCheck | None = None,
+        file_sessions: Callable[[], Sessions] | None = None,
         instance_id: str = "",
         harness_service: harnesses.HarnessService | None = None,
     ) -> None:
@@ -154,6 +156,9 @@ class Api:
         self._claims: dict[tuple[str, str, str], _Claim] = {}
         self.pending_runs: list[_PendingRun] = []
         self.clock: Callable[[], float] = time.time
+        self.file_watcher = FileWatcher(
+            file_sessions or dict, lambda: self.clock(), CLAIM_IDLE_S
+        )
         self.kernel_idle_s = _idle_seconds(KERNEL_IDLE_ENV, KERNEL_IDLE_S)
         self.session_idle_s = _idle_seconds(SESSION_IDLE_ENV, SESSION_IDLE_S)
         self.methods: dict[str, Method] = {
@@ -180,6 +185,8 @@ class Api:
             "file.delete": self.file_delete,
             "file.mkdir": self.file_mkdir,
             "file.create": self.file_create,
+            "file.read_text": self.file_read_text,
+            "file.write_text": self.file_write_text,
             "flow.duplicate": self.flow_duplicate,
             "flows.open": self.flows_open,
             "cells.list": self.cells_list,
@@ -477,6 +484,9 @@ class Api:
             source,
             target,
             close_open=params.get("close_open") is True,
+            written=self.file_watcher.prepare_move(source)
+            if target is not None
+            else None,
         )
         return {"path": str(target or source)}
 
@@ -486,6 +496,30 @@ class Api:
     async def file_mkdir(self, params: dict[str, Any]) -> dict[str, Any]:
         return self._create_entry(params, folder=True)
 
+    async def file_read_text(self, params: dict[str, Any]) -> dict[str, Any]:
+        target = files.text_target(params.get("path", ""))
+        self.hub.check_available(target)
+        text, info, revision = await asyncio.to_thread(files.read_text, target)
+        return {"text": text, "mtime_ns": str(info.st_mtime_ns), "revision": revision}
+
+    async def file_write_text(self, params: dict[str, Any]) -> dict[str, Any]:
+        target = files.text_target(
+            params.get("path", ""), self.file_watcher.check_write
+        )
+        self.hub.check_available(target)
+        # Keep the check, replacement and watcher acknowledgement in one event-loop
+        # turn so another RPC or incoming watcher event cannot split the save.
+        info, revision = files.write_text(
+            target,
+            params.get("text"),
+            params.get("mtime_ns"),
+            params.get("revision"),
+            check_lock=self.file_watcher.check_write,
+            force=params.get("force", False),
+        )
+        self.file_watcher.written(target, info)
+        return {"mtime_ns": str(info.st_mtime_ns), "revision": revision}
+
     def _create_entry(self, params: dict[str, Any], *, folder: bool) -> dict[str, Any]:
         target = files.target_path(
             files.directory_path(params.get("directory", "")),
@@ -493,7 +527,9 @@ class Api:
             directory=folder,
         )
         self.hub.check_available(target)
-        files.create(target, folder=folder)
+        info = files.create(target, folder=folder)
+        if info is not None:
+            self.file_watcher.written(target, info)
         return {"path": str(target)}
 
     async def flow_duplicate(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1711,6 +1747,7 @@ class Api:
         self._announce_claims(session)
 
     def expire_claims(self) -> None:
+        self.file_watcher.expire()
         now = self.clock()
         for session in self.hub.opened():
             if self._expire(session.ref.address, now):

@@ -68,6 +68,7 @@ class Daemon:
             stop=self.stop,
             attachments=self._attachments,
             leases=self._leases,
+            file_sessions=self._file_sessions,
             instance_id=self.instance_id,
         )
         self.watcher = Watcher(self.hub)
@@ -193,6 +194,7 @@ class Daemon:
         await self._stop_web()
         await self._stop_serving()
         await self._end_calls()
+        await self.api.file_watcher.stop()
         await self.watcher.stop()
         await self.hub.close()
         if self._record is not None:
@@ -292,6 +294,7 @@ class Daemon:
         # Dropped before the ends are committed: the watchers reading the
         # announcement must not see a lease this connection no longer holds.
         leased.clear()
+        self.api.file_watcher.expire()
         for flow, actor, _ in ended:
             self.api.forget_agent(actor)
             if flow:
@@ -328,6 +331,7 @@ class Daemon:
             if not quiet:
                 continue
             leased.difference_update(quiet)
+            self.api.file_watcher.expire()
             self._quiet.setdefault(writer, set()).update(quiet)
             for flow, actor, label in sorted(quiet, key=lambda lease: lease[1]):
                 self.api.forget_agent(actor)
@@ -369,6 +373,8 @@ class Daemon:
                 )
             except FlowError:
                 continue
+            if not leased:
+                self.api.file_watcher.lease_starting(writer)
             leased.add((flow, actor, str(begun.get("label") or label)))
             self._last_call[(flow, actor)] = self.clock()
             self._announce_agents(flow)
@@ -391,7 +397,15 @@ class Daemon:
                     self._last_call.pop((flow, lease[1]), None)
                     self.api.forget_agent(lease[1], flow=flow)
                     self.api.end_activity(flow, actor=lease[1])
+        self.api.file_watcher.expire()
         self._announce_agents(flow)
+
+    def _file_sessions(self) -> dict[object, tuple[str, str]]:
+        return {
+            writer: min((actor, label) for _, actor, label in leases)
+            for writer, leases in self._client_leases.items()
+            if leases
+        }
 
     def _leases(self) -> Leases:
         return {
@@ -554,7 +568,11 @@ class Daemon:
                 with contextlib.suppress(FlowError, OSError):
                     self.api.observed(name, acted)
                     self.api.settled(name, params)
+            if name == "agent.begin" and not leased and result.get("leased"):
+                self.api.file_watcher.lease_starting(writer)
             _leased(leased, name, params, result)
+            if name == "agent.end":
+                self.api.file_watcher.expire()
             if name == "agent.begin" and caller:
                 self._heard_from(leased, caller)
             if (
@@ -692,6 +710,7 @@ _SILENT = frozenset(
         "status",
         "workspace.list",
         "file.inspect",
+        "file.read_text",
         "flows.open",
         "flow.open",
         "tree",

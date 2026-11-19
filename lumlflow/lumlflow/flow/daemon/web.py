@@ -372,6 +372,10 @@ async def _subscribed(
     cursor is never obliged to trust that.
     """
     channel = str(message.get("subscribe") or "")
+    if channel == "files":
+        return subscription.watch_files(
+            api.file_watcher, message.get("directory", ""), message.get("file")
+        )
     if channel not in ("journal", "logs"):
         return []
     named = str(message["flow"]) if message.get("flow") else None
