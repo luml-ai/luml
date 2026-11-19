@@ -30,32 +30,21 @@ export async function processPdfContent(blob: Blob): ProcessorResult {
   }
 }
 
-export async function processTextContent(blob: Blob, fileName: string): ProcessorResult {
-  let textContent = await blob.text()
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext === 'json') {
-    try {
-      textContent = JSON.stringify(JSON.parse(textContent), null, 2)
-    } catch {}
-  }
-  return { text: textContent }
-}
-
 export async function processHtmlContent(blob: Blob): ProcessorResult {
-  let htmlText = await blob.text()
-  htmlText = htmlText.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-  htmlText = await convertImagesToBlob(htmlText)
-  const htmlBlob = new Blob([htmlText], { type: 'text/html' })
+  // The source is untrusted and can contain subresources pointing outside the project.
+  const policy =
+    "default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data: blob:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+  const htmlBlob = new Blob(
+    [`<meta http-equiv="Content-Security-Policy" content="${policy}">`, blob],
+    { type: 'text/html' },
+  )
   return {
     contentUrl: URL.createObjectURL(htmlBlob),
+    text: await blob.text(),
   }
 }
 
-export async function processFileContent(
-  blob: Blob,
-  fileType: FileType,
-  fileName: string,
-): ProcessorResult {
+export async function processFileContent(blob: Blob, fileType: FileType): ProcessorResult {
   switch (fileType) {
     case 'image':
       return processImageContent(blob)
@@ -68,33 +57,10 @@ export async function processFileContent(
       return processPdfContent(blob)
     case 'text':
     case 'code':
-      return processTextContent(blob, fileName)
+      return { text: await blob.text() }
     case 'html':
       return processHtmlContent(blob)
     default:
       return {}
   }
-}
-
-async function convertImagesToBlob(htmlText: string): Promise<string> {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(htmlText, 'text/html')
-  const images = Array.from(doc.querySelectorAll('img'))
-
-  for (const img of images) {
-    const src = img.getAttribute('src')
-    if (!src) continue
-
-    try {
-      const response = await fetch(src)
-      if (!response.ok) continue
-      const blob = await response.blob()
-      const objectUrl = URL.createObjectURL(blob)
-      img.setAttribute('src', objectUrl)
-    } catch (e) {
-      console.warn('Failed to convert image', src, e)
-    }
-  }
-
-  return doc.documentElement.outerHTML
 }

@@ -1,11 +1,11 @@
 export const FILE_TYPES = {
-  image: ['png', 'jpg', 'jpeg'],
+  image: ['png', 'jpg', 'jpeg', 'gif', 'webp'],
   svg: ['svg'],
   audio: ['mp3', 'wav', 'ogg'],
   video: ['mp4', 'webm', 'ogv'],
-  text: ['txt', 'md', 'json'],
-  code: ['py', 'js', 'ts', 'yaml', 'yml'],
-  table: ['csv', 'xml'],
+  text: ['txt', 'md', 'json', 'log'],
+  code: ['py', 'js', 'ts', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'sh', 'sql', 'jsx', 'tsx', 'css'],
+  table: ['csv', 'xml', 'parquet', 'arrow'],
   pdf: ['pdf'],
   html: ['html'],
 } as const
@@ -13,9 +13,38 @@ export const FILE_TYPES = {
 export type FileType = keyof typeof FILE_TYPES
 export type FileExtension = (typeof FILE_TYPES)[FileType][number]
 
+export const EXTENSION_LANGUAGES = {
+  py: 'python',
+  js: 'javascript',
+  jsx: 'jsx',
+  ts: 'typescript',
+  tsx: 'tsx',
+  json: 'json',
+  yaml: 'yaml',
+  yml: 'yaml',
+  md: 'markdown',
+  css: 'css',
+  sql: 'sql',
+  xml: 'xml',
+  html: 'html',
+} as const satisfies Partial<Record<FileExtension, string>>
+
+export type PreviewLanguage = (typeof EXTENSION_LANGUAGES)[keyof typeof EXTENSION_LANGUAGES]
+
+export function getPreviewLanguage(filename: string): PreviewLanguage | undefined {
+  const extension = getFileExtension(filename)
+  if (Object.prototype.hasOwnProperty.call(EXTENSION_LANGUAGES, extension)) {
+    return EXTENSION_LANGUAGES[extension as keyof typeof EXTENSION_LANGUAGES]
+  }
+}
+
 export function getFileExtension(filename: string): string {
   if (!filename) return ''
-  return filename.split('.').pop()?.toLowerCase() || ''
+  const basename = filename.slice(
+    Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\')) + 1,
+  )
+  const dot = basename.lastIndexOf('.')
+  return dot > 0 ? basename.slice(dot + 1).toLowerCase() : ''
 }
 
 export function getFileType(filename: string): FileType | null {

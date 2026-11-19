@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import type { AsyncBuffer } from 'hyparquet'
 
 export interface FileNode {
   name: string
@@ -18,6 +18,8 @@ export interface AttachmentContent {
 }
 
 export interface ModelAttachmentsProvider {
+  supportsPartialPreview?(path: string): boolean
+  getPreviewSource?(path: string, size?: number): PreviewSource | Promise<PreviewSource>
   getTree(): FileNode[]
   getAttachmentContent(path: string): Promise<AttachmentContent>
   isEmpty(): boolean
@@ -30,9 +32,14 @@ export interface FileContentResult {
   error?: FileContentError
 }
 
-export interface UseFilePreviewOptions {
-  file: Ref<FileNode | null>
-  provider: Ref<ModelAttachmentsProvider>
+export type PreviewSource = string | Blob | AsyncBuffer
+
+export interface FilePreviewProps {
+  fileName: string
+  fileSize?: number
+  supportsPartialPreview?: boolean
+  source: PreviewSource | (() => Promise<PreviewSource>)
+  totalRows?: number
 }
 
 export interface FileNodeProps {
@@ -85,7 +92,9 @@ export interface HtmlPreviewProps {
 }
 
 export interface TablePreviewProps {
-  contentBlob: Blob
+  contentBlob?: Blob
+  parquetFile?: AsyncBuffer
+  totalRows?: number
   fileName: string
 }
 

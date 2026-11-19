@@ -1,7 +1,9 @@
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
 from math import ceil
+from pathlib import Path, PureWindowsPath
 
 from luml.experiments.backends._exceptions import (
     ExperimentReaderTooOldError,
@@ -561,6 +563,30 @@ class ExperimentsHandler:
             raise NotFound(str(e)) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
+
+    def attachment_path(self, experiment_id: str, file_path: str) -> Path:
+        name = PureWindowsPath(file_path)
+        if (
+            not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", experiment_id)
+            or name.anchor
+            or ".." in name.parts
+        ):
+            raise NotFound("Invalid attachment path")
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+        try:
+            store = self.tracker.backend.base_path.resolve()
+            root = store / experiment_id / "attachments"
+            path = (root / file_path).resolve()
+            if (
+                root.resolve() != root
+                or not path.is_relative_to(root)
+                or not path.is_file()
+            ):
+                raise NotFound("Attachment not found")
+        except (OSError, RuntimeError, ValueError) as error:
+            raise NotFound("Invalid attachment path") from error
+        return path
 
     def list_attachments(self, experiment_id: str) -> list[AttachmentRecord]:
         if not self.tracker.get_experiment_record(experiment_id):
