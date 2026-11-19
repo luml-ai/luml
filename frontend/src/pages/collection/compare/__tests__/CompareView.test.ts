@@ -10,6 +10,8 @@ const harness = vi.hoisted(() => ({
   getArtifact: vi.fn(),
   resetExperimentSnapshotProvider: vi.fn(),
   init: vi.fn(),
+  cancel: vi.fn(),
+  provider: null as unknown,
 }))
 
 vi.mock('@luml/experiments', async () => ({
@@ -17,7 +19,7 @@ vi.mock('@luml/experiments', async () => ({
     await import('../../../../../../extras/js/packages/experiments/src/components/comparison/ComparisonModelsList.vue')
   ).default,
   ComparisonHeader: { template: '<div />' },
-  ExperimentSnapshot: { template: '<div />' },
+  ExperimentSnapshot: { template: '<div class="snapshot" />' },
 }))
 
 vi.mock('vue-router', () => ({ useRoute: () => harness.route }))
@@ -25,14 +27,16 @@ vi.mock('@/stores/artifacts', () => ({
   useArtifactsStore: () => ({
     getArtifact: harness.getArtifact,
     resetExperimentSnapshotProvider: harness.resetExperimentSnapshotProvider,
-    experimentSnapshotProvider: null,
+    get experimentSnapshotProvider() {
+      return harness.provider
+    },
   }),
 }))
 vi.mock('@/stores/theme', () => ({
   useThemeStore: () => ({ getCurrentTheme: 'light' }),
 }))
 vi.mock('@/hooks/useExperimentSnapshotsDatabaseProvider', () => ({
-  useExperimentSnapshotsDatabaseProvider: () => ({ init: harness.init }),
+  useExperimentSnapshotsDatabaseProvider: () => ({ init: harness.init, cancel: harness.cancel }),
 }))
 vi.mock('@/helpers/helpers', () => ({
   getArtifactColorByIndex: (index: number) => ['red', 'blue'][index],
@@ -89,10 +93,15 @@ describe('CompareView when the set changes before the previous one is loaded', (
     harness.route = reactive({ query: { artifacts: ['a'] } })
     harness.getArtifact.mockReset()
     harness.init.mockReset().mockResolvedValue(undefined)
+    harness.cancel.mockReset()
+    harness.resetExperimentSnapshotProvider.mockReset()
+    harness.provider = null
   })
 
   afterEach(() => {
     harness.route = { query: { artifacts: [] } }
+    harness.provider = null
+    vi.restoreAllMocks()
   })
 
   it('shows and opens only the latest set when the older one answers last', async () => {
@@ -113,5 +122,47 @@ describe('CompareView when the set changes before the previous one is loaded', (
 
     expect(wrapper.findAll('.model').map((model) => model.text())).toEqual(['Model B'])
     expect(harness.init).toHaveBeenCalledExactlyOnceWith([{ id: 'b', name: 'Model B' }])
+  })
+
+  it('shows no provider of the older set when it opens during the newer fetch and the newer open fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Like the real hook: an init sets its provider when it ends, unless it was cancelled or
+    // replaced by a newer init first.
+    let current: symbol | null = null
+    let finishOld!: () => void
+    let answerB!: (artifact: { id: string; name: string }) => void
+    harness.cancel.mockImplementation(() => (current = null))
+    harness.resetExperimentSnapshotProvider.mockImplementation(() => (harness.provider = null))
+    harness.init.mockImplementation((models: { id: string }[]) => {
+      const token = Symbol(models[0]?.id)
+      current = token
+      if (models[0]?.id !== 'a') return Promise.reject(new Error('open failed'))
+      return new Promise<void>((resolve) => {
+        finishOld = () => {
+          if (current === token) harness.provider = { set: 'a' }
+          resolve()
+        }
+      })
+    })
+    harness.getArtifact.mockImplementation((id: string) =>
+      id === 'a'
+        ? Promise.resolve({ id, name: 'Model A' })
+        : new Promise((resolve) => (answerB = resolve)),
+    )
+    const wrapper = mount(CompareView)
+    await flushPromises()
+    expect(harness.init).toHaveBeenCalledOnce()
+
+    harness.route.query.artifacts = ['b']
+    await nextTick()
+    await flushPromises()
+    finishOld()
+    await flushPromises()
+    answerB({ id: 'b', name: 'Model B' })
+    await flushPromises()
+
+    expect(harness.init).toHaveBeenCalledTimes(2)
+    expect(harness.provider).toBeNull()
+    expect(wrapper.find('.snapshot').exists()).toBe(false)
   })
 })

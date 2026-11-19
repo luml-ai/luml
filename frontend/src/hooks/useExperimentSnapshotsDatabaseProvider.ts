@@ -61,6 +61,12 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     }
   }
 
+  /** Stops the running init, so it can no longer set its provider. */
+  function cancel() {
+    currentInit?.abort()
+    currentInit = null
+  }
+
   async function open(models: ModelArtifact[], signal: AbortSignal) {
     const payload = await Promise.all(
       models.map((model) =>
@@ -127,5 +133,6 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
 
   return {
     init,
+    cancel,
   }
 }

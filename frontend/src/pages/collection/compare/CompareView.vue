@@ -37,7 +37,7 @@ import { useThemeStore } from '@/stores/theme'
 const route = useRoute()
 const themeStore = useThemeStore()
 const artifactsStore = useArtifactsStore()
-const { init } = useExperimentSnapshotsDatabaseProvider()
+const { init, cancel } = useExperimentSnapshotsDatabaseProvider()
 
 const loading = ref(false)
 
@@ -65,6 +65,8 @@ let setChanges = 0
 
 async function onArtifactIdsChange(newArtifactIds: string[]) {
   const change = ++setChanges
+  // The older open must not set its provider while the new set's artifacts are fetched.
+  cancel()
   try {
     loading.value = true
     artifactsStore.resetExperimentSnapshotProvider()

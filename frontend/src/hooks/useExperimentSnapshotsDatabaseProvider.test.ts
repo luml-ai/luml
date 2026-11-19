@@ -85,6 +85,7 @@ class MockWorker extends EventTarget {
 }
 
 let init: ReturnType<typeof useExperimentSnapshotsDatabaseProvider>['init']
+let cancel: ReturnType<typeof useExperimentSnapshotsDatabaseProvider>['cancel']
 let workers: MockWorker[]
 let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>
 
@@ -117,7 +118,7 @@ function zipDirectoryTail(size: number): Uint8Array {
 
 const Harness = defineComponent({
   setup() {
-    init = useExperimentSnapshotsDatabaseProvider().init
+    ;({ init, cancel } = useExperimentSnapshotsDatabaseProvider())
     return () => h('div')
   },
 })
@@ -522,6 +523,24 @@ describe('experiment snapshot worker lifecycle', () => {
     })
     await initialize(workers[0], newer)
     expect(mocks.setExperimentSnapshotProvider).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
+  it('cancel stops a running init quietly so it sets no provider', async () => {
+    const wrapper = mount(Harness)
+    const initialized = init([])
+    await Promise.resolve()
+    const [message] = workers[0].postMessage.mock.calls[0]
+
+    cancel()
+    workers[0].emit({ type: 'result', requestId: message.requestId, data: true })
+
+    await expect(initialized).resolves.toBeUndefined()
+    expect(workers[0].postMessage).toHaveBeenLastCalledWith({
+      type: 'cancel',
+      requestId: message.requestId,
+    })
+    expect(mocks.setExperimentSnapshotProvider).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
