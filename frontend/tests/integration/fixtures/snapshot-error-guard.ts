@@ -21,8 +21,9 @@ interface RecordedError {
 export const BROWSER_NETWORK_REPORT =
   /^Failed to load resource: |^(Fetch API|XMLHttpRequest) cannot load |^Origin \S+ is not allowed by Access-Control-Allow-Origin\b/
 
-// Firefox reports an unhandled rejection in a worker only as this console error.
+// Firefox and WebKit report an unhandled rejection in a worker only as a console error.
 const FIREFOX_UNCAUGHT = /^\[JavaScript Error: "(.*)" \{file: .*\}\]$/s
+const WEBKIT_UNCAUGHT = /^Unhandled Promise Rejection: (.*)$/s
 
 const WORKER_ERROR_BINDING = '__snapshotErrorGuardWorkerError'
 
@@ -37,7 +38,7 @@ export class SnapshotErrorGuard {
 
   onConsole(message: ConsoleMessage): void {
     if (message.type() !== 'error' || BROWSER_NETWORK_REPORT.test(message.text())) return
-    const uncaught = FIREFOX_UNCAUGHT.exec(message.text())
+    const uncaught = FIREFOX_UNCAUGHT.exec(message.text()) ?? WEBKIT_UNCAUGHT.exec(message.text())
     if (uncaught) this.recorded.push({ kind: 'page error', text: uncaught[1]! })
     else this.recorded.push({ kind: 'console error', text: message.text() })
   }
