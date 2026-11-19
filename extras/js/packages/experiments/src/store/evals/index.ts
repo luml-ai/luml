@@ -56,6 +56,9 @@ export const useEvalsStore = defineStore('evals', () => {
   // Bumped on reset and on a provider change. The store outlives its view and Flow does not
   // cancel reads, so an answer to a read that started before must be dropped.
   let datasetsVersion = 0
+  // The parameters each dataset's rows were read with. A failed reload leaves rows for older
+  // ones, and a next page would append the new parameters' first page to them.
+  const listedParamsJson = new Map<string, string>()
 
   const getProvider = computed(() => {
     if (!provider.value) throw new Error('Provider not found')
@@ -224,6 +227,12 @@ export const useEvalsStore = defineStore('evals', () => {
     await annotationsStore.getEvalsDatasetAnnotationsSummary(datasetId)
     if (!isCurrent()) return
     setDatasetData({ columns, data, params })
+    listedParamsJson.set(datasetId, JSON.stringify(params))
+  }
+
+  function isDatasetCurrent(datasetId: string) {
+    const dataset = datasets.value?.find((item) => item.params.dataset_id === datasetId)
+    return !!dataset && listedParamsJson.get(datasetId) === JSON.stringify(toRaw(dataset.params))
   }
 
   async function getNextDatasetPage(datasetId: string, reset: boolean = false) {
@@ -235,11 +244,15 @@ export const useEvalsStore = defineStore('evals', () => {
     // Rows for older sort or filters are dropped: the reload for the current ones follows.
     const isCurrent = () =>
       version === datasetsVersion && paramsJson === JSON.stringify(toRaw(dataset.params))
-    if (reset) await getProvider.value.resetDatasetPage(datasetId)
+    if (reset) {
+      listedParamsJson.delete(datasetId)
+      await getProvider.value.resetDatasetPage(datasetId)
+    }
     if (!isCurrent()) return
     const newData = await getProvider.value.getNextEvalsByDatasetId(params)
     if (!isCurrent()) return
     dataset.data = reset ? newData : [...dataset.data, ...newData]
+    if (reset) listedParamsJson.set(datasetId, paramsJson)
   }
 
   function setLoading(value: boolean) {
@@ -266,6 +279,7 @@ export const useEvalsStore = defineStore('evals', () => {
 
   function resetDatasets() {
     datasets.value = null
+    listedParamsJson.clear()
   }
 
   async function refresh() {
@@ -336,6 +350,7 @@ export const useEvalsStore = defineStore('evals', () => {
     initDataset,
     datasets,
     getNextDatasetPage,
+    isDatasetCurrent,
     loading,
     setLoading,
     refresh,

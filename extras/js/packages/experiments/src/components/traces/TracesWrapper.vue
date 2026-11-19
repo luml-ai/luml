@@ -21,7 +21,7 @@
       :data="tableData"
       :selected-columns="selectedColumns.length ? selectedColumns : columns"
       :artifactId="artifactId"
-      @get-next-page="getNextPage"
+      @get-next-page="getNextPage()"
       @sort="onSort"
     />
   </UiCard>
@@ -108,12 +108,37 @@ let closed = false
 // The table asks for the next page only when its scrolled range changes, so a request made
 // while another read runs, or before the reload for new parameters, is kept for later.
 let nextPagePending = false
+// Failed reloads counted when the kept request asked for its reload. If one more failed, the
+// kept request is dropped: only a new request retries, so a failing read is not repeated alone.
+let failedReloadsAtRequest: number | null = null
 
-async function getNextPage(reset: boolean = false) {
+function keepNextPage(fromTable: boolean) {
+  if (fromTable || failedReloadsAtRequest === null) {
+    failedReloadsAtRequest = traceStore.getFailedReloads()
+  } else if (traceStore.getFailedReloads() > failedReloadsAtRequest) {
+    nextPagePending = false
+    failedReloadsAtRequest = null
+    return
+  }
+  nextPagePending = true
+  traceStore.scheduleReload()
+}
+
+async function getNextPage(reset: boolean = false, fromTable: boolean = true) {
   // The loading flag belongs to the read in flight; a refused request must not clear it.
-  if (traceStore.loading || (!reset && !traceStore.isListCurrent())) {
+  if (traceStore.loading) {
     if (!reset) nextPagePending = true
     return
+  }
+  // The rows are for older parameters, or their reload failed: reload before the next page.
+  if (!reset && !traceStore.isListCurrent()) {
+    keepNextPage(fromTable)
+    return
+  }
+  // This read answers any request kept before it.
+  if (!reset) {
+    nextPagePending = false
+    failedReloadsAtRequest = null
   }
   try {
     traceStore.setLoading(true)
@@ -130,7 +155,7 @@ watch(
   (loading) => {
     if (loading || closed || !nextPagePending) return
     nextPagePending = false
-    getNextPage()
+    getNextPage(false, false)
   },
 )
 

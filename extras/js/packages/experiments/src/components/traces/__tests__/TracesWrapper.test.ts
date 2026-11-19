@@ -59,14 +59,14 @@ describe('TracesWrapper next page requests', () => {
     return { promise, resolve }
   }
 
+  const page = Array.from({ length: 20 }, (_, index) => ({ trace_id: `t${index}` }))
+
   let summaryRead: ReturnType<typeof deferred<typeof summary>> | null
 
   function setupPagingProvider() {
     summaryRead = null
     const provider = setupProvider()
-    provider.getTraces.mockImplementation(async () =>
-      Array.from({ length: 20 }, (_, index) => ({ trace_id: `t${index}` })),
-    )
+    provider.getTraces.mockImplementation(async () => page)
     provider.getTracesAnnotationSummary.mockImplementation(() =>
       summaryRead ? summaryRead.promise : Promise.resolve(summary),
     )
@@ -87,6 +87,10 @@ describe('TracesWrapper next page requests', () => {
     await vi.advanceTimersByTimeAsync(500)
   }
 
+  function sort(wrapper: ReturnType<typeof mountWrapper>, sortField: string, sortOrder: string) {
+    wrapper.findComponent(TracesTable).vm.$emit('sort', { sortField, sortOrder })
+  }
+
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
@@ -94,6 +98,7 @@ describe('TracesWrapper next page requests', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('reads the next page asked for while a reload was still loading', async () => {
@@ -139,6 +144,133 @@ describe('TracesWrapper next page requests', () => {
     expect(provider.resetTracesRequestParams).toHaveBeenCalledTimes(2)
     expect(provider.getTraces).toHaveBeenCalledTimes(3)
     expect(provider.resetTracesRequestParams.mock.invocationCallOrder[1]).toBeLessThan(
+      provider.getTraces.mock.invocationCallOrder[2]!,
+    )
+    expect(useTraceStore().traces).toHaveLength(40)
+  })
+
+  it('retries a failed sort reload when the next page is asked for, then reads the page', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    provider.getTraces.mockRejectedValueOnce(new Error('read failed'))
+    sort(wrapper, 'execution_time', 'desc')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+    expect(useTraceStore().loading).toBe(false)
+
+    askForNextPage(wrapper)
+    await flushPromises()
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(provider.resetTracesRequestParams).toHaveBeenCalledTimes(3)
+    expect(provider.getTraces).toHaveBeenCalledTimes(4)
+    expect(provider.getTraces).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sort_by: 'execution_time', order: 'desc' }),
+    )
+    expect(useTraceStore().traces).toHaveLength(40)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(provider.getTraces).toHaveBeenCalledTimes(4)
+  })
+
+  it('tries a reload that keeps failing once per next page request', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    provider.getTraces.mockRejectedValue(new Error('read failed'))
+    sort(wrapper, 'execution_time', 'desc')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+
+    askForNextPage(wrapper)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(provider.getTraces).toHaveBeenCalledTimes(3)
+
+    askForNextPage(wrapper)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(provider.getTraces).toHaveBeenCalledTimes(4)
+    expect(useTraceStore().traces).toHaveLength(20)
+    expect(useTraceStore().loading).toBe(false)
+  })
+
+  it('reads one page for two requests kept during a reload', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    await sortWithSummaryHeld(wrapper)
+    askForNextPage(wrapper)
+    askForNextPage(wrapper)
+    await flushPromises()
+
+    summaryRead!.resolve(summary)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(provider.getTraces).toHaveBeenCalledTimes(3)
+    expect(useTraceStore().traces).toHaveLength(40)
+  })
+
+  it('sends no kept request after the view closed', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    await sortWithSummaryHeld(wrapper)
+    askForNextPage(wrapper)
+    await flushPromises()
+
+    wrapper.unmount()
+    summaryRead!.resolve(summary)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads no extra page for a request kept before the sort went back', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    sort(wrapper, 'execution_time', 'desc')
+    await flushPromises()
+    askForNextPage(wrapper)
+    await flushPromises()
+    sort(wrapper, 'created_at', 'desc')
+    await flushPromises()
+
+    askForNextPage(wrapper)
+    await flushPromises()
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+    expect(useTraceStore().traces).toHaveLength(40)
+
+    await vi.advanceTimersByTimeAsync(500)
+    expect(provider.getTraces).toHaveBeenCalledTimes(3)
+    expect(useTraceStore().traces).toHaveLength(20)
+  })
+
+  it('reads no page with the cursor of a sort reload that was dropped', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    const reloadRead = deferred<typeof page>()
+    provider.getTraces.mockImplementationOnce(() => reloadRead.promise)
+    sort(wrapper, 'execution_time', 'desc')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(provider.resetTracesRequestParams).toHaveBeenCalledTimes(2)
+
+    sort(wrapper, 'created_at', 'desc')
+    reloadRead.resolve(page)
+    await flushPromises()
+    expect(useTraceStore().loading).toBe(false)
+
+    askForNextPage(wrapper)
+    await flushPromises()
+    expect(provider.getTraces).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(500)
+    expect(provider.resetTracesRequestParams).toHaveBeenCalledTimes(3)
+    expect(provider.getTraces).toHaveBeenCalledTimes(4)
+    expect(provider.resetTracesRequestParams.mock.invocationCallOrder[2]).toBeLessThan(
       provider.getTraces.mock.invocationCallOrder[2]!,
     )
     expect(useTraceStore().traces).toHaveLength(40)

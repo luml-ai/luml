@@ -42,13 +42,27 @@ const pendingReloads = new Set<string>()
 // A table asks for its next page only when its scrolled range changes, so that request
 // waits for the read in flight too.
 const pendingNextPages = new Set<string>()
+// Kept next pages that ran a reload in their place. If the rows are still not current after
+// it, the reload failed: the page is dropped and only a new request retries.
+const reloadedForNextPage = new Set<string>()
 
-async function getNextPage(datasetId: string, reset: boolean = false) {
+async function getNextPage(datasetId: string, reset: boolean = false, fromTable: boolean = true) {
   // The loading flag belongs to the read in flight; a refused request must not clear it.
   if (evalsStore.loading) {
     if (reset) pendingReloads.add(datasetId)
     else pendingNextPages.add(datasetId)
     return
+  }
+  if (!reset && !evalsStore.isDatasetCurrent(datasetId)) {
+    if (!fromTable && reloadedForNextPage.delete(datasetId)) return
+    // The rows are for older parameters: reload first, then read the kept next page.
+    reloadedForNextPage.add(datasetId)
+    pendingNextPages.add(datasetId)
+    reset = true
+  } else if (!reset) {
+    // This read answers any request kept before it.
+    pendingNextPages.delete(datasetId)
+    reloadedForNextPage.delete(datasetId)
   }
   try {
     evalsStore.setLoading(true)
@@ -85,10 +99,12 @@ watch(
       getNextPage(reloadId, true)
       return
     }
-    const [nextPageId] = pendingNextPages
-    if (nextPageId === undefined) return
-    pendingNextPages.delete(nextPageId)
-    getNextPage(nextPageId)
+    // A dropped page starts no read, so the next kept page must not wait for one.
+    for (const nextPageId of [...pendingNextPages]) {
+      pendingNextPages.delete(nextPageId)
+      getNextPage(nextPageId, false, false)
+      if (evalsStore.loading) return
+    }
   },
 )
 

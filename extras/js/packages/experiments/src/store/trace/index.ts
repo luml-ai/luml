@@ -38,9 +38,15 @@ export const useTraceStore = defineStore('trace', () => {
   // The parameters the listed rows were read with. Until the reload for new parameters ends,
   // a next page would continue the old list's cursor with the new parameters.
   let listedParamsJson: string | null = null
+  // Lets the view tell a reload that failed from one that did not run yet.
+  let failedReloads = 0
 
   function isListCurrent() {
     return listedParamsJson === JSON.stringify(requestParams.value)
+  }
+
+  function getFailedReloads() {
+    return failedReloads
   }
 
   function isCurrentRead(version: number, paramsJson?: string) {
@@ -53,6 +59,8 @@ export const useTraceStore = defineStore('trace', () => {
     const paramsJson = JSON.stringify(requestParams.value)
     const params = JSON.parse(paramsJson)
     if (reset) {
+      // The reset moves the provider's cursor back: until it ends, no listed rows continue it.
+      listedParamsJson = null
       evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
     }
     const data = await evalsStore.getProvider.getTraces(params)
@@ -125,10 +133,13 @@ export const useTraceStore = defineStore('trace', () => {
       return
     }
     const version = listVersion
+    const paramsJson = JSON.stringify(requestParams.value)
     setLoading(true)
     try {
       await getNextPage(true)
     } catch (error) {
+      // A failure for parameters changed since is not counted: their own reload follows.
+      if (isCurrentRead(version, paramsJson)) failedReloads++
       showReadErrorToast(toast, error, getErrorMessage(error))
     } finally {
       if (isCurrentRead(version)) setLoading(false)
@@ -136,6 +147,11 @@ export const useTraceStore = defineStore('trace', () => {
   }
 
   const debouncedRequestParamsChange = useDebounceFn(reloadForParams, 500)
+
+  /** Within the debounce window this merges with the reload already scheduled. */
+  function scheduleReload() {
+    debouncedRequestParamsChange()
+  }
 
   watch(loading, (isLoading) => {
     if (isLoading || !reloadPending) return
@@ -182,6 +198,8 @@ export const useTraceStore = defineStore('trace', () => {
     setRequestParams,
     loading,
     isListCurrent,
+    getFailedReloads,
+    scheduleReload,
     getNextPage,
     setLoading,
     reset,
