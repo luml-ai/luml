@@ -249,7 +249,7 @@ def test_numeric_types_are_stored_as_numbers(
     backend.log_dynamic(EXP_ID, "m", np.float32(1.5), step=np.int64(7))
     backend.log_dynamic(EXP_ID, "m", 4, step=2.0)
     with pytest.raises(TypeError, match="integer"):
-        backend.log_dynamic(EXP_ID, "m", 1.0, step=2.5)  # type: ignore[arg-type]
+        backend.log_dynamic(EXP_ID, "m", 1.0, step=2.5)
     backend.flush()
 
     conn = sqlite3.connect(tmp_path / "store" / EXP_ID / "exp.db")
@@ -264,7 +264,7 @@ def test_numeric_types_are_stored_as_numbers(
 def test_invalid_level(backend: SQLiteBackend, level: object) -> None:
     _log(backend, "m", [(0, 1.0)])
     with pytest.raises(InvalidBucketLevelError, match="from 0 to 31"):
-        backend.get_metric_buckets(EXP_ID, "m", level)  # type: ignore[arg-type]
+        backend.get_metric_buckets(EXP_ID, "m", level)
     assert backend.get_metric_buckets(EXP_ID, "m", 31).buckets[0].count == 1
 
 
@@ -371,7 +371,7 @@ def test_random_operations_keep_invariants_and_match_revision_2(
         if rng.random() < 0.02:
             # A span that fails as a row forces the row-by-row replay.
             try:
-                backend.log_span(EXP_ID, "t", f"s{operation}", None, 0, 0, 1)  # type: ignore[arg-type]
+                backend.log_span(EXP_ID, "t", f"s{operation}", None, 0, 0, 1)
             except sqlite3.IntegrityError:
                 assert flush_interval == 0
         if rng.random() < 0.05:
@@ -415,11 +415,11 @@ def _assert_matches_model(
     end: int | None,
 ) -> None:
     stored = [(step, None if math.isnan(value) else value) for step, value in points]
-    expected = _expected(stored, key, level, start, end)  # type: ignore[arg-type]
+    expected = _expected(stored, key, level, start, end)
     assert len(result.buckets) == len(expected.buckets)
     for actual, wanted in zip(result.buckets, expected.buckets, strict=True):
         members = [(s, v) for s, v in stored if s >> (2 * level) == wanted.bucket]
-        scale = aggregate(members).abs_sum  # type: ignore[arg-type]
+        scale = aggregate(members).abs_sum
         assert (actual.bucket, actual.count, actual.finite_count) == (
             wanted.bucket,
             wanted.count,

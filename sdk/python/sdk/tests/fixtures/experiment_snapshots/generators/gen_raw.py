@@ -69,7 +69,7 @@ def derive_tar(source: Path, target: Path) -> str:
         tarfile.open(target, "w", format=archive.format) as output,
     ):
         for member in archive.getmembers():
-            data = archive.extractfile(member).read() if member.isfile() else b""  # type: ignore[union-attr]
+            data = archive.extractfile(member).read() if member.isfile() else b""
             info = tarfile.TarInfo(to_v2(member.name.encode()).decode())
             info.mode, info.mtime, info.type = member.mode, member.mtime, member.type
             info.uid, info.gid, info.uname, info.gname = 0, 0, "", ""

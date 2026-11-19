@@ -232,7 +232,7 @@ class WriteBuffer:
         return self.flush_interval <= 0
 
     @staticmethod
-    def _flush_on_exit(buffer_ref: "weakref.ReferenceType[WriteBuffer]") -> None:
+    def _flush_on_exit(buffer_ref: Callable[[], "WriteBuffer | None"]) -> None:
         if (buffer := buffer_ref()) is not None:
             buffer.close()
 

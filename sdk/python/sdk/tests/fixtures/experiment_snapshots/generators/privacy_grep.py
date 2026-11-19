@@ -20,7 +20,7 @@ def layers(path: Path) -> list[tuple[str, bytes]]:
         for member in tar.getmembers():
             if not member.isfile():
                 continue
-            data = tar.extractfile(member).read()  # type: ignore[union-attr]
+            data = tar.extractfile(member).read()
             found.append((f"{path.name}:{member.name}", data))
             if member.name.endswith(".zip"):
                 with zipfile.ZipFile(io.BytesIO(data)) as archive:

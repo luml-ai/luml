@@ -50,7 +50,7 @@ def populate(content: str) -> None:
     else:
         for key, value in fd.STATIC_PARAMS.items():
             tracker.log_static(key, value, experiment_id=exp_id)
-    log_metrics(md.metric_log())  # type: ignore[arg-type]
+    log_metrics(md.metric_log())
     if content == "legacy":
         log_metrics([md.LEGACY_REAL_STEP])
     tracker.end_experiment(exp_id)

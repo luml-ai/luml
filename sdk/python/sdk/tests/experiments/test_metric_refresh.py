@@ -307,7 +307,7 @@ class _FixedKeys:
 def test_flush_threshold_grows_with_the_keys_of_the_last_flush_within_bounds(
     backend: SQLiteBackend, keys: BatchKeys | None, threshold: int
 ) -> None:
-    buffer = WriteBuffer(backend.pool, hook=_FixedKeys(keys))  # type: ignore[arg-type]
+    buffer = WriteBuffer(backend.pool, hook=_FixedKeys(keys))
     buffer.close()
 
     assert buffer.flush_threshold_for("db") == threshold

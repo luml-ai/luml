@@ -14,7 +14,7 @@ import sqlite3
 import sys
 import tempfile
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -74,7 +74,7 @@ class ExperimentSnapshot:
 @contextlib.contextmanager
 def snapshot_database(
     pool: "ConnectionPool", experiment_id: str, db_path: Path
-) -> Iterator[ExperimentSnapshot]:
+) -> Generator[ExperimentSnapshot]:
     remove_abandoned_work_dirs(db_path.parent)
     needed_bytes = _COPIES_AT_ONCE * _database_size(db_path)
     try:
@@ -261,7 +261,7 @@ def _snapshot(
 @contextlib.contextmanager
 def _helper_connection(
     pool: "ConnectionPool", work_dir: Path
-) -> Iterator[sqlite3.Connection]:
+) -> Generator[sqlite3.Connection]:
     """A pooled connection with no data of its own, for attaching other databases."""
     path = work_dir / "helper.db"
     path.touch()

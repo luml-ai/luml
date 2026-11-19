@@ -42,7 +42,7 @@ def is_numeric(value: object) -> bool:
 
 def is_summable(value: object) -> bool:
     """What finite_count and sum cover: no sum of such values can overflow."""
-    return is_numeric(value) and -SUMMABLE_LIMIT <= value <= SUMMABLE_LIMIT  # type: ignore[operator]
+    return is_numeric(value) and -SUMMABLE_LIMIT <= value <= SUMMABLE_LIMIT
 
 
 def aggregate(points: list[tuple[int, object]]) -> Aggregate:
@@ -52,12 +52,12 @@ def aggregate(points: list[tuple[int, object]]) -> Aggregate:
     return Aggregate(
         count=len(points),
         finite_count=len(summable),
-        min=min(numeric) if numeric else None,  # type: ignore[type-var]
-        max=max(numeric) if numeric else None,  # type: ignore[type-var]
-        sum=math.fsum(summable) if summable else None,  # type: ignore[arg-type]
+        min=min(numeric) if numeric else None,
+        max=max(numeric) if numeric else None,
+        sum=math.fsum(summable) if summable else None,
         first_step=min(steps),
         last_step=max(steps),
-        abs_sum=math.fsum(abs(value) for value in summable),  # type: ignore[arg-type]
+        abs_sum=math.fsum(abs(value) for value in summable),
     )
 
 
@@ -83,7 +83,7 @@ def same_value(left: object, right: object) -> bool:
     if type(left) is not type(right):
         return False
     if isinstance(left, float):
-        return struct.pack("<d", left) == struct.pack("<d", right)  # type: ignore[arg-type]
+        return struct.pack("<d", left) == struct.pack("<d", right)
     return left == right
 
 
@@ -143,7 +143,7 @@ def _assert_bucket_invariants(conn: sqlite3.Connection) -> None:
                 agg.last_step,
             ), context
             assert (low, high) == (agg.min, agg.max), context
-            assert sums_close(total, agg.sum, agg.abs_sum), (context, total, agg.sum)  # type: ignore[arg-type]
+            assert sums_close(total, agg.sum, agg.abs_sum), (context, total, agg.sum)
 
 
 def assert_same_buckets(

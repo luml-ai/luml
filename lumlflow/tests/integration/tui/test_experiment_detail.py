@@ -1088,8 +1088,8 @@ class TestMetricsTab:
             calls.append(("buckets", tuple(keys)))
             return buckets_read(experiment_id, keys, **kwargs)
 
-        facade.get_metric_catalog = counted_catalog  # type: ignore[method-assign]
-        facade.get_metric_buckets = counted_buckets  # type: ignore[method-assign]
+        facade.get_metric_catalog = counted_catalog
+        facade.get_metric_buckets = counted_buckets
         app = LumlflowApp(facade=facade, auto_refresh=False)
         async with app.run_test(size=(120, 40)) as pilot:
             screen = _push_detail_screen(app, facade, experiment_id=exp_id)
@@ -1163,8 +1163,8 @@ def _count_metric_reads(facade: DataFacade) -> MetricReads:
         calls.append(("buckets", level, tuple(keys)))
         return buckets_read(experiment_id, keys, level=level, **kwargs)
 
-    facade.get_metric_catalog = counted_catalog  # type: ignore[method-assign]
-    facade.get_metric_buckets = counted_buckets  # type: ignore[method-assign]
+    facade.get_metric_catalog = counted_catalog
+    facade.get_metric_buckets = counted_buckets
     return calls
 
 
@@ -1217,7 +1217,7 @@ class TestMetricReads:
             screen = _push_detail_screen(app, facade, experiment_id=exp_id)
             await settle_workers(pilot)
             assert screen._metric_series == {}
-            facade.get_metric_catalog = blocking_catalog  # type: ignore[method-assign]
+            facade.get_metric_catalog = blocking_catalog
             screen._request_metric_series("a", max_points=50)
             assert await asyncio.to_thread(entered.wait, 10)
             screen._request_metric_series("b", max_points=50)

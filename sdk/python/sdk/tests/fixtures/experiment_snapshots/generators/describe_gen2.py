@@ -35,7 +35,7 @@ SNAPSHOT_RE = re.compile(
 def load_db(artifact: str) -> tuple[str, Path]:
     with tarfile.open(artifact) as tar:
         (member,) = [name for name in tar.getnames() if SNAPSHOT_RE.match(name)]
-        data = tar.extractfile(member).read()  # type: ignore[union-attr]
+        data = tar.extractfile(member).read()
     if member.endswith(".zip"):
         data = zipfile.ZipFile(io.BytesIO(data)).read("exp.db")
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
@@ -46,12 +46,12 @@ def load_db(artifact: str) -> tuple[str, Path]:
 def producer_facts(artifact: str, kind: str) -> tuple[str, Any]:
     with tarfile.open(artifact) as tar:
         if kind == "experiment":
-            manifest = json.load(tar.extractfile("manifest.json"))  # type: ignore[arg-type]
+            manifest = json.load(tar.extractfile("manifest.json"))
             return manifest["producer_tags"][0], manifest["payload"]
         (meta,) = [
             n for n in tar.getnames() if re.fullmatch(r"meta-[0-9a-f]+\.json", n)
         ]
-        return json.load(tar.extractfile(meta))[0]["tags"][0], None  # type: ignore[arg-type]
+        return json.load(tar.extractfile(meta))[0]["tags"][0], None
 
 
 def logged_metrics(content: str) -> list[md.LogEntry]:

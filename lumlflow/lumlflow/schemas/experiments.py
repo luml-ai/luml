@@ -145,7 +145,7 @@ class MetricBucket(NamedTuple):
     first_step: int
     last_step: int
     # Shadows `tuple.count` on purpose: the field names follow the contract.
-    count: int  # type: ignore[assignment]
+    count: int
     finite_count: int
     min: WireFloat
     max: WireFloat

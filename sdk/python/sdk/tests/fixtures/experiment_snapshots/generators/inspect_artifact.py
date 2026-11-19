@@ -16,7 +16,7 @@ def load_snapshot(path: str) -> tuple[str, bytes, list[str]]:
     with tarfile.open(path) as tar:
         names = tar.getnames()
         name = next(n for n in names if SNAPSHOT_RE.search(n))
-        data = tar.extractfile(name).read()  # type: ignore[union-attr]
+        data = tar.extractfile(name).read()
     return name, data, names
 
 

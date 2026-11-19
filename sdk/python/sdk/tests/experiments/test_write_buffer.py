@@ -57,7 +57,7 @@ def _log_span(backend: SQLiteBackend, span_id: str, name: str | None = "op") -> 
         EXP_ID,
         trace_id="trace-1",
         span_id=span_id,
-        name=name,  # type: ignore[arg-type]
+        name=name,
         start_time_unix_nano=1000,
         end_time_unix_nano=2000,
     )
@@ -392,11 +392,11 @@ def test_write_through_raises_row_errors(store: Path) -> None:
 
 
 UNBINDABLE_CALLS: dict[str, Callable[[SQLiteBackend], None]] = {
-    "metric step": lambda b: b.log_dynamic(EXP_ID, "loss", 0.1, step=Decimal(1)),  # type: ignore[arg-type]
-    "metric key": lambda b: b.log_dynamic(EXP_ID, object(), 0.1, step=0),  # type: ignore[arg-type]
-    "span kind": lambda b: b.log_span(EXP_ID, "t", "s", "op", Decimal(1), 1, 2),  # type: ignore[arg-type]
+    "metric step": lambda b: b.log_dynamic(EXP_ID, "loss", 0.1, step=Decimal(1)),
+    "metric key": lambda b: b.log_dynamic(EXP_ID, object(), 0.1, step=0),
+    "span kind": lambda b: b.log_span(EXP_ID, "t", "s", "op", Decimal(1), 1, 2),
     "span time": lambda b: b.log_span(EXP_ID, "t", "s", "op", 0, 2**64, 2),
-    "eval id": lambda b: b.log_eval_sample(EXP_ID, object(), "ds1", {"x": 1}),  # type: ignore[arg-type]
+    "eval id": lambda b: b.log_eval_sample(EXP_ID, object(), "ds1", {"x": 1}),
 }
 
 
@@ -431,7 +431,7 @@ def test_bad_explicit_step_leaves_the_step_counter_alone(
 ) -> None:
     backend.log_dynamic(EXP_ID, "loss", 0.1)
     with pytest.raises(TypeError):
-        backend.log_dynamic(EXP_ID, "loss", 0.2, step=Decimal(5))  # type: ignore[arg-type]
+        backend.log_dynamic(EXP_ID, "loss", 0.2, step=Decimal(5))
     backend.log_dynamic(EXP_ID, "loss", 0.3)
 
     history = backend.get_experiment_metric_history(EXP_ID, "loss")
@@ -606,7 +606,7 @@ class _TimerBatchInFlight:
         self.backend = SQLiteBackend(str(store), flush_interval=0.001)
         buffer = self.backend._write_buffer
         # Started only once every row is queued, so its first batch holds them all.
-        buffer._start_flusher = lambda: None  # type: ignore[method-assign]
+        buffer._start_flusher = lambda: None
         self.backend.initialize_experiment(EXP_ID, "default", "in-flight")
         for step in range(IN_FLIGHT_ROWS):
             self.backend.log_dynamic(EXP_ID, "loss", float(step), step=step)
@@ -874,7 +874,7 @@ def test_timer_period_counts_from_the_start_of_each_flush() -> None:
     stop = _ScriptedStop(ticks=3)
 
     WriteBuffer._run_flusher(
-        weakref.ref(buffer),  # type: ignore[arg-type]
+        weakref.ref(buffer),
         stop,
         0.5,
         clock=lambda: now,
@@ -1191,7 +1191,7 @@ def _abandon_cyclic_tracker(store: Path, flush_interval: float) -> SQLiteBackend
     """Leaves an active tracker in a reference cycle, so only the collector frees it."""
     tracker = ExperimentTracker(f"sqlite://{store}", flush_interval=flush_interval)
     tracker.start_experiment(experiment_id=EXP_ID)
-    tracker.cycle = tracker  # type: ignore[attr-defined]
+    tracker.cycle = tracker
     assert isinstance(tracker.backend, SQLiteBackend)
     return tracker.backend
 

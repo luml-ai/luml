@@ -96,7 +96,7 @@ def _work_dirs(store: Path) -> list[Path]:
 
 
 def _pooled_paths(tracker: ExperimentTracker) -> list[str]:
-    stats = tracker.backend.pool.get_stats()  # type: ignore[attr-defined]
+    stats = tracker.backend.pool.get_stats()
     return sorted(Path(path).name for path in stats["connections"])
 
 
@@ -478,7 +478,7 @@ def test_export_leaves_the_pooled_connection_as_it_was(
     )
 
     def connection_state() -> list[list[tuple[Any, ...]]]:
-        with tracker.backend.pool.get_connection(_db_path(store)) as conn:  # type: ignore[attr-defined]
+        with tracker.backend.pool.get_connection(_db_path(store)) as conn:
             return [conn.execute(f"PRAGMA {name}").fetchall() for name in pragmas]
 
     before = connection_state()
@@ -771,14 +771,14 @@ def test_a_failed_embed_leaves_the_model_archive_as_it_was(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     with tarfile.open(dummy_model_file) as tar:
-        before = [(m.name, tar.extractfile(m).read()) for m in tar]  # type: ignore[union-attr]
+        before = [(m.name, tar.extractfile(m).read()) for m in tar]
     _fail_on_call(monkeypatch, DiskFile, "add_to_tar", 2)
 
     with pytest.raises(_InjectedError):
         tracker.link_to_model(ModelReference(str(dummy_model_file)), EXP_ID)
 
     with tarfile.open(dummy_model_file) as tar:
-        after = [(m.name, tar.extractfile(m).read()) for m in tar]  # type: ignore[union-attr]
+        after = [(m.name, tar.extractfile(m).read()) for m in tar]
     assert after == before
     assert _work_dirs(store) == []
 
@@ -930,7 +930,7 @@ def test_a_write_error_during_export_leaves_nothing_behind(
 
 def _disk_full() -> sqlite3.OperationalError:
     error = sqlite3.OperationalError("database or disk is full")
-    error.sqlite_errorcode = sqlite3.SQLITE_FULL  # type: ignore[attr-defined]
+    error.sqlite_errorcode = sqlite3.SQLITE_FULL
     return error
 
 

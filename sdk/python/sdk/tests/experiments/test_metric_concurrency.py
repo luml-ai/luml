@@ -126,7 +126,7 @@ def _killed_writer(store: str, phase: str, fatal_flush: int) -> None:
             os._exit(0)
         refresh(conn, touched)
 
-    metric_store.refresh_buckets = dying_refresh  # type: ignore[assignment]
+    metric_store.refresh_buckets = dying_refresh
     backend = SQLiteBackend(store, flush_interval=3600)
     for step in range(100_000):
         backend.log_dynamic(EXP_ID, "loss", float(step) * 0.5)

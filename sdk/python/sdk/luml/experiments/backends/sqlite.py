@@ -12,7 +12,7 @@ import threading
 import time
 import uuid
 import weakref
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from datetime import UTC, datetime
 from pathlib import Path, PureWindowsPath
 from typing import Any, Literal, SupportsIndex
@@ -584,14 +584,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     @contextlib.contextmanager
     def _get_experiment_connection(
         self, experiment_id: str, *, write: bool = False
-    ) -> Iterator[sqlite3.Connection]:
+    ) -> Generator[sqlite3.Connection]:
         with self._open_experiment(experiment_id, write=write) as (conn, _):
             yield conn
 
     @contextlib.contextmanager
     def _open_experiment(
         self, experiment_id: str, *, write: bool = False
-    ) -> Iterator[tuple[sqlite3.Connection, ExperimentSchema]]:
+    ) -> Generator[tuple[sqlite3.Connection, ExperimentSchema]]:
         """Yields a connection and the schema it reads with, refusing a database
         that needs a newer reader before any query of the caller runs."""
         db_path = self._get_experiment_db_path(experiment_id)
@@ -2896,7 +2896,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return DiskFile(db_path)
 
     @contextlib.contextmanager
-    def snapshot_experiment(self, experiment_id: str) -> Iterator[ExperimentSnapshot]:
+    def snapshot_experiment(self, experiment_id: str) -> Generator[ExperimentSnapshot]:
         """
         Yields a compacted, self-contained copy of the experiment database for
         publishing, removed again when the context exits.
