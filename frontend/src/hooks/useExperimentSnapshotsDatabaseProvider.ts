@@ -16,8 +16,7 @@ import { onUnmounted, toRaw } from 'vue'
 export const useExperimentSnapshotsDatabaseProvider = () => {
   const artifactsStore = useArtifactsStore()
 
-  const abortControllers: Record<string, AbortController> = {}
-  const initController = new AbortController()
+  let currentInit: AbortController | null = null
   let unmounted = false
   let provider: ExperimentSnapshotWorkerProxy | null = null
 
@@ -41,13 +40,19 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
   })
 
   /**
-   * A download error (axios) carries the presigned URL and the request headers; callers log
-   * what init throws, so it only ever throws the redacted message.
+   * Opens `models` in the worker. A newer call or leaving the view cancels an older call: its
+   * downloads stop, its result is dropped and it resolves without an error, so the worker never
+   * gets an outdated set. A download error (axios) carries the presigned URL and the request
+   * headers; callers log what init throws, so it only ever throws the redacted message.
    */
   async function init(models: ModelArtifact[]) {
+    currentInit?.abort()
+    const controller = new AbortController()
+    currentInit = controller
     try {
-      await open(models)
+      await open(models, controller.signal)
     } catch (error) {
+      if (controller.signal.aborted) return
       const { name, message } = (error ?? {}) as { name?: unknown; message?: unknown }
       if (name === 'AbortError') throw error
       const safe = new Error(redactSecrets(typeof message === 'string' ? message : String(error)))
@@ -56,15 +61,17 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     }
   }
 
-  async function open(models: ModelArtifact[]) {
+  async function open(models: ModelArtifact[], signal: AbortSignal) {
     const payload = await Promise.all(
-      models.map((model) => loadSnapshotSource(model).catch((error) => failedSource(model, error))),
+      models.map((model) =>
+        loadSnapshotSource(model, signal).catch((error) => failedSource(model, error)),
+      ),
     )
 
-    if (unmounted) return
-    await workerProxy.init(payload, initController.signal)
+    if (signal.aborted) return
+    await workerProxy.init(payload, signal)
 
-    if (unmounted) return
+    if (signal.aborted) return
     provider = workerProxy
     artifactsStore.setExperimentSnapshotProvider(provider, terminateWorkerIfUnused)
   }
@@ -86,11 +93,10 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
    * A zipped DB is downloaded whole, after its directory shows it fits in the browser; a raw
    * `exp.db` is read in the worker by Range requests.
    */
-  async function loadSnapshotSource(model: ModelArtifact): Promise<ExperimentSnapshotModelSource> {
-    abortControllers[model.id]?.abort()
-    abortControllers[model.id] = new AbortController()
-    const { signal } = abortControllers[model.id]
-
+  async function loadSnapshotSource(
+    model: ModelArtifact,
+    signal: AbortSignal,
+  ): Promise<ExperimentSnapshotModelSource> {
     const memberName = FnnxService.findExperimentSnapshotArchiveName(model.file_index)
     if (!memberName)
       throw new Error(`Experiment snapshot data for model '${model.name}' was not found`)
@@ -115,10 +121,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
 
   onUnmounted(() => {
     unmounted = true
-    Object.values(abortControllers).forEach((controller) => {
-      controller.abort()
-    })
-    initController.abort()
+    currentInit?.abort()
     terminateWorkerIfUnused()
   })
 

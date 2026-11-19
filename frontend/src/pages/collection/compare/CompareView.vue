@@ -60,7 +60,11 @@ const artifactsInfo = computed(() => {
   }, {})
 })
 
+// The set can change again before the previous one is open; only the latest one is shown.
+let setChanges = 0
+
 async function onArtifactIdsChange(newArtifactIds: string[]) {
+  const change = ++setChanges
   try {
     loading.value = true
     artifactsStore.resetExperimentSnapshotProvider()
@@ -68,6 +72,7 @@ async function onArtifactIdsChange(newArtifactIds: string[]) {
     const promises = await Promise.allSettled(
       newArtifactIds.map((artifactId) => artifactsStore.getArtifact(artifactId)),
     )
+    if (change !== setChanges) return
     const artifacts = promises
       .map((promise) => (promise.status === 'fulfilled' ? promise.value : null))
       .filter((artifact) => !!artifact)
@@ -76,7 +81,7 @@ async function onArtifactIdsChange(newArtifactIds: string[]) {
   } catch (e) {
     console.error(e)
   } finally {
-    loading.value = false
+    if (change === setChanges) loading.value = false
   }
 }
 

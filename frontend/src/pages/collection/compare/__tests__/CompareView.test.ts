@@ -1,5 +1,6 @@
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick, reactive } from 'vue'
 import CompareView from '../CompareView.vue'
 
 enableAutoUnmount(afterEach)
@@ -81,4 +82,36 @@ describe('CompareView model list', () => {
       expect(list.attributes()).not.toHaveProperty('models-list')
     },
   )
+})
+
+describe('CompareView when the set changes before the previous one is loaded', () => {
+  beforeEach(() => {
+    harness.route = reactive({ query: { artifacts: ['a'] } })
+    harness.getArtifact.mockReset()
+    harness.init.mockReset().mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    harness.route = { query: { artifacts: [] } }
+  })
+
+  it('shows and opens only the latest set when the older one answers last', async () => {
+    let answerA!: (artifact: { id: string; name: string }) => void
+    harness.getArtifact.mockImplementation((id: string) =>
+      id === 'a'
+        ? new Promise((resolve) => (answerA = resolve))
+        : Promise.resolve({ id, name: 'Model B' }),
+    )
+    const wrapper = mount(CompareView)
+    await flushPromises()
+
+    harness.route.query.artifacts = ['b']
+    await nextTick()
+    await flushPromises()
+    answerA({ id: 'a', name: 'Model A' })
+    await flushPromises()
+
+    expect(wrapper.findAll('.model').map((model) => model.text())).toEqual(['Model B'])
+    expect(harness.init).toHaveBeenCalledExactlyOnceWith([{ id: 'b', name: 'Model B' }])
+  })
 })

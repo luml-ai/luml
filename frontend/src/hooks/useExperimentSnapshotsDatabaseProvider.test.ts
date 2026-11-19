@@ -243,10 +243,10 @@ describe('experiment snapshot worker lifecycle', () => {
     wrapper.unmount()
   })
 
-  it('aborts an in-flight worker init and removes its listeners on unmount', async () => {
+  it('aborts an in-flight worker init quietly and removes its listeners on unmount', async () => {
     const wrapper = mount(Harness)
     const initialized = init([])
-    const rejection = expect(initialized).rejects.toMatchObject({ name: 'AbortError' })
+    const rejection = expect(initialized).resolves.toBeUndefined()
     await Promise.resolve()
 
     const worker = workers[0]
@@ -273,7 +273,7 @@ describe('experiment snapshot worker lifecycle', () => {
     const wrapper = mount(Harness)
     const model = { id: 'model-1', name: 'model', file_index: [] } as unknown as ModelArtifact
     const initialized = init([model])
-    const rejection = expect(initialized).rejects.toMatchObject({ name: 'AbortError' })
+    const rejection = expect(initialized).resolves.toBeUndefined()
     await Promise.resolve()
 
     const worker = workers[0]
@@ -458,5 +458,91 @@ describe('experiment snapshot worker lifecycle', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(mocks.getFileFromBucket).toHaveBeenCalledOnce()
     wrapper.unmount()
+  })
+
+  const zipped = (id: string) =>
+    ({ id, name: id, file_index: { 'exp.db.zip': [512, 16] } }) as unknown as ModelArtifact
+
+  it('drops an older init that finishes after a newer one and stops its download', async () => {
+    mocks.getDownloadUrl.mockResolvedValue('https://bucket/artifact?sig=1')
+    let finishOld!: (buffer: ArrayBuffer) => void
+    let oldSignal: AbortSignal | undefined
+    mocks.getFileFromBucket.mockImplementation(
+      (
+        _index: unknown,
+        _name: unknown,
+        _buffer: unknown,
+        _offset: unknown,
+        signal: AbortSignal,
+      ) => {
+        if (!oldSignal) {
+          oldSignal = signal
+          return new Promise((resolve) => (finishOld = resolve))
+        }
+        return Promise.resolve(new ArrayBuffer(16))
+      },
+    )
+    const wrapper = mount(Harness)
+    const older = init([zipped('old'), zipped('kept')])
+    await vi.waitFor(() => expect(oldSignal).toBeDefined())
+
+    const newer = init([zipped('kept'), zipped('added')])
+    expect(oldSignal?.aborted).toBe(true)
+    await vi.waitFor(() => expect(workers[0].postMessage).toHaveBeenCalled())
+    await initialize(workers[0], newer)
+    const provider = mocks.experimentSnapshotProvider
+    // A download that does not stop at the abort still hands its result back.
+    finishOld(new ArrayBuffer(16))
+
+    await expect(older).resolves.toBeUndefined()
+    await flushPromises()
+    const inits = workers[0].postMessage.mock.calls.filter(([message]) => message.type === 'init')
+    expect(inits).toHaveLength(1)
+    const [[sent]] = inits
+    expect(sent.payload.map(({ modelId }: { modelId: string }) => modelId)).toEqual([
+      'kept',
+      'added',
+    ])
+    expect(mocks.setExperimentSnapshotProvider).toHaveBeenCalledOnce()
+    expect(mocks.experimentSnapshotProvider).toBe(provider)
+    wrapper.unmount()
+  })
+
+  it('cancels the worker init of an older call when a newer one starts', async () => {
+    const wrapper = mount(Harness)
+    const older = init([])
+    await Promise.resolve()
+    const [first] = workers[0].postMessage.mock.calls[0]
+
+    const newer = init([])
+    await expect(older).resolves.toBeUndefined()
+    expect(workers[0].postMessage).toHaveBeenCalledWith({
+      type: 'cancel',
+      requestId: first.requestId,
+    })
+    await initialize(workers[0], newer)
+    expect(mocks.setExperimentSnapshotProvider).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
+  it.each([
+    ['CanceledError', () => Object.assign(new Error('canceled'), { name: 'CanceledError' })],
+    ['AbortError', () => new DOMException('Aborted', 'AbortError')],
+  ])('resolves quietly when leaving cancels a download with %s', async (_name, cancelled) => {
+    mocks.getDownloadUrl.mockResolvedValue('https://bucket/artifact?sig=1')
+    mocks.getFileFromBucket.mockImplementation(
+      (_index: unknown, _name: unknown, _buffer: unknown, _offset: unknown, signal: AbortSignal) =>
+        new Promise((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(cancelled())),
+        ),
+    )
+    const wrapper = mount(Harness)
+    const initialized = init([zipped('old')])
+    await vi.waitFor(() => expect(mocks.getFileFromBucket).toHaveBeenCalled())
+
+    wrapper.unmount()
+
+    await expect(initialized).resolves.toBeUndefined()
+    expect(workers[0].postMessage).not.toHaveBeenCalled()
   })
 })
