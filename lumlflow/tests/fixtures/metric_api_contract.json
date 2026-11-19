@@ -8,7 +8,7 @@
     "response": {
       "status": 200,
       "body": {
-        "revision": 3,
+        "revision": 4,
         "bucket_min_level": 3,
         "bucket_max_level": 12,
         "skipped_rows": 0,
@@ -19,7 +19,8 @@
             "last_step": 202,
             "count": 153,
             "min": "-Infinity",
-            "max": "Infinity"
+            "max": "Infinity",
+            "writes": 1
           },
           {
             "key": "ünïcode/métric",
@@ -27,7 +28,8 @@
             "last_step": 3,
             "count": 2,
             "min": 0.5,
-            "max": 1.5
+            "max": 1.5,
+            "writes": 1
           }
         ]
       }
@@ -53,7 +55,8 @@
             "last_step": 149,
             "count": null,
             "min": null,
-            "max": null
+            "max": null,
+            "writes": null
           }
         ]
       }
@@ -301,7 +304,7 @@
       "body": {
         "detail": {
           "code": "needs-newer-reader",
-          "message": "Experiment '<experiment>' uses schema revision 4, which needs a newer reader (revision 4 or later). Upgrade luml-sdk to read it."
+          "message": "Experiment '<experiment>' uses schema revision 5, which needs a newer reader (revision 5 or later). Upgrade luml-sdk to read it."
         }
       }
     }
@@ -324,7 +327,7 @@
       "body": {
         "detail": {
           "code": "needs-newer-reader",
-          "message": "Experiment '<experiment>' uses schema revision 4, which needs a newer reader (revision 4 or later). Upgrade luml-sdk to read it."
+          "message": "Experiment '<experiment>' uses schema revision 5, which needs a newer reader (revision 5 or later). Upgrade luml-sdk to read it."
         }
       }
     }

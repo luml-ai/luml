@@ -99,8 +99,12 @@ def test_catalog_has_the_contract_shape_and_is_never_cached(
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
-    assert response.json() == {
-        "revision": 3,
+    body = response.json()
+    # How many flushes wrote a metric depends on the flush timer.
+    writes = [metric.pop("writes") for metric in body["metrics"]]
+    assert all(isinstance(marker, int) and marker > 0 for marker in writes)
+    assert body == {
+        "revision": 4,
         "bucket_min_level": 3,
         "bucket_max_level": 12,
         "skipped_rows": 0,
@@ -157,13 +161,14 @@ def test_infinities_survive_the_json_round_trip(
     catalog = client.get(f"/api/experiments/{experiment_id}/metric-catalog")
     buckets = post_buckets(client, experiment_id, ["x"], level=0)
 
-    assert catalog.json()["metrics"][0] | {"key": "x"} == {
+    assert catalog.json()["metrics"][0] | {"writes": None} == {
         "key": "x",
         "first_step": 0,
         "last_step": 2,
         "count": 3,
         "min": "-Infinity",
         "max": "Infinity",
+        "writes": None,
     }
     assert buckets.json()["series"][0]["buckets"] == [
         [0, 0, 0, 1, 0, "Infinity", "Infinity", None],
@@ -441,7 +446,7 @@ def test_a_revision_2_experiment_is_served_unmigrated_with_the_same_buckets(
     new_catalog = client.get(f"/api/experiments/{new_id}/metric-catalog").json()
     assert (old_catalog["revision"], old_catalog["bucket_max_level"]) == (2, None)
     assert old_catalog["metrics"] == [
-        {**metric, "count": None, "min": None, "max": None}
+        {**metric, "count": None, "min": None, "max": None, "writes": None}
         for metric in new_catalog["metrics"]
     ]
     for level in (0, 2, 3, 6, 12, 14):

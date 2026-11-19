@@ -15,6 +15,7 @@ from dataclasses import dataclass
 
 from luml.experiments.backends.metric_store import choose_bucket_level
 
+from lumlflow.handlers.experiments import MAX_BUCKETS_PER_REQUEST
 from lumlflow.schemas.experiments import (
     MAX_KEYS_PER_BUCKET_REQUEST,
     MetricBucket,
@@ -75,20 +76,52 @@ def level_for(first_step: int, last_step: int, max_buckets: int) -> int:
     return choose_bucket_level(first_step, last_step, max(1, max_buckets))
 
 
+def _bucket_batches(
+    keys_by_level: dict[int, list[str]], budgets: dict[str, int]
+) -> list[tuple[int, list[str]]]:
+    """Splits each level's keys into requests within both server limits."""
+    batches: list[tuple[int, list[str]]] = []
+    for level, keys in keys_by_level.items():
+        batch: list[str] = []
+        batch_buckets = 0
+        for key in keys:
+            # A step range that fits `budget` bucket widths can still touch one
+            # bucket more when it does not start on a bucket boundary.
+            key_buckets = max(1, budgets[key]) + 1
+            if batch and (
+                len(batch) == MAX_KEYS_PER_BUCKET_REQUEST
+                or batch_buckets + key_buckets > MAX_BUCKETS_PER_REQUEST
+            ):
+                batches.append((level, batch))
+                batch, batch_buckets = [], 0
+            batch.append(key)
+            batch_buckets += key_buckets
+        if batch:
+            batches.append((level, batch))
+    return batches
+
+
 def load_changed_series(
     facade: DataFacade,
     experiment_id: str,
     budgets: dict[str, int],
     shown: dict[str, tuple[MetricSummary | None, int]],
-) -> Result[list[MetricSeries]]:
+    *,
+    is_cancelled: Callable[[], bool],
+) -> Result[list[MetricSeries]] | None:
     """Series for the keys in `budgets` (key to bucket budget) whose catalog entry
     or level differs from `shown`. One catalog read, then one bucket read per
-    level and per `MAX_KEYS_PER_BUCKET_REQUEST` keys; unchanged metrics read no
-    buckets."""
+    level and per batch within the server's key and bucket limits; unchanged
+    metrics read no buckets. A metric whose store has buckets but does not track
+    writes is always read again: its summary stays the same when a step is
+    overwritten. Without stored buckets a read scans every point, so such a store
+    is read again only when its summary changes.
+    Returns None, without reading further, once `is_cancelled` is true."""
     catalog = facade.get_metric_catalog(experiment_id)
     if not catalog.ok or catalog.value is None:
         return Result[list[MetricSeries]](error=catalog.error)
     summaries = {metric.key: metric for metric in catalog.value.metrics}
+    has_buckets = catalog.value.bucket_max_level is not None
     loaded: list[MetricSeries] = []
     keys_by_level: dict[int, list[str]] = defaultdict(list)
     for key, budget in budgets.items():
@@ -96,18 +129,18 @@ def load_changed_series(
         level = 0
         if summary is not None:
             level = level_for(summary.first_step, summary.last_step, budget)
-        if shown.get(key) == (summary, level):
+        unchanged = shown.get(key) == (summary, level)
+        if unchanged and (
+            summary is None or summary.writes is not None or not has_buckets
+        ):
             continue
         if summary is None:
             loaded.append(MetricSeries(key=key, level=level, summary=None))
         else:
             keys_by_level[level].append(key)
-    batches = [
-        (level, keys[start : start + MAX_KEYS_PER_BUCKET_REQUEST])
-        for level, keys in keys_by_level.items()
-        for start in range(0, len(keys), MAX_KEYS_PER_BUCKET_REQUEST)
-    ]
-    for level, keys in batches:
+    for level, keys in _bucket_batches(keys_by_level, budgets):
+        if is_cancelled():
+            return None
         result = facade.get_metric_buckets(experiment_id, keys, level=level)
         if not result.ok or result.value is None:
             return Result[list[MetricSeries]](error=result.error)

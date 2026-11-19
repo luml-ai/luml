@@ -116,6 +116,9 @@ class MetricSummary(BaseModel):
     count: int | None
     min: WireFloat
     max: WireFloat
+    # Changes with every committed write to the metric; None where the store does
+    # not track it (schema revisions 2 and 3), so a reader must assume a change.
+    writes: int | None = None
 
 
 class MetricCatalog(BaseModel):

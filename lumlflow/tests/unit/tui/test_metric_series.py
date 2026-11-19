@@ -1,8 +1,11 @@
 import math
+import sqlite3
 from pathlib import Path
 
 import pytest
+from luml.experiments.backends.migration_runner import ExperimentMigrationRunner
 from luml.experiments.tracker import ExperimentTracker
+from lumlflow.handlers.experiments import MAX_BUCKETS_PER_REQUEST
 from lumlflow.schemas.experiments import (
     MetricBucket,
     MetricBuckets,
@@ -20,7 +23,7 @@ from lumlflow.tui.metric_series import (
     load_comparison_series,
 )
 
-from tests.helpers.metrics import log_points
+from tests.helpers.metrics import LEGACY_INSERT, log_points, revision2_experiment
 
 
 def series(*buckets: MetricBucket, level: int = 2) -> MetricSeries:
@@ -63,6 +66,19 @@ def tracker(tmp_path: Path) -> ExperimentTracker:
     return ExperimentTracker(f"sqlite://{tmp_path / 'experiments'}")
 
 
+def _load_all(
+    facade: DataFacade,
+    experiment_id: str,
+    budgets: dict[str, int],
+    shown: dict[str, tuple[MetricSummary | None, int]],
+) -> list[MetricSeries]:
+    result = load_changed_series(
+        facade, experiment_id, budgets, shown, is_cancelled=lambda: False
+    )
+    assert result is not None
+    return result.unwrap()
+
+
 def test_load_changed_series_skips_what_is_already_shown(
     tracker: ExperimentTracker,
 ) -> None:
@@ -72,11 +88,11 @@ def test_load_changed_series_skips_what_is_already_shown(
     log_points(tracker, experiment_id, "b", [(step, 2.0) for step in range(300)])
     budgets = {"a": 100, "b": 100, "never": 100}
 
-    first = load_changed_series(facade, experiment_id, budgets, {}).unwrap()
+    first = _load_all(facade, experiment_id, budgets, {})
     shown = {loaded.key: loaded.fingerprint for loaded in first}
-    again = load_changed_series(facade, experiment_id, budgets, shown).unwrap()
+    again = _load_all(facade, experiment_id, budgets, shown)
     log_points(tracker, experiment_id, "a", [(10, 1.0)])
-    grown = load_changed_series(facade, experiment_id, budgets, shown).unwrap()
+    grown = _load_all(facade, experiment_id, budgets, shown)
 
     assert {(s.key, s.level, len(s.buckets)) for s in first} == {
         ("a", 0, 10),
@@ -115,7 +131,7 @@ def test_load_changed_series_reads_each_level_in_batches_under_the_key_limit(
     monkeypatch.setattr(facade, "get_metric_buckets", counted_buckets)
     budgets = dict.fromkeys([*short_keys, "long"], 100)
 
-    loaded = load_changed_series(facade, experiment_id, budgets, {}).unwrap()
+    loaded = _load_all(facade, experiment_id, budgets, {})
 
     assert calls == [
         ("catalog", None, ()),
@@ -129,6 +145,165 @@ def test_load_changed_series_reads_each_level_in_batches_under_the_key_limit(
         ("s2", 0, 10),
         ("long", 1, 75),
     }
+
+
+@pytest.mark.parametrize(
+    ("appended", "averages"),
+    [
+        ([], ([0.0, 1.0, 2.0], [0.0, 7.0, 10.0])),
+        ([(3, 3.0)], ([0.0, 1.0, 2.0, 3.0], [0.0, 7.0, 10.0, 3.0])),
+    ],
+)
+def test_a_refresh_picks_up_a_value_overwritten_at_an_existing_step(
+    tracker: ExperimentTracker,
+    appended: list[tuple[int, float]],
+    averages: tuple[list[float], list[float]],
+) -> None:
+    facade = DataFacade(tracker=tracker)
+    experiment_id = tracker.start_experiment(name="x")
+    log_points(tracker, experiment_id, "m", [(0, 0.0), (1, 5.0), (2, 10.0)])
+    budgets = {"m": 100}
+    first = _load_all(facade, experiment_id, budgets, {})
+    shown = {series.key: series.fingerprint for series in first}
+    assert bucket_averages(first[0]) == ([0.0, 1.0, 2.0], [0.0, 5.0, 10.0])
+
+    log_points(tracker, experiment_id, "m", [(1, 7.0), *appended])
+    refreshed = _load_all(facade, experiment_id, budgets, shown)
+
+    assert [bucket_averages(series) for series in refreshed] == [averages]
+
+
+def _revision3_experiment(store: Path) -> str:
+    experiment_id, db_path = revision2_experiment(store, "m", [(0, 1.0), (1, 2.0)])
+    conn = sqlite3.connect(db_path)
+    ExperimentMigrationRunner(conn).migrate(target_version=3)
+    conn.close()
+    return experiment_id
+
+
+@pytest.mark.parametrize(("revision", "reads_again"), [(2, 0), (3, 1), (4, 0)])
+def test_an_unchanged_metric_is_read_again_only_where_writes_are_not_tracked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    revision: int,
+    reads_again: int,
+) -> None:
+    store = tmp_path / "experiments"
+    if revision == 2:
+        experiment_id, _ = revision2_experiment(store, "m", [(0, 1.0), (1, 2.0)])
+        tracker = ExperimentTracker(f"sqlite://{store}")
+    elif revision == 3:
+        experiment_id = _revision3_experiment(store)
+        tracker = ExperimentTracker(f"sqlite://{store}")
+    else:
+        tracker = ExperimentTracker(f"sqlite://{store}")
+        experiment_id = tracker.start_experiment(name="x")
+        log_points(tracker, experiment_id, "m", [(0, 1.0), (1, 2.0)])
+    facade = DataFacade(tracker=tracker)
+    budgets = {"m": 100}
+    first = _load_all(facade, experiment_id, budgets, {})
+    shown = {series.key: series.fingerprint for series in first}
+    assert facade.get_metric_catalog(experiment_id).unwrap().revision == revision
+    bucket_reads: list[tuple[str, ...]] = []
+    buckets_read = facade.get_metric_buckets
+
+    def counted_buckets(
+        experiment_id: str, keys: list[str], *, level: int
+    ) -> Result[MetricBuckets]:
+        bucket_reads.append(tuple(keys))
+        return buckets_read(experiment_id, keys, level=level)
+
+    monkeypatch.setattr(facade, "get_metric_buckets", counted_buckets)
+
+    again = _load_all(facade, experiment_id, budgets, shown)
+
+    assert len(bucket_reads) == reads_again
+    assert [bucket_averages(series) for series in again] == [
+        bucket_averages(first[0])
+    ] * reads_again
+
+
+def test_a_revision2_metric_is_read_again_once_points_are_appended(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "experiments"
+    experiment_id, db_path = revision2_experiment(store, "m", [(0, 1.0), (1, 2.0)])
+    facade = DataFacade(tracker=ExperimentTracker(f"sqlite://{store}"))
+    budgets = {"m": 100}
+    first = _load_all(facade, experiment_id, budgets, {})
+    shown = {series.key: series.fingerprint for series in first}
+    conn = sqlite3.connect(db_path)
+    conn.execute(LEGACY_INSERT, ("m", 3.0, 2, "2026-01-02 03:04:06"))
+    conn.commit()
+    conn.close()
+
+    again = _load_all(facade, experiment_id, budgets, shown)
+
+    assert facade.get_metric_catalog(experiment_id).unwrap().revision == 2
+    assert [bucket_averages(series) for series in again] == [
+        ([0.0, 1.0, 2.0], [1.0, 2.0, 3.0])
+    ]
+
+
+def test_a_refresh_of_many_dense_metrics_stays_within_the_bucket_limit(
+    tracker: ExperimentTracker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    facade = DataFacade(tracker=tracker)
+    experiment_id = tracker.start_experiment(name="x")
+    keys = [f"m{index:04d}" for index in range(1000)]
+    for step in range(201):
+        for key in keys:
+            tracker.log_dynamic(key, float(step), step=step)
+    tracker.backend.flush()
+    batch_sizes: list[int] = []
+    buckets_read = facade.get_metric_buckets
+
+    def counted_buckets(
+        experiment_id: str, keys: list[str], *, level: int
+    ) -> Result[MetricBuckets]:
+        batch_sizes.append(len(keys))
+        return buckets_read(experiment_id, keys, level=level)
+
+    monkeypatch.setattr(facade, "get_metric_buckets", counted_buckets)
+    # A chart cell's budget on a terminal wide enough for three columns.
+    budget = 250
+
+    loaded = _load_all(facade, experiment_id, dict.fromkeys(keys, budget), {})
+
+    assert len(loaded) == len(keys)
+    assert all(len(series.buckets) == 201 for series in loaded)
+    assert all(size * budget <= MAX_BUCKETS_PER_REQUEST for size in batch_sizes)
+
+
+def test_a_cancelled_load_stops_before_the_next_bucket_read(
+    tracker: ExperimentTracker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(metric_series, "MAX_KEYS_PER_BUCKET_REQUEST", 1)
+    facade = DataFacade(tracker=tracker)
+    experiment_id = tracker.start_experiment(name="x")
+    for key in ("a", "b", "c"):
+        log_points(tracker, experiment_id, key, [(0, 1.0)])
+    bucket_reads: list[tuple[str, ...]] = []
+    buckets_read = facade.get_metric_buckets
+
+    def counted_buckets(
+        experiment_id: str, keys: list[str], *, level: int
+    ) -> Result[MetricBuckets]:
+        bucket_reads.append(tuple(keys))
+        return buckets_read(experiment_id, keys, level=level)
+
+    monkeypatch.setattr(facade, "get_metric_buckets", counted_buckets)
+
+    loaded = load_changed_series(
+        facade,
+        experiment_id,
+        dict.fromkeys(["a", "b", "c"], 100),
+        {},
+        is_cancelled=lambda: len(bucket_reads) == 1,
+    )
+
+    assert loaded is None
+    assert bucket_reads == [("a",)]
 
 
 def test_load_comparison_series_marks_unknown_experiments_unreadable(
@@ -149,7 +324,9 @@ def test_load_comparison_series_marks_unknown_experiments_unreadable(
     assert loaded[without_key] == MetricSeries(key="m", level=0, summary=None)
     plotted = loaded[with_key]
     assert plotted is not None
-    assert plotted.summary == MetricSummary(
+    assert plotted.summary is not None
+    assert plotted.summary.writes is not None
+    assert plotted.summary.model_copy(update={"writes": None}) == MetricSummary(
         key="m", first_step=0, last_step=1, count=2, min=1.0, max=3.0
     )
     assert bucket_averages(plotted) == ([0.0, 1.0], [1.0, 3.0])

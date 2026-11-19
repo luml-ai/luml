@@ -35,13 +35,13 @@ def serve(tracker: ExperimentTracker) -> TestClient:
 
 
 def require_newer_reader(db_path: Path) -> None:
-    """Marks the database as a revision 4 that this SDK must refuse to read."""
+    """Marks the database as a revision 5 that this SDK must refuse to read."""
     conn = sqlite3.connect(db_path)
-    conn.execute("INSERT INTO exp_schema_migrations (version) VALUES (4)")
+    conn.execute("INSERT INTO exp_schema_migrations (version) VALUES (5)")
     conn.execute(
-        "UPDATE exp_schema_info SET value = '4' WHERE key = 'min_reader_revision'"
+        "UPDATE exp_schema_info SET value = '5' WHERE key = 'min_reader_revision'"
     )
-    conn.execute("PRAGMA user_version = 4")
+    conn.execute("PRAGMA user_version = 5")
     conn.commit()
     conn.close()
 

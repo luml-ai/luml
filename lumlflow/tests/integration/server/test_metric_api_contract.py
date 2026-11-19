@@ -28,7 +28,8 @@ FIXTURE = Path(__file__).parents[2] / "fixtures" / "metric_api_contract.json"
 
 
 def contract_store(store: Path) -> dict[str, str]:
-    setup = ExperimentTracker(f"sqlite://{store}")
+    # Written in one flush per experiment, so the write markers are fixed.
+    setup = ExperimentTracker(f"sqlite://{store}", flush_interval=3600)
     main = setup.start_experiment(name="main")
     log_points(
         setup,

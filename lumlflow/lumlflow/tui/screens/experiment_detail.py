@@ -43,6 +43,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.message import Message
 from textual.widgets import DataTable, Static, Tree
+from textual.worker import get_current_worker
 
 from lumlflow.schemas.experiments import (
     ExperimentDetails,
@@ -795,6 +796,7 @@ class ExperimentDetailScreen(BaseScreen):
 
     @work(group="experiment-metric")
     async def _drain_metric_requests(self) -> None:
+        worker = get_current_worker()
         try:
             while self._pending_metric_budgets:
                 budgets = self._pending_metric_budgets
@@ -807,9 +809,18 @@ class ExperimentDetailScreen(BaseScreen):
                     for key, series in self._metric_series.items()
                     if key in budgets
                 }
+                # Cancelling the worker does not stop the thread, so it checks
+                # between bucket reads whether the screen still wants them.
                 result = await asyncio.to_thread(
-                    load_changed_series, facade, self._experiment_id, budgets, shown
+                    load_changed_series,
+                    facade,
+                    self._experiment_id,
+                    budgets,
+                    shown,
+                    is_cancelled=lambda: worker.is_cancelled,
                 )
+                if result is None:
+                    return
                 self._on_metric_result(result)
         finally:
             self._metric_loading = False

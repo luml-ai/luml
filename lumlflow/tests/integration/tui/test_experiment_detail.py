@@ -1614,7 +1614,7 @@ async def test_metric_refresh_uses_one_worker_and_coalesces_requests(
         peak = 0
         lock = threading.Lock()
 
-        def load_series(facade_arg, experiment_id, budgets, shown):
+        def load_series(facade_arg, experiment_id, budgets, shown, *, is_cancelled):
             nonlocal active, peak
             with lock:
                 active += 1
@@ -1623,7 +1623,9 @@ async def test_metric_refresh_uses_one_worker_and_coalesces_requests(
             entered.set()
             release.wait(2)
             try:
-                return original(facade_arg, experiment_id, budgets, shown)
+                return original(
+                    facade_arg, experiment_id, budgets, shown, is_cancelled=is_cancelled
+                )
             finally:
                 with lock:
                     active -= 1
@@ -1646,3 +1648,47 @@ async def test_metric_refresh_uses_one_worker_and_coalesces_requests(
         assert calls == [{"loss": 10}, {"accuracy": 20}]
         assert screen._metric_series["loss"].key == "loss"
         assert screen._metric_series["accuracy"].key == "accuracy"
+
+
+async def test_closing_the_detail_screen_stops_reading_metric_batches(
+    facade: DataFacade, tracker: ExperimentTracker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exp_id = tracker.start_experiment(name="exp")
+    for step in range(5000):
+        if step < 10:
+            tracker.log_dynamic("a", 1.0, step=step, experiment_id=exp_id)
+        tracker.log_dynamic("long", 1.0, step=step, experiment_id=exp_id)
+    tracker.end_experiment(experiment_id=exp_id)
+    entered = threading.Event()
+    release = threading.Event()
+    closed = threading.Event()
+    reads_after_close: list[tuple[int, tuple[str, ...]]] = []
+    buckets_read = facade.get_metric_buckets
+
+    def blocking_buckets(
+        experiment_id: str, keys: list[str], *, level: int
+    ) -> Result[MetricBuckets]:
+        if closed.is_set():
+            reads_after_close.append((level, tuple(keys)))
+        if not entered.is_set():
+            entered.set()
+            release.wait(timeout=10)
+        return buckets_read(experiment_id, keys, level=level)
+
+    app = LumlflowApp(facade=facade, auto_refresh=False)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+        await pilot.pause()
+        monkeypatch.setattr(facade, "get_metric_buckets", blocking_buckets)
+        # Two levels, so two bucket reads.
+        screen._request_metric_series("a", max_points=50)
+        screen._request_metric_series("long", max_points=50)
+        assert await asyncio.to_thread(entered.wait, 10)
+
+        app.pop_screen()
+        await pilot.pause()
+        closed.set()
+        release.set()
+        await asyncio.sleep(1.0)
+
+    assert reads_after_close == []
