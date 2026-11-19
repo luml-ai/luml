@@ -1,5 +1,5 @@
-// Reads the CSV files the traces and evals tables export (RFC 4180: quoted fields may hold
-// commas, quotes doubled, and line breaks).
+// Reads the CSV files the traces and evals tables of both apps export (RFC 4180: quoted fields
+// may hold commas, quotes doubled, and line breaks).
 
 /** The header and the rows of a CSV text, each row as a record by column name. */
 export function parseCsv(text: string): { header: string[]; rows: Record<string, string>[] } {

@@ -8,7 +8,9 @@ import {
   type Browser,
   type BrowserContext,
   type ConsoleMessage,
+  type Frame,
   type Request,
+  type Worker,
 } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
@@ -203,6 +205,23 @@ function thirdPartyLaunchArgs(port: number): string[] {
   return [`--host-resolver-rules=${rules.join(', ')}`, '--ignore-certificate-errors']
 }
 
+/** A request's frame; a service worker's request, or a navigation's before its frame, has none. */
+function frameOf(request: Request): Frame | null {
+  try {
+    return request.frame()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * How the init script names a fetch or XHR the document sent: its URL and Range header. The
+ * headers the page set are known at once (all headers come with a response that may never come).
+ */
+function requestKey(request: Request): string {
+  return `${request.url()} ${request.headers()['range'] ?? ''}`
+}
+
 function matches(expected: ExpectedError, error: RecordedError): boolean {
   if (expected.kind !== error.kind) return false
   if ('status' in expected && expected.status !== error.status) return false
@@ -235,6 +254,8 @@ export class ErrorGuard {
   private readonly contexts: BrowserContext[] = []
   /** Requests whose answer has not come yet; it may be an error response. */
   private readonly unanswered = new Set<Request>()
+  /** The workers of the page when a fetch or XHR was sent: it may be one of theirs. */
+  private readonly workersAtSend = new Map<Request, Worker[]>()
   private answered: () => void = () => undefined
 
   /** Declares an error the test causes on purpose; a declaration that never matches fails. */
@@ -315,6 +336,43 @@ export class ErrorGuard {
             await Promise.all(reports)
           },
         })
+        // What the document itself fetches, so the guard can tell a worker's request from it:
+        // the browser reports both with the page's frame.
+        const sent: string[] = []
+        const logSent = (url: string | URL, range: string | null) => {
+          try {
+            sent.push(`${new URL(url, location.href).href} ${range ?? ''}`)
+          } catch {
+            // An invalid URL fails in the call itself.
+          }
+        }
+        const pageFetch = window.fetch
+        window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+          const request = input instanceof Request ? input : null
+          const headers = new Headers(init?.headers ?? request?.headers)
+          logSent(request ? request.url : input.toString(), headers.get('range'))
+          return pageFetch.call(this, input, init)
+        }
+        const xhrs = new WeakMap<XMLHttpRequest, { url: string | URL; range: string | null }>()
+        const { open, setRequestHeader, send } = XMLHttpRequest.prototype
+        XMLHttpRequest.prototype.open = function (
+          this: XMLHttpRequest,
+          ...args: Parameters<XMLHttpRequest['open']>
+        ) {
+          xhrs.set(this, { url: args[1], range: null })
+          return (open as (...rest: unknown[]) => void).apply(this, args)
+        } as XMLHttpRequest['open']
+        XMLHttpRequest.prototype.setRequestHeader = function (name: string, value: string) {
+          const info = xhrs.get(this)
+          if (info && name.toLowerCase() === 'range') info.range = value
+          return setRequestHeader.call(this, name, value)
+        }
+        XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
+          const info = xhrs.get(this)
+          if (info) logSent(info.url, info.range)
+          return send.call(this, body)
+        }
+        Object.assign(window, { [`${binding}Sent`]: () => sent })
         // Classes too: a toast may become an error toast by its class alone.
         new MutationObserver(scan).observe(document, {
           childList: true,
@@ -331,8 +389,12 @@ export class ErrorGuard {
       this.recorded.push({ kind: 'page error', text: error.error().message }),
     )
     context.on('request', (request) => {
-      if (isServed(request.url())) this.unanswered.add(request)
-      else if (isExternal(request.url()))
+      if (isServed(request.url())) {
+        this.unanswered.add(request)
+        const workers = frameOf(request)?.page().workers() ?? []
+        if (workers.length && ['fetch', 'xhr'].includes(request.resourceType()))
+          this.workersAtSend.set(request, workers)
+      } else if (isExternal(request.url()))
         this.recorded.push({
           kind: 'external request',
           text: request.method(),
@@ -363,6 +425,7 @@ export class ErrorGuard {
   }
 
   private answer(request: Request): void {
+    this.workersAtSend.delete(request)
     if (this.unanswered.delete(request)) this.answered()
   }
 
@@ -388,13 +451,13 @@ export class ErrorGuard {
   private async settle(): Promise<void> {
     await this.drainPages()
     const deadline = Date.now() + SETTLE_MS
-    for (const request of this.unanswered) {
-      // A closed page's requests get no more events. A worker's request has no frame.
-      try {
-        if (request.frame().page().isClosed()) this.unanswered.delete(request)
-      } catch {
-        continue
-      }
+    const sentByDocument = new Map<Frame, Promise<string[] | null>>()
+    for (const request of [...this.unanswered]) {
+      const frame = frameOf(request)
+      if (!frame) continue
+      // A closed page's requests get no more events, nor do a terminated worker's.
+      if (frame.page().isClosed() || (await this.ofGoneWorker(request, frame, sentByDocument)))
+        this.unanswered.delete(request)
     }
     if (!this.unanswered.size) return
     while (this.unanswered.size && Date.now() < deadline) {
@@ -408,6 +471,35 @@ export class ErrorGuard {
     }
     this.answered = () => undefined
     await this.drainPages()
+  }
+
+  /**
+   * The browser reports a worker's request with the page's frame, and reports no end for it once
+   * the worker is terminated. A fetch or XHR is a worker's when its document did not send it
+   * (the init script logs what the document sends); it can no longer end when every worker of
+   * the page at the time is gone.
+   */
+  private async ofGoneWorker(
+    request: Request,
+    frame: Frame,
+    sentByDocument: Map<Frame, Promise<string[] | null>>,
+  ): Promise<boolean> {
+    const workers = this.workersAtSend.get(request)
+    if (!workers) return false
+    const live = frame.page().workers()
+    if (workers.some((worker) => live.includes(worker))) return false
+    if (!sentByDocument.has(frame)) {
+      const sent = frame
+        .evaluate(
+          (name) => (window as unknown as Record<string, (() => string[]) | undefined>)[name]?.(),
+          `${BINDING}Sent`,
+        )
+        .then((keys) => keys ?? null)
+        .catch(() => null)
+      sentByDocument.set(frame, sent)
+    }
+    const sent = await sentByDocument.get(frame)
+    return sent !== null && !sent!.includes(requestKey(request))
   }
 
   private async drainPages(): Promise<void> {

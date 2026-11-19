@@ -3,8 +3,10 @@
 # Everything lives in tmpfs or in memory, so nothing outlives `down`.
 
 services:
+  # Postgres and Redis by the digest of their tag's multi-arch index, so a new image under the
+  # tag cannot change a run. To refresh: `docker buildx imagetools inspect <tag>`, its Digest.
   postgres:
-    image: postgres:15
+    image: postgres@sha256:10f9e886f772e9d6484350b043bcf990ead67ae5d9988ddce265d72a299055d5 # postgres:15
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -20,7 +22,7 @@ services:
       retries: 30
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe # redis:7-alpine
     ports:
       - "127.0.0.1:${E2E_REDIS_PORT}:6379"
     healthcheck:

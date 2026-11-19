@@ -112,8 +112,10 @@ interface ExpectedData {
   eval_filter: { min_tokens: number; ids: string[]; averages: Record<string, number> }
   traces: ExpectedTrace[]
   trace_filter: { tier: string; ids: string[] }
-  fixtures: Record<'rev0' | 'sdk_0_1_0', FixtureExpectation>
+  fixtures: Record<OldEra, FixtureExpectation>
 }
+
+type OldEra = 'rev0' | 'rev0_legacy_indexes' | 'sdk_0_1_0' | 'baseline_quirk'
 
 interface StorageData {
   bucket_secret_id: string
@@ -173,10 +175,40 @@ const STORAGE_PORTS = [
   ...Object.values(PROXIES).map((proxy) => proxy.port),
 ]
 const DOWNLOAD_URL = /\/artifacts\/([0-9a-f-]+)\/download-url/
-// Chart reads of a 1M-point metric: the catalog, one level of buckets and the B-tree pages on
-// the way, a few dozen pages of 16 KiB however large the DB is.
-const MAX_RANGE_REQUESTS_PER_VIEW = 40
-const MAX_FRACTION_PER_VIEW = 0.05
+
+interface ReadBudget {
+  requests: number
+  bytes: number
+}
+
+// Reads of new-format DBs, in read-ahead chunks of 64 KiB: a view reads the catalog, one level
+// of buckets and the B-tree pages on the way, however many points the DB holds, so the limits
+// are in bytes, not in a share of the DB. Each is the value measured in 10 runs on S3 and on
+// Azure (the same in every run) plus one chunk: one more request of read-ahead.
+const READ_AHEAD_CHUNK = 64 * 1024
+function measuredPlusOneChunk(requests: number, bytes: number): ReadBudget {
+  return { requests: requests + 1, bytes: bytes + READ_AHEAD_CHUNK }
+}
+// `large` (3 metrics of 1M points) opened: 8 requests, 524,290 bytes (0.65% of it).
+const FIRST_PAINT_BUDGET = measuredPlusOneChunk(8, 524_290)
+// Its chart zoomed to 2% of the axis: 2 requests, 196,608 bytes.
+const ZOOM_BUDGET = measuredPlusOneChunk(2, 196_608)
+// Each new-format experiment of a comparison, by label, whatever it is compared with. A small DB
+// is mostly its catalog and first pages, so the share it reads is high: of its member, new_a
+// and new_b 72%, short 59%, gen2_full 78% and model_gen2 all of it; large 0.49%.
+const COMPARISON_ITEM_BUDGETS: Record<string, ReadBudget> = {
+  new_a: measuredPlusOneChunk(5, 458_752),
+  new_b: measuredPlusOneChunk(5, 458_752),
+  large: measuredPlusOneChunk(5, 393_216),
+  short: measuredPlusOneChunk(4, 327_680),
+  gen2_full: measuredPlusOneChunk(9, 688_128),
+  model_gen2: measuredPlusOneChunk(9, 655_360),
+}
+
+function expectWithinBudget(requests: StorageRequest[], budget: ReadBudget, what: string) {
+  expect(requests.length, `${what}: requests`).toBeLessThanOrEqual(budget.requests)
+  expect(sumBytes(requests), `${what}: bytes`).toBeLessThanOrEqual(budget.bytes)
+}
 
 /** Every request to storage and to the download-url endpoint, by artifact, with sizes. */
 class NetworkLog {
@@ -309,17 +341,21 @@ function expectWholeDownload(network: NetworkLog, artifact: PublishedArtifact) {
   expect(probed ? [tailStart - 1, end] : [end]).toContain(downloads[0]!.range![1])
 }
 
+/** "a new" or "an old", for test titles. */
+function withArticle(format: 'new' | 'old'): string {
+  return format === 'old' ? 'an old' : 'a new'
+}
+
 function collectionUrl(storage: StorageData) {
   return `${FRONTEND}/organization/${data.organization_id}/orbit/${storage.orbit_id}/collection/${storage.collection_id}`
 }
 
 async function openSnapshot(page: Page, storage: StorageData, artifact: PublishedArtifact) {
-  await page.goto(`${collectionUrl(storage)}/artifacts/${artifact.id}/experiment-snapshot`)
+  await page.goto(snapshotUrl(storage, artifact))
 }
 
 async function openCompare(page: Page, storage: StorageData, artifacts: PublishedArtifact[]) {
-  const query = artifacts.map((item) => `artifacts=${item.id}`).join('&')
-  await page.goto(`${collectionUrl(storage)}/compare?${query}`)
+  await page.goto(compareUrl(storage, artifacts))
 }
 
 /** A chart card, by the stable attributes the chart components put on its root. */
@@ -450,17 +486,21 @@ async function foldedCells(row: Locator): Promise<string[]> {
 }
 
 const TRACES = data.traces
-// traces_new is about 3 MB. Its trace list reads the summary table and its span tree the
-// covering index, in read-ahead chunks of 64 KiB: well under 1 MiB each. The 1 MiB value of one
-// span alone is more than either view may read, and a chunk that holds a page next to that value
-// may touch a few of its pages, never more than 5% of it.
-const MAX_TRACE_VIEW_BYTES = TRACES.big.large.chars!
-const MAX_PAYLOAD_TOUCHED = 0.05
-// Selecting the span reads its value and the row page around it, in read-ahead chunks.
-const MAX_PAYLOAD_READ_EXTRA = 512 * 1024
-// An eval opened with its trace (measured: 2 requests, 128 KiB), with room for one more run.
-const EVAL_VIEW_MAX_REQUESTS = 4
-const EVAL_VIEW_MAX_BYTES = 4 * 64 * 1024
+// traces_new is about 3 MB (trace_data.py, the same in every run). Measured in 10 runs on S3 and
+// Azure, the same each time; each limit is that plus one read-ahead chunk. Its trace list reads
+// the summary table: 819,202 bytes.
+const TRACE_LIST_MAX_BYTES = 819_202 + READ_AHEAD_CHUNK
+// The big trace's span tree reads the covering index: 655,360 bytes.
+const SPAN_TREE_MAX_BYTES = 655_360 + READ_AHEAD_CHUNK
+// A chunk that holds a page next to a span's value touches a few of its pages: 27,314 bytes of
+// the 1 MiB value and none of the 100 KiB one (by the span tree), plus one 16 KiB page.
+const MAX_PAYLOAD_TOUCHED_BYTES = 27_314 + 16 * 1024
+// Selecting the span reads its value (97% of the 1 MiB region measured, at least 95% asked),
+// then 187,325 bytes of the row pages around it.
+const PAYLOAD_READ_MIN_FRACTION = 0.95
+const MAX_PAYLOAD_READ_EXTRA = 187_325 + READ_AHEAD_CHUNK
+// An eval opened with its trace: 2 requests, 131,072 bytes.
+const EVAL_VIEW_BUDGET = measuredPlusOneChunk(2, 131_072)
 const BROWSER_STATE = join(env('E2E_WORK_DIR'), 'browser-state.json')
 
 function sumBytes(requests: StorageRequest[]): number {
@@ -487,8 +527,8 @@ function expectNoPayloadRead(requests: StorageRequest[], artifact: PublishedArti
     ['1 MiB', artifact.payload_region!],
     ['100 KiB', artifact.medium_region!],
   ] as const) {
-    expect(bytesWithin(requests, region), `bytes of the ${name} value read`).toBeLessThan(
-      regionSize(region) * MAX_PAYLOAD_TOUCHED,
+    expect(bytesWithin(requests, region), `bytes of the ${name} value read`).toBeLessThanOrEqual(
+      MAX_PAYLOAD_TOUCHED_BYTES,
     )
   }
 }
@@ -597,10 +637,7 @@ for (const storageName of Object.keys(data.storages)) {
       expect(await displayedLevel(chartCard(page, 'train/loss'))).toBeGreaterThanOrEqual(5)
       await expectNoNotices(page)
       expectRangeReads(network, large)
-      expect(network.of(large).length).toBeLessThanOrEqual(MAX_RANGE_REQUESTS_PER_VIEW)
-      expect(network.bytesOf(large), `fetched of ${large.size}`).toBeLessThan(
-        large.size * MAX_FRACTION_PER_VIEW,
-      )
+      expectWithinBudget(network.of(large), FIRST_PAINT_BUDGET, 'first paint')
       expect(network.issuesOf(large)).toBe(1)
     })
 
@@ -612,8 +649,8 @@ for (const storageName of Object.keys(data.storages)) {
       const [before] = await settledChart(page, 'train/loss', [large.id])
       const card = chartCard(page, 'train/loss')
       const levelBefore = await displayedLevel(card)
+      await network.settled()
       const readsBefore = network.of(large).length
-      const bytesBefore = network.bytesOf(large)
 
       await dragZoom(page, card, 0.4)
 
@@ -621,10 +658,10 @@ for (const storageName of Object.keys(data.storages)) {
       const [after] = await settledChart(page, 'train/loss', [large.id])
       const span = after!.x.at(-1)! - after!.x[0]!
       expect(span).toBeLessThan(before!.x.at(-1)! * 0.2)
+      await network.settled()
       const zoomReads = network.of(large).slice(readsBefore)
       expect(zoomReads.length).toBeGreaterThan(0)
-      expect(zoomReads.length).toBeLessThanOrEqual(MAX_RANGE_REQUESTS_PER_VIEW)
-      expect(network.bytesOf(large) - bytesBefore).toBeLessThan(large.size * MAX_FRACTION_PER_VIEW)
+      expectWithinBudget(zoomReads, ZOOM_BUDGET, 'zoom')
       expectRangeReads(network, large)
       expect(network.issuesOf(large)).toBe(1)
     })
@@ -705,20 +742,14 @@ for (const storageName of Object.keys(data.storages)) {
         )
         expect(lines).toHaveLength(compared.length)
         await expectNoNotices(page)
-        for (const item of compared) {
+        await network.settled()
+        for (const [index, item] of compared.entries()) {
           if (item.generation === 2) {
             expectRangeReads(network, item)
-            // Each new-format experiment of a comparison costs what it costs alone: its catalog
-            // and one level of buckets, a few dozen pages whatever the others are.
-            expect(network.of(item).length, item.name).toBeLessThanOrEqual(
-              MAX_RANGE_REQUESTS_PER_VIEW,
-            )
+            const label = labels[index]!
+            expectWithinBudget(network.of(item), COMPARISON_ITEM_BUDGETS[label]!, item.name)
           } else expectWholeDownload(network, item)
           expect(network.issuesOf(item), item.name).toBe(1)
-        }
-        if (labels.includes('large')) {
-          const large = artifact('large')
-          expect(network.bytesOf(large)).toBeLessThan(large.size * MAX_FRACTION_PER_VIEW)
         }
         if (labels.includes('short')) {
           const [long, short] = ['large', 'short'].map(
@@ -778,7 +809,7 @@ for (const storageName of Object.keys(data.storages)) {
     if (storageName === 's3') {
       for (const label of ['new_a', 'old'] as const) {
         const format = label === 'old' ? 'old' : 'new'
-        test(`the chart and the static params of a ${format}-format experiment show the logged values`, async ({
+        test(`the chart and the static params of ${withArticle(format)}-format experiment show the logged values`, async ({
           page,
         }) => {
           const item = artifact(label)
@@ -800,14 +831,16 @@ for (const storageName of Object.keys(data.storages)) {
         })
       }
 
-      for (const [label, era] of [
-        ['rev0', 'a revision 0 experiment (before migrations)'],
-        ['sdk_0_1_0', 'an experiment of luml-sdk 0.1.0'],
+      for (const [label, era, userVersion] of [
+        ['rev0', 'a revision 0 experiment (before migrations)', 0],
+        ['rev0_legacy_indexes', 'a revision 0 model with the legacy indexes', 0],
+        ['sdk_0_1_0', 'an experiment of luml-sdk 0.1.0', 2],
+        ['baseline_quirk', 'a model of a revision 0 store migrated by luml-sdk 0.5.0', 2],
       ] as const) {
         test(`${era} shows the metrics and the evals of its fixture`, async ({ page }) => {
           const item = artifact(label)
           const fixture = data.expected.fixtures[label]
-          expect(fixture.user_version).toBe(label === 'rev0' ? 0 : 2)
+          expect(fixture.user_version).toBe(userVersion)
           await openSnapshot(page, storage, item)
           for (const [key, metric] of Object.entries(fixture.metrics)) {
             const [line] = await settledChart(page, key, [item.id])
@@ -859,16 +892,17 @@ for (const storageName of Object.keys(data.storages)) {
         expectNoPayloadRead(network.of(traces), traces)
       }
 
-      test(`the traces of a ${format}-format experiment are listed, sorted and paged`, async ({
+      test(`the traces of ${withArticle(format)}-format experiment are listed, sorted and paged`, async ({
         page,
       }) => {
         skipWithoutOldSdk()
         const traces = traceArtifact()
         await openTraceSnapshot(page, storage, traces)
+        await network.settled()
         expectReads(traces)
         if (traces.generation === 2) {
-          expect(network.bytesOf(traces), `read of ${traces.size}`).toBeLessThan(
-            MAX_TRACE_VIEW_BYTES,
+          expect(network.bytesOf(traces), `read of ${traces.size}`).toBeLessThanOrEqual(
+            TRACE_LIST_MAX_BYTES,
           )
         }
 
@@ -877,20 +911,22 @@ for (const storageName of Object.keys(data.storages)) {
         await expectNoNotices(page)
       })
 
-      test(`the big trace of a ${format}-format experiment: a virtualised tree, payloads on select`, async ({
+      test(`the big trace of ${withArticle(format)}-format experiment: a virtualised tree, payloads on select`, async ({
         page,
       }) => {
         skipWithoutOldSdk()
         const traces = traceArtifact()
         const { large, medium, small } = TRACES.big
         await openTraceSnapshot(page, storage, traces)
+        await network.settled()
         let reads = network.of(traces).length
         await openTrace(page, TRACES.big.trace_id)
         const dialog = traceDialog(page)
         await expectVirtualisedTree(dialog, TRACES)
+        await network.settled()
         const treeReads = network.of(traces).slice(reads)
         if (traces.generation === 2) {
-          expect(sumBytes(treeReads)).toBeLessThan(MAX_TRACE_VIEW_BYTES)
+          expect(sumBytes(treeReads)).toBeLessThanOrEqual(SPAN_TREE_MAX_BYTES)
           expectNoPayloadRead(treeReads, traces)
         } else expect(treeReads).toEqual([])
 
@@ -898,13 +934,16 @@ for (const storageName of Object.keys(data.storages)) {
         await spanRow(dialog, large.span).click()
         const largeValue = spanAttribute(dialog, large.key)
         await expectLargeValue(largeValue, large.chars!, large.start)
+        await network.settled()
         const payloadReads = network.of(traces).slice(reads)
         if (traces.generation === 2) {
           const region = traces.payload_region!
           expect(bytesWithin(payloadReads, region)).toBeGreaterThanOrEqual(
-            regionSize(region) * (1 - MAX_PAYLOAD_TOUCHED),
+            regionSize(region) * PAYLOAD_READ_MIN_FRACTION,
           )
-          expect(sumBytes(payloadReads)).toBeLessThan(regionSize(region) + MAX_PAYLOAD_READ_EXTRA)
+          expect(sumBytes(payloadReads)).toBeLessThanOrEqual(
+            regionSize(region) + MAX_PAYLOAD_READ_EXTRA,
+          )
         } else expect(payloadReads).toEqual([])
 
         await largeValue.getByRole('button', { name: 'Show all' }).click()
@@ -922,7 +961,7 @@ for (const storageName of Object.keys(data.storages)) {
           // Counted over every read so far: the 1 MiB value's read-ahead may have touched it.
           const region = traces.medium_region!
           expect(bytesWithin(network.of(traces), region)).toBeGreaterThanOrEqual(
-            regionSize(region) * (1 - MAX_PAYLOAD_TOUCHED),
+            regionSize(region) * PAYLOAD_READ_MIN_FRACTION,
           )
         }
         await spanRow(dialog, small.span).click()
@@ -935,7 +974,7 @@ for (const storageName of Object.keys(data.storages)) {
         await expectNoNotices(page)
       })
 
-      test(`the evals of a ${format}-format experiment: scores, rows, filter keys and the eval's trace`, async ({
+      test(`the evals of ${withArticle(format)}-format experiment: scores, rows, filter keys and the eval's trace`, async ({
         page,
       }) => {
         skipWithoutOldSdk()
@@ -966,7 +1005,7 @@ for (const storageName of Object.keys(data.storages)) {
       })
 
       if (storageName !== 's3') continue
-      test(`searches, filters, annotations and CSV exports of a ${format}-format experiment`, async ({
+      test(`searches, filters, annotations and CSV exports of ${withArticle(format)}-format experiment`, async ({
         page,
       }) => {
         skipWithoutOldSdk()
@@ -1337,7 +1376,8 @@ test.describe('slow network to storage', () => {
     expect(before!.y.every((value) => value === null || (value > 0 && value < 1.1))).toBe(true)
     expectRangeReads(network, large)
     expectSlowed(network, large, SLOW_LINK)
-    expect(network.bytesOf(large)).toBeLessThan(large.size * MAX_FRACTION_PER_VIEW)
+    await network.settled()
+    expectWithinBudget(network.of(large), FIRST_PAINT_BUDGET, 'first paint')
 
     const card = chartCard(page, 'train/loss')
     const levelBefore = await displayedLevel(card)
@@ -1349,7 +1389,9 @@ test.describe('slow network to storage', () => {
     expect(network.of(large).length).toBeGreaterThan(readsBefore)
     expectRangeReads(network, large)
     expectSlowed(network, large, SLOW_LINK)
-    expect(network.bytesOf(large)).toBeLessThan(large.size * MAX_FRACTION_PER_VIEW)
+    await network.settled()
+    const zoomReads = network.of(large).slice(readsBefore)
+    expectWithinBudget(zoomReads, ZOOM_BUDGET, 'zoom')
     await expectNoNotices(page)
   })
 
@@ -1494,7 +1536,7 @@ test.describe('slow network to storage', () => {
     // The 1 MiB value crosses the link at its rate.
     const region = traces.payload_region!
     expect(slow[2]!.ms).toBeGreaterThanOrEqual(
-      ((regionSize(region) * (1 - MAX_PAYLOAD_TOUCHED)) / SLOW_LINK.bytesPerSecond!) * 1000 * 0.9,
+      ((regionSize(region) * PAYLOAD_READ_MIN_FRACTION) / SLOW_LINK.bytesPerSecond!) * 1000 * 0.9,
     )
     await expectNoNotices(page)
   })
@@ -1560,11 +1602,7 @@ test.describe('slow network to storage', () => {
    * does (a reload would take the toast host with it), then runs the timers it left.
    */
   async function leaveExperiment(page: Page, item: PublishedArtifact) {
-    await page.locator(`a[href$="/collection/${storage.collection_id}"]`).first().click()
-    await page.waitForURL(collectionUrl(storage))
-    await expect(
-      page.getByRole('row').filter({ has: page.getByText(item.name, { exact: true }) }),
-    ).toBeVisible()
+    await toCollection(page, item)
     await network.settled()
     await runLeftTimers(page)
   }
@@ -1805,7 +1843,6 @@ test.describe('slow network to storage', () => {
     await expectLoggedCharts(page, [newA, newB])
     // The experiment taken out of the comparison is not needed any more.
     await expect
-      .configure({ soft: true })
       .poll(heldCount(old), {
         message: 'the download of the experiment taken out is cancelled',
         timeout: 10_000,
@@ -2017,6 +2054,8 @@ test.describe('slow network to storage', () => {
     await openSnapshot(page, storage, newA)
     await expectLoggedCharts(page, [newA])
     expect(memberReads(network, newA).filter((request) => request.status === 500)).toHaveLength(1)
+    // The link is too young to renew, so the same one is used for the retry.
+    expect(network.issuesOf(newA)).toBe(1)
     await expectNoNotices(page)
   })
 
@@ -2039,6 +2078,9 @@ test.describe('slow network to storage', () => {
     })
     await expect(page.locator('[data-testid="metric-chart"]')).toHaveCount(0)
     await network.settled()
+    // The read and its one retry with the same link, which is too young to renew.
+    expect(memberReads(network, newA).filter((request) => request.status === 500)).toHaveLength(2)
+    expect(network.issuesOf(newA)).toBe(1)
 
     await proxy.configure({ storageFailure: null })
     await page.reload()
@@ -2066,6 +2108,141 @@ test.describe('slow network to storage', () => {
     await expect(notice).toHaveCount(1)
     await expect(notice).toHaveAttribute('data-code', 'read-failed')
     await network.settled()
+    // The whole download (a zip this small has no directory read first) and its one retry with
+    // the same link, which is too young to renew.
+    expect(memberReads(network, old).filter((request) => request.status === 500)).toHaveLength(2)
+    expect(network.issuesOf(old)).toBe(1)
+    expect(network.issuesOf(newA)).toBe(1)
+  })
+
+  test('an experiment whose storage object is not found shows the read error with no retry', async ({
+    page,
+    errors,
+  }) => {
+    const newA = artifact('new_a')
+    errors.expect({ kind: 'response', status: 404, url: refusedRead(newA).url })
+    errors.expect({
+      kind: 'error state',
+      text: /^new_a: The storage request failed\. Reload the page\. Its data is not shown\.$/,
+    })
+    await proxy.configure({
+      storageFailure: { matching: escapeRegExp(newA.bucket_location), status: 404, times: null },
+    })
+    await openSnapshot(page, storage, newA)
+    await expect(page.getByTestId('experiment-status-notice')).toHaveText(
+      /The storage request failed\. Reload the page\./,
+      { timeout: 60_000 },
+    )
+    await expect(page.locator('[data-testid="metric-chart"]')).toHaveCount(0)
+    await network.settled()
+    const missing = memberReads(network, newA).filter((request) => request.status === 404)
+    // A 404 is not a failure the same link can get past, and the link is too young to renew.
+    expect(missing).toHaveLength(1)
+    expect(network.issuesOf(newA)).toBe(1)
+  })
+
+  /**
+   * Opens `large` and zooms its chart once; `beforeZoom` runs when the first view has its reads.
+   * The reads of `large` from the zoom on.
+   */
+  async function zoomLarge(
+    page: Page,
+    log: NetworkLog,
+    beforeZoom?: () => Promise<void>,
+  ): Promise<StorageRequest[]> {
+    const large = artifact('large')
+    await openSnapshot(page, storage, large)
+    await settledChart(page, 'train/loss', [large.id])
+    await log.settled()
+    const card = chartCard(page, 'train/loss')
+    const levelBefore = await displayedLevel(card)
+    const start = log.of(large).length
+    await beforeZoom?.()
+    await dragZoom(page, card, 0.4)
+    // A finer level is shown once its buckets are in; a zoom that cannot read them shows an error.
+    await expect
+      .poll(
+        async () =>
+          (await card.getAttribute('data-state')) === 'error' ||
+          (await displayedLevel(card)) < levelBefore,
+        {
+          message: 'the zoom drew or failed',
+          timeout: 60_000,
+        },
+      )
+      .toBe(true)
+    await expect(card).not.toHaveAttribute('data-state', /loading|provisional/, { timeout: 60_000 })
+    await log.settled()
+    return log.of(large).slice(start)
+  }
+
+  const failingRead = (item: PublishedArtifact, times: number | null) =>
+    proxy.configure({
+      storageFailure: { matching: escapeRegExp(item.bucket_location), status: 500, times },
+    })
+
+  test('a zoom read that fails once is retried with the same link and the zoom draws', async ({
+    page,
+    browser,
+    errors,
+  }) => {
+    const large = artifact('large')
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(large).url })
+    // The same zoom with no failure, in a context of its own: the reads it takes.
+    const baselineContext = await browser.newContext({
+      storageState: BROWSER_STATE,
+      viewport: { width: 1440, height: 1000 },
+    })
+    const baseline = await zoomLarge(
+      await baselineContext.newPage(),
+      new NetworkLog(baselineContext, storage.artifacts),
+    )
+    await baselineContext.close()
+
+    const reads = await zoomLarge(page, network, () => failingRead(large, 1))
+    await settledChart(page, 'train/loss', [large.id])
+    const failed = reads.filter((request) => request.status === 500)
+    expect(failed).toHaveLength(1)
+    // One request more than without the failure: the failed read again, answered.
+    expect(reads).toHaveLength(baseline.length + 1)
+    expect(
+      reads.filter((request) => request.status === 206).map((request) => request.range),
+    ).toEqual(expect.arrayContaining([failed[0]!.range]))
+    expect(network.issuesOf(large)).toBe(1)
+    await expectNoNotices(page)
+  })
+
+  test('a zoom whose storage keeps failing shows the chart error, and the next zoom recovers', async ({
+    page,
+    errors,
+  }) => {
+    const large = artifact('large')
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(large).url })
+    errors.expect({ kind: 'error state', text: /^chart train\/loss$/ })
+    const reads = await zoomLarge(page, network, () => failingRead(large, null))
+    const card = chartCard(page, 'train/loss')
+    await expect(card).toHaveAttribute('data-state', 'error')
+    await card.getByTestId('chart-error').hover()
+    await expect(
+      page.getByText(/large: The storage request failed\. Reload the page\./),
+    ).toBeVisible()
+    // The read and its one retry with the same link, which is too young to renew.
+    expect(reads.filter((request) => request.status === 500)).toHaveLength(2)
+    expect(reads).toHaveLength(2)
+    expect(network.issuesOf(large)).toBe(1)
+    // The other charts keep what they drew.
+    for (const key of data.large.keys.filter((name) => name !== 'train/loss')) {
+      await expect(chartCard(page, key)).toHaveAttribute('data-state', 'final')
+      await expect(chartCard(page, key).getByTestId('chart-error')).toHaveCount(0)
+    }
+
+    await proxy.configure({ storageFailure: null })
+    const levelBefore = await displayedLevel(card)
+    await dragZoom(page, card, 0.6)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    const [line] = await settledChart(page, 'train/loss', [large.id])
+    expect(line!.x.length).toBeGreaterThan(30)
+    await expectNoNotices(page)
   })
 
   test('opening the filter editor and an eval of a new-format experiment reads a few pages', async ({
@@ -2099,8 +2276,7 @@ test.describe('slow network to storage', () => {
       // The eval's row and its trace's spans, each a lookup by an index: a read-ahead run or
       // two of 64 KiB chunks, however many evals and spans the experiment holds.
       const reads = since(start)
-      expect(reads.length).toBeLessThanOrEqual(EVAL_VIEW_MAX_REQUESTS)
-      expect(sumBytes(reads)).toBeLessThanOrEqual(EVAL_VIEW_MAX_BYTES)
+      expectWithinBudget(reads, EVAL_VIEW_BUDGET, 'eval view')
       expectNoPayloadRead(reads, traces)
     })
     expectRangeReads(network, traces)

@@ -1,4 +1,4 @@
-import { chromium } from '@playwright/test'
+import { chromium, type Browser } from '@playwright/test'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -17,12 +17,14 @@ const PLATFORM_LABELS = [
   'old',
   'traces_new',
   'rev0',
+  'rev0_legacy_indexes',
   'sdk_0_1_0',
+  'baseline_quirk',
 ]
 const OLD_SDK_PLATFORM_LABELS = ['fallback', 'traces_old']
 const PROXIED_LABELS = { s3: ['large', 'old', 'new_a', 'new_b', 'traces_new'], azure: ['large'] }
 const OLD_SDK_PROXIED_LABELS = { s3: ['traces_old'] }
-const FLOW_EXPERIMENTS = ['new', 'live', 'traces', 'other']
+const FLOW_EXPERIMENTS = ['new', 'live', 'traces', 'other', 'many_keys']
 const OLD_SDK_FLOW_EXPERIMENTS = ['old', 'traces_old', 'fractional']
 
 interface Collection {
@@ -97,9 +99,34 @@ function checkFlowData(flowDir: string, strict: boolean) {
 }
 
 /**
+ * The saved session still works: the backend answers an authenticated request with it. Sent by
+ * the browser, as the tests do: the session cookies are `Secure`, which the browser sends to
+ * 127.0.0.1 over plain HTTP and Playwright's API client does not.
+ */
+async function sessionAccepted(
+  browser: Browser,
+  statePath: string,
+  backend: string | undefined,
+): Promise<boolean> {
+  if (!backend || !existsSync(statePath)) return false
+  const context = await browser.newContext({ storageState: statePath })
+  try {
+    const page = await context.newPage()
+    // A JSON page of the backend: a request from its origin, with no CORS and nothing loaded.
+    await page.goto(`${backend}/openapi.json`)
+    return await page.evaluate(
+      async () => (await fetch('/v1/auth/users/me', { credentials: 'include' })).ok,
+    )
+  } finally {
+    await context.close()
+  }
+}
+
+/**
  * Checks the prepared data, then signs in once for the platform suite and saves the session for
  * every test: the backend rate-limits sign-in attempts per account, so a sign-in per test would
- * trip it.
+ * trip it. A later run on the same stack (E2E_HOLD) reuses the session while the backend accepts
+ * it, for the same reason.
  */
 export default async function globalSetup(): Promise<void> {
   const strict = process.env.E2E_STRICT === '1'
@@ -111,15 +138,17 @@ export default async function globalSetup(): Promise<void> {
   ]
   if (missing.length) throw new Error(`prepared data is incomplete:\n  ${missing.join('\n  ')}`)
   if (!frontend || !workDir) return
+  const statePath = join(workDir, 'browser-state.json')
   const browser = await chromium.launch()
   try {
+    if (await sessionAccepted(browser, statePath, process.env.E2E_BACKEND_URL)) return
     const page = await browser.newPage()
     await page.goto(`${frontend}/sign-in`)
     await page.getByLabel('Email').fill(process.env.DEV_ADMIN_EMAIL ?? '')
     await page.locator('#password input').fill(process.env.DEV_ADMIN_PASSWORD ?? '')
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await page.waitForURL((url) => !url.pathname.startsWith('/sign-in'), { timeout: 60_000 })
-    await page.context().storageState({ path: join(workDir, 'browser-state.json') })
+    await page.context().storageState({ path: statePath })
   } finally {
     await browser.close()
   }

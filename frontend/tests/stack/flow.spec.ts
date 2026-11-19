@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ERROR_TOAST, expect, test } from './error_guard'
-import { parseCsv } from './flow_csv'
+import { parseCsv } from './csv'
 import { SLOW_LINK, ThrottleProxy } from './proxy'
 import {
   clickFirstTrace,
@@ -61,6 +61,7 @@ interface FlowData {
   traces_old?: FlowExperiment
   fractional?: FlowExperiment
   other: OtherExperiment
+  many_keys: FlowExperiment & { keys: string[]; points: number }
   eval_search: { search: string; ids: string[]; averages: Record<string, number> }
   large_sha256: string
   expected: TraceData
@@ -86,6 +87,11 @@ const REGULAR_TRACE_IDS = Array.from({ length: TRACES.trace_count - 1 }, (_, ind
   traceIdOf(index),
 )
 const ALL_TRACE_IDS = [...REGULAR_TRACE_IDS, TRACES.big.trace_id]
+
+/** "a new" or "an old", for test titles. */
+function withArticle(format: 'new' | 'old'): string {
+  return format === 'old' ? 'an old' : 'a new'
+}
 
 function traceIdOf(index: number): string {
   return `trace-${String(index).padStart(4, '0')}`
@@ -257,6 +263,9 @@ function recordEvalsApi(page: Page, experimentId: string): ExperimentReads {
   return reads
 }
 
+// DynamicMetrics shows this many charts a page (METRICS_LIMIT).
+const CHARTS_PER_PAGE = 50
+
 const EVALS_VIEW_READS = {
   'evals/dataset-ids': 1,
   'evals/typed-columns': 1,
@@ -315,7 +324,7 @@ test('an old-schema experiment of luml-sdk 0.5.0 is shown and not migrated', asy
   const calls = recordApi(page)
   await open(page, `/experiments/${old.group_id}/${old.id}/metrics`)
   const steps = await drawn(page, KEY, [old.id])
-  expect(steps[old.id]).toBeGreaterThan(2_900)
+  expect(steps[old.id]).toBe(lastBucketMiddle(old.steps!, await displayedLevel(page, KEY)))
   expect(calls.fullHistory).toEqual([])
   expect(userVersion(old.db!)).toBe(2)
 })
@@ -356,11 +365,88 @@ test('the refresh button picks up points another process appended', async ({ pag
   await expectRefreshShowsAppended(page, calls, before)
 })
 
+/** The keys of each metric-buckets call for one experiment, in the order they were sent. */
+function recordBucketKeys(page: Page, experimentId: string): string[][] {
+  const calls: string[][] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname !== `/api/experiments/${experimentId}/metric-buckets`)
+      return
+    calls.push((request.postDataJSON() as { keys: string[] }).keys)
+  })
+  return calls
+}
+
+/** Final charts of the page, by metric key. */
+async function finalChartKeys(page: Page): Promise<string[]> {
+  return page
+    .locator('[data-testid="metric-chart"][data-state="final"]')
+    .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-metric-key') ?? ''))
+}
+
+test('an experiment with many metrics reads the charts in view in one call, and those scrolled to in one call a view', async ({
+  page,
+}) => {
+  const experiment = data.many_keys
+  const calls = recordBucketKeys(page, experiment.id)
+  const requested = () => calls.flat()
+  await open(page, experimentPath(experiment, 'metrics'))
+  const cards = page.locator('[data-testid="metric-chart"]')
+  // One page of charts; each draws when it comes near the view.
+  await expect(cards).toHaveCount(CHARTS_PER_PAGE, { timeout: 60_000 })
+  await expect(cards.first()).toHaveAttribute('data-state', 'final', { timeout: 60_000 })
+  await settle(page)
+
+  const inView = await finalChartKeys(page)
+  expect(inView.length).toBeGreaterThan(1)
+  expect(inView.length).toBeLessThan(CHARTS_PER_PAGE)
+  expect(requested().sort()).toEqual([...inView].sort())
+  expect(calls, 'one call for the charts in view').toHaveLength(1)
+
+  // A view further down at a time: the charts that come into view are read in one call.
+  let shown = inView
+  while (shown.length < CHARTS_PER_PAGE) {
+    const before = calls.length
+    await cards.first().evaluate((card) => {
+      const scrolls = (element: Element) =>
+        element.scrollHeight > element.clientHeight &&
+        /auto|scroll/.test(getComputedStyle(element).overflowY)
+      let scroller = card.parentElement
+      while (scroller && !scrolls(scroller)) scroller = scroller.parentElement
+      const target = scroller ?? document.scrollingElement!
+      target.scrollBy({ top: target.clientHeight, behavior: 'instant' })
+    })
+    await expect
+      .poll(() => calls.length, { message: 'the charts in view are asked for' })
+      .toBeGreaterThan(before)
+    await expect
+      .poll(async () => {
+        const final = await finalChartKeys(page)
+        return calls
+          .slice(before)
+          .flat()
+          .every((key) => final.includes(key))
+      })
+      .toBe(true)
+    await settle(page)
+    const now = await finalChartKeys(page)
+    const added = now.filter((key) => !shown.includes(key))
+    expect(calls.slice(before), 'one call for the charts that came into view').toHaveLength(1)
+    expect([...calls[before]!].sort()).toEqual(added.sort())
+    shown = now
+  }
+  const onPage = experiment.keys.slice(0, CHARTS_PER_PAGE)
+  // Each key of the page once, in a call per view and not one per chart.
+  expect(requested().sort()).toEqual([...onPage].sort())
+  expect(calls.length).toBeLessThan(onPage.length / 2)
+  const [last] = await drawn(page, onPage.at(-1)!, [experiment.id]).then(Object.values)
+  expect(last).toBe(experiment.points - 1)
+})
+
 for (const [format, key] of [
   ['new', 'traces'],
   ['old', 'traces_old'],
 ] as const) {
-  test(`a trace of a ${format}-schema experiment: its structure, then each selected span once`, async ({
+  test(`a trace of ${withArticle(format)}-schema experiment: its structure, then each selected span once`, async ({
     page,
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
@@ -410,7 +496,7 @@ for (const [format, key] of [
     })
   })
 
-  test(`the traces of a ${format}-schema experiment are listed, sorted and paged`, async ({
+  test(`the traces of ${withArticle(format)}-schema experiment are listed, sorted and paged`, async ({
     page,
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
@@ -423,7 +509,7 @@ for (const [format, key] of [
     if (experiment.db) expect(userVersion(experiment.db)).toBe(experiment.user_version)
   })
 
-  test(`the evals of a ${format}-schema experiment: scores, rows and the eval's trace`, async ({
+  test(`the evals of ${withArticle(format)}-schema experiment: scores, rows and the eval's trace`, async ({
     page,
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
@@ -495,7 +581,7 @@ for (const [format, key] of [
     if (experiment.db) expect(userVersion(experiment.db)).toBe(experiment.user_version)
   })
 
-  test(`the traces of a ${format}-schema experiment exported as CSV, then filtered by an attribute`, async ({
+  test(`the traces of ${withArticle(format)}-schema experiment exported as CSV, then filtered by an attribute`, async ({
     page,
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
@@ -766,13 +852,17 @@ test.describe('paging while a list reloads in Flow', () => {
   })
 })
 
-/** In the running app, as its links go: its stores keep what the left experiment put there. */
-async function navigateInApp(page: Page, path: string) {
-  await page.evaluate((target) => {
-    history.pushState(null, '', target)
+/**
+ * In the running app, as its links go: its stores keep what the left experiment put there. A
+ * target without a query string matches the path only.
+ */
+async function navigateInApp(page: Page, target: string) {
+  await page.evaluate((path) => {
+    history.pushState(null, '', path)
     dispatchEvent(new PopStateEvent('popstate'))
-  }, path)
-  await page.waitForURL((url) => url.pathname === path)
+  }, target)
+  const withQuery = target.includes('?')
+  await page.waitForURL((url) => `${url.pathname}${withQuery ? url.search : ''}` === target)
 }
 
 /** Appends `count` points to an experiment's `train/loss` with this SDK; the new last step. */
@@ -828,6 +918,15 @@ async function displayedLevel(page: Page, key: string): Promise<number> {
 }
 
 /**
+ * Where a chart draws the last bucket of a run of steps 0 to `steps - 1`: a bucket of `level`
+ * covers 4^level steps from a multiple of that, and is drawn at the middle of its first and last.
+ */
+function lastBucketMiddle(steps: number, level: number): number {
+  const width = 4 ** level
+  return (Math.floor((steps - 1) / width) * width + steps - 1) / 2
+}
+
+/**
  * Opens a page while the proxy holds the bucket calls of `ids`, opens a chart's full-screen view
  * and closes it meanwhile, then lets the calls go: the page answers while its data is on the way.
  */
@@ -862,6 +961,11 @@ async function expectSlowedApi(ids: string[]) {
   }
   return served
 }
+
+// What `new` (200,000 steps) sends for its chart and one zoom, whatever its length: measured in
+// 10 runs, the same each time, the catalog (208 bytes) and two bucket answers (17,548 and
+// 21,019), 38,775 bytes. The limit allows one more bucket answer of the larger size.
+const SLOW_LINK_MAX_BUCKET_BYTES = 38_775 + 21_019
 
 test.describe('slow network to Flow', () => {
   test.beforeEach(async () => {
@@ -899,9 +1003,8 @@ test.describe('slow network to Flow', () => {
     expect(timings.length).toBeGreaterThan(0)
     for (const elapsed of timings) expect(elapsed).toBeGreaterThanOrEqual(SLOW_LINK.latencyMs! - 5)
     const served = await expectSlowedApi([data.new.id])
-    // Far less than the points themselves (a step and a value, 8 bytes each).
     const bytes = served.reduce((sum, request) => sum + request.bytes, 0)
-    expect(bytes).toBeLessThan(data.new.steps! * 16 * 0.1)
+    expect(bytes).toBeLessThanOrEqual(SLOW_LINK_MAX_BUCKET_BYTES)
   })
 
   test('an old-schema experiment draws on a slow link and is not migrated', async ({ page }) => {
@@ -910,7 +1013,7 @@ test.describe('slow network to Flow', () => {
     const calls = recordApi(page)
     await expectUsableWhileLoading(page, [old.id], `/experiments/${old.group_id}/${old.id}/metrics`)
     const steps = await drawn(page, KEY, [old.id])
-    expect(steps[old.id]).toBeGreaterThan(2_900)
+    expect(steps[old.id]).toBe(lastBucketMiddle(old.steps!, await displayedLevel(page, KEY)))
     expect(calls.fullHistory).toEqual([])
     await expectSlowedApi([old.id])
     expect(userVersion(old.db!)).toBe(2)
@@ -926,10 +1029,11 @@ test.describe('slow network to Flow', () => {
     )
     const steps = await drawn(page, KEY, ids)
     expect(steps[data.new.id]).toBeGreaterThan(data.new.steps! * 0.99)
-    // Buckets over the longest run's range: the old run's 3,000 steps end in a bucket of about
-    // a thousand steps, drawn at its middle.
-    if (data.old) expect(steps[data.old.id]).toBeGreaterThan(2_000)
-    if (data.old) expect(steps[data.old.id]).toBeLessThan(3_000)
+    // Buckets at the level of the longest run: the old run's last one is a part of a wide bucket.
+    if (data.old) {
+      const level = await displayedLevel(page, KEY)
+      expect(steps[data.old.id]).toBe(lastBucketMiddle(data.old.steps!, level))
+    }
     expect(calls.fullHistory).toEqual([])
     await expectSlowedApi(ids)
   })
@@ -963,15 +1067,6 @@ test.describe('slow network to Flow', () => {
     )
   })
 })
-
-/** In the running app, as its links go, to a path that may carry a query string. */
-async function goInApp(page: Page, target: string) {
-  await page.evaluate((path) => {
-    history.pushState(null, '', path)
-    dispatchEvent(new PopStateEvent('popstate'))
-  }, target)
-  await page.waitForURL((url) => `${url.pathname}${url.search}` === target)
-}
 
 /** Lets the page run what a response it just received starts: two frames and a task. */
 async function settle(page: Page) {
@@ -1212,7 +1307,7 @@ test.describe('moving between experiments in Flow', () => {
       await PROXY.configure({
         stallMatching: `^/api/experiments/(${ids.join('|')})/metric-buckets`,
       })
-      await goInApp(page, comparisonPath(ids))
+      await navigateInApp(page, comparisonPath(ids))
       await expect
         .poll(() => heldRequests(bucketReads), { message: 'the reads are held' })
         .toBe(ids.length)
@@ -1265,9 +1360,9 @@ test.describe('moving between experiments in Flow', () => {
     await test.step('back and forward', async () => {
       await page.goto(`${FLOW}/`)
       await expect(page.getByText('e2e', { exact: true }).first()).toBeVisible()
-      await goInApp(page, metrics)
+      await navigateInApp(page, metrics)
       await expectOnlyLine(page, data.new.id)
-      await goInApp(page, comparisonPath(compared))
+      await navigateInApp(page, comparisonPath(compared))
       await drawn(page, KEY, compared)
       await page.goBack()
       await expectOnlyLine(page, data.new.id)
@@ -1410,14 +1505,12 @@ test.describe('Flow functions on a store', () => {
       await expect(evalRows(page)).toHaveCount(Object.keys(scores).length)
       expect((await firstButtons(evalRows(page))).sort()).toEqual(Object.keys(scores).sort())
       // The averages shown with the refreshed rows; a fresh view reads them again below.
-      await expect
-        .soft(
-          page.locator('.scores .score').filter({ hasText: 'accuracy' }).first(),
-          'the score averages after the refresh',
-        )
-        .toHaveText(new RegExp(`^\\s*accuracy\\s*${mean(Object.values(scores)).toFixed(3)}\\s*$`), {
-          timeout: 10_000,
-        })
+      await expect(
+        page.locator('.scores .score').filter({ hasText: 'accuracy' }).first(),
+        'the score averages after the refresh',
+      ).toHaveText(new RegExp(`^\\s*accuracy\\s*${mean(Object.values(scores)).toFixed(3)}\\s*$`), {
+        timeout: 10_000,
+      })
       await expectAll()
       expect(userVersion(db)).toBe(3)
     })
@@ -1487,7 +1580,8 @@ test.describe('Flow functions on a store', () => {
     const experiment = data.traces_old!
     // trace_data.py: `helpful` (true) on trace-0000's root span, `correct` on the first evals,
     // true at even indexes.
-    const name = `written-${test.info().repeatEachIndex}`
+    // A name of its own per run: a run on a store that earlier runs wrote to adds a new column.
+    const name = `written-${Date.now().toString(36)}`
     const evalId = 'eval-0001'
     const annotationsButton = (scope: Locator) =>
       scope
@@ -1537,7 +1631,7 @@ test.describe('Flow functions on a store', () => {
       await page.keyboard.press('Escape')
       await expect(evalDialog).toBeHidden()
       // The search box still says eval-0001, so the table must still be narrowed to it.
-      await expect.soft(evalRows(page), 'the searched eval only, after the write').toHaveCount(1, {
+      await expect(evalRows(page), 'the searched eval only, after the write').toHaveCount(1, {
         timeout: 5_000,
       })
       expect(userVersion(experiment.db!), 'the annotation write left the store as it was').toBe(2)
@@ -1548,7 +1642,14 @@ test.describe('Flow functions on a store', () => {
       const rows = await searchEval(page, evalId)
       await expect(page.locator('.evals-table thead')).toContainText(name)
       await expect(rows.first()).toContainText(/False\s*\(1\)/)
-      await expect(rows.first()).toContainText(/True\s*\(1\)/)
+      // The header's last row names the leaf columns; the ID column spans both rows before them.
+      const leaves = (
+        await page.locator('.evals-table thead tr').last().locator('th').allInnerTexts()
+      ).map((text) => text.trim())
+      const cells = rows.first().locator('td')
+      const column = (await cells.count()) - leaves.length + leaves.indexOf(name)
+      expect(leaves, `the column of ${name}`).toContain(name)
+      await expect(cells.nth(column)).toHaveText(/^\s*True\s*\(1\)\s*$/)
       expect(userVersion(experiment.db!)).toBe(2)
     })
   })

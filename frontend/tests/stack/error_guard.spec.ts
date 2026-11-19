@@ -244,6 +244,60 @@ test.describe('the error guard', () => {
     )
   })
 
+  test('a read of a terminated worker that never ends does not hold the end of the test', async () => {
+    await page.evaluate(async () => {
+      // A blob worker has no base URL for a relative one.
+      const source = `fetch('${location.origin}/slow'); postMessage(0)`
+      const worker = new Worker(
+        URL.createObjectURL(new Blob([source], { type: 'text/javascript' })),
+      )
+      await new Promise((resolve) => (worker.onmessage = resolve))
+      ;(window as unknown as { held: Worker }).held = worker
+    })
+    await expect.poll(() => page.workers().length).toBe(1)
+    const worker = page.workers()[0]!
+    const closed = worker.waitForEvent('close')
+    await page.evaluate(() => (window as unknown as { held: Worker }).held.terminate())
+    await closed
+    const started = Date.now()
+    expect(await guard.problems()).toBeNull()
+    // The guard waits up to 5 s for answers still on the way; this one can never come.
+    expect(Date.now() - started).toBeLessThan(2_000)
+  })
+
+  test('a late error response of a live worker is still reported', async () => {
+    const sent = context.waitForEvent('request', (request) => request.url().endsWith('/late'))
+    await page.evaluate(async () => {
+      const source = `fetch('${location.origin}/late').catch(() => undefined); postMessage(0)`
+      const worker = new Worker(
+        URL.createObjectURL(new Blob([source], { type: 'text/javascript' })),
+      )
+      await new Promise((resolve) => (worker.onmessage = resolve))
+      ;(window as unknown as { kept: Worker }).kept = worker
+    })
+    await sent
+    expect(await guard.problems()).toBe(
+      ['1 unexpected error(s) in the browser:', `  response: GET 503 ${APP}/late`].join('\n'),
+    )
+  })
+
+  test("a late error response of the page's own read is still reported when a worker has ended", async () => {
+    const sent = context.waitForEvent('request', (request) => request.url().endsWith('/late'))
+    await page.evaluate(async () => {
+      const worker = new Worker(
+        URL.createObjectURL(new Blob(['postMessage(0)'], { type: 'text/javascript' })),
+      )
+      await new Promise((resolve) => (worker.onmessage = resolve))
+      void fetch('/late').catch(() => undefined)
+      worker.terminate()
+    })
+    await sent
+    await expect.poll(() => page.workers().length).toBe(0)
+    expect(await guard.problems()).toBe(
+      ['1 unexpected error(s) in the browser:', `  response: GET 503 ${APP}/late`].join('\n'),
+    )
+  })
+
   test('a toast of an earlier document of the page still counts', async () => {
     await page.evaluate((toastClass) => {
       const toast = document.createElement('div')

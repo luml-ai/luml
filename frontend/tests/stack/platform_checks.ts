@@ -3,6 +3,7 @@
 // navigation inside the app.
 import { expect, type Download, type Locator, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { parseCsv } from './csv'
 
 /** What platform_expected.py records for an experiment of the suite. */
 export interface LoggedExperiment {
@@ -114,36 +115,6 @@ export async function expectChartOfLoggedValues(
   return buckets.length
 }
 
-/** RFC 4180: quoted fields may hold commas, quotes (doubled) and line breaks. */
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = []
-  let row: string[] = []
-  let field = ''
-  let quoted = false
-  for (let index = 0; index < text.length; index++) {
-    const char = text[index]!
-    if (quoted) {
-      if (char === '"' && text[index + 1] === '"') {
-        field += '"'
-        index++
-      } else if (char === '"') quoted = false
-      else field += char
-    } else if (char === '"') quoted = true
-    else if (char === ',') {
-      row.push(field)
-      field = ''
-    } else if (char === '\n' || char === '\r') {
-      if (char === '\r' && text[index + 1] === '\n') index++
-      row.push(field)
-      rows.push(row)
-      row = []
-      field = ''
-    } else field += char
-  }
-  if (field || row.length) rows.push([...row, field])
-  return rows
-}
-
 /** The CSV a toolbar's Export CSV button downloads, as records by its header. */
 export async function exportedCsv(
   page: Page,
@@ -154,11 +125,7 @@ export async function exportedCsv(
   await toolbar.getByRole('button', { name: 'Export CSV' }).click()
   const file = await download
   expect(file.suggestedFilename()).toBe(fileName)
-  const [header, ...lines] = parseCsv(readFileSync(await file.path(), 'utf-8'))
-  return {
-    header: header!,
-    rows: lines.map((cells) => Object.fromEntries(header!.map((name, at) => [name, cells[at]!]))),
-  }
+  return parseCsv(readFileSync(await file.path(), 'utf-8'))
 }
 
 /** A feedback column's cell in a CSV export: its counts (tableCellToString). */

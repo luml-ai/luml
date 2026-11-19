@@ -31,6 +31,9 @@ NEW_STEPS = 200_000
 LIVE_STEPS = 1_000
 OTHER_STEPS = 500
 OTHER_ITEMS = 3
+# Many metrics of a few points: charts are read per page and per view, in batched calls.
+MANY_KEYS = 200
+MANY_KEY_POINTS = 5
 # Evals whose id holds this text: the searched evals of the score averages test.
 EVAL_SEARCH = "eval-001"
 
@@ -78,6 +81,16 @@ def log_other(tracker: ExperimentTracker, experiment_id: str) -> dict[str, Any]:
         "evals": evals,
         "averages": {"accuracy": sum(evals.values()) / len(evals)},
     }
+
+
+def log_many_keys(tracker: ExperimentTracker, experiment_id: str) -> list[str]:
+    keys = [f"metric/{index:03d}" for index in range(MANY_KEYS)]
+    for key in keys:
+        for step in range(MANY_KEY_POINTS):
+            tracker.log_dynamic(
+                key, step / MANY_KEY_POINTS, step=step, experiment_id=experiment_id
+            )
+    return keys
 
 
 def eval_search_averages() -> dict[str, Any]:
@@ -153,6 +166,9 @@ def main() -> None:
     other_id = tracker.start_experiment(name="flow_other", group="e2e")
     other = log_other(tracker, other_id)
     tracker.end_experiment()
+    many_keys_id = tracker.start_experiment(name="flow_many_keys", group="e2e")
+    many_keys = log_many_keys(tracker, many_keys_id)
+    tracker.end_experiment()
     live_id = tracker.start_experiment(name="flow_live", group="e2e")
     log_series(tracker, live_id, 0, LIVE_STEPS, 42)
     tracker.backend.flush(live_id)
@@ -185,6 +201,12 @@ def main() -> None:
             "group_id": experiments["flow_other"].group_id,
             **other,
         },
+        many_keys={
+            "id": many_keys_id,
+            "group_id": experiments["flow_many_keys"].group_id,
+            "keys": many_keys,
+            "points": MANY_KEY_POINTS,
+        },
         eval_search=eval_search_averages(),
         large_sha256=hashlib.sha256(
             trace_data.payload_text(
@@ -209,6 +231,7 @@ def main() -> None:
             "user_version": old_versions[old[0].id],
             "user_version_after_store_open": user_version(db),
             "seed": old_sdk_experiment.SEED,
+            "steps": old_sdk_experiment.STEPS,
         }
     if python:
         result["fractional"] = {

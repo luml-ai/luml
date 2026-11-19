@@ -55,12 +55,24 @@ NEW_SERIES = {
     "new_b": [("train/loss", REGULAR_STEPS, 22)],
 }
 # Frozen stores of the oldest eras, opened in the UI against their fixture JSON:
-# revision 0 (before migrations) and the first release with migrations (luml-sdk
-# 0.1.0, revision 2). No fixture has revision 1.
+# revision 0 (before migrations, with and without the legacy indexes), the first
+# release with migrations (luml-sdk 0.1.0, revision 2) and a revision 0 store that
+# luml-sdk 0.5.0 migrated (revision 2 without the annotation tables). No fixture has
+# revision 1.
 OLD_ERA_FIXTURES = {
     "rev0": FIXTURES / "b_premigration.tar",
+    "rev0_legacy_indexes": FIXTURES / "a_premigration_legacy_indexes.tar",
     "sdk_0_1_0": FIXTURES / "c_sdk_0_1_0.tar",
+    "baseline_quirk": FIXTURES / "e_baseline_quirk.tar",
 }
+
+
+def fixture_kind(path: Path) -> str:
+    """An experiment, or a model holding one (the fixture JSON says)."""
+    kind = json.loads(path.with_suffix(".json").read_text())["artifact_kind"]
+    if kind not in ("experiment", "model"):
+        sys.exit(f"{path.name}: unknown artifact kind {kind}")
+    return str(kind)
 
 
 @dataclass
@@ -305,7 +317,10 @@ def build_artifacts(work: Path) -> tuple[dict[str, tuple[Path, str]], str]:
         "twin_gen2": (FIXTURES / "m_gen2_twin.tar", "experiment"),
         "model_gen2": (FIXTURES / "j_gen2_model_sdk_0_6_0.tar", "model"),
         "model_gen1": (FIXTURES / "f_model_sdk_0_5_0.tar", "model"),
-        **{label: (path, "experiment") for label, path in OLD_ERA_FIXTURES.items()},
+        **{
+            label: (path, fixture_kind(path))
+            for label, path in OLD_ERA_FIXTURES.items()
+        },
     }
     python = old_sdk_python(
         "the old-format experiment is the frozen l_gen1_twin.tar, and the tests of "
