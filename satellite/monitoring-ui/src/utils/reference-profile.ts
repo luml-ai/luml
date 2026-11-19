@@ -68,6 +68,11 @@ export function formatLinesCount(text: string): string {
   return `${formatInteger(count)} ${count === 1 ? 'line' : 'lines'}`
 }
 
+export function formatCharactersCount(text: string): string {
+  const count = text.length
+  return `${formatInteger(count)} ${count === 1 ? 'character' : 'characters'}`
+}
+
 export function isJsonPrimitiveArray(value: unknown): value is unknown[] {
   return (
     Array.isArray(value) &&
