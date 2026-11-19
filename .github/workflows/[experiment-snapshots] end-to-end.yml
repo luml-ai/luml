@@ -46,7 +46,8 @@ on:
 
 jobs:
   end-to-end:
-    runs-on: ubuntu-latest
+    # Playwright 1.59 has no browser builds for Ubuntu 26.04: a browser cache miss fails on ubuntu-latest.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       fail-fast: false

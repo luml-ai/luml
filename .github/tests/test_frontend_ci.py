@@ -6,7 +6,7 @@ run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 import fnmatch
 import unittest
 
-from test_release_gates import load
+from test_release_gates import WORKFLOWS, load
 
 
 class FrontendCITests(unittest.TestCase):
@@ -102,6 +102,20 @@ class FrontendCITests(unittest.TestCase):
                 self.assertIn(browser, cache["with"]["key"])
                 for command in installs:
                     self.assertIn(browser, command.split())
+
+    def test_jobs_that_install_playwright_browsers_pin_the_runner_image(self):
+        # Playwright ships browser builds per Ubuntu release, so a moving image
+        # breaks the install on the first browser cache miss.
+        found = 0
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for name, job in load(path.name)["jobs"].items():
+                commands = [step.get("run", "") for step in job.get("steps", [])]
+                if not any("playwright install" in command for command in commands):
+                    continue
+                found += 1
+                with self.subTest(workflow=path.name, job=name):
+                    self.assertRegex(job["runs-on"], r"^ubuntu-\d+\.\d+$")
+        self.assertGreaterEqual(found, 3)
 
     def test_test_jobs_use_optional_dependencies_without_mutating_the_lockfile(self):
         jobs = {

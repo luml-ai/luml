@@ -17,7 +17,8 @@ on:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # Playwright 1.59 has no browser builds for Ubuntu 26.04: a browser cache miss fails on ubuntu-latest.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
