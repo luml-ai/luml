@@ -89,7 +89,11 @@ def entry_row(path: Path, *, file: bool) -> dict[str, Any] | None:
                 size = info.st_size
             except OSError:
                 size = None
-    except FileNotFoundError:
+        if file and (
+            stat.S_ISDIR(info.st_mode) or not (link or stat.S_ISREG(info.st_mode))
+        ):
+            return None
+    except (FileNotFoundError, NotADirectoryError):
         return None  # Removed between the scan and reading this page.
     except OSError as failure:
         raise OsError(failure.strerror or str(failure)) from failure

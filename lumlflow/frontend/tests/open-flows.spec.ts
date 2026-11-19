@@ -12,6 +12,9 @@ vi.mock('@/api/slices/workspace/workspace.api', async (importOriginal) => ({
       directory: directory ?? '/p',
       flows: [],
       folders: [],
+      files: [],
+      total: 0,
+      next_offset: null,
     })),
     openFlows: vi.fn(),
     openFlow: vi.fn(async () => ({
@@ -61,7 +64,6 @@ vi.mock('primevue/usetoast', () => ({ useToast: () => ({ add: vi.fn() }) }))
 
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import WorkspaceFolderItem from '@/components/workspace/folder/WorkspaceFolderItem.vue'
-import WorkspaceFolderItemFlow from '@/components/workspace/folder/WorkspaceFolderItemFlow.vue'
 import FlowStateMarker from '@/components/workspace/FlowStateMarker.vue'
 import OpenFlowsSummary from '@/components/workspace/OpenFlowsSummary.vue'
 import { ROUTE_NAMES } from '@/router/router.const'
@@ -107,7 +109,14 @@ async function listDirectory(
   flows: { name: string; path: string; relative_path: string }[] = [],
 ) {
   vi.useFakeTimers()
-  mocked.listFlows!.mockResolvedValueOnce({ directory, flows, folders })
+  mocked.listFlows!.mockResolvedValueOnce({
+    directory,
+    flows,
+    folders,
+    files: [],
+    total: flows.length + folders.length,
+    next_offset: null,
+  })
   const store = useWorkspaceStore()
   const fetched = store.fetchDirectory(directory)
   await vi.runAllTimersAsync()
@@ -195,7 +204,7 @@ describe('open flows in the workspace store', () => {
     expect([...store.openFlowsByPath.keys()]).toEqual(['/p/new.flow'])
   })
 
-  it("forgets the last directory's open flows as soon as another is asked for", async () => {
+  it('keeps activity markers until the new listing is ready', async () => {
     vi.useFakeTimers()
     mocked.openFlows!.mockResolvedValueOnce(listing([openFlow()]))
     const store = useWorkspaceStore()
@@ -210,10 +219,11 @@ describe('open flows in the workspace store', () => {
     expect(store.openFlowsByPath.size).toBe(1)
 
     const moved = store.fetchDirectory('/q')
-    expect(store.openFlowsByPath.size).toBe(0)
-    expect(store.openFlowsTotals.open_flows).toBe(0)
+    expect(store.openFlowsByPath.size).toBe(1)
     await vi.runAllTimersAsync()
     await moved
+    expect(store.openFlowsByPath.size).toBe(0)
+    expect(store.openFlowsTotals.open_flows).toBe(0)
   })
 
   it('groups open flows under the folders of the listing', async () => {
@@ -239,7 +249,7 @@ describe('open flows in the workspace store', () => {
     ])
 
     expect(store.sortedItems.map((item) => [item.type, item.name, item.path])).toEqual([
-      ['flow', 'churn.flow', '/p/churn.flow'],
+      ['flow', 'churn', '/p/churn.flow'],
       ['folder', 'team', '/p/team'],
     ])
   })
@@ -360,7 +370,7 @@ describe('the flow row marker', () => {
   async function row(flows: OpenFlow[]) {
     mocked.openFlows!.mockResolvedValue(listing(flows))
     await useWorkspaceStore().fetchOpenFlows()
-    return mount(WorkspaceFolderItemFlow, {
+    return mount(WorkspaceFolderItem, {
       props: { item: ITEM },
       global: { stubs: { RouterLink: true } },
     })

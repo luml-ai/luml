@@ -66,6 +66,19 @@ async def test_rpc_listing_includes_metadata_and_hidden_is_opt_in(tmp_path: Path
     ]
 
 
+async def test_workspace_file_metadata_for_bookmarks(tmp_path: Path):
+    root = make_workspace(tmp_path / "work", files={".env": "hidden"})
+    hidden = root / ".env"
+    async with daemon_api(root) as api:
+        lookup = api.methods["workspace.file"]
+        row = (await lookup({"path": str(hidden)}))["file"]
+        assert row["path"] == str(hidden)
+        assert row["size"] == hidden.stat().st_size
+        assert row["name"] == ".env"
+        for missing in (root / "gone" / "file", root, root / ".lumlflow" / "log"):
+            assert (await lookup({"path": str(missing)}))["file"] is None
+
+
 async def test_rpc_pages_across_groups_in_display_order(tmp_path: Path):
     root = make_workspace(tmp_path / "work", flows=("apple", "Zebra", "apple-2"))
     for name in ("Trees", "birds"):

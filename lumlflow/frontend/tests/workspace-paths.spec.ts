@@ -8,6 +8,9 @@ vi.mock('@/api/slices/workspace/workspace.api', async (importOriginal) => ({
       directory: directory ?? 'C:\\start',
       flows: [],
       folders: [],
+      files: [],
+      total: 0,
+      next_offset: null,
     })),
   },
 }))
@@ -59,7 +62,7 @@ describe('workspace navigation', () => {
     await vi.runAllTimersAsync()
     await up
 
-    expect(workspaceApi.listFlows).toHaveBeenLastCalledWith('C:\\Users\\me')
+    expect(workspaceApi.listFlows).toHaveBeenLastCalledWith('C:\\Users\\me', false, 0)
     expect(store.currentDirectory).toBe('C:\\Users\\me')
   })
 })

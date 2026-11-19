@@ -761,9 +761,9 @@ it touches. Frontend tasks take the look from the named `SPEC-design/` files.
   - [x] Also run `type-check`, `test:ci` and `build` of `frontend/` (the main LUML app)
     and `lumlflow/frontend/`, so both Attachments tabs still build and pass
 
-- [ ] Add files to the Workspace page with a viewer, operations and editing
-  - [ ] Everything in Workspace page, Row menu and dialogs and Editing
-  - [ ] Look: `SPEC-design/WorkspaceFolder/`, and `WorkspacesPage.vue` and
+- [x] Add files to the Workspace page with a viewer, operations and editing
+  - [x] Everything in Workspace page, Row menu and dialogs and Editing
+  - [x] Look: `SPEC-design/WorkspaceFolder/`, and `WorkspacesPage.vue` and
     `WorkspaceFileViewer.vue` in `SPEC-design/WorkspacesPage/`
 
 - [ ] Add the luml file view with upload and the read-only experiment

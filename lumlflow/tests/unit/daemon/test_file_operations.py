@@ -4,7 +4,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import httpx
 import pytest
@@ -198,7 +198,8 @@ async def test_directory_changes_report_and_close_only_affected_notebooks(
         with pytest.raises(FlowOpen) as error:
             await api.methods[operation](params)
         assert error.value.flows == [
-            {"name": name, "path": str(folder / f"{name}.flow")} for name in ("a", "b")
+            {"name": name, "path": str(folder / f"{name}.flow"), "session_id": ANY}
+            for name in ("a", "b")
         ]
         assert len(api.hub.opened()) == 3
         assert folder.exists()
@@ -211,6 +212,27 @@ async def test_directory_changes_report_and_close_only_affected_notebooks(
             )
             assert (location / "a.flow").is_dir()
             assert api.resolve("a").path == location / "a.flow"
+
+
+async def test_close_confirmation_excludes_new_sessions(tmp_path: Path) -> None:
+    folder = make_workspace(tmp_path / "group", flows=("first", "second"))
+    params = {"path": str(folder)}
+    async with daemon_api(tmp_path) as api:
+        await api.flow_open({"flow": str(folder / "first.flow")})
+        with pytest.raises(FlowOpen) as first:
+            await api.file_delete(params)
+        await api.flow_open({"flow": str(folder / "second.flow")})
+        with pytest.raises(FlowOpen) as second:
+            await api.file_delete(
+                {**params, "close_open": [first.value.flows[0]["session_id"]]}
+            )
+        assert [row["name"] for row in second.value.flows] == ["first", "second"]
+        assert len(api.hub.opened()) == 2
+        assert folder.is_dir()
+        await api.file_delete(
+            {**params, "close_open": [row["session_id"] for row in second.value.flows]}
+        )
+        assert not folder.exists()
 
 
 @pytest.mark.parametrize("operation", ["flow.move", "flow.rename", "flow.delete"])
@@ -226,7 +248,9 @@ async def test_notebook_operations_require_confirmation(
         await api.flow_open({"flow": str(path)})
         with pytest.raises(FlowOpen) as error:
             await api.methods[operation](params)
-        assert error.value.flows == [{"name": "churn", "path": str(path)}]
+        assert error.value.flows == [
+            {"name": "churn", "path": str(path), "session_id": ANY}
+        ]
         result = await api.methods[operation]({**params, "close_open": True})
         if operation != "flow.delete":
             assert (Path(result["path"]) / ".lumlflow").is_dir()
@@ -362,7 +386,9 @@ async def test_http_refusal_names_the_open_notebook(tmp_path: Path) -> None:
         assert response.status_code == 400
         error = response.json()["error"]
         assert error["kind"] == "FlowOpen"
-        assert error["flows"] == [{"name": "churn", "path": str(root / "churn.flow")}]
+        assert error["flows"] == [
+            {"name": "churn", "path": str(root / "churn.flow"), "session_id": ANY}
+        ]
 
 
 async def test_delete_regular_csv(tmp_path: Path):
@@ -479,7 +505,7 @@ async def test_notebook_created_through_parent_link_protects_real_parent(
         with pytest.raises(FlowOpen) as refused:
             await api.file_move({"path": str(parent), "destination": str(dest)})
         assert refused.value.flows == [
-            {"name": "run", "path": str(parent / "run.flow")}
+            {"name": "run", "path": str(parent / "run.flow"), "session_id": ANY}
         ]
 
 
