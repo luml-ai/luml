@@ -76,3 +76,7 @@ jobs:
 
       - name: Run flow tests
         run: uv run --frozen --no-dev --extra flow --with pytest==9.0.3 pytest tests/flow
+
+      # The export replaces its target by a rename and must write binary; both differ on Windows.
+      - name: Run experiment export tests
+        run: uv run --frozen --no-dev --extra flow --with pytest==9.0.3 pytest tests/artifacts/test_experiment_packaging.py
