@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 import websockets.exceptions
 import websockets.sync.client
@@ -148,13 +148,13 @@ def test_the_daemon_serves_the_workbench_on_the_port_it_recorded(
         assert live.call("ping")["web"] == f"http://127.0.0.1:{record.web_port}"
 
         base = f"127.0.0.1:{record.web_port}"
-        answered = httpx.post(
+        answered = httpx2.post(
             f"http://{base}{web.RPC_PATH}",
             json={"method": "status"},
             headers={web.TOKEN_HEADER: record.token},
             timeout=30.0,
         )
-        refused = httpx.post(
+        refused = httpx2.post(
             f"http://{base}{web.RPC_PATH}", json={"method": "status"}, timeout=30.0
         )
         stream = f"ws://{base}{web.STREAM_PATH}?token={record.token}"

@@ -3,6 +3,7 @@ __title__ = "luml-sdk"
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import (
+    APIConnectionError,
     APIError,
     APIResponseValidationError,
     APIStatusError,
@@ -38,6 +39,7 @@ __all__ = [
     "LumlClient",
     "AsyncLumlClient",
     "LumlAPIError",
+    "APIConnectionError",
     "APIError",
     "APIResponseValidationError",
     "APIStatusError",

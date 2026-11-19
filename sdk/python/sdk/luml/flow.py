@@ -18,8 +18,14 @@ from types import FrameType
 from typing import Any, Self
 
 try:
-    import httpx
-    from luml_api import APIStatusError, AsyncLumlClient, LumlClient, NotFoundError
+    import httpx2
+    from luml_api import (
+        APIConnectionError,
+        APIStatusError,
+        AsyncLumlClient,
+        LumlClient,
+        NotFoundError,
+    )
     from luml_api._types import LiveSessionStart
     from luml_relay.agent import LoopbackService
     from luml_relay.luml import serve_session
@@ -289,7 +295,7 @@ def _end_session(client: LumlClient, session_id: str) -> None:
         client.live_sessions.end(session_id)
     except NotFoundError:
         logger.info("The flow's session was already gone at LUML")
-    except (httpx.HTTPError, APIStatusError) as error:
+    except (httpx2.HTTPError, APIConnectionError, APIStatusError) as error:
         logger.warning(
             "Could not end the flow's session at LUML; it ends by silence: %s", error
         )
@@ -352,12 +358,12 @@ def _lumlflow_answers(port: int) -> bool:
     """Whether Flow answers on the loopback port; False when nothing listens."""
     in_use = RelayedFlowError(f"Port {port} is in use by a server that is not Flow")
     try:
-        response = httpx.get(
+        response = httpx2.get(
             f"http://127.0.0.1:{port}{STATUS_PATH}", timeout=2.0, trust_env=False
         )
-    except (httpx.ConnectError, httpx.ConnectTimeout):
+    except (httpx2.ConnectError, httpx2.ConnectTimeout):
         return False
-    except httpx.HTTPError as error:
+    except httpx2.HTTPError as error:
         raise in_use from error
     try:
         body = response.json()
@@ -393,13 +399,13 @@ def _flow_accepts(port: int, session_token: str | None) -> bool:
         {} if session_token is None else {"Authorization": f"Bearer {session_token}"}
     )
     try:
-        response = httpx.get(
+        response = httpx2.get(
             f"http://127.0.0.1:{port}{PROTECTED_PATH}",
             headers=headers,
             timeout=2.0,
             trust_env=False,
         )
-    except httpx.HTTPError as error:
+    except httpx2.HTTPError as error:
         raise RelayedFlowError(f"Flow on port {port} stopped answering") from error
     return response.status_code != 401
 

@@ -4,7 +4,7 @@ from time import time
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
-import httpx
+import httpx2
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -57,16 +57,16 @@ def signing_jwk(signing_key: rsa.RSAPrivateKey) -> dict[str, Any]:
 async def microsoft_client(
     monkeypatch: pytest.MonkeyPatch,
     signing_jwk: dict[str, Any],
-) -> AsyncIterator[httpx.AsyncClient]:
+) -> AsyncIterator[httpx2.AsyncClient]:
     monkeypatch.setattr(config, "MICROSOFT_TENANT", "common")
     monkeypatch.setattr(config, "MICROSOFT_CLIENT_ID", CLIENT_ID)
     monkeypatch.setattr(
         config, "MICROSOFT_AUTH_URL", "https://login.microsoftonline.com"
     )
 
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("/.well-known/openid-configuration"):
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "issuer": ISSUER_TEMPLATE,
@@ -74,9 +74,9 @@ async def microsoft_client(
                 },
             )
         if request.url.path.endswith("/discovery/v2.0/keys"):
-            return httpx.Response(200, json={"keys": [signing_jwk]})
+            return httpx2.Response(200, json={"keys": [signing_jwk]})
         if request.url.host == "graph.microsoft.com":
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "mail": None,
@@ -87,7 +87,7 @@ async def microsoft_client(
             )
         pytest.fail(f"unexpected provider request: {request.url.host}")
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
         yield client
 
 
@@ -98,8 +98,8 @@ async def test_google_requires_boolean_verified_email(verified_email: object) ->
         "name": "Test User",
         "verified_email": verified_email,
     }
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(lambda _: httpx2.Response(200, json=payload))
     ) as client:
         userinfo = await OAuthGoogleProvider.get_user_info(client, "access-token")
 
@@ -107,9 +107,9 @@ async def test_google_requires_boolean_verified_email(verified_email: object) ->
 
 
 async def test_microsoft_exchanges_code_for_id_token() -> None:
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(
+            lambda _: httpx2.Response(
                 200, json={"access_token": "graph-token", "id_token": "identity-token"}
             )
         )
@@ -121,8 +121,8 @@ async def test_microsoft_exchanges_code_for_id_token() -> None:
 
 @pytest.mark.parametrize("payload", [{}, {"access_token": "graph-token"}])
 async def test_microsoft_rejects_missing_id_token(payload: dict[str, str]) -> None:
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(lambda _: httpx2.Response(200, json=payload))
     ) as client:
         with pytest.raises(AuthError, match="ID token"):
             await OAuthMicrosoftProvider.exchange_code_for_token(client, "code")
@@ -130,7 +130,7 @@ async def test_microsoft_rejects_missing_id_token(payload: dict[str, str]) -> No
 
 @pytest.mark.parametrize("verification_claim", ["xms_edov", "email_verified"])
 async def test_microsoft_accepts_signed_verified_email(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
     verification_claim: str,
@@ -150,7 +150,7 @@ async def test_microsoft_accepts_signed_verified_email(
 
 @pytest.mark.parametrize("verified", [False, None, "true", 1])
 async def test_microsoft_does_not_verify_email_from_graph_profile(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
     verified: object,
@@ -178,7 +178,7 @@ async def test_microsoft_does_not_verify_email_from_graph_profile(
     ],
 )
 async def test_microsoft_rejects_invalid_identity_claims(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
     claim: str,
@@ -195,7 +195,7 @@ async def test_microsoft_rejects_invalid_identity_claims(
 
 @pytest.mark.parametrize("claim", ["aud", "iss", "tid", "exp", "sub", "iat"])
 async def test_microsoft_rejects_missing_identity_claims(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
     claim: str,
@@ -210,7 +210,7 @@ async def test_microsoft_rejects_missing_identity_claims(
 
 
 async def test_microsoft_rejects_invalid_signature(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
 ) -> None:
     attacker_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -223,7 +223,7 @@ async def test_microsoft_rejects_invalid_signature(
 
 
 async def test_microsoft_rejects_wrong_signing_key_issuer(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
     signing_jwk: dict[str, Any],
@@ -253,9 +253,9 @@ async def test_microsoft_rejects_token_from_another_configured_tenant(
         microsoft_claims, signing_key, algorithm="RS256", headers={"kid": KEY_ID}
     )
 
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(
+            lambda request: httpx2.Response(
                 200,
                 json=metadata
                 if request.url.path.endswith("openid-configuration")
@@ -269,7 +269,7 @@ async def test_microsoft_rejects_token_from_another_configured_tenant(
 
 @pytest.mark.parametrize("verified", [True, False, None])
 async def test_microsoft_signed_claim_controls_existing_account_signin(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
     monkeypatch: pytest.MonkeyPatch,
@@ -290,7 +290,7 @@ async def test_microsoft_signed_claim_controls_existing_account_signin(
     monkeypatch.setattr(mocks.handler, "_create_tokens", create_tokens)
     client_context = AsyncMock()
     client_context.__aenter__.return_value = microsoft_client
-    monkeypatch.setattr(httpx, "AsyncClient", Mock(return_value=client_context))
+    monkeypatch.setattr(httpx2, "AsyncClient", Mock(return_value=client_context))
     monkeypatch.setattr(
         OAuthMicrosoftProvider,
         "exchange_code_for_token",
@@ -315,14 +315,14 @@ async def test_microsoft_signed_claim_controls_existing_account_signin(
 
 @pytest.mark.parametrize("token", ["graph-access-token", "", "malformed.jwt.token"])
 async def test_microsoft_rejects_opaque_or_malformed_token(
-    microsoft_client: httpx.AsyncClient, token: str
+    microsoft_client: httpx2.AsyncClient, token: str
 ) -> None:
     with pytest.raises(AuthError, match="Invalid Microsoft ID token"):
         await OAuthMicrosoftProvider.get_user_info(microsoft_client, token)
 
 
 async def test_microsoft_does_not_use_upn_without_email_claim(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
 ) -> None:
@@ -338,7 +338,7 @@ async def test_microsoft_does_not_use_upn_without_email_claim(
 
 
 async def test_microsoft_rejects_unknown_signing_key(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
 ) -> None:
@@ -350,15 +350,22 @@ async def test_microsoft_rejects_unknown_signing_key(
         await OAuthMicrosoftProvider.get_user_info(microsoft_client, token)
 
 
+@pytest.mark.parametrize("transport_failure", [False, True])
 async def test_microsoft_reports_unavailable_discovery(
-    microsoft_claims: dict[str, Any], signing_key: rsa.RSAPrivateKey
+    microsoft_claims: dict[str, Any],
+    signing_key: rsa.RSAPrivateKey,
+    transport_failure: bool,
 ) -> None:
     token = jwt.encode(
         microsoft_claims, signing_key, algorithm="RS256", headers={"kid": KEY_ID}
     )
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda _: httpx.Response(503))
-    ) as client:
+
+    def discovery(request: httpx2.Request) -> httpx2.Response:
+        if transport_failure:
+            raise httpx2.ConnectError("discovery unavailable", request=request)
+        return httpx2.Response(503)
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(discovery)) as client:
         with pytest.raises(AuthError) as error:
             await OAuthMicrosoftProvider.get_user_info(client, token)
 
@@ -366,7 +373,7 @@ async def test_microsoft_reports_unavailable_discovery(
 
 
 async def test_microsoft_organizations_excludes_consumer_accounts(
-    microsoft_client: httpx.AsyncClient,
+    microsoft_client: httpx2.AsyncClient,
     microsoft_claims: dict[str, Any],
     signing_key: rsa.RSAPrivateKey,
     monkeypatch: pytest.MonkeyPatch,
@@ -394,8 +401,8 @@ async def test_microsoft_rejects_invalid_discovery_payload(
     token = jwt.encode(
         microsoft_claims, signing_key, algorithm="RS256", headers={"kid": KEY_ID}
     )
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(lambda _: httpx2.Response(200, json=payload))
     ) as client:
         with pytest.raises(AuthError, match="Invalid Microsoft ID token"):
             await OAuthMicrosoftProvider.get_user_info(client, token)

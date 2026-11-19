@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-import httpx
+import httpx2
 import pytest
 import websockets.sync.client
 from lumlflow import __version__
@@ -208,7 +208,7 @@ def test_a_non_loopback_host_is_bound_recorded_and_still_requires_the_token(
 
     running = serve(root, "--host", "0.0.0.0", "--port", str(port))
     record = _served(root, port)
-    unauthorized = httpx.post(
+    unauthorized = httpx2.post(
         f"http://127.0.0.1:{port}{web.RPC_PATH}",
         json={"method": "status", "params": {}},
         timeout=30.0,
@@ -671,7 +671,7 @@ def _served(root: Path, port: int) -> DaemonRecord:
 
 
 def _rpc(record: DaemonRecord, method: str = "status", **params: Any) -> Any:
-    answered = httpx.post(
+    answered = httpx2.post(
         f"http://127.0.0.1:{record.web_port}{web.RPC_PATH}",
         json={"method": method, "params": params},
         headers={web.TOKEN_HEADER: record.token},

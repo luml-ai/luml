@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import timedelta
 
-import httpx
+import httpx2
 import pytest
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
@@ -356,7 +356,7 @@ async def test_relay_keeps_serving_when_luml_refuses_its_token(
             subprotocols=[Subprotocol(SUBPROTOCOL)],
             additional_headers={"Authorization": f"Bearer {luml.issue(TokenKind.EXPOSE)}"},
         )
-    async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{relay_port}") as client:
+    async with httpx2.AsyncClient(base_url=f"http://127.0.0.1:{relay_port}") as client:
         health = await client.get("/health")
 
     assert cached.status_code == 200

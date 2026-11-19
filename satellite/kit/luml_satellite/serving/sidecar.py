@@ -8,7 +8,7 @@ from contextlib import suppress
 from importlib.metadata import PackageNotFoundError, version
 from typing import Annotated, Any, Protocol, Self, cast
 
-import httpx
+import httpx2
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
@@ -144,9 +144,9 @@ class Sidecar:
         configuration: SidecarConfiguration,
         *,
         companion: CompanionApi | None = None,
-        upstream_client: httpx.AsyncClient | None = None,
-        companion_transport: httpx.AsyncBaseTransport | None = None,
-        upstream_transport: httpx.AsyncBaseTransport | None = None,
+        upstream_client: httpx2.AsyncClient | None = None,
+        companion_transport: httpx2.AsyncBaseTransport | None = None,
+        upstream_transport: httpx2.AsyncBaseTransport | None = None,
         recorder: Recorder | None = None,
         clock: Callable[[], float] | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -156,7 +156,7 @@ class Sidecar:
         self._logger = logger or logging.getLogger("luml_satellite.serving.sidecar")
         self._sleep = sleep
         self._owns_upstream_client = upstream_client is None
-        self._upstream = upstream_client or httpx.AsyncClient(
+        self._upstream = upstream_client or httpx2.AsyncClient(
             transport=upstream_transport,
             timeout=45.0,
         )
@@ -294,7 +294,7 @@ class Sidecar:
             response = await self._upstream.get(
                 f"{str(self.configuration.UPSTREAM_MODEL_URL).rstrip('/')}/healthz"
             )
-        except httpx.HTTPError:
+        except httpx2.HTTPError:
             return False
         return response.status_code == 200
 

@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 from luml_api import AsyncLumlClient, NotFoundError
 from luml_api._types import FlowExposed, LiveSessionStart
 
@@ -115,7 +115,7 @@ def not_found(session_id: str) -> NotFoundError:
     url = f"http://luml.test/live-sessions/{session_id}/end"
     return NotFoundError(
         "Live session not found",
-        response=httpx.Response(404, request=httpx.Request("POST", url)),
+        response=httpx2.Response(404, request=httpx2.Request("POST", url)),
         body={"detail": "Live session not found"},
     )
 

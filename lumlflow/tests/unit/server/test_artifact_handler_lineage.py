@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import httpx
+import httpx2
 import pytest
 from luml.experiments.backends.data_types import Model as DbModel
 from luml.experiments.tracker import ExperimentTracker
@@ -99,8 +99,8 @@ def _uploaded_artifact(artifact_id: str) -> MagicMock:
 def _not_found_error(
     detail: str = "Artifact not found", method: str = "POST"
 ) -> NotFoundError:
-    request = httpx.Request(method, "https://api.luml.test/artifacts")
-    response = httpx.Response(404, request=request)
+    request = httpx2.Request(method, "https://api.luml.test/artifacts")
+    response = httpx2.Response(404, request=request)
     return NotFoundError(
         detail,
         response=response,

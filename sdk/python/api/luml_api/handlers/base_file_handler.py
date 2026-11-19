@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
 
-import httpx
+import httpx2
 
 from luml_api._exceptions import FileDownloadError
 from luml_api._types import PartDetails
@@ -71,7 +71,7 @@ class BaseFileHandler(ABC):
         file_path: str,
         file_size: int,
         file_name: str = "",
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         pass
 
     @abstractmethod
@@ -83,7 +83,7 @@ class BaseFileHandler(ABC):
         file_path: str,
         file_name: str = "",
         upload_id: str | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         pass
 
     def initiate_multipart_upload(self, initiate_url: str | None) -> str | None:
@@ -93,9 +93,9 @@ class BaseFileHandler(ABC):
         self, url: str, file_path: str, file_name: str = ""
     ) -> str:
         try:
-            timeout = httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
+            timeout = httpx2.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
 
-            with httpx.stream("GET", url, timeout=timeout) as response:
+            with httpx2.stream("GET", url, timeout=timeout) as response:
                 response.raise_for_status()
 
                 total_size = int(response.headers.get("content-length", 0))
@@ -117,7 +117,7 @@ class BaseFileHandler(ABC):
     @staticmethod
     def delete_file(url: str) -> bool:
         try:
-            response = httpx.delete(url, timeout=60.0)
+            response = httpx2.delete(url, timeout=60.0)
         except Exception:  # noqa: BLE001
             return False
         return response.is_success or response.status_code == 404
@@ -125,7 +125,7 @@ class BaseFileHandler(ABC):
     @staticmethod
     async def delete_file_async(url: str) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx2.AsyncClient(timeout=60.0) as client:
                 response = await client.delete(url)
         except Exception:  # noqa: BLE001
             return False

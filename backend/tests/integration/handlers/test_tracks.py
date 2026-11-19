@@ -2,7 +2,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
 
-import httpx
+import httpx2
 import pytest
 from luml.handlers.permissions import PermissionsHandler
 from luml.handlers.tracks import TracksHandler
@@ -38,7 +38,7 @@ async def track_client(
     seeded_orbit: OrbitFixtureData,
     new_user: CreateUser,
     request: pytest.FixtureRequest,
-) -> AsyncGenerator[tuple[str, httpx.AsyncClient]]:
+) -> AsyncGenerator[tuple[str, httpx2.AsyncClient]]:
     method: str = request.param
     user_repository = UserRepository(engine)
     orbit_repository = OrbitRepository(engine)
@@ -81,8 +81,8 @@ async def track_client(
     monkeypatch.setattr(
         TracksHandler, "_TracksHandler__track_repository", TrackRepository(engine)
     )
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=AppService()), base_url="http://test"
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=AppService()), base_url="http://test"
     ) as client:
         yield method, client
 
@@ -90,7 +90,7 @@ async def track_client(
 @pytest.mark.parametrize("track_client", ["PATCH", "DELETE"], indirect=True)
 @pytest.mark.parametrize("foreign_organization", [False, True])
 async def test_track_mutations_reject_foreign_orbit_and_preserve_track(
-    track_client: tuple[str, httpx.AsyncClient],
+    track_client: tuple[str, httpx2.AsyncClient],
     seeded_orbit: OrbitFixtureData,
     new_artifact: ArtifactCreate,
     foreign_organization: bool,
@@ -159,7 +159,7 @@ async def test_track_mutations_reject_foreign_orbit_and_preserve_track(
 
 @pytest.mark.parametrize("track_client", ["PATCH", "DELETE"], indirect=True)
 async def test_track_mutations_reject_missing_track(
-    track_client: tuple[str, httpx.AsyncClient],
+    track_client: tuple[str, httpx2.AsyncClient],
     seeded_orbit: OrbitFixtureData,
 ) -> None:
     data = seeded_orbit
@@ -174,7 +174,7 @@ async def test_track_mutations_reject_missing_track(
 
 @pytest.mark.parametrize("track_client", ["PATCH", "DELETE"], indirect=True)
 async def test_track_mutations_allow_own_orbit(
-    track_client: tuple[str, httpx.AsyncClient],
+    track_client: tuple[str, httpx2.AsyncClient],
     seeded_orbit: OrbitFixtureData,
 ) -> None:
     data = seeded_orbit

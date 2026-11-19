@@ -4,9 +4,10 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import httpx
+import httpx2
 import pytest
 import respx
+from respx import MockResponse
 
 from conda_manager import ModelCondaManager
 
@@ -51,11 +52,12 @@ def test_health_check_reaches_local_worker_despite_proxy_environment(
     manager._wait_for_health_check(timeout=1)
 
 
-@respx.mock
-def test_health_check_retries_connection_errors_and_unhealthy_responses() -> None:
+def test_health_check_retries_connection_errors_and_unhealthy_responses(
+    httpx2_mock: respx.MockRouter,
+) -> None:
     manager = ModelCondaManager("env", SimpleNamespace(_exe="micromamba"), "/model")
-    route = respx.get("http://127.0.0.1:8080/healthz").mock(
-        side_effect=[httpx.ConnectError("starting"), httpx.Response(503), httpx.Response(200)]
+    route = httpx2_mock.get("http://127.0.0.1:8080/healthz").mock(
+        side_effect=[httpx2.ConnectError("starting"), MockResponse(503), MockResponse(200)]
     )
 
     with patch("conda_manager.time.sleep") as sleep:
@@ -65,10 +67,11 @@ def test_health_check_retries_connection_errors_and_unhealthy_responses() -> Non
     assert sleep.call_count == 2
 
 
-@respx.mock
-def test_health_check_reports_timeout_for_an_unhealthy_worker() -> None:
+def test_health_check_reports_timeout_for_an_unhealthy_worker(
+    httpx2_mock: respx.MockRouter,
+) -> None:
     manager = ModelCondaManager("env", SimpleNamespace(_exe="micromamba"), "/model")
-    route = respx.get("http://127.0.0.1:8080/healthz").respond(503)
+    route = httpx2_mock.get("http://127.0.0.1:8080/healthz").respond(503)
 
     with (
         patch("conda_manager.time.sleep"),

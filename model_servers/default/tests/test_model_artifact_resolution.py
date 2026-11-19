@@ -2,13 +2,16 @@ import tarfile
 from pathlib import Path
 from unittest.mock import patch
 
-import httpx
+import httpx2
 import pytest
 import respx
+from respx import MockResponse
 
 from clients.agent_client import AgentClient, ArtifactResolutionError
 from handlers.file_handler import ArtifactAccessExpired
 from handlers.model_handler import ModelHandler
+
+pytestmark = pytest.mark.httpx2(assert_all_called=False)
 
 AGENT_URL = "http://satellite-agent:8000"
 DEPLOYMENT_ID = "01a014fd-1ebc-7021-b0f5-fe92f2fdaf9b"
@@ -21,12 +24,14 @@ def _agent() -> AgentClient:
     return AgentClient(base_url=AGENT_URL, deployment_id=DEPLOYMENT_ID, token=TOKEN)
 
 
-def _artifact_route(**kwargs) -> respx.Route:  # noqa: ANN003 — test helper
-    return respx.get(f"{AGENT_URL}/satellites/deployments/{DEPLOYMENT_ID}/artifact").mock(**kwargs)
+def _artifact_route(httpx2_mock: respx.MockRouter, **kwargs) -> respx.Route:  # noqa: ANN003 — test helper
+    return httpx2_mock.get(f"{AGENT_URL}/satellites/deployments/{DEPLOYMENT_ID}/artifact").mock(
+        **kwargs
+    )
 
 
-def _ok_response() -> httpx.Response:
-    return httpx.Response(200, json={"url": DOWNLOAD_URL, "artifact_id": ARTIFACT_ID})
+def _ok_response() -> MockResponse:
+    return MockResponse(200, json={"url": DOWNLOAD_URL, "artifact_id": ARTIFACT_ID})
 
 
 def _make_archive(tmp_path: Path) -> bytes:
@@ -52,11 +57,12 @@ def _handler(cache_dir: Path, agent: AgentClient | None = None) -> ModelHandler:
 
 
 class TestModelArtifactResolution:
-    @respx.mock
-    def test_the_url_is_asked_for_at_download_time(self, tmp_path: Path) -> None:
-        route = _artifact_route(return_value=_ok_response())
-        respx.get(DOWNLOAD_URL).mock(
-            return_value=httpx.Response(200, content=_make_archive(tmp_path))
+    def test_the_url_is_asked_for_at_download_time(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
+        route = _artifact_route(httpx2_mock, return_value=_ok_response())
+        httpx2_mock.get(DOWNLOAD_URL).mock(
+            return_value=MockResponse(200, content=_make_archive(tmp_path))
         )
         cache = tmp_path / "models"
         cache.mkdir()
@@ -68,14 +74,15 @@ class TestModelArtifactResolution:
         assert Path(extracted) == cache / ARTIFACT_ID
         assert (Path(extracted) / "manifest.json").exists()
 
-    @respx.mock
-    def test_a_cached_model_never_touches_the_network(self, tmp_path: Path) -> None:
+    def test_a_cached_model_never_touches_the_network(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
         """This is what lets a container come back up while the Agent or Platform is down.
 
         The cache key comes from the environment the Agent pinned at container creation, so the
         lookup happens before anything is asked of anyone.
         """
-        route = _artifact_route(return_value=_ok_response())
+        route = _artifact_route(httpx2_mock, return_value=_ok_response())
         cache = tmp_path / "models"
         (cache / ARTIFACT_ID).mkdir(parents=True)
         (cache / ARTIFACT_ID / "manifest.json").write_text("{}")
@@ -86,12 +93,13 @@ class TestModelArtifactResolution:
         assert Path(extracted) == cache / ARTIFACT_ID
         assert not route.called
 
-    @respx.mock
-    def test_a_cache_miss_still_asks_the_agent(self, tmp_path: Path) -> None:
+    def test_a_cache_miss_still_asks_the_agent(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
         """The pinned id is only a lookup hint; an unpacked model is what makes it a hit."""
-        route = _artifact_route(return_value=_ok_response())
-        respx.get(DOWNLOAD_URL).mock(
-            return_value=httpx.Response(200, content=_make_archive(tmp_path))
+        route = _artifact_route(httpx2_mock, return_value=_ok_response())
+        httpx2_mock.get(DOWNLOAD_URL).mock(
+            return_value=MockResponse(200, content=_make_archive(tmp_path))
         )
         cache = tmp_path / "models"
         cache.mkdir()
@@ -102,8 +110,9 @@ class TestModelArtifactResolution:
         assert route.called
         assert (Path(extracted) / "manifest.json").exists()
 
-    @respx.mock
-    def test_a_url_that_expires_mid_download_is_retried_once(self, tmp_path: Path) -> None:
+    def test_a_url_that_expires_mid_download_is_retried_once(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
         """A large artifact can outlive the link it started downloading from.
 
         The retry must go back to the Agent for a freshly signed link — repeating the request
@@ -112,14 +121,15 @@ class TestModelArtifactResolution:
         """
         stale_url = "https://s3.example.com/artifacts/iris.luml?X-Amz-Signature=stale"
         agent_route = _artifact_route(
+            httpx2_mock,
             side_effect=[
-                httpx.Response(200, json={"url": stale_url, "artifact_id": ARTIFACT_ID}),
+                MockResponse(200, json={"url": stale_url, "artifact_id": ARTIFACT_ID}),
                 _ok_response(),  # a fresh link, signed for the retry
-            ]
+            ],
         )
-        respx.get(stale_url).mock(return_value=httpx.Response(403))
-        fresh_route = respx.get(DOWNLOAD_URL).mock(
-            return_value=httpx.Response(200, content=_make_archive(tmp_path))
+        httpx2_mock.get(stale_url).mock(return_value=MockResponse(403))
+        fresh_route = httpx2_mock.get(DOWNLOAD_URL).mock(
+            return_value=MockResponse(200, content=_make_archive(tmp_path))
         )
         cache = tmp_path / "models"
         cache.mkdir()
@@ -130,22 +140,24 @@ class TestModelArtifactResolution:
         assert fresh_route.called
         assert (Path(extracted) / "manifest.json").exists()
 
-    @respx.mock
-    def test_a_second_refusal_is_not_retried_forever(self, tmp_path: Path) -> None:
-        _artifact_route(return_value=_ok_response())
-        respx.get(DOWNLOAD_URL).mock(return_value=httpx.Response(403))
+    def test_a_second_refusal_is_not_retried_forever(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
+        _artifact_route(httpx2_mock, return_value=_ok_response())
+        httpx2_mock.get(DOWNLOAD_URL).mock(return_value=MockResponse(403))
         cache = tmp_path / "models"
         cache.mkdir()
 
         with pytest.raises(ArtifactAccessExpired):
             _handler(cache)._get_or_extract_model()
 
-    @respx.mock
-    def test_a_caller_supplied_url_is_used_as_is(self, tmp_path: Path) -> None:
+    def test_a_caller_supplied_url_is_used_as_is(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
         """Local runs and tests pass a URL directly; there is no Agent to ask."""
-        route = _artifact_route(return_value=_ok_response())
-        respx.get(DOWNLOAD_URL).mock(
-            return_value=httpx.Response(200, content=_make_archive(tmp_path))
+        route = _artifact_route(httpx2_mock, return_value=_ok_response())
+        httpx2_mock.get(DOWNLOAD_URL).mock(
+            return_value=MockResponse(200, content=_make_archive(tmp_path))
         )
         cache = tmp_path / "models"
         cache.mkdir()
@@ -158,16 +170,16 @@ class TestModelArtifactResolution:
         assert not route.called
         assert (Path(extracted) / "manifest.json").exists()
 
-    @respx.mock
-    def test_an_unreachable_agent_says_so_plainly(self, tmp_path: Path) -> None:
-        _artifact_route(side_effect=httpx.ConnectError("no route to host"))
+    def test_an_unreachable_agent_says_so_plainly(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
+        _artifact_route(httpx2_mock, side_effect=httpx2.ConnectError("no route to host"))
 
         with pytest.raises(ArtifactResolutionError, match="unreachable"):
             _agent().fetch_artifact()
 
-    @respx.mock
-    def test_a_rejected_token_points_at_the_fix(self) -> None:
-        _artifact_route(return_value=httpx.Response(403))
+    def test_a_rejected_token_points_at_the_fix(self, httpx2_mock: respx.MockRouter) -> None:
+        _artifact_route(httpx2_mock, return_value=MockResponse(403))
 
         with pytest.raises(ArtifactResolutionError, match="redeploy"):
             _agent().fetch_artifact()
@@ -179,17 +191,18 @@ class TestModelArtifactResolution:
             with pytest.raises(ArtifactResolutionError, match="missing from the environment"):
                 client.fetch_artifact()
 
-    @respx.mock
-    def test_a_url_from_an_old_agents_environment_is_honoured(self, tmp_path: Path) -> None:
+    def test_a_url_from_an_old_agents_environment_is_honoured(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
         """An Agent from before the token contract hands over a URL, not a token.
 
         Image tags move independently of the Agent, so a new model_server image can be
         launched by an old Agent: MODEL_ARTIFACT_URL set, MODEL_ARTIFACT_TOKEN absent.
         Ignoring the URL would crash-loop a container that holds everything it needs.
         """
-        route = _artifact_route(return_value=_ok_response())
-        respx.get(DOWNLOAD_URL).mock(
-            return_value=httpx.Response(200, content=_make_archive(tmp_path))
+        route = _artifact_route(httpx2_mock, return_value=_ok_response())
+        httpx2_mock.get(DOWNLOAD_URL).mock(
+            return_value=MockResponse(200, content=_make_archive(tmp_path))
         )
         cache = tmp_path / "models"
         cache.mkdir()
@@ -203,21 +216,21 @@ class TestModelArtifactResolution:
     def test_the_agent_request_ignores_environment_proxies(self) -> None:
         """HTTP_PROXY must not stand between the container and its Agent.
 
-        Deployment environment variables can set proxy variables, and httpx honours
+        Deployment environment variables can set proxy variables, and httpx2 honours
         them by default — the internal request carrying the artifact token would go
         through, and disclose the token to, whatever host they name.
         """
-        with patch("clients.agent_client.httpx.get") as get:
-            get.return_value = httpx.Response(
+        with patch("clients.agent_client.httpx2.get") as get:
+            get.return_value = MockResponse(
                 200, json={"url": DOWNLOAD_URL, "artifact_id": ARTIFACT_ID}
             )
             _agent().fetch_artifact()
 
         assert get.call_args.kwargs["trust_env"] is False
 
-    @respx.mock
     def test_two_containers_unpacking_the_same_artifact_do_not_corrupt_each_other(
         self,
+        httpx2_mock: respx.MockRouter,
         tmp_path: Path,
     ) -> None:
         """The cache is shared by every model container on the Satellite.
@@ -226,9 +239,9 @@ class TestModelArtifactResolution:
         its own directory, and whoever lands first wins — the archive is immutable, so the loser
         can simply adopt the winner's copy instead of failing or half-overwriting it.
         """
-        _artifact_route(return_value=_ok_response())
-        respx.get(DOWNLOAD_URL).mock(
-            side_effect=lambda request: httpx.Response(200, content=_make_archive(tmp_path))
+        _artifact_route(httpx2_mock, return_value=_ok_response())
+        httpx2_mock.get(DOWNLOAD_URL).mock(
+            side_effect=lambda request: MockResponse(200, content=_make_archive(tmp_path))
         )
         cache = tmp_path / "models"
         cache.mkdir()
@@ -242,12 +255,13 @@ class TestModelArtifactResolution:
         # nothing half-written left behind
         assert not list(cache.glob(".*partial"))
 
-    @respx.mock
-    def test_a_loser_of_the_race_adopts_the_winners_copy(self, tmp_path: Path) -> None:
+    def test_a_loser_of_the_race_adopts_the_winners_copy(
+        self, httpx2_mock: respx.MockRouter, tmp_path: Path
+    ) -> None:
         """The rename lands on a directory that appeared while this one was unpacking."""
-        _artifact_route(return_value=_ok_response())
-        respx.get(DOWNLOAD_URL).mock(
-            return_value=httpx.Response(200, content=_make_archive(tmp_path))
+        _artifact_route(httpx2_mock, return_value=_ok_response())
+        httpx2_mock.get(DOWNLOAD_URL).mock(
+            return_value=MockResponse(200, content=_make_archive(tmp_path))
         )
         cache = tmp_path / "models"
         cache.mkdir()
@@ -273,14 +287,13 @@ class TestModelArtifactResolution:
 
 
 @pytest.mark.parametrize("failure", [False, True])
-@respx.mock
 def test_download_directories_are_removed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: bool
+    httpx2_mock: respx.MockRouter, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: bool
 ) -> None:
     monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
-    _artifact_route(return_value=_ok_response())
-    respx.get(DOWNLOAD_URL).mock(
-        return_value=httpx.Response(500 if failure else 200, content=_make_archive(tmp_path))
+    _artifact_route(httpx2_mock, return_value=_ok_response())
+    httpx2_mock.get(DOWNLOAD_URL).mock(
+        return_value=MockResponse(500 if failure else 200, content=_make_archive(tmp_path))
     )
     cache = tmp_path / "models"
     cache.mkdir()
@@ -292,13 +305,16 @@ def test_download_directories_are_removed(
     assert not list(tmp_path.glob("dfs_model_download_*"))
 
 
-@respx.mock
-def test_download_failure_traceback_does_not_disclose_signed_url(tmp_path: Path) -> None:
+def test_download_failure_traceback_does_not_disclose_signed_url(
+    httpx2_mock: respx.MockRouter, tmp_path: Path
+) -> None:
     import traceback
 
     from handlers.file_handler import FileHandler
 
-    respx.get(DOWNLOAD_URL).mock(side_effect=httpx.ReadError(f"failed fetching {DOWNLOAD_URL}"))
+    httpx2_mock.get(DOWNLOAD_URL).mock(
+        side_effect=httpx2.ReadError(f"failed fetching {DOWNLOAD_URL}")
+    )
     with pytest.raises(ValueError) as caught:
         FileHandler().download_file(DOWNLOAD_URL, tmp_path / "model.tar")
     formatted = "".join(traceback.format_exception(caught.value))
@@ -313,15 +329,14 @@ def test_download_failure_traceback_does_not_disclose_signed_url(tmp_path: Path)
         (500, "HTTP 500 error downloading model artifact"),
     ],
 )
-@respx.mock
 def test_download_status_errors_keep_their_reason(
-    tmp_path: Path, status: int, message: str
+    httpx2_mock: respx.MockRouter, tmp_path: Path, status: int, message: str
 ) -> None:
     import traceback
 
     from handlers.file_handler import FileHandler
 
-    respx.get(DOWNLOAD_URL).mock(return_value=httpx.Response(status))
+    httpx2_mock.get(DOWNLOAD_URL).mock(return_value=MockResponse(status))
     with pytest.raises(ValueError, match=message) as caught:
         FileHandler().download_file(DOWNLOAD_URL, tmp_path / "model.tar")
     formatted = "".join(traceback.format_exception(caught.value))

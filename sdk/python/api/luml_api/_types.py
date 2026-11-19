@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from httpx import URL, InvalidURL
+from httpx2 import URL, InvalidURL
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from luml_api._exceptions import LumlAPIError

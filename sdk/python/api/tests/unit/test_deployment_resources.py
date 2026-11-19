@@ -9,9 +9,9 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
-import httpx
+import httpx2
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api import (
     CapabilityNotSupportedError,
@@ -107,14 +107,14 @@ async def _bind_async_monitoring(
 
 
 def _not_found(body: object) -> NotFoundError:
-    request = httpx.Request("GET", f"{SATELLITE_URL}{MONITORING_URL}/overview")
-    response = httpx.Response(404, request=request, json=body)
+    request = httpx2.Request("GET", f"{SATELLITE_URL}{MONITORING_URL}/overview")
+    response = MockResponse(404, request=request, json=body)
     return NotFoundError("not found", response=response, body=body)
 
 
 def _unprocessable(body: object) -> UnprocessableEntityError:
-    request = httpx.Request("GET", f"{SATELLITE_URL}{MONITORING_URL}/overview")
-    response = httpx.Response(422, request=request, json=body)
+    request = httpx2.Request("GET", f"{SATELLITE_URL}{MONITORING_URL}/overview")
+    response = MockResponse(422, request=request, json=body)
     return UnprocessableEntityError("invalid query", response=response, body=body)
 
 
@@ -615,12 +615,12 @@ def test_monitoring_accepts_a_same_origin_reported_url(
 async def test_monitoring_refuses_a_foreign_origin_before_sending(
     client_with_mocks: LumlClient,
     async_client_with_mocks: AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     monitoring_url: str,
     asynchronous: bool,
 ) -> None:
     deployment = Deployment(**_record(monitoring_url=monitoring_url))
-    request_count = len(respx_mock.calls)
+    request_count = len(httpx2_mock.calls)
 
     if asynchronous:
         with pytest.raises(LumlAPIError, match="same origin"):
@@ -631,7 +631,7 @@ async def test_monitoring_refuses_a_foreign_origin_before_sending(
         with pytest.raises(LumlAPIError, match="same origin"):
             DeploymentMonitoring(client_with_mocks, _satellite(), deployment).header()
 
-    assert len(respx_mock.calls) == request_count
+    assert len(httpx2_mock.calls) == request_count
 
 
 @pytest.mark.parametrize("asynchronous", [False, True])
@@ -647,7 +647,7 @@ async def test_monitoring_refuses_a_foreign_origin_before_sending(
 async def test_monitoring_keeps_authentication_for_safe_urls(
     client_with_mocks: LumlClient,
     async_client_with_mocks: AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     asynchronous: bool,
     monitoring_url: str,
     expected_url: str,
@@ -655,8 +655,8 @@ async def test_monitoring_keeps_authentication_for_safe_urls(
     deployment = Deployment(**_record(monitoring_url=monitoring_url))
     satellite = _satellite(base_url=f"{SATELLITE_URL}/prefix")
     response = {"state": "ok", "deployment_id": DEPLOYMENT_ID}
-    route = respx_mock.get(expected_url).mock(
-        return_value=httpx.Response(200, json=response)
+    route = httpx2_mock.get(expected_url).mock(
+        return_value=MockResponse(200, json=response)
     )
 
     if asynchronous:

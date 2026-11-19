@@ -3,9 +3,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from xml.etree import ElementTree as ET
 
-import httpx
+import httpx2
 
 from luml_api._exceptions import FileUploadError, LumlAPIError
+from luml_api._http_compat import compatible_http_errors
 from luml_api._types import PartDetails
 from luml_api.handlers.base_file_handler import BaseFileHandler
 
@@ -19,14 +20,14 @@ class S3FileHandler(BaseFileHandler):
         file_path: str,
         file_size: int,
         file_name: str = "",
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         """Upload a file using simple PUT request."""
         try:
             update_progress = self.create_progress_bar(file_size, file_name)
 
-            timeout = httpx.Timeout(connect=30.0, read=300.0, write=600.0, pool=30.0)
+            timeout = httpx2.Timeout(connect=30.0, read=300.0, write=600.0, pool=30.0)
 
-            response = httpx.put(
+            response = httpx2.put(
                 url,
                 content=self.create_file_generator(
                     file_path, file_size, update_progress
@@ -50,7 +51,7 @@ class S3FileHandler(BaseFileHandler):
         file_path: str,
         file_name: str = "",
         upload_id: str | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         """Upload a file using S3 multipart upload."""
 
         if upload_id is None:
@@ -98,7 +99,7 @@ class S3FileHandler(BaseFileHandler):
             part_data = f.read(part_size)
             actual_size = len(part_data)
 
-        with httpx.Client(timeout=300) as client:
+        with compatible_http_errors(), httpx2.Client(timeout=300) as client:
             response = client.put(
                 part.url,
                 content=part_data,
@@ -114,7 +115,7 @@ class S3FileHandler(BaseFileHandler):
 
     def _complete_multipart_upload(
         self, url: str, parts_complete: list[dict[str, int | str]]
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         """Complete S3 multipart upload."""
 
         parts_complete.sort(key=lambda x: x["part_number"])
@@ -125,7 +126,7 @@ class S3FileHandler(BaseFileHandler):
         <CompleteMultipartUpload>
         {parts_xml}
         </CompleteMultipartUpload>"""
-        with httpx.Client(timeout=300) as client:
+        with compatible_http_errors(), httpx2.Client(timeout=300) as client:
             response = client.post(
                 url=url,
                 content=complete_xml,
@@ -146,7 +147,7 @@ class S3FileHandler(BaseFileHandler):
             )
 
         try:
-            with httpx.Client(timeout=300) as client:
+            with compatible_http_errors(), httpx2.Client(timeout=300) as client:
                 response = client.post(initiate_url)
                 response.raise_for_status()
 

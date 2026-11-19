@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 from lumlflow.handlers.auth import AuthHandler
 from lumlflow.infra.exceptions import ApplicationError
@@ -29,7 +29,7 @@ class _RaisingClient:
     def __exit__(self, *exc_info: object) -> None:
         return None
 
-    def get(self, *args: Any, **kwargs: Any) -> httpx.Response:
+    def get(self, *args: Any, **kwargs: Any) -> httpx2.Response:
         raise self._exc
 
 
@@ -38,9 +38,9 @@ class TestSetApiKeyUnreachable:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
+            httpx2,
             "Client",
-            lambda *a, **k: _RaisingClient(httpx.ConnectError("connection refused")),
+            lambda *a, **k: _RaisingClient(httpx2.ConnectError("connection refused")),
         )
         with pytest.raises(ApplicationError) as exc_info:
             AuthHandler().set_api_key(SetApiKey(api_key="luml_sk_test"))
@@ -54,13 +54,13 @@ class TestSetApiKeyUnreachable:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A malformed key (e.g. invisible characters from a paste) makes
-        httpx raise before any I/O — the message must still expose it."""
+        httpx2 raise before any I/O — the message must still expose it."""
 
         monkeypatch.setattr(
-            httpx,
+            httpx2,
             "Client",
             lambda *a, **k: _RaisingClient(
-                httpx.LocalProtocolError("Illegal header value b'Bearer x\\n'")
+                httpx2.LocalProtocolError("Illegal header value b'Bearer x\\n'")
             ),
         )
         with pytest.raises(ApplicationError) as exc_info:

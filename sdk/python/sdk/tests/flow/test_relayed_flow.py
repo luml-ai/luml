@@ -13,9 +13,9 @@ from collections.abc import Iterator
 from pathlib import Path
 from types import FrameType
 
-import httpx
+import httpx2
 import pytest
-from luml_api import AsyncLumlClient
+from luml_api import APIConnectionError, AsyncLumlClient
 from luml_relay.agent import LoopbackService
 
 import luml.flow as flow_module
@@ -152,8 +152,8 @@ def _alive(pid: int) -> bool:
 
 def _answers(port: int) -> bool:
     try:
-        httpx.get(f"http://127.0.0.1:{port}/api/auth/status", trust_env=False)
-    except httpx.ConnectError:
+        httpx2.get(f"http://127.0.0.1:{port}/api/auth/status", trust_env=False)
+    except httpx2.ConnectError:
         return False
     return True
 
@@ -162,7 +162,7 @@ def _groups_status(port: int, session_token: str | None) -> int:
     headers = (
         {} if session_token is None else {"Authorization": f"Bearer {session_token}"}
     )
-    return httpx.get(
+    return httpx2.get(
         f"http://127.0.0.1:{port}/api/groups", headers=headers, trust_env=False
     ).status_code
 
@@ -302,16 +302,16 @@ def test_port_in_use_fails_before_anything_is_created(
 def test_connection_timeout_on_a_free_port_starts_lumlflow(
     port: int, stub_record: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    get = httpx.get
+    get = httpx2.get
     probed: list[str] = []
 
-    def timing_out_once(url: str, **options) -> httpx.Response:
+    def timing_out_once(url: str, **options) -> httpx2.Response:
         probed.append(url)
         if len(probed) == 1:
-            raise httpx.ConnectTimeout("timed out")
+            raise httpx2.ConnectTimeout("timed out")
         return get(url, **options)
 
-    monkeypatch.setattr(httpx, "get", timing_out_once)
+    monkeypatch.setattr(httpx2, "get", timing_out_once)
 
     with RelayedFlow("training", port=port):
         assert _answers(port)
@@ -623,13 +623,23 @@ def test_stopping_after_luml_ended_the_session_stops_local_parts(
 
 
 @pytest.mark.usefixtures("stub_record")
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx2.ConnectError("LUML is down"),
+        APIConnectionError(
+            "LUML is down", httpx2.Request("DELETE", "https://example.com"), body=None
+        ),
+    ],
+)
 def test_unreachable_luml_on_stop_still_stops_local_parts(
+    error: Exception,
     clients: FakeClients,
     serving: FakeServing,
     port: int,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    clients.live_sessions.end_error = httpx.ConnectError("LUML is down")
+    clients.live_sessions.end_error = error
 
     with caplog.at_level(logging.WARNING), RelayedFlow("training", port=port):
         pass

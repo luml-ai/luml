@@ -3,17 +3,17 @@ from typing import Any
 from unittest.mock import patch
 from uuid import UUID
 
-import httpx
+import httpx2
 import pytest
 import pytest_asyncio
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import InternalServerError, MultipleResourcesFoundError
 from luml_api._types import Artifact
 from tests.conftest import TEST_BASE_URL
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.respx(base_url=TEST_BASE_URL)]
+pytestmark = [pytest.mark.asyncio, pytest.mark.httpx2(base_url=TEST_BASE_URL)]
 
 
 @pytest_asyncio.fixture(params=["sync", "async"])
@@ -66,7 +66,7 @@ def _path(
 def _mock_pages(
     router: MockRouter, path: str, items: list[dict], *, filters: bool = True
 ) -> None:
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> MockResponse:
         search = (request.url.params.get("search") or "").lower() if filters else ""
         matches = [
             item
@@ -75,7 +75,7 @@ def _mock_pages(
             or search in item.get("file_name", "").lower()
         ]
         start = 100 if request.url.params.get("cursor") == "page-2" else 0
-        return httpx.Response(
+        return MockResponse(
             200,
             json={
                 "items": matches[start : start + 100],
@@ -93,8 +93,8 @@ def _mock_details(router: MockRouter, items: list[dict], artifact: Artifact) -> 
         for item in items
     }
 
-    def respond(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=details[request.url.path.rsplit("/", 1)[-1]])
+    def respond(request: httpx2.Request) -> MockResponse:
+        return MockResponse(200, json=details[request.url.path.rsplit("/", 1)[-1]])
 
     router.get(url__regex=r"/collections/[^/]+/artifacts/[^/]+$").mock(
         side_effect=respond
@@ -115,7 +115,7 @@ def _mock_details(router: MockRouter, items: list[dict], artifact: Artifact) -> 
 )
 async def test_name_lookup_pages_and_exact_matches(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
     resource: str,
     scenario: str,
@@ -129,9 +129,9 @@ async def test_name_lookup_pages_and_exact_matches(
         items[120]["name"] = "TARGET"
     elif scenario == "duplicate":
         items[5]["name"] = "target"
-    _mock_pages(respx_mock, _path(lookup_client, resource), items)
+    _mock_pages(httpx2_mock, _path(lookup_client, resource), items)
     if resource == "artifacts" and scenario in {"first_page", "second_page"}:
-        _mock_details(respx_mock, items, sample_artifact)
+        _mock_details(httpx2_mock, items, sample_artifact)
     value = "absent" if scenario == "missing" else "target"
 
     if scenario == "duplicate":
@@ -146,7 +146,7 @@ async def test_name_lookup_pages_and_exact_matches(
 
     requests = [
         call.request
-        for call in respx_mock.calls
+        for call in httpx2_mock.calls
         if call.request.url.path == _path(lookup_client, resource)
     ]
     assert requests[0].url.params.get("cursor") is None
@@ -157,7 +157,7 @@ async def test_name_lookup_pages_and_exact_matches(
 @pytest.mark.parametrize("duplicate", [False, True])
 async def test_artifact_filename_lookup_and_name_collision(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
     duplicate: bool,
 ) -> None:
@@ -165,9 +165,9 @@ async def test_artifact_filename_lookup_and_name_collision(
     items[120].update(name="different-name", file_name="target")
     if duplicate:
         items[5]["name"] = "target"
-    _mock_pages(respx_mock, _path(lookup_client, "artifacts"), items)
+    _mock_pages(httpx2_mock, _path(lookup_client, "artifacts"), items)
     if not duplicate:
-        _mock_details(respx_mock, items, sample_artifact)
+        _mock_details(httpx2_mock, items, sample_artifact)
 
     if duplicate:
         with pytest.raises(MultipleResourcesFoundError):
@@ -180,19 +180,19 @@ async def test_artifact_filename_lookup_and_name_collision(
 
 async def test_artifact_name_lookup_filters_locally_when_server_ignores_search(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
 ) -> None:
     items = _items(lookup_client, "artifacts", sample_artifact)
-    _mock_pages(respx_mock, _path(lookup_client, "artifacts"), items, filters=False)
-    _mock_details(respx_mock, items, sample_artifact)
+    _mock_pages(httpx2_mock, _path(lookup_client, "artifacts"), items, filters=False)
+    _mock_details(httpx2_mock, items, sample_artifact)
 
     result = await _resolve(lookup_client.artifacts.get("target"))
 
     assert str(result.id) == items[120]["id"]
     requests = [
         call.request
-        for call in respx_mock.calls
+        for call in httpx2_mock.calls
         if call.request.url.path == _path(lookup_client, "artifacts")
     ]
     assert len(requests) == 2
@@ -201,12 +201,12 @@ async def test_artifact_name_lookup_filters_locally_when_server_ignores_search(
 @pytest.mark.parametrize("resource", ["artifacts", "tracks"])
 async def test_uuid_lookup_uses_single_resource_endpoint(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
     resource: str,
 ) -> None:
     item = _items(lookup_client, resource, sample_artifact)[120]
-    route = respx_mock.get(
+    route = httpx2_mock.get(
         f"{_path(lookup_client, resource, detail=True)}/{item['id']}"
     ).respond(200, json=item)
 
@@ -220,11 +220,11 @@ async def test_uuid_lookup_uses_single_resource_endpoint(
 @pytest.mark.parametrize("status", [404, 500])
 async def test_artifact_uuid_lookup_errors(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
     status: int,
 ) -> None:
-    respx_mock.get(
+    httpx2_mock.get(
         f"{_path(lookup_client, 'artifacts', detail=True)}/{sample_artifact.id}"
     ).respond(status, json={"detail": "lookup failed"})
     if status == 404:
@@ -237,7 +237,7 @@ async def test_artifact_uuid_lookup_errors(
 @pytest.mark.parametrize("by", ["id", "name"])
 async def test_artifact_lookup_honors_collection_override(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
     by: str,
 ) -> None:
@@ -250,11 +250,11 @@ async def test_artifact_lookup_honors_collection_override(
             f"/v1/organizations/{lookup_client.organization}/orbits/"
             f"{lookup_client.orbit}/collections/{collection_id}/artifacts/{item['id']}"
         )
-        respx_mock.get(path).respond(200, json=item)
+        httpx2_mock.get(path).respond(200, json=item)
     else:
         path = _path(lookup_client, "artifacts")
-        _mock_pages(respx_mock, path, items)
-        _mock_details(respx_mock, items, sample_artifact)
+        _mock_pages(httpx2_mock, path, items)
+        _mock_details(httpx2_mock, items, sample_artifact)
 
     result = await _resolve(
         lookup_client.artifacts.get(item[by], collection_id=collection_id)
@@ -263,7 +263,7 @@ async def test_artifact_lookup_honors_collection_override(
     assert result.id == item["id"]
     if by == "name":
         requests = [
-            call.request for call in respx_mock.calls if call.request.url.path == path
+            call.request for call in httpx2_mock.calls if call.request.url.path == path
         ]
         assert len(requests) == 2
         assert all(
@@ -276,7 +276,7 @@ async def test_artifact_lookup_honors_collection_override(
 @pytest.mark.parametrize("file_path", [None, "output.fnnx"])
 async def test_download_resolves_id_and_name(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
     by: str,
     file_path: str | None,
@@ -285,10 +285,10 @@ async def test_download_resolves_id_and_name(
     item = items[120]
     path = _path(lookup_client, "artifacts", detail=True)
     if by == "id" and file_path is None:
-        respx_mock.get(f"{path}/{item['id']}").respond(200, json=item)
+        httpx2_mock.get(f"{path}/{item['id']}").respond(200, json=item)
     elif by != "id":
-        _mock_pages(respx_mock, _path(lookup_client, "artifacts"), items)
-    url_route = respx_mock.get(f"{path}/{item['id']}/download-url").respond(
+        _mock_pages(httpx2_mock, _path(lookup_client, "artifacts"), items)
+    url_route = httpx2_mock.get(f"{path}/{item['id']}/download-url").respond(
         200, json={"url": "https://example.com/file"}
     )
 
@@ -306,7 +306,7 @@ async def test_download_resolves_id_and_name(
 @pytest.mark.parametrize("ambiguous", [False, True])
 async def test_download_missing_name_does_not_start_download(
     lookup_client: LumlClient | AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     sample_artifact: Artifact,
     file_path: str | None,
     ambiguous: bool,
@@ -315,7 +315,7 @@ async def test_download_missing_name_does_not_start_download(
     if ambiguous:
         items[5]["name"] = "target"
     _mock_pages(
-        respx_mock,
+        httpx2_mock,
         _path(lookup_client, "artifacts"),
         items,
     )

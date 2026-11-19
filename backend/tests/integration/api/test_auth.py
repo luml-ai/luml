@@ -2,7 +2,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 from luml.handlers.auth import AuthHandler
 from luml.handlers.emails import EmailHandler
 from luml.models import OrganizationMemberOrm, OrganizationOrm, UserOrm

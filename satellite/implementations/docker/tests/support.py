@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol, cast
 
 import aiodocker
-import httpx
+import httpx2
 import pytest
 from aiodocker.exceptions import DockerError
 from luml_satellite import (
@@ -363,21 +363,21 @@ def start_context(**overrides: object) -> StartContext:
     return StartContext(**values)
 
 
-def upstream_transport(*, healthy: bool = True) -> httpx.MockTransport:
-    async def handle(request: httpx.Request) -> httpx.Response:
+def upstream_transport(*, healthy: bool = True) -> httpx2.MockTransport:
+    async def handle(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/healthz":
-            return httpx.Response(200 if healthy else 503, json={"status": "healthy"})
+            return httpx2.Response(200 if healthy else 503, json={"status": "healthy"})
         if request.url.path == "/manifest":
-            return httpx.Response(200, json={"name": "fixture", "version": "1"})
+            return httpx2.Response(200, json={"name": "fixture", "version": "1"})
         if request.url.path == "/openapi.json":
-            return httpx.Response(200, json={"openapi": "3.1.0", "paths": {}})
+            return httpx2.Response(200, json={"openapi": "3.1.0", "paths": {}})
         if request.url.path == "/reference_profile":
-            return httpx.Response(404)
+            return httpx2.Response(404)
         if request.url.path.endswith("/compute"):
-            return httpx.Response(200, json={"prediction": 42})
-        return httpx.Response(404)
+            return httpx2.Response(200, json={"prediction": 42})
+        return httpx2.Response(404)
 
-    return httpx.MockTransport(handle)
+    return httpx2.MockTransport(handle)
 
 
 class AsyncCloseable(Protocol):

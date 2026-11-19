@@ -1,7 +1,7 @@
 import subprocess
 import sys
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -62,7 +62,7 @@ importlib.import_module("luml_satellite.serving")
 
 @pytest.mark.asyncio
 async def test_model_server_mock_fixture(mock_model_server: respx.MockRouter) -> None:
-    async with httpx.AsyncClient() as client:
+    async with httpx2.AsyncClient() as client:
         health = await client.get("http://sat-fixture:8000/healthz")
         manifest = await client.get("http://sat-fixture:8000/manifest")
         openapi = await client.get("http://sat-fixture:8000/openapi.json")

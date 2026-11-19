@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any, Protocol, cast
 
-import httpx
+import httpx2
 from luml_satellite import (
     ArtifactDeliveryMode,
     ArtifactHandle,
@@ -104,19 +104,19 @@ def start_context(
     )
 
 
-def upstream_transport() -> httpx.MockTransport:
-    def handler(request: httpx.Request) -> httpx.Response:
+def upstream_transport() -> httpx2.MockTransport:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/healthz":
-            return httpx.Response(200, json={"status": "healthy"})
+            return httpx2.Response(200, json={"status": "healthy"})
         if request.url.path == "/manifest":
-            return httpx.Response(200, json={"variant": "pyfunc"})
+            return httpx2.Response(200, json={"variant": "pyfunc"})
         if request.url.path == "/openapi.json":
-            return httpx.Response(200, json={"openapi": "3.1.0", "paths": {}})
+            return httpx2.Response(200, json={"openapi": "3.1.0", "paths": {}})
         if request.url.path == "/reference_profile":
-            return httpx.Response(404)
-        return httpx.Response(404)
+            return httpx2.Response(404)
+        return httpx2.Response(404)
 
-    return httpx.MockTransport(handler)
+    return httpx2.MockTransport(handler)
 
 
 def env_by_name(container: dict[str, Any]) -> dict[str, dict[str, Any]]:

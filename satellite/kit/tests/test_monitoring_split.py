@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI
 
@@ -120,7 +120,7 @@ def _configuration(**overrides: object) -> SatelliteConfiguration:
     return SatelliteConfiguration(**values)
 
 
-def _session_cookie(response: httpx.Response) -> str:
+def _session_cookie(response: httpx2.Response) -> str:
     cookie: SimpleCookie = SimpleCookie()
     cookie.load(response.headers["set-cookie"])
     return cookie[SESSION_COOKIE_NAME].value
@@ -161,8 +161,8 @@ async def test_dashboard_sessions_cross_replicas_slide_on_queries_and_stop_at_ca
         applications.append(application)
 
     clients = [
-        httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application), base_url="http://dashboard"
+        httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=application), base_url="http://dashboard"
         )
         for application in applications
     ]
@@ -217,8 +217,8 @@ async def test_dashboard_unknown_machine_route_uses_contract_body() -> None:
     application = FastAPI()
     bundle.mount(application)
 
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=application), base_url="http://dashboard"
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=application), base_url="http://dashboard"
     ) as client:
         machine = await client.get(
             f"/deployments/{DEPLOYMENT_ID}/monitoring/not-a-route",
@@ -281,8 +281,8 @@ async def test_split_worker_heartbeat_drives_dashboard_and_probe(tmp_path: Path)
     )
     application = FastAPI()
     bundle.mount(application)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=application), base_url="http://dashboard"
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=application), base_url="http://dashboard"
     ) as client:
         response = await client.get(
             f"/deployments/{DEPLOYMENT_ID}/monitoring/worker",
@@ -384,15 +384,15 @@ async def test_platform_source_caches_active_deployments_and_uses_companion_toke
             monitoring_mode="full",
         )
     )
-    sidecar_requests: list[httpx.Request] = []
+    sidecar_requests: list[httpx2.Request] = []
 
-    def sidecar(request: httpx.Request) -> httpx.Response:
+    def sidecar(request: httpx2.Request) -> httpx2.Response:
         sidecar_requests.append(request)
         if request.url.path.endswith("/manifest"):
-            return httpx.Response(200, json={"producer_tags": []})
+            return httpx2.Response(200, json={"producer_tags": []})
         if request.url.path.endswith("/recording"):
-            return httpx.Response(200, json={"state": "recording"})
-        return httpx.Response(
+            return httpx2.Response(200, json={"state": "recording"})
+        return httpx2.Response(
             200,
             json={
                 "task_type": "classification",
@@ -404,7 +404,7 @@ async def test_platform_source_caches_active_deployments_and_uses_companion_toke
     deriver = TokenDeriver("satellite-token", "stable-key")
     async with (
         PlatformClient("http://platform", "satellite-token", transport=fake.transport) as platform,
-        httpx.AsyncClient(transport=httpx.MockTransport(sidecar)) as sidecar_client,
+        httpx2.AsyncClient(transport=httpx2.MockTransport(sidecar)) as sidecar_client,
     ):
         source = PlatformDeploymentSource(
             platform,
@@ -450,16 +450,16 @@ async def test_split_dashboard_reports_recording_independently_of_worker(state: 
     healthy_id = "10000000-0000-0000-0000-000000000002"
     fake.add_deployment(deployment_record(id=healthy_id, status="active", monitoring_mode="full"))
 
-    def sidecar(request: httpx.Request) -> httpx.Response:
+    def sidecar(request: httpx2.Request) -> httpx2.Response:
         if request.url.path.endswith("/recording"):
             if healthy_id in request.url.path:
-                return httpx.Response(200, json={"state": "recording", "reason": None})
-            return httpx.Response(200, json={"state": state, "reason": "test state"})
-        return httpx.Response(200, json={})
+                return httpx2.Response(200, json={"state": "recording", "reason": None})
+            return httpx2.Response(200, json={"state": state, "reason": "test state"})
+        return httpx2.Response(200, json={})
 
     async with (
         PlatformClient("http://platform", "satellite-token", transport=fake.transport) as platform,
-        httpx.AsyncClient(transport=httpx.MockTransport(sidecar)) as sidecar_client,
+        httpx2.AsyncClient(transport=httpx2.MockTransport(sidecar)) as sidecar_client,
     ):
         source = PlatformDeploymentSource(
             platform,
@@ -477,8 +477,8 @@ async def test_split_dashboard_reports_recording_independently_of_worker(state: 
         )
         application = FastAPI()
         bundle.mount(application)
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application), base_url="http://dashboard"
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=application), base_url="http://dashboard"
         ) as client:
             response = await client.get(
                 f"/deployments/{DEPLOYMENT_ID}/monitoring/worker",

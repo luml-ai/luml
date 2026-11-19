@@ -3,9 +3,8 @@ from pathlib import Path
 from threading import Lock
 from unittest.mock import Mock
 
-import httpx
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._exceptions import FileUploadError
 from luml_api._types import PartDetails
@@ -26,12 +25,12 @@ def test_get_block_id_is_deterministic_base64() -> None:
     assert AzureFileHandler._get_block_id(7) == block_id
 
 
-@pytest.mark.respx
-def test_upload_simple_success(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_simple_success(tmp_path: Path, httpx2_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"payload-data")
     url = "https://blob.example.com/upload"
-    route = respx_mock.put(url).mock(return_value=httpx.Response(201))
+    route = httpx2_mock.put(url).mock(return_value=MockResponse(201))
     handler = AzureFileHandler()
     progress = Mock(spec=BaseProgressHandler)
     handler.on_progress = progress
@@ -44,29 +43,29 @@ def test_upload_simple_success(tmp_path: Path, respx_mock: MockRouter) -> None:
     progress.finish.assert_called_once_with()
 
 
-@pytest.mark.respx
-def test_upload_simple_error_wrapped(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_simple_error_wrapped(tmp_path: Path, httpx2_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"payload")
     url = "https://blob.example.com/upload"
-    respx_mock.put(url).mock(return_value=httpx.Response(500))
+    httpx2_mock.put(url).mock(return_value=MockResponse(500))
     handler = _handler()
 
     with pytest.raises(FileUploadError, match="Upload failed"):
         handler.upload_simple(url, str(file_path), file_size=7)
 
 
-@pytest.mark.respx
-def test_upload_multipart_success(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_multipart_success(tmp_path: Path, httpx2_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"0123456789")
     part_url_1 = "https://blob.example.com/part1"
     part_url_2 = "https://blob.example.com/part2"
     commit_url = "https://blob.example.com/commit"
 
-    respx_mock.put(part_url_1).mock(return_value=httpx.Response(201))
-    respx_mock.put(part_url_2).mock(return_value=httpx.Response(201))
-    commit_route = respx_mock.put(commit_url).mock(return_value=httpx.Response(201))
+    httpx2_mock.put(part_url_1).mock(return_value=MockResponse(201))
+    httpx2_mock.put(part_url_2).mock(return_value=MockResponse(201))
+    commit_route = httpx2_mock.put(commit_url).mock(return_value=MockResponse(201))
 
     parts = [
         PartDetails(
@@ -94,12 +93,14 @@ def test_upload_multipart_success(tmp_path: Path, respx_mock: MockRouter) -> Non
     assert f"<Latest>{block_2}</Latest>" in body
 
 
-@pytest.mark.respx
-def test_upload_multipart_error_wrapped(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_multipart_error_wrapped(
+    tmp_path: Path, httpx2_mock: MockRouter
+) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"01234")
     part_url = "https://blob.example.com/part1"
-    respx_mock.put(part_url).mock(return_value=httpx.Response(403))
+    httpx2_mock.put(part_url).mock(return_value=MockResponse(403))
     parts = [
         PartDetails(part_number=1, url=part_url, start_byte=0, end_byte=4, part_size=5)
     ]
@@ -115,11 +116,11 @@ def test_upload_multipart_error_wrapped(tmp_path: Path, respx_mock: MockRouter) 
 
 
 def test_upload_single_block_reads_correct_range(tmp_path: Path) -> None:
-    with MockRouter(assert_all_called=False) as respx_mock:
+    with MockRouter(using="httpcore2", assert_all_called=False) as httpx2_mock:
         file_path = tmp_path / "model.fnnx"
         file_path.write_bytes(b"0123456789")
         part_url = "https://blob.example.com/part"
-        route = respx_mock.put(part_url).mock(return_value=httpx.Response(201))
+        route = httpx2_mock.put(part_url).mock(return_value=MockResponse(201))
         part = PartDetails(
             part_number=4, url=part_url, start_byte=2, end_byte=5, part_size=4
         )

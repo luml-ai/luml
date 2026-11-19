@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-import httpx
+import httpx2
 import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -288,7 +288,7 @@ class FakeRelayApi:
             ]
         )
 
-    def transport(self) -> httpx.AsyncBaseTransport:
+    def transport(self) -> httpx2.AsyncBaseTransport:
         return _FakeLumlTransport(self)
 
     def _caller(self, request: Request) -> str | None:
@@ -381,16 +381,16 @@ class FakeRelayApi:
         )
 
 
-class _FakeLumlTransport(httpx.AsyncBaseTransport):
+class _FakeLumlTransport(httpx2.AsyncBaseTransport):
     def __init__(self, luml: FakeRelayApi) -> None:
         self._luml = luml
-        self._app = httpx.ASGITransport(luml.app())
+        self._app = httpx2.ASGITransport(luml.app())
 
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         if self._luml.outage is Outage.UNREACHABLE:
-            raise httpx.ConnectError("LUML is down", request=request)
+            raise httpx2.ConnectError("LUML is down", request=request)
         if self._luml.outage is Outage.FAILING:
-            return httpx.Response(500, json={"detail": "Internal Server Error"})
+            return httpx2.Response(500, json={"detail": "Internal Server Error"})
         if self._luml.outage is Outage.SILENT:
             await asyncio.Event().wait()
         return await self._app.handle_async_request(request)
@@ -487,10 +487,10 @@ def viewer_websocket(
     )
 
 
-def viewer(relay_port: int, token: str | None, host: str = SESSION_HOST) -> httpx.AsyncClient:
+def viewer(relay_port: int, token: str | None, host: str = SESSION_HOST) -> httpx2.AsyncClient:
     headers = {"host": host}
     if token is not None:
         headers[TOKEN_HEADER] = token
-    return httpx.AsyncClient(
+    return httpx2.AsyncClient(
         base_url=f"http://127.0.0.1:{relay_port}", headers=headers, timeout=5.0
     )
