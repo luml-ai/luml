@@ -306,7 +306,7 @@ def test_a_revision_2_store_exports_with_indexes_and_summaries(tmp_path: Path) -
 
     conn = connect_read_only(snapshot)
     try:
-        assert conn.execute("PRAGMA user_version").fetchone() == (3,)
+        assert conn.execute("PRAGMA user_version").fetchone() == (4,)
         assert set(TRACE_EVAL_INDEXES) <= _objects(conn, "index")
         tables = _objects(conn, "table")
         assert set(SUMMARY_TABLES) & tables == exported_summary_tables()

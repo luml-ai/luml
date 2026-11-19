@@ -214,7 +214,7 @@ def test_standalone_artifact_is_generation_2_and_round_trips(
         "status": "completed",
         "group": manifest["payload"]["group"],
         "tags": ["a"],
-        "schema_revision": 3,
+        "schema_revision": 4,
         "min_reader_revision": 2,
     }
     assert ref.validate()
@@ -384,7 +384,7 @@ def test_revision_2_store_is_migrated_in_the_copy_only(
 
     manifest = _manifest(artifact)
     assert manifest["producer_tags"] == ["luml.ai::experiment_snapshot:v2"]
-    assert manifest["payload"]["schema_revision"] == 3
+    assert manifest["payload"]["schema_revision"] == 4
     snapshot = tmp_path / "snapshot.db"
     assert extract_snapshot_db(artifact, snapshot) == "exp.db"
     assert_publishable_db(snapshot)
@@ -392,7 +392,7 @@ def test_revision_2_store_is_migrated_in_the_copy_only(
     expected = tmp_path / "expected.db"
     copy_with_layout(db_path, expected)
     conn = sqlite3.connect(expected)
-    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    assert ExperimentMigrationRunner(conn).migrate() == [3, 4]
     conn.close()
     assert _rows_without_migration_times(snapshot) == _rows_without_migration_times(
         expected
@@ -401,6 +401,29 @@ def test_revision_2_store_is_migrated_in_the_copy_only(
     assert _summary_tables_of(snapshot) == sorted(exported_summary_tables())
     assert live_database_state(db_path) == before
     assert before["user_version"] == 2
+
+
+def test_revision_3_store_is_published_at_revision_3(
+    store: Path, tmp_path: Path
+) -> None:
+    db_path = _revision2_store(store, REVISION2_ROWS)
+    conn = sqlite3.connect(db_path)
+    assert ExperimentMigrationRunner(conn).migrate(target_version=3) == [3]
+    conn.close()
+    before = live_database_state(db_path)
+    tracker = _tracker(store)
+    artifact = tmp_path / "exp.tar"
+
+    tracker.export(str(artifact), experiment_id=EXP_ID)
+    tracker.backend.close()
+
+    assert _manifest(artifact)["payload"]["schema_revision"] == 3
+    snapshot = tmp_path / "snapshot.db"
+    extract_snapshot_db(artifact, snapshot)
+    assert_publishable_db(snapshot)
+    _check_invariants(snapshot)
+    assert _summary_tables_of(snapshot) == sorted(exported_summary_tables())
+    assert live_database_state(db_path) == before
 
 
 def test_rows_revision_3_cannot_store_fall_back_to_generation_1(
@@ -984,7 +1007,7 @@ def test_experiment_reference_accepts_both_generations(
         assert reference.snapshot_member() == member
         assert reference.get_manifest().payload.schema_revision is None
     assert generation_2.validate()
-    assert generation_2.get_manifest().payload.schema_revision == 3
+    assert generation_2.get_manifest().payload.schema_revision == 4
 
     without_database = tmp_path / "no-db.tar"
     with tarfile.open(without_database, "w") as tar:

@@ -245,7 +245,7 @@ class ExperimentMigrationRunner(BaseMigrationRunner):
 
 MigrationRunner = MetaDBMigrationRunner
 
-KNOWN_EXPERIMENT_REVISION = 3
+KNOWN_EXPERIMENT_REVISION = 4
 # Released SDKs bring older databases to this revision whenever they open them.
 READ_MIGRATION_REVISION = 2
 
@@ -261,6 +261,10 @@ class ExperimentSchema:
     @property
     def has_metric_points(self) -> bool:
         return self.revision >= 3
+
+    @property
+    def has_metric_writes(self) -> bool:
+        return self.revision >= 4
 
 
 def read_experiment_schema(

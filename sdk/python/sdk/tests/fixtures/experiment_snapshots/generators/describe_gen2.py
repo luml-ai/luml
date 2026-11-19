@@ -1,7 +1,8 @@
-"""Write the expected-content JSON for a fixture of fixtures i to n (stdlib only).
+"""Write the expected-content JSON for a fixture of fixtures i to p (stdlib only).
 
 Metric catalogs and buckets come from a brute force over what was logged
-(metric_data), never from SDK code; schema facts come from the artifact. The DB is
+(metric_data), never from SDK code; schema facts and the write markers of revision 4
+come from the artifact. The DB is
 cross-checked against both and the script fails on any mismatch.
 
 Usage: describe_gen2.py <artifact.tar> <population.log.json> <out.json> <spec-json>
@@ -150,6 +151,13 @@ def main() -> None:
     if "metric_points" not in tables:
         for entry in metric_expectations["catalog"]:
             entry.update(count=None, min=None, max=None)
+    if "metric_keys" in tables and "writes" in {
+        row[1] for row in conn.execute("PRAGMA table_info(metric_keys)")
+    }:
+        writes = dict(conn.execute("SELECT key, writes FROM metric_keys"))
+        for entry in metric_expectations["catalog"]:
+            assert writes[entry["key"]] >= 1, entry["key"]
+            entry["writes"] = writes[entry["key"]]
 
     tag, payload = producer_facts(artifact, spec["artifact_kind"])
     description = {

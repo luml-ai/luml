@@ -1297,7 +1297,8 @@ publishing, removed again when the context exits.
 
 Rows buffered so far are flushed first. The copy is one consistent point in
 time even while other threads or processes write; their writes are not
-blocked. A copy below schema revision 3 is migrated to it, unless its rows
+blocked. A copy below schema revision 3 is migrated to the newest revision
+this luml-sdk knows, unless its rows
 cannot be stored at revision 3: the snapshot then keeps the source revision
 and says why in `fallback_reason`. The live database is never changed.
 Temporary files go next to the database.
@@ -2426,6 +2427,7 @@ Summarises every metric of an experiment without reading its points: first
 and last step, point count, and the smallest and largest numeric value.
 Below revision 3 only the (key, step) index is read, so the count, smallest
 and largest value are None; a file without that index is scanned instead.
+The write marker `writes` is None below revision 4.
 
 **Arguments**:
 

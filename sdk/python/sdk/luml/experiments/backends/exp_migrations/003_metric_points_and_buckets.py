@@ -76,12 +76,13 @@ _SCHEMA_INFO = (
     ("bucket_max_level", str(BUCKET_MAX_LEVEL)),
 )
 
-# Released SDKs bound numpy integers as their raw little-endian bytes.
-_NUMPY_STEP = "typeof(step) = 'blob' AND length(step) IN (4, 8)"
-_UNSUPPORTED_ROW = (
-    f"typeof(key) <> 'text' OR NOT (typeof(step) = 'integer' OR ({_NUMPY_STEP}))"
-)
+# Released SDKs bound numpy scalars other than float64 as their raw little-endian
+# bytes; the decoder returns NULL for bytes that may not hold an integer.
 _DECODE_STEP = "luml_decode_numpy_step"
+_UNSUPPORTED_ROW = (
+    f"typeof(key) <> 'text' OR NOT (typeof(step) = 'integer' OR "
+    f"(typeof(step) = 'blob' AND {_DECODE_STEP}(step) IS NOT NULL))"
+)
 
 _COUNT_UNSUPPORTED = f"""
     SELECT count(*), (SELECT 'key ' || quote(key) || ', step ' || quote(step)
@@ -125,7 +126,7 @@ _COPY_NUMPY_STEPS = f"""
     INSERT INTO metric_points (metric_id, step, value, logged_ms)
     SELECT k.id, {_DECODE_STEP}(d.step), d.value, {_LOGGED_MS}
     FROM dynamic_metrics d JOIN metric_keys k ON k.key = d.key
-    WHERE typeof(d.step) = 'blob' AND length(d.step) IN (4, 8)
+    WHERE typeof(d.step) = 'blob'
     ORDER BY d.key, d.step
     ON CONFLICT (metric_id, step) DO UPDATE
     SET value = excluded.value, logged_ms = excluded.logged_ms
@@ -160,8 +161,21 @@ _BUILD_UPPER_LEVEL = """
 """
 
 
-def _decode_numpy_step(raw: bytes) -> int:
-    return int.from_bytes(raw, "little", signed=True)
+# From 0 up to these bounds, bytes that a float could have given are no real step: as
+# a float32 a 4-byte pattern below 2**29 is under 1.1e-19, as a float16 a 2-byte one
+# below 2**10 is a denormal. Signed and unsigned types agree there. 8 bytes are always
+# an int64: float64 was bound as a number.
+_DECODABLE_STEP_LIMITS = {8: None, 4: 2**29, 2: 2**10, 1: 2**7}
+
+
+def _decode_numpy_step(raw: object) -> int | None:
+    if not isinstance(raw, bytes) or len(raw) not in _DECODABLE_STEP_LIMITS:
+        return None
+    step = int.from_bytes(raw, "little", signed=True)
+    limit = _DECODABLE_STEP_LIMITS[len(raw)]
+    if limit is not None and not 0 <= step < limit:
+        return None
+    return step
 
 
 def _legacy_table_exists(cursor: sqlite3.Cursor) -> bool:
@@ -186,10 +200,10 @@ def _register_step_decoder(conn: sqlite3.Connection) -> None:
 
 
 def _copy_legacy_metrics(conn: sqlite3.Connection, cursor: sqlite3.Cursor) -> None:
+    _register_step_decoder(conn)
     count, example = cursor.execute(_COUNT_UNSUPPORTED).fetchall()[0]
     if count:
         raise LegacyMetricRowsError(count, example)
-    _register_step_decoder(conn)
     cursor.execute(_COPY_KEYS)
     cursor.execute(_COPY_INTEGER_STEPS)
     cursor.execute(_COPY_NUMPY_STEPS)

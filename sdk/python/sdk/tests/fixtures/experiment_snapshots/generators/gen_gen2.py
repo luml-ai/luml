@@ -1,4 +1,4 @@
-"""Populate, export or embed the stores behind fixtures i to n, with the luml-sdk of the
+"""Populate, export or embed the stores behind fixtures i to p, with the luml-sdk of the
 Python that runs it (released 0.5.0 or this tree's). Run under fakeroot.
 
 Usage:

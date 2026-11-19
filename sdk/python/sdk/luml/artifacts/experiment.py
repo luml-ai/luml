@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import contextlib
+import errno
+import os
+import secrets
+import shutil
+import stat
 import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, BinaryIO
 
 from pydantic import BaseModel
 
@@ -20,6 +26,12 @@ if TYPE_CHECKING:
 # by HTTP range; generation 1 zipped it.
 SNAPSHOT_MEMBERS = {2: "exp.db", 1: "exp.db.zip"}
 _GENERATION_2_PAYLOAD = {"schema_revision", "min_reader_revision"}
+# A file that cannot be replaced by a rename: a bind mount of the file itself (EBUSY,
+# EXDEV), or one owned by another user in a sticky directory (EPERM, EACCES).
+_IN_PLACE_ERRNOS = {errno.EBUSY, errno.EXDEV, errno.EPERM, errno.EACCES}
+# A directory where no file may be created next to the target. Other failures, such
+# as a full disk, are raised so the earlier export is not truncated.
+_NO_SIBLING_ERRNOS = {errno.EACCES, errno.EPERM, errno.EROFS}
 
 
 class ExperimentManifestPayload(BaseModel):
@@ -106,23 +118,71 @@ def _manifest_json(
     return manifest.model_dump_json(indent=2, exclude=exclude).encode("utf-8")
 
 
+def _write_tar(
+    file: BinaryIO,
+    manifest_json: bytes,
+    database: tuple[str, _BaseFile],
+    attachments: tuple[_BaseFile, _BaseFile] | None,
+) -> None:
+    with tarfile.open(fileobj=file, mode="w") as tar:
+        add_bytes_to_tar(tar, "manifest.json", manifest_json)
+        database[1].add_to_tar(tar, database[0])
+        if attachments is not None:
+            attachments_tar, index_file = attachments
+            attachments_tar.add_to_tar(tar, "attachments.tar")
+            index_file.add_to_tar(tar, "attachments.index.json")
+
+
 def _write_artifact(
     output_path: str,
     manifest_json: bytes,
     database: tuple[str, _BaseFile],
     attachments: tuple[_BaseFile, _BaseFile] | None,
 ) -> None:
+    """Writes next to the target and moves the archive onto it only once complete, so
+    a failed export leaves an earlier file at `output_path` as it was.
+
+    Where no file may be created next to the target or moved onto it (a read-only
+    directory, a bind-mounted file), the target is written in place instead. A
+    replaced export keeps its permission bits.
+    """
+    target = Path(os.path.realpath(output_path))
+    target_stat: os.stat_result | None = None
+    # Refused as writing in place would be, so a read-only earlier export stays.
+    with contextlib.suppress(FileNotFoundError):
+        os.close(os.open(target, os.O_WRONLY))
+        target_stat = os.stat(target)
+    # A device node must stay one: a rename would put a regular file in its place.
+    if target_stat is not None and not stat.S_ISREG(target_stat.st_mode):
+        with open(target, "wb") as file:
+            _write_tar(file, manifest_json, database, attachments)
+        return
+    # Named apart from the target so a long but valid target name cannot overflow it.
+    partial = target.with_name(f".luml-{secrets.token_hex(8)}.partial")
     try:
-        with tarfile.open(output_path, "w") as tar:
-            add_bytes_to_tar(tar, "manifest.json", manifest_json)
-            database[1].add_to_tar(tar, database[0])
-            if attachments is not None:
-                attachments_tar, index_file = attachments
-                attachments_tar.add_to_tar(tar, "attachments.tar")
-                index_file.add_to_tar(tar, "attachments.index.json")
-    except BaseException:
-        Path(output_path).unlink(missing_ok=True)
-        raise
+        # Created like `open` would, so a new archive gets the mode the umask allows.
+        # Without O_BINARY, Windows opens it in text mode and rewrites every LF.
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+        fd = os.open(partial, flags, 0o666)
+    except OSError as error:
+        if error.errno not in _NO_SIBLING_ERRNOS:
+            raise
+        with open(target, "wb") as file:
+            _write_tar(file, manifest_json, database, attachments)
+        return
+    try:
+        with os.fdopen(fd, "wb") as file:
+            _write_tar(file, manifest_json, database, attachments)
+        if target_stat is not None:
+            os.chmod(partial, stat.S_IMODE(target_stat.st_mode))
+        try:
+            os.replace(partial, target)
+        except OSError as error:
+            if error.errno not in _IN_PLACE_ERRNOS:
+                raise
+            shutil.copyfile(partial, target)
+    finally:
+        partial.unlink(missing_ok=True)
 
 
 def save_experiment(

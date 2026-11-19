@@ -158,7 +158,7 @@ def stores(
     new_db = root / "revision3" / EXP_ID / "exp.db"
     for db_path in (old_db, new_db):
         _insert_rows(db_path)
-    assert (_revision(old_db), _revision(new_db)) == (2, 3)
+    assert (_revision(old_db), _revision(new_db)) == (2, 4)
     old = SQLiteBackend(str(root / "revision2"), flush_interval=0)
     new = SQLiteBackend(str(root / "revision3"), flush_interval=0)
     yield old, new

@@ -239,7 +239,7 @@ def test_full_queue_is_flushed_before_the_next_row(
     assert _count_rows(store, "dynamic_metrics") == 3
 
 
-def test_inline_flush_runs_without_the_step_counter_lock(
+def test_a_flush_at_the_threshold_runs_with_no_lock_held(
     backend: SQLiteBackend, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     buffer = backend._write_buffer
@@ -1155,36 +1155,6 @@ def test_log_call_racing_delete_leaves_nothing_behind(
 
     assert not (store / EXP_ID).exists()
     assert not caplog.records
-
-
-def test_delete_waits_for_a_log_call_seeding_its_step_counter(
-    backend: SQLiteBackend, store: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    seeding = threading.Event()
-    release = threading.Event()
-    original_connection = backend._get_experiment_connection
-
-    def pausing_connection(experiment_id: str, *, write: bool = False) -> Any:  # noqa: ANN401
-        seeding.set()
-        release.wait()
-        return original_connection(experiment_id, write=write)
-
-    monkeypatch.setattr(backend, "_get_experiment_connection", pausing_connection)
-    logger_thread = threading.Thread(
-        target=backend.log_dynamic, args=(EXP_ID, "loss", 0.1)
-    )
-    logger_thread.start()
-    seeding.wait()
-    deleter = threading.Thread(target=backend.delete_experiment, args=(EXP_ID,))
-    deleter.start()
-
-    deleter.join(timeout=0.2)
-    deleted_while_seeding = not deleter.is_alive()
-    release.set()
-    logger_thread.join()
-    deleter.join()
-    assert not deleted_while_seeding
-    assert not (store / EXP_ID).exists()
 
 
 def _abandon_cyclic_tracker(store: Path, flush_interval: float) -> SQLiteBackend:

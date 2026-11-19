@@ -131,13 +131,13 @@ def test_migration_keeps_every_metric_row_and_read(
 
     conn = sqlite3.connect(db_path)
     try:
-        assert ExperimentMigrationRunner(conn).migrate() == [3]
+        assert ExperimentMigrationRunner(conn).migrate() == [3, 4]
         _assert_same_rows(rows_before, conn.execute(LEGACY_ROWS).fetchall())
         assert_bucket_invariants(conn)
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
         assert dict(conn.execute("SELECT key, value FROM exp_schema_info")) == {
             "min_reader_revision": "2",
-            "min_writer_revision": "3",
+            "min_writer_revision": "4",
             "bucket_min_level": "3",
             "bucket_max_level": "12",
         }
@@ -254,13 +254,18 @@ def test_migration_floors_fractional_seconds_to_milliseconds(tmp_path: Path) -> 
     ]
 
 
+def _numpy_step(step: int, size: int = 8) -> bytes:
+    return step.to_bytes(size, "little", signed=True)
+
+
 @pytest.mark.parametrize(
     ("row", "example"),
     [
         (("loss", 1.0, 2.5, None), "key 'loss', step 2.5"),
         (("loss", 1.0, "abc", None), "key 'loss', step 'abc'"),
         (("loss", 1.0, None, None), "key 'loss', step NULL"),
-        (("loss", 1.0, b"\x01\x00", None), "key 'loss', step X'0100'"),
+        (("loss", 1.0, b"\x01\x00\x00", None), "key 'loss', step X'010000'"),
+        (("loss", 1.0, _numpy_step(-1, 4), None), "key 'loss', step X'FFFFFFFF'"),
         ((None, 1.0, 1, None), "key NULL, step 1"),
         ((b"loss", 1.0, 1, None), "key X'6C6F7373', step 1"),
     ],
@@ -281,14 +286,10 @@ def test_migration_refuses_rows_revision_3_cannot_store(
     assert schema_snapshot(db_path) == before
 
 
-def _numpy_step(step: int, size: int = 8) -> bytes:
-    return step.to_bytes(size, "little", signed=True)
-
-
 def test_migration_decodes_numpy_steps(tmp_path: Path) -> None:
     rows = [
         ("np", 0.5, _numpy_step(100), "2026-01-02 03:04:05"),
-        ("np", 1.5, _numpy_step(-7, 4), "2026-01-02 03:04:05"),
+        ("np", 1.5, _numpy_step(-7), "2026-01-02 03:04:05"),
         ("np", 2.5, _numpy_step(2**63 - 1), None),
         # Decoded steps equal to stored ones: the later logged_at wins, on a tie
         # (or without times) the row that was an integer.
@@ -368,7 +369,7 @@ def test_failed_migration_leaves_revision_2_intact_and_usable(tmp_path: Path) ->
     conn = sqlite3.connect(db_path)
     conn.execute(LEGACY_INSERT, ("loss", 9.0, 99, None))
     conn.commit()
-    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    assert ExperimentMigrationRunner(conn).migrate() == [3, 4]
     assert_bucket_invariants(conn)
     conn.close()
 
@@ -390,7 +391,7 @@ def test_a_migration_that_ran_out_of_space_succeeds_on_the_same_connection(
         ExperimentMigrationRunner(conn).migrate()
     conn.execute("PRAGMA max_page_count = 1073741823")
 
-    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    assert ExperimentMigrationRunner(conn).migrate() == [3, 4]
     assert conn.execute(
         "SELECT count(*), min(step), max(step) FROM dynamic_metrics"
     ).fetchone() == (20_000, 0, 19_999)
@@ -447,11 +448,11 @@ def test_two_processes_migrating_at_once_migrate_once(tmp_path: Path) -> None:
     for child in children:
         child.join(60)
 
-    assert sorted(outcomes, key=len) == [[], [], [3]]
+    assert sorted(outcomes, key=len) == [[], [], [3, 4]]
     conn = sqlite3.connect(db_path)
     assert conn.execute(
         "SELECT version FROM exp_schema_migrations ORDER BY version"
-    ).fetchall() == [(1,), (2,), (3,)]
+    ).fetchall() == [(1,), (2,), (3,), (4,)]
     assert conn.execute("SELECT count(*) FROM metric_points").fetchone()[0] == len(rows)
     assert_bucket_invariants(conn)
     conn.close()

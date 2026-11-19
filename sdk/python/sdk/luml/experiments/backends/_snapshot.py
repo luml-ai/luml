@@ -217,8 +217,9 @@ def _build_snapshot(
     copy = work_dir / "copy.db"
     _vacuum_into(pool, work_dir, db_path, copy)
     schema = _read_schema(pool, work_dir, copy)
-    if schema.revision >= KNOWN_EXPERIMENT_REVISION:
-        if schema.revision == KNOWN_EXPERIMENT_REVISION:
+    # Revision 3 is published as it is: revision 4 only adds what live readers use.
+    if schema.has_metric_points:
+        if schema.revision <= KNOWN_EXPERIMENT_REVISION:
             _add_summaries(pool, work_dir, copy)
         return _snapshot(copy, work_dir, schema)
 

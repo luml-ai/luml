@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import math
 import random
@@ -10,13 +11,21 @@ from luml.experiments.backends._exceptions import (
     InvalidBucketLevelError,
     TooManyBucketsError,
 )
-from luml.experiments.backends.data_types import MetricBucket, MetricBuckets
+from luml.experiments.backends.data_types import (
+    AnnotationKind,
+    AnnotationValueType,
+    MetricBucket,
+    MetricBuckets,
+)
 from luml.experiments.backends.metric_store import (
     MAX_RETURNED_BUCKETS,
     choose_bucket_level,
     fetch_metric_buckets,
 )
-from luml.experiments.backends.migration_runner import read_experiment_schema
+from luml.experiments.backends.migration_runner import (
+    ExperimentMigrationRunner,
+    read_experiment_schema,
+)
 from luml.experiments.backends.sqlite import SQLiteBackend
 from tests.experiments.metric_helpers import (
     FIXTURES_DIR,
@@ -28,6 +37,7 @@ from tests.experiments.metric_helpers import (
     brute_force_buckets,
     make_revision2_store,
     make_store,
+    schema_snapshot,
     sums_close,
 )
 
@@ -275,7 +285,7 @@ def test_catalog(backend: SQLiteBackend) -> None:
     catalog = backend.get_metric_catalog(EXP_ID)
 
     assert (catalog.revision, catalog.bucket_min_level, catalog.bucket_max_level) == (
-        3,
+        4,
         3,
         12,
     )
@@ -286,6 +296,84 @@ def test_catalog(backend: SQLiteBackend) -> None:
         ("a", 0, 0, 1, 1.0, 1.0),
         ("b", -2, 9, 3, 3.0, float("inf")),
     ]
+
+
+def _write_markers(backend: SQLiteBackend) -> dict[str, int | None]:
+    return {m.key: m.writes for m in backend.get_metric_catalog(EXP_ID).metrics}
+
+
+def _write_everything_but_metrics(backend: SQLiteBackend) -> None:
+    backend.log_static(EXP_ID, "lr", 0.1)
+    backend.log_span(EXP_ID, "t", "s", "n", 0, 1)
+    backend.log_eval_sample(EXP_ID, "e1", "ds", {"q": 1})
+    backend.flush()
+    feedback = (AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "u")
+    backend.log_eval_annotation(EXP_ID, "ds", "e1", "good", *feedback)
+    backend.log_span_annotation(EXP_ID, "t", "s", "note", *feedback)
+    backend.flush()
+
+
+def test_the_write_marker_changes_with_every_committed_write_to_its_metric(
+    backend: SQLiteBackend,
+) -> None:
+    _log(backend, "a", [(0, 0.0), (5, 5.0), (10, 10.0)])
+    _log(backend, "b", [(0, 1.0)])
+    backend.flush()
+    seen = [_write_markers(backend)]
+
+    _log(backend, "a", [(11, 1.0)])
+    backend.flush()
+    seen.append(_write_markers(backend))
+    summary = backend.get_metric_catalog(EXP_ID).metrics[0]
+    _log(backend, "a", [(5, 7.0)])
+    backend.flush()
+    seen.append(_write_markers(backend))
+    _log(backend, "a", [(5, 7.0)])
+    backend.flush()
+    seen.append(_write_markers(backend))
+    _write_everything_but_metrics(backend)
+    seen.append(_write_markers(backend))
+
+    a_markers = [markers["a"] for markers in seen]
+    assert all(isinstance(marker, int) for marker in a_markers)
+    assert len(set(a_markers[:4])) == 4
+    assert a_markers[4] == a_markers[3]
+    assert len({markers["b"] for markers in seen}) == 1
+    # An overwrite changes nothing else the catalog says about the metric.
+    overwritten = backend.get_metric_catalog(EXP_ID).metrics[0]
+    assert dataclasses.replace(overwritten, writes=summary.writes) == summary
+
+
+def test_a_revision_3_store_tracks_writes_from_its_next_metric_write(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    db_path = make_revision2_store(store, EXP_ID)
+    conn = sqlite3.connect(db_path)
+    conn.executemany(
+        LEGACY_INSERT,
+        [("loss", 1.0, 0, None), ("loss", 2.0, 1, None), ("acc", 0.5, 0, None)],
+    )
+    conn.commit()
+    assert ExperimentMigrationRunner(conn).migrate(target_version=3) == [3]
+    conn.close()
+    before = schema_snapshot(db_path)
+    backend = SQLiteBackend(str(store), flush_interval=NO_TIMER_FLUSH)
+
+    catalog = backend.get_metric_catalog(EXP_ID)
+    assert catalog.revision == 3
+    assert _write_markers(backend) == {"acc": None, "loss": None}
+    assert schema_snapshot(db_path) == before
+
+    _log(backend, "loss", [(1, 3.0)])
+    backend.flush()
+
+    assert backend.get_experiment_ddl_version(EXP_ID) == 4
+    markers = _write_markers(backend)
+    assert markers["acc"] == 0
+    assert isinstance(markers["loss"], int)
+    assert markers["loss"] > 0
+    backend.close()
 
 
 def test_level_vectors() -> None:

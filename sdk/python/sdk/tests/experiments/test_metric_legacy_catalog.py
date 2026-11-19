@@ -199,7 +199,7 @@ def test_revision_3_catalog_skips_no_rows(tmp_path: Path) -> None:
     catalog = backend.get_metric_catalog("exp")
     backend.close()
 
-    assert catalog.revision == 3
+    assert catalog.revision == 4
     assert [m.key for m in catalog.metrics] == ["loss", "mixed"]
     assert catalog.skipped_rows == 0
 

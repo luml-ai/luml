@@ -121,7 +121,7 @@ def test_reads_never_migrate_a_revision_2_experiment(tmp_path: Path) -> None:
 
     backend.log_dynamic(EXPERIMENT_ID, "loss", 0.5)
     backend.flush()
-    assert backend.get_experiment_ddl_version(EXPERIMENT_ID) == 3
+    assert backend.get_experiment_ddl_version(EXPERIMENT_ID) == 4
     history = backend.get_experiment_metric_history(EXPERIMENT_ID, "loss")
     assert [point["step"] for point in history] == [0, 1, 2, 3, 4]
     backend.close()
@@ -178,7 +178,7 @@ def test_only_a_metric_write_migrates(tmp_path: Path) -> None:
 
     backend.log_dynamic(EXPERIMENT_ID, "loss", 0.5)
     backend.flush()
-    assert backend.get_experiment_ddl_version(EXPERIMENT_ID) == 3
+    assert backend.get_experiment_ddl_version(EXPERIMENT_ID) == 4
     history = backend.get_experiment_metric_history(EXPERIMENT_ID, "loss")
     assert [point["step"] for point in history] == [0, 1, 2, 3, 99, 100]
     backend.close()
@@ -195,20 +195,20 @@ def _released_reads(db_path: Path) -> list[list[tuple[Any, ...]]]:
         conn.close()
 
 
-def test_released_sdk_statements_on_revision_3(tmp_path: Path) -> None:
+def test_released_sdk_statements_on_revision_4(tmp_path: Path) -> None:
     store, db_path = _revision2_store(tmp_path)
     on_revision_2 = _released_reads(db_path)
 
     conn = sqlite3.connect(db_path)
-    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    assert ExperimentMigrationRunner(conn).migrate() == [3, 4]
     conn.close()
-    assert schema_snapshot(db_path)[1] == 3
+    assert schema_snapshot(db_path)[1] == 4
     assert _released_reads(db_path) == on_revision_2
 
     conn = sqlite3.connect(db_path)
     points_before = conn.execute("SELECT * FROM metric_points").fetchall()
     with pytest.raises(
-        sqlite3.IntegrityError, match="schema revision 3; upgrade luml-sdk"
+        sqlite3.IntegrityError, match="schema revision 4; upgrade luml-sdk"
     ):
         conn.execute(RELEASED_INSERT, ("loss", 1.0, 99))
     conn.rollback()
@@ -218,9 +218,9 @@ def test_released_sdk_statements_on_revision_3(tmp_path: Path) -> None:
     assert _released_reads(db_path) == on_revision_2
 
 
-def _set_revision_4(db_path: Path, min_reader: int, min_writer: int) -> None:
+def _set_revision_5(db_path: Path, min_reader: int, min_writer: int) -> None:
     conn = sqlite3.connect(db_path)
-    conn.execute("INSERT INTO exp_schema_migrations (version) VALUES (4)")
+    conn.execute("INSERT INTO exp_schema_migrations (version) VALUES (5)")
     conn.execute(
         "UPDATE exp_schema_info SET value = ? WHERE key = 'min_reader_revision'",
         (str(min_reader),),
@@ -229,12 +229,12 @@ def _set_revision_4(db_path: Path, min_reader: int, min_writer: int) -> None:
         "UPDATE exp_schema_info SET value = ? WHERE key = 'min_writer_revision'",
         (str(min_writer),),
     )
-    conn.execute("PRAGMA user_version = 4")
+    conn.execute("PRAGMA user_version = 5")
     conn.commit()
     conn.close()
 
 
-def _revision4_store(
+def _revision5_store(
     tmp_path: Path, min_reader: int, min_writer: int
 ) -> tuple[Path, Path]:
     store = tmp_path / "store"
@@ -243,12 +243,12 @@ def _revision4_store(
     backend.log_dynamic(EXPERIMENT_ID, "loss", 1.0)
     backend.close()
     db_path = store / EXPERIMENT_ID / "exp.db"
-    _set_revision_4(db_path, min_reader, min_writer)
+    _set_revision_5(db_path, min_reader, min_writer)
     return store, db_path
 
 
-def test_revision_4_needing_a_newer_reader_is_refused(tmp_path: Path) -> None:
-    store, db_path = _revision4_store(tmp_path, min_reader=4, min_writer=4)
+def test_revision_5_needing_a_newer_reader_is_refused(tmp_path: Path) -> None:
+    store, db_path = _revision5_store(tmp_path, min_reader=5, min_writer=5)
     before = schema_snapshot(db_path)
     backend = SQLiteBackend(str(store))
     with pytest.raises(ExperimentReaderTooOldError, match="needs a newer reader"):
@@ -266,10 +266,10 @@ def test_revision_4_needing_a_newer_reader_is_refused(tmp_path: Path) -> None:
     assert schema_snapshot(db_path) == before
 
 
-def test_revision_4_readable_and_writable_is_used_without_migrating(
+def test_revision_5_readable_and_writable_is_used_without_migrating(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    store, db_path = _revision4_store(tmp_path, min_reader=2, min_writer=3)
+    store, db_path = _revision5_store(tmp_path, min_reader=2, min_writer=4)
     before = schema_snapshot(db_path)
     backend = SQLiteBackend(str(store))
     with caplog.at_level(logging.WARNING):
@@ -285,15 +285,15 @@ def test_revision_4_readable_and_writable_is_used_without_migrating(
     conn = sqlite3.connect(db_path)
     assert conn.execute(
         "SELECT MAX(version) FROM exp_schema_migrations"
-    ).fetchone() == (4,)
+    ).fetchone() == (5,)
     assert_bucket_invariants(conn)
     conn.close()
 
 
-def test_revision_4_needing_a_newer_writer_reads_but_refuses_writes(
+def test_revision_5_needing_a_newer_writer_reads_but_refuses_writes(
     tmp_path: Path,
 ) -> None:
-    store, db_path = _revision4_store(tmp_path, min_reader=2, min_writer=4)
+    store, db_path = _revision5_store(tmp_path, min_reader=2, min_writer=5)
     before = schema_snapshot(db_path)
     backend = SQLiteBackend(str(store))
     assert backend.get_experiment_data(EXPERIMENT_ID).dynamic_metrics == {
@@ -327,7 +327,7 @@ def test_a_long_lived_reader_follows_a_migration_by_another_backend(
     writer.close()
 
     catalog = reader.get_metric_catalog(EXPERIMENT_ID)
-    assert catalog.revision == 3
+    assert catalog.revision == 4
     assert catalog.bucket_max_level is not None
     assert [(m.key, m.count) for m in catalog.metrics] == [("acc", 2), ("loss", 5)]
     assert reader.get_experiment_data(EXPERIMENT_ID).dynamic_metrics["loss"][-1] == {
@@ -335,7 +335,7 @@ def test_a_long_lived_reader_follows_a_migration_by_another_backend(
         "step": 4,
     }
 
-    _set_revision_4(db_path, min_reader=4, min_writer=4)
+    _set_revision_5(db_path, min_reader=5, min_writer=5)
     with pytest.raises(ExperimentReaderTooOldError):
         reader.get_metric_catalog(EXPERIMENT_ID)
     reader.close()
@@ -346,7 +346,7 @@ def test_a_database_past_every_known_revision_gets_no_missing_migration(
 ) -> None:
     db_path = build_revision2_db(tmp_path / "exp.db")
     conn = sqlite3.connect(db_path)
-    conn.execute("INSERT INTO exp_schema_migrations (version) VALUES (4)")
+    conn.execute("INSERT INTO exp_schema_migrations (version) VALUES (5)")
     conn.commit()
     before = schema_snapshot(db_path)
 
@@ -596,8 +596,116 @@ def test_numpy_steps_are_skipped_by_revision_2_reads_and_decoded_on_write(
     conn.close()
 
 
-def test_a_non_integer_stored_step_fails_the_implicit_step_call(
+def _released_numpy_row(tmp_path: Path, dtype: str, step: int) -> Path:
+    """A revision 2 store with the row SDK 0.5 stored for a numpy step: the
+    scalar's raw bytes, except float64, which sqlite3 binds as a float."""
+    np = pytest.importorskip("numpy")
+    store, db_path = _revision2_store(tmp_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute(RELEASED_INSERT, ("np", 1.0, getattr(np, dtype)(step)))
+    conn.commit()
+    conn.close()
+    return store
+
+
+@pytest.mark.parametrize(
+    ("dtype", "step"),
+    [
+        ("int64", 3),
+        ("int64", -3),
+        ("int64", 2**40),
+        ("int32", 3),
+        ("int32", 2**29 - 1),
+        ("uint32", 3),
+        ("int16", 5),
+        ("uint16", 2**10 - 1),
+        ("int8", 7),
+        ("uint8", 2**7 - 1),
+    ],
+)
+def test_migration_decodes_a_numpy_step_that_can_only_be_an_integer(
+    tmp_path: Path, dtype: str, step: int
+) -> None:
+    store = _released_numpy_row(tmp_path, dtype, step)
+    backend = SQLiteBackend(str(store), flush_interval=0)
+    backend.log_dynamic(EXPERIMENT_ID, "other", 1.0, step=1)
+    history = backend.get_experiment_metric_history(EXPERIMENT_ID, "np")
+    assert backend.get_metric_catalog(EXPERIMENT_ID).revision == 4
+    backend.close()
+    assert [point["step"] for point in history] == [step]
+
+
+@pytest.mark.parametrize(
+    ("dtype", "step"),
+    [
+        ("float32", 1),
+        ("uint32", 4_000_000_000),
+        ("int32", -1),
+        ("int32", 2**29),
+        ("float16", 1),
+        ("uint16", 2**10),
+        ("int8", -1),
+        ("uint8", 2**7),
+    ],
+)
+def test_a_numpy_step_that_may_not_be_an_integer_refuses_the_migration(
+    tmp_path: Path, dtype: str, step: int
+) -> None:
+    store = _released_numpy_row(tmp_path, dtype, step)
+    db_path = store / EXPERIMENT_ID / "exp.db"
+    before = schema_snapshot(db_path)
+    metric_rows = _metric_rows(db_path)
+    backend = SQLiteBackend(str(store), flush_interval=0)
+
+    with pytest.raises(LegacyMetricRowsError, match="key 'np', step X'") as raised:
+        backend.log_dynamic(EXPERIMENT_ID, "loss", 9.0)
+    assert raised.value.count == 1
+    catalog = backend.get_metric_catalog(EXPERIMENT_ID)
+    assert (catalog.revision, catalog.skipped_rows) == (2, 1)
+    history = backend.get_experiment_metric_history(EXPERIMENT_ID, "loss")
+    assert [point["step"] for point in history] == [0, 1, 2, 3]
+    backend.close()
+    assert schema_snapshot(db_path) == before
+    assert _metric_rows(db_path) == metric_rows
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "step"),
+    [
+        ("loss", 1.0, 1.5),
+        ("loss", 1.0, "x"),
+        ("loss", 1.0, 2**63),
+        (object(), 1.0, 1),
+        ("loss", object(), 1),
+        ("loss", "high", 1),
+    ],
+    ids=["fractional", "text", "too-large", "key", "value", "text-value"],
+)
+def test_a_refused_metric_write_leaves_revision_2_to_released_writers(
     tmp_path: Path,
+    key: Any,  # noqa: ANN401
+    value: Any,  # noqa: ANN401
+    step: Any,  # noqa: ANN401
+) -> None:
+    store, db_path = _revision2_store(tmp_path)
+    before = schema_snapshot(db_path)
+    backend = SQLiteBackend(str(store), flush_interval=0)
+
+    with pytest.raises((TypeError, ValueError, OverflowError)):
+        backend.log_dynamic(EXPERIMENT_ID, key, value, step=step)
+    backend.close()
+
+    assert schema_snapshot(db_path) == before
+    conn = sqlite3.connect(db_path)
+    versions = conn.execute("SELECT version FROM exp_schema_migrations").fetchall()
+    conn.execute(RELEASED_INSERT, ("loss", 1.0, 7))
+    conn.commit()
+    conn.close()
+    assert versions == [(1,), (2,)]
+
+
+def test_a_non_integer_stored_step_drops_only_the_implicit_step_point(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     store = tmp_path / "store"
     make_store(store, EXPERIMENT_ID)
@@ -613,10 +721,10 @@ def test_a_non_integer_stored_step_fails_the_implicit_step_call(
     conn.close()
 
     backend.log_span(EXPERIMENT_ID, "t", "s", "n", 0, 1)
-    with pytest.raises(TypeError, match="integer"):
-        backend.log_dynamic(EXPERIMENT_ID, "acc", 2.0)
+    backend.log_dynamic(EXPERIMENT_ID, "acc", 2.0)
     backend.log_dynamic(EXPERIMENT_ID, "acc", 2.0, step=1)
     backend.flush()
+    assert "no integer step after 3.5" in caplog.text
     assert backend._write_buffer._rows == {}
     assert len(backend.get_experiment_traces_all(EXPERIMENT_ID)) == 1
     history = backend.get_experiment_metric_history(EXPERIMENT_ID, "acc")

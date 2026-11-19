@@ -37,6 +37,7 @@ from luml.experiments.backends._write_buffer import (
     DEFAULT_FLUSH_INTERVAL,
     GuardedLock,
     WriteBuffer,
+    check_bindable,
     defer_while_locked,
 )
 from luml.experiments.backends.data_types import (
@@ -839,44 +840,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         legacy_rows = self._legacy_metric_rows.get(experiment_id)
         if legacy_rows is not None:
             raise LegacyMetricRowsError(legacy_rows.count, legacy_rows.example)
-        db_path, generation = self._ensure_experiment_initialized(
-            experiment_id, metrics=True
-        )
+        # Validated before the store is touched: a refused write must not migrate it.
         value = float(value)
         key = _metric_key(key)
         if step is not None:
             step = _metric_step(step)
+        check_bindable((key, step, value))
+        db_path, generation = self._ensure_experiment_initialized(
+            experiment_id, metrics=True
+        )
         logged_ms = _utc_now_ms()
         buffer = self._write_buffer
         buffer.make_room(db_path)
-        # Enqueueing under the lock keeps a concurrent explicit step from landing after
-        # the counter is seeded from the database; a delete waits for the lock too.
-        with buffer.database_lock(db_path):
-            next_step = buffer.next_step(db_path, key)
-            if step is None:
-                if next_step is None:
-                    if not buffer.accepts(db_path, generation):
-                        raise ValueError(f"Experiment {experiment_id} not initialized")
-                    with self._get_experiment_connection(experiment_id) as conn:
-                        result = conn.execute(
-                            "SELECT MAX(step) FROM metric_points WHERE metric_id = "
-                            "(SELECT id FROM metric_keys WHERE key = ?)",
-                            (key,),
-                        ).fetchone()
-                    # Validated like an explicit step: the write hook shifts it.
-                    next_step = 0 if result[0] is None else _metric_step(result[0]) + 1
-                step = next_step
-
-            if not buffer.enqueue(
-                db_path,
-                generation,
-                METRIC_POINT_SQL,
-                (key, step, value, logged_ms),
-                metric_point=True,
-            ):
-                raise ValueError(f"Experiment {experiment_id} not initialized")
-            if next_step is not None:
-                buffer.set_next_step(db_path, key, max(next_step, step + 1))
+        # A missing step is allocated by the write hook inside the flush transaction,
+        # so writers sharing the store never get the same one.
+        if not buffer.enqueue(
+            db_path,
+            generation,
+            METRIC_POINT_SQL,
+            (key, step, value, logged_ms),
+            metric_point=True,
+        ):
+            raise ValueError(f"Experiment {experiment_id} not initialized")
 
     def log_attachment(
         self, experiment_id: str, name: str, data: bytes | str, binary: bool = False
@@ -1527,8 +1512,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         exp_dir = self._get_experiment_dir(experiment_id)
         db_path = str(exp_dir / "exp.db")
-        # Held through the removal, so a first use or a step-counter seed cannot
-        # reopen the files while they are being removed.
+        # Held through the removal, so a first use cannot reopen the files while they
+        # are being removed.
         with self._write_buffer.database_lock(db_path):
             self._experiment_db_paths.pop(experiment_id, None)
             self._migrated_experiment_dbs.discard(experiment_id)
@@ -2903,7 +2888,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         Rows buffered so far are flushed first. The copy is one consistent point in
         time even while other threads or processes write; their writes are not
-        blocked. A copy below schema revision 3 is migrated to it, unless its rows
+        blocked. A copy below schema revision 3 is migrated to the newest revision
+        this luml-sdk knows, unless its rows
         cannot be stored at revision 3: the snapshot then keeps the source revision
         and says why in `fallback_reason`. The live database is never changed.
         Temporary files go next to the database.
@@ -5108,6 +5094,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         and last step, point count, and the smallest and largest numeric value.
         Below revision 3 only the (key, step) index is read, so the count, smallest
         and largest value are None; a file without that index is scanned instead.
+        The write marker `writes` is None below revision 4.
 
         Args:
             experiment_id (str): The experiment to summarise.

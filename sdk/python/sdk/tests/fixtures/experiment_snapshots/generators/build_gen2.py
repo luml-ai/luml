@@ -1,5 +1,5 @@
-"""Regenerate fixtures i to o (artifact generation 2, its fallback, and a revision 2
-artifact with the trace and eval edge cases) and their JSON.
+"""Regenerate fixtures i to p (artifact generation 2, its fallback, a revision 2
+artifact with the trace and eval edge cases, and a revision 4 artifact) and their JSON.
 
 Usage: python build_gen2.py <workspace> <new_python> [<fixture_dir>]
 
@@ -8,8 +8,9 @@ Usage: python build_gen2.py <workspace> <new_python> [<fixture_dir>]
 Every SDK run happens under fakeroot, so packed files are owned by root, and attachment
 mtimes are fixed before each export. <fixture_dir> defaults to the directory that
 contains this generators directory. Fixtures l and n stand for artifacts already
-published: to regenerate the others, write to a separate <fixture_dir> and copy only
-those.
+published, and i, j, k and m for schema revision 3 artifacts, which this tree's
+luml-sdk no longer writes: to regenerate the others, write to a separate
+<fixture_dir> and copy only those.
 """
 
 import json
@@ -64,7 +65,7 @@ shutil.rmtree(WORK, ignore_errors=True)
 shutil.rmtree(OUT, ignore_errors=True)
 WORK.mkdir()
 OUT.mkdir()
-work = {name: str(WORK / name) for name in "ijklmno"}
+work = {name: str(WORK / name) for name in "ijklmnop"}
 
 run(NEW, "populate", work["i"], "fixture-i", "edge")
 run(NEW, "export", work["i"], "fixture-i", str(OUT / "i_gen2_sdk_0_6_0.tar"))
@@ -80,6 +81,8 @@ run(OLD, "populate", work["n"], "fixture-n", "legacy")
 run(NEW, "export", work["n"], "fixture-n", str(OUT / "n_gen1_fallback.tar"))
 run(OLD, "populate", work["o"], "fixture-o", "edge")
 run(OLD, "export", work["o"], "fixture-o", str(OUT / "o_gen1_edge_sdk_0_5_0.tar"))
+run(NEW, "populate", work["p"], "fixture-p", "edge")
+run(NEW, "export", work["p"], "fixture-p", str(OUT / "p_gen2_rev4_sdk_0_6_0.tar"))
 
 describe(
     "i_gen2_sdk_0_6_0",
@@ -127,6 +130,16 @@ describe(
     spec(
         "generation 1, revision 2, with the trace and eval edge cases",
         OLD_PRODUCER,
+        "experiment",
+        True,
+    ),
+)
+describe(
+    "p_gen2_rev4_sdk_0_6_0",
+    "p",
+    spec(
+        "artifact generation 2, schema revision 4, standalone",
+        NEW_PRODUCER,
         "experiment",
         True,
     ),

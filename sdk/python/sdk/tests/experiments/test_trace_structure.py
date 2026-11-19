@@ -84,7 +84,7 @@ def _sorted(spans: list[SpanRecord]) -> list[SpanRecord]:
     return sorted(spans, key=lambda span: (span.start_time_unix_nano, span.span_id))
 
 
-@pytest.fixture(params=["revision 3", "revision 2"])
+@pytest.fixture(params=["revision 4", "revision 2"])
 def backend(request: pytest.FixtureRequest, tmp_path: Path) -> SQLiteBackend:
     store = tmp_path / "store"
     if request.param == "revision 2":
@@ -94,7 +94,7 @@ def backend(request: pytest.FixtureRequest, tmp_path: Path) -> SQLiteBackend:
         backend = SQLiteBackend(str(store), flush_interval=0)
         backend.initialize_experiment(EXP_ID, name=EXP_ID)
     _log_trace(backend)
-    expected_revision = 2 if request.param == "revision 2" else 3
+    expected_revision = 2 if request.param == "revision 2" else 4
     assert backend.get_experiment_ddl_version(EXP_ID) == expected_revision
     return backend
 
@@ -113,7 +113,7 @@ def test_structure_is_the_trace_without_payloads(backend: SQLiteBackend) -> None
     assert [span.annotation_count for span in structure.spans] == [1, 0, 2]
 
 
-@pytest.mark.parametrize("revision", [2, 3])
+@pytest.mark.parametrize("revision", [2, 4])
 def test_spans_with_one_start_time_come_back_in_one_order(
     revision: int, tmp_path: Path
 ) -> None:
@@ -121,7 +121,7 @@ def test_spans_with_one_start_time_come_back_in_one_order(
     if revision == 2:
         make_revision2_store(store, EXP_ID)
     backend = SQLiteBackend(str(store), flush_interval=0)
-    if revision == 3:
+    if revision == 4:
         backend.initialize_experiment(EXP_ID, name=EXP_ID)
     backend.log_span(EXP_ID, "ties", "root", "root", 0, 100)
     for span_id in ("s4", "s3", "s2", "s1"):

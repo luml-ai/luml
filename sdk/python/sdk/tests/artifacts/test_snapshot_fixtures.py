@@ -41,8 +41,13 @@ FIXTURES = [
     "m_gen2_twin",
     "n_gen1_fallback",
     "o_gen1_edge_sdk_0_5_0",
+    "p_gen2_rev4_sdk_0_6_0",
 ]
-EDGE_FIXTURES = ["i_gen2_sdk_0_6_0", "o_gen1_edge_sdk_0_5_0"]
+EDGE_FIXTURES = [
+    "i_gen2_sdk_0_6_0",
+    "o_gen1_edge_sdk_0_5_0",
+    "p_gen2_rev4_sdk_0_6_0",
+]
 EXP_ID = "fixture"
 
 
@@ -175,7 +180,7 @@ def _assert_reads(backend: SQLiteBackend, expected: dict[str, Any]) -> None:
     assert catalog.revision == expected["user_version"]
     assert catalog.skipped_rows == metrics["skipped_rows"]
     assert [
-        (m.key, m.first_step, m.last_step, m.count, m.min, m.max)
+        (m.key, m.first_step, m.last_step, m.count, m.min, m.max, m.writes)
         for m in catalog.metrics
     ] == [
         (
@@ -185,6 +190,8 @@ def _assert_reads(backend: SQLiteBackend, expected: dict[str, Any]) -> None:
             m["count"],
             _number(m["min"]),
             _number(m["max"]),
+            # Below revision 4 the vectors have no marker: it is not tracked.
+            m.get("writes"),
         )
         for m in metrics["catalog"]
     ]
@@ -256,7 +263,7 @@ def _extracted(name: str, dest: Path) -> Path:
 
 def test_a_fresh_export_has_the_frozen_format(tmp_path: Path) -> None:
     """Changing what an export writes must come with new fixtures."""
-    frozen = _expected("i_gen2_sdk_0_6_0")
+    frozen = _expected("p_gen2_rev4_sdk_0_6_0")
     tracker = ExperimentTracker(f"sqlite://{tmp_path / 'store'}")
     exp_id = tracker.start_experiment(name="fresh", tags=["fixture"])
     tracker.log_dynamic("loss", 0.5, step=0)

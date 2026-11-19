@@ -1161,7 +1161,7 @@ Summarise every metric of an experiment without reading its points.
 
 **Returns**:
 
-- `MetricCatalog` - The schema revision, the stored bucket levels (None below revision 3) and per metric its first and last step, point count and smallest and largest numeric value, ordered by key. The point count and the values are None below revision 3, unless the file has no (key, step) index.
+- `MetricCatalog` - The schema revision, the stored bucket levels (None below revision 3) and per metric its first and last step, point count and smallest and largest numeric value, ordered by key. The point count and the values are None below revision 3, unless the file has no (key, step) index. `writes` changes with every committed write to the metric, overwrites included; it is None below revision 4.
   
 
 **Example**:

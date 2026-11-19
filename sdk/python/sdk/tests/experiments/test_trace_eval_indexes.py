@@ -33,7 +33,7 @@ def test_migration_3_creates_the_indexes(tmp_path: Path) -> None:
     conn.execute(LEGACY_INSERT, ("loss", 0.5, 0, "2026-01-02 03:04:05"))
     conn.commit()
 
-    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    assert ExperimentMigrationRunner(conn).migrate(target_version=3) == [3]
     assert _indexes(conn) == set(TRACE_EVAL_INDEXES)
     assert conn.execute("PRAGMA integrity_check").fetchall() == [("ok",)]
     conn.close()
@@ -45,7 +45,7 @@ def test_migration_3_skips_indexes_of_tables_a_store_lacks(tmp_path: Path) -> No
     conn.execute("DROP TABLE eval_annotations")
     conn.commit()
 
-    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    assert ExperimentMigrationRunner(conn).migrate(target_version=3) == [3]
     assert _indexes(conn) == set(TRACE_EVAL_INDEXES) - {
         "span_annotations_span",
         "eval_annotations_eval",

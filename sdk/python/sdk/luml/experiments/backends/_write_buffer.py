@@ -210,7 +210,6 @@ class WriteBuffer:
         self._other_rows: dict[str, int] = {}
         self._flush_locks: dict[str, threading.Lock] = {}
         self._database_locks: dict[str, GuardedLock] = {}
-        self._next_steps: dict[str, dict[str, int]] = {}
         # A deleted database refuses rows until it is created again, and both a delete
         # and a re-creation start a new generation, so a call that began before either
         # cannot reach the next incarnation.
@@ -262,7 +261,7 @@ class WriteBuffer:
         return db_path not in self._deleted and self.generation(db_path) == generation
 
     def database_lock(self, db_path: str) -> GuardedLock:
-        """Serialises a database's step counters with its first use and its deletion."""
+        """Serialises a database's first use with its deletion."""
         if (lock := self._database_locks.get(db_path)) is not None:
             return lock
         with self._lock:
@@ -272,12 +271,6 @@ class WriteBuffer:
                 lock = GuardedLock(threading.Lock(), buffer_lock=False)
                 self._database_locks[db_path] = lock
             return lock
-
-    def next_step(self, db_path: str, key: str) -> int | None:
-        return self._next_steps.get(db_path, {}).get(key)
-
-    def set_next_step(self, db_path: str, key: str, step: int) -> None:
-        self._next_steps.setdefault(db_path, {})[key] = step
 
     def append(
         self, db_path: str, generation: int, sql: str, params: tuple[Any, ...]
@@ -348,7 +341,8 @@ class WriteBuffer:
                 if not self.accepts(db_path, generation):
                     return False
                 rows = self._prepare(conn, db_path, [(sql, params)])
-                conn.execute(*rows[0])
+                for prepared_sql, prepared_params in rows:
+                    conn.execute(prepared_sql, prepared_params)
                 self._commit(conn, db_path, rows)
         except sqlite3.OperationalError:
             if self.accepts(db_path, generation):
@@ -503,7 +497,6 @@ class WriteBuffer:
         with GuardedLock(self._flush_lock(db_path)), self._lock:
             self._rows.pop(db_path, None)
             self._other_rows.pop(db_path, None)
-            self._next_steps.pop(db_path, None)
             if self._hook is not None:
                 self._hook.forget(db_path)
 
@@ -514,7 +507,6 @@ class WriteBuffer:
                 self._generations[db_path] = self.generation(db_path) + 1
                 self._rows.pop(db_path, None)
                 self._other_rows.pop(db_path, None)
-                self._next_steps.pop(db_path, None)
             # A new database holds none of the ids cached for an earlier one.
             if self._hook is not None:
                 self._hook.forget(db_path)
@@ -606,7 +598,6 @@ class WriteBuffer:
         self._other_rows = {}
         self._flush_locks = {}
         self._database_locks = {}
-        self._next_steps = {}
         self._flush_failures = {}
         if self._hook is not None:
             self._hook.forget_all()

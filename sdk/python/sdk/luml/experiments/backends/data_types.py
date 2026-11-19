@@ -267,6 +267,10 @@ class MetricSummary:
 
     `count`, `min` and `max` are None below schema revision 3, where only the
     (key, step) index is read.
+
+    `writes` changes whenever a write to the metric is committed, an overwrite of a
+    step with the same value included; it is None below schema revision 4, which
+    does not track it.
     """
 
     key: str
@@ -275,6 +279,7 @@ class MetricSummary:
     count: int | None
     min: float | None
     max: float | None
+    writes: int | None = None
 
 
 @dataclass

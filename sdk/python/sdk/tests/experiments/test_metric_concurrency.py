@@ -274,3 +274,88 @@ def test_a_forked_child_forgets_metric_ids(tmp_path: Path) -> None:
     _, status = os.waitpid(pid, 0)
     assert os.waitstatus_to_exitcode(status) == 0
     backend.close()
+
+
+def _history(backend: SQLiteBackend, key: str = "loss") -> list[tuple[int, float]]:
+    return [
+        (point["step"], point["value"])
+        for point in backend.get_experiment_metric_history(EXP_ID, key)
+    ]
+
+
+@pytest.mark.parametrize("flush_interval", [0.0, 3600.0])
+def test_writers_alternating_implicit_steps_never_reuse_a_step(
+    tmp_path: Path, flush_interval: float
+) -> None:
+    store = tmp_path / "store"
+    make_store(store, EXP_ID)
+    writers = [
+        SQLiteBackend(str(store), flush_interval=flush_interval) for _ in range(2)
+    ]
+    for index in range(6):
+        writer = writers[index % 2]
+        writer.log_dynamic(EXP_ID, "loss", float(index))
+        writer.flush()
+
+    history = _history(writers[1])
+    for writer in writers:
+        writer.close()
+    assert history == [(step, float(step)) for step in range(6)]
+    _check(store)
+
+
+def test_writers_buffering_implicit_steps_at_once_lose_no_point(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    make_store(store, EXP_ID)
+    first = SQLiteBackend(str(store), flush_interval=3600)
+    second = SQLiteBackend(str(store), flush_interval=3600)
+    for index in range(3):
+        first.log_dynamic(EXP_ID, "loss", float(index))
+        second.log_dynamic(EXP_ID, "loss", float(10 + index))
+    first.flush()
+    second.flush()
+
+    history = _history(first)
+    first.close()
+    second.close()
+    assert history == [
+        (0, 0.0),
+        (1, 1.0),
+        (2, 2.0),
+        (3, 10.0),
+        (4, 11.0),
+        (5, 12.0),
+    ]
+    _check(store)
+
+
+def test_implicit_steps_follow_the_highest_step_in_a_mixed_batch(
+    tmp_path: Path,
+) -> None:
+    store = tmp_path / "store"
+    make_store(store, EXP_ID)
+    backend = SQLiteBackend(str(store), flush_interval=3600)
+    backend.log_dynamic(EXP_ID, "loss", 0.0, step=10)
+    backend.flush()
+    backend.log_dynamic(EXP_ID, "loss", 1.0)
+    backend.log_dynamic(EXP_ID, "loss", 2.0, step=3)
+    backend.log_dynamic(EXP_ID, "loss", 3.0)
+    backend.log_dynamic(EXP_ID, "loss", 4.0, step=20)
+    backend.log_dynamic(EXP_ID, "loss", 5.0)
+    backend.log_dynamic(EXP_ID, "acc", 6.0)
+
+    history = _history(backend)
+    acc = _history(backend, "acc")
+    backend.close()
+    assert history == [
+        (3, 2.0),
+        (10, 0.0),
+        (11, 1.0),
+        (12, 3.0),
+        (20, 4.0),
+        (21, 5.0),
+    ]
+    assert acc == [(0, 6.0)]
+    _check(store)

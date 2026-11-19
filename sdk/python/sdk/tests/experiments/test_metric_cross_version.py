@@ -101,7 +101,7 @@ def _old_sdk(script: str, *args: str) -> subprocess.Popen[str]:
     )
 
 
-def test_released_sdk_reads_revision_3_and_its_writes_fail_cleanly(
+def test_released_sdk_reads_revision_4_and_its_writes_fail_cleanly(
     tmp_path: Path,
 ) -> None:
     store = tmp_path / "store"
@@ -129,7 +129,7 @@ def test_released_sdk_reads_revision_3_and_its_writes_fail_cleanly(
     assert result["data"] == json.loads(json.dumps(expected_data))
     assert result["keys"] == ["acc", "loss"]
     assert result["write"].startswith("IntegrityError")
-    assert "schema revision 3; upgrade luml-sdk" in result["write"]
+    assert "schema revision 4; upgrade luml-sdk" in result["write"]
     assert result["latest"] == {"loss": float("inf"), "acc": 49.0}
     assert schema_snapshot(db_path) == schema_before
     conn = sqlite3.connect(db_path)
@@ -337,34 +337,34 @@ def _run_old(script: str, *args: str) -> str:
     return stdout.strip().splitlines()[-1] if stdout.strip() else ""
 
 
-def _revision2_and_3_stores(tmp_path: Path) -> tuple[Path, Path, str]:
+def _revision2_and_4_stores(tmp_path: Path) -> tuple[Path, Path, str]:
     store2, store3 = tmp_path / "rev2", tmp_path / "rev3"
     info = _run_old(OLD_POPULATE, str(store2))
     shutil.copytree(store2, store3)
     conn = sqlite3.connect(store3 / EXP_ID / "exp.db")
-    assert ExperimentMigrationRunner(conn).migrate() == [3]
+    assert ExperimentMigrationRunner(conn).migrate() == [3, 4]
     conn.close()
     return store2, store3, info
 
 
-def test_released_sdk_reads_the_same_from_revision_3_as_from_revision_2(
+def test_released_sdk_reads_the_same_from_revision_4_as_from_revision_2(
     tmp_path: Path,
 ) -> None:
-    store2, store3, info = _revision2_and_3_stores(tmp_path)
+    store2, store3, info = _revision2_and_4_stores(tmp_path)
 
     reads2 = json.loads(_run_old(OLD_READ_SWEEP, str(store2), info))
     reads3 = json.loads(_run_old(OLD_READ_SWEEP, str(store3), info))
 
     assert reads2.pop("get_experiment_ddl_version") == ["int", 2]
-    assert reads3.pop("get_experiment_ddl_version") == ["int", 3]
+    assert reads3.pop("get_experiment_ddl_version") == ["int", 4]
     assert len(reads2) > 30
     assert reads3 == reads2
     history = reads3["get_experiment_metric_history"]
     assert history[0]["logged_at"][0] == "datetime"
 
 
-def test_released_sdk_exports_a_revision_3_experiment(tmp_path: Path) -> None:
-    _, store3, _ = _revision2_and_3_stores(tmp_path)
+def test_released_sdk_exports_a_revision_4_experiment(tmp_path: Path) -> None:
+    _, store3, _ = _revision2_and_4_stores(tmp_path)
     artifact = tmp_path / "exp.tar"
 
     _run_old(OLD_EXPORT, str(store3), str(artifact))
@@ -376,7 +376,7 @@ def test_released_sdk_exports_a_revision_3_experiment(tmp_path: Path) -> None:
     exported = tmp_path / "exported.db"
     exported.write_bytes(db_bytes)
     conn = sqlite3.connect(exported)
-    assert conn.execute("PRAGMA user_version").fetchone() == (3,)
+    assert conn.execute("PRAGMA user_version").fetchone() == (4,)
     counts = dict(
         conn.execute("SELECT key, count(*) FROM dynamic_metrics GROUP BY key")
     )
@@ -388,7 +388,7 @@ def test_released_sdk_exports_a_revision_3_experiment(tmp_path: Path) -> None:
 def test_released_sdk_reads_a_generation_2_snapshot_like_the_live_store(
     tmp_path: Path,
 ) -> None:
-    store2, store3, info = _revision2_and_3_stores(tmp_path)
+    store2, store3, info = _revision2_and_4_stores(tmp_path)
     artifact = tmp_path / "exp.tar"
     tracker = ExperimentTracker(f"sqlite://{store2}")
     tracker.export(str(artifact), experiment_id=EXP_ID)
@@ -464,7 +464,7 @@ def _assert_index_rows_match_table(conn: sqlite3.Connection) -> None:
         assert through_index == through_table, name
 
 
-def test_released_sdk_writes_traces_and_evals_to_revision_3_while_this_one_reads(
+def test_released_sdk_writes_traces_and_evals_to_revision_4_while_this_one_reads(
     tmp_path: Path,
 ) -> None:
     store = tmp_path / "store"

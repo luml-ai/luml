@@ -1,6 +1,7 @@
 # flake8: noqa: E501
 """Metric storage of experiment schema revision 3: points, keys and buckets."""
 
+import logging
 import math
 import sqlite3
 from itertools import groupby
@@ -25,6 +26,8 @@ from luml.experiments.backends.metric_schema import (
 )
 from luml.experiments.backends.migration_runner import ExperimentSchema
 
+logger = logging.getLogger(__name__)
+
 MAX_RETURNED_BUCKETS = 20_000
 MAX_BUCKET_LEVEL = 31
 
@@ -42,6 +45,10 @@ _POINT_INSERT = (
     "INSERT OR REPLACE INTO metric_points (metric_id, step, value, logged_ms) VALUES "
 )
 _MAX_ROWS_PER_INSERT = 4_096
+
+# Once per flush and metric: readers only compare the marker, so one step per
+# committed write is enough.
+_MARK_WRITE = "UPDATE metric_keys SET writes = writes + 1 WHERE id = ?"
 
 # Revisions 0-2 stored whatever released SDKs were given; only these rows are read.
 _LEGACY_ROW = "typeof(step) = 'integer' AND typeof(key) = 'text'"
@@ -237,6 +244,48 @@ def _points_in_key_order(rows: list[PendingRow]) -> list[PendingRow]:
     return ordered
 
 
+def _number_points(
+    conn: sqlite3.Connection,
+    db_path: str,
+    rows: list[PendingRow],
+    metric_ids: set[int],
+) -> list[PendingRow]:
+    """Gives each point without a step the step after the highest one of its metric,
+    stored or earlier in `rows`, in the order the rows were logged.
+
+    A point that cannot get an integer step (the stored highest is not an integer, or
+    is the largest one) is dropped and logged, like a row the database rejects.
+    """
+    # As SQLite's MAX orders them: numbers by value, below any text or blob.
+    highest: dict[int, int | float | str | bytes] = {}
+    for metric_id in metric_ids:
+        (stored,) = conn.execute(
+            "SELECT MAX(step) FROM metric_points WHERE metric_id = ?", (metric_id,)
+        ).fetchone()
+        highest[metric_id] = -1 if stored is None else stored
+    numbered: list[PendingRow] = []
+    for sql, params in rows:
+        if sql == METRIC_POINT_SQL and params[0] in highest:
+            metric_id, step = params[0], params[1]
+            last = highest[metric_id]
+            if step is None:
+                if type(last) is not int or last >= _INT64_MAX:
+                    logger.error(
+                        "Dropped buffered metric point for %s: metric %d has no "
+                        "integer step after %r",
+                        db_path,
+                        metric_id,
+                        last,
+                    )
+                    continue
+                step = last + 1
+                params = (metric_id, step, *params[2:])
+            if isinstance(last, int | float) and step > last:
+                highest[metric_id] = step
+        numbered.append((sql, params))
+    return numbered
+
+
 class MetricWriteHook:
     """Resolves metric keys to ids and keeps the buckets of a write buffer's flushes.
 
@@ -270,6 +319,15 @@ class MetricWriteHook:
             )
         else:
             self._batch_keys.pop(db_path, None)
+        unnumbered = {
+            params[0]
+            for sql, params in rows
+            if sql == METRIC_POINT_SQL and params[1] is None
+        }
+        if unnumbered and not conn.in_transaction:
+            # The steps are read in the transaction that writes them: another writer
+            # cannot commit the same step in between.
+            conn.execute("BEGIN IMMEDIATE")
         missing = keys.difference(known)
         fresh = self._register_keys(conn, missing) if missing else {}
         self._uncommitted[db_path] = (conn, fresh)
@@ -280,6 +338,10 @@ class MetricWriteHook:
             else (sql, params)
             for sql, params in rows
         ]
+        if unnumbered:
+            prepared = _number_points(
+                conn, db_path, prepared, {ids[key] for key in unnumbered}
+            )
         return _points_in_key_order(prepared) if len(keys) > 1 else prepared
 
     @staticmethod
@@ -323,6 +385,8 @@ class MetricWriteHook:
         }
         if touched:
             refresh_buckets(conn, touched)
+            metric_ids = sorted({metric_id for metric_id, _ in touched})
+            conn.executemany(_MARK_WRITE, [(metric_id,) for metric_id in metric_ids])
 
     def after_commit(self, db_path: str) -> None:
         uncommitted = self._uncommitted.pop(db_path, None)
@@ -448,10 +512,11 @@ def fetch_metric_catalog(
     # The top stored level holds a few rows per metric and is contiguous in the
     # level-first key, so the catalog reads a handful of pages at any size.
     if schema.has_metric_points and schema.bucket_max_level is not None:
+        writes = "k.writes" if schema.has_metric_writes else "NULL"
         rows = conn.execute(
-            """
+            f"""
             SELECT k.key, min(b.first_step), max(b.last_step), sum(b.count),
-                   min(b.min), max(b.max)
+                   min(b.min), max(b.max), {writes}
             FROM metric_buckets b JOIN metric_keys k ON k.id = b.metric_id
             WHERE b.level = ?
             GROUP BY b.metric_id
