@@ -5,7 +5,7 @@ from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any
 
-import httpx
+import httpx2
 from fastapi import APIRouter, FastAPI
 
 from luml_satellite.authorization import Authorizer
@@ -51,8 +51,8 @@ class InProcessServingPlacement:
         artifact_resolver: ArtifactResolver | None = None,
         injection_body_max_bytes: int = 16_777_216,
         upstream_timeout_seconds: float = 45.0,
-        upstream_client: httpx.AsyncClient | None = None,
-        upstream_transport: httpx.AsyncBaseTransport | None = None,
+        upstream_client: httpx2.AsyncClient | None = None,
+        upstream_transport: httpx2.AsyncBaseTransport | None = None,
         gate: StartingGate | None = None,
         last_monitored_at: Callable[[str], datetime | None] | None = None,
         logger: logging.Logger | None = None,
@@ -64,7 +64,7 @@ class InProcessServingPlacement:
         self._deployments: dict[str, LocalDeployment] = {}
         self._gate = gate or StartingGate()
         self._owns_client = upstream_client is None
-        self._client = upstream_client or httpx.AsyncClient(
+        self._client = upstream_client or httpx2.AsyncClient(
             timeout=upstream_timeout_seconds,
             transport=upstream_transport,
         )
@@ -231,8 +231,8 @@ class CompanionServingPlacement:
         artifact_resolver: ArtifactResolver | None = None,
         cache_ttl_seconds: float = 60.0,
         upstream_timeout_seconds: float = 45.0,
-        upstream_client: httpx.AsyncClient | None = None,
-        upstream_transport: httpx.AsyncBaseTransport | None = None,
+        upstream_client: httpx2.AsyncClient | None = None,
+        upstream_transport: httpx2.AsyncBaseTransport | None = None,
         gate: StartingGate | None = None,
         last_monitored_at: Callable[[str], datetime | None] | None = None,
         logger: logging.Logger | None = None,
@@ -250,7 +250,7 @@ class CompanionServingPlacement:
         self._records: dict[str, CompanionRecord] = {}
         self._gate = gate or StartingGate()
         self._owns_client = upstream_client is None
-        self._client = upstream_client or httpx.AsyncClient(
+        self._client = upstream_client or httpx2.AsyncClient(
             timeout=upstream_timeout_seconds,
             transport=upstream_transport,
         )
@@ -509,7 +509,7 @@ def _monitoring_enabled(mode: str | None) -> bool:
     return (mode or "off").strip().lower() == "full"
 
 
-def _recording_off_detail(response: httpx.Response) -> str | None:
+def _recording_off_detail(response: httpx2.Response) -> str | None:
     try:
         body = response.json()
     except ValueError:

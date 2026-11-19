@@ -16,8 +16,12 @@ const config: Config = {
   organizationName: 'LUML', 
   projectName: 'LUML', 
 
-  onBrokenLinks: 'warn',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'throw',
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
 
   i18n: {
     defaultLocale: 'en',
@@ -126,7 +130,7 @@ headTags: [],
           items: [
             {
               label: 'Guides',
-              to: '/guides/user_guidline',
+              to: '/guides/user_guideline',
             },
             {
               label: 'Blog',

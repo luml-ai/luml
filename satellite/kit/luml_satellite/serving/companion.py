@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Annotated, Any, Protocol
 
-import httpx
+import httpx2
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -111,8 +111,8 @@ class CompanionClient:
         deployment_id: str,
         token: str,
         *,
-        client: httpx.AsyncClient | None = None,
-        transport: httpx.AsyncBaseTransport | None = None,
+        client: httpx2.AsyncClient | None = None,
+        transport: httpx2.AsyncBaseTransport | None = None,
         timeout_seconds: float = 5.0,
     ) -> None:
         if client is not None and transport is not None:
@@ -123,7 +123,7 @@ class CompanionClient:
         self._deployment_id = deployment_id
         self._token = token
         self._owns_client = client is None
-        self._client = client or httpx.AsyncClient(
+        self._client = client or httpx2.AsyncClient(
             transport=transport,
             timeout=timeout_seconds,
         )
@@ -173,7 +173,7 @@ class CompanionClient:
                 if json is None
                 else await self._client.request(method, url, headers=headers, json=json)
             )
-        except httpx.HTTPError as error:
+        except httpx2.HTTPError as error:
             raise CompanionUnavailableError("companion API is unavailable") from error
         if response.status_code in (403, 404):
             raise CompanionRefusedError(response.status_code)

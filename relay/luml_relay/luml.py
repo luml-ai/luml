@@ -6,7 +6,7 @@ import logging
 from collections.abc import Awaitable
 from datetime import UTC, datetime
 
-import httpx
+import httpx2
 from luml_api import APIStatusError, AsyncLumlClient, LumlAPIError
 from luml_api._exceptions import ResourceNotFoundError
 from luml_api._types import LiveSessionStart, LiveSessionStatus
@@ -129,7 +129,7 @@ async def _configured_client(organization: str, orbit: str) -> AsyncLumlClient:
 async def _call_luml[T](action: str, call: Awaitable[T]) -> T:
     try:
         return await call
-    except httpx.RequestError as error:
+    except httpx2.RequestError as error:
         raise LumlSessionError(
             f"LUML cannot be reached at {error.request.url}: {error!r}"
         ) from error
@@ -165,7 +165,7 @@ async def _send_heartbeats(
             answer = await client.live_sessions.heartbeat(
                 started.id, agent.connected, tokens.expires_at
             )
-        except httpx.RequestError as error:
+        except httpx2.RequestError as error:
             logger.warning("LUML cannot be reached for a heartbeat, trying again: %r", error)
         except APIStatusError as error:
             if not _worth_retrying(error):
@@ -184,7 +184,7 @@ async def _send_heartbeats(
 async def _end(client: AsyncLumlClient, session_id: str) -> None:
     try:
         await client.live_sessions.end(session_id)
-    except (httpx.RequestError, APIStatusError) as error:
+    except (httpx2.RequestError, APIStatusError) as error:
         logger.warning("Could not end the session at LUML: %r", error)
         return
     logger.info("Ended the session at LUML")

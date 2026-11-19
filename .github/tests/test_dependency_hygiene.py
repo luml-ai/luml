@@ -101,6 +101,13 @@ class DependencyHygieneTests(unittest.TestCase):
         ignored = (ROOT / sdk / ".gitignore").read_text().splitlines()
         self.assertNotIn("uv.lock", ignored)
 
+    def test_backend_locks_current_dnspython(self):
+        lock = project_file("backend/uv.lock")
+        package = next(p for p in lock["package"] if p["name"] == "dnspython")
+        self.assertGreaterEqual(
+            tuple(map(int, package["version"].split("."))), (2, 9, 2)
+        )
+
     def test_backend_locks_patched_starlette_and_opentelemetry(self):
         lock = project_file("backend/uv.lock")
         packages = {package["name"]: package for package in lock["package"]}

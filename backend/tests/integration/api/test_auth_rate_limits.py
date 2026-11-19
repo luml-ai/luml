@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, patch
 
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI, HTTPException
 from luml.api.auth import auth_router
@@ -61,8 +61,8 @@ async def test_email_limit_survives_changing_ip(
         ) as handle,
     ):
         for index in range(6):
-            transport = httpx.ASGITransport(app=app, client=(f"192.0.2.{index}", 1234))
-            async with httpx.AsyncClient(
+            transport = httpx2.ASGITransport(app=app, client=(f"192.0.2.{index}", 1234))
+            async with httpx2.AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(f"/v1{path}", json=body)
@@ -80,8 +80,8 @@ async def test_ip_limit_survives_changing_email_and_forwarded_headers() -> None:
             new_callable=AsyncMock,
         ) as handle,
     ):
-        transport = httpx.ASGITransport(app=app, client=("192.0.2.1", 1234))
-        async with httpx.AsyncClient(
+        transport = httpx2.ASGITransport(app=app, client=("192.0.2.1", 1234))
+        async with httpx2.AsyncClient(
             transport=transport, base_url="http://test"
         ) as client:
             for index in range(21):
@@ -106,8 +106,8 @@ async def test_signin_limits_survive_rotating_malformed_host(
         new_callable=AsyncMock,
         side_effect=HTTPException(401),
     ) as handle:
-        transport = httpx.ASGITransport(app=app, client=("192.0.2.1", 1234))
-        async with httpx.AsyncClient(
+        transport = httpx2.ASGITransport(app=app, client=("192.0.2.1", 1234))
+        async with httpx2.AsyncClient(
             transport=transport, base_url="http://test"
         ) as client:
             for index in range(limit + 1):

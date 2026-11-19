@@ -9,7 +9,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 from pydantic import ValidationError
 
@@ -123,16 +123,16 @@ def metadata(
 def upstream_transport(
     trace_headers: list[str | None] | None = None,
     bodies: list[dict[str, object]] | None = None,
-) -> httpx.MockTransport:
-    async def upstream(request: httpx.Request) -> httpx.Response:
+) -> httpx2.MockTransport:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         responses = {
-            "/healthz": httpx.Response(200, json={"status": "healthy"}),
-            "/manifest": httpx.Response(
+            "/healthz": httpx2.Response(200, json={"status": "healthy"}),
+            "/manifest": httpx2.Response(
                 200,
                 json={"producer_tags": ["luml.ai::tabular_monitoring:v1"]},
             ),
-            "/openapi.json": httpx.Response(200, json={"openapi": "3.1.0", "paths": {}}),
-            "/reference_profile": httpx.Response(
+            "/openapi.json": httpx2.Response(200, json={"openapi": "3.1.0", "paths": {}}),
+            "/reference_profile": httpx2.Response(
                 200,
                 json={
                     "profile_status": "ready",
@@ -145,10 +145,10 @@ def upstream_transport(
                 trace_headers.append(request.headers.get("traceparent"))
             if bodies is not None:
                 bodies.append(json.loads(await request.aread()))
-            return httpx.Response(200, json={"prediction": 42})
+            return httpx2.Response(200, json={"prediction": 42})
         return responses[request.url.path]
 
-    return httpx.MockTransport(upstream)
+    return httpx2.MockTransport(upstream)
 
 
 @pytest.mark.asyncio
@@ -176,12 +176,12 @@ async def test_sidecar_boot_is_independent_of_companion_metadata(
     await sleeper.next_delay()
 
     async with (
-        httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.application),
+        httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.application),
             base_url="http://sidecar",
         ) as serving,
-        httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.internal_application),
+        httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.internal_application),
             base_url="http://sidecar-internal",
         ) as internal,
     ):
@@ -240,8 +240,8 @@ async def test_sidecar_keeps_serving_cached_authorization_and_secrets_during_res
     await sidecar.start()
     assert await sleeper.next_delay() == 60
 
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=sidecar.application),
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=sidecar.application),
         base_url="http://sidecar",
     ) as client:
         initial = await client.post(
@@ -301,8 +301,8 @@ async def test_metadata_refresh_changes_monitoring_and_remote_policy_wins(
     await sidecar.start()
     assert await sleeper.next_delay() == 1
 
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=sidecar.application),
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=sidecar.application),
         base_url="http://sidecar",
     ) as client:
         first = await client.post(
@@ -437,8 +437,8 @@ async def test_sidecar_reports_import_fault_and_absent_extra(
     try:
         await sidecar.start()
         await sleeper.next_delay()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.internal_application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.internal_application),
             base_url="http://sidecar",
             headers={"Authorization": f"Bearer {COMPANION_TOKEN}"},
         ) as client:
@@ -492,16 +492,16 @@ async def test_sidecar_reports_recorder_failure_after_start(failure_at: str) -> 
     try:
         await sidecar.start()
         await sleeper.next_delay()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.application), base_url="http://serving"
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.application), base_url="http://serving"
         ) as serving:
             response = await serving.post(
                 f"/deployments/{DEPLOYMENT_ID}/compute",
                 headers=AUTHORIZATION,
                 json={"inputs": {"x": 1}},
             )
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.internal_application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.internal_application),
             base_url="http://sidecar",
         ) as internal:
             health = await internal.get(
@@ -511,8 +511,8 @@ async def test_sidecar_reports_recorder_failure_after_start(failure_at: str) -> 
         assert health.status_code == 503
         assert health.json()["recording"]["state"] == "fault"
         failing[0] = False
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.application), base_url="http://serving"
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.application), base_url="http://serving"
         ) as serving:
             recovered = await serving.post(
                 f"/deployments/{DEPLOYMENT_ID}/compute",
@@ -542,8 +542,8 @@ async def test_sidecar_reports_telemetry_initialization_failure(
     try:
         await sidecar.start()
         await sleeper.next_delay()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.internal_application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.internal_application),
             base_url="http://sidecar",
         ) as client:
             unguarded = await client.get("/recording")
@@ -570,8 +570,8 @@ async def test_sidecar_reports_inactive_telemetry_after_exporter_initialization_
     try:
         await sidecar.start()
         await sleeper.next_delay()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.internal_application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.internal_application),
             base_url="http://sidecar",
             headers={"Authorization": f"Bearer {COMPANION_TOKEN}"},
         ) as client:
@@ -599,8 +599,8 @@ async def test_noop_recording_does_not_clear_unavailable_state_after_inference()
     try:
         await sidecar.start()
         await sleeper.next_delay()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=sidecar.application), base_url="http://serving"
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=sidecar.application), base_url="http://serving"
         ) as client:
             response = await client.post(
                 f"/deployments/{DEPLOYMENT_ID}/compute",

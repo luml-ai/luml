@@ -5,7 +5,7 @@ description = "Relay and agent that expose local web services through LUML"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.28.1,<1.0.0",
+    "httpx2>=2.16.0,<3.0.0",
     "websockets>=15.0.1,<18.0.0",
 ]
 
@@ -15,7 +15,7 @@ server = [
     "uvicorn>=0.38.0,<1.0.0",
 ]
 luml = [
-    "luml-api>=0.5.0,<0.6.0",
+    "luml-api>=0.6.0,<0.7.0",
 ]
 
 [project.scripts]

@@ -4,11 +4,11 @@ import logging
 import os
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=10.0)
+_TIMEOUT = httpx2.Timeout(connect=10.0, read=90.0, write=10.0, pool=10.0)
 
 
 class ArtifactResolutionError(RuntimeError):
@@ -48,13 +48,13 @@ class AgentClient:
         url = f"{self._base_url}/satellites/deployments/{self._deployment_id}/artifact"
         logger.info("Asking the Agent for a download URL...")
         try:
-            response = httpx.get(
+            response = httpx2.get(
                 url,
                 headers={"X-Artifact-Token": self._token},
                 timeout=_TIMEOUT,
                 trust_env=False,
             )
-        except httpx.HTTPError as error:
+        except httpx2.HTTPError as error:
             raise ArtifactResolutionError(
                 f"Agent unreachable at {self._base_url}: {error}"
             ) from error

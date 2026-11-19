@@ -3,9 +3,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-import httpx
+import httpx2
 import pytest
 import respx
+from respx import MockResponse
 
 from luml_satellite.monitoring.compute.health import MetricFailure
 from luml_satellite.monitoring.dashboard.schemas import ProfileStatus
@@ -96,8 +97,9 @@ def _alert_row(metric: str, state: str, minutes_ago: int, value: float) -> list[
 
 
 class TestGreptimeQuery:
-    @respx.mock
-    async def test_reads_latest_worker_heartbeat_per_shard(self) -> None:
+    async def test_reads_latest_worker_heartbeat_per_shard(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         tick = datetime(2026, 7, 9, 20, 30, tzinfo=UTC)
         deployments = (
             '{"019f46e3-3aa1-7672-96a9-8c6d98ab25cd":'
@@ -118,7 +120,7 @@ class TestGreptimeQuery:
             ],
             [[0, 2, int(tick.timestamp() * 1000), 300.0, 60.0, deployments]],
         )
-        respx.post(_URL).mock(return_value=httpx.Response(200, json=body))
+        httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json=body))
 
         store = _store()
         heartbeat = (await store.read_worker_heartbeats())[0]
@@ -132,8 +134,7 @@ class TestGreptimeQuery:
         )
         await store.aclose()
 
-    @respx.mock
-    async def test_fetch_events_parses_span_attributes(self) -> None:
+    async def test_fetch_events_parses_span_attributes(self, httpx2_mock: respx.MockRouter) -> None:
         ns = int(datetime(2026, 7, 9, 20, 30, tzinfo=UTC).timestamp() * 1_000_000_000)
         attrs = {
             "inference.deployment_id": str(_DEP),
@@ -145,7 +146,7 @@ class TestGreptimeQuery:
             "inference.output": '{"y": 2}',
         }
         body = _records(["timestamp", "span_attributes"], [[ns, attrs]])
-        respx.post(_URL).mock(return_value=httpx.Response(200, json=body))
+        httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json=body))
 
         store = _store()
         end = datetime.now(UTC)
@@ -197,11 +198,12 @@ class TestGreptimeQuery:
         assert event.status == status
         assert event.status_code == expected_code
 
-    @respx.mock
-    async def test_describe_deployment_uses_max_timestamp(self) -> None:
+    async def test_describe_deployment_uses_max_timestamp(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         ns = int(datetime(2026, 7, 9, 20, 30, tzinfo=UTC).timestamp() * 1_000_000_000)
         body = _records(["max(timestamp)"], [[ns]])
-        respx.post(_URL).mock(return_value=httpx.Response(200, json=body))
+        httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json=body))
 
         store = _store()
         desc = await store.describe_deployment(_DEP)
@@ -212,22 +214,24 @@ class TestGreptimeQuery:
         assert desc.last_prediction_at == datetime(2026, 7, 9, 20, 30, tzinfo=UTC)
         await store.aclose()
 
-    @respx.mock
-    async def test_describe_deployment_none_when_nothing_is_known(self) -> None:
+    async def test_describe_deployment_none_when_nothing_is_known(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         body = _records(["max(timestamp)"], [[None]])
-        respx.post(_URL).mock(return_value=httpx.Response(200, json=body))
+        httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json=body))
         store = _store()
         assert await store.describe_deployment(_DEP) is None
         await store.aclose()
 
-    @respx.mock
-    async def test_describe_deployment_carries_the_platform_identity(self) -> None:
+    async def test_describe_deployment_carries_the_platform_identity(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         ns = int(datetime(2026, 7, 9, 20, 30, tzinfo=UTC).timestamp() * 1_000_000_000)
         window_end_ms = int(datetime(2026, 7, 9, 20, 25, tzinfo=UTC).timestamp() * 1_000)
-        respx.post(_URL).mock(
+        httpx2_mock.post(_URL).mock(
             side_effect=[
-                httpx.Response(200, json=_records(["max(timestamp)"], [[ns]])),
-                httpx.Response(200, json=_records(["max(window_end)"], [[window_end_ms]])),
+                MockResponse(200, json=_records(["max(timestamp)"], [[ns]])),
+                MockResponse(200, json=_records(["max(window_end)"], [[window_end_ms]])),
             ]
         )
         store = GreptimeQueryStore(
@@ -249,12 +253,13 @@ class TestGreptimeQuery:
         assert desc.last_monitored_at == datetime(2026, 7, 9, 20, 25, tzinfo=UTC)
         await store.aclose()
 
-    @respx.mock
-    async def test_deployment_without_telemetry_still_has_a_header(self) -> None:
-        respx.post(_URL).mock(
+    async def test_deployment_without_telemetry_still_has_a_header(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
+        httpx2_mock.post(_URL).mock(
             side_effect=[
-                httpx.Response(200, json=_records(["max(timestamp)"], [[None]])),
-                httpx.Response(200, json=_records(["max(window_end)"], [[None]])),
+                MockResponse(200, json=_records(["max(timestamp)"], [[None]])),
+                MockResponse(200, json=_records(["max(window_end)"], [[None]])),
             ]
         )
         store = GreptimeQueryStore(
@@ -268,11 +273,10 @@ class TestGreptimeQuery:
         assert desc.last_prediction_at is None
         await store.aclose()
 
-    @respx.mock
-    async def test_missing_table_degrades_gracefully(self) -> None:
+    async def test_missing_table_degrades_gracefully(self, httpx2_mock: respx.MockRouter) -> None:
         # GreptimeDB returns HTTP 400 + non-zero code when a materialized table is absent.
-        respx.post(_URL).mock(
-            return_value=httpx.Response(
+        httpx2_mock.post(_URL).mock(
+            return_value=MockResponse(
                 400, json={"code": 4001, "error": "Table not found: public.monitoring_results"}
             )
         )
@@ -281,9 +285,10 @@ class TestGreptimeQuery:
         assert await store.fetch_alerts(_DEP) == []
         await store.aclose()
 
-    @respx.mock
-    async def test_connection_error_is_store_unavailable(self) -> None:
-        respx.post(_URL).mock(side_effect=httpx.ConnectError("refused"))
+    async def test_connection_error_is_store_unavailable(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
+        httpx2_mock.post(_URL).mock(side_effect=httpx2.ConnectError("refused"))
         store = _store()
         with pytest.raises(MonitoringStoreUnavailable):
             await store.fetch_events(_DEP, datetime.now(UTC) - timedelta(days=1), datetime.now(UTC))
@@ -352,8 +357,9 @@ class TestGreptimeQuery:
         assert await store.fetch_profile(_DEP) is None
         assert await store.profile_status(_DEP) is ProfileStatus.UNSUPPORTED
 
-    @respx.mock
-    async def test_alert_history_collapses_to_the_current_state(self) -> None:
+    async def test_alert_history_collapses_to_the_current_state(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         """The worker re-saves an alert on every window it still fires in, so the table holds
         its whole history — counting rows reported three times as many alerts as there were."""
         rows = [  # newest first, as the query orders them
@@ -361,7 +367,9 @@ class TestGreptimeQuery:
             _alert_row("feature_drift:income", "open", 5, 0.38),
             _alert_row("feature_drift:income", "open", 10, 0.31),
         ]
-        respx.post(_URL).mock(return_value=httpx.Response(200, json=_records(_ALERT_COLUMNS, rows)))
+        httpx2_mock.post(_URL).mock(
+            return_value=MockResponse(200, json=_records(_ALERT_COLUMNS, rows))
+        )
         store = _store()
 
         alerts = await store.fetch_alerts(_DEP)
@@ -373,14 +381,17 @@ class TestGreptimeQuery:
         assert alerts[0].first_seen == datetime(2026, 7, 9, 20, 20, tzinfo=UTC)
         await store.aclose()
 
-    @respx.mock
-    async def test_resolved_alerts_are_not_active_any_more(self) -> None:
+    async def test_resolved_alerts_are_not_active_any_more(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         rows = [
             _alert_row("data_quality:region.unseen_category", "resolved", 0, 0.0),
             _alert_row("data_quality:region.unseen_category", "open", 5, 0.03),
             _alert_row("runtime:error_rate", "open", 1, 0.09),
         ]
-        respx.post(_URL).mock(return_value=httpx.Response(200, json=_records(_ALERT_COLUMNS, rows)))
+        httpx2_mock.post(_URL).mock(
+            return_value=MockResponse(200, json=_records(_ALERT_COLUMNS, rows))
+        )
         store = _store()
 
         alerts = await store.fetch_alerts(_DEP)
@@ -399,8 +410,8 @@ class TestBeforeTheFirstSpan:
     """
 
     @staticmethod
-    def _missing(table: str) -> httpx.Response:
-        return httpx.Response(
+    def _missing(table: str) -> MockResponse:
+        return MockResponse(
             400,
             json={
                 "code": 4001,
@@ -408,17 +419,18 @@ class TestBeforeTheFirstSpan:
             },
         )
 
-    @respx.mock
-    async def test_the_header_has_the_platform_identity_and_no_timestamps(self) -> None:
-        def answer(request: httpx.Request) -> httpx.Response:
+    async def test_the_header_has_the_platform_identity_and_no_timestamps(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
+        def answer(request: httpx2.Request) -> MockResponse:
             sql = request.content.decode()
             if "inference_events" in sql:
                 return self._missing("inference_events")
             if "monitoring_results" in sql:
                 return self._missing("monitoring_results")  # the worker has not ticked yet
-            return httpx.Response(200, json=_records([], []))
+            return MockResponse(200, json=_records([], []))
 
-        respx.post(_URL).mock(side_effect=answer)
+        httpx2_mock.post(_URL).mock(side_effect=answer)
         store = GreptimeQueryStore(
             host="gt",
             port=4000,
@@ -437,9 +449,10 @@ class TestBeforeTheFirstSpan:
         assert descriptor.last_monitored_at is None
         await store.aclose()
 
-    @respx.mock
-    async def test_a_window_before_the_table_exists_is_empty(self) -> None:
-        respx.post(_URL).mock(return_value=self._missing("inference_events"))
+    async def test_a_window_before_the_table_exists_is_empty(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
+        httpx2_mock.post(_URL).mock(return_value=self._missing("inference_events"))
         store = _store()
 
         events = await store.fetch_events(
@@ -451,13 +464,14 @@ class TestBeforeTheFirstSpan:
         assert events == []
         await store.aclose()
 
-    @respx.mock
-    async def test_any_other_query_error_still_fails_the_read(self) -> None:
+    async def test_any_other_query_error_still_fails_the_read(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         """Only a missing table is a phase; a rejected statement is a bug to surface."""
         from luml_satellite.monitoring.storage.greptime_query import _QueryError
 
-        respx.post(_URL).mock(
-            return_value=httpx.Response(
+        httpx2_mock.post(_URL).mock(
+            return_value=MockResponse(
                 400, json={"code": 3000, "error": "Failed to plan SQL: syntax"}
             )
         )

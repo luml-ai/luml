@@ -2,9 +2,9 @@ import datetime
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
-import httpx
 import pytest
 import pytest_asyncio
+from respx import MockResponse
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._types import (
@@ -128,25 +128,25 @@ def sample_artifact(sample_model_artifact: Artifact) -> Artifact:
 
 @pytest.fixture
 def mock_initialization_requests(
-    respx_mock: Any,  # noqa: ANN401
+    httpx2_mock: Any,  # noqa: ANN401
     sample_organization: Organization,
     sample_orbit: Orbit,
     sample_collection: Collection,
 ) -> dict:
     organization_id = sample_organization.id
 
-    respx_mock.get("/v1/users/me/organizations").mock(
-        return_value=httpx.Response(200, json=[sample_organization.model_dump()])
+    httpx2_mock.get("/v1/users/me/organizations").mock(
+        return_value=MockResponse(200, json=[sample_organization.model_dump()])
     )
 
-    respx_mock.get(f"/v1/organizations/{organization_id}/orbits").mock(
-        return_value=httpx.Response(200, json=[sample_orbit.model_dump()])
+    httpx2_mock.get(f"/v1/organizations/{organization_id}/orbits").mock(
+        return_value=MockResponse(200, json=[sample_orbit.model_dump()])
     )
 
-    respx_mock.get(
+    httpx2_mock.get(
         f"/v1/organizations/{organization_id}/orbits/{sample_orbit.id}/collections"
     ).mock(
-        return_value=httpx.Response(
+        return_value=MockResponse(
             200,
             json={"items": [sample_collection.model_dump()], "cursor": None},
         )

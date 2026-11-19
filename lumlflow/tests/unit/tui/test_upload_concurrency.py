@@ -4,7 +4,7 @@ from pathlib import Path
 from threading import Event
 from unittest.mock import MagicMock, patch
 
-import httpx
+import httpx2
 import pytest
 from luml.experiments.tracker import ExperimentTracker
 from luml_api._exceptions import NotFoundError
@@ -162,8 +162,8 @@ def test_upload_tracker_phases_serialize_local_reads(
     if phase == "delete_remote_artifact":
         error = NotFoundError(
             "gone",
-            response=httpx.Response(
-                404, request=httpx.Request("POST", "https://example.test")
+            response=httpx2.Response(
+                404, request=httpx2.Request("POST", "https://example.test")
             ),
             body={},
         )
@@ -273,8 +273,8 @@ def test_stale_lineage_network_phases_allow_local_reads(
     entered, release = Event(), Event()
     error = NotFoundError(
         "gone",
-        response=httpx.Response(
-            404, request=httpx.Request("POST", "https://example.test")
+        response=httpx2.Response(
+            404, request=httpx2.Request("POST", "https://example.test")
         ),
         body={},
     )

@@ -3,7 +3,7 @@ import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import httpx
+import httpx2
 import pytest
 from dfs_webworker import invoke
 from dfs_webworker.prompt_optimization import StoredGraph
@@ -70,12 +70,12 @@ def test_all_rows_failing_returns_route_error(predict, rows):
 @pytest.mark.parametrize(
     "error",
     [
-        httpx.HTTPStatusError(
+        httpx2.HTTPStatusError(
             "Unauthorized",
-            request=httpx.Request("POST", "https://example.com"),
-            response=httpx.Response(401),
+            request=httpx2.Request("POST", "https://example.com"),
+            response=httpx2.Response(401),
         ),
-        httpx.ReadTimeout("Timed out"),
+        httpx2.ReadTimeout("Timed out"),
         ValueError("Unexpected graph failure"),
     ],
 )
@@ -210,12 +210,12 @@ def test_malformed_processor_does_not_hide_sibling_provider_error(sibling_result
                 await malformed.wait()
                 await asyncio.sleep(0)
                 if sibling_result == "timeout":
-                    raise httpx.ReadTimeout("Timed out")
+                    raise httpx2.ReadTimeout("Timed out")
                 if sibling_result == "unauthorized":
-                    raise httpx.HTTPStatusError(
+                    raise httpx2.HTTPStatusError(
                         "Unauthorized",
-                        request=httpx.Request("POST", "https://example.com"),
-                        response=httpx.Response(401),
+                        request=httpx2.Request("POST", "https://example.com"),
+                        response=httpx2.Response(401),
                     )
             else:
                 try:

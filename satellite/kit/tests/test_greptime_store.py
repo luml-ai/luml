@@ -3,7 +3,7 @@ import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite.monitoring.compute.health import DeploymentHealth
@@ -49,17 +49,17 @@ class Recorder:
         self.statements: list[str] = []
         self._response_for = response_for or {}
 
-    def handler(self, request: httpx.Request) -> httpx.Response:
+    def handler(self, request: httpx2.Request) -> httpx2.Response:
         body = urllib.parse.parse_qs(request.content.decode())
         sql = body["sql"][0]
         self.statements.append(sql)
         for keyword, payload in self._response_for.items():
             if keyword in sql:
-                return httpx.Response(200, json=payload)
-        return httpx.Response(200, json=_affected())
+                return httpx2.Response(200, json=payload)
+        return httpx2.Response(200, json=_affected())
 
     def store(self) -> GreptimeMonitoringStore:
-        client = httpx.AsyncClient(transport=httpx.MockTransport(self.handler))
+        client = httpx2.AsyncClient(transport=httpx2.MockTransport(self.handler))
         return GreptimeMonitoringStore(client=client, database="public")
 
 
@@ -231,18 +231,18 @@ class TestGreptimeStore:
         """
         alerts_table_created = False
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             nonlocal alerts_table_created
             sql = urllib.parse.parse_qs(request.content.decode())["sql"][0]
             if sql.strip().startswith("CREATE TABLE"):
                 if "monitoring_alerts" in sql:
                     alerts_table_created = True
-                return httpx.Response(200, json=_affected())
+                return httpx2.Response(200, json=_affected())
             if "SELECT" in sql and "monitoring_alerts" in sql and not alerts_table_created:
-                return httpx.Response(200, json={"code": 4001, "error": "table not found"})
-            return httpx.Response(200, json=_records(["metric"], []))
+                return httpx2.Response(200, json={"code": 4001, "error": "table not found"})
+            return httpx2.Response(200, json=_records(["metric"], []))
 
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        client = httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
         store = GreptimeMonitoringStore(client=client, database="public")
 
         alerts = await store.active_alerts("dep-1")  # must not raise on a fresh database
@@ -261,15 +261,15 @@ class TestGreptimeStore:
         recorder = Recorder()
         missing = {"code": 4001, "error": "Table not found: greptime.public.inference_events"}
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> httpx2.Response:
             sql = urllib.parse.parse_qs(request.content.decode())["sql"][0]
             recorder.statements.append(sql)
             if "FROM inference_events" in sql:
-                return httpx.Response(400, json=missing)
-            return httpx.Response(200, json=_affected())
+                return httpx2.Response(400, json=missing)
+            return httpx2.Response(200, json=_affected())
 
         store = GreptimeMonitoringStore(
-            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)), database="public"
+            client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)), database="public"
         )
 
         with caplog.at_level(logging.DEBUG, logger="satellite"):
@@ -284,12 +284,12 @@ class TestGreptimeStore:
     async def test_other_400s_still_fail_the_read(self) -> None:
         """Only a missing table is a phase; a malformed query is a bug and must surface."""
 
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(400, json={"code": 3000, "error": "Failed to plan SQL: syntax"})
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            return httpx2.Response(400, json={"code": 3000, "error": "Failed to plan SQL: syntax"})
 
         store = GreptimeMonitoringStore(
-            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)), database="public"
+            client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)), database="public"
         )
 
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(httpx2.HTTPStatusError):
             await store.read_events("dep-1", WINDOW)

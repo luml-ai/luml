@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.18.4",
     "fastapi>=0.115.0",
-    "httpx>=0.28.0",
+    "httpx2>=2.16.0,<3.0.0",
     "luml-sdk>=0.2.0,<0.7.0",
     "sqlalchemy>=2.0.47",
     "typer>=0.15.0",
@@ -42,7 +42,7 @@ members = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
-    "httpx>=0.28.0",
+    "httpx2>=2.16.0,<3.0.0",
     "ruff>=0.15.4",
     "ty==0.0.104",
 ]

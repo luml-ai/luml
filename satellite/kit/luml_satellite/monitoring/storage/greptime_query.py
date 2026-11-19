@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-import httpx
+import httpx2
 
 from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.compute.models import (
@@ -226,7 +226,7 @@ class GreptimeQueryStore:
         host: str = "localhost",
         port: int = 4000,
         database: str = "public",
-        client: httpx.AsyncClient | None = None,
+        client: httpx2.AsyncClient | None = None,
         timeout: float = 15.0,
         profile_source: ProfileSource | None = None,
         profile_status_source: ProfileStatusSource | None = None,
@@ -242,7 +242,7 @@ class GreptimeQueryStore:
         self._client = client
         self._owns_client = client is None
         self._auth = (
-            httpx.BasicAuth(username, password)
+            httpx2.BasicAuth(username, password)
             if username is not None and password is not None
             else None
         )
@@ -250,9 +250,9 @@ class GreptimeQueryStore:
         self._profile_status_source = profile_status_source
         self._deployment_source = deployment_source
 
-    def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(self) -> httpx2.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self._timeout)
+            self._client = httpx2.AsyncClient(timeout=self._timeout)
         return self._client
 
     async def aclose(self) -> None:
@@ -274,7 +274,7 @@ class GreptimeQueryStore:
                     data={"sql": sql},
                     auth=self._auth,
                 )
-        except httpx.HTTPError as error:
+        except httpx2.HTTPError as error:
             raise MonitoringStoreUnavailable("GreptimeDB unreachable") from error
         try:
             payload = response.json()

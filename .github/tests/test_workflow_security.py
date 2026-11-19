@@ -76,11 +76,11 @@ class WorkflowSecurityTests(unittest.TestCase):
 
     def test_registry_publish_jobs_keep_their_required_permissions(self):
         jobs = {
-            path.name: "push-image" for path in WORKFLOWS.glob("publish-*-image*.yml")
+            path.name: "push-image" for path in WORKFLOWS.glob("*publish-image*.yml")
         }
-        jobs["publish-kubernetes-satellite-chart.yml"] = "publish-chart"
-        jobs["promote-images.yml"] = "promote"
-        self.assertIn("publish-satellite-images.yml", jobs)
+        jobs["[satellite-kubernetes] publish-chart.yml"] = "publish-chart"
+        jobs["[images] promote.yml"] = "promote"
+        self.assertIn("[satellite] publish-images.yml", jobs)
         for name, job in jobs.items():
             workflow = yaml.load((WORKFLOWS / name).read_text(), Loader=yaml.BaseLoader)
             with self.subTest(workflow=name, job=job):
@@ -131,7 +131,7 @@ class WorkflowSecurityTests(unittest.TestCase):
 
     def test_migrations_keep_dependencies_locked_and_dsn_scoped(self):
         workflow = yaml.load(
-            (WORKFLOWS / "deploy-backend.yml").read_text(), Loader=yaml.BaseLoader
+            (WORKFLOWS / "[backend] deploy.yml").read_text(), Loader=yaml.BaseLoader
         )
         migrate = workflow["jobs"]["migrate"]
         self.assertNotIn("POSTGRESQL_DSN", workflow.get("env", {}))

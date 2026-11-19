@@ -4,7 +4,7 @@ from types import TracebackType
 from typing import Any, Self
 from uuid import UUID
 
-import httpx
+import httpx2
 
 from luml_satellite.wire.contract import (
     ContractComparison,
@@ -37,9 +37,9 @@ class PlatformClient:
         self,
         base_url: str,
         token: str,
-        timeout_s: float | httpx.Timeout = 30.0,
+        timeout_s: float | httpx2.Timeout = 30.0,
         *,
-        transport: httpx.AsyncBaseTransport | None = None,
+        transport: httpx2.AsyncBaseTransport | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -50,10 +50,10 @@ class PlatformClient:
         }
         self._transport = transport
         self._logger = logger or logging.getLogger("luml_satellite")
-        self._session: httpx.AsyncClient | None = None
+        self._session: httpx2.AsyncClient | None = None
 
     async def __aenter__(self) -> Self:
-        self._session = httpx.AsyncClient(
+        self._session = httpx2.AsyncClient(
             base_url=self.base_url,
             timeout=self._timeout,
             headers=self._headers,
@@ -227,7 +227,7 @@ class PlatformClient:
         *,
         params: dict[str, str] | None = None,
         json_body: object | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         if self._session is None:
             raise RuntimeError("PlatformClient must be used as an async context manager")
         try:
@@ -235,7 +235,7 @@ class PlatformClient:
                 response = await self._session.request(method, path, params=params)
             else:
                 response = await self._session.request(method, path, params=params, json=json_body)
-        except httpx.RequestError as error:
+        except httpx2.RequestError as error:
             raise PlatformError(f"platform request failed: {error}") from error
         if response.is_success:
             return response
@@ -261,7 +261,7 @@ def _dict_list(value: object, description: str) -> list[dict[str, Any]]:
     return value
 
 
-def _response_detail(response: httpx.Response) -> object:
+def _response_detail(response: httpx2.Response) -> object:
     try:
         data: object = response.json()
     except ValueError:

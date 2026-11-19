@@ -11,7 +11,7 @@ import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
-import httpx
+import httpx2
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exception_handlers import http_exception_handler
@@ -150,8 +150,8 @@ def app() -> Iterator[FastAPI]:
     yield application
 
 
-def _client(app: FastAPI) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver")
+def _client(app: FastAPI) -> httpx2.AsyncClient:
+    return httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url="http://testserver")
 
 
 def _url(section: str = "overview", deployment: uuid.UUID = DEPLOYMENT_ID) -> str:

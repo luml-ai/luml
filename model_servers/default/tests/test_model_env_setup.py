@@ -154,7 +154,7 @@ class TestModelEnvSetup:
         extra = ModelHandler._worker_dependencies(
             _deps(
                 "opentelemetry-semantic-conventions==0.63b1",
-                "opentelemetry-instrumentation-httpx==0.63b1",
+                "opentelemetry-instrumentation-httpx2==0.63b1",
                 "opentelemetry-sdk==1.42.1",
             )
         )

@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from unittest.mock import patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 from luml.handlers.auth import AuthHandler
 from luml.repositories.token_blacklist import TokenBlackListRepository
 from luml.repositories.users import UserRepository

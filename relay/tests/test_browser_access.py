@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-import httpx
+import httpx2
 import pytest
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
@@ -52,15 +52,15 @@ def relay(luml: FakeRelayApi, relay_limits: RelayLimits, clock: FakeClock) -> Re
 
 
 async def launch(
-    client: httpx.AsyncClient, token: str, headers: dict[str, str] | None = None
-) -> httpx.Response:
+    client: httpx2.AsyncClient, token: str, headers: dict[str, str] | None = None
+) -> httpx2.Response:
     return await client.get(
         LAUNCH_PATH, params={"token": token}, headers=headers, follow_redirects=False
     )
 
 
-def relay_cookie(response: httpx.Response) -> str:
-    """The relay's cookie from a response, which httpx would not send back over http."""
+def relay_cookie(response: httpx2.Response) -> str:
+    """The relay's cookie from a response, which httpx2 would not send back over http."""
     [cookie] = [
         header.split(";")[0]
         for header in response.headers.get_list("set-cookie")

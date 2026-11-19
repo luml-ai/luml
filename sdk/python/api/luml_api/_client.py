@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-from httpx import URL
+from httpx2 import URL
 
 from luml_api._base_client import AsyncBaseClient, SyncBaseClient
 from luml_api._exceptions import (
@@ -568,14 +568,18 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         LumlClientBase.__init__(self, base_url=base_url, api_key=api_key)
         SyncBaseClient.__init__(self, base_url=self._base_url)
 
-        validated_org = self._validate_organization(organization)
-        self._organization = validated_org
+        try:
+            validated_org = self._validate_organization(organization)
+            self._organization = validated_org
 
-        validated_orbit = self._validate_orbit(orbit)
-        self._orbit = validated_orbit
+            validated_orbit = self._validate_orbit(orbit)
+            self._orbit = validated_orbit
 
-        validated_collection = self._validate_collection(collection)
-        self._collection = validated_collection
+            validated_collection = self._validate_collection(collection)
+            self._collection = validated_collection
+        except BaseException:
+            self.close()
+            raise
 
     def _validate_organization(self, org_value: str | None) -> str | None:
         all_organizations = self.organizations.list()

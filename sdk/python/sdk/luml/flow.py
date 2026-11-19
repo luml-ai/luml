@@ -18,8 +18,14 @@ from types import FrameType
 from typing import Any, Self
 
 try:
-    import httpx
-    from luml_api import APIStatusError, AsyncLumlClient, LumlClient, NotFoundError
+    import httpx2
+    from luml_api import (
+        APIConnectionError,
+        APIStatusError,
+        AsyncLumlClient,
+        LumlClient,
+        NotFoundError,
+    )
     from luml_api._types import LiveSessionStart
     from luml_relay.agent import LoopbackService
     from luml_relay.luml import serve_session
@@ -115,6 +121,7 @@ class RelayedFlow:
 
     def _expose(self) -> str:
         client = LumlClient(organization=self.organization, orbit=self.orbit)
+        self._client = client
         if client.organization is None or client.orbit is None:
             raise RelayedFlowError(
                 "The API key reaches several organizations or orbits; "
@@ -126,7 +133,6 @@ class RelayedFlow:
             if self._lumlflow is not None
             else _session_token_of_running_flow(self.port, self.session_token)
         )
-        self._client = client
         exposed = client.flows.expose(self.name)
         self._session_id = exposed.session.id
         self._serving = _BackgroundServing()
@@ -141,13 +147,22 @@ class RelayedFlow:
         return exposed.app_url
 
     def _release(self) -> None:
-        if self._client is not None and self._session_id is not None:
-            _end_session(self._client, self._session_id)
-        if self._serving is not None:
-            self._serving.stop()
-        if self._lumlflow is not None:
-            _release_lumlflow(self._lumlflow)
-            self._lumlflow = None
+        try:
+            try:
+                if self._client is not None and self._session_id is not None:
+                    _end_session(self._client, self._session_id)
+            finally:
+                try:
+                    if self._serving is not None:
+                        self._serving.stop()
+                finally:
+                    if self._lumlflow is not None:
+                        lumlflow, self._lumlflow = self._lumlflow, None
+                        _release_lumlflow(lumlflow)
+        finally:
+            if self._client is not None:
+                self._client.close()
+                self._client = None
 
     def _register_cleanup(self) -> None:
         atexit.register(self.stop)
@@ -251,15 +266,17 @@ async def _serve(
     session_token: str | None,
     connected: asyncio.Event,
 ) -> None:
-    client = AsyncLumlClient()
-    client.organization = organization
-    client.orbit = orbit
-    service = LoopbackService(port, bearer_token=session_token)
-    try:
-        # Never set: the session is ended through the API and serving is cancelled.
-        await serve_session(client, session, service, asyncio.Event(), None, connected)
-    finally:
-        await service.aclose()
+    async with AsyncLumlClient() as client:
+        client.organization = organization
+        client.orbit = orbit
+        service = LoopbackService(port, bearer_token=session_token)
+        try:
+            # Never set: the session is ended through the API and serving is cancelled.
+            await serve_session(
+                client, session, service, asyncio.Event(), None, connected
+            )
+        finally:
+            await service.aclose()
 
 
 def _report_serving_end(task: asyncio.Task[None]) -> None:
@@ -278,7 +295,7 @@ def _end_session(client: LumlClient, session_id: str) -> None:
         client.live_sessions.end(session_id)
     except NotFoundError:
         logger.info("The flow's session was already gone at LUML")
-    except (httpx.HTTPError, APIStatusError) as error:
+    except (httpx2.HTTPError, APIConnectionError, APIStatusError) as error:
         logger.warning(
             "Could not end the flow's session at LUML; it ends by silence: %s", error
         )
@@ -341,12 +358,12 @@ def _lumlflow_answers(port: int) -> bool:
     """Whether Flow answers on the loopback port; False when nothing listens."""
     in_use = RelayedFlowError(f"Port {port} is in use by a server that is not Flow")
     try:
-        response = httpx.get(
+        response = httpx2.get(
             f"http://127.0.0.1:{port}{STATUS_PATH}", timeout=2.0, trust_env=False
         )
-    except (httpx.ConnectError, httpx.ConnectTimeout):
+    except (httpx2.ConnectError, httpx2.ConnectTimeout):
         return False
-    except httpx.HTTPError as error:
+    except httpx2.HTTPError as error:
         raise in_use from error
     try:
         body = response.json()
@@ -382,13 +399,13 @@ def _flow_accepts(port: int, session_token: str | None) -> bool:
         {} if session_token is None else {"Authorization": f"Bearer {session_token}"}
     )
     try:
-        response = httpx.get(
+        response = httpx2.get(
             f"http://127.0.0.1:{port}{PROTECTED_PATH}",
             headers=headers,
             timeout=2.0,
             trust_env=False,
         )
-    except httpx.HTTPError as error:
+    except httpx2.HTTPError as error:
         raise RelayedFlowError(f"Flow on port {port} stopped answering") from error
     return response.status_code != 401
 

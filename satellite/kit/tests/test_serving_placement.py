@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -49,15 +49,15 @@ class NoSecrets:
 async def test_in_process_placement_reads_registers_and_updates_a_deployment() -> None:
     requests: list[str] = []
 
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         requests.append(request.url.path)
         responses = {
-            "/healthz": httpx.Response(200, json={"status": "healthy"}),
-            "/manifest": httpx.Response(
+            "/healthz": httpx2.Response(200, json={"status": "healthy"}),
+            "/manifest": httpx2.Response(
                 200,
                 json={"producer_tags": ["luml.ai::tabular_monitoring:v1"]},
             ),
-            "/openapi.json": httpx.Response(
+            "/openapi.json": httpx2.Response(
                 200,
                 json={
                     "openapi": "3.1.0",
@@ -73,14 +73,14 @@ async def test_in_process_placement_reads_registers_and_updates_a_deployment() -
                     },
                 },
             ),
-            "/reference_profile": httpx.Response(200, json=READY_PROFILE),
+            "/reference_profile": httpx2.Response(200, json=READY_PROFILE),
         }
         return responses[request.url.path]
 
     placement = InProcessServingPlacement(
         AllowAll(),
         NoSecrets(),
-        upstream_transport=httpx.MockTransport(upstream),
+        upstream_transport=httpx2.MockTransport(upstream),
     )
     deployment = Deployment.model_validate(
         deployment_record(
@@ -136,8 +136,8 @@ async def test_in_process_placement_reads_registers_and_updates_a_deployment() -
 
         request_count = len(requests)
         placement.mark_reconciled()
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=placement.application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=placement.application),
             base_url="http://satellite",
         ) as client:
             listing = await client.get("/deployments", headers=AUTHORIZATION)
@@ -152,19 +152,19 @@ async def test_in_process_placement_reads_registers_and_updates_a_deployment() -
 
 @pytest.mark.asyncio
 async def test_description_parts_are_independently_optional_and_health_errors_are_false() -> None:
-    async def upstream(request: httpx.Request) -> httpx.Response:
+    async def upstream(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/manifest":
-            return httpx.Response(500)
+            return httpx2.Response(500)
         if request.url.path == "/openapi.json":
-            return httpx.Response(200, content=b"not-json")
+            return httpx2.Response(200, content=b"not-json")
         if request.url.path == "/reference_profile":
-            return httpx.Response(404)
-        raise httpx.ConnectError("unreachable", request=request)
+            return httpx2.Response(404)
+        raise httpx2.ConnectError("unreachable", request=request)
 
     placement = InProcessServingPlacement(
         AllowAll(),
         NoSecrets(),
-        upstream_transport=httpx.MockTransport(upstream),
+        upstream_transport=httpx2.MockTransport(upstream),
     )
     deployment = Deployment.model_validate(deployment_record())
     try:
@@ -178,10 +178,11 @@ async def test_description_parts_are_independently_optional_and_health_errors_ar
 
 
 @pytest.mark.asyncio
+@pytest.mark.httpx2(assert_all_called=False)
 async def test_in_process_compute_uses_the_shared_model_server_fixture(
     mock_model_server: respx.MockRouter,
 ) -> None:
-    upstream_client = httpx.AsyncClient()
+    upstream_client = httpx2.AsyncClient()
     placement = InProcessServingPlacement(
         AllowAll(),
         NoSecrets(),
@@ -195,8 +196,8 @@ async def test_in_process_compute_uses_the_shared_model_server_fixture(
     )
     placement.mark_reconciled()
     try:
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=placement.application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=placement.application),
             base_url="http://satellite",
         ) as client:
             response = await client.post(
@@ -290,7 +291,7 @@ async def test_runtime_opens_the_starting_gate_after_reconciliation() -> None:
                 platform_client,
                 TokenDeriver(platform.token),
             ),
-            upstream_transport=httpx.MockTransport(lambda request: httpx.Response(200)),
+            upstream_transport=httpx2.MockTransport(lambda request: httpx2.Response(200)),
         )
         runtime = SatelliteRuntime(
             configuration,
@@ -298,8 +299,8 @@ async def test_runtime_opens_the_starting_gate_after_reconciliation() -> None:
             FakeDriver(),
             serving=placement,
         )
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=placement.application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=placement.application),
             base_url="http://satellite",
         ) as client:
             before = await client.get("/deployments", headers=AUTHORIZATION)

@@ -17,37 +17,39 @@ WORKFLOWS = ROOT / ".github/workflows"
 BRANCHES = {"main", "staging", "production"}
 PROMOTION_BRANCHES = {"staging", "production"}
 DEPLOYS = {
-    "deploy-backend.yml": {"tests": "[backend] tests-and-linters.yml"},
-    "deploy-frontend.yml": {
+    "[backend] deploy.yml": {"tests": "[backend] tests-and-linters.yml"},
+    "[frontend] deploy.yml": {
         "tests": "[frontend] tests-and-linters.yml",
         "extras-tests": "[extras-js] tests-and-linters.yml",
     },
-    "deploy-docs.yml": {"tests": None},
+    "[docs] deploy.yml": {"tests": None},
 }
 PUBLISHERS = {
-    "publish-satellite-images.yml": {
+    "[satellite] publish-images.yml": {
         "kit-tests": "[satellite-kit] tests-and-linters.yml",
         "docker-tests": "[satellite-docker] tests-and-linters.yml",
         "kubernetes-tests": "[satellite-kubernetes] tests-and-linters.yml",
         "ui-tests": "[satellite-monitoring-ui] tests-and-linters.yml",
     },
-    "publish-relay-image.yml": {"tests": "[relay] tests-and-linters.yml"},
-    "publish-model-server-image.yml": {"tests": "[model-server] tests-and-linters.yml"},
+    "[relay] publish-image.yml": {"tests": "[relay] tests-and-linters.yml"},
+    "[model-server] publish-image.yml": {
+        "tests": "[model-server] tests-and-linters.yml"
+    },
 }
 RELEASES = {**DEPLOYS, **PUBLISHERS}
 IMAGE_TAGS = {
-    "publish-satellite-images.yml": {
+    "[satellite] publish-images.yml": {
         "satellite/agent/v*": "luml-satellite-agent",
         "satellite/kubernetes/v*": "luml-satellite-kubernetes",
         "satellite/monitoring/v*": "luml-satellite-monitoring",
         "satellite/serving/v*": "luml-satellite-serving",
     },
-    "publish-relay-image.yml": {"luml-relay/image/v*": "luml-relay"},
-    "publish-model-server-image.yml": {
+    "[relay] publish-image.yml": {"luml-relay/image/v*": "luml-relay"},
+    "[model-server] publish-image.yml": {
         "satellite/model-server/v*": "luml-model-server"
     },
 }
-PROMOTION = "promote-images.yml"
+PROMOTION = "[images] promote.yml"
 PACKAGE_GATES = {
     "sdk-python/api/v*": {"api-client-tests": "[api-client] tests-and-linters.yml"},
     "sdk-python/sdk/v*": {"sdk-tests": "[sdk] tests-and-linters.yml"},
@@ -92,6 +94,11 @@ SUITE_TESTS = {
 
 def load(name):
     return yaml.load((WORKFLOWS / name).read_text(), Loader=yaml.BaseLoader)
+
+
+def trigger_path(name):
+    package, action = name.removeprefix("[").split("] ", 1)
+    return f".github/workflows/*{package}*{action}"
 
 
 def dependencies(jobs, name):
@@ -275,9 +282,7 @@ class ReleaseGateTests(unittest.TestCase):
                 self.assertNotIn("workflow_run", workflow["on"])
                 self.assertEqual(set(workflow["on"]["push"]["branches"]), {"main"})
                 self.assertEqual(set(workflow["on"]["push"]["tags"]), set(tags))
-                self.assertIn(
-                    f".github/workflows/{name}", workflow["on"]["push"]["paths"]
-                )
+                self.assertIn(trigger_path(name), workflow["on"]["push"]["paths"])
                 publish = workflow["jobs"]["push-image"]
                 checkouts = [
                     step
@@ -300,7 +305,7 @@ class ReleaseGateTests(unittest.TestCase):
                 )
 
     def test_docs_checks_validate_the_production_build(self):
-        jobs = load("deploy-docs.yml")["jobs"]
+        jobs = load("[docs] deploy.yml")["jobs"]
         self.assertIn("tests", jobs)
         tests = jobs["tests"]
         self.assertEqual(tests["defaults"]["run"]["working-directory"], "docs")
@@ -357,7 +362,7 @@ class ReleaseGateTests(unittest.TestCase):
                             self.assertEqual(len(images), 1)
 
     def test_satellite_images_build_as_a_matrix_from_the_resolved_revision(self):
-        workflow = load("publish-satellite-images.yml")
+        workflow = load("[satellite] publish-images.yml")
         publish = workflow["jobs"]["push-image"]
         self.assertEqual(
             publish["strategy"]["matrix"],
@@ -416,9 +421,9 @@ class ReleaseGateTests(unittest.TestCase):
                 entry = entries[image]
                 self.assertEqual(entry["built-by"], publisher)
                 publisher_paths = set(load(publisher)["on"]["push"]["paths"])
-                self.assertEqual(set(entry["paths"].split()), publisher_paths)
+                self.assertEqual(set(entry["paths"].splitlines()), publisher_paths)
                 promoted_paths |= publisher_paths
-        promoted_paths.add(f".github/workflows/{PROMOTION}")
+        promoted_paths.add(trigger_path(PROMOTION))
         self.assertEqual(set(workflow["on"]["push"]["paths"]), promoted_paths)
 
     def test_promotion_tag_resolution_accepts_promotion_branches_only(self):
@@ -479,8 +484,12 @@ class ReleaseGateTests(unittest.TestCase):
             env = {
                 "PATH": f"{bin_dir}:{os.environ['PATH']}",
                 "IMAGE": image,
-                "PATHS": "relay/**\nsdk/python/api/**\n",
-                "BUILT_BY": "publish-relay-image.yml",
+                "PATHS": next(
+                    entry["paths"]
+                    for entry in promote["strategy"]["matrix"]["include"]
+                    if entry["name"] == "luml-relay"
+                ),
+                "BUILT_BY": "[relay] publish-image.yml",
                 "IMAGE_TAG": "staging",
             }
 
@@ -527,15 +536,28 @@ class ReleaseGateTests(unittest.TestCase):
                 self.assertEqual(values, {})
                 self.assertEqual(checked, [])
 
+            workflow_change = commit(
+                ".github/workflows/[relay] publish-image.yml", "publisher change"
+            )
+            with self.subTest(case="a workflow-only change needs a new image build"):
+                result, values, checked = promote_at(workflow_change, [changed])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(values, {})
+                self.assertIn(workflow_change, result.stderr)
+                self.assertNotIn(f"{image}:{changed}", checked)
+                result, values, _ = promote_at(workflow_change, [workflow_change])
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(values, {"image": image, "source": workflow_change})
+
             git(repo, "checkout", "-q", "-b", "staging", first)
             commit("staging-notes.md", "staging only")
             git(repo, "merge", "-q", "--no-ff", "-m", "promote main", "main")
             merge = git(repo, "rev-parse", "HEAD")
 
             with self.subTest(case="main merged into a promotion branch"):
-                result, values, checked = promote_at(merge, [first, changed])
+                result, values, checked = promote_at(merge, [first, workflow_change])
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(values, {"image": image, "source": changed})
+                self.assertEqual(values, {"image": image, "source": workflow_change})
                 self.assertEqual(checked[0], f"{image}:{merge}")
 
     def test_flow_frontend_gate_builds_the_bundle(self):
@@ -552,7 +574,7 @@ class ReleaseGateTests(unittest.TestCase):
         )
 
     def test_each_python_package_tag_requires_its_own_checks(self):
-        workflow = load("publish-sdk-python.yml")
+        workflow = load("[python-packages] publish.yml")
         jobs = workflow["jobs"]
         self.assertEqual(set(workflow["on"]["push"]["tags"]), set(PACKAGE_GATES))
         script = jobs["resolve"]["steps"][0]["run"]
@@ -574,7 +596,7 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
 
     def test_a_python_package_publishes_only_after_its_checks_succeed(self):
-        jobs = load("publish-sdk-python.yml")["jobs"]
+        jobs = load("[python-packages] publish.yml")["jobs"]
         publish = jobs["publish"]
         gates = {gate for gates in PACKAGE_GATES.values() for gate in gates}
         self.assertEqual(dependencies(jobs, "publish"), gates | {"resolve"})
@@ -604,7 +626,7 @@ class ReleaseGateTests(unittest.TestCase):
     def test_a_python_package_is_installed_from_the_index_before_it_is_published(
         self,
     ):
-        steps = load("publish-sdk-python.yml")["jobs"]["publish"]["steps"]
+        steps = load("[python-packages] publish.yml")["jobs"]["publish"]["steps"]
         names = [step.get("name") for step in steps]
         check = names.index("Install the wheel from the public index")
         self.assertLess(names.index("Build"), check)
@@ -617,7 +639,7 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertNotIn("if", steps[check])
 
     def test_the_chart_publishes_only_after_the_kubernetes_checks(self):
-        jobs = load("publish-kubernetes-satellite-chart.yml")["jobs"]
+        jobs = load("[satellite-kubernetes] publish-chart.yml")["jobs"]
         for gate, suite in CHART_GATES.items():
             with self.subTest(gate=gate):
                 self.assertEqual(jobs[gate]["uses"], f"./.github/workflows/{suite}")

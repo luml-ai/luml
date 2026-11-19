@@ -4,7 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 from datetime import timedelta
 
-import httpx
+import httpx2
 import pytest
 from starlette.websockets import WebSocket
 from websockets.asyncio.client import ClientConnection, connect
@@ -426,7 +426,7 @@ async def test_validations_in_flight_are_bounded_and_the_rest_try_again(
     relay = create_relay(luml, verifier=create_verifier(luml, max_in_flight=2))
     unknown_tokens = [f"unknown-{number}" for number in range(12)]
 
-    async def request(relay_port: int, token: str) -> httpx.Response:
+    async def request(relay_port: int, token: str) -> httpx2.Response:
         async with viewer(relay_port, token) as client:
             return await client.get("/")
 
@@ -500,7 +500,7 @@ async def test_a_refused_report_is_an_error_and_shows_in_the_health_check(
     luml.relay_tokens.clear()
     async with (
         serve(relay) as relay_port,
-        httpx.AsyncClient(base_url=f"http://127.0.0.1:{relay_port}") as client,
+        httpx2.AsyncClient(base_url=f"http://127.0.0.1:{relay_port}") as client,
     ):
         await until(
             lambda: caplog.text.count("refused the relay token when the relay reported") >= 2

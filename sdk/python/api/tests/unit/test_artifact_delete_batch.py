@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, Mock, call, patch
 
-import httpx
+import httpx2
 import pytest
 
 from luml_api import ArtifactBatchDeleteError, ArtifactDeleteError
@@ -62,8 +62,8 @@ def _artifacts_path(client: Mock | AsyncMock) -> str:
 
 
 def _server_error(method: str = "POST") -> InternalServerError:
-    request = httpx.Request(method, "https://api.example.com/artifacts")
-    response = httpx.Response(500, request=request, json={"detail": "failed"})
+    request = httpx2.Request(method, "https://api.example.com/artifacts")
+    response = httpx2.Response(500, request=request, json={"detail": "failed"})
     return InternalServerError("failed", response=response, body=response.json())
 
 
@@ -171,8 +171,8 @@ class TestArtifactDeleteBatch:
         resource = ArtifactResource(mock_sync_client)
 
         with patch(
-            "luml_api.handlers.base_file_handler.httpx.delete",
-            return_value=httpx.Response(404),
+            "luml_api.handlers.base_file_handler.httpx2.delete",
+            return_value=httpx2.Response(404),
         ):
             result = resource.delete_batch([artifact_id])
 

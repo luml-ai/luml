@@ -1,9 +1,8 @@
 from typing import Any
 from unittest.mock import AsyncMock, Mock
 
-import httpx
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import (
@@ -306,12 +305,10 @@ async def test_async_relay_delete(mock_async_client: AsyncMock) -> None:
 
 
 def test_update_of_managed_relay_surfaces_read_only_refusal(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.patch(f"{RELAYS_PATH}/{MANAGED_RELAY_ID}").mock(
-        return_value=httpx.Response(
-            403, json={"detail": "Managed relays are read-only"}
-        )
+    httpx2_mock.patch(f"{RELAYS_PATH}/{MANAGED_RELAY_ID}").mock(
+        return_value=MockResponse(403, json={"detail": "Managed relays are read-only"})
     )
 
     with pytest.raises(PermissionDeniedError) as error:
@@ -322,12 +319,10 @@ def test_update_of_managed_relay_surfaces_read_only_refusal(
 
 @pytest.mark.asyncio
 async def test_async_update_of_managed_relay_surfaces_read_only_refusal(
-    async_client_with_mocks: AsyncLumlClient, respx_mock: MockRouter
+    async_client_with_mocks: AsyncLumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.patch(f"{RELAYS_PATH}/{MANAGED_RELAY_ID}").mock(
-        return_value=httpx.Response(
-            403, json={"detail": "Managed relays are read-only"}
-        )
+    httpx2_mock.patch(f"{RELAYS_PATH}/{MANAGED_RELAY_ID}").mock(
+        return_value=MockResponse(403, json={"detail": "Managed relays are read-only"})
     )
 
     with pytest.raises(PermissionDeniedError):
@@ -335,10 +330,10 @@ async def test_async_update_of_managed_relay_surfaces_read_only_refusal(
 
 
 def test_delete_of_relay_with_unended_sessions_surfaces_conflict(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.delete(f"{RELAYS_PATH}/{OWN_RELAY_ID}").mock(
-        return_value=httpx.Response(
+    httpx2_mock.delete(f"{RELAYS_PATH}/{OWN_RELAY_ID}").mock(
+        return_value=MockResponse(
             409, json={"detail": "Relay has 2 sessions that have not ended"}
         )
     )

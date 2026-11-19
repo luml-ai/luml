@@ -17,7 +17,7 @@ class FrontendCITests(unittest.TestCase):
     def test_shared_sources_and_dependency_manifests_trigger_checks_and_deploy(self):
         workflows = {
             "[frontend] tests-and-linters.yml": ("pull_request",),
-            "deploy-frontend.yml": ("push",),
+            "[frontend] deploy.yml": ("push",),
         }
         for name, events in workflows.items():
             for event in events:
@@ -37,7 +37,7 @@ class FrontendCITests(unittest.TestCase):
                         )
 
     def test_flow_only_changes_do_not_trigger_frontend_deploy(self):
-        paths = load("deploy-frontend.yml")["on"]["push"]["paths"]
+        paths = load("[frontend] deploy.yml")["on"]["push"]["paths"]
         self.assertFalse(
             any(
                 fnmatch.fnmatchcase("lumlflow/frontend/src/App.vue", path)
