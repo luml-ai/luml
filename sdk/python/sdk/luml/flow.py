@@ -144,13 +144,17 @@ class RelayedFlow:
 
     def _release(self) -> None:
         try:
-            if self._client is not None and self._session_id is not None:
-                _end_session(self._client, self._session_id)
-            if self._serving is not None:
-                self._serving.stop()
-            if self._lumlflow is not None:
-                _release_lumlflow(self._lumlflow)
-                self._lumlflow = None
+            try:
+                if self._client is not None and self._session_id is not None:
+                    _end_session(self._client, self._session_id)
+            finally:
+                try:
+                    if self._serving is not None:
+                        self._serving.stop()
+                finally:
+                    if self._lumlflow is not None:
+                        lumlflow, self._lumlflow = self._lumlflow, None
+                        _release_lumlflow(lumlflow)
         finally:
             if self._client is not None:
                 self._client.close()

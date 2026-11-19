@@ -443,6 +443,42 @@ def test_failed_start_after_exposure_closes_clients(
     assert not flow._running
 
 
+@pytest.mark.parametrize("stage", ["session", "serving"])
+def test_stopping_releases_started_lumlflow_when_cleanup_fails(
+    clients: FakeClients,
+    serving: FakeServing,
+    port: int,
+    stub_record: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+) -> None:
+    flow = RelayedFlow("training", port=port)
+    flow.start()
+    assert _answers(port)
+    if stage == "session":
+        clients.live_sessions.end_error = RuntimeError("cleanup failed")
+    else:
+        assert flow._serving is not None
+        stop = flow._serving.stop
+
+        def fail() -> None:
+            stop()
+            raise RuntimeError("cleanup failed")
+
+        monkeypatch.setattr(flow._serving, "stop", fail)
+
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        flow.stop()
+
+    assert serving.cancelled == 1
+    assert serving.closed == 1
+    assert clients.created[0].close_calls == 1
+    [start] = _stub_starts(stub_record)
+    assert not _alive(start["pid"])
+    assert not _answers(port)
+    assert flow_module._started_lumlflows == {}
+
+
 def test_stopping_closes_client_when_serving_cleanup_fails(
     clients: FakeClients,
     serving: FakeServing,
