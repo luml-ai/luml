@@ -40,7 +40,7 @@ FileError                           bucket transfers, and an unsupported file fo
 ### HTTP errors
 
 Every non-success answer of the Platform becomes an `APIStatusError`: the code
-is in `status_code`, the `httpx` response in `response`, the parsed JSON body
+is in `status_code`, the `httpx2` response in `response`, the parsed JSON body
 in `body`, and the Platform's explanation in `body["detail"]`. The codes below
 get a subclass of their own; any other 4xx arrives as a plain `APIStatusError`.
 
@@ -245,8 +245,20 @@ Base class for errors tied to one HTTP request.
 **Attributes**:
 
 - `message` - Human-readable description.
-- `request` - The `httpx` request that was sent.
+- `request` - The `httpx2` request that was sent.
 - `body` - The answer's body when there was one: the parsed JSON, or the raw text when it was not JSON.
+
+<a id="luml_api._exceptions.APIConnectionError"></a>
+
+## APIConnectionError Objects
+
+```python
+class APIConnectionError(APIError)
+```
+
+A request failed before receiving a response, including a timeout.
+
+Catch this class for network errors independently of the HTTP client.
 
 <a id="luml_api._exceptions.APIResponseValidationError"></a>
 
@@ -265,7 +277,7 @@ as pydantic's `ValidationError`.
 
 **Attributes**:
 
-- `response` - The `httpx` response.
+- `response` - The `httpx2` response.
 - `status_code` - Its HTTP status code.
 
 <a id="luml_api._exceptions.APIStatusError"></a>
@@ -284,7 +296,7 @@ message names the method, the URL, the status and the Platform's `detail`.
 
 **Attributes**:
 
-- `response` - The `httpx` response.
+- `response` - The `httpx2` response.
 - `status_code` - Its HTTP status code.
 - `body` - The parsed JSON body; the Platform's explanation is in `body["detail"]`.
 
