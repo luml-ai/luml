@@ -26,7 +26,9 @@
         <template #body="{ data: row }">
           <div class="name">
             <span class="dot" :class="`dot--${row.severity}`" />
-            <MEllipsis :text="getAlertName(row)" />
+            <button type="button" class="name-button" @click="emit('select', row)">
+              <MEllipsis :text="getAlertName(row)" />
+            </button>
           </div>
         </template>
       </Column>
@@ -82,7 +84,7 @@
 <script setup lang="ts">
 import { computed, shallowRef } from 'vue'
 import { Column, DataTable, Tag, type DataTableSortEvent } from 'primevue'
-import type { AlertGroup } from '@/api/monitoring/interfaces'
+import type { AlertBanner, AlertGroup } from '@/api/monitoring/interfaces'
 import { ALERTS_COLUMN_WIDTHS, AlertSortField } from '@/constants/alerts'
 import type { TableSortOrder } from '@/constants/traces'
 import {
@@ -106,7 +108,13 @@ interface Props {
   groups: AlertGroup[]
 }
 
+interface Emits {
+  select: [alert: AlertBanner]
+}
+
 const props = defineProps<Props>()
+
+const emit = defineEmits<Emits>()
 
 const tableMinWidth = getTableMinWidth(ALERTS_COLUMN_WIDTHS)
 
@@ -157,6 +165,22 @@ function onSort(event: DataTableSortEvent) {
 
 .dot--critical {
   background: var(--p-badge-danger-background);
+}
+
+.name-button {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--p-primary-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.name-button:hover {
+  text-decoration: underline;
 }
 
 :deep(.p-datatable-tbody > tr > td) {

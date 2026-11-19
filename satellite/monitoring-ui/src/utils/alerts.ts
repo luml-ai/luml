@@ -5,7 +5,13 @@ import {
   type AlertsResponse,
 } from '@/api/monitoring/interfaces'
 import {
+  ALERT_CHART_COLORS,
   ALERT_GROUP_LABELS,
+  ALERT_GROUP_TABS,
+  ALERT_STATE_ACKNOWLEDGED,
+  ALERT_STATE_OPEN,
+  ALERT_THRESHOLD_SOURCE_PROFILE,
+  ALERT_VALUE_COLORS,
   AlertSortField,
   SEVERITY_LABELS,
   SEVERITY_ORDER,
@@ -15,6 +21,8 @@ import {
 import type { TagSeverity } from '@/types/tag'
 import type { EmptyStateContent } from '@/types/empty'
 import type { TableSortOrder } from '@/constants/traces'
+import { DEFAULT_CHART_COLOR } from '@/constants/charts'
+import type { TabKey } from '@/types/tabs'
 
 export function getAlertTitle(alert: AlertBanner): string {
   const group = ALERT_GROUP_LABELS[alert.group] ?? alert.group.replace(/_/g, ' ')
@@ -120,4 +128,43 @@ export function getAlertsEmptyState(response: AlertsResponse): EmptyStateContent
     }
   }
   return null
+}
+
+export function findAlert(
+  groups: AlertsResponse['groups'],
+  key: string | null,
+): AlertBanner | null {
+  if (!key) return null
+  const alerts = groups.flatMap(({ group, alerts }) => alerts.map((alert) => ({ ...alert, group })))
+  return alerts.find((alert) => getAlertKey(alert) === key) ?? null
+}
+
+export function getAlertState(alert: AlertBanner): string {
+  return alert.state ?? ALERT_STATE_OPEN
+}
+
+export function isAlertAcknowledged(alert: AlertBanner): boolean {
+  return alert.state === ALERT_STATE_ACKNOWLEDGED
+}
+
+export function getAlertThreshold(alert: AlertBanner): string {
+  return alert.threshold_label ?? (alert.threshold == null ? '—' : String(alert.threshold))
+}
+
+export function getAlertThresholdNote(alert: AlertBanner): string {
+  return alert.threshold_source === ALERT_THRESHOLD_SOURCE_PROFILE
+    ? 'Threshold comes from the deployment reference profile.'
+    : 'Threshold is the built-in default; the profile ships its own rules, which the metrics do not read yet.'
+}
+
+export function getAlertTargetTab(alert: AlertBanner): TabKey | null {
+  return ALERT_GROUP_TABS[alert.group] ?? null
+}
+
+export function getAlertValueColor(severity: string): string | undefined {
+  return ALERT_VALUE_COLORS[severity as Severity]
+}
+
+export function getAlertChartColor(severity: string): string {
+  return ALERT_CHART_COLORS[severity as Severity] ?? DEFAULT_CHART_COLOR
 }

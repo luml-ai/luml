@@ -15,11 +15,13 @@ interface Props {
   series: Series
   color?: string
   height?: number | string
+  threshold?: number | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
   color: DEFAULT_CHART_COLOR,
   height: CHART_HEIGHT,
+  threshold: null,
 })
 
 const { values: cssValues, isDark } = useCssVariables(() => ({
@@ -39,6 +41,15 @@ const chartSeries = computed(() => {
 
 const markerSize = computed(() => (hasIsolatedPoints(props.series.points) ? 4 : 0))
 
+const thresholdRange = computed(() => {
+  const threshold = props.threshold
+  if (threshold == null) return {}
+  return {
+    min: (min: number) => Math.min(min, threshold),
+    max: (max: number) => Math.max(max, threshold),
+  }
+})
+
 const options = computed(() => {
   const base = getLineChartOptions({
     borderColor: cssValues.value.border,
@@ -56,9 +67,27 @@ const options = computed(() => {
     markers: { size: markerSize.value, strokeWidth: 0, hover: { sizeOffset: 2 } },
     yaxis: {
       ...base.yaxis,
+      ...thresholdRange.value,
       labels: { ...(Array.isArray(base.yaxis) ? {} : base.yaxis?.labels), formatter },
     },
     tooltip: { ...base.tooltip, y: { formatter } },
+    annotations: {
+      yaxis:
+        props.threshold == null
+          ? []
+          : [
+              {
+                y: props.threshold,
+                borderColor: cssValues.value.text,
+                strokeDashArray: 4,
+                label: {
+                  text: 'Threshold',
+                  borderWidth: 0,
+                  style: { color: cssValues.value.text, background: 'transparent' },
+                },
+              },
+            ],
+    },
   }
 })
 </script>
