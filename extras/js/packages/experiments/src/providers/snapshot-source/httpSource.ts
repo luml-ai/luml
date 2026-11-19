@@ -229,7 +229,7 @@ async function failedResponseError(
   if (response.redirected && redirectDroppedHeaders(location, response.url)) {
     return new SnapshotSourceRedirectError(modelId, `${message} after a redirect to another origin`)
   }
-  return new SnapshotSourceExpiredError(modelId, message)
+  return new SnapshotSourceExpiredError(modelId, message, response.status)
 }
 
 /**
@@ -454,8 +454,13 @@ export class HttpRangeFile implements RangeFile {
         throw new SnapshotSourceTimeoutError(this.modelId, syncRangeTimeoutMs(length))
       }
       // A failed sync XHR's message names the URL, signature included.
+      const status = error instanceof RangeStatusError ? error.status : undefined
       const reason = error instanceof RangeStatusError ? error.message : errorName(error)
-      throw new SnapshotSourceExpiredError(this.modelId, `Snapshot range read failed: ${reason}`)
+      throw new SnapshotSourceExpiredError(
+        this.modelId,
+        `Snapshot range read failed: ${reason}`,
+        status,
+      )
     }
     if (bytes.length !== length) {
       throw this.latchRangeUnsupported(`Range request returned ${bytes.length} of ${length} bytes`)

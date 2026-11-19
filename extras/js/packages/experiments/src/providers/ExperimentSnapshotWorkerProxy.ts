@@ -33,6 +33,7 @@ import type {
 import {
   ExperimentSnapshotWorkerTerminatedError,
   isSnapshotSourceExpired,
+  isTransientSourceFailure,
   redactSecrets,
   SNAPSHOT_SOURCE_EXPIRED,
   snapshotErrorFields,
@@ -216,8 +217,9 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
    * Range reads run synchronously in the worker, so an expired URL or token fails the running
    * request. Each model's source is renewed at most once per request and the request retried;
    * sources of several models can expire together, so one request may renew each of them. A
-   * second failure of the same model surfaces, and so does a renewal that hands back the source
-   * that just failed.
+   * second failure of the same model surfaces. A renewal that hands back the source that just
+   * failed (it is too young to renew) gets one retry with it after a transient failure, and
+   * surfaces any other failure at once.
    */
   private async withSourceRenewal<T>(
     attempt: () => Promise<T>,
@@ -233,7 +235,10 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
         renewed.add(error.modelId)
         const failed = usedUrls.get(error.modelId)!
         const source = await this.sourceUrls!.renew(error.modelId, failed)
-        if (sameSourceLocation(source, failed)) throw error
+        if (sameSourceLocation(source, failed)) {
+          if (isTransientSourceFailure(error)) continue
+          throw error
+        }
         await applyRenewedUrl(error.modelId, source)
         this.rangeSourceUrls.set(error.modelId, source)
       }
@@ -243,7 +248,8 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
   /**
    * Opens every experiment; one that cannot open is reported by its status and the others
    * work. An experiment whose source failed at open is renewed once and only it is opened
-   * again, so nothing already open is probed or downloaded twice.
+   * again, so nothing already open is probed or downloaded twice. When the renewal hands back
+   * the source that failed, only a transient failure is opened again, once, with it.
    */
   async init(modelsInfo: ExperimentSnapshotModelSource[], signal?: AbortSignal): Promise<void> {
     this.rangeSourceUrls = new Map(
@@ -262,7 +268,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     await Promise.all(
       failures
         .filter(({ modelId, error }) => this.canRenewOpen(modelId, error.code))
-        .map(({ modelId }) => this.reopen(modelId, signal)),
+        .map(({ modelId, transient }) => this.reopen(modelId, transient === true, signal)),
     )
   }
 
@@ -275,17 +281,17 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
   }
 
   /**
-   * A renewal or reopen that fails, or a renewal that hands back the failed source, leaves the
-   * experiment failed with the error the worker recorded at open, so one experiment never fails
-   * the whole init.
+   * A renewal or reopen that fails, or a renewal that hands back the source of a failure that
+   * was not transient, leaves the experiment failed with the error the worker recorded at open,
+   * so one experiment never fails the whole init.
    */
-  private async reopen(modelId: string, signal?: AbortSignal): Promise<void> {
+  private async reopen(modelId: string, transient: boolean, signal?: AbortSignal): Promise<void> {
     const failed = this.rangeSourceUrls.get(modelId)
     if (!this.sourceUrls || failed === undefined) return
     try {
       const source = await this.sourceUrls.renew(modelId, failed)
       signal?.throwIfAborted()
-      if (sameSourceLocation(source, failed)) return
+      if (sameSourceLocation(source, failed) && !transient) return
       const location = toSourceLocation(source)
       this.rangeSourceUrls.set(modelId, source)
       await this.request<SnapshotOpenFailure[]>(

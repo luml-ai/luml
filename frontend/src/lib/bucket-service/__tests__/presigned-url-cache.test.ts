@@ -175,6 +175,49 @@ describe('PresignedUrlCache', () => {
     expect(request).toHaveBeenCalledOnce()
     expect(fetchUrl).toHaveBeenCalledOnce()
   })
+  it.each([
+    ['a dropped connection', Object.assign(new Error('Network Error'), { isAxiosError: true })],
+    ['a failed fetch', new TypeError('Failed to fetch')],
+    ['a 500', { isAxiosError: true, response: { status: 500 } }],
+    ['a 503', { isAxiosError: true, response: { status: 503 } }],
+    ['a 429', { isAxiosError: true, response: { status: 429 } }],
+  ])('retries the URL just issued once, without a renewal, after %s', async (_label, failure) => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    const request = vi
+      .fn<(url: string) => Promise<string>>()
+      .mockRejectedValueOnce(failure)
+      .mockImplementation(async (url) => `data from ${url}`)
+
+    await expect(cache.withUrl('a', request)).resolves.toBe('data from https://bucket/a?sig=1')
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(fetchUrl).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces a transient failure of the URL just issued after one retry', async () => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    const failure = { isAxiosError: true, response: { status: 500 } }
+    const request = vi.fn(async () => {
+      throw failure
+    })
+
+    await expect(cache.withUrl('a', request)).rejects.toBe(failure)
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(fetchUrl).toHaveBeenCalledOnce()
+  })
+
+  it.each([403, 404])('does not send the URL just issued again after a %s', async (status) => {
+    const fetchUrl = issuer()
+    const cache = new PresignedUrlCache(fetchUrl)
+    const request = vi.fn(async () => {
+      throw { isAxiosError: true, response: { status } }
+    })
+
+    await expect(cache.withUrl('a', request)).rejects.toMatchObject({ response: { status } })
+    expect(request).toHaveBeenCalledOnce()
+    expect(fetchUrl).toHaveBeenCalledOnce()
+  })
 })
 
 describe('ModelDownloader', () => {

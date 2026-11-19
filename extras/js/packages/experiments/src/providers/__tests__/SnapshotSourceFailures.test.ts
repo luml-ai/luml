@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ExperimentSnapshotDatabaseProvider } from '../ExperimentSnapshotDatabaseProvider'
 import {
+  isTransientSourceFailure,
+  snapshotErrorFields,
+  snapshotErrorFromFields,
   SnapshotRangeUnsupportedError,
   SnapshotSourceExpiredError,
   SnapshotSourceTimeoutError,
@@ -151,6 +154,7 @@ describe('sync range reads', () => {
     expect(() => file.read(0, 10)).toThrow(
       'Snapshot range read failed: Range request returned status 416',
     )
+    expect(() => file.read(0, 10)).toThrow(expect.objectContaining({ status: 416 }))
   })
 
   it('accept a gzip-encoded range only when the decoded body is the requested range', () => {
@@ -221,6 +225,29 @@ describe('async range reads', () => {
 
     await expect(probe).rejects.toThrow(SnapshotSourceExpiredError)
     await expect(probe).rejects.toThrow(/^Snapshot header request returned status 416$/)
+    await expect(probe).rejects.toMatchObject({ status: 416 })
+  })
+
+  it('fail a probe without an answer as a failed request without a status', async () => {
+    const transport: SnapshotTransport = {
+      fetch: async () => {
+        throw new TypeError(`Failed to fetch ${URL_A}`)
+      },
+      readRangeSync: () => new Uint8Array(),
+    }
+
+    const failure = await probeSnapshotHeader(
+      transport,
+      'm',
+      URL_A,
+      MEMBER_OFFSET,
+      MEMBER_SIZE,
+      CHUNK,
+    ).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(SnapshotSourceExpiredError)
+    expect((failure as SnapshotSourceExpiredError).status).toBeUndefined()
+    expect(isTransientSourceFailure(failure)).toBe(true)
   })
 
   it('accept a gzip-encoded range only when the decoded body is the requested range', async () => {
@@ -280,11 +307,47 @@ describe('an open that fails after the database was created', () => {
     })
 
     expect(opened.mock.results.map((result) => result.type)).toEqual(['return'])
+    // A read that got no status is one the same URL may answer: the proxy may open it again.
     expect(failures).toEqual([
-      { modelId: 'm', error: expect.objectContaining({ code: 'snapshot-source-expired' }) },
+      {
+        modelId: 'm',
+        error: expect.objectContaining({ code: 'snapshot-source-expired' }),
+        transient: true,
+      },
     ])
     const engine = (provider as unknown as { engine: RangeSqliteEngine }).engine
     expect(openFiles(engine).size).toBe(0)
     vi.restoreAllMocks()
+  })
+})
+
+describe('a failed source request sent again with the same URL', () => {
+  it.each([
+    [undefined, true],
+    [0, true],
+    [500, true],
+    [503, true],
+    [408, true],
+    [429, true],
+    [400, false],
+    [403, false],
+    [404, false],
+    [416, false],
+  ])('with status %s is transient: %s', (status, transient) => {
+    expect(isTransientSourceFailure(new SnapshotSourceExpiredError('m', 'failed', status))).toBe(
+      transient,
+    )
+  })
+
+  it('is never retried for an error that is not a failed request', () => {
+    expect(isTransientSourceFailure(new SnapshotSourceTimeoutError('m', 30_000))).toBe(false)
+    expect(isTransientSourceFailure(new TypeError('Failed to fetch'))).toBe(false)
+  })
+
+  it('keeps its status across the worker boundary', () => {
+    const fields = snapshotErrorFields(new SnapshotSourceExpiredError('m', 'failed', 503))
+
+    expect(fields).toEqual({ code: 'snapshot-source-expired', modelId: 'm', status: 503 })
+    expect(snapshotErrorFromFields(fields!, 'failed')).toMatchObject({ status: 503 })
   })
 })

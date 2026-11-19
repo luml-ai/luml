@@ -55,6 +55,24 @@ function isAbort(error: unknown): boolean {
   return name === 'AbortError' || name === 'CanceledError'
 }
 
+function isTransientStatus(status: number): boolean {
+  return status >= 500 || status === 408 || status === 429
+}
+
+/**
+ * A failure the same URL may not see again: no answer (a dropped connection, a failed fetch)
+ * or a 5xx, 408 or 429. A 4xx is the same for the same URL, so it is not sent again.
+ */
+function isTransientFailure(error: unknown): boolean {
+  const { isAxiosError, response } = (error ?? {}) as {
+    isAxiosError?: unknown
+    response?: { status?: unknown }
+  }
+  const status = response?.status
+  if (typeof status === 'number') return isTransientStatus(status)
+  return isAxiosError === true || error instanceof TypeError
+}
+
 /**
  * One download location per artifact, reused for 30 minutes. It is renewed early only when a
  * request with it fails and it is at least 30 seconds old, because some storage setups issue
@@ -97,7 +115,8 @@ export class PresignedUrlCache {
 
   /**
    * Runs `request` with the cached URL; on failure renews once and retries once. When the
-   * renewal hands back the URL that just failed, the error surfaces without a retry.
+   * renewal hands back the URL that just failed (it is too young to renew), only a transient
+   * failure is retried, once, with it; any other error surfaces without a retry.
    */
   withUrl<T>(artifactId: string, request: (url: string) => Promise<T>): Promise<T> {
     return this.withLocation(artifactId, (location) => request(location.url))
@@ -113,7 +132,7 @@ export class PresignedUrlCache {
       } catch (error) {
         if (isAbort(error)) throw error
         const renewed = await this.renewLocation(artifactId, ref)
-        if (sameDownloadLocation(renewed, ref)) throw error
+        if (sameDownloadLocation(renewed, ref) && !isTransientFailure(error)) throw error
         return request(toDownloadLocation(renewed))
       }
     })

@@ -18,6 +18,8 @@ export class SnapshotSourceExpiredError extends Error {
   constructor(
     readonly modelId: string,
     message: string,
+    /** The storage's answer; absent when the request got none or its transfer was cut. */
+    readonly status?: number,
   ) {
     super(message)
     this.name = 'SnapshotSourceExpiredError'
@@ -159,6 +161,16 @@ export function isSnapshotSourceExpired(error: unknown): error is SnapshotSource
   )
 }
 
+/**
+ * A failed request that the same URL may answer when sent again: no answer, a cut transfer, a
+ * 5xx, 408 or 429. Any other 4xx is the same for the same URL.
+ */
+export function isTransientSourceFailure(error: unknown): boolean {
+  if (!isSnapshotSourceExpired(error)) return false
+  const { status } = error
+  return status === undefined || status === 0 || status >= 500 || status === 408 || status === 429
+}
+
 export function isSnapshotRangeUnsupported(error: unknown): error is SnapshotRangeUnsupportedError {
   return (
     typeof error === 'object' &&
@@ -186,6 +198,7 @@ export interface SnapshotErrorFields {
   modelId: string
   size?: number
   limit?: number
+  status?: number
 }
 
 const CODED_ERRORS = new Set<string>([
@@ -201,13 +214,14 @@ const CODED_ERRORS = new Set<string>([
 
 export function snapshotErrorFields(error: unknown): SnapshotErrorFields | null {
   if (typeof error !== 'object' || error === null) return null
-  const { code, modelId, size, limit } = error as Record<string, unknown>
+  const { code, modelId, size, limit, status } = error as Record<string, unknown>
   if (typeof code !== 'string' || !CODED_ERRORS.has(code) || typeof modelId !== 'string') {
     return null
   }
   const fields: SnapshotErrorFields = { code: code as SnapshotErrorCode, modelId }
   if (typeof size === 'number') fields.size = size
   if (typeof limit === 'number') fields.limit = limit
+  if (code === SNAPSHOT_SOURCE_EXPIRED && typeof status === 'number') fields.status = status
   return fields
 }
 
@@ -215,7 +229,7 @@ export function snapshotErrorFields(error: unknown): SnapshotErrorFields | null 
 export function snapshotErrorFromFields(fields: SnapshotErrorFields, message: string): Error {
   switch (fields.code) {
     case SNAPSHOT_SOURCE_EXPIRED:
-      return new SnapshotSourceExpiredError(fields.modelId, message)
+      return new SnapshotSourceExpiredError(fields.modelId, message, fields.status)
     case SNAPSHOT_RANGE_UNSUPPORTED:
       return new SnapshotRangeUnsupportedError(fields.modelId, message)
     case SNAPSHOT_SOURCE_REDIRECT:

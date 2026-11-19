@@ -50,8 +50,10 @@ async function issue(key: string): Promise<DownloadRef> {
 }
 
 export function installHarness(worker: Worker): void {
-  // The specs expire URLs seconds after issue, so the minimum age before a renewal is off.
-  const urls = new PresignedUrlCache(issue, PRESIGNED_URL_REUSE_MS, 0)
+  // The specs expire URLs seconds after issue, so the minimum age before a renewal is off
+  // unless the page asks for the platform's own (`?minRenewAgeMs=`).
+  const minRenewAgeMs = Number(new URLSearchParams(location.search).get('minRenewAgeMs') ?? 0)
+  const urls = new PresignedUrlCache(issue, PRESIGNED_URL_REUSE_MS, minRenewAgeMs)
   // Every message the worker posted, to check that none of them carries a credential.
   const posted: string[] = []
   worker.addEventListener('message', (event) => posted.push(JSON.stringify(event.data)))

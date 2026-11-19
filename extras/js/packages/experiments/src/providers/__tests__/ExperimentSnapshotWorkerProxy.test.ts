@@ -341,16 +341,56 @@ describe('ExperimentSnapshotWorkerProxy source URL renewal', () => {
     expect(worker.postMessage).toHaveBeenCalledTimes(4)
   })
 
-  it('surfaces the error without a retry when the renewal hands back the failed URL', async () => {
+  it('surfaces a 4xx without a retry when the renewal hands back the failed URL', async () => {
     sourceUrls.renew.mockResolvedValue(rangeSource.url)
     await initialized()
     const result = proxy.getUniqueDatasetsIds()
 
-    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...expired })
+    const forbidden = { ...expired, status: 403 }
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...forbidden })
 
     await expect(result).rejects.toBeInstanceOf(SnapshotSourceExpiredError)
+    await expect(result).rejects.toMatchObject({ status: 403 })
     expect(sourceUrls.renew).toHaveBeenCalledOnce()
     expect(worker.postMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['a request without an answer', undefined],
+    ['a 500', 500],
+    ['a 503', 503],
+    ['a 429', 429],
+  ])(
+    'retries once with the same URL after %s when the renewal hands it back',
+    async (_label, status) => {
+      sourceUrls.renew.mockResolvedValue(rangeSource.url)
+      await initialized()
+      const result = proxy.getUniqueDatasetsIds()
+
+      const first = await nextMessage(1)
+      worker.respond({ type: 'error', requestId: first.requestId, ...expired, status })
+      const retry = await nextMessage(2)
+      expect(retry.payload).toEqual(first.payload)
+      worker.respond({ type: 'result', requestId: retry.requestId, data: ['dataset'] })
+
+      await expect(result).resolves.toEqual(['dataset'])
+      expect(sourceUrls.renew).toHaveBeenCalledOnce()
+      expect(worker.postMessage).toHaveBeenCalledTimes(3)
+    },
+  )
+
+  it('surfaces a transient failure that repeats on the retry with the same URL', async () => {
+    sourceUrls.renew.mockResolvedValue(rangeSource.url)
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    const failing = { ...expired, status: 500 }
+    worker.respond({ type: 'error', requestId: (await nextMessage(1)).requestId, ...failing })
+    worker.respond({ type: 'error', requestId: (await nextMessage(2)).requestId, ...failing })
+
+    await expect(result).rejects.toMatchObject({ code: SNAPSHOT_SOURCE_EXPIRED, status: 500 })
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(worker.postMessage).toHaveBeenCalledTimes(3)
   })
 
   it('renews each model once when their URLs expire together, and the call succeeds', async () => {
@@ -506,6 +546,27 @@ describe('ExperimentSnapshotWorkerProxy source URL renewal', () => {
     await expect(init).resolves.toBeUndefined()
     expect(sourceUrls.renew).toHaveBeenCalledOnce()
     expect(worker.postMessage).toHaveBeenCalledOnce()
+  })
+
+  it('reopens once with the same URL after a transient failure at open when it is handed back', async () => {
+    sourceUrls.renew.mockResolvedValue(rangeSource.url)
+    const init = proxy.init([{ modelId: 'm1', source: rangeSource }])
+    worker.respond({
+      type: 'result',
+      requestId: (await nextMessage(0)).requestId,
+      data: [{ ...openFailure('m1', SNAPSHOT_SOURCE_EXPIRED), transient: true }],
+    })
+    const reopen = await nextMessage(1)
+    expect(reopen.payload).toEqual({ modelId: 'm1', source: { url: rangeSource.url } })
+    worker.respond({
+      type: 'result',
+      requestId: reopen.requestId,
+      data: [{ ...openFailure('m1', SNAPSHOT_SOURCE_EXPIRED), transient: true }],
+    })
+
+    await expect(init).resolves.toBeUndefined()
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    expect(worker.postMessage).toHaveBeenCalledTimes(2)
   })
 
   it('resolves init when the renewed location carries a header that is not allowed', async () => {

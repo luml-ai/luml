@@ -59,6 +59,7 @@ import type {
 } from '../metric-buckets/types'
 import {
   isSnapshotSourceExpired,
+  isTransientSourceFailure,
   redactSecrets,
   SnapshotFormatError,
 } from './snapshot-source/errors'
@@ -111,6 +112,8 @@ export interface SnapshotTransportStats extends RangeReadStats {
 export interface SnapshotOpenFailure {
   modelId: string
   error: ExperimentReadError
+  /** The source failed in a way the same URL may not fail again (`isTransientSourceFailure`). */
+  transient?: true
 }
 
 interface OpenedSnapshot {
@@ -131,6 +134,11 @@ interface FailedSnapshot {
   /** Null when the snapshot was never fetched. */
   source: ExperimentSnapshotSource | null
   error: ExperimentReadError
+  transient?: boolean
+}
+
+function failureOf(error: unknown): Pick<FailedSnapshot, 'error' | 'transient'> {
+  return { error: toExperimentReadError(error), transient: isTransientSourceFailure(error) }
 }
 
 function transportOf(source: ExperimentSnapshotSource): SnapshotTransportKind {
@@ -212,7 +220,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       const info = sources[index]
       if (!info) continue
       if (result.status === 'fulfilled') this.openedSnapshots.push(result.value)
-      else this.recordFailure({ ...info, error: toExperimentReadError(result.reason) })
+      else this.recordFailure({ ...info, ...failureOf(result.reason) })
     }
     this.syncModelsSnapshots()
     return this.openFailures()
@@ -240,7 +248,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       this.syncModelsSnapshots()
     } catch (error) {
       if (isAbortError(error)) throw error
-      this.recordFailure({ modelId, source, error: toExperimentReadError(error) })
+      this.recordFailure({ modelId, source, ...failureOf(error) })
     }
     return this.openFailures()
   }
@@ -298,7 +306,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private openFailures(): SnapshotOpenFailure[] {
     return this.modelOrder.flatMap((modelId) => {
       const failed = this.failedSnapshots.get(modelId)
-      return failed ? [{ modelId, error: failed.error }] : []
+      if (!failed) return []
+      return failed.transient
+        ? [{ modelId, error: failed.error, transient: true as const }]
+        : [{ modelId, error: failed.error }]
     })
   }
 

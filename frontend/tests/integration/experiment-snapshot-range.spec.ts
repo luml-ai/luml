@@ -376,8 +376,10 @@ test.beforeEach(() => {
 
 type Settled = { ok: boolean; value?: unknown; error?: Record<string, unknown> }
 
-async function openHarness(page: Page, names: string[]): Promise<Settled> {
-  await page.goto(origin)
+async function openHarness(page: Page, names: string[], minRenewAgeMs?: number): Promise<Settled> {
+  await page.goto(
+    minRenewAgeMs === undefined ? origin : `${origin}/?minRenewAgeMs=${minRenewAgeMs}`,
+  )
   await page.waitForFunction(() => 'harness' in window)
   return initHarness(page, names)
 }
@@ -1134,4 +1136,67 @@ test.describe('a storage that fails requests', () => {
       expect(state.signs).toBe(2)
     })
   }
+
+  // The platform does not renew a URL younger than 30 s: the renewal hands it back, and a
+  // transient failure is sent once more with it, without asking the backend again.
+  const YOUNG_URL_AGE_MS = 30_000
+  for (const { label, failure } of FAILURES.filter(
+    (item) => item.failure !== 404 && item.failure !== 403,
+  )) {
+    test(`${label} once at open with a young URL is retried with it and the experiment opens`, async ({
+      page,
+    }) => {
+      state.failing = { failure, times: 1 }
+
+      expect(await openHarness(page, [name], YOUNG_URL_AGE_MS)).toMatchObject({ ok: true })
+
+      expect(await statusOf(page)).toMatchObject({ transport: 'raw-range', error: null })
+      await expectTracesLoad(page)
+      expect(state.requests[0]).toMatchObject({ sig: '1', status: loggedStatus(failure) })
+      expect(state.requests.every((request) => request.sig === '1')).toBe(true)
+      expect(state.signs).toBe(1)
+    })
+
+    test(`${label} once on a later read with a young URL is retried with it and succeeds`, async ({
+      page,
+    }) => {
+      expect(await openHarness(page, [name], YOUNG_URL_AGE_MS)).toMatchObject({ ok: true })
+      state.failing = { failure, times: 1 }
+      const before = state.requests.length
+
+      await expectTracesLoad(page)
+
+      const later = state.requests.slice(before)
+      expect(later[0]).toMatchObject({ sig: '1', status: loggedStatus(failure) })
+      expect(later.slice(1).every((request) => request.sig === '1' && request.status === 206)).toBe(
+        true,
+      )
+      expect(state.signs).toBe(1)
+    })
+  }
+
+  test('status 500 at open with a young URL fails cleanly after one retry with it', async ({
+    page,
+  }) => {
+    state.failing = { failure: 500, times: Infinity }
+
+    expect(await openHarness(page, [name], YOUNG_URL_AGE_MS)).toMatchObject({ ok: true })
+
+    expect(await statusOf(page)).toMatchObject({ error: { code: 'snapshot-source-expired' } })
+    expect(state.requests.map((request) => [request.sig, request.status])).toEqual([
+      ['1', 500],
+      ['1', 500],
+    ])
+    expect(state.signs).toBe(1)
+  })
+
+  test('status 403 at open with a young URL fails at once, without a retry', async ({ page }) => {
+    state.failing = { failure: 403, times: Infinity }
+
+    expect(await openHarness(page, [name], YOUNG_URL_AGE_MS)).toMatchObject({ ok: true })
+
+    expect(await statusOf(page)).toMatchObject({ error: { code: 'snapshot-source-expired' } })
+    expect(state.requests.map((request) => request.status)).toEqual([403])
+    expect(state.signs).toBe(1)
+  })
 })
