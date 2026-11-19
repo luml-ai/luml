@@ -16,7 +16,7 @@ export const useHeaderStore = defineStore('header', () => {
 
   async function loadHeader() {
     try {
-      header.value = await api.monitoring.getHeader()
+      header.value = await filtersStore.trackRequest(api.monitoring.getHeader())
       error.value = null
     } catch (e) {
       error.value = e instanceof Error ? e : new Error(String(e))

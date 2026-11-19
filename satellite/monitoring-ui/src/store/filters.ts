@@ -23,6 +23,9 @@ export const useFiltersStore = defineStore('filters', () => {
   const feature = ref<string | null>(null)
   const autoRefresh = ref<AutoRefresh>(AutoRefresh.OFF)
   const refreshKey = ref(0)
+  const pendingRequests = ref(0)
+
+  const isLoading = computed(() => pendingRequests.value > 0)
 
   const isCustomRange = computed(() => customStart.value !== null && customEnd.value !== null)
 
@@ -100,6 +103,15 @@ export const useFiltersStore = defineStore('filters', () => {
     refreshKey.value += 1
   }
 
+  async function trackRequest<T>(request: Promise<T>): Promise<T> {
+    pendingRequests.value += 1
+    try {
+      return await request
+    } finally {
+      pendingRequests.value -= 1
+    }
+  }
+
   return {
     selectedWindow,
     isCustomMode,
@@ -113,6 +125,7 @@ export const useFiltersStore = defineStore('filters', () => {
     feature,
     autoRefresh,
     refreshKey,
+    isLoading,
     isCustomRange,
     activeWindow,
     isCompareActive,
@@ -128,5 +141,6 @@ export const useFiltersStore = defineStore('filters', () => {
     setFeature,
     setAutoRefresh,
     refresh,
+    trackRequest,
   }
 })

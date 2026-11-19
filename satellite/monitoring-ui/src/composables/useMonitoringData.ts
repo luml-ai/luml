@@ -17,7 +17,7 @@ export function useMonitoringData<T>(
     const id = ++requestId
     loading.value = true
     try {
-      const result = await fetcher(filtersStore.dimensions)
+      const result = await filtersStore.trackRequest(fetcher(filtersStore.dimensions))
       if (id !== requestId) return
       data.value = result
       error.value = null

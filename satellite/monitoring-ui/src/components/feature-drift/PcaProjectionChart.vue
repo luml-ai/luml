@@ -7,7 +7,7 @@
       </li>
     </ul>
     <div class="plot">
-      <VueApexCharts type="line" height="100%" :options="options" :series="series" />
+      <MApexChart type="line" height="100%" :options="options" :series="series" />
     </div>
     <span v-if="pinnedPoints.length" class="footnote">
       {{ formatPinnedPoints(pinnedPoints.length) }}
@@ -18,7 +18,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ApexOptions } from 'apexcharts'
-import VueApexCharts from 'vue3-apexcharts'
+import MApexChart from '@/components/MApexChart.vue'
 import type { MultivariatePanel, PcaPoint } from '@/api/monitoring/interfaces'
 import { getBaseChartOptions } from '@/lib/apex-charts'
 import { useCssVariables } from '@/composables/useCssVariables'

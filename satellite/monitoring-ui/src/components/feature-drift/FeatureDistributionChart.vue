@@ -1,11 +1,11 @@
 <template>
-  <VueApexCharts type="bar" :height="height" :options="options" :series="series" />
+  <MApexChart type="bar" :height="height" :options="options" :series="series" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ApexOptions } from 'apexcharts'
-import VueApexCharts from 'vue3-apexcharts'
+import MApexChart from '@/components/MApexChart.vue'
 import type { FeatureDistribution } from '@/api/monitoring/interfaces'
 import { getBaseChartOptions } from '@/lib/apex-charts'
 import { useCssVariables } from '@/composables/useCssVariables'

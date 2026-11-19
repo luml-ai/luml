@@ -1,5 +1,5 @@
 <template>
-  <VueApexCharts type="line" :height="height" :options="options" :series="chartSeries" />
+  <MApexChart type="line" :height="height" :options="options" :series="chartSeries" />
 </template>
 
 <script setup lang="ts">
@@ -9,7 +9,7 @@ import { getLineChartOptions } from '@/lib/apex-charts'
 import { useCssVariables } from '@/composables/useCssVariables'
 import { CHART_HEIGHT, DEFAULT_CHART_COLOR } from '@/constants/charts'
 import { formatChartValue, hasIsolatedPoints, toChartPoints } from '@/utils/charts'
-import VueApexCharts from 'vue3-apexcharts'
+import MApexChart from '@/components/MApexChart.vue'
 
 interface Props {
   series: Series

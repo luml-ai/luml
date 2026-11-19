@@ -1,6 +1,6 @@
 <template>
   <main class="app" data-testid="monitoring-app">
-    <h2 class="title">{{ headerStore.title }}</h2>
+    <h2 v-if="headerStore.title" class="title">{{ headerStore.title }}</h2>
     <MTabs />
     <MFilters />
     <MTabsContent />
@@ -24,7 +24,7 @@ onMounted(headerStore.loadHeader)
 <style scoped>
 .app {
   min-height: 100vh;
-  padding: 0 16px;
+  padding: 16px;
 }
 
 .title {
