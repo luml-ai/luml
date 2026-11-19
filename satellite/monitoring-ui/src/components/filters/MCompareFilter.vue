@@ -78,9 +78,9 @@ function onApply({ start, end }: { start: Date; end: Date }) {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background-color: var(--p-surface-0);
-  border-color: var(--p-surface-200);
-  color: var(--p-surface-600);
+  background-color: var(--p-togglebutton-content-checked-background);
+  border-color: var(--p-togglebutton-content-checked-border-color);
+  color: var(--p-togglebutton-content-checked-color);
 }
 
 .compare-body {
