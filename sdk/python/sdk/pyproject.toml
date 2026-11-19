@@ -34,7 +34,7 @@ llm = [
 ]
 flow = [
     "luml-relay[luml]>=0.1.0,<0.2.0",
-    "luml-api>=0.5.1,<0.6.0",
+    "luml-api>=0.6.0,<0.7.0",
 ]
 
 [project.scripts]
@@ -81,7 +81,7 @@ dev = [
     "pandas-stubs>=3.0.0.260204",
     "scipy-stubs>=1.17.1.4",
     "luml-relay[luml]>=0.1.0,<0.2.0",
-    "luml-api>=0.5.1,<0.6.0",
+    "luml-api>=0.6.0,<0.7.0",
 ]
 
 [tool.uv.sources]
