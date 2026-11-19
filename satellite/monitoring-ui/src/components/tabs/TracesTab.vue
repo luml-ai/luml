@@ -36,7 +36,9 @@
         >
           <template #body="{ data: row }">
             <div class="request">
-              <MEllipsis class="request-id" :text="row.event_id" />
+              <button type="button" class="request-id" @click="openTrace(row.event_id)">
+                <MEllipsis :text="row.event_id" />
+              </button>
               <MCopyButton :text="row.event_id" :icon-size="14" />
             </div>
           </template>
@@ -83,6 +85,7 @@
         </Column>
       </DataTable>
     </MTableCard>
+    <TraceDialog v-model:visible="traceVisible" :event-id="traceEventId" />
   </div>
 </template>
 
@@ -97,6 +100,7 @@ import MEmpty from '@/components/MEmpty.vue'
 import MCopyButton from '@/components/MCopyButton.vue'
 import MEllipsis from '@/components/MEllipsis.vue'
 import MTableCard from '@/components/MTableCard.vue'
+import TraceDialog from '@/components/traces/TraceDialog.vue'
 import { formatMs, formatTimestamp } from '@/utils/format'
 import { getOutcomeLabel } from '@/utils/runtime'
 import {
@@ -124,6 +128,9 @@ const sort = shallowRef({ field: DEFAULT_TRACES_SORT_FIELD, order: DEFAULT_TRACE
 
 const knownTotal = shallowRef<number | null>(null)
 
+const traceVisible = shallowRef(false)
+const traceEventId = shallowRef<string | null>(null)
+
 const first = computed(() => {
   if (pageState.value.dimensions !== filtersStore.dimensions) return 0
   return clampTracesOffset(pageState.value.first, knownTotal.value)
@@ -149,6 +156,11 @@ const hasMultiplePages = computed(() => (data.value?.total ?? 0) > TRACES_PAGE_S
 
 const emptyState = computed(() => (data.value ? getTracesEmptyState(data.value) : null))
 
+function openTrace(eventId: string) {
+  traceEventId.value = eventId
+  traceVisible.value = true
+}
+
 function onPage(event: DataTablePageEvent) {
   pageState.value = { first: event.first, dimensions: filtersStore.dimensions }
 }
@@ -173,5 +185,17 @@ function onSort(event: DataTableSortEvent) {
 
 .request-id {
   flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--p-primary-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.request-id:hover {
+  text-decoration: underline;
 }
 </style>

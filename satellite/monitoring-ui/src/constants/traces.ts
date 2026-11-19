@@ -13,3 +13,17 @@ export const TRACES_COLUMN_WIDTHS = {
   status: 180,
   latency: 160,
 }
+
+export const TRACE_DIALOG_GAP = 15
+
+export enum TraceDetailTab {
+  ATTRIBUTES = 'attributes',
+  EVENTS = 'events',
+  METADATA = 'metadata',
+}
+
+export const TRACE_DETAIL_TABS = [
+  { value: TraceDetailTab.ATTRIBUTES, label: 'Attributes' },
+  { value: TraceDetailTab.EVENTS, label: 'Events' },
+  { value: TraceDetailTab.METADATA, label: 'Metadata' },
+]
