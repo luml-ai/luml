@@ -1,10 +1,12 @@
 import type { Locator, Page, Request } from '@playwright/test'
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFile, execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
 import { ERROR_TOAST, expect, test } from './error_guard'
 import { parseCsv } from './csv'
+import { expectChartOfLoggedValues } from './platform_checks'
 import { SLOW_LINK, ThrottleProxy } from './proxy'
 import {
   clickFirstTrace,
@@ -451,7 +453,7 @@ for (const [format, key] of [
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
     const experiment = data[key]!
-    expect(experiment.user_version).toBe(format === 'new' ? 3 : 2)
+    expect(experiment.user_version).toBe(format === 'new' ? 4 : 2)
     const { large, medium, small, root } = TRACES.big
     const calls = recordTraceApi(page, experiment.id)
     await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`)
@@ -514,7 +516,7 @@ for (const [format, key] of [
   }) => {
     test.skip(!data[key], 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
     const experiment = data[key]!
-    expect(experiment.user_version).toBe(format === 'new' ? 3 : 2)
+    expect(experiment.user_version).toBe(format === 'new' ? 4 : 2)
     const reads = recordEvalsApi(page, experiment.id)
     const traceCalls = recordTraceApi(page, experiment.id)
     await open(page, `/experiments/${experiment.group_id}/${experiment.id}/evals`)
@@ -1484,7 +1486,7 @@ test.describe('Flow functions on a store', () => {
 
     await test.step('this SDK writes a metric point, which migrates the store', async () => {
       const lastStep = appendWithThisSdk(experiment.id, 100)
-      expect(userVersion(db)).toBe(3)
+      expect(userVersion(db)).toBe(4)
       await page.getByRole('tab', { name: 'Metrics' }).click()
       await drawn(page, KEY, [experiment.id])
       await refreshButton(page).click()
@@ -1512,7 +1514,7 @@ test.describe('Flow functions on a store', () => {
         timeout: 10_000,
       })
       await expectAll()
-      expect(userVersion(db)).toBe(3)
+      expect(userVersion(db)).toBe(4)
     })
 
     await test.step('a metric point of luml-sdk 0.5.0 is refused by the migrated store', async () => {
@@ -1523,7 +1525,7 @@ test.describe('Flow functions on a store', () => {
         { encoding: 'utf-8' },
       )
       expect(refused.status).not.toBe(0)
-      expect(refused.stderr).toContain('this experiment uses schema revision 3')
+      expect(refused.stderr).toContain('this experiment uses schema revision 4')
       await page.getByRole('tab', { name: 'Metrics' }).click()
       await drawn(page, KEY, [experiment.id])
     })
@@ -1653,4 +1655,314 @@ test.describe('Flow functions on a store', () => {
       expect(userVersion(experiment.db!)).toBe(2)
     })
   })
+})
+
+// flow_writer.py: the metrics, span and values it writes.
+const CHANGED = 'edit/changed'
+const STEADY = 'edit/steady'
+const APPENDED_VALUE = 0.25
+const EDITED_TRACE = 'edit-trace'
+const EDITED_ATTRIBUTE = 'edit.round'
+
+interface WrittenExperiment {
+  id: string
+  group_id: string
+}
+
+function flowWriterArgs(args: string[]): string[] {
+  return ['run', '--frozen', 'python', join(env('E2E_HERE'), 'flow_writer.py'), ...args]
+}
+
+/** Runs flow_writer.py with this SDK: another process writing to the store Flow shows. */
+function writeWithThisSdk<T>(args: string[]): T {
+  const output = execFileSync('uv', flowWriterArgs(args), { cwd: SDK_DIR, encoding: 'utf-8' })
+  return JSON.parse(output) as T
+}
+
+/** flow_writer.py's values of `start`: inside (0, 1), so 0.5 keeps the min and the max. */
+function startValues(key: string, points: number): number[] {
+  return Array.from({ length: points }, (_, step) =>
+    key === CHANGED ? (step + 1) / (points + 1) : 1 - (step + 1) / (points + 1),
+  )
+}
+
+/** The y values of one experiment's line in a chart. */
+async function lineValues(page: Page, key: string, id: string): Promise<number[]> {
+  return chartPlot(page, key).evaluate((element, id) => {
+    const traces = (element as unknown as { data?: Record<string, unknown>[] }).data ?? []
+    const line = traces.find((trace) => new RegExp(`^${id}[-:]line$`).test(String(trace.uid)))
+    return (line?.y as number[] | undefined) ?? []
+  }, id)
+}
+
+/** The metric's whole history from Flow's API (the page never reads it), ordered by step. */
+async function metricHistory(
+  experimentId: string,
+  key: string,
+): Promise<{ step: number; value: number }[]> {
+  const response = await fetch(
+    `${FLOW}/api/experiments/${experimentId}/metrics/${key}?max_points=1000000`,
+    { headers: { Authorization: `Bearer ${env('E2E_FLOW_TOKEN')}` } },
+  )
+  expect(response.status).toBe(200)
+  const body = (await response.json()) as {
+    subsampled: boolean
+    history: { step: number; value: number }[]
+  }
+  expect(body.subsampled).toBe(false)
+  return body.history.map(({ step, value }) => ({ step, value }))
+}
+
+test.describe('a store that changes while Flow shows it', () => {
+  test.beforeEach(async () => {
+    await PROXY.reset()
+  })
+
+  for (const appended of [0, 40]) {
+    test(`a value overwritten at an existing step${appended ? ', with points appended,' : ''} shows after Refresh, which reads only that metric again`, async ({
+      page,
+    }) => {
+      const points = 300
+      const step = 150
+      const experiment = writeWithThisSdk<WrittenExperiment>([
+        'start',
+        data.store,
+        `overwritten_${appended}`,
+        String(points),
+      ])
+      expect(userVersion(join(data.store, experiment.id, 'exp.db'))).toBe(4)
+      const calls = recordBucketKeys(page, experiment.id)
+      await open(page, experimentPath(experiment, 'metrics'))
+      for (const key of [CHANGED, STEADY]) {
+        await drawn(page, key, [experiment.id])
+        // Level 0: the line holds every point, so a stale one shows.
+        expect(await displayedLevel(page, key)).toBe(0)
+        await expectChartOfLoggedValues(
+          chartCard(page, key),
+          experiment.id,
+          startValues(key, points),
+        )
+      }
+      await settle(page)
+      const before = calls.length
+
+      writeWithThisSdk([
+        'overwrite',
+        data.store,
+        experiment.id,
+        String(step),
+        '0.5',
+        String(appended),
+      ])
+      const values = startValues(CHANGED, points)
+      values[step] = 0.5
+      values.push(...Array.from({ length: appended }, () => APPENDED_VALUE))
+      await refreshButton(page).click()
+
+      await expect
+        .poll(async () => (await lineValues(page, CHANGED, experiment.id))[step], {
+          message: `the overwritten value at step ${step}`,
+          timeout: 30_000,
+        })
+        .toBe(0.5)
+      await drawn(page, CHANGED, [experiment.id])
+      await expectChartOfLoggedValues(chartCard(page, CHANGED), experiment.id, values)
+      await expectChartOfLoggedValues(
+        chartCard(page, STEADY),
+        experiment.id,
+        startValues(STEADY, points),
+      )
+      await settle(page)
+      // Revision 4 counts the writes of each metric: the unchanged one is not read again.
+      expect(calls.slice(before)).toEqual([[CHANGED]])
+    })
+  }
+
+  test('a value luml-sdk 0.5.0 overwrote at an existing step shows after Refresh', async ({
+    page,
+  }) => {
+    test.skip(!data.old, 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
+    const started = writeWithOldSdk(['start', data.store, `overwritten_old_${Date.now()}`])
+    const experiment = { id: started.id, group_id: started.group_id! }
+    const db = join(data.store, experiment.id, 'exp.db')
+    expect(userVersion(db)).toBe(2)
+    // flow_old_live.py: round 0 is steps 0 to 199 of exp(-step / 1000), from 1 down to 0.82.
+    const values = Array.from({ length: started.last_step! + 1 }, (_, step) =>
+      Math.exp(-step / 1_000),
+    )
+    const step = 100
+    await open(page, experimentPath(experiment, 'metrics'))
+    await drawn(page, KEY, [experiment.id])
+    expect(await displayedLevel(page, KEY)).toBe(0)
+    await expectChartOfLoggedValues(chartCard(page, KEY), experiment.id, values)
+
+    // Between the smallest and the largest value, so no summary of the metric changes.
+    writeWithOldSdk(['overwrite', data.store, experiment.id, String(step), '0.9'])
+    values[step] = 0.9
+    await refreshButton(page).click()
+
+    await expect
+      .poll(async () => (await lineValues(page, KEY, experiment.id))[step], {
+        message: `the overwritten value at step ${step}`,
+        timeout: 30_000,
+      })
+      .toBe(0.9)
+    await drawn(page, KEY, [experiment.id])
+    await expectChartOfLoggedValues(chartCard(page, KEY), experiment.id, values)
+    expect(userVersion(db)).toBe(2)
+  })
+
+  test('a span logged again with a changed attribute shows its new data after Refresh', async ({
+    page,
+  }) => {
+    const experiment = writeWithThisSdk<WrittenExperiment>([
+      'start',
+      data.store,
+      `respanned_${Date.now()}`,
+      '10',
+    ])
+    await open(page, experimentPath(experiment, 'traces'))
+    await openTrace(page, EDITED_TRACE)
+    const dialog = traceDialog(page)
+    await expect(spanAttribute(dialog, EDITED_ATTRIBUTE).locator('.content')).toHaveText('first')
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+
+    writeWithThisSdk(['respan', data.store, experiment.id, 'second'])
+    await refreshButton(page).click()
+    await expect(traceRows(page)).toHaveCount(1)
+    await clickFirstTrace(page, EDITED_TRACE)
+
+    await expect(spanAttribute(dialog, EDITED_ATTRIBUTE).locator('.content')).toHaveText('second')
+  })
+})
+
+test.describe('two writers on one store', () => {
+  const run = promisify(execFile)
+
+  for (const mode of ['interleaved', 'buffered'] as const) {
+    test(`two processes of this SDK log one metric without steps, ${mode === 'interleaved' ? 'each flushing every point' : 'both buffering before either flushes'}: every point is kept once`, async ({
+      page,
+    }) => {
+      const start = 10
+      const perWriter = 100
+      const experiment = writeWithThisSdk<WrittenExperiment>([
+        'start',
+        data.store,
+        `two_writers_${mode}_${Date.now()}`,
+        String(start),
+      ])
+      const barrier = mkdtempSync(join(FLOW_DIR, 'barrier-'))
+      try {
+        await Promise.all(
+          [1, 2].map((writer) =>
+            run(
+              'uv',
+              flowWriterArgs([
+                'implicit',
+                data.store,
+                experiment.id,
+                String(writer),
+                String(perWriter),
+                mode,
+                barrier,
+                '2',
+              ]),
+              { cwd: SDK_DIR, encoding: 'utf-8' },
+            ),
+          ),
+        )
+      } finally {
+        rmSync(barrier, { recursive: true, force: true })
+      }
+      // flow_writer.py `implicit`: writer w logs w * 1000 + index, index from 0.
+      const logged = [1, 2].flatMap((writer) =>
+        Array.from({ length: perWriter }, (_, index) => writer * 1_000 + index),
+      )
+      const total = start + 2 * perWriter
+
+      const history = await metricHistory(experiment.id, CHANGED)
+      expect(history.map((point) => point.step)).toEqual(
+        Array.from({ length: total }, (_, step) => step),
+      )
+      expect(history.slice(0, start).map((point) => point.value)).toEqual(
+        startValues(CHANGED, start),
+      )
+      const appended = history.slice(start).map((point) => point.value)
+      expect([...appended].sort((left, right) => left - right)).toEqual(logged)
+      // Each writer's points keep their order.
+      for (const writer of [1, 2]) {
+        const own = appended.filter((value) => Math.floor(value / 1_000) === writer)
+        expect(own).toEqual([...own].sort((left, right) => left - right))
+      }
+
+      await open(page, experimentPath(experiment, 'metrics'))
+      await drawn(page, CHANGED, [experiment.id])
+      expect(await displayedLevel(page, CHANGED)).toBe(0)
+      await expectChartOfLoggedValues(
+        chartCard(page, CHANGED),
+        experiment.id,
+        history.map((point) => point.value),
+      )
+    })
+  }
+
+  test('a write this SDK refuses leaves the store to luml-sdk 0.5.0, which logs on and is shown', async ({
+    page,
+  }) => {
+    test.skip(!data.old, 'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set')
+    const started = writeWithOldSdk(['start', data.store, `refused_${Date.now()}`])
+    const experiment = { id: started.id, group_id: started.group_id! }
+    const db = join(data.store, experiment.id, 'exp.db')
+    await open(page, experimentPath(experiment, 'metrics'))
+    expect((await drawn(page, KEY, [experiment.id]))[experiment.id]).toBeGreaterThan(
+      started.last_step! / 2,
+    )
+
+    expect(writeWithThisSdk(['fractional', data.store, experiment.id])).toEqual({
+      raised: 'TypeError',
+    })
+    expect(userVersion(db), 'the refused write left the store as it was').toBe(2)
+    const round = writeWithOldSdk(['append', data.store, experiment.id, '1'])
+    await refreshButton(page).click()
+
+    await expect
+      .poll(async () => (await lineSteps(page, KEY, experiment.id)).at(-1), { timeout: 30_000 })
+      .toBe(round.last_step)
+    await drawn(page, KEY, [experiment.id])
+    expect(await lineSteps(page, KEY, experiment.id)).toEqual(
+      Array.from({ length: round.last_step! + 1 }, (_, step) => step),
+    )
+    expect(userVersion(db)).toBe(2)
+  })
+})
+
+test('Escape with the Show all viewer open over an eval closes the viewer only', async ({
+  page,
+}) => {
+  // flow_writer.py `start`: an eval whose input is over the preview size.
+  const evalId = 'edit-eval-large'
+  const experiment = writeWithThisSdk<WrittenExperiment>([
+    'start',
+    data.store,
+    `large_eval_${Date.now()}`,
+    '10',
+  ])
+  await open(page, experimentPath(experiment, 'evals'))
+  const rows = await searchEval(page, evalId)
+  await rows.first().getByRole('button', { name: evalId }).click()
+  const evalDialog = page
+    .getByRole('dialog')
+    .filter({ has: page.getByRole('button', { name: 'Show all' }) })
+  await evalDialog.getByRole('button', { name: 'Show all' }).click()
+  const viewer = page.getByRole('dialog', { name: 'prompt' })
+  await expect(viewer).toBeVisible()
+  // Focus on the viewer's text, as after reading or selecting in it.
+  await viewer.locator('.line').first().click()
+
+  await page.keyboard.press('Escape')
+  await expect(viewer).toBeHidden()
+  await expect(evalDialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(evalDialog).toBeHidden()
 })

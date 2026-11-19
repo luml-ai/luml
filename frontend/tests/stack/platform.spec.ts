@@ -2,7 +2,10 @@ import type { BrowserContext, Locator, Page, Request, Response } from '@playwrig
 import { execFileSync } from 'node:child_process'
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { PRESIGNED_URL_MIN_RENEW_AGE_MS } from '../../src/lib/bucket-service/presigned-url-cache'
+import {
+  PRESIGNED_URL_MIN_RENEW_AGE_MS,
+  PRESIGNED_URL_REUSE_MS,
+} from '../../src/lib/bucket-service/presigned-url-cache'
 import { ERROR_TOAST, expect, test } from './error_guard'
 import {
   SLOW_LINK,
@@ -17,12 +20,14 @@ import {
   expectAverageScores,
   expectLargeValue,
   expectRegularTrace,
+  expectTraceRow,
   expectTracesSortedAndPaged,
   expectVirtualisedTree,
   openTrace,
   rowCells,
   runLeftTimers,
   scoreTexts,
+  scrollToEndOnce,
   searchEval,
   sortLongestFirst,
   spanAttribute,
@@ -1487,6 +1492,12 @@ test.describe('slow network to storage', () => {
     test.setTimeout(240_000)
     const large = artifact('large')
     errors.expect({ kind: 'error state', text: /^chart train\/loss$/ })
+    // The stalled request ends at its own timeout, within the deadline of the read it serves.
+    errors.expect({
+      kind: 'request failed',
+      url: new RegExp(`${escapeRegExp(large.bucket_location)}$`),
+      text: /ERR_TIMED_OUT/,
+    })
     await openSnapshot(page, storage, large)
     await settledChart(page, 'train/loss', [large.id])
     const card = chartCard(page, 'train/loss')
@@ -2139,6 +2150,437 @@ test.describe('slow network to storage', () => {
     // A 404 is not a failure the same link can get past, and the link is too young to renew.
     expect(missing).toHaveLength(1)
     expect(network.issuesOf(newA)).toBe(1)
+  })
+
+  /** The experiments the bar chart of one average score of the dataset draws, by id. */
+  async function scoredIds(page: Page, score: string): Promise<string[]> {
+    const plots = datasetCard(page, TRACES.dataset).locator('.js-plotly-plot')
+    const ids = await plots.evaluateAll(
+      (elements, score) =>
+        elements
+          .map(
+            (element) =>
+              element as unknown as {
+                data?: { x: string[] }[]
+                layout?: { title?: { text?: string } | string }
+              },
+          )
+          .filter((plot) => {
+            const title = plot.layout?.title
+            return (typeof title === 'string' ? title : title?.text) === score
+          })
+          .flatMap((plot) => [...(plot.data?.[0]?.x ?? [])]),
+      score,
+    )
+    return ids.sort()
+  }
+
+  for (const status of [403, 500] as const) {
+    test(`a comparison member whose storage fails with ${status} after it was drawn is left out and named, exports reject, and it comes back`, async ({
+      page,
+      errors,
+    }) => {
+      test.skip(
+        !storage.artifacts.traces_old,
+        'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set',
+      )
+      // traces_new reads by Range, so it reads storage after open; traces_old has the same evals
+      // and traces, new_a the metric.
+      const failing = artifact('traces_new')
+      const [old, newA] = [artifact('traces_old'), artifact('new_a')]
+      const storageError = new RegExp(`Snapshot range read failed: .* status ${status}`)
+      errors.expect({ kind: 'response', status, url: refusedRead(failing).url })
+      errors.expect({
+        kind: 'error state',
+        text: /^traces_new: The storage request failed\. Reload the page\. Its data is not shown\.$/,
+      })
+      errors.expect({ kind: 'toast', text: storageError })
+      errors.expect({ kind: 'console error', text: storageError })
+      const downloads: string[] = []
+      page.on('download', (download) => downloads.push(download.suggestedFilename()))
+      await openCompare(page, storage, [failing, old, newA])
+      await settledChart(page, 'train/loss', [newA.id])
+      await expect(page.locator('.evals-table tbody tr').first()).toBeVisible({ timeout: 60_000 })
+      expect(await scoredIds(page, 'accuracy')).toEqual([failing.id, old.id].sort())
+      await network.settled()
+      await expectNoNotices(page)
+
+      await proxy.configure({
+        storageFailure: { matching: escapeRegExp(failing.bucket_location), status, times: null },
+      })
+      const failedReads = () =>
+        network.of(failing).filter((request) => request.status === status).length
+      // One read of the failing member per call; a 500 gets one retry with the same link, which
+      // is too young to renew, a 403 none.
+      const perCall = status === 500 ? 2 : 1
+      const notice = page.getByTestId('experiment-status-notice')
+
+      await test.step('a read that needs pages not read yet leaves the member out', async () => {
+        // The search reads the averages of the evals it finds, which the first page did not hold.
+        await page.getByPlaceholder('Search evals').fill('eval-0299')
+        await expect(notice).toHaveCount(1, { timeout: 60_000 })
+        await expect(notice).toHaveAttribute('data-code', 'snapshot-source-expired')
+        await expect(notice).toContainText('traces_new')
+        await expect.poll(() => scoredIds(page, 'accuracy')).toEqual([old.id])
+        await expect(
+          page.locator('.evals-table tbody tr').filter({ hasText: 'traces_old' }),
+        ).toHaveCount(1)
+        await network.settled()
+        expect(failedReads()).toBe(perCall)
+      })
+
+      await test.step('the others read on: a trace, a zoom and the datasets', async () => {
+        await page
+          .locator('.evals-table tbody tr')
+          .first()
+          .getByRole('button', { name: 'eval-0299' })
+          .click()
+        const evalDialog = page
+          .getByRole('dialog')
+          .filter({ has: page.getByRole('button', { name: 'Trace', exact: true }) })
+        await evalDialog.getByRole('button', { name: 'Trace', exact: true }).nth(1).click()
+        await expectRegularTrace(traceDialog(page), TRACES.evals['eval-0299']!.index)
+        await page.keyboard.press('Escape')
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('dialog')).toHaveCount(0)
+        const card = chartCard(page, 'train/loss')
+        await card.scrollIntoViewIfNeeded()
+        const levelBefore = await displayedLevel(card)
+        await dragZoom(page, card, 0.4)
+        await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+        await settledChart(page, 'train/loss', [newA.id])
+        await expect(datasetCard(page, TRACES.dataset)).toBeVisible()
+        await network.settled()
+        expect(failedReads()).toBe(perCall)
+      })
+
+      await test.step('an export rejects with the read error and saves no file', async () => {
+        await tableToolbar(page, 'Search evals').getByRole('button', { name: 'Export CSV' }).click()
+        await expect(page.locator(`.${ERROR_TOAST}`)).toContainText(storageError)
+        await network.settled()
+        expect(failedReads()).toBe(2 * perCall)
+        expect(downloads).toEqual([])
+      })
+
+      await test.step('once storage works again the member comes back', async () => {
+        await proxy.configure({ storageFailure: null })
+        await page.getByPlaceholder('Search evals').fill('eval-0298')
+        await expect.poll(() => scoredIds(page, 'accuracy')).toEqual([failing.id, old.id].sort())
+        await expect(notice).toHaveCount(0)
+        await expect(page.locator('.evals-table tbody tr')).toHaveCount(2)
+        expect(failedReads()).toBe(2 * perCall)
+      })
+    })
+  }
+
+  /**
+   * Moves the page's clock past the age at which the viewer asks for a new download link, so the
+   * next read sends the worker a new one (the page's clock must be installed before it opened).
+   */
+  async function ageDownloadLinks(page: Page) {
+    await page.clock.fastForward(PRESIGNED_URL_REUSE_MS + 1_000)
+  }
+
+  /** Every row of the traces table, scrolled through to its end: its trace ids in order. */
+  async function allTraceIds(page: Page, count: number): Promise<string[]> {
+    const scroller = page.locator('.traces-table .p-virtualscroller')
+    const seen = new Map<number, string>()
+    await expect
+      .poll(
+        async () => {
+          const rows = await traceRows(page).evaluateAll((items) =>
+            items.map((item) => [
+              Number(item.getAttribute('data-p-index')),
+              item.querySelector('td')?.textContent?.trim() ?? '',
+            ]),
+          )
+          for (const [index, id] of rows as [number, string][]) {
+            const before = seen.get(index)
+            expect(
+              before === undefined || before === id,
+              `row ${index}: ${before}, then ${id}`,
+            ).toBe(true)
+            seen.set(index, id)
+          }
+          await scroller.evaluate((element) => element.scrollBy(0, element.clientHeight / 2))
+          return seen.size
+        },
+        { message: 'every trace listed', timeout: 60_000, intervals: [50] },
+      )
+      .toBe(count)
+    return [...seen.entries()].sort(([left], [right]) => left - right).map(([, id]) => id)
+  }
+
+  test('with an aged download link, a sort after paging down shows the first rows, then each row once', async ({
+    page,
+  }) => {
+    const traces = artifact('traces_new')
+    await page.clock.install()
+    await openTraceSnapshot(page, storage, traces)
+    // A page further down, so the provider's cursor is past the first page.
+    await scrollToEndOnce(page.locator('.traces-table .p-virtualscroller'))
+    await expect(traceRows(page).last()).toHaveAttribute('data-p-index', /^(2\d|[3-9]\d)$/, {
+      timeout: 60_000,
+    })
+    await network.settled()
+    const issued = network.issuesOf(traces)
+    await ageDownloadLinks(page)
+
+    // trace_data.py: a regular trace takes (10 + index) ms and the big one is the longest.
+    const regular = Object.entries(TRACES.traces).sort(([, a], [, b]) => a.index - b.index)
+    await page.getByRole('columnheader', { name: 'execution time' }).click()
+    await page
+      .locator('.traces-table .p-virtualscroller')
+      .evaluate((element) => element.scrollTo(0, 0))
+    for (const [id, expected] of regular.slice(0, 3)) {
+      const row = page.locator(`.traces-table tbody tr[data-p-index="${expected.index}"]`)
+      await expectTraceRow(row, id, expected, expected.eval_id)
+    }
+    expect(network.issuesOf(traces), 'the aged link was renewed').toBe(issued + 1)
+    // Shortest first: the regular traces, `trace-0000` up, then the big one.
+    const regularIds = Array.from(
+      { length: TRACES.trace_count - 1 },
+      (_, index) => `trace-${String(index).padStart(4, '0')}`,
+    )
+    expect(await allTraceIds(page, TRACES.trace_count)).toEqual([
+      ...regularIds,
+      TRACES.big.trace_id,
+    ])
+  })
+
+  test('an experiment loaded in full reads on with an aged download link, with no request', async ({
+    page,
+  }) => {
+    const small = artifact('new_a')
+    await proxy.configure({ stripRange: true })
+    await page.clock.install()
+    await openSnapshot(page, storage, small)
+    await settledChart(page, 'train/loss', [small.id])
+    await expect(page.getByTestId('experiment-status-notice')).toHaveAttribute(
+      'data-code',
+      'range-ignored',
+    )
+    await network.settled()
+    const reads = network.of(small).length
+    await ageDownloadLinks(page)
+
+    const card = chartCard(page, 'train/loss')
+    const levelBefore = await displayedLevel(card)
+    await dragZoom(page, card, 0.4)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    await settledChart(page, 'train/loss', [small.id])
+    await network.settled()
+    expect(network.of(small)).toHaveLength(reads)
+    await expect(page.getByTestId('experiment-status-notice')).toHaveCount(1)
+    await expect(page.getByTestId('experiment-status-notice')).toHaveAttribute(
+      'data-code',
+      'range-ignored',
+    )
+  })
+
+  test('a comparison with a member that failed at open reads the others on with aged download links', async ({
+    page,
+    errors,
+  }) => {
+    // new_b reads by Range: a member that failed at open must not get a new link when the
+    // others' links age.
+    const [newA, old, failed] = [artifact('new_a'), artifact('old'), artifact('new_b')]
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(failed).url })
+    errors.expect({
+      kind: 'error state',
+      text: /^new_b: The storage request failed\. Reload the page\. Its data is not shown\.$/,
+    })
+    await proxy.configure({
+      storageFailure: { matching: escapeRegExp(failed.bucket_location), status: 500, times: null },
+    })
+    await page.clock.install()
+    await openCompare(page, storage, [newA, old, failed])
+    await expectLoggedCharts(page, [newA, old])
+    const notice = page.getByTestId('experiment-status-notice')
+    await expect(notice).toHaveCount(1)
+    await network.settled()
+    const issued = [newA, old, failed].map((item) => network.issuesOf(item))
+    await ageDownloadLinks(page)
+
+    const card = chartCard(page, 'train/loss')
+    const levelBefore = await displayedLevel(card)
+    await dragZoom(page, card, 0.4)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    await settledChart(page, 'train/loss', [newA.id, old.id])
+    await network.settled()
+    // new_a reads with a new link; old was downloaded whole and new_b reads nothing, so neither
+    // asks for one.
+    expect([newA, old, failed].map((item) => network.issuesOf(item))).toEqual([
+      issued[0]! + 1,
+      issued[1],
+      issued[2],
+    ])
+    await expect(notice).toHaveCount(1)
+  })
+
+  test('a zoom read that fails in the full-screen chart shows the error in its status row', async ({
+    page,
+    errors,
+  }) => {
+    const large = artifact('large')
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(large).url })
+    errors.expect({ kind: 'error state', text: /^full-screen chart$/ })
+    await openSnapshot(page, storage, large)
+    await settledChart(page, 'train/loss', [large.id])
+    await chartCard(page, 'train/loss').locator('.header-right').getByRole('button').click()
+    const dialog = page.getByRole('dialog')
+    const status = dialog.getByTestId('scaled-status')
+    await expect(dialog.getByTestId('metric-plot')).toBeVisible()
+    await expect(status.locator('.p-progressspinner')).toHaveCount(0, { timeout: 60_000 })
+    await expect(status.getByTestId('chart-error')).toHaveCount(0)
+    await network.settled()
+    const reads = network.of(large).length
+
+    await failingRead(large, null)
+    await dragZoom(page, dialog, 0.4)
+    await expect(status.getByTestId('chart-error')).toBeVisible({ timeout: 60_000 })
+    await expect(status.locator('.p-progressspinner')).toHaveCount(0)
+    await status.getByTestId('chart-error').hover()
+    await expect(
+      page.getByText(/large: The storage request failed\. Reload the page\./),
+    ).toBeVisible()
+    await network.settled()
+    // The read and its one retry with the same link, which is too young to renew.
+    expect(
+      network
+        .of(large)
+        .slice(reads)
+        .map((request) => request.status),
+    ).toEqual([500, 500])
+  })
+
+  test('after a read that never gets an answer, the next read once storage answers does not wait for the calls queued meanwhile', async ({
+    page,
+    errors,
+  }) => {
+    test.setTimeout(240_000)
+    const large = artifact('large')
+    for (const key of data.large.keys) {
+      errors.expect({ kind: 'error state', text: new RegExp(`^chart ${escapeRegExp(key)}$`) })
+    }
+    errors.expect({
+      kind: 'request failed',
+      url: new RegExp(`${escapeRegExp(large.bucket_location)}$`),
+      text: /ERR_TIMED_OUT/,
+    })
+    await openSnapshot(page, storage, large)
+    for (const key of data.large.keys) await settledChart(page, key, [large.id])
+
+    await proxy.configure({ stallMatching: escapeRegExp(large.bucket_location) })
+    const stalledAt = Date.now()
+    // A zoom of each chart, a second apart, so each is a call of its own: the first one's read
+    // stalls and the others queue behind it in the worker.
+    for (const key of data.large.keys) {
+      const card = chartCard(page, key)
+      await card.scrollIntoViewIfNeeded()
+      await dragZoom(page, card, 0.4)
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+    }
+    for (const key of data.large.keys) {
+      await expect(chartCard(page, key), `chart ${key} shows the read error`).toHaveAttribute(
+        'data-state',
+        'error',
+        { timeout: 120_000 },
+      )
+    }
+    // Storage stays silent past the deadlines of the queued calls (30 s from their start). A
+    // worker that still ran them, each with a request of its own full allowance (29 s), would
+    // be busy with the last one until about 90 s.
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, stalledAt + 60_000 - Date.now())),
+    )
+    // Storage answers new requests again. A request still held stays unanswered, as on a
+    // connection that stalled, so a worker busy with one would keep the next read waiting.
+    const held = (await proxy.requests()).filter(
+      (request) => request.stalled && request.endedAt === 0,
+    )
+    await proxy.configure({
+      stallMatching: held.length
+        ? held.map((request) => `${escapeRegExp(request.range ?? '')}$`).join('|')
+        : '(?!)',
+    })
+
+    const card = chartCard(page, 'train/loss')
+    await card.scrollIntoViewIfNeeded()
+    const started = Date.now()
+    // A zoom to a place not read yet: a call to the worker that reads storage.
+    await dragZoom(page, card, 0.65)
+    await settledChart(page, 'train/loss', [large.id])
+    // Measured: under a second.
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  test('a comparison member whose storage stops answering after it was drawn is left out and named', async ({
+    page,
+    errors,
+  }) => {
+    test.skip(
+      !storage.artifacts.traces_old,
+      'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set',
+    )
+    test.setTimeout(180_000)
+    const stalled = artifact('traces_new')
+    const [old, newA] = [artifact('traces_old'), artifact('new_a')]
+    errors.expect({
+      kind: 'request failed',
+      url: new RegExp(`${escapeRegExp(stalled.bucket_location)}$`),
+      text: /ERR_TIMED_OUT/,
+    })
+    errors.expect({
+      kind: 'error state',
+      text: /^traces_new: .* Its data is not shown\.$/,
+    })
+    await openCompare(page, storage, [stalled, old, newA])
+    await settledChart(page, 'train/loss', [newA.id])
+    await expect(page.locator('.evals-table tbody tr').first()).toBeVisible({ timeout: 60_000 })
+    await network.settled()
+
+    await proxy.configure({ stallMatching: escapeRegExp(stalled.bucket_location) })
+    // Reads pages of traces_new not read yet (see the test of a failing member above).
+    await page.getByPlaceholder('Search evals').fill('eval-0299')
+    // The stalled request gets the storage's whole allowance (25 s plus its size's share), then
+    // the averages show without traces_new.
+    await expect.poll(() => scoredIds(page, 'accuracy'), { timeout: 90_000 }).toEqual([old.id])
+    const notice = page.getByTestId('experiment-status-notice')
+    await expect(notice).toHaveAttribute('data-code', 'timed-out')
+    await expect(notice).toContainText('traces_new')
+    await expect(
+      page.locator('.evals-table tbody tr').filter({ hasText: 'traces_old' }),
+    ).toHaveCount(1)
+    // The rows of traces_new read before the stall may still show from the cache; the id button
+    // is on the first row of the eval's group.
+    await page
+      .locator('.evals-table tbody tr')
+      .first()
+      .getByRole('button', { name: 'eval-0299' })
+      .click()
+    const evalDialog = page
+      .getByRole('dialog')
+      .filter({ has: page.getByRole('button', { name: 'Trace', exact: true }) })
+    await evalDialog.getByRole('button', { name: 'Trace', exact: true }).nth(1).click()
+    await expectRegularTrace(traceDialog(page), TRACES.evals['eval-0299']!.index)
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    const card = chartCard(page, 'train/loss')
+    await card.scrollIntoViewIfNeeded()
+    const levelBefore = await displayedLevel(card)
+    await dragZoom(page, card, 0.4)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    await settledChart(page, 'train/loss', [newA.id])
+    await expect(datasetCard(page, TRACES.dataset)).toBeVisible()
+
+    await proxy.configure({ stallMatching: null })
+    await page.getByPlaceholder('Search evals').fill('eval-0298')
+    await expect
+      .poll(() => scoredIds(page, 'accuracy'), { timeout: 60_000 })
+      .toEqual([stalled.id, old.id].sort())
+    await expect(notice).toHaveCount(0)
   })
 
   /**

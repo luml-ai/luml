@@ -297,8 +297,11 @@ export class ErrorGuard {
         const toasts = document.getElementsByClassName(toastClass)
         const textOf = (element: Element) => {
           // The chart's error icon has no text (its message is a tooltip): named by its chart.
-          if (element.matches('[data-testid="chart-error"]'))
-            return `chart ${element.closest('[data-metric-key]')?.getAttribute('data-metric-key')}`
+          // The full-screen view is a dialog outside the chart's card, so it has no key.
+          if (element.matches('[data-testid="chart-error"]')) {
+            const key = element.closest('[data-metric-key]')?.getAttribute('data-metric-key')
+            return key ? `chart ${key}` : 'full-screen chart'
+          }
           return element.textContent?.trim() ?? ''
         }
         const read = (element: Element, index: number) => {

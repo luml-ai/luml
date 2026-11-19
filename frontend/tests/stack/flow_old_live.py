@@ -6,6 +6,8 @@ Run with the interpreter of the luml-sdk 0.5.0 venv (``python -I``):
   leaves the experiment running.
 - ``flow_old_live.py append <store> <experiment id> <round> [metrics|no-metrics]``
   writes one more round; ``no-metrics`` writes its spans and evals only.
+- ``flow_old_live.py overwrite <store> <experiment id> <step> <value>`` logs the metric
+  again at an existing step.
 
 Each call prints what it wrote as JSON: the experiment id (and its group id on start),
 the metric's last step (or null), the trace ids and the eval ids with their scores.
@@ -94,6 +96,12 @@ def main() -> None:
         )
         # Still running when this process ends, as a training run between two writes.
         tracker.current_experiment_id = None
+    elif mode == "overwrite":
+        experiment_id, step = sys.argv[3], int(sys.argv[4])
+        tracker.log_dynamic(
+            KEY, float(sys.argv[5]), step=step, experiment_id=experiment_id
+        )
+        written = {"id": experiment_id, "last_step": None, "trace_ids": [], "evals": {}}
     else:
         experiment_id, round_index = sys.argv[3], int(sys.argv[4])
         metrics = (sys.argv[5] if len(sys.argv) > 5 else "metrics") == "metrics"
