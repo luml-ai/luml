@@ -100,4 +100,36 @@ describe('TracesTable rows clicked one after the other', () => {
     expect(useEvalsStore().currentEvalId).toBe('eval-1')
     expect(useEvalsStore().evalsIdsList).toEqual(['eval-1', 'eval-2'])
   })
+
+  it('keeps the eval clicked last when an earlier trace answers after it', async () => {
+    const { spanReads, evalReads } = setupProvider()
+    const vm = mountTable()
+
+    const trace = vm.showTrace('trace-0')
+    const evalRead = vm.showEval('eval-1', ['eval-1'])
+    evalReads.get('eval-1')!.resolve({ id: 'eval-1', dataset_id: 'd1' } as EvalsInfo)
+    await evalRead
+
+    spanReads.get('trace-0')!.resolve([span('trace-0')])
+    await trace
+    await flushPromises()
+    expect(useEvalsStore().currentEvalId).toBe('eval-1')
+    expect(useEvalsStore().selectedTrace).toBeNull()
+  })
+
+  it('keeps the trace clicked last when an earlier eval answers after it', async () => {
+    const { spanReads, evalReads } = setupProvider()
+    const vm = mountTable()
+
+    const evalRead = vm.showEval('eval-0', ['eval-0'])
+    const trace = vm.showTrace('trace-1')
+    spanReads.get('trace-1')!.resolve([span('trace-1')])
+    await trace
+
+    evalReads.get('eval-0')!.resolve({ id: 'eval-0', dataset_id: 'd1' } as EvalsInfo)
+    await evalRead
+    await flushPromises()
+    expect(useEvalsStore().selectedTrace?.traceId).toBe('trace-1')
+    expect(useEvalsStore().currentEvalId).toBe('')
+  })
 })

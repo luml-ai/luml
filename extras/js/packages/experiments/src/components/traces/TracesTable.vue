@@ -390,15 +390,15 @@ function onSort(event: DataTableSortEvent) {
 // the dialog over the next experiment.
 let closed = false
 
-// A row clicked later wins over one whose read is still running.
-let evalRequest = 0
-let traceRequest = 0
+// Trace and eval links open dialogs from the same table: the link clicked last wins over one
+// whose read is still running, whichever kind it is.
+let dialogRequest = 0
 
 async function showEval(evalId: string, evalsIds: string[]) {
-  const request = ++evalRequest
+  const request = ++dialogRequest
   try {
     const evalData = await evalsStore.getProvider.getEvalById(props.artifactId, evalId)
-    if (closed || request !== evalRequest) return
+    if (closed || request !== dialogRequest) return
     evalsStore.setEvalsIdsList(evalsIds)
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
@@ -407,10 +407,10 @@ async function showEval(evalId: string, evalsIds: string[]) {
 }
 
 async function showTrace(traceId: string) {
-  const request = ++traceRequest
+  const request = ++dialogRequest
   try {
     const snapsTree = await evalsStore.getTraceSpansTree(props.artifactId, traceId)
-    if (closed || request !== traceRequest) return
+    if (closed || request !== dialogRequest) return
     evalsStore.setSelectedTrace(snapsTree, props.artifactId)
   } catch (error) {
     showReadErrorToast(toast, error, getErrorMessage(error))
