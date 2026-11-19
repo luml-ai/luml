@@ -1,12 +1,20 @@
-import { SectionState, type ReferenceProfileResponse } from '@/api/monitoring/interfaces'
+import {
+  ProfileStatus,
+  SectionState,
+  type ReferenceProfileFeature,
+  type ReferenceProfileResponse,
+} from '@/api/monitoring/interfaces'
 import { JSON_ARRAY_PREVIEW_LIMIT } from '@/constants/reference-profile'
 import type { EmptyStateContent } from '@/types/empty'
 import {
   JsonValueKind,
   type JsonEntry,
+  type ReferenceNote,
+  type ReferenceProbabilityItem,
   type ReferenceProfileSummaryItem,
+  type ReferenceStatItem,
 } from '@/types/reference-profile'
-import { formatInteger } from '@/utils/format'
+import { formatDecimal, formatInteger } from '@/utils/format'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -118,4 +126,80 @@ export function getReferenceProfileEmptyState(
     }
   }
   return null
+}
+
+function formatStatValue(value: number): string {
+  return Number.isInteger(value) ? formatInteger(value) : formatDecimal(value)
+}
+
+function formatProbability(value: number): string {
+  return `${(value * 100).toFixed(3)}%`
+}
+
+export function getReferenceStats(feature: ReferenceProfileFeature): ReferenceStatItem[] {
+  return Object.entries(feature.summary).map(([label, value]) => ({
+    label,
+    value: formatStatValue(value),
+  }))
+}
+
+function getProbabilityEntries(feature: ReferenceProfileFeature): [string, number][] {
+  if (feature.categories?.length) {
+    const probabilities = feature.category_probabilities ?? []
+    return feature.categories.map((category, index) => [category, probabilities[index] ?? 0])
+  }
+  const histogram = feature.histogram ?? []
+  const edges = feature.bin_edges ?? []
+  const total = histogram.reduce((sum, value) => sum + value, 0)
+  return histogram.map((value, index) => {
+    const from = edges[index]
+    const to = edges[index + 1]
+    const label =
+      from == null || to == null
+        ? String(index)
+        : `${formatStatValue(from)} – ${formatStatValue(to)}`
+    return [label, total ? value / total : 0]
+  })
+}
+
+export function getReferenceProbabilities(
+  feature: ReferenceProfileFeature,
+): ReferenceProbabilityItem[] {
+  return getProbabilityEntries(feature).map(([label, probability]) => ({
+    label,
+    value: formatProbability(probability),
+    width: `${Math.min(100, Math.max(0, probability * 100))}%`,
+  }))
+}
+
+export function getReferenceProbabilitiesTitle(feature: ReferenceProfileFeature): string {
+  return feature.categories?.length
+    ? 'Reference category probabilities'
+    : 'Reference bin probabilities'
+}
+
+function getReferenceNoteDetail(feature: ReferenceProfileFeature): string {
+  return feature.categories?.length
+    ? "Each logged batch is split into these categories and its category shares are compared against the reference probabilities to compute the feature's PSI drift score."
+    : "Each logged batch is binned with these edges and compared against the reference probabilities to compute the feature's PSI drift score."
+}
+
+export function getReferenceNote(
+  profile: ReferenceProfileResponse,
+  feature: ReferenceProfileFeature,
+): ReferenceNote {
+  if (profile.profile_status !== ProfileStatus.READY) {
+    return {
+      severity: 'warn',
+      title: 'This profile is not a complete training baseline.',
+      detail: `Profile status is "${profile.profile_status}", so drift scores computed against it may be unreliable.`,
+    }
+  }
+  return {
+    severity: 'info',
+    title: profile.baseline_label
+      ? `This profile is the training baseline · ${profile.baseline_label}`
+      : 'This profile is the training baseline.',
+    detail: getReferenceNoteDetail(feature),
+  }
 }

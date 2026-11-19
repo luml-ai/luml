@@ -12,7 +12,6 @@
           :selected-feature="selectedFeature"
           :loading="loading"
           @select="filtersStore.setFeature"
-          @open-reference="tabsStore.setActiveTab(TabKey.REFERENCE_PROFILE)"
         />
         <MEmpty
           v-if="multivariateEmptyState"
@@ -34,8 +33,6 @@ import { computed } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import { useFiltersStore } from '@/store/filters'
-import { useTabsStore } from '@/store/tabs'
-import { TabKey } from '@/types/tabs'
 import { getFeatureDriftEmptyState, getMultivariateEmptyState } from '@/utils/drift'
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
@@ -45,7 +42,6 @@ import FeatureDriftPanel from '@/components/feature-drift/FeatureDriftPanel.vue'
 import MultivariateDrift from '@/components/feature-drift/MultivariateDrift.vue'
 
 const filtersStore = useFiltersStore()
-const tabsStore = useTabsStore()
 
 const { data, loading, error, reload } = useMonitoringData((dims) =>
   api.monitoring.getFeatureDrift(dims),

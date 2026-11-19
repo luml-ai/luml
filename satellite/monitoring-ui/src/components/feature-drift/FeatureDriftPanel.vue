@@ -7,7 +7,7 @@
     />
     <div class="details" :class="{ loading }" :aria-busy="loading">
       <template v-if="selected">
-        <FeatureDriftDetailsHeader :detail="selected" @open-reference="emit('open-reference')" />
+        <FeatureDriftDetailsHeader :detail="selected" />
         <FeatureDriftChart
           title="Reference vs current distribution"
           empty-text="No distribution available for this feature."
@@ -60,7 +60,6 @@ defineProps<Props>()
 
 const emit = defineEmits<{
   select: [feature: string]
-  'open-reference': []
 }>()
 </script>
 

@@ -12,33 +12,25 @@
           :dt="STATUS_TAG_TOKENS"
         />
       </span>
-      <Button
-        label="Reference profile"
-        severity="secondary"
-        variant="outlined"
-        @click="emit('open-reference')"
-      />
+      <FeatureReferenceProfile :feature="detail.feature" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Button, Tag } from 'primevue'
+import { Tag } from 'primevue'
 import type { FeatureDriftDetail } from '@/api/monitoring/interfaces'
 import { STATUS_TAG_TOKENS } from '@/constants/drift'
 import { getSeverityLabel, getSeverityTagSeverity } from '@/utils/alerts'
 import { formatPsiLabel } from '@/utils/drift'
 import MEllipsis from '@/components/MEllipsis.vue'
+import FeatureReferenceProfile from '@/components/feature-drift/FeatureReferenceProfile.vue'
 
 interface Props {
   detail: FeatureDriftDetail
 }
 
 defineProps<Props>()
-
-const emit = defineEmits<{
-  'open-reference': []
-}>()
 </script>
 
 <style scoped>
