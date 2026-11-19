@@ -20,10 +20,10 @@ on:
       - relay/**
       - sdk/python/api/**
       - model_servers/default/**
-      - .github/workflows/publish-satellite-images.yml
-      - .github/workflows/publish-relay-image.yml
-      - .github/workflows/publish-model-server-image.yml
-      - .github/workflows/promote-images.yml
+      - '.github/workflows/*satellite*publish-images.yml'
+      - '.github/workflows/*relay*publish-image.yml'
+      - '.github/workflows/*model-server*publish-image.yml'
+      - '.github/workflows/*images*promote.yml'
   workflow_dispatch:
 
 concurrency:
@@ -51,12 +51,13 @@ jobs:
               echo "image_tag=latest" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "Unsupported promotion ref: $REF; only the staging and production branches are promoted, main is built by the publish-*.yml workflows" >&2
+              echo "Unsupported promotion ref: $REF; only the staging and production branches are promoted, main is built by the image publishing workflows" >&2
               exit 1
               ;;
           esac
 
   promote:
+    name: promote (${{ matrix.name }})
     needs: resolve-image-tag
     runs-on: ubuntu-latest
     permissions:
@@ -67,7 +68,7 @@ jobs:
       matrix:
         include:
           - name: luml-satellite-agent
-            built-by: publish-satellite-images.yml
+            built-by: "[satellite] publish-images.yml"
             paths: |
               satellite/kit/**
               satellite/implementations/docker/**
@@ -79,9 +80,9 @@ jobs:
               satellite/Caddyfile
               docs/docs/guides/satellite.md
               frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
-              .github/workflows/publish-satellite-images.yml
+              .github/workflows/*satellite*publish-images.yml
           - name: luml-satellite-kubernetes
-            built-by: publish-satellite-images.yml
+            built-by: "[satellite] publish-images.yml"
             paths: |
               satellite/kit/**
               satellite/implementations/docker/**
@@ -93,9 +94,9 @@ jobs:
               satellite/Caddyfile
               docs/docs/guides/satellite.md
               frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
-              .github/workflows/publish-satellite-images.yml
+              .github/workflows/*satellite*publish-images.yml
           - name: luml-satellite-monitoring
-            built-by: publish-satellite-images.yml
+            built-by: "[satellite] publish-images.yml"
             paths: |
               satellite/kit/**
               satellite/implementations/docker/**
@@ -107,9 +108,9 @@ jobs:
               satellite/Caddyfile
               docs/docs/guides/satellite.md
               frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
-              .github/workflows/publish-satellite-images.yml
+              .github/workflows/*satellite*publish-images.yml
           - name: luml-satellite-serving
-            built-by: publish-satellite-images.yml
+            built-by: "[satellite] publish-images.yml"
             paths: |
               satellite/kit/**
               satellite/implementations/docker/**
@@ -121,20 +122,20 @@ jobs:
               satellite/Caddyfile
               docs/docs/guides/satellite.md
               frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts
-              .github/workflows/publish-satellite-images.yml
+              .github/workflows/*satellite*publish-images.yml
           - name: luml-relay
-            built-by: publish-relay-image.yml
+            built-by: "[relay] publish-image.yml"
             paths: |
               relay/**
               sdk/python/api/**
-              .github/workflows/publish-relay-image.yml
+              .github/workflows/*relay*publish-image.yml
           - name: luml-model-server
-            built-by: publish-model-server-image.yml
+            built-by: "[model-server] publish-image.yml"
             paths: |
               model_servers/default/**
               satellite/.env.example
               satellite/docker-compose.yml
-              .github/workflows/publish-model-server-image.yml
+              .github/workflows/*model-server*publish-image.yml
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

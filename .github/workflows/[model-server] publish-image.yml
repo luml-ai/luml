@@ -1,4 +1,4 @@
-name: Publish Relay Image
+name: Publish Model Server Image
 
 permissions:
   contents: read
@@ -7,24 +7,25 @@ on:
   push:
     branches: [main]
     tags:
-      - "luml-relay/image/v*"
+      - "satellite/model-server/v*"
     paths:
-      - relay/**
-      - sdk/python/api/**
-      - .github/workflows/publish-relay-image.yml
+      - model_servers/default/**
+      - satellite/.env.example
+      - satellite/docker-compose.yml
+      - '.github/workflows/*model-server*publish-image.yml'
   workflow_dispatch:
 
 concurrency:
-  group: publish-relay-image-${{ github.ref_name }}
+  group: publish-model-server-image-${{ github.ref_name }}
   cancel-in-progress: true
 
 env:
   GHCR_REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-relay
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-model-server
 
 jobs:
   tests:
-    uses: "./.github/workflows/[relay] tests-and-linters.yml"
+    uses: "./.github/workflows/[model-server] tests-and-linters.yml"
 
   resolve-image-tag:
     runs-on: ubuntu-latest
@@ -36,7 +37,7 @@ jobs:
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             TAG="${{ github.ref_name }}"
 
-            if [[ ! "$TAG" =~ ^luml-relay/image/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            if [[ ! "$TAG" =~ ^satellite/model-server/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
               echo "Unsupported release tag: $TAG" >&2
               exit 1
             fi
@@ -50,7 +51,7 @@ jobs:
               echo "image_tag=dev" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by promote-images.yml" >&2
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by [images] promote.yml" >&2
               exit 1
               ;;
           esac
@@ -70,8 +71,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
-          context: relay
-          file: relay/Dockerfile
+          context: model_servers/default
+          file: model_servers/default/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}

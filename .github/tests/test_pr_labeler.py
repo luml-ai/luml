@@ -95,7 +95,7 @@ class PRLabelerTests(unittest.TestCase):
 
     def test_files_outside_packages(self):
         cases = {
-            ".github/workflows/deploy-backend.yml": {"ci"},
+            ".github/workflows/[backend] deploy.yml": {"ci"},
             "satellite/docker-compose.yml": {"satellite"},
             "wasm/build.sh": {"wasm"},
             "dev/seed.py": {"dev"},
