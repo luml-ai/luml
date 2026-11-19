@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { test, expect } from './fixtures/snapshot-error-guard'
 import { build, type Plugin } from 'esbuild'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -18,7 +19,8 @@ import {
 // real worker, provider, range VFS and bucket store in Chromium, served by a local store that
 // logs every request. Expectations come from the fixture JSON (an independent brute force).
 
-test.describe.configure({ mode: 'serial' })
+// No retries: a flaky read is a failure here.
+test.describe.configure({ mode: 'serial', retries: 0 })
 
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)

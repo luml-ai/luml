@@ -88,6 +88,21 @@ class FrontendCITests(unittest.TestCase):
         self.assertNotIn("npm run lint", lint_steps[0]["run"])
         self.assertNotIn("continue-on-error", lint_steps[0])
 
+    def test_integration_job_installs_every_browser_the_suite_runs(self):
+        steps = load("[frontend] tests-and-linters.yml")["jobs"]["integration"]["steps"]
+        cache = next(step for step in steps if step.get("id") == "pw-cache")
+        installs = [
+            step["run"]
+            for step in steps
+            if step.get("run", "").startswith("npx playwright install")
+        ]
+        self.assertEqual(len(installs), 2)
+        for browser in ("chromium", "firefox", "webkit"):
+            with self.subTest(browser=browser):
+                self.assertIn(browser, cache["with"]["key"])
+                for command in installs:
+                    self.assertIn(browser, command.split())
+
     def test_test_jobs_use_optional_dependencies_without_mutating_the_lockfile(self):
         jobs = {
             ("[frontend] tests-and-linters.yml", "unit"),

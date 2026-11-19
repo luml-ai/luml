@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { BROWSER_NETWORK_REPORT, test, expect } from './fixtures/snapshot-error-guard'
 import { build, type Plugin } from 'esbuild'
 import { build as viteBuild } from 'vite'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
@@ -11,6 +12,7 @@ import { dirname, extname, join, resolve } from 'node:path'
 import {
   dataAnswers,
   issueLocation,
+  type LoggedStorageRequest,
   newStorageState,
   respondAsStorage,
   STORAGE_PROFILES,
@@ -23,6 +25,9 @@ import {
 // Serves fixture artifacts from a local object store that honours Range (or not, per test),
 // loads them through the real snapshot worker, provider and range VFS in Chromium, and checks
 // the results and the requests the worker's synchronous XHRs made.
+
+// No retries: a flaky read is a failure here.
+test.describe.configure({ retries: 0 })
 
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
@@ -75,10 +80,15 @@ interface StoreState {
   rangeWith200: boolean
   rejectedSigs: Set<string>
   rejectAll: boolean
+  /** The next `times` artifact requests fail this way, then the store recovers. */
+  failing: { failure: StoreFailure; times: number } | null
   issued: number
   signs: number
   requests: ArtifactRequest[]
 }
+
+/** An error status, or `cut`: a 206 whose connection drops halfway through the body. */
+type StoreFailure = number | 'cut'
 
 /** Builds the platform `file_index` entry of one member of a ustar/pax archive. */
 function memberRange(tar: Uint8Array, wanted: string): [number, number] {
@@ -163,6 +173,12 @@ function serveArtifact(
   const sig = url.searchParams.get('sig') ?? ''
   const range = request.headers.range ?? null
   const log = (status: number, bytes: number) => state.requests.push({ sig, range, status, bytes })
+  const failure = state.failing && state.failing.times-- > 0 ? state.failing.failure : null
+  if (typeof failure === 'number') {
+    log(failure, 0)
+    response.writeHead(failure, { 'Content-Type': 'text/plain' }).end('storage error')
+    return
+  }
   if (state.rejectAll || state.rejectedSigs.has(sig)) {
     log(403, 0)
     response.writeHead(403).end('expired')
@@ -182,13 +198,19 @@ function serveArtifact(
     response.writeHead(200, { 'Content-Length': body.length }).end(body)
     return
   }
+  const headers = {
+    'Content-Length': body.length,
+    'Content-Range': `bytes ${start}-${end}/${fixture.tar.length}`,
+  }
+  if (failure === 'cut') {
+    const kept = Math.floor(body.length / 2)
+    log(206, kept)
+    response.writeHead(206, headers)
+    response.write(body.subarray(0, kept), () => response.socket?.destroy())
+    return
+  }
   log(206, body.length)
-  response
-    .writeHead(206, {
-      'Content-Length': body.length,
-      'Content-Range': `bytes ${start}-${end}/${fixture.tar.length}`,
-    })
-    .end(body)
+  response.writeHead(206, headers).end(body)
 }
 
 const RAW_FIXTURES = ['g_raw_sdk_0_5_0', 'h_raw_model_sdk_0_5_0']
@@ -304,7 +326,9 @@ let consoleOutput: string[] = []
 test.beforeEach(({ page }) => {
   shownMessages = []
   consoleOutput = []
-  page.on('console', (message) => consoleOutput.push(message.text()))
+  page.on('console', (message) => {
+    if (!BROWSER_NETWORK_REPORT.test(message.text())) consoleOutput.push(message.text())
+  })
   page.on('pageerror', (error) => consoleOutput.push(`${error.name}: ${error.message}`))
 })
 
@@ -341,6 +365,7 @@ test.beforeEach(() => {
     rangeWith200: false,
     rejectedSigs: new Set(),
     rejectAll: false,
+    failing: null,
     issued: 0,
     signs: 0,
     requests: [],
@@ -408,6 +433,27 @@ function expectedMetricNames(fixture: Fixture): string[] {
   const nonFinite = fixture.expected.non_finite_metric
   return [...Object.keys(fixture.expected.metrics), ...(nonFinite ? [nonFinite.name] : [])].sort()
 }
+
+test('the error guard sees a worker console error and an unhandled rejection', async ({
+  page,
+  errors,
+}) => {
+  errors.expect({ kind: 'console error', text: /^guard control in a worker$/ })
+  errors.expect({ kind: 'page error', text: /guard control rejection/ })
+  await page.goto(origin)
+
+  const logged = page.waitForEvent('console', (message) => message.text().startsWith('guard'))
+  await page.evaluate(() => {
+    const script = "console.error('guard control in a worker')"
+    new Worker(URL.createObjectURL(new Blob([script], { type: 'text/javascript' })))
+  })
+  await logged
+  const rejected = page.waitForEvent('pageerror')
+  await page.evaluate(() => {
+    void Promise.reject(new Error('guard control rejection'))
+  })
+  await rejected
+})
 
 test('reads standalone and embedded raw snapshots page by page through the worker', async ({
   page,
@@ -704,6 +750,13 @@ function profileAnswers(from = 0) {
   return dataAnswers(storage.log.slice(from))
 }
 
+// Firefox adds an RFC 9218 `Priority` header to every request; it is the browser's, not ours.
+const BROWSER_HEADERS = new Set(['priority'])
+
+function appHeaders(entry: LoggedStorageRequest | undefined): string[] | undefined {
+  return entry?.extraHeaders.filter((name) => !BROWSER_HEADERS.has(name))
+}
+
 function preflightCount() {
   return storage.log.filter((entry) => entry.method === 'OPTIONS').length
 }
@@ -720,8 +773,15 @@ async function openProfile(page: Page, profile: StorageProfile): Promise<Settled
 }
 
 /** Preflights expected per session: Chromium caches one per URL for Access-Control-Max-Age. */
-function expectPreflights(profile: StorageProfile) {
+function expectPreflights(profile: StorageProfile, browserName: string) {
   const needed = profile.auth === 'bearer' && profile.host === 'storage'
+  // Firefox and WebKit also preflight the cross-origin hop of a redirected request that carried
+  // Authorization (the hop itself goes without it), once per hop URL for the Max-Age.
+  if (browserName !== 'chromium' && profile.redirect && profile.auth === 'bearer') {
+    const hops = storage.log.filter((entry) => entry.method === 'GET' && entry.host === 'storage')
+    expect(preflightCount()).toBe(new Set(hops.map((entry) => entry.credential)).size)
+    return
+  }
   // Without a Max-Age Chromium keeps a preflight for 5 s, which a slow run can outlast.
   if (needed && profile.preflightMaxAge === null) expect(preflightCount()).toBeGreaterThan(0)
   else expect(preflightCount()).toBe(needed ? 1 : 0)
@@ -730,7 +790,7 @@ function expectPreflights(profile: StorageProfile) {
 const rangeProfiles = STORAGE_PROFILES.filter((profile) => profile.expected === 'raw-range')
 
 for (const profile of rangeProfiles) {
-  test(`${profile.name}: opens, renews once and reads by range`, async ({ page }) => {
+  test(`${profile.name}: opens, renews once and reads by range`, async ({ page, browserName }) => {
     const fixture = fixtures.get(PROFILE_FIXTURE)!
     expect(await openProfile(page, profile)).toMatchObject({ ok: true })
 
@@ -743,7 +803,7 @@ for (const profile of rangeProfiles) {
         range: `bytes=${fixture.offset}-${fixture.offset + CHUNK - 1}`,
       })
       const firstGet = storage.log.find((entry) => entry.method === 'GET')
-      expect(firstGet?.extraHeaders).toEqual(profile.auth === 'bearer' ? ['authorization'] : [])
+      expect(appHeaders(firstGet)).toEqual(profile.auth === 'bearer' ? ['authorization'] : [])
     })
 
     await test.step('renews an expired source once and retries', async () => {
@@ -772,7 +832,7 @@ for (const profile of rangeProfiles) {
       expect(answers.every((entry) => entry.bytes < fixture.tar.length)).toBe(true)
     })
 
-    expectPreflights(profile)
+    expectPreflights(profile, browserName)
   })
 
   test(`${profile.name}: surfaces a permanent failure without looping`, async ({ page }) => {
@@ -883,7 +943,7 @@ for (const profile of STORAGE_PROFILES.filter((item) => item.expected === 'redir
     expect(
       storage.log
         .filter((entry) => entry.method === 'GET')
-        .map((entry) => [entry.host, entry.status, entry.extraHeaders]),
+        .map((entry) => [entry.host, entry.status, appHeaders(entry)]),
     ).toEqual([
       ['page', 307, ['authorization']],
       ['storage', 401, []],
@@ -947,4 +1007,115 @@ test.describe('a storage that cuts a range transfer short mid-file', () => {
     expect(profileAnswers(before)).toHaveLength(2)
     expect(profileSigns).toBe(2)
   })
+})
+
+// Storage errors other than an expired URL. Every failed request is renewed once and retried
+// (httpSource.ts, ExperimentSnapshotWorkerProxy.ts); a second failure surfaces as a source error,
+// and a read after the storage recovers succeeds.
+test.describe('a storage that fails requests', () => {
+  const name = 'h_raw_model_sdk_0_5_0'
+  const FAILURES: { label: string; failure: StoreFailure; atOpen: string; atRead: string }[] = [
+    ...[404, 500, 503, 403].map((status) => ({
+      label: `status ${status}`,
+      failure: status,
+      atOpen: `Snapshot header request returned status ${status}`,
+      atRead: `Snapshot range read failed: Range request returned status ${status}`,
+    })),
+    {
+      label: 'a connection dropped mid-body',
+      failure: 'cut',
+      atOpen: 'Snapshot request failed: TypeError',
+      atRead: 'Snapshot range read failed: NetworkError',
+    },
+  ]
+  /** The status the store logged for a failed request: a cut one started as a 206. */
+  const loggedStatus = (failure: StoreFailure) => (failure === 'cut' ? 206 : failure)
+
+  async function statusOf(page: Page) {
+    const [status] = (await call(page, 'getExperimentStatuses')).value as {
+      transport: string
+      error: { code: string; message: string } | null
+    }[]
+    return status
+  }
+
+  async function expectTracesLoad(page: Page) {
+    const traces = await call(page, 'getAllTraces', [traceParams])
+    expect(traces.value).toHaveLength(fixtures.get(name)!.expected.traces.length)
+  }
+
+  for (const { label, failure, atOpen, atRead } of FAILURES) {
+    test(`${label} at open: one renewal, a clean error, and a new open works`, async ({ page }) => {
+      state.failing = { failure, times: Infinity }
+
+      expect(await openHarness(page, [name])).toMatchObject({ ok: true })
+
+      expect(await statusOf(page)).toMatchObject({
+        error: { code: 'snapshot-source-expired', message: atOpen },
+      })
+      expect(state.requests.map((request) => request.status)).toEqual([
+        loggedStatus(failure),
+        loggedStatus(failure),
+      ])
+      expect(state.signs).toBe(2)
+
+      state.failing = null
+      expect(await initHarness(page, [name])).toMatchObject({ ok: true })
+      expect(await statusOf(page)).toMatchObject({ transport: 'raw-range', error: null })
+      await expectTracesLoad(page)
+    })
+
+    test(`${label} on a later read: one renewal, a clean error, and the next read works`, async ({
+      page,
+    }) => {
+      expect(await openHarness(page, [name])).toMatchObject({ ok: true })
+      state.failing = { failure, times: Infinity }
+      const before = state.requests.length
+
+      const traces = await call(page, 'getAllTraces', [traceParams])
+
+      expect(traces).toMatchObject({
+        ok: false,
+        error: { code: 'snapshot-source-expired', modelId: name, message: atRead },
+      })
+      expect(state.requests.slice(before).map((request) => request.status)).toEqual([
+        loggedStatus(failure),
+        loggedStatus(failure),
+      ])
+      expect(state.signs).toBe(2)
+
+      state.failing = null
+      await expectTracesLoad(page)
+      expect(state.signs).toBe(2)
+    })
+  }
+
+  for (const { label, failure } of FAILURES.filter((item) => item.failure !== 404)) {
+    test(`${label} once at open is renewed and the experiment opens`, async ({ page }) => {
+      state.failing = { failure, times: 1 }
+
+      expect(await openHarness(page, [name])).toMatchObject({ ok: true })
+
+      expect(await statusOf(page)).toMatchObject({ transport: 'raw-range', error: null })
+      await expectTracesLoad(page)
+      expect(state.requests[0]).toMatchObject({ sig: '1', status: loggedStatus(failure) })
+      expect(state.requests.slice(1).every((request) => request.sig === '2')).toBe(true)
+      expect(state.signs).toBe(2)
+    })
+
+    test(`${label} once on a later read is renewed and the read succeeds`, async ({ page }) => {
+      expect(await openHarness(page, [name])).toMatchObject({ ok: true })
+      state.failing = { failure, times: 1 }
+      const before = state.requests.length
+
+      await expectTracesLoad(page)
+
+      const later = state.requests.slice(before)
+      expect(later[0]).toMatchObject({ sig: '1', status: loggedStatus(failure) })
+      expect(later.slice(1).every((request) => request.sig === '2' && request.status === 206)).toBe(
+        true,
+      )
+      expect(state.signs).toBe(2)
+    })
+  }
 })
