@@ -56,10 +56,14 @@ jobs:
           npm run build-only --workspace=@luml/attachments
           npm run build-only --workspace=@luml/experiments
 
-      # The app, the mocked browser suite and the stack suite (tsconfig.stack.json).
       - name: Type check
         working-directory: frontend
         run: npm run type-check
+
+      # Kept out of `type-check`: `npm run build` runs that script and must not depend on tests.
+      - name: Type check the browser suites
+        working-directory: frontend
+        run: npm run type-check:tests
 
       - name: Run unit tests
         working-directory: frontend

@@ -59,18 +59,21 @@ class FrontendCITests(unittest.TestCase):
     def test_type_check_covers_the_browser_suites_and_blocks_the_job(self):
         job = load("[frontend] tests-and-linters.yml")["jobs"]["unit"]
         self.assertNotIn("continue-on-error", job)
-        steps = [
-            step for step in job["steps"] if step.get("run") == "npm run type-check"
-        ]
-        self.assertEqual(len(steps), 1)
-        self.assertNotIn("continue-on-error", steps[0])
-        self.assertNotIn("if", steps[0])
-        script = json.loads((ROOT / "frontend/package.json").read_text())["scripts"][
-            "type-check"
-        ]
+        for script in ("type-check", "type-check:tests"):
+            with self.subTest(script=script):
+                steps = [
+                    step
+                    for step in job["steps"]
+                    if step.get("run") == f"npm run {script}"
+                ]
+                self.assertEqual(len(steps), 1)
+                self.assertNotIn("continue-on-error", steps[0])
+                self.assertNotIn("if", steps[0])
+        scripts = json.loads((ROOT / "frontend/package.json").read_text())["scripts"]
         for config in ("tsconfig.stack.json", "tsconfig.integration.json"):
             with self.subTest(config=config):
-                self.assertIn(f"-p {config}", script)
+                self.assertIn(f"-p {config}", scripts["type-check:tests"])
+                self.assertNotIn(config, scripts["type-check"])
 
     def test_workspace_package_checks_run_once_outside_the_frontend_suite(self):
         commands = "\n".join(
