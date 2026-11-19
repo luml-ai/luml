@@ -38,3 +38,26 @@ export function valueToString(value: any): string | null {
   }
   return String(value)
 }
+
+function isMarkedObject(value: unknown, marker: string): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Record<string, unknown>)[marker] === true
+  )
+}
+
+/**
+ * Annotation columns hold objects for their table cells: a feedback column is exported as its
+ * counts and an expectation column as its expected value. The counts do not start with "+" or
+ * "-", which spreadsheets read as a formula.
+ */
+export function tableCellToString(value: unknown): string | null {
+  if (isMarkedObject(value, 'isFeedbackColumn')) {
+    return `${value.positiveCount} positive, ${value.negativeCount} negative`
+  }
+  if (isMarkedObject(value, 'isExpectationColumn')) {
+    return valueToString(value.value)
+  }
+  return valueToString(value)
+}

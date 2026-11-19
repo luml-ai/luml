@@ -10,7 +10,7 @@ import { useToast } from 'primevue'
 import { formattedDate, getErrorMessage } from '@/helpers/helpers'
 import { downloadFileFromBlob } from '@/helpers/files'
 import { from } from 'arquero'
-import { valueToString } from '@/helpers/texts'
+import { tableCellToString } from '@/helpers/texts'
 
 export const useTracesTable = (
   traces: Ref<Trace[]>,
@@ -93,7 +93,7 @@ export const useTracesTable = (
       const formattedData = viewData.map((item) => {
         const row: Record<string, string | number | null> = {}
         for (const key of columns) {
-          row[key] = valueToString((item as Record<string, unknown>)[key])
+          row[key] = tableCellToString((item as Record<string, unknown>)[key])
         }
         return row
       })
