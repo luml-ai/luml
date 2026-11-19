@@ -858,6 +858,16 @@ def test_only_a_leased_caller_is_announced_as_working() -> None:
 
     assert _activity(set(), "cells.edit", {"actor": "codex-1", "slug": "train"}) is None
     assert _activity(leased, "ping", {"actor": "codex-1"}) is None
+    assert _activity(leased, "file.inspect", {"actor": "codex-1"}) is None
+    for method in (
+        "file.rename",
+        "file.move",
+        "file.delete",
+        "file.mkdir",
+        "file.create",
+        "flow.move",
+    ):
+        assert _activity(leased, method, {"actor": "codex-1"}) is not None
     assert _activity(leased, "cells.edit", {"actor": "user", "slug": "train"}) is None
     assert _activity(leased, "cells.edit", {"actor": "codex-1", "slug": "train"}) == (
         "/w/churn.flow",

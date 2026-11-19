@@ -388,3 +388,21 @@ async def _wait_until(condition: Callable[[], bool]) -> None:
     async with asyncio.timeout(30):
         while not condition():
             await asyncio.sleep(0.01)
+
+
+async def test_renaming_a_running_notebook_records_its_stopped_experiment(
+    tmp_path: Path, tracker: TrackerProvider
+):
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "evaluate", CANCELLED_CELL)
+    async with daemon_api(root, tracker=tracker) as api:
+        running = asyncio.create_task(api.run({"flow": "churn", "target": "evaluate"}))
+        await _wait_until((root / "metric-logged").exists)
+        await api.flow_rename({"flow": "churn", "name": "saved", "close_open": True})
+        assert (await running)["abandoned"]
+        await api.flow_open({"flow": "saved"})
+        (run,) = ops_of(api.hub.session("saved"), RunRecorded)
+    experiment = _only_experiment(tracker)
+    assert run.state in {"cancelled", "failed"}
+    assert run.experiment_id == experiment.id
+    assert experiment.status == "error"

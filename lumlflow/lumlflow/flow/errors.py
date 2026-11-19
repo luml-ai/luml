@@ -10,6 +10,28 @@ class FlowAlreadyExists(FlowError):
     pass
 
 
+class NotAFile(FlowError):
+    pass
+
+
+class Protected(FlowError):
+    pass
+
+
+class AlreadyExists(FlowAlreadyExists):
+    pass
+
+
+class FlowOpen(FlowError):
+    def __init__(self, message: str, *, flows: list[dict[str, str]]) -> None:
+        super().__init__(message)
+        self.flows = flows
+
+
+class OsError(FlowError):
+    pass
+
+
 class FlowAmbiguous(FlowError):
     pass
 

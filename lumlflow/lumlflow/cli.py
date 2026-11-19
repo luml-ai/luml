@@ -166,6 +166,8 @@ def _attach(
             err=True,
         )
         raise typer.Exit(1)
+    with client.attach(record) as daemon:
+        daemon.call("ui.attach", {"directory": str(directory)})
     _warn_if_non_loopback(record.web_host)
     typer.echo(f"lumlflow already at {_url(record, directory)}")
     _show_log_path()

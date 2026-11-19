@@ -122,6 +122,7 @@ class RunQueue:
         self._active: str | None = None
         self._flights: dict[str, _Flight] = {}
         self._busy = False
+        self._closed = False
         self._gate: list[tuple[str, asyncio.Future[None]]] = []
         self._on_event = on_event
 
@@ -211,9 +212,23 @@ class RunQueue:
             self._announce(flight)
         return Abandoned(branch=branch, left=left, stopped=stopped, awaiting=awaiting)
 
+    def close(self) -> None:
+        """Stop accepting work and ask the executor to cancel active runs."""
+        self._closed = True
+        flights = list(self._flights.values())
+        for branch in {w.branch for flight in flights for w in flight.waiters}:
+            self.abandon(branch)
+
+    async def drained(self) -> None:
+        """Wait for stopped runs to journal their outcomes."""
+        tasks = [f.task for f in self._flights.values() if f.task is not None]
+        await asyncio.gather(*tasks)
+
     async def _advance(
         self, plan: Plan, step: Step, *, actor: str, force: bool = False
     ) -> StepOutcome:
+        if self._closed:
+            return "abandoned"
         here = self._store.index.slice_versions(plan.branch_id)
         selected = here.get(step.uid)
         if selected is None or selected.version_id != step.version.version_id:

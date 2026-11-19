@@ -10,7 +10,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from lumlflow.flow.daemon import envs, queries, workspace
+from lumlflow.flow.daemon import envs, files, queries, workspace
 from lumlflow.flow.daemon import reconcile as reconciliation
 from lumlflow.flow.daemon.kernel_proc import (
     KERNEL_DIRNAME,
@@ -30,6 +30,7 @@ from lumlflow.flow.errors import (
     FlowAmbiguous,
     FlowError,
     FlowNotFound,
+    FlowOpen,
 )
 from lumlflow.flow.scheduler.planner import Planner, TrackerState
 from lumlflow.flow.scheduler.queue import RunQueue
@@ -39,7 +40,7 @@ from lumlflow.flow.store.flowstore import (
     FlowStore,
     store_dir,
 )
-from lumlflow.flow.store.models import TrackerRef
+from lumlflow.flow.store.models import AgentEnd, TrackerRef
 from lumlflow.tracker import TrackerProvider
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,7 @@ class Hub:
         *,
         tracker: TrackerProvider | None = None,
         streams: Streams | None = None,
+        drop_leases: Callable[[str], None] | None = None,
     ) -> None:
         if tracker is None:
             from lumlflow.settings import get_tracker
@@ -168,6 +170,9 @@ class Hub:
             tracker = get_tracker()
         self.tracker = tracker
         self._streams = streams
+        self._drop_leases = drop_leases
+        self.ui_directories: set[Path] = set()
+        self._reserved: set[Path] = set()
         self._sessions: dict[Path, FlowSession] = {}
         self._known: dict[Path, FlowRef] = {}
         # Flows a listing came across: findable by name, but never opened.
@@ -192,8 +197,10 @@ class Hub:
             key=lambda ref: str(ref.path),
         )
 
-    def listing(self, root: Path) -> workspace.DirectoryListing:
-        listing = workspace.list_directory(root)
+    def listing(
+        self, root: Path, *, show_hidden: bool = False
+    ) -> workspace.DirectoryListing:
+        listing = workspace.list_directory(root, show_hidden=show_hidden)
         for ref in listing.flows:
             self._found[ref.path] = ref
         return listing
@@ -291,6 +298,7 @@ class Hub:
         # One session per notebook on disk, whichever spelling reached it: two
         # stores on the same journal would each hand out the same next step.
         key = _session_key(ref.path)
+        self.check_available(ref.path, key)
         waited = False
         while (session := self._sessions.get(key)) is not None:
             session.touch()
@@ -410,7 +418,8 @@ class Hub:
 
     async def init_flow(self, directory: Path, name: str) -> FlowSession:
         ref = _new_flow_ref(directory.resolve(), name)
-        if ref.path.exists():
+        self.check_available(ref.path)
+        if ref.path.exists() or ref.path.is_symlink():
             raise FlowAlreadyExists(f"`{ref.relpath}` already exists")
         store = FlowStore.init(ref.path, name=ref.name)
         session = self._session(ref, store, _session_key(ref.path))
@@ -502,6 +511,7 @@ class Hub:
         session: FlowSession,
         *,
         still: Callable[[FlowSession], bool] | None = None,
+        forced: bool = False,
     ) -> bool:
         """Let go of an open flow, and keep knowing where it is.
 
@@ -522,6 +532,8 @@ class Hub:
             await opening.wait()
         if self._sessions.get(key) is not session:
             return False
+        if forced:
+            session.queue.close()
         await session.reactor.stop()
         if kept():
             session.reactor.arm()
@@ -530,47 +542,108 @@ class Hub:
         if kept():
             session.reactor.arm()
             return False
+        if forced:
+            await session.queue.drained()
+            ended = [
+                AgentEnd(actor=agent.actor, label=agent.label)
+                for agent in session.store.index.agent_sessions()
+            ]
+            if ended:
+                session.store.commit(ended, intent="Close notebook", actor="user")
+            if self._drop_leases is not None:
+                self._drop_leases(session.ref.address)
         del self._sessions[key]
         self.watches.release(session.watch.root)
         session.store.close()
         return True
 
-    async def delete_flow(self, ref: FlowRef) -> None:
-        if not _is_flow(ref.path):
-            raise FlowNotFound(f"`{ref.relpath}` is not a flow")
-        if ref.path.is_symlink():
-            raise FlowError(
-                f"`{ref.relpath}` is a link to another flow; "
-                "delete the flow it points to"
-            )
-        self._known.pop(ref.path, None)
-        self._found.pop(ref.path, None)
-        key = _session_key(ref.path)
-        while (session := self._sessions.get(key)) is not None:
-            await self.close_session(session)
-        shutil.rmtree(ref.path)
+    def check_available(self, *paths: Path) -> None:
+        for path in paths:
+            if any(_inside(path, held) for held in self._reserved):
+                raise FlowError(f"`{path}` is busy with a filesystem operation")
 
-    async def rename_flow(self, ref: FlowRef, name: str) -> FlowRef:
+    async def change_path(
+        self,
+        source: Path,
+        target: Path | None,
+        *,
+        close_open: bool,
+    ) -> None:
+        """Mutate a directory entry after checking all sessions affected by it."""
+        files.check_protected(source, self.ui_directories)
+        paths = (source,) if target is None else (source, target)
+        self.check_available(*paths)
+        with files.os_errors():
+            if target is not None:
+                files.check_destination(source, target)
+            affected = [
+                session
+                for session in self.opened()
+                if session.ref.path.is_relative_to(source)
+            ]
+            if affected and not close_open:
+                flows = sorted(
+                    ({"name": s.ref.name, "path": s.ref.address} for s in affected),
+                    key=lambda flow: flow["path"],
+                )
+                names = ", ".join(flow["name"] for flow in flows)
+                raise FlowOpen(f"close the open notebooks first: {names}", flows=flows)
+            self._reserved.update(paths)
+            try:
+                await files.finish_operation(
+                    self._apply_path_change(source, target, affected)
+                )
+            finally:
+                self._reserved.difference_update(paths)
+
+    async def _apply_path_change(
+        self, source: Path, target: Path | None, affected: list[FlowSession]
+    ) -> None:
+        for session in affected:
+            await self.close_session(session, forced=True)
+        if target is None:
+            await asyncio.to_thread(files.remove, source)
+        else:
+            await asyncio.to_thread(files.move, source, target)
+        for refs in (self._known, self._found):
+            for path in list(refs):
+                if path.is_relative_to(source):
+                    del refs[path]
+                    if target is not None:
+                        moved = target / path.relative_to(source)
+                        self._found[moved] = FlowRef(
+                            moved.name.removesuffix(FLOW_SUFFIX), moved, moved.name
+                        )
+
+    async def delete_flow(self, ref: FlowRef, *, close_open: bool = False) -> None:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
+        await self.change_path(ref.path, None, close_open=close_open)
+
+    async def rename_flow(
+        self, ref: FlowRef, name: str, *, close_open: bool = False
+    ) -> FlowRef:
+        files.valid_name(name.strip().removesuffix(FLOW_SUFFIX))
         renamed = _new_flow_ref(ref.path.parent, name)
         if renamed.path == ref.path:
+            files.check_protected(ref.path, self.ui_directories)
             return ref
-        if renamed.path.exists():
-            raise FlowAlreadyExists(f"`{renamed.relpath}` already exists")
-        self._known.pop(ref.path, None)
-        self._found.pop(ref.path, None)
-        key = _session_key(ref.path)
-        while (session := self._sessions.get(key)) is not None:
-            await self.close_session(session)
-        ref.path.rename(renamed.path)
-        self._found[renamed.path] = renamed
-        return renamed
+        return await self.move_flow(ref, renamed, close_open=close_open)
+
+    async def move_flow(
+        self, ref: FlowRef, target: FlowRef, *, close_open: bool = False
+    ) -> FlowRef:
+        if not _is_flow(ref.path):
+            raise FlowNotFound(f"`{ref.relpath}` is not a flow")
+        await self.change_path(ref.path, target.path, close_open=close_open)
+        self._found[target.path] = target
+        return target
 
     async def duplicate_flow(self, ref: FlowRef, name: str) -> FlowRef:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         duplicated = _new_flow_ref(ref.path.parent, name)
+        self.check_available(ref.path, ref.path.resolve(), duplicated.path)
         if duplicated.path == ref.path:
             raise FlowError(f"`{name}` is the same name as `{ref.name}`")
         if duplicated.path.exists():
@@ -669,7 +742,11 @@ def _new_flow_ref(root: Path, name: str) -> FlowRef:
         raise FlowError(f"`{name}` is not a name a flow can have")
     stem = relative.name.removesuffix(FLOW_SUFFIX)
     path = root / relative.parent / f"{stem}{FLOW_SUFFIX}"
-    return FlowRef(name=stem, path=path, relpath=path.relative_to(root).as_posix())
+    return FlowRef(
+        name=stem,
+        path=files.entry_path(path, strict=False),
+        relpath=path.relative_to(root).as_posix(),
+    )
 
 
 def _answers(ref: FlowRef, wanted: str, directory: Path) -> bool:
@@ -714,7 +791,7 @@ def _reconcile_against(
 
 def _is_flow(path: Path) -> bool:
     return path.is_dir() and (
-        store_dir(path).is_dir() or path.name.endswith(FLOW_SUFFIX)
+        store_dir(path).is_dir() or path.resolve().name.endswith(FLOW_SUFFIX)
     )
 
 

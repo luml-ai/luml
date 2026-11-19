@@ -113,7 +113,7 @@ async def test_nested_flows_hold_their_containing_directories_as_watch_roots(
         assert outer_session.watch.classify(root / "top.py") == "code"
         assert inner_session.watch.classify(root / "top.py") is None
 
-        await api.flow_delete({"flow": "b"})
+        await api.flow_delete({"flow": "b", "close_open": True})
         assert api.hub.watches.roots() == [root]
 
 

@@ -129,6 +129,13 @@ TOOLS: tuple[_Tool, ...] = (
         scope="workspace",
     ),
     _Tool(
+        "file-inspect",
+        "file.inspect",
+        "Read the kind, manifest and file list of a local .luml archive.",
+        (_Arg("path", "string", "Absolute path to the .luml file.", required=True),),
+        scope="workspace",
+    ),
+    _Tool(
         "init-flow",
         "flow.init",
         "Create a flow in this workspace. Its cells live in the store. "
