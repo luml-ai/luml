@@ -75,6 +75,13 @@ describe('ExperimentStatusNotices', () => {
     ])
   })
 
+  it('says a storage request failed, whatever the cause', () => {
+    const error = { code: 'snapshot-source-expired', message: 'connection dropped' }
+    expect(noticesFor([status('a', { error } as const)])).toEqual([
+      'Run A: The storage request failed. Reload the page. Its data is not shown.',
+    ])
+  })
+
   it('says metric steps above 2^53 are not shown', () => {
     const wrapper = mountNotices([status('a', { unsafeMetricSteps: true }), status('b')])
     const notices = wrapper.findAll('[data-testid="experiment-status-notice"]')

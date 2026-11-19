@@ -23,7 +23,7 @@ const READ_ERROR_TEXTS: Record<ExperimentReadErrorCode, string> = {
   [INVALID_LEVEL]: 'The chart asked for data that does not exist.',
   [READ_FAILED]: 'The experiment could not be read.',
   [TIMED_OUT]: 'The request timed out.',
-  [SNAPSHOT_SOURCE_EXPIRED]: 'The storage refused the request. Reload the page.',
+  [SNAPSHOT_SOURCE_EXPIRED]: 'The storage request failed. Reload the page.',
   [SNAPSHOT_RANGE_UNSUPPORTED]: 'The storage stopped answering range requests. Reload the page.',
   [SNAPSHOT_SOURCE_REDIRECT]: 'The storage sent the request to another address, which refused it.',
   [SNAPSHOT_SOURCE_TOO_LARGE]:
