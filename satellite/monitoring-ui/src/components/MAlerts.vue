@@ -6,7 +6,9 @@
         <div class="alert" :class="`alert--${alert.severity}`">
           <div class="alert-title">
             <TriangleAlert :size="14" class="alert-icon" />
-            <span class="alert-name">{{ getAlertTitle(alert) }}</span>
+            <button type="button" class="alert-name" @click="emit('select', alert)">
+              {{ getAlertTitle(alert) }}
+            </button>
             <Tag v-if="alert.feature" :value="alert.feature" severity="secondary" />
           </div>
           <span class="alert-message">{{ alert.message }}</span>
@@ -32,6 +34,10 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   alerts: () => [],
 })
+
+const emit = defineEmits<{
+  select: [alert: AlertBanner]
+}>()
 
 const sortedAlerts = computed(() => sortAlertsBySeverity(props.alerts))
 </script>
@@ -61,11 +67,23 @@ const sortedAlerts = computed(() => sortAlertsBySeverity(props.alerts))
 }
 
 .alert-name {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   overflow: hidden;
   font-size: 14px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.alert-name:hover {
+  text-decoration: underline;
 }
 
 .alert-message {

@@ -130,12 +130,8 @@ export function getAlertsEmptyState(response: AlertsResponse): EmptyStateContent
   return null
 }
 
-export function findAlert(
-  groups: AlertsResponse['groups'],
-  key: string | null,
-): AlertBanner | null {
+export function findAlert(alerts: AlertBanner[], key: string | null): AlertBanner | null {
   if (!key) return null
-  const alerts = groups.flatMap(({ group, alerts }) => alerts.map((alert) => ({ ...alert, group })))
   return alerts.find((alert) => getAlertKey(alert) === key) ?? null
 }
 

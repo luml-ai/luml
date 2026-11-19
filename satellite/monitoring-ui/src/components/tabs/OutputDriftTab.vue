@@ -3,7 +3,11 @@
     <OutputDriftLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else-if="data" class="output-drift">
-      <MAlerts v-if="data.alerts?.length" :alerts="data.alerts" />
+      <MAlerts
+        v-if="data.alerts?.length"
+        :alerts="data.alerts"
+        @select="alertDialog?.open($event)"
+      />
       <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
       <template v-else>
         <OutputDriftPsiCard :data="data" />
@@ -23,11 +27,17 @@
         />
       </template>
     </div>
+    <AlertDialogHost
+      ref="alertDialog"
+      :alerts="data?.alerts ?? []"
+      :reload="reload"
+      :error="error"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useTemplateRef } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import {
@@ -38,6 +48,7 @@ import {
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
 import MAlerts from '@/components/MAlerts.vue'
+import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import OutputDriftLoader from '@/components/output-drift/OutputDriftLoader.vue'
 import OutputDriftPsiCard from '@/components/output-drift/OutputDriftPsiCard.vue'
 import OutputDriftCharts from '@/components/output-drift/OutputDriftCharts.vue'
@@ -55,6 +66,8 @@ const probabilityRows = computed(() =>
 )
 
 const topChangedRows = computed(() => getTopChangedRows(data.value?.top_changed ?? []))
+
+const alertDialog = useTemplateRef('alertDialog')
 </script>
 
 <style scoped>

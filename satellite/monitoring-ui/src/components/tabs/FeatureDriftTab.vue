@@ -3,7 +3,11 @@
     <FeatureDriftLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else-if="data" class="feature-drift">
-      <MAlerts v-if="data.alerts?.length" :alerts="data.alerts" />
+      <MAlerts
+        v-if="data.alerts?.length"
+        :alerts="data.alerts"
+        @select="alertDialog?.open($event)"
+      />
       <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
       <template v-else>
         <FeatureDriftPanel
@@ -25,11 +29,17 @@
         />
       </template>
     </div>
+    <AlertDialogHost
+      ref="alertDialog"
+      :alerts="data?.alerts ?? []"
+      :reload="reload"
+      :error="error"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useTemplateRef } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import { useFiltersStore } from '@/store/filters'
@@ -37,6 +47,7 @@ import { getFeatureDriftEmptyState, getMultivariateEmptyState } from '@/utils/dr
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
 import MAlerts from '@/components/MAlerts.vue'
+import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import FeatureDriftLoader from '@/components/feature-drift/FeatureDriftLoader.vue'
 import FeatureDriftPanel from '@/components/feature-drift/FeatureDriftPanel.vue'
 import MultivariateDrift from '@/components/feature-drift/MultivariateDrift.vue'
@@ -57,6 +68,8 @@ const emptyState = computed(() => (data.value ? getFeatureDriftEmptyState(data.v
 const multivariateEmptyState = computed(() =>
   data.value ? getMultivariateEmptyState(data.value.multivariate) : null,
 )
+
+const alertDialog = useTemplateRef('alertDialog')
 </script>
 
 <style scoped>

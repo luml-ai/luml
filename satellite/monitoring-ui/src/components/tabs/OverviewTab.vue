@@ -4,7 +4,11 @@
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else-if="data" class="overview">
       <OverviewCards v-if="!emptyState" :cards="cards" />
-      <MAlerts v-if="data.alert_banners?.length" :alerts="data.alert_banners" />
+      <MAlerts
+        v-if="data.alert_banners?.length"
+        :alerts="data.alert_banners"
+        @select="alertDialog?.open($event)"
+      />
       <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
       <template v-else>
         <MStepSelector />
@@ -15,11 +19,17 @@
         />
       </template>
     </div>
+    <AlertDialogHost
+      ref="alertDialog"
+      :alerts="data?.alert_banners ?? []"
+      :reload="reload"
+      :error="error"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useTemplateRef } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import { useHeaderStore } from '@/store/header'
@@ -30,6 +40,7 @@ import MEmpty from '@/components/MEmpty.vue'
 import OverviewLoader from '@/components/overview/OverviewLoader.vue'
 import OverviewCards from '@/components/overview/OverviewCards.vue'
 import MAlerts from '@/components/MAlerts.vue'
+import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import MSeriesCharts from '@/components/MSeriesCharts.vue'
 import MStepSelector from '@/components/MStepSelector.vue'
 import OverviewTopFeatures from '@/components/overview/OverviewTopFeatures.vue'
@@ -46,6 +57,8 @@ const cards = computed(() => {
   const isTabular = headerStore.modelKind === 'tabular'
   return (data.value?.cards ?? []).filter((card) => isCardVisibleForKind(card, isTabular))
 })
+
+const alertDialog = useTemplateRef('alertDialog')
 </script>
 
 <style scoped>

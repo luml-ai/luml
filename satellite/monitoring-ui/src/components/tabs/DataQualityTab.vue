@@ -3,21 +3,32 @@
     <DataQualityLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else-if="data" class="data-quality">
-      <MAlerts v-if="data.alerts?.length" :alerts="data.alerts" />
+      <MAlerts
+        v-if="data.alerts?.length"
+        :alerts="data.alerts"
+        @select="alertDialog?.open($event)"
+      />
       <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
       <DataQualityTable v-else :features="data.features" />
     </div>
+    <AlertDialogHost
+      ref="alertDialog"
+      :alerts="data?.alerts ?? []"
+      :reload="reload"
+      :error="error"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useTemplateRef } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import { getDataQualityEmptyState } from '@/utils/data-quality'
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
 import MAlerts from '@/components/MAlerts.vue'
+import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import DataQualityLoader from '@/components/data-quality/DataQualityLoader.vue'
 import DataQualityTable from '@/components/data-quality/DataQualityTable.vue'
 
@@ -26,6 +37,8 @@ const { data, loading, error, reload } = useMonitoringData((dims) =>
 )
 
 const emptyState = computed(() => (data.value ? getDataQualityEmptyState(data.value) : null))
+
+const alertDialog = useTemplateRef('alertDialog')
 </script>
 
 <style scoped>

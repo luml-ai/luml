@@ -62,6 +62,8 @@ import { computed } from 'vue'
 import { Button, Dialog } from 'primevue'
 import type { AlertBanner } from '@/api/monitoring/interfaces'
 import { useTabsStore } from '@/store/tabs'
+import { useFiltersStore } from '@/store/filters'
+import { TabKey } from '@/types/tabs'
 import { ALERT_DIALOG_GAP } from '@/constants/alerts'
 import {
   formatDuration,
@@ -102,6 +104,8 @@ const visible = defineModel<boolean>('visible', { required: true })
 
 const tabsStore = useTabsStore()
 
+const filtersStore = useFiltersStore()
+
 const dialogStyle = {
   width: `calc(100vw - ${2 * ALERT_DIALOG_GAP}px)`,
   height: `calc(100vh - ${2 * ALERT_DIALOG_GAP}px)`,
@@ -119,7 +123,10 @@ const acknowledged = computed(() => (props.alert ? isAlertAcknowledged(props.ale
 
 const targetTab = computed(() => {
   const tab = props.alert ? getAlertTargetTab(props.alert) : null
-  return tab && tabsStore.tabs.some(({ key }) => key === tab) ? tab : null
+  if (!tab || !tabsStore.tabs.some(({ key }) => key === tab)) return null
+  if (tab !== tabsStore.activeTab) return tab
+  const feature = props.alert?.feature
+  return tab === TabKey.FEATURE_DRIFT && feature && feature !== filtersStore.feature ? tab : null
 })
 
 const showLabel = computed(() => {
@@ -160,6 +167,7 @@ const timingRows = computed<AlertStatsRow[]>(() => {
   gap: 16px;
   height: 100%;
   min-height: 0;
+  padding-top: 16px;
 }
 
 .chart {

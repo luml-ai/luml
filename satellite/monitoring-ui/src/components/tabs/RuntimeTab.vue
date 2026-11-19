@@ -3,7 +3,11 @@
     <RuntimeLoader v-if="loading && !data" />
     <MErrorState v-else-if="error" :error="error" @retry="reload" />
     <div v-else-if="data" class="runtime">
-      <MAlerts v-if="data.alerts?.length" :alerts="data.alerts" />
+      <MAlerts
+        v-if="data.alerts?.length"
+        :alerts="data.alerts"
+        @select="alertDialog?.open($event)"
+      />
       <MEmpty v-if="emptyState" :title="emptyState.title" :detail="emptyState.detail" />
       <template v-else>
         <RuntimeCards :data="data" />
@@ -12,17 +16,24 @@
         <RuntimeStatusBreakdown :rows="data.status_breakdown ?? []" />
       </template>
     </div>
+    <AlertDialogHost
+      ref="alertDialog"
+      :alerts="data?.alerts ?? []"
+      :reload="reload"
+      :error="error"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useTemplateRef } from 'vue'
 import { api } from '@/api'
 import { useMonitoringData } from '@/composables/useMonitoringData'
 import RuntimeLoader from '@/components/runtime/RuntimeLoader.vue'
 import MErrorState from '@/components/MErrorState.vue'
 import MEmpty from '@/components/MEmpty.vue'
 import MAlerts from '@/components/MAlerts.vue'
+import AlertDialogHost from '@/components/alerts/AlertDialogHost.vue'
 import RuntimeCards from '@/components/runtime/RuntimeCards.vue'
 import MStepSelector from '@/components/MStepSelector.vue'
 import MSeriesCharts from '@/components/MSeriesCharts.vue'
@@ -34,6 +45,8 @@ const { data, loading, error, reload } = useMonitoringData((dims) =>
 )
 
 const emptyState = computed(() => (data.value ? getRuntimeEmptyState(data.value) : null))
+
+const alertDialog = useTemplateRef('alertDialog')
 </script>
 
 <style scoped>
