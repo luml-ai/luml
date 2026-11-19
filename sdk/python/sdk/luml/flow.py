@@ -97,15 +97,13 @@ class RelayedFlow:
         self._started = True
         try:
             app_url = self._expose()
-            self._running = True
-            self._register_cleanup()
-            print(f"Flow {self.name} is live at {app_url}", flush=True)  # noqa: T201
-            return app_url
         except BaseException:
-            self._running = False
-            self._unregister_cleanup()
             self._release()
             raise
+        self._running = True
+        self._register_cleanup()
+        print(f"Flow {self.name} is live at {app_url}", flush=True)  # noqa: T201
+        return app_url
 
     def stop(self) -> None:
         """End the session at LUML and stop what `start` started; harmless twice."""

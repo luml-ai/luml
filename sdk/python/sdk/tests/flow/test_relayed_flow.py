@@ -414,7 +414,7 @@ def test_expose_failure_closes_client_and_stops_lumlflow(
 
 
 @pytest.mark.parametrize("stage", ["register", "print"])
-def test_failed_start_after_exposure_closes_clients(
+def test_failure_after_exposure_keeps_flow_running_until_stopped(
     clients: FakeClients,
     serving: FakeServing,
     port: int,
@@ -431,11 +431,16 @@ def test_failed_start_after_exposure_closes_clients(
     else:
         monkeypatch.setattr(flow_module, "print", fail, raising=False)
 
-    with (
-        local_server(port, answers_as_lumlflow=True),
-        pytest.raises(RuntimeError, match="start failed"),
-    ):
-        flow.start()
+    with local_server(port, answers_as_lumlflow=True):
+        with pytest.raises(RuntimeError, match="start failed"):
+            flow.start()
+
+        assert flow._running
+        assert clients.live_sessions.ended == []
+        assert clients.created[0].close_calls == 0
+        assert serving.closed == 0
+
+        flow.stop()
 
     assert clients.live_sessions.ended == [SESSION_ID]
     assert clients.created[0].close_calls == 1
