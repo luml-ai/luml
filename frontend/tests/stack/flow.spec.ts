@@ -2,7 +2,7 @@ import type { Locator, Page, Request } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test } from './error_guard'
+import { ERROR_TOAST, expect, test } from './error_guard'
 import { SLOW_LINK, ThrottleProxy } from './proxy'
 import {
   clickFirstTrace,
@@ -391,6 +391,27 @@ test.describe('leaving an experiment in Flow', () => {
   }
 })
 
+/**
+ * The trace ids of the traces table's first `count` rows, by their place in the list: the
+ * virtual scroller draws only the rows in view, so it is scrolled down from the top.
+ */
+async function listedTraceIds(page: Page, count: number): Promise<string[]> {
+  return page.locator('.traces-table .p-virtualscroller').evaluate(async (element, count) => {
+    const ids: string[] = []
+    const frame = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)))
+    element.scrollTo(0, 0)
+    for (let step = 0; step < 100 && ids.filter(Boolean).length < count; step++) {
+      await frame()
+      for (const row of element.querySelectorAll('tbody tr[data-p-index]')) {
+        const index = Number(row.getAttribute('data-p-index'))
+        if (index < count) ids[index] = row.querySelector('td')?.textContent?.trim() ?? ''
+      }
+      element.scrollBy(0, element.clientHeight / 2)
+    }
+    return ids
+  }, count)
+}
+
 test.describe('paging while a list reloads in Flow', () => {
   test.beforeEach(async () => {
     await PROXY.reset()
@@ -423,6 +444,43 @@ test.describe('paging while a list reloads in Flow', () => {
       isHeld: async () => (await requests()).some((item) => item.stalled && item.endedAt === 0),
       release: () => PROXY.configure({ stallMatching: null }),
     })
+  })
+
+  test('the traces list scrolled to its end after a failed sort reload loads again in the new order', async ({
+    page,
+    errors,
+  }) => {
+    const experiment = data.traces
+    const listRead = `/api/experiments/${experiment.id}/traces`
+    const reads = async () => (await PROXY.requests()).filter((item) => item.path === listRead)
+    errors.expect({ kind: 'response', status: 500, url: new RegExp(`${listRead}$`) })
+    errors.expect({ kind: 'toast', text: /Failed on purpose by the test proxy/ })
+    await open(page, `/experiments/${experiment.group_id}/${experiment.id}/traces`, SLOW_FLOW)
+    const row = (index: number) =>
+      page.locator(`.traces-table tbody tr[data-p-index="${index}"]`).locator('td').first()
+    await expect(row(0)).toHaveText(/^trace-/, { timeout: 60_000 })
+    const firstBefore = await row(0).innerText()
+    await expect.poll(async () => (await reads()).some((item) => item.endedAt === 0)).toBe(false)
+
+    // The shortest-first reload fails: the rows stay in the old order.
+    await PROXY.configure({ failMatching: `^${listRead}\\?` })
+    await page.getByRole('columnheader', { name: 'execution time' }).click()
+    await expect
+      .poll(async () => (await reads()).filter((item) => item.status === 500).length, {
+        message: 'the reload failed',
+      })
+      .toBe(1)
+    await PROXY.configure({ failMatching: null })
+    await expect(page.locator(`.${ERROR_TOAST}`)).toHaveCount(1)
+    await expect(row(0)).toHaveText(firstBefore)
+
+    await scrollToEndOnce(page.locator('.traces-table .p-virtualscroller'))
+    // trace_data.py: shortest first, a regular trace sits at its index.
+    await expect(row(20), 'the second page, with no more scrolling').toHaveText('trace-0020')
+    await expect.poll(async () => (await reads()).some((item) => item.endedAt === 0)).toBe(false)
+    expect(await listedTraceIds(page, 40)).toEqual(
+      Array.from({ length: 40 }, (_, index) => `trace-${String(index).padStart(4, '0')}`),
+    )
   })
 
   test('the evals list asked for its next page during a reload loads it once, after the reload', async ({

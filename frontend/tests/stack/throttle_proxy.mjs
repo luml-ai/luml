@@ -8,7 +8,7 @@
 //
 // Controlled over the same port under /__e2e/ (the specs call it from Node):
 //   POST /__e2e/config  {latencyMs, bytesPerSecond, throttleMatching, stallMatching, stripRange,
-//                        refuseSeen, refuseMatching, refuseOverlapping}
+//                        refuseSeen, refuseMatching, refuseOverlapping, failMatching}
 //   POST /__e2e/release the held requests answered; later matching ones are held still
 //   GET  /__e2e/log     the requests served since the last reset
 //   POST /__e2e/reset   default config, empty log, held requests answered
@@ -50,6 +50,11 @@ const DEFAULT_CONFIG = {
   refuseMatching: null,
   /** `[first, last]`: refuseMatching only refuses Range reads that overlap these bytes. */
   refuseOverlapping: null,
+  /**
+   * A regular expression over `<path>?<query>`: matching requests are answered 500 without
+   * being forwarded, until this is cleared. For servers whose requests are not signed (Flow).
+   */
+  failMatching: null,
 }
 
 let config = { ...DEFAULT_CONFIG }
@@ -150,6 +155,14 @@ async function forward(request, response) {
     const refuse = request.method !== 'OPTIONS' && refused(url, range)
     if (refuse || refusedSignatures.has(value)) url.searchParams.set(signature, `${value}x`)
     else seenSignatures.add(value)
+  }
+  const fail = config.failMatching && new RegExp(config.failMatching)
+  if (fail && request.method !== 'OPTIONS' && fail.test(`${url.pathname}${url.search}`)) {
+    entry.status = 500
+    response.writeHead(500, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ detail: 'Failed on purpose by the test proxy' }))
+    entry.endedAt = Date.now()
+    return
   }
   const stall = config.stallMatching && new RegExp(config.stallMatching)
   if (
