@@ -449,7 +449,7 @@ class TestBestNodeInResponse:
         graph = (await client.get(f"/api/runs/{run_id}/graph")).json()
         node_id = graph["nodes"][0]["id"]
 
-        db = client._transport.app.state.db  # type: ignore[union-attr]
+        db = client._transport.app.state.db
         db.update_run_best_node(run_id, node_id)
 
         resp = await client.get(f"/api/runs/{run_id}")

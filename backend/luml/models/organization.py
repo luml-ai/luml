@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from pydantic import EmailStr
 from sqlalchemy import UUID, ForeignKey, Integer, String, UniqueConstraint
@@ -50,10 +51,10 @@ class OrganizationOrm(TimestampMixin, Base):
     invites: Mapped[list[OrganizationInviteOrm]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
-    orbits: Mapped[list[OrbitOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbits: Mapped[list[OrbitOrm]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
-    bucket_secrets: Mapped[list[BucketSecretOrm]] = relationship(  # noqa: F821
+    bucket_secrets: Mapped[list[BucketSecretOrm]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 
@@ -86,7 +87,7 @@ class OrganizationMemberOrm(TimestampMixin, Base):
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
 
-    user: Mapped[UserOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    user: Mapped[UserOrm] = relationship(
         "UserOrm", back_populates="memberships", lazy="selectin"
     )
     organization: Mapped[OrganizationOrm] = relationship(back_populates="members")
@@ -132,7 +133,7 @@ class OrganizationInviteOrm(TimestampMixin, Base):
         back_populates="invites",
         lazy="selectin",
     )
-    invited_by_user: Mapped[UserOrm] = relationship("UserOrm", lazy="selectin")  # type: ignore[name-defined]  # noqa: F821
+    invited_by_user: Mapped[UserOrm] = relationship("UserOrm", lazy="selectin")
 
     def __repr__(self) -> str:
         return (
@@ -157,3 +158,8 @@ class OrganizationInviteOrm(TimestampMixin, Base):
 
     def to_organization_invite_simple(self) -> OrganizationInviteSimple:
         return OrganizationInviteSimple.model_validate(self)
+
+
+if TYPE_CHECKING:
+    from luml.models.orbit import OrbitOrm
+    from luml.models.user import UserOrm

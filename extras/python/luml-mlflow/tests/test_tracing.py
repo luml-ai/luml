@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 from luml_mlflow.store import LumlTrackingStore
+from mlflow.entities import Span, TraceInfo
 from mlflow.tracing.client import TracingClient
 
 
@@ -26,7 +27,7 @@ def _make_span(
     start_time_ns: int = 100,
     end_time_ns: int = 200,
     attributes: dict[str, str] | None = None,
-):
+) -> Span:
     """Construct a real :class:`mlflow.entities.Span` via OTel ReadableSpan.
 
     ``trace_id``/``span_id``/``parent_span_id`` are hex strings.
@@ -75,7 +76,7 @@ def _make_trace_info(
     run_id: str | None,
     request_time: int = 100,
     tags: dict[str, str] | None = None,
-):
+) -> TraceInfo:
     from mlflow.entities import TraceInfo, TraceLocation, TraceState
     from mlflow.tracing.constant import TraceMetadataKey
 

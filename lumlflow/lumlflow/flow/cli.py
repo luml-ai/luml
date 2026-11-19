@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from pathlib import Path
 from typing import Any, Never
 
@@ -996,7 +996,7 @@ def _daemon(
     as_json: bool,
     flow: str | None = None,
     directory: Path | None = None,
-) -> Iterator[_Daemon]:
+) -> Generator[_Daemon]:
     from lumlflow.flow.daemon import client
 
     try:

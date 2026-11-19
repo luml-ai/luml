@@ -19,8 +19,9 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from luml.experiments.backends.sqlite import SQLiteBackend
 from mlflow.entities.file_info import FileInfo
 from mlflow.store.artifact.artifact_repo import ArtifactRepository
 
@@ -178,7 +179,7 @@ class LumlArtifactRepository(ArtifactRepository):
             remote_file_path,
         )
         if model is not None and model.path:
-            src = self._tracker.backend.base_path / model.path
+            src = cast(SQLiteBackend, self._tracker.backend).base_path / model.path
             shutil.copyfile(src, dest)
             return
         data = self._tracker.get_attachment(remote_file_path, experiment_id=self.run_id)

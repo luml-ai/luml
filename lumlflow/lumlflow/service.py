@@ -34,7 +34,7 @@ ALLOWED_ORIGINS = (
 
 
 class AppService(FastAPI):
-    def __init__(  # type: ignore
+    def __init__(
         self, *args, self_authenticated_paths: frozenset[str] = frozenset(), **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)

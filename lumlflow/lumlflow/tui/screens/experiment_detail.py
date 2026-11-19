@@ -289,7 +289,7 @@ class TabBar(Horizontal):
         self._tabs = tabs
         self._active_id = tabs[0][0] if tabs else ""
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         for i, (tab_id, label, mnemonic_index) in enumerate(self._tabs):
             yield TabSegment(
                 tab_id,
@@ -490,7 +490,7 @@ class ExperimentDetailScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="exp-detail-body"):
             yield TabBar(TAB_DEFS, id="exp-detail-tabbar")
             with Container(id="pane-overview", classes="tab-pane"):

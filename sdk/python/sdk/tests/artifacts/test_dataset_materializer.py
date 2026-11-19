@@ -401,7 +401,7 @@ class TestMaterializeCaching:
 
         manifest = pandas_ref.get_manifest()
         chunk_rel_path = (
-            manifest.payload.subsets["default"].splits["train"].chunk_files[0]  # type: ignore
+            manifest.payload.subsets["default"].splits["train"].chunk_files[0]
         )
         chunk_path = cache / chunk_rel_path
         original_bytes = chunk_path.read_bytes()

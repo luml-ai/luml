@@ -45,7 +45,7 @@ class DependencyHygieneTests(unittest.TestCase):
         for group in groups:
             for requirement in group:
                 with self.subTest(requirement=requirement):
-                    self.assertRegex(requirement, r"<\s*\d")
+                    self.assertRegex(requirement, r"(?:<\s*\d|==\s*\d+\.\d+\.\d+(?:$|;))")
 
     def test_lumlflow_workflow_freezes_all_uv_commands(self):
         jobs = load("[lumlflow] tests-and-linters.yml")["jobs"]

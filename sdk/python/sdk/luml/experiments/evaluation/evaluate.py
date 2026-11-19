@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 try:
     from opentelemetry import trace
 except ImportError:
-    trace = None  # type: ignore[assignment]
+    trace = None
 
 from luml.experiments.evaluation.scorers.base import (
     BaseScorer,
@@ -201,7 +201,7 @@ def _evaluate_single_item(
     from opentelemetry.trace import Status, StatusCode
 
     with tracer.start_as_current_span(name="eval_request") as span:
-        trace_id = f"{span.context.trace_id:032x}"  # type: ignore
+        trace_id = f"{span.get_span_context().trace_id:032x}"
 
         try:
             with tracer.start_as_current_span(name="inference_fn"):

@@ -114,7 +114,7 @@ class TaskHandler:
                 f"Invalid status: {status}"
             ) from exc
         self._tasks.update_status(task_id, status)
-        return self._tasks.get(task_id)  # type: ignore[return-value]
+        return self.get(task_id)
 
     def open_terminal(
         self, task_id: str, mode: str = "agent",
@@ -157,11 +157,11 @@ class TaskHandler:
             cwd=task.worktree_path,
             session_type=session_type,
         )
-        return self._tasks.get(task_id)  # type: ignore[return-value]
+        return self.get(task_id)
 
     async def merge_preview(
         self, task_id: str,
-    ) -> dict:  # type: ignore[type-arg]
+    ) -> dict:
         task = self._tasks.get(task_id)
         if not task:
             raise TaskNotFoundError

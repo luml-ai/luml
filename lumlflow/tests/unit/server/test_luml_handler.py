@@ -15,9 +15,9 @@ def _closed_port() -> int:
 def test_unreachable_luml_reads_as_503_naming_the_address(monkeypatch) -> None:
     url = f"http://127.0.0.1:{_closed_port()}"
     monkeypatch.setattr("lumlflow.handlers.luml.base_luml.config.LUML_BASE_URL", url)
-    handler = LumlHandler(tracker=object())  # type: ignore[arg-type]
+    handler = LumlHandler(tracker=object())
     with patch.object(
-        type(handler)._BaseLumlHandler__auth,  # type: ignore[attr-defined]
+        type(handler)._BaseLumlHandler__auth,
         "get_stored_credentials",
         return_value=type("Creds", (), {"api_key": "dfs_test"})(),
     ):
@@ -40,10 +40,10 @@ def test_an_html_answer_reads_as_502_naming_the_address(monkeypatch) -> None:
         request=httpx.Request("GET", f"{url}/v1/users/me/organizations"),
     )
     monkeypatch.setattr("lumlflow.handlers.luml.base_luml.config.LUML_BASE_URL", url)
-    handler = LumlHandler(tracker=object())  # type: ignore[arg-type]
+    handler = LumlHandler(tracker=object())
     with (
         patch.object(
-            type(handler)._BaseLumlHandler__auth,  # type: ignore[attr-defined]
+            type(handler)._BaseLumlHandler__auth,
             "get_stored_credentials",
             return_value=type("Creds", (), {"api_key": "dfs_test"})(),
         ),

@@ -635,7 +635,7 @@ def _record(*, tracker_store: str | None = None) -> DaemonRecord:
     if tracker_store is None:
         from lumlflow.settings import Settings
 
-        tracker_store = Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
+        tracker_store = Settings().BACKEND_STORE_URI
     return DaemonRecord(
         pid=1,
         instance_id="instance",

@@ -178,7 +178,7 @@ def _attach(
 def _tracker_store() -> str:
     from lumlflow.settings import Settings
 
-    return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
+    return Settings().BACKEND_STORE_URI
 
 
 def _url(record: "DaemonRecord", directory: Path) -> str:

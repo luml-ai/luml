@@ -21,7 +21,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from fnnx.extras.builder import PyfuncBuilder
 
 from luml.artifacts.dataset import DatasetReference, MaterializedDataset
 from luml.artifacts.model import ModelReference
@@ -131,7 +131,7 @@ def test_imported_functions_accept_keywords() -> None:
 
 @pytest.fixture
 def iris_frame() -> tuple[pd.DataFrame, pd.Series]:
-    from sklearn.datasets import load_iris  # type: ignore[import-untyped]
+    from sklearn.datasets import load_iris
 
     features, target = load_iris(return_X_y=True, as_frame=True)
     return features, target
@@ -175,8 +175,8 @@ def test_custom_tabular_pyfunc_runs_and_takes_a_profile(
     monkeypatch: pytest.MonkeyPatch,
     iris_frame: tuple[pd.DataFrame, pd.Series],
 ) -> None:
-    from fnnx.runtime import Runtime  # type: ignore[import-untyped]
-    from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+    from fnnx.runtime import Runtime
+    from sklearn.linear_model import LogisticRegression
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.syspath_prepend(str(tmp_path))
@@ -226,7 +226,7 @@ def test_upload_example_embeds_the_experiment_into_a_copy(
     monkeypatch: pytest.MonkeyPatch,
     iris_frame: tuple[pd.DataFrame, pd.Series],
 ) -> None:
-    from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+    from sklearn.linear_model import LogisticRegression
 
     monkeypatch.chdir(tmp_path)
     features, target = iris_frame
@@ -276,8 +276,8 @@ def test_local_module_example_bundles_a_module_file(
     monkeypatch: pytest.MonkeyPatch,
     iris_frame: tuple[pd.DataFrame, pd.Series],
 ) -> None:
-    from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
-    from sklearn.pipeline import make_pipeline  # type: ignore[import-untyped]
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
 
     from luml.integrations.sklearn import save_sklearn
 
@@ -324,7 +324,7 @@ def test_verify_script_builds_an_isolated_uv_command() -> None:
 def test_verify_script_reads_the_artifact_environment(
     tmp_path: Path, iris_frame: tuple[pd.DataFrame, pd.Series]
 ) -> None:
-    from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+    from sklearn.linear_model import LogisticRegression
 
     from luml.integrations.sklearn import save_sklearn
 

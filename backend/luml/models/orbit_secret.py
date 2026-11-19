@@ -1,4 +1,5 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -23,7 +24,7 @@ class OrbitSecretOrm(TimestampMixin, Base):
     value: Mapped[str] = mapped_column(String, nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
 
-    orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbit: Mapped[OrbitOrm] = relationship(
         "OrbitOrm", back_populates="secrets", lazy="selectin"
     )
 
@@ -37,3 +38,7 @@ class OrbitSecretOrm(TimestampMixin, Base):
         data = secret.model_dump()
         data["value"] = encrypt(secret.value)
         return cls(**data)
+
+
+if TYPE_CHECKING:
+    from luml.models.orbit import OrbitOrm

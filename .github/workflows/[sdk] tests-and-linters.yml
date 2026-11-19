@@ -46,7 +46,7 @@ jobs:
         run: uv run --frozen ruff check luml tests
 
       - name: Type checking
-        run: uv run --frozen mypy luml
+        run: uv run --frozen ty check
 
       - name: Run unit tests
         run: uv run --frozen pytest tests --ignore=tests/integrations

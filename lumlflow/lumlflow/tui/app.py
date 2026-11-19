@@ -317,7 +317,7 @@ class LumlflowApp(App[None]):
 
     # ----- Scopes / header sync -----
 
-    def push_screen(self, screen, callback=None, wait_for_dismiss=False):  # type: ignore[override]
+    def push_screen(self, screen, callback=None, wait_for_dismiss=False):
         """Push a screen and sync the chrome to it on next refresh.
 
         Textual delivers `ScreenResume` only to the Screen itself (it
@@ -340,7 +340,7 @@ class LumlflowApp(App[None]):
         self.call_after_refresh(self._sync_chrome_to_screen)
         return result
 
-    def pop_screen(self):  # type: ignore[override]
+    def pop_screen(self):
         result = super().pop_screen()
         self.call_after_refresh(self._sync_chrome_to_screen)
         return result
@@ -946,7 +946,7 @@ class LumlflowApp(App[None]):
             return False
         return run.is_running
 
-    async def action_quit(self) -> None:  # type: ignore[override]
+    async def action_quit(self) -> None:
         """Confirm-quit when a run is active.
 
         SPEC: "Ctrl-C is handled so it targets the run, not a half-broken
@@ -996,7 +996,7 @@ def _is_text_input(widget: Widget) -> bool:
         return True
     # `TextArea` is the multi-line input — also pass through.
     try:
-        from textual.widgets import TextArea  # type: ignore
+        from textual.widgets import TextArea
 
         if isinstance(widget, TextArea):
             return True

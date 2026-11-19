@@ -387,7 +387,7 @@ class TrackEntryRepository(RepositoryBase, CrudMixin):
         return getattr(entry, sort_by or "created_at", entry.created_at)
 
     @staticmethod
-    def _get_sort_col(  # type: ignore[override]
+    def _get_sort_col(
         orm_class: type[TrackArtifactOrm],
         sort_by: str | None = None,
         extra_sort_field: str | None = None,
@@ -397,7 +397,7 @@ class TrackEntryRepository(RepositoryBase, CrudMixin):
         )
 
     @staticmethod
-    def _get_cursor_from_record(  # type: ignore[override]
+    def _get_cursor_from_record(
         cursor_rec: TrackArtifactOrm,
         pagination: PaginationParams,
     ) -> Cursor:

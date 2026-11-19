@@ -36,8 +36,8 @@ class LumlSpanExporter(SpanExporter):
             return SpanExportResult.FAILURE
 
     def _export_single_span(self, span: ReadableSpan) -> None:
-        trace_id = f"{span.context.trace_id:032x}"  # type: ignore
-        span_id = f"{span.context.span_id:016x}"  # type: ignore
+        trace_id = f"{span.context.trace_id:032x}"
+        span_id = f"{span.context.span_id:016x}"
         parent_span_id = None
 
         if span.parent:
@@ -51,7 +51,7 @@ class LumlSpanExporter(SpanExporter):
 
         links = self._convert_links(span.links)
 
-        trace_flags = span.context.trace_flags  # type: ignore
+        trace_flags = span.context.trace_flags
 
         self.log_fn(
             trace_id=trace_id,
@@ -106,7 +106,7 @@ class LumlSpanExporter(SpanExporter):
             if isinstance(value, str | int | float | bool):
                 result[key] = value
             elif isinstance(value, list | tuple):
-                result[key] = list(value)  # type: ignore[assignment]
+                result[key] = list(value)
             else:
                 result[key] = str(value)
 

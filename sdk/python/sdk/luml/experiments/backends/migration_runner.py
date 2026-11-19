@@ -57,7 +57,7 @@ class BaseMigrationRunner:
                 continue
             module = importlib.util.module_from_spec(spec)
             try:
-                spec.loader.exec_module(module)  # type: ignore[union-attr]
+                spec.loader.exec_module(module)
             except Exception as e:
                 raise ImportError(
                     f"Failed to load migration {file_path.name}: {e}"

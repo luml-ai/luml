@@ -1,5 +1,5 @@
 import shutil
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -95,7 +95,7 @@ def _tracker_ref(api: Api, slug: str = "evaluate") -> TrackerRef:
 @asynccontextmanager
 async def _materialized_flow(
     tmp_path: Path, tracker: TrackerProvider
-) -> AsyncIterator[tuple[Path, Api]]:
+) -> AsyncGenerator[tuple[Path, Api]]:
     root = make_workspace(tmp_path / "project")
     write_cell(root / "churn.flow", "evaluate", TRACKED_CELL)
     write_cell(root / "churn.flow", "report", REPORT_CELL)

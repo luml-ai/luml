@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
@@ -40,7 +40,7 @@ async def resume_harness(
         Callable[[SatelliteQueueTask], Awaitable[None]],
     ]
     | None = None,
-) -> AsyncIterator[ResumeHarness]:
+) -> AsyncGenerator[ResumeHarness]:
     active_driver = driver or FakeDriver()
     active_serving = serving or FakeServingPlacement()
     active_clock = clock or FakeClock()

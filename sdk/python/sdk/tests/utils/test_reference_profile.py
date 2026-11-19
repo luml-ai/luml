@@ -184,7 +184,7 @@ def test_classification_scores_summarized_numerically() -> None:
 
 def test_unknown_task_type_raises() -> None:
     with pytest.raises(ValueError, match="task type"):
-        compute_output_summaries(np.array([1.0, 2.0]), "clustering")  # type: ignore[arg-type]
+        compute_output_summaries(np.array([1.0, 2.0]), "clustering")
 
 
 def test_build_regression_profile_end_to_end() -> None:

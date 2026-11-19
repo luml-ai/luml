@@ -32,11 +32,13 @@ class ExperimentManifestPayload(BaseModel):
 
 
 class ExperimentArtifactManifest(ArtifactManifest):
-    payload: ExperimentManifestPayload
+    payload: ExperimentManifestPayload  # ty: ignore[incompatible-mutable-override]
 
 
 class ExperimentReference(DiskReference):
-    def get_manifest(self) -> ExperimentArtifactManifest:  # type: ignore[override]
+    def get_manifest(
+        self,
+    ) -> ExperimentArtifactManifest:  # ty: ignore[incompatible-method-override]
         raw = super().get_manifest()
         return ExperimentArtifactManifest.model_validate(raw)
 

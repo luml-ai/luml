@@ -120,7 +120,7 @@ class MetricCell(PanelFrame):
         self._last_render_width: int = 0
         self._history_requested: bool = False
 
-    def compose(self) -> Iterable[Widget]:  # type: ignore[override]
+    def compose(self) -> Iterable[Widget]:
         yield PlotextPlot(classes="metric-cell-chart")
         yield Static("(no points yet)", classes="metric-cell-empty")
 
@@ -288,7 +288,7 @@ class MetricGrid(VerticalScroll):
         # navigation resolves up/down targets against the real layout.
         self._cols: int = 2
 
-    def compose(self) -> Iterable[Widget]:  # type: ignore[override]
+    def compose(self) -> Iterable[Widget]:
         yield Static(
             "No metrics logged for this experiment yet.",
             id="metric-grid-empty",
@@ -539,7 +539,7 @@ class MetricZoomView(Vertical):
         self._metric_key: str | None = None
         self._history: MetricSeries | None = None
 
-    def compose(self) -> Iterable[Widget]:  # type: ignore[override]
+    def compose(self) -> Iterable[Widget]:
         with PanelFrame(
             title="(no metric)",
             fill=True,

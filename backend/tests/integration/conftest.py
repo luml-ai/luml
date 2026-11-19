@@ -3,7 +3,7 @@ import uuid
 from collections.abc import AsyncGenerator, Generator
 from uuid import UUID
 
-import asyncpg  # type: ignore[import-untyped]
+import asyncpg
 import pytest
 from luml.infra.auth_rate_limits import KEY_PREFIX, AuthRateLimiter
 from luml.models import OrganizationOrm

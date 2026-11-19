@@ -70,12 +70,12 @@ class Deployment(DeploymentBase):
     created_at: datetime
     updated_at: datetime | None = None
 
-    @computed_field(deprecated=True)  # type: ignore[prop-decorator]
+    @computed_field(deprecated=True)
     @property
     def model_id(self) -> UUID:
         return self.artifact_id
 
-    @computed_field(deprecated=True)  # type: ignore[prop-decorator]
+    @computed_field(deprecated=True)
     @property
     def model_artifact_name(self) -> str:
         return self.artifact_name

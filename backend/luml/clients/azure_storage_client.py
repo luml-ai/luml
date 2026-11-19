@@ -32,7 +32,7 @@ class AzureBlobClient(BaseStorageClient):
         self._account_key = self._extract_account_key(secret)
 
     @staticmethod
-    def _create_client(  # type: ignore[override]
+    def _create_client(  # ty: ignore[incompatible-method-override]
         secret: AzureBucketSecret | AzureBucketSecretCreateIn,
     ) -> ContainerClient:
         try:

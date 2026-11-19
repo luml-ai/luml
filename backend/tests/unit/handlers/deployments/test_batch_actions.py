@@ -74,7 +74,7 @@ class TestDeploymentBatchActions:
             Deployment.model_construct(name="success", status=DeploymentStatus.FAILED),
         ]
         error = RuntimeError("private database error")
-        error.sqlstate = "23503"  # type: ignore[attr-defined]
+        error.sqlstate = "23503"  # ty: ignore[missing-attribute]
         mocks.repo.force_delete_inactive_deployment.side_effect = [
             IntegrityError("private statement", {}, error),
             Mock(),

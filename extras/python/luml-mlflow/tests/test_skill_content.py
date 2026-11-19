@@ -65,8 +65,8 @@ def test_monitoring_steps_give_a_ready_profile(
 
     path = temp_store / namespace["logged"].path
     with tarfile.open(path) as archive:
-        manifest = json.load(archive.extractfile("manifest.json"))  # type: ignore[arg-type]
-        profile = json.load(archive.extractfile("reference_profile.json"))  # type: ignore[arg-type]
+        manifest = json.load(archive.extractfile("manifest.json"))
+        profile = json.load(archive.extractfile("reference_profile.json"))
     summaries = profile["feature_summaries"]
     profiled = set(summaries.get("numerical_features", {})) | set(
         summaries.get("categorical_features", {})

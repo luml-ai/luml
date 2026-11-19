@@ -4,7 +4,7 @@ import json
 import socket
 import subprocess
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from http.cookies import SimpleCookie
@@ -146,7 +146,7 @@ def _free_port() -> int:
 
 
 @contextmanager
-def _port_forward(namespace: str, resource: str, remote_port: int) -> Iterator[int]:
+def _port_forward(namespace: str, resource: str, remote_port: int) -> Generator[int]:
     local_port = _free_port()
     process = subprocess.Popen(
         [

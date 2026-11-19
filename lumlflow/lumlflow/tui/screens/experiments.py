@@ -248,7 +248,7 @@ class ExperimentsScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="experiments-body"):
             yield Input(
                 placeholder="Search experiments (Esc to close)",

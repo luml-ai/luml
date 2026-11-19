@@ -54,7 +54,7 @@ class TestReplaceRetry:
             attempts["count"] += 1
             if attempts["count"] <= 2:
                 raise PermissionError(32, "The process cannot access the file")
-            real_replace(src, dst)  # type: ignore[arg-type]
+            real_replace(src, dst)
 
         monkeypatch.setattr(os, "replace", flaky)
         replace_retry(source, target)
@@ -93,7 +93,7 @@ class TestUnlinkRetry:
             attempts["count"] += 1
             if attempts["count"] <= 2:
                 raise PermissionError(32, "The process cannot access the file")
-            real_unlink(self, **kwargs)  # type: ignore[arg-type]
+            real_unlink(self, **kwargs)
 
         monkeypatch.setattr(Path, "unlink", flaky)
         unlink_retry(target)

@@ -89,7 +89,7 @@ from luml.utils.tar import create_and_index_tar
 try:
     import numpy as np
 except ImportError:
-    np = None  # type: ignore[assignment]
+    np = None
 
 
 def _parse_timestamp(s: bytes) -> datetime:
@@ -179,7 +179,7 @@ class ConnectionPool:
         if (pool := pool_ref()) is not None:
             pool.close_all()
 
-    @contextlib.contextmanager
+    @contextlib.contextmanager  # ty: ignore[deprecated]
     def get_connection(
         self, db_path: str | Path, *, write: bool = False, create: bool = True
     ) -> Iterator[sqlite3.Connection]:

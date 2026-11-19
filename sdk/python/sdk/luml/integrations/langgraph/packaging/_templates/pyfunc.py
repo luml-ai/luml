@@ -1,7 +1,7 @@
 import importlib
 from typing import Any, cast
 
-from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
+from fnnx.variants.pyfunc import PyFunc
 from langgraph.pregel import Pregel
 from langgraph.types import Command
 
@@ -26,7 +26,7 @@ def normalize(obj):  # noqa: ANN001, ANN201
     import dataclasses
 
     if dataclasses.is_dataclass(obj):
-        return normalize(dataclasses.asdict(obj))  # type: ignore
+        return normalize(dataclasses.asdict(obj))
 
     try:
         from pydantic import BaseModel
@@ -49,7 +49,7 @@ class LangGraphFunc(PyFunc):
         if graph_path:
             self.graph: Pregel = cast(Pregel, dyn_import(graph_path))
         elif graph_creator_callable_path:
-            import cloudpickle  # type: ignore[import-untyped]
+            import cloudpickle
 
             with open(graph_creator_callable_path, "rb") as f:
                 graph_creator_callable = cloudpickle.load(f)
@@ -87,7 +87,7 @@ class LangGraphFunc(PyFunc):
         return {"result": result, "interrupts": interrupts}
 
     def _response(self, raw_output: dict) -> dict:
-        return {"graph_output": self._prepare_outputs(normalize(raw_output))}  # type: ignore
+        return {"graph_output": self._prepare_outputs(normalize(raw_output))}
 
     def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:
         kwargs = self._prepare_inputs(inputs["payload"])

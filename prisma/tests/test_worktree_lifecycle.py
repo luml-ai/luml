@@ -64,7 +64,7 @@ def db() -> Database:
 @pytest.fixture
 def pty() -> PtyManager:
     mgr = PtyManager()
-    yield mgr  # type: ignore[misc]
+    yield mgr
     mgr.shutdown()
 
 
@@ -423,7 +423,7 @@ class TestSchedulerResilience:
             call_count += 1
             raise ValueError("single node error")
 
-        eng._get_next_candidates = failing_candidates  # type: ignore[assignment]
+        eng._get_next_candidates = failing_candidates
 
         with patch(
             "luml_prisma.services.orchestrator.engine.logger",

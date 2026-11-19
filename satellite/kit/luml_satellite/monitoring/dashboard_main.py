@@ -1,5 +1,5 @@
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -42,7 +42,7 @@ def create_dashboard_application(
     )
 
     @asynccontextmanager
-    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
         try:
             if owns_platform:
                 async with platform_client:
@@ -59,7 +59,7 @@ def create_dashboard_application(
 
 
 def main() -> None:
-    configuration = SatelliteConfiguration()  # type: ignore[call-arg]
+    configuration = SatelliteConfiguration()
     logging.basicConfig(level=configuration.LOG_LEVEL.upper())
     application = create_dashboard_application(configuration)
     uvicorn.run(

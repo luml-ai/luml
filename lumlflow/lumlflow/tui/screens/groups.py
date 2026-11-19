@@ -201,7 +201,7 @@ class GroupsScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="groups-body"):
             yield Input(
                 placeholder="Search groups (Esc to close)",

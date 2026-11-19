@@ -47,7 +47,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="luml-monitoring-worker")
     parser.add_argument("--probe", action="store_true")
     arguments = parser.parse_args(argv)
-    configuration = SatelliteConfiguration()  # type: ignore[call-arg]
+    configuration = SatelliteConfiguration()
     logging.basicConfig(level=configuration.LOG_LEVEL.upper())
     if arguments.probe:
         raise SystemExit(probe_exit_code(configuration))

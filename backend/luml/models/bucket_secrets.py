@@ -1,4 +1,5 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import UUID, Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -44,10 +45,10 @@ class BucketSecretOrm(TimestampMixin, Base):
     cert_check: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     type: Mapped[str] = mapped_column(String, nullable=False)
 
-    organization: Mapped[OrganizationOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    organization: Mapped[OrganizationOrm] = relationship(
         "OrganizationOrm", back_populates="bucket_secrets", lazy="selectin"
     )
-    orbits: Mapped[list[OrbitOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbits: Mapped[list[OrbitOrm]] = relationship(
         "OrbitOrm",
         back_populates="bucket_secret",
         lazy="selectin",
@@ -91,3 +92,8 @@ class BucketSecretOrm(TimestampMixin, Base):
         elif isinstance(secret, AzureBucketSecretCreate):
             data["endpoint"] = encrypt(secret.endpoint)
         return cls(**data)
+
+
+if TYPE_CHECKING:
+    from luml.models.orbit import OrbitOrm
+    from luml.models.organization import OrganizationOrm

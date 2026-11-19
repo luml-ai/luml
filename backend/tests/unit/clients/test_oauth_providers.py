@@ -8,6 +8,7 @@ import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
+from jwt.algorithms import RSAAlgorithm
 from luml.clients.oauth_providers import OAuthGoogleProvider, OAuthMicrosoftProvider
 from luml.handlers.auth import AuthHandler
 from luml.infra.exceptions import AuthError
@@ -47,9 +48,7 @@ def microsoft_claims() -> dict[str, Any]:
 
 @pytest.fixture
 def signing_jwk(signing_key: rsa.RSAPrivateKey) -> dict[str, Any]:
-    key: dict[str, Any] = json.loads(
-        jwt.algorithms.RSAAlgorithm.to_jwk(signing_key.public_key())
-    )
+    key: dict[str, Any] = json.loads(RSAAlgorithm.to_jwk(signing_key.public_key()))
     key.update(kid=KEY_ID, use="sig", issuer=ISSUER_TEMPLATE)
     return key
 

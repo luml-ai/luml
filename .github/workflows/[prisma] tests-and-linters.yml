@@ -40,7 +40,7 @@ jobs:
         run: uv run --frozen ruff check src tests
 
       - name: Type checking
-        run: uv run --frozen mypy src
+        run: uv run --frozen ty check
 
       - name: Running tests
         run: uv run --frozen pytest
