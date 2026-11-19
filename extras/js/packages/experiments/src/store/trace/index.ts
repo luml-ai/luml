@@ -1,10 +1,10 @@
 import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
 import type { GetTracesParams, TypedColumnInfo, TypedTracesColumns } from '@/interfaces/interfaces'
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { INITIAL_REQUEST_PARAMS } from './trace.data'
 import { useEvalsStore } from '../evals'
-import { useDebounceFn } from '@vueuse/core'
+import { useTimeoutFn } from '@vueuse/core'
 import { useAnnotationsStore } from '../annotations'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -47,6 +47,7 @@ export const useTraceStore = defineStore('trace', () => {
 
   function setRequestParams(params: Partial<GetTracesParams>) {
     requestParams.value = { ...requestParams.value, ...params }
+    scheduleLoad()
   }
 
   function setLoading(value: boolean) {
@@ -58,6 +59,7 @@ export const useTraceStore = defineStore('trace', () => {
   }
 
   function reset() {
+    cancelLoad()
     requestParams.value = { ...INITIAL_REQUEST_PARAMS }
     evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
     traces.value = []
@@ -82,25 +84,27 @@ export const useTraceStore = defineStore('trace', () => {
     }
   }
 
-  const debouncedRequestParamsChange = useDebounceFn(async () => {
-    try {
-      if (loading.value) return
-      setLoading(true)
-      await getNextPage(true)
-    } catch (error) {
-      toast.add(simpleErrorToast(getErrorMessage(error)))
-    } finally {
-      setLoading(false)
-    }
-  }, 500)
+  const { start: scheduleLoad, stop: cancelLoad } = useTimeoutFn(
+    async () => {
+      try {
+        if (loading.value) return
+        setLoading(true)
+        await getNextPage(true)
+      } catch (error) {
+        toast.add(simpleErrorToast(getErrorMessage(error)))
+      } finally {
+        setLoading(false)
+      }
+    },
+    500,
+    { immediate: false },
+  )
 
   async function getTypedColumns() {
     if (!artifactId.value) return
     const data = await evalsStore.getProvider.getTracesColumns(artifactId.value)
     typedColumns.value = data
   }
-
-  watch(requestParams, debouncedRequestParamsChange, { deep: true })
 
   return {
     traces,

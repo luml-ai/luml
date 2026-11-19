@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   },
+  worker: { format: 'es' },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

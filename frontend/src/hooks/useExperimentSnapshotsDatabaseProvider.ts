@@ -13,9 +13,12 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
   let unmounted = false
   let provider: ExperimentSnapshotWorkerProxy | null = null
 
-  const worker = new Worker(new URL('@/workers/experiment-snapshot', import.meta.url), {
-    type: 'module',
-  })
+  const worker = new Worker(
+    new URL('../../../extras/js/experimentSnapshotWorker.ts', import.meta.url),
+    {
+      type: 'module',
+    },
+  )
 
   worker.onerror = (e) => {
     console.error('❌ Worker error:', e)

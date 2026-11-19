@@ -85,10 +85,19 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getStaticParamsList() {
-    const list = this.modelsSnapshots
-      .map((snapshot) => this.getStaticParams(snapshot.database, snapshot.modelId))
-      .flat()
-    return list
+    return this.modelsSnapshots.map((snapshot) =>
+      this.getStaticParams(snapshot.database, snapshot.modelId),
+    )
+  }
+
+  async getLoggedParameters(modelId: string) {
+    const snapshot = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)
+    if (!snapshot) throw new Error('Snapshot not found')
+    // The SDK stores parameter values as text, including integers and serialized JSON.
+    return this.getStaticParamRows(snapshot.database).map(([key, value, type]) => ({
+      name: String(key),
+      value: type === 'bool' ? String(value).toLowerCase() : String(value),
+    }))
   }
 
   async getUniqueDatasetsIds(): Promise<string[]> {
@@ -1029,9 +1038,12 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return val
   }
 
-  private getStaticParams(database: Database, modelId: string): ExperimentSnapshotStaticParams[] {
-    const queryResult = database.exec('SELECT key, value, value_type FROM static_params')
-    const rows = queryResult[0]?.values || []
+  private getStaticParamRows(database: Database) {
+    return database.exec('SELECT key, value, value_type FROM static_params')[0]?.values ?? []
+  }
+
+  private getStaticParams(database: Database, modelId: string): ExperimentSnapshotStaticParams {
+    const rows = this.getStaticParamRows(database)
     const obj = Object.fromEntries(
       rows.map((row) => [row[0], this.parseValue(row[1], row[2] as SqlValue)]),
     )

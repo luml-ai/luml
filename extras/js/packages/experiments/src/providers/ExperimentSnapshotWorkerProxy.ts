@@ -26,6 +26,7 @@ export interface ExperimentSnapshotWorkerProxyOptions {
 export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider {
   private readonly requestTimeoutMs: number
   private readonly pendingRequests = new Set<(error: Error) => void>()
+  private nextRequestId = 0
   private terminated = false
 
   constructor(
@@ -47,7 +48,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     if (this.terminated) {
       return Promise.reject(new Error('Experiment snapshot worker was terminated'))
     }
-    const requestId = crypto.randomUUID()
+    const requestId = String(++this.nextRequestId)
 
     return new Promise((resolve, reject) => {
       const handler = (e: MessageEvent) => {
@@ -132,6 +133,10 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getStaticParamsList(signal?: AbortSignal) {
     return this.call<ExperimentSnapshotStaticParams[]>('getStaticParamsList', undefined, signal)
+  }
+
+  getLoggedParameters(modelId: string, signal?: AbortSignal) {
+    return this.call<{ name: string; value: string }[]>('getLoggedParameters', [modelId], signal)
   }
 
   getDynamicMetricsNames(signal?: AbortSignal) {

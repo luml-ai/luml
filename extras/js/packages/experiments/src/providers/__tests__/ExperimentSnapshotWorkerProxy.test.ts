@@ -23,6 +23,7 @@ describe('ExperimentSnapshotWorkerProxy', () => {
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 
@@ -37,7 +38,8 @@ describe('ExperimentSnapshotWorkerProxy', () => {
     expect(vi.getTimerCount()).toBe(0)
   }
 
-  it('initializes with the worker init protocol and resolves its response', async () => {
+  it('initializes on an HTTP origin without secure-context crypto APIs', async () => {
+    vi.stubGlobal('crypto', {})
     const payload = [{ modelId: 'm1', buffer: new ArrayBuffer(8) }]
     const initialized = proxy.init(payload)
     const [message] = worker.postMessage.mock.calls[0]

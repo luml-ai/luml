@@ -131,7 +131,7 @@ import { apiService } from '@/api/api.service'
 import { useUpload } from '@/hooks/useUpload'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 import CollectionField from './CollectionField.vue'
-import { requiredArtifactKinds } from './collectionTypes'
+import { requiredArtifactKinds, type ArtifactKind } from './collectionTypes'
 import type { Model } from '@/store/experiments/experiments.interface'
 import { LUML_APP_URL } from '@/helpers/luml'
 
@@ -171,9 +171,9 @@ watch(
   },
 )
 
-const requiredKinds = computed(() =>
+const requiredKinds = computed<ArtifactKind[]>(() =>
   props.publish
-    ? requiredArtifactKinds(UploadTypeEnum.MODEL, 1)
+    ? [props.artifactKind ?? 'model']
     : requiredArtifactKinds(
         (formRef.value?.states['type']?.value as UploadTypeEnum | undefined) ?? UploadTypeEnum.AUTO,
         models.value.length || (props.modelCount ?? 0),
@@ -270,6 +270,7 @@ watch(
 
 watch(visible, async (value) => {
   if (value) {
+    initialValues.name = props.defaultName ?? ''
     const experimentId = props.experimentId
     if (!props.models && experimentId) {
       try {
