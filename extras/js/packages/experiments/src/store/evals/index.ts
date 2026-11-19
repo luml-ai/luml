@@ -56,6 +56,8 @@ export const useEvalsStore = defineStore('evals', () => {
   const refreshedVersion = ref(0)
   const spanPayloads = new Map<string, SpanPayload>()
   const spanPayloadRequests = new Map<string, Promise<SpanPayload>>()
+  // Bumped when the payloads are forgotten, so an open span reads its payload again.
+  const spanPayloadsVersion = ref(0)
   // Bumped on reset and on a provider change. The store outlives its view and Flow does not
   // cancel reads, so an answer to a read that started before must be dropped.
   let datasetsVersion = 0
@@ -153,9 +155,11 @@ export const useEvalsStore = defineStore('evals', () => {
     if (oldest !== undefined) spanPayloads.delete(oldest)
   }
 
+  /** A live store can replace a span with the same ids, so a refresh forgets the payloads. */
   function clearSpanPayloads() {
     spanPayloads.clear()
     spanPayloadRequests.clear()
+    spanPayloadsVersion.value++
   }
 
   function setCurrentEvalData(data: EvalsInfo[]) {
@@ -291,6 +295,7 @@ export const useEvalsStore = defineStore('evals', () => {
   }
 
   async function refresh() {
+    clearSpanPayloads()
     if (loading.value) return
     const version = datasetsVersion
     setLoading(true)
@@ -351,6 +356,8 @@ export const useEvalsStore = defineStore('evals', () => {
     getTraceSpansTree,
     getCachedSpanPayload,
     loadSpanPayload,
+    clearSpanPayloads,
+    spanPayloadsVersion,
     resetProvider,
     disposeMetricBucketStore,
     getProvider,

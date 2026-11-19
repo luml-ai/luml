@@ -51,9 +51,12 @@ async function issue(key: string): Promise<DownloadRef> {
 
 export function installHarness(worker: Worker): void {
   // The specs expire URLs seconds after issue, so the minimum age before a renewal is off
-  // unless the page asks for the platform's own (`?minRenewAgeMs=`).
-  const minRenewAgeMs = Number(new URLSearchParams(location.search).get('minRenewAgeMs') ?? 0)
-  const urls = new PresignedUrlCache(issue, PRESIGNED_URL_REUSE_MS, minRenewAgeMs)
+  // unless the page asks for the platform's own (`?minRenewAgeMs=`). `?reuseMs=0` ages every
+  // URL at once, so each call hands the worker a new one first.
+  const query = new URLSearchParams(location.search)
+  const minRenewAgeMs = Number(query.get('minRenewAgeMs') ?? 0)
+  const reuseMs = Number(query.get('reuseMs') ?? PRESIGNED_URL_REUSE_MS)
+  const urls = new PresignedUrlCache(issue, reuseMs, minRenewAgeMs)
   // Every message the worker posted, to check that none of them carries a credential.
   const posted: string[] = []
   worker.addEventListener('message', (event) => posted.push(JSON.stringify(event.data)))
@@ -65,6 +68,8 @@ export function installHarness(worker: Worker): void {
       renew: (modelId, failed) => urls.renewLocation(urlKey(modelId), failed),
     },
   })
+  let statusChanges = 0
+  proxy.onStatusesChanged(() => statusChanges++)
 
   Object.assign(window, {
     harness: {
@@ -95,6 +100,15 @@ export function installHarness(worker: Worker): void {
         )
         return settle(proxy.init(modelsInfo))
       },
+      /** Starts `first` without waiting for it, as the trace store starts a paging reset. */
+      async callAfter(first: [string, unknown[]], method: string, args: unknown[] = []) {
+        const target = proxy as unknown as Record<
+          string,
+          (...values: unknown[]) => Promise<unknown>
+        >
+        void target[first[0]]?.apply(proxy, first[1]).catch(() => undefined)
+        return settle(target[method]!.apply(proxy, args))
+      },
       call(method: string, args: unknown[] = []) {
         const target = proxy as unknown as Record<
           string,
@@ -109,6 +123,10 @@ export function installHarness(worker: Worker): void {
       },
       posted() {
         return posted
+      },
+      /** How often the proxy reported that a call changed the statuses. */
+      statusChanges() {
+        return statusChanges
       },
       /**
        * One chart's settled state through the real store: the plan's level and the series it
@@ -129,9 +147,9 @@ export function installHarness(worker: Worker): void {
             if (property !== 'getMetricBuckets' || typeof value !== 'function') {
               return typeof value === 'function' ? value.bind(target) : value
             }
-            return (bucketRequest: { level: number }, signal?: AbortSignal) => {
+            return (bucketRequest: { level: number }, ...rest: unknown[]) => {
               levels.push(bucketRequest.level)
-              return value.call(target, bucketRequest, signal)
+              return value.call(target, bucketRequest, ...rest)
             }
           },
         })

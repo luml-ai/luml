@@ -259,7 +259,7 @@ describe('ExperimentSnapshotWorkerProxy source URL renewal', () => {
   let proxy: ExperimentSnapshotWorkerProxy
 
   async function nextMessage(index: number) {
-    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledTimes(index + 1))
+    await vi.waitFor(() => expect(worker.postMessage.mock.calls.length).toBeGreaterThan(index))
     return worker.postMessage.mock.calls[index]![0]
   }
 
@@ -671,7 +671,7 @@ describe('ExperimentSnapshotWorkerProxy sources with headers', () => {
   let proxy: ExperimentSnapshotWorkerProxy
 
   async function nextMessage(index: number) {
-    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledTimes(index + 1))
+    await vi.waitFor(() => expect(worker.postMessage.mock.calls.length).toBeGreaterThan(index))
     return worker.postMessage.mock.calls[index]![0]
   }
 
@@ -734,5 +734,337 @@ describe('ExperimentSnapshotWorkerProxy sources with headers', () => {
     await expect(result).rejects.toBeInstanceOf(type)
     await expect(result).rejects.toMatchObject({ modelId: 'm1', ...extra })
     expect(sourceUrls.renew).not.toHaveBeenCalled()
+  })
+})
+
+/** Answers calls in arrival order, with one trace page cursor as the provider keeps it. */
+class OrderedWorker extends EventTarget {
+  readonly messages: { type: string; requestId: string; payload?: any; [key: string]: any }[] = []
+  readonly terminate = vi.fn()
+  /** Methods whose answers are held back until `release` is called. */
+  readonly held = new Set<string>()
+  private readonly waiting: (() => void)[] = []
+  private page = 0
+
+  get methods(): string[] {
+    return this.messages
+      .filter((message) => message.type !== 'cancel')
+      .map((message) => (message.type === 'call' ? message.payload.method : message.type))
+  }
+
+  postMessage(message: { type: string; requestId: string; payload?: any }) {
+    this.messages.push(message)
+    if (message.type === 'cancel') return
+    const method = message.type === 'call' ? message.payload.method : message.type
+    let data: unknown = method === 'init' ? [] : undefined
+    if (method === 'setSourceUrl') data = true
+    if (method === 'resetTracesRequestParams') this.page = 0
+    if (method === 'getTraces') data = [`row-page-${++this.page}`]
+    const answer = () =>
+      this.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'result', requestId: message.requestId, data },
+        }),
+      )
+    if (this.held.has(method)) this.waiting.push(answer)
+    else queueMicrotask(answer)
+  }
+
+  release() {
+    this.waiting.splice(0).forEach((answer) => answer())
+  }
+}
+
+describe('ExperimentSnapshotWorkerProxy call order', () => {
+  const rangeSource = {
+    kind: 'range',
+    url: 'https://bucket/a?sig=1',
+    offset: 0,
+    size: 4096,
+  } as const
+  const traceParams = { sort_by: 'created_at', order: 'desc', limit: 1 } as any
+  let worker: OrderedWorker
+  let current: string
+  let proxy: ExperimentSnapshotWorkerProxy
+
+  beforeEach(async () => {
+    worker = new OrderedWorker()
+    current = rangeSource.url
+    const sourceUrls = {
+      get: vi.fn(async () => current),
+      renew: vi.fn(async () => 'https://bucket/a?sig=9'),
+    }
+    proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker, { sourceUrls })
+    await proxy.init([{ modelId: 'm1', source: rangeSource }])
+  })
+
+  it('posts a paging reset before the read made after it, while an aged URL is handed over', async () => {
+    await proxy.getTraces(traceParams)
+    await proxy.getTraces(traceParams)
+    current = 'https://bucket/a?sig=2'
+
+    // As the trace store resets: the reset is not awaited before the first page is read.
+    void proxy.resetTracesRequestParams()
+    const firstPage = await proxy.getTraces(traceParams)
+    const secondPage = await proxy.getTraces(traceParams)
+
+    expect(worker.methods.slice(3, 6)).toEqual([
+      'setSourceUrl',
+      'resetTracesRequestParams',
+      'getTraces',
+    ])
+    expect([firstPage, secondPage]).toEqual([['row-page-1'], ['row-page-2']])
+  })
+
+  it('posts calls made back to back in call order while a URL refresh is pending', async () => {
+    current = 'https://bucket/a?sig=2'
+    const calls = [
+      proxy.resetTracesRequestParams(),
+      proxy.getUniqueDatasetsIds(),
+      proxy.getTraces(traceParams),
+      proxy.resetEvalsDatasetsRequestParams(),
+      proxy.getDynamicMetricsNames(),
+    ]
+
+    await Promise.all(calls)
+
+    expect(worker.methods.slice(1)).toEqual([
+      'setSourceUrl',
+      'resetTracesRequestParams',
+      'getUniqueDatasetsIds',
+      'getTraces',
+      'resetEvalsDatasetsRequestParams',
+      'getDynamicMetricsNames',
+    ])
+  })
+
+  it('does not hold back the posting of a later call behind a slow answer', async () => {
+    worker.held.add('getUniqueDatasetsIds')
+    const slow = proxy.getUniqueDatasetsIds()
+
+    await expect(proxy.getTraces(traceParams)).resolves.toEqual(['row-page-1'])
+    worker.release()
+    await slow
+    expect(worker.methods.slice(1)).toEqual(['getUniqueDatasetsIds', 'getTraces'])
+  })
+
+  it('tells the worker when the caller of each call gives up', async () => {
+    const before = Date.now()
+    await proxy.getUniqueDatasetsIds()
+    const [call] = worker.messages.filter((message) => message.type === 'call')
+
+    expect(call!.deadline).toBeGreaterThanOrEqual(before + 60_000)
+    expect(call!.deadline).toBeLessThanOrEqual(Date.now() + 60_000)
+  })
+
+  it('posts the limit of a caller that gives up before this proxy does', async () => {
+    const before = Date.now()
+    await proxy.getMetricBuckets({ keys: ['loss'], level: 0 }, undefined, { timeoutMs: 30_000 })
+    await proxy.getMetricCatalogs(undefined, undefined, { timeoutMs: 90_000 })
+    const [buckets, catalogs] = worker.messages.filter((message) => message.type === 'call')
+
+    expect(buckets!.deadline).toBeGreaterThanOrEqual(before + 30_000)
+    expect(buckets!.deadline).toBeLessThanOrEqual(Date.now() + 30_000)
+    expect(catalogs!.deadline).toBeLessThanOrEqual(Date.now() + 60_000)
+  })
+
+  it('fails a call whose URL lookup hangs at its deadline, and posts the next call', async () => {
+    vi.useFakeTimers()
+    const hung = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker, {
+      sourceUrls: {
+        get: vi
+          .fn<() => Promise<string>>()
+          .mockReturnValueOnce(new Promise(() => undefined))
+          .mockImplementation(async () => current),
+        renew: vi.fn(async () => current),
+      },
+    })
+    const init = hung.init([{ modelId: 'm1', source: rangeSource }])
+    await vi.advanceTimersByTimeAsync(0)
+    await init
+
+    const stuck = hung.getMetricBuckets({ keys: ['loss'], level: 0 }, undefined, {
+      timeoutMs: 30_000,
+    })
+    const rejected = expect(stuck).rejects.toThrow(/timed out/)
+    const next = hung.getTraces(traceParams)
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    await rejected
+    await expect(next).resolves.toEqual(['row-page-1'])
+    expect(worker.methods.filter((method) => method === 'getMetricBuckets')).toEqual([])
+    vi.useRealTimers()
+  })
+})
+
+describe('ExperimentSnapshotWorkerProxy statuses', () => {
+  it('tells its listeners when a call changed the statuses, in an answer or an error', async () => {
+    const worker = new FakeWorker()
+    const proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker)
+    const listener = vi.fn()
+    const stop = proxy.onStatusesChanged(listener)
+
+    const answered = proxy.getUniqueDatasetsIds()
+    const first = worker.postMessage.mock.calls[0]![0]
+    worker.respond({ type: 'result', requestId: first.requestId, data: [], statusesChanged: true })
+    await answered
+    const plain = proxy.getUniqueDatasetsIds()
+    worker.respond({ type: 'result', requestId: worker.postMessage.mock.calls[1]![0].requestId })
+    await plain
+    const failed = proxy.getUniqueDatasetsIds()
+    const third = worker.postMessage.mock.calls[2]![0]
+    worker.respond({ type: 'error', requestId: third.requestId, error: 'x', statusesChanged: true })
+    await expect(failed).rejects.toThrow('x')
+    stop()
+    const unheard = proxy.getUniqueDatasetsIds()
+    const fourth = worker.postMessage.mock.calls[3]![0]
+    worker.respond({ type: 'result', requestId: fourth.requestId, data: [], statusesChanged: true })
+    await unheard
+
+    expect(listener).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('ExperimentSnapshotWorkerProxy comparisons', () => {
+  const sourceOf = (modelId: string) =>
+    ({ kind: 'range', url: `https://bucket/${modelId}?sig=1`, offset: 0, size: 4096 }) as const
+  const forbidden = {
+    type: 'error',
+    code: SNAPSHOT_SOURCE_EXPIRED,
+    modelId: 'm2',
+    status: 403,
+    isolatable: true,
+    error: 'Range request returned status 403',
+  }
+  let worker: FakeWorker
+  let sourceUrls: {
+    get: Mock<(id: string) => Promise<string>>
+    renew: Mock<(id: string, failedUrl: string) => Promise<string>>
+  }
+  let proxy: ExperimentSnapshotWorkerProxy
+
+  const calls = () => worker.postMessage.mock.calls.map(([message]) => message)
+
+  async function nextMessage(index: number) {
+    await vi.waitFor(() => expect(worker.postMessage.mock.calls.length).toBeGreaterThan(index))
+    return worker.postMessage.mock.calls[index]![0]
+  }
+
+  async function initialized(failures: unknown[] = []) {
+    const init = proxy.init(['m1', 'm2'].map((modelId) => ({ modelId, source: sourceOf(modelId) })))
+    worker.respond({ type: 'result', requestId: (await nextMessage(0)).requestId, data: failures })
+    await init
+  }
+
+  beforeEach(() => {
+    worker = new FakeWorker()
+    sourceUrls = {
+      get: vi.fn(async (id: string) => sourceOf(id).url),
+      renew: vi.fn(async (id: string) => sourceOf(id).url),
+    }
+    proxy = new ExperimentSnapshotWorkerProxy(worker as unknown as Worker, { sourceUrls })
+  })
+
+  it('leaves out an experiment whose failure stands, without reading it again', async () => {
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    const first = await nextMessage(1)
+    expect(first.context).toEqual({ renewableSources: ['m1', 'm2'], failedSources: [] })
+    worker.respond({ ...forbidden, requestId: first.requestId })
+    const retry = await nextMessage(2)
+    expect(retry.payload).toEqual(first.payload)
+    expect(retry.context).toEqual({
+      renewableSources: ['m1'],
+      failedSources: [
+        { modelId: 'm2', error: { code: SNAPSHOT_SOURCE_EXPIRED, message: forbidden.error } },
+      ],
+    })
+    worker.respond({ type: 'result', requestId: retry.requestId, data: ['d1'] })
+
+    await expect(result).resolves.toEqual(['d1'])
+    expect(sourceUrls.renew).toHaveBeenCalledExactlyOnceWith('m2', sourceOf('m2').url)
+    expect(calls()).toHaveLength(3)
+  })
+
+  it('leaves out only the experiment whose URL could not be renewed', async () => {
+    sourceUrls.renew.mockRejectedValue(new Error('Request failed with status 404'))
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    worker.respond({ ...forbidden, status: undefined, requestId: (await nextMessage(1)).requestId })
+    const retry = await nextMessage(2)
+    worker.respond({ type: 'result', requestId: retry.requestId, data: ['d1'] })
+
+    await expect(result).resolves.toEqual(['d1'])
+    expect(retry.context.failedSources.map(({ modelId }: { modelId: string }) => modelId)).toEqual([
+      'm2',
+    ])
+  })
+
+  it('still rejects the call when the failure cannot be left out', async () => {
+    await initialized()
+    const result = proxy.getUniqueDatasetsIds()
+
+    worker.respond({
+      ...forbidden,
+      isolatable: undefined,
+      requestId: (await nextMessage(1)).requestId,
+    })
+
+    await expect(result).rejects.toMatchObject({ code: SNAPSHOT_SOURCE_EXPIRED, status: 403 })
+    expect(calls()).toHaveLength(2)
+  })
+
+  it('does not fail a call when the URL lookup of one experiment fails', async () => {
+    await initialized()
+    sourceUrls.get.mockImplementation(async (id) => {
+      if (id === 'm2') throw new Error('Request failed with status 404')
+      return sourceOf(id).url
+    })
+
+    const result = proxy.getUniqueDatasetsIds()
+    worker.respond({ type: 'result', requestId: (await nextMessage(1)).requestId, data: ['d1'] })
+
+    await expect(result).resolves.toEqual(['d1'])
+  })
+
+  it('never looks up or sends the URL of an experiment that did not open', async () => {
+    await initialized([
+      { modelId: 'm2', error: { code: SNAPSHOT_SOURCE_EXPIRED, message: 'denied' } },
+    ])
+    expect(sourceUrls.renew).toHaveBeenCalledOnce()
+    sourceUrls.get.mockClear()
+
+    const result = proxy.getUniqueDatasetsIds()
+    const call = await nextMessage(1)
+    worker.respond({ type: 'result', requestId: call.requestId, data: ['d1'] })
+
+    await expect(result).resolves.toEqual(['d1'])
+    expect(sourceUrls.get.mock.calls).toEqual([['m1']])
+    expect(call.context.renewableSources).toEqual(['m1'])
+  })
+
+  it('stops sending the URL of an experiment that the worker loaded in full', async () => {
+    await initialized()
+    sourceUrls.get.mockImplementation(async (id) => `https://bucket/${id}?sig=2`)
+
+    const first = proxy.getUniqueDatasetsIds()
+    const updates = [await nextMessage(1), await nextMessage(2)]
+    expect(updates.map((message) => message.payload.args[0])).toEqual(['m1', 'm2'])
+    worker.respond({ type: 'result', requestId: updates[0].requestId, data: true })
+    worker.respond({ type: 'result', requestId: updates[1].requestId, data: false })
+    worker.respond({ type: 'result', requestId: (await nextMessage(3)).requestId, data: [] })
+    await first
+
+    sourceUrls.get.mockImplementation(async (id) => `https://bucket/${id}?sig=3`)
+    const second = proxy.getUniqueDatasetsIds()
+    const update = await nextMessage(4)
+    expect(update.payload.args[0]).toBe('m1')
+    worker.respond({ type: 'result', requestId: update.requestId, data: true })
+    const call = await nextMessage(5)
+    expect(call.payload.method).toBe('getUniqueDatasetsIds')
+    worker.respond({ type: 'result', requestId: call.requestId, data: [] })
+    await second
   })
 })

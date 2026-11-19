@@ -38,6 +38,8 @@ function catalogOf(lengths: (key: string) => number, keys = KEYS): ExperimentMet
       count: lengths(key),
       min: 1,
       max: 1,
+      // Steps are only appended here, so the step count doubles as the write counter.
+      writes: lengths(key),
     })),
   }
 }
@@ -143,7 +145,7 @@ class FakeSource implements MetricBucketSource {
         const catalog = catalogOf((key) => this.length(modelId, key), this.metricKeys)
         catalog.metrics = catalog.metrics.map((entry) => ({
           ...entry,
-          ...(this.legacy ? { count: null, min: null, max: null } : {}),
+          ...(this.legacy ? { count: null, min: null, max: null, writes: null } : {}),
           ...this.catalogPatches.get(`${modelId}/${entry.key}`),
         }))
         if (this.legacy) {
@@ -196,6 +198,92 @@ class FakeSource implements MetricBucketSource {
         }),
       },
     }
+  }
+}
+
+/** A live store of one metric as a step -> value map with a write counter, bucketed on read. */
+class PointsSource implements MetricBucketSource {
+  points = new Map<number, number>()
+  writes = 0
+  /** Off: the catalog reports `writes: null`, as a revision 2 store. */
+  tracksWrites = true
+  bucketCalls = 0
+
+  write(step: number, value: number): void {
+    this.points.set(step, value)
+    this.writes++
+  }
+
+  async getExperimentStatuses(): Promise<ExperimentSnapshotStatus[]> {
+    return [
+      {
+        modelId: 'a',
+        revision: 3,
+        transport: 'api',
+        transportFallback: null,
+        unknownNewerRevision: false,
+        skippedMetricRows: 0,
+        error: null,
+      },
+    ]
+  }
+
+  async getMetricCatalogs(): Promise<ExperimentResult<ExperimentMetricCatalog>[]> {
+    const steps = [...this.points.keys()]
+    const values = [...this.points.values()]
+    const entry: MetricCatalogEntry = {
+      key: 'loss',
+      first_step: Math.min(...steps),
+      last_step: Math.max(...steps),
+      count: steps.length,
+      min: Math.min(...values),
+      max: Math.max(...values),
+      writes: this.tracksWrites ? this.writes : null,
+    }
+    const value = { revision: 3, bucket_min_level: 0, bucket_max_level: 12, skipped_rows: 0 }
+    return [{ modelId: 'a', ok: true, value: { ...value, metrics: [entry] } }]
+  }
+
+  async getMetricBuckets(
+    request: MetricBucketsRequest,
+  ): Promise<ExperimentResult<MetricBucketsResponse>[]> {
+    this.bucketCalls++
+    const width = 4 ** request.level
+    const byBucket = new Map<number, MetricBucket>()
+    for (const [step, value] of [...this.points].sort((x, y) => x[0] - y[0])) {
+      if (request.start_step != null && step < request.start_step) continue
+      if (request.end_step != null && step > request.end_step) continue
+      const index = Math.floor(step / width)
+      const bucket = byBucket.get(index)
+      if (!bucket) {
+        byBucket.set(index, {
+          bucket: index,
+          first_step: step,
+          last_step: step,
+          count: 1,
+          finite_count: 1,
+          min: value,
+          max: value,
+          sum: value,
+        })
+      } else {
+        bucket.last_step = step
+        bucket.count++
+        bucket.finite_count++
+        bucket.min = Math.min(bucket.min ?? value, value)
+        bucket.max = Math.max(bucket.max ?? value, value)
+        bucket.sum = (bucket.sum ?? 0) + value
+      }
+    }
+    const steps = [...this.points.keys()]
+    const series = {
+      key: 'loss',
+      first_step: Math.min(...steps),
+      last_step: Math.max(...steps),
+      buckets: [...byBucket.values()],
+      skipped_rows: 0,
+    }
+    return [{ modelId: 'a', ok: true, value: { level: request.level, series: [series] } }]
   }
 }
 
@@ -501,7 +589,7 @@ describe('MetricBucketStore', () => {
       }))
     }
 
-    it('drops only the tail of a grown metric and keeps unchanged metrics cached', async () => {
+    it('drops all of a grown metric and keeps unchanged metrics cached', async () => {
       const { source, store, chart, cache } = setup()
       chart.request({ ...REQUEST, keys: KEYS, startStep: 0, endStep: 99_999 })
       await vi.advanceTimersByTimeAsync(DEBOUNCE)
@@ -511,12 +599,12 @@ describe('MetricBucketStore', () => {
       await store.refreshCatalogs(['a'])
 
       expect(source.catalogCalls.at(-1)).toEqual({ modelIds: ['a'], refresh: true })
-      expect(cache.missing('a', 'loss', 5, 0, 97)).toEqual([[97, 97]])
+      expect(cache.missing('a', 'loss', 5, 0, 97)).toEqual([[0, 97]])
       expect(cache.covers('a', 'acc', 5, 0, 97)).toBe(true)
       await vi.advanceTimersByTimeAsync(DEBOUNCE)
       expect(source.calls.map((call) => call.request)).toEqual([
         expect.objectContaining({ keys: KEYS }),
-        expect.objectContaining({ keys: ['loss'], start_step: 97 * WIDTH }),
+        expect.objectContaining({ keys: ['loss'], start_step: 0 }),
       ])
     })
 
@@ -611,6 +699,7 @@ describe('MetricBucketStore', () => {
       { change: 'first_step', patch: { first_step: -5 } },
       { change: 'min', patch: { min: -1 } },
       { change: 'max', patch: { max: 2 } },
+      { change: 'writes', patch: { writes: STEPS + 1 } },
     ])('drops the whole metric when its $change changed without growing', async ({ patch }) => {
       const { source, store, cache, chart } = await shownChart()
       source.catalogPatches.set('a/loss', patch)
@@ -711,32 +800,23 @@ describe('MetricBucketStore', () => {
       return context
     }
 
-    it('drops only the tail when the last step grew', async () => {
-      const { source, store, cache } = await shownLegacyChart()
-      source.grow('a', 'loss', 3000)
-      await store.refreshCatalogs(['a'])
-
-      expect(cache.missing('a', 'loss', 5, 0, 97)).toEqual([[97, 97]])
-      expect(cache.covers('a', 'acc', 5, 0, 97)).toBe(true)
-    })
-
-    it('drops the whole metric when the first step changed', async () => {
-      const { source, store, cache } = await shownLegacyChart()
-      source.catalogPatches.set('a/loss', { first_step: -5 })
+    it('re-reads every shown metric, as nothing proves an unchanged step range unwritten', async () => {
+      const { source, store, cache, chart } = await shownLegacyChart()
       await store.refreshCatalogs(['a'])
 
       expect(cache.missing('a', 'loss', 5, 0, 97)).toEqual([[0, 97]])
-      expect(cache.covers('a', 'acc', 5, 0, 97)).toBe(true)
-    })
-
-    it('drops and fetches nothing when the steps did not change', async () => {
-      const { source, store, cache } = await shownLegacyChart()
-      await store.refreshCatalogs(['a'])
+      expect(cache.missing('a', 'acc', 5, 0, 97)).toEqual([[0, 97]])
+      expect(summary(chart.state).series).toEqual([
+        ['a', 5, false, 98],
+        ['a', 5, false, 98],
+      ])
       await vi.advanceTimersByTimeAsync(DEBOUNCE)
-
-      expect(cache.covers('a', 'loss', 5, 0, 97)).toBe(true)
-      expect(cache.covers('a', 'acc', 5, 0, 97)).toBe(true)
-      expect(source.calls).toHaveLength(1)
+      expect(source.calls).toHaveLength(2)
+      expect(source.calls.at(-1)?.request).toMatchObject({ keys: KEYS, start_step: 0 })
+      expect(summary(chart.state).series).toEqual([
+        ['a', 5, true, 98],
+        ['a', 5, true, 98],
+      ])
     })
   })
 
@@ -842,6 +922,87 @@ describe('MetricBucketStore', () => {
         ['a', undefined],
         ['b', true],
       ])
+    })
+  })
+
+  it('reads the statuses again when the provider reports a member left out or back', async () => {
+    const source = new FakeSource(['a', 'b'])
+    const signals = new Set<() => void>()
+    const provider = Object.assign(source, {
+      onStatusesChanged: (listener: () => void) => {
+        signals.add(listener)
+        return () => signals.delete(listener)
+      },
+    })
+    const store = new MetricBucketStore(provider, { debounceMs: DEBOUNCE })
+    const changed = vi.fn()
+    store.onStatusesChanged(changed)
+    const errors = async () =>
+      (await store.loadCatalogs()).statuses.map((status) => status.error?.code ?? null)
+    expect(await errors()).toEqual([null, null])
+    const left = { code: 'snapshot-source-expired' as const, message: 'failed' }
+    const read = source.getExperimentStatuses.bind(source)
+    source.getExperimentStatuses = async () =>
+      (await read()).map((status) => (status.modelId === 'b' ? { ...status, error: left } : status))
+
+    signals.forEach((signal) => signal())
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(await errors()).toEqual([null, 'snapshot-source-expired'])
+    expect(changed).toHaveBeenCalledOnce()
+    store.dispose()
+    expect(signals.size).toBe(0)
+  })
+
+  it('keeps the statuses of a refresh that ended while an older re-read was in flight', async () => {
+    const source = new FakeSource(['a', 'b'])
+    const signals = new Set<() => void>()
+    const provider = Object.assign(source, {
+      onStatusesChanged: (listener: () => void) => {
+        signals.add(listener)
+        return () => signals.delete(listener)
+      },
+    })
+    const store = new MetricBucketStore(provider, { debounceMs: DEBOUNCE })
+    const errors = async () =>
+      (await store.loadCatalogs()).statuses.map((status) => status.error?.code ?? null)
+    expect(await errors()).toEqual([null, null])
+    const left = { code: 'snapshot-source-expired' as const, message: 'failed' }
+    const read = source.getExperimentStatuses.bind(source)
+    let answerOldRead = () => {}
+    source.getExperimentStatuses = async () => {
+      const older = (await read()).map((status) =>
+        status.modelId === 'b' ? { ...status, error: left } : status,
+      )
+      await new Promise<void>((resolve) => (answerOldRead = resolve))
+      return older
+    }
+    signals.forEach((signal) => signal())
+    await vi.advanceTimersByTimeAsync(0)
+    source.getExperimentStatuses = read
+
+    await store.refreshCatalogs(['a', 'b'])
+    answerOldRead()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(await errors()).toEqual([null, null])
+    store.dispose()
+  })
+
+  it('tells the provider how long it waits for each call', async () => {
+    const source = new FakeSource(['a'])
+    const calls = vi.spyOn(source, 'getExperimentStatuses')
+    const buckets = vi.spyOn(source, 'getMetricBuckets')
+    const store = new MetricBucketStore(source, { debounceMs: DEBOUNCE, requestTimeoutMs: 12_000 })
+    const chart = store.subscribe(() => undefined)
+
+    await store.loadCatalogs()
+    chart.request(REQUEST)
+    await vi.advanceTimersByTimeAsync(DEBOUNCE)
+
+    expect(calls).toHaveBeenCalledWith(expect.any(AbortSignal), { timeoutMs: 12_000 })
+    expect(buckets).toHaveBeenCalledWith(expect.anything(), expect.any(AbortSignal), {
+      timeoutMs: 12_000,
     })
   })
 
@@ -1163,6 +1324,97 @@ describe('MetricBucketStore', () => {
 
       expect(source.calls.length).toBeGreaterThan(0)
       expect(quiet.state.loading).toBe(false)
+    })
+  })
+
+  describe('refresh after a step was overwritten', () => {
+    async function shownPoints() {
+      const source = new PointsSource()
+      for (const step of [0, 5, 10]) source.write(step, step)
+      const store = new MetricBucketStore(source, { debounceMs: DEBOUNCE })
+      const chart = store.subscribe(() => {})
+      chart.request({
+        modelIds: ['a'],
+        keys: ['loss'],
+        bucketBudget: 1000,
+        startStep: 0,
+        endStep: 20,
+      })
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+      const sums = () => chart.state.series.flatMap((series) => series.buckets.map((b) => b.sum))
+      expect(sums()).toEqual([0, 5, 10])
+      return { source, store, chart, sums }
+    }
+
+    it.each([
+      { change: 'an interior step', writes: [[5, 7]], shown: [0, 7, 10] },
+      {
+        change: 'a step and appended one',
+        writes: [
+          [5, 7],
+          [15, 15],
+        ],
+        shown: [0, 7, 10, 15],
+      },
+      {
+        change: 'a step to a new minimum and appended one',
+        writes: [
+          [5, -3],
+          [15, 15],
+        ],
+        shown: [0, -3, 10, 15],
+      },
+    ])('shows the new values after overwriting $change', async ({ writes, shown }) => {
+      const { source, store, chart, sums } = await shownPoints()
+      for (const [step, value] of writes) source.write(step!, value!)
+      await store.refreshCatalogs(['a'])
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+
+      expect(sums()).toEqual(shown)
+      expect(chart.state.series.every((series) => series.final)).toBe(true)
+    })
+
+    it('re-reads a metric whose store does not count writes, even with the same summary', async () => {
+      const { source, store, sums } = await shownPoints()
+      source.tracksWrites = false
+      await store.refreshCatalogs(['a'])
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+      source.write(5, 7)
+      await store.refreshCatalogs(['a'])
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+
+      expect(sums()).toEqual([0, 7, 10])
+      expect(source.bucketCalls).toBe(3)
+    })
+
+    it('fetches nothing when the write counter and the summary are unchanged', async () => {
+      const { source, store, sums } = await shownPoints()
+      await store.refreshCatalogs(['a'])
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+
+      expect(sums()).toEqual([0, 5, 10])
+      expect(source.bucketCalls).toBe(1)
+    })
+
+    it('re-reads only the views of the one metric written among many', async () => {
+      const source = new FakeSource(['a'])
+      const keys = Array.from({ length: 8 }, (_, index) => `m${index}`)
+      source.metricKeys = keys
+      const store = new MetricBucketStore(source, { debounceMs: DEBOUNCE })
+      const charts = keys.map((key) => {
+        const chart = store.subscribe(() => {})
+        chart.request({ ...REQUEST, keys: [key], startStep: 0, endStep: STEPS - 1 })
+        return chart
+      })
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+      expect(source.calls).toHaveLength(1)
+
+      source.catalogPatches.set('a/m3', { writes: STEPS + 1 })
+      await store.refreshCatalogs(['a'])
+      await vi.advanceTimersByTimeAsync(DEBOUNCE)
+
+      expect(source.calls.slice(1).map((call) => call.request.keys)).toEqual([['m3']])
+      expect(charts.every((chart) => chart.state.series.every((series) => series.final))).toBe(true)
     })
   })
 

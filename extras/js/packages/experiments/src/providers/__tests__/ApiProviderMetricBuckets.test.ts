@@ -13,7 +13,15 @@ const catalogWire: MetricCatalogWire = {
   bucket_max_level: 12,
   skipped_rows: 4,
   metrics: [
-    { key: 'loss', first_step: 0, last_step: 99, count: 100, min: '-Infinity', max: 'Infinity' },
+    {
+      key: 'loss',
+      first_step: 0,
+      last_step: 99,
+      count: 100,
+      min: '-Infinity',
+      max: 'Infinity',
+      writes: 120,
+    },
     { key: 'acc', first_step: -5, last_step: 5, count: 11, min: null, max: 0.5 },
   ],
 }
@@ -47,7 +55,7 @@ async function provider(service: Partial<ApiServiceInterface>, ids = ['e1', 'e2'
 }
 
 describe('ExperimentSnapshotApiProvider metric catalog and buckets', () => {
-  it('makes one catalog request per experiment and decodes infinities', async () => {
+  it('makes one catalog request per experiment and decodes infinities and write counters', async () => {
     const getExperimentMetricCatalog = vi
       .fn()
       .mockResolvedValueOnce(catalogWire)
@@ -62,8 +70,25 @@ describe('ExperimentSnapshotApiProvider metric catalog and buckets', () => {
       value: {
         ...catalogWire,
         metrics: [
-          { key: 'loss', first_step: 0, last_step: 99, count: 100, min: -Infinity, max: Infinity },
-          { key: 'acc', first_step: -5, last_step: 5, count: 11, min: null, max: 0.5 },
+          {
+            key: 'loss',
+            first_step: 0,
+            last_step: 99,
+            count: 100,
+            min: -Infinity,
+            max: Infinity,
+            writes: 120,
+          },
+          // A server that predates the write counter leaves it out.
+          {
+            key: 'acc',
+            first_step: -5,
+            last_step: 5,
+            count: 11,
+            min: null,
+            max: 0.5,
+            writes: null,
+          },
         ],
       },
     })

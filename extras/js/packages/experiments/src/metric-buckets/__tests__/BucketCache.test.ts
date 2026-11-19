@@ -33,27 +33,6 @@ describe('BucketCache', () => {
     expect(cache.read('a', 'loss', 3, 5, 15).map((item) => item.bucket)).toEqual([5, 6, 7, 8, 9])
   })
 
-  it('drops a metric from the bucket holding a step on, at every level', () => {
-    const cache = new BucketCache()
-    cache.write('a', 'loss', 0, 0, 99, range(0, 99))
-    cache.write('a', 'loss', 1, 0, 24, range(0, 24))
-    cache.write('a', 'acc', 0, 0, 99, range(0, 99))
-    cache.write('b', 'loss', 0, 0, 99, range(0, 99))
-    cache.dropFrom('a', 'loss', 41)
-
-    expect(cache.missing('a', 'loss', 0, 0, 99)).toEqual([[41, 99]])
-    expect(cache.missing('a', 'loss', 1, 0, 24)).toEqual([[10, 24]])
-    expect(
-      cache
-        .read('a', 'loss', 1, 0, 24)
-        .map((item) => item.bucket)
-        .at(-1),
-    ).toBe(9)
-    expect(cache.covers('a', 'acc', 0, 0, 99)).toBe(true)
-    expect(cache.covers('b', 'loss', 0, 0, 99)).toBe(true)
-    expect(cache.bucketCount).toBe(41 + 10 + 100 + 100)
-  })
-
   it('evicts the least recently used series-level beyond its bound', () => {
     const cache = new BucketCache({ maxBuckets: 25 })
     cache.write('a', 'loss', 3, 0, 9, range(0, 9))

@@ -53,6 +53,7 @@ const GENERATION_TWO = [
   'j_gen2_model_sdk_0_6_0',
   'k_gen2_from_rev2',
   'm_gen2_twin',
+  'p_gen2_rev4_sdk_0_6_0',
 ]
 const NEW_FIXTURES = [...GENERATION_TWO, 'l_gen1_twin', 'n_gen1_fallback']
 const OLD_ERAS = [
@@ -116,9 +117,14 @@ function recordedCounts(name: string): Record<string, number> {
   return counts
 }
 
+// A published snapshot reports no `writes` counter: it never changes after export.
 function expectedCatalogEntries(json: FixtureJson): MetricCatalogEntry[] {
   return json.metrics.catalog
-    .map((entry) => ({ ...entry, min: decode(entry.min), max: decode(entry.max) }))
+    .map(({ writes: _writes, ...entry }) => ({
+      ...entry,
+      min: decode(entry.min),
+      max: decode(entry.max),
+    }))
     .sort((left, right) => (left.key < right.key ? -1 : 1))
 }
 
@@ -418,7 +424,13 @@ describe('generation 1 and generation 2 twins l_gen1_twin and m_gen2_twin', () =
 })
 
 describe('a mixed set: every old era plus generation 2 standalone, embedded and twin', () => {
-  const names = [...OLD_ERAS, 'i_gen2_sdk_0_6_0', 'j_gen2_model_sdk_0_6_0', 'm_gen2_twin']
+  const names = [
+    ...OLD_ERAS,
+    'i_gen2_sdk_0_6_0',
+    'j_gen2_model_sdk_0_6_0',
+    'm_gen2_twin',
+    'p_gen2_rev4_sdk_0_6_0',
+  ]
   const expectedStatus: Record<string, { revision: number; transport: string }> = {
     a_premigration_legacy_indexes: { revision: 0, transport: 'zip-full' },
     a_premigration_wal_lost: { revision: 0, transport: 'zip-full' },
@@ -432,6 +444,7 @@ describe('a mixed set: every old era plus generation 2 standalone, embedded and 
     i_gen2_sdk_0_6_0: { revision: 3, transport: 'raw-range' },
     j_gen2_model_sdk_0_6_0: { revision: 3, transport: 'raw-range' },
     m_gen2_twin: { revision: 3, transport: 'raw-range' },
+    p_gen2_rev4_sdk_0_6_0: { revision: 4, transport: 'raw-range' },
   }
 
   it('answers the catalog, one bucket request and the statuses for every experiment', async () => {

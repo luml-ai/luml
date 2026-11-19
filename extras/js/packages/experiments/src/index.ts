@@ -18,6 +18,7 @@ import type {
 } from './providers/ExperimentSnapshotWorkerProxy'
 import type {
   ExperimentSnapshotModelSource,
+  SnapshotCallContext,
   SnapshotOpenFailure,
   SnapshotTransportStats,
 } from './providers/ExperimentSnapshotDatabaseProvider'
@@ -75,6 +76,7 @@ import type {
   MetricBucketsResponse,
   MetricCatalogEntry,
   MetricCatalogsRequest,
+  ReadCallOptions,
 } from './metric-buckets/types'
 import {
   INVALID_LEVEL,
@@ -159,6 +161,7 @@ export type {
   SnapshotSourceRef,
   SnapshotTransportFallback,
   SnapshotTransportStats,
+  SnapshotCallContext,
   SnapshotOpenFailure,
   StepInterval,
   SubscribeOptions,
@@ -176,6 +179,7 @@ export type {
   MetricBucketsResponse,
   MetricCatalogEntry,
   MetricCatalogsRequest,
+  ReadCallOptions,
   Interval,
   BucketCacheOptions,
   BucketReadPlan,

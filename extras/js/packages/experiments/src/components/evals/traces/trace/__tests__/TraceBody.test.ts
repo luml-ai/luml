@@ -150,4 +150,24 @@ describe('TraceBody span payload', () => {
     expect(getSpanPayload).toHaveBeenCalledTimes(3)
     expect(wrapper.text()).toContain('value of s1')
   })
+
+  it('keeps an open span shown while a refresh reads its replaced payload', async () => {
+    const wrapper = mountBody(structureSpan('s1'))
+    resolve('s1')
+    await flushPromises()
+
+    useEvalsStore().clearSpanPayloads()
+    await flushPromises()
+    expect(getSpanPayload).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('value of s1')
+    expect(wrapper.text()).not.toContain('Loading span data.')
+
+    pending
+      .get('s1')
+      ?.shift()
+      ?.resolve({ ...payloadFor('s1'), attributes: '{"loaded":"new"}' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('new')
+    expect(wrapper.text()).not.toContain('value of s1')
+  })
 })

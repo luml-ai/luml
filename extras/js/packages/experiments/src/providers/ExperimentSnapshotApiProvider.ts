@@ -66,6 +66,7 @@ function decodeCatalog(wire: MetricCatalogWire): ExperimentMetricCatalog {
       ...metric,
       min: decodeWireNumber(metric.min),
       max: decodeWireNumber(metric.max),
+      writes: metric.writes ?? null,
     })),
   }
 }

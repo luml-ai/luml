@@ -9,6 +9,8 @@ const database = vi.hoisted(() => ({
   init: vi.fn(),
   reopenSnapshot: vi.fn(),
   getUniqueDatasetsIds: vi.fn(),
+  runCall: vi.fn(),
+  failuresVersion: 0,
 }))
 
 vi.mock('@luml/experiments', async (importOriginal) => ({
@@ -17,6 +19,10 @@ vi.mock('@luml/experiments', async (importOriginal) => ({
     init = database.init
     reopenSnapshot = database.reopenSnapshot
     getUniqueDatasetsIds = database.getUniqueDatasetsIds
+    runCall = database.runCall
+    get readFailuresVersion() {
+      return database.failuresVersion
+    }
   },
 }))
 
@@ -44,6 +50,10 @@ describe('experiment snapshot worker protocol', () => {
     }
     database.init.mockReset()
     database.init.mockResolvedValue([])
+    database.getUniqueDatasetsIds.mockReset()
+    database.runCall.mockReset()
+    database.failuresVersion = 0
+    database.runCall.mockImplementation((_context: unknown, run: () => unknown) => run())
     vi.stubGlobal('self', scope)
     vi.resetModules()
     await import('../index')
@@ -138,6 +148,108 @@ describe('experiment snapshot worker protocol', () => {
     expect(posted.slice(1)).toEqual([
       { type: 'result', requestId: 'first', data: ['dataset'] },
       { type: 'result', requestId: 'second', data: ['dataset'] },
+    ])
+  })
+
+  it('does not run a call whose caller gave up while it waited in the queue', async () => {
+    await send({ type: 'init', requestId: 'init', payload: [] })
+    database.getUniqueDatasetsIds.mockResolvedValue(['dataset'])
+    const now = Date.now()
+
+    // Both queued behind a read that blocked the thread; the first one's caller gave up.
+    await send({
+      type: 'call',
+      requestId: 'stale',
+      deadline: now - 1,
+      payload: { method: 'getUniqueDatasetsIds' },
+    })
+    await send({
+      type: 'call',
+      requestId: 'fresh',
+      deadline: now + 60_000,
+      payload: { method: 'getUniqueDatasetsIds' },
+    })
+
+    expect(database.getUniqueDatasetsIds).toHaveBeenCalledOnce()
+    expect(posted.slice(1)).toEqual([
+      {
+        type: 'error',
+        requestId: 'stale',
+        error: 'Experiment snapshot worker request timed out',
+      },
+      { type: 'result', requestId: 'fresh', data: ['dataset'] },
+    ])
+  })
+
+  it('hands the provider the deadline and the sources of each call', async () => {
+    await send({ type: 'init', requestId: 'init', payload: [] })
+    database.getUniqueDatasetsIds.mockResolvedValue([])
+    const deadline = Date.now() + 60_000
+    const context = { renewableSources: ['m1'], failedSources: [] }
+
+    await send({
+      type: 'call',
+      requestId: 'call',
+      deadline,
+      context,
+      payload: { method: 'getUniqueDatasetsIds' },
+    })
+
+    expect(database.runCall).toHaveBeenCalledWith({ ...context, deadline }, expect.any(Function))
+  })
+
+  it('marks the answer or error of a call that changed the failed experiments', async () => {
+    await send({ type: 'init', requestId: 'init', payload: [] })
+    database.getUniqueDatasetsIds.mockImplementationOnce(async () => {
+      database.failuresVersion++
+      return ['dataset']
+    })
+    database.getUniqueDatasetsIds.mockImplementationOnce(async () => ['dataset'])
+    database.getUniqueDatasetsIds.mockImplementationOnce(async () => {
+      database.failuresVersion++
+      throw new Error('query failed')
+    })
+
+    for (const requestId of ['changed', 'same', 'failed']) {
+      await send({ type: 'call', requestId, payload: { method: 'getUniqueDatasetsIds' } })
+    }
+
+    expect(posted.slice(1)).toEqual([
+      { type: 'result', requestId: 'changed', data: ['dataset'], statusesChanged: true },
+      { type: 'result', requestId: 'same', data: ['dataset'] },
+      { type: 'error', requestId: 'failed', error: 'query failed', statusesChanged: true },
+    ])
+  })
+
+  it('marks the next answer when the call that changed the failed experiments was cancelled', async () => {
+    await send({ type: 'init', requestId: 'init', payload: [] })
+    let finish = () => {}
+    database.getUniqueDatasetsIds.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => {
+            database.failuresVersion++
+            resolve(['dataset'])
+          }
+        }),
+    )
+    database.getUniqueDatasetsIds.mockImplementation(async () => ['dataset'])
+
+    const cancelled = send({
+      type: 'call',
+      requestId: 'cancelled',
+      payload: { method: 'getUniqueDatasetsIds' },
+    })
+    await send({ type: 'cancel', requestId: 'cancelled' })
+    finish()
+    await cancelled
+    for (const requestId of ['next', 'after']) {
+      await send({ type: 'call', requestId, payload: { method: 'getUniqueDatasetsIds' } })
+    }
+
+    expect(posted.slice(1)).toEqual([
+      { type: 'result', requestId: 'next', data: ['dataset'], statusesChanged: true },
+      { type: 'result', requestId: 'after', data: ['dataset'] },
     ])
   })
 

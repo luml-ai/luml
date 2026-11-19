@@ -95,6 +95,7 @@ const GENERATION_TWO_FIXTURE_NAMES = [
   'i_gen2_sdk_0_6_0',
   'j_gen2_model_sdk_0_6_0',
   'k_gen2_from_rev2',
+  'p_gen2_rev4_sdk_0_6_0',
 ]
 const ANNOTATED_DATASET = 'qa_set'
 const NON_ASCII_SEARCH = '東京'
@@ -569,7 +570,7 @@ describe('schema traits of published snapshot fixtures', () => {
 
     expect(readSnapshotTraits(snapshot!.database)).toEqual({
       ...revision2,
-      revision: 3,
+      revision: name === 'p_gen2_rev4_sdk_0_6_0' ? 4 : 3,
       unknownNewerRevision: false,
       minReaderRevision: 2,
       needsNewerReader: false,

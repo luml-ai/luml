@@ -82,6 +82,8 @@ interface StoreState {
   rejectAll: boolean
   /** The next `times` artifact requests fail this way, then the store recovers. */
   failing: { failure: StoreFailure; times: number } | null
+  /** Artifacts whose every request is denied, whatever URL it was signed with. */
+  deniedArtifacts: Set<string>
   issued: number
   signs: number
   requests: ArtifactRequest[]
@@ -179,7 +181,7 @@ function serveArtifact(
     response.writeHead(failure, { 'Content-Type': 'text/plain' }).end('storage error')
     return
   }
-  if (state.rejectAll || state.rejectedSigs.has(sig)) {
+  if (state.rejectAll || state.rejectedSigs.has(sig) || state.deniedArtifacts.has(fixture.name)) {
     log(403, 0)
     response.writeHead(403).end('expired')
     return
@@ -366,6 +368,7 @@ test.beforeEach(() => {
     rejectedSigs: new Set(),
     rejectAll: false,
     failing: null,
+    deniedArtifacts: new Set(),
     issued: 0,
     signs: 0,
     requests: [],
@@ -414,8 +417,10 @@ interface HarnessWindow {
   harness: {
     init(sources: unknown[]): Promise<Settled>
     call(method: string, args?: unknown[]): Promise<Settled>
+    callAfter(first: [string, unknown[]], method: string, args?: unknown[]): Promise<Settled>
     stats(): Promise<Settled>
     posted(): string[]
+    statusChanges(): number
     chartErrors(key: string): Promise<string[]>
   }
 }
@@ -545,6 +550,82 @@ test('falls back to one full download when the server ignores Range', async ({ p
     [200, true],
     [200, false],
   ])
+})
+
+test('a paging reset reaches the worker before the next read while a URL ages', async ({
+  page,
+}) => {
+  const name = 'h_raw_model_sdk_0_5_0'
+  await page.goto(`${origin}/?reuseMs=0`)
+  await page.waitForFunction(() => 'harness' in window)
+  expect(await initHarness(page, [name])).toMatchObject({ ok: true })
+  const onePerPage = { ...traceParams, limit: 1 }
+  const firstPage = (await call(page, 'getTraces', [onePerPage])).value
+  expect((await call(page, 'getTraces', [onePerPage])).value).not.toEqual(firstPage)
+  const signsBefore = state.signs
+
+  const afterReset = await page.evaluate(
+    (params) =>
+      (window as never as HarnessWindow).harness.callAfter(
+        ['resetTracesRequestParams', []],
+        'getTraces',
+        [params],
+      ),
+    onePerPage,
+  )
+
+  expect(state.signs).toBeGreaterThan(signsBefore)
+  expect(afterReset).toMatchObject({ ok: true, value: firstPage })
+})
+
+test('an experiment loaded in full reads on without requests while its URL ages', async ({
+  page,
+}) => {
+  state.ignoreRange = true
+  const name = 'g_raw_sdk_0_5_0'
+  await page.goto(`${origin}/?reuseMs=0`)
+  await page.waitForFunction(() => 'harness' in window)
+  expect(await initHarness(page, [name])).toMatchObject({ ok: true })
+  const opened = state.requests.length
+
+  const reads = [
+    await call(page, 'getDynamicMetricsNames'),
+    await call(page, 'getAllTraces', [traceParams]),
+    await call(page, 'getMetricCatalogs'),
+  ]
+
+  expect(reads.map((read) => read.ok)).toEqual([true, true, true])
+  expect(state.requests.length).toBe(opened)
+})
+
+test('a comparison member denied after open is reported, the others load, exports reject', async ({
+  page,
+}) => {
+  const [healthy, denied] = RAW_FIXTURES as [string, string]
+  expect(await openHarness(page, RAW_FIXTURES)).toMatchObject({ ok: true })
+  state.deniedArtifacts.add(denied)
+
+  const onScreen = await call(page, 'getTraces', [{ ...traceParams, limit: 1000 }])
+  const changes = await page.evaluate(() =>
+    (window as never as HarnessWindow).harness.statusChanges(),
+  )
+  const statuses = (await call(page, 'getExperimentStatuses')).value as {
+    modelId: string
+    error: { code: string } | null
+  }[]
+  const exported = await call(page, 'getAllTraces', [traceParams])
+
+  expect(onScreen.ok).toBe(true)
+  expect(onScreen.value).toHaveLength(fixtures.get(healthy)!.expected.traces.length)
+  expect(changes).toBe(1)
+  expect(statuses.map((status) => [status.modelId, status.error?.code ?? null])).toEqual([
+    [healthy, null],
+    [denied, 'snapshot-source-expired'],
+  ])
+  expect(exported).toMatchObject({
+    ok: false,
+    error: { code: 'snapshot-source-expired', modelId: denied },
+  })
 })
 
 test('renews an expired URL once and retries the failed call', async ({ page }) => {

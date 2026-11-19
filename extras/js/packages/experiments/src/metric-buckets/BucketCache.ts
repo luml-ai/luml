@@ -1,5 +1,4 @@
 import { IntervalSet, type Interval } from './IntervalSet'
-import { bucketOf } from './levels'
 import type { MetricBucket } from './types'
 
 /** What the planner may ask of a cache; reading it never changes the cache. */
@@ -156,23 +155,6 @@ export class BucketCache implements BucketCacheView {
       if (entry.modelId !== modelId || entry.key !== key) continue
       this.series.delete(id)
       this.cachedBuckets -= entry.buckets.size
-    }
-  }
-
-  /**
-   * Forgets, at every level, the buckets of a metric from the one holding `step` on: a live
-   * experiment grew there, so those buckets may have been partial.
-   */
-  dropFrom(modelId: string, key: string, step: number): void {
-    for (const entry of this.series.values()) {
-      if (entry.modelId !== modelId || entry.key !== key) continue
-      const first = bucketOf(step, entry.level)
-      entry.fetched.removeFrom(first)
-      for (const index of entry.buckets.keys()) {
-        if (index < first) continue
-        entry.buckets.delete(index)
-        this.cachedBuckets--
-      }
     }
   }
 

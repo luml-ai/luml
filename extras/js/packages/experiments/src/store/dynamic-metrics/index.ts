@@ -52,7 +52,10 @@ export const useDynamicMetricsStore = defineStore('dynamicMetrics', () => {
 
   const modelIds = computed(() => (catalogs.value ? [...catalogs.value.catalogs.keys()] : []))
 
-  /** Bucket answers can add a notice to the statuses loaded with the catalogs. */
+  /**
+   * Bucket answers, and reads that leave out an experiment of a comparison or read it again,
+   * can change the statuses loaded with the catalogs.
+   */
   function watchStatuses(store: MetricBucketStore | null) {
     stopWatchingStatuses?.()
     stopWatchingStatuses =

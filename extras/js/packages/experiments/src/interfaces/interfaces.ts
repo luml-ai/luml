@@ -13,6 +13,7 @@ import type {
   MetricBucketsRequest,
   MetricBucketsResponse,
   MetricCatalogsRequest,
+  ReadCallOptions,
 } from '../metric-buckets/types'
 
 export interface ExperimentSnapshotProvider {
@@ -26,17 +27,29 @@ export interface ExperimentSnapshotProvider {
   ) => Promise<ExperimentSnapshotDynamicMetric[]>
 
   /** Revision, transport and read status of every loaded experiment. */
-  getExperimentStatuses: (signal?: AbortSignal) => Promise<ExperimentSnapshotStatus[]>
+  getExperimentStatuses: (
+    signal?: AbortSignal,
+    options?: ReadCallOptions,
+  ) => Promise<ExperimentSnapshotStatus[]>
+
+  /**
+   * Calls `listener` when a read changed the statuses without being asked for them: it left
+   * out an experiment of a comparison whose storage failed, or read it again. Returns the
+   * unsubscribe. Optional: a provider whose statuses change only with its catalogs has none.
+   */
+  onStatusesChanged?: (listener: () => void) => () => void
 
   /** Metadata only: per experiment the revision, stored bucket levels and per-metric summary. */
   getMetricCatalogs: (
     request?: MetricCatalogsRequest,
     signal?: AbortSignal,
+    options?: ReadCallOptions,
   ) => Promise<ExperimentResult<ExperimentMetricCatalog>[]>
 
   getMetricBuckets: (
     request: MetricBucketsRequest,
     signal?: AbortSignal,
+    options?: ReadCallOptions,
   ) => Promise<ExperimentResult<MetricBucketsResponse>[]>
 
   getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>

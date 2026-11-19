@@ -59,9 +59,12 @@ import type {
 } from '../metric-buckets/types'
 import {
   isSnapshotSourceExpired,
+  isSnapshotSourceFailure,
   isTransientSourceFailure,
   redactSecrets,
   SnapshotFormatError,
+  SnapshotSourceTimeoutError,
+  type IsolatableSourceFailure,
 } from './snapshot-source/errors'
 import type { SnapshotDatabase as Database, SqlValue } from './snapshot-source/SnapshotDatabase'
 import { RangeSqliteEngine } from './snapshot-source/RangeSqliteEngine'
@@ -115,6 +118,30 @@ export interface SnapshotOpenFailure {
   /** The source failed in a way the same URL may not fail again (`isTransientSourceFailure`). */
   transient?: true
 }
+
+/** An experiment the caller left out of a call, with the failure that stands for it. */
+export interface SnapshotFailedSource {
+  modelId: string
+  error: ExperimentReadError
+}
+
+/** What the worker proxy tells the provider about one call. */
+export interface SnapshotCallContext {
+  /** When the caller gives up (epoch ms). */
+  deadline?: number
+  /** Experiments whose expired source the caller renews and then retries the call. */
+  renewableSources?: string[]
+  /** Experiments a comparison read leaves out without reading them. */
+  failedSources?: SnapshotFailedSource[]
+}
+
+interface ActiveCall {
+  deadline: number
+  renewable: ReadonlySet<string>
+  failed: ReadonlyMap<string, ExperimentReadError>
+}
+
+const NO_CALL: ActiveCall = { deadline: Infinity, renewable: new Set(), failed: new Map() }
 
 interface OpenedSnapshot {
   modelId: string
@@ -177,12 +204,45 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private modelOrder: string[] = []
   private engine: RangeSqliteEngine | null = null
   private metricCatalogs = new Map<string, ExperimentMetricCatalog>()
+  // Experiments of a comparison whose last read failed at the storage after open.
+  private readFailures = new Map<string, ExperimentReadError>()
+  private _readFailuresVersion = 0
+  private activeCall: ActiveCall = NO_CALL
   private readonly transport: SnapshotTransport
   private readonly rawOptions: RawSnapshotOptions
 
   constructor(options: ExperimentSnapshotProviderOptions = {}) {
     this.transport = options.transport ?? browserTransport
-    this.rawOptions = { ...DEFAULT_RAW_SNAPSHOT_OPTIONS, ...options.raw }
+    this.rawOptions = {
+      ...DEFAULT_RAW_SNAPSHOT_OPTIONS,
+      readDeadline: () => this.activeCall.deadline,
+      ...options.raw,
+    }
+  }
+
+  /**
+   * Runs one call of the worker proxy with what it knows about the call. Calls run one at a
+   * time: their reads are synchronous, so no other message is handled while `run` settles.
+   */
+  async runCall<T>(context: SnapshotCallContext, run: () => T | Promise<T>): Promise<T> {
+    this.activeCall = {
+      deadline: context.deadline ?? Infinity,
+      renewable: new Set(context.renewableSources),
+      failed: new Map((context.failedSources ?? []).map(({ modelId, error }) => [modelId, error])),
+    }
+    try {
+      return await run()
+    } finally {
+      this.activeCall = NO_CALL
+    }
+  }
+
+  /**
+   * Changes when an experiment of a comparison is newly left out after a failed read, or read
+   * again after one: its status changed, so the worker tells the caller to read the statuses.
+   */
+  get readFailuresVersion(): number {
+    return this._readFailuresVersion
   }
 
   private get modelsSnapshots() {
@@ -213,6 +273,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     this.openedSnapshots = []
     this.failedSnapshots = new Map()
     this.metricCatalogs = new Map()
+    this.readFailures = new Map()
     for (const info of data.modelsInfo) {
       if ('error' in info) this.recordFailure({ ...info, source: null })
     }
@@ -313,11 +374,15 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     })
   }
 
-  /** Points a range-backed snapshot at a renewed URL or token. */
-  async setSourceUrl(modelId: string, source: SnapshotSourceRef) {
+  /**
+   * Points a range-backed snapshot at a renewed URL or token. False when the experiment does
+   * not read by Range (it was loaded in full, or did not open), so it needs no URL.
+   */
+  async setSourceUrl(modelId: string, source: SnapshotSourceRef): Promise<boolean> {
     const snapshot = this.openedSnapshots.find((item) => item.modelId === modelId)
-    if (!snapshot?.rangeFile) throw new Error(`Snapshot '${modelId}' is not range-backed`)
+    if (!snapshot?.rangeFile) return false
     snapshot.rangeFile.location = toSourceLocation(source)
+    return true
   }
 
   async getTransportStats(): Promise<SnapshotTransportStats[]> {
@@ -350,6 +415,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       const traits = this.traitsOf(database)
       // A storage that stopped honouring Range fails every later read of this experiment.
       const failure = this.readerRefusal(modelId, traits) ?? rangeFile?.failure ?? null
+      const error = failure
+        ? toExperimentReadError(failure)
+        : (this.readFailures.get(modelId) ?? null)
       return [
         {
           modelId,
@@ -358,7 +426,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
           transportFallback: fallback,
           unknownNewerRevision: traits.unknownNewerRevision,
           skippedMetricRows: this.metricCatalogs.get(modelId)?.skipped_rows ?? null,
-          error: failure ? toExperimentReadError(failure) : null,
+          error,
         },
       ]
     })
@@ -426,43 +494,151 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   /**
-   * Turns a failure into that experiment's error. An expired source URL is rethrown: the
-   * worker proxy renews it and retries the whole call.
+   * Turns a failure into that experiment's error. An expired source URL of a single
+   * experiment, or of one the caller renews, is rethrown: the worker proxy renews it and
+   * retries the whole call.
    */
   private experimentResult<T>(snapshot: ModelSnapshot, read: () => T): ExperimentResult<T> {
     const { modelId, database } = snapshot
+    const leftOut = this.isComparison ? this.activeCall.failed.get(modelId) : undefined
+    if (leftOut) {
+      this.noteReadFailure(modelId, leftOut)
+      return { modelId, ok: false, error: leftOut }
+    }
     try {
       const refusal = this.readerRefusal(modelId, this.traitsOf(database))
       if (refusal) throw refusal
-      return { modelId, ok: true, value: read() }
+      const clearIfStorageAnswered = this.readFailureClearer(modelId)
+      const value = read()
+      clearIfStorageAnswered()
+      return { modelId, ok: true, value }
     } catch (error) {
-      if (isSnapshotSourceExpired(error)) throw error
-      return { modelId, ok: false, error: toExperimentReadError(error) }
+      if (isSnapshotSourceExpired(error) && !this.leavesOut(modelId, error)) throw error
+      const readError = toExperimentReadError(error)
+      if (this.leavesOut(modelId, error)) this.noteReadFailure(modelId, readError)
+      return { modelId, ok: false, error: readError }
     }
   }
 
+  private get isComparison(): boolean {
+    return this.modelOrder.length > 1
+  }
+
+  /**
+   * Whether a read of a comparison leaves out an experiment whose storage failed. An expired
+   * source the caller renews is not left out but marked, so that the caller can renew it and
+   * retry, or retry with the experiment left out. A read stopped by the call's deadline says
+   * nothing about the storage (another experiment may have used up the time), so it is not.
+   */
+  private leavesOut(modelId: string, error: unknown): boolean {
+    if (!this.isComparison || !isSnapshotSourceFailure(error)) return false
+    if (error instanceof SnapshotSourceTimeoutError && error.callDeadline) return false
+    if (isSnapshotSourceExpired(error) && this.activeCall.renewable.has(modelId)) {
+      ;(error as IsolatableSourceFailure).isolatable = true
+      return false
+    }
+    return true
+  }
+
+  /** Reported by the experiment's status, as a failure at open is; the next read tries again. */
+  private noteReadFailure(modelId: string, error: ExperimentReadError): void {
+    if (!this.readFailures.has(modelId)) {
+      console.warn(`Experiment '${modelId}' could not be read: ${redactSecrets(error.message)}`)
+      this._readFailuresVersion++
+    }
+    this.readFailures.set(modelId, error)
+  }
+
+  /**
+   * Call before a read of the experiment and again after it succeeded: clears its read failure
+   * only when a request to its storage succeeded meanwhile. A read served from the chunk cache
+   * alone says nothing about the storage, so the failure stays reported.
+   */
+  private readFailureClearer(modelId: string): () => void {
+    const rangeFile = this.openedSnapshots.find((item) => item.modelId === modelId)?.rangeFile
+    // Loaded in full: no storage to fail after open, so any successful read clears.
+    if (!rangeFile) return () => this.clearReadFailure(modelId)
+    const requestsBefore = rangeFile.cache.stats.requests
+    return () => {
+      if (rangeFile.cache.stats.requests > requestsBefore) this.clearReadFailure(modelId)
+    }
+  }
+
+  private clearReadFailure(modelId: string): void {
+    if (this.readFailures.delete(modelId)) this._readFailuresVersion++
+  }
+
+  /**
+   * Reads each snapshot. In a comparison, an experiment whose storage fails (after the caller
+   * had its chance to renew the source) is left out and reported by its status, so the others
+   * still show. A single experiment's failure, and any failure that is not the storage's,
+   * rejects the read.
+   */
+  private async readMembers<T>(
+    snapshots: ModelSnapshot[],
+    read: (snapshot: ModelSnapshot) => T | Promise<T>,
+  ): Promise<T[]> {
+    const reads = await Promise.all(
+      snapshots.map(async (snapshot): Promise<{ value: T } | null> => {
+        const { modelId } = snapshot
+        const leftOut = this.isComparison ? this.activeCall.failed.get(modelId) : undefined
+        if (leftOut) {
+          this.noteReadFailure(modelId, leftOut)
+          return null
+        }
+        try {
+          const clearIfStorageAnswered = this.readFailureClearer(modelId)
+          const value = await read(snapshot)
+          clearIfStorageAnswered()
+          return { value }
+        } catch (error) {
+          if (!this.leavesOut(modelId, error)) throw error
+          this.noteReadFailure(modelId, toExperimentReadError(error))
+          return null
+        }
+      }),
+    )
+    return reads.flatMap((item) => (item ? [item.value] : []))
+  }
+
+  /**
+   * Reads every snapshot, for a file download: a comparison file that silently misses an
+   * experiment is worse than an error, so any failure rejects the read.
+   */
+  private async readEveryMember<T>(read: (snapshot: ModelSnapshot) => T | Promise<T>) {
+    return Promise.all(
+      this.modelsSnapshots.map(async (snapshot) => {
+        const clearIfStorageAnswered = this.readFailureClearer(snapshot.modelId)
+        const value = await read(snapshot)
+        clearIfStorageAnswered()
+        return value
+      }),
+    )
+  }
+
   async getDynamicMetricsNames() {
-    const names = this.modelsSnapshots.map((snapshot) => this.getModelMetricsNames(snapshot))
+    const names = await this.readMembers(this.modelsSnapshots, (snapshot) =>
+      this.getModelMetricsNames(snapshot),
+    )
     const uniqueNames = new Set<string>(names.flat())
     return [...uniqueNames]
   }
 
   async getDynamicMetricData(metricName: string) {
-    const data = this.modelsSnapshots.map((snapshot) =>
+    return this.readMembers(this.modelsSnapshots, (snapshot) =>
       this.getModelDynamicMetricData(snapshot.database, metricName, snapshot.modelId),
     )
-    return data
   }
 
   async getStaticParamsList() {
-    const list = this.modelsSnapshots
-      .map((snapshot) => this.getStaticParams(snapshot.database, snapshot.modelId))
-      .flat()
-    return list
+    const list = await this.readMembers(this.modelsSnapshots, (snapshot) =>
+      this.getStaticParams(snapshot.database, snapshot.modelId),
+    )
+    return list.flat()
   }
 
   async getUniqueDatasetsIds(): Promise<string[]> {
-    const ids = this.modelsSnapshots.map((snapshot) =>
+    const ids = await this.readMembers(this.modelsSnapshots, (snapshot) =>
       this.getUniqueDatasetsIdsByDatabase(snapshot.database),
     )
     const uniqueIds = new Set<string>(ids.flat())
@@ -553,14 +729,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>): Promise<EvalsInfo[]> {
-    const promises = this.modelsSnapshots.map(async (snapshot) => {
-      const results = await this.getDatabaseEvalsByDatasetId(snapshot.database, {
-        ...params,
-        modelId: snapshot.modelId,
-      })
-      return results
-    })
-    return this.getFlatPromisesResponse(promises)
+    const evals = await this.readEveryMember((snapshot) =>
+      this.getDatabaseEvalsByDatasetId(snapshot.database, { ...params, modelId: snapshot.modelId }),
+    )
+    return evals.flat()
   }
 
   async getBatchExperimentEvals(params: {
@@ -576,7 +748,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       ? this.modelsSnapshots.filter((snapshot) => params.experiment_ids!.includes(snapshot.modelId))
       : this.modelsSnapshots
 
-    const { hasMore, pageIds } = this.getBatchPageIds(snapshots, {
+    const { hasMore, pageIds } = await this.getBatchPageIds(snapshots, {
       limit,
       cursor: params.cursor,
       dataset_id: params.dataset_id,
@@ -602,7 +774,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       ORDER BY id
     `
 
-    const snapshotsPromises = snapshots.map(async (snapshot) => {
+    const snapshotsItems = await this.readMembers(snapshots, async (snapshot) => {
       const traits = this.traitsOf(snapshot.database)
       if (!traits.hasExperimentTables) return []
       const rows =
@@ -635,7 +807,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       return Promise.all(rowsPromises)
     })
 
-    const items = await this.getFlatPromisesResponse(snapshotsPromises)
+    const items = snapshotsItems.flat()
     items.sort((a, b) => {
       if (a.id !== b.id) return a.id < b.id ? -1 : 1
       if (a.modelId !== b.modelId) return a.modelId < b.modelId ? -1 : 1
@@ -779,42 +951,38 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getEvalsColumns(datasetId: string): Promise<TypedEvalsColumns> {
-    const result = this.modelsSnapshots.reduce(
-      (acc, snapshot) => {
-        const array = [
-          {
-            name: 'inputs',
-            list: this.extractEvalColumns(snapshot.database, 'inputs', datasetId),
-          },
-          {
-            name: 'outputs',
-            list: this.extractEvalColumns(snapshot.database, 'outputs', datasetId),
-          },
-          {
-            name: 'refs',
-            list: this.extractEvalColumns(snapshot.database, 'refs', datasetId),
-          },
-          {
-            name: 'scores',
-            list: this.extractEvalColumns(snapshot.database, 'scores', datasetId),
-          },
-          {
-            name: 'metadata',
-            list: this.extractEvalColumns(snapshot.database, 'metadata', datasetId),
-          },
-          {
-            name: 'annotations_feedback',
-            list: this.getAnnotationFields(snapshot.database, datasetId, AnnotationKind.FEEDBACK),
-          },
-          {
-            name: 'annotations_expectations',
-            list: this.getAnnotationFields(
-              snapshot.database,
-              datasetId,
-              AnnotationKind.EXPECTATION,
-            ),
-          },
-        ]
+    const columnsByMember = await this.readMembers(this.modelsSnapshots, (snapshot) => [
+      {
+        name: 'inputs',
+        list: this.extractEvalColumns(snapshot.database, 'inputs', datasetId),
+      },
+      {
+        name: 'outputs',
+        list: this.extractEvalColumns(snapshot.database, 'outputs', datasetId),
+      },
+      {
+        name: 'refs',
+        list: this.extractEvalColumns(snapshot.database, 'refs', datasetId),
+      },
+      {
+        name: 'scores',
+        list: this.extractEvalColumns(snapshot.database, 'scores', datasetId),
+      },
+      {
+        name: 'metadata',
+        list: this.extractEvalColumns(snapshot.database, 'metadata', datasetId),
+      },
+      {
+        name: 'annotations_feedback',
+        list: this.getAnnotationFields(snapshot.database, datasetId, AnnotationKind.FEEDBACK),
+      },
+      {
+        name: 'annotations_expectations',
+        list: this.getAnnotationFields(snapshot.database, datasetId, AnnotationKind.EXPECTATION),
+      },
+    ])
+    const result = columnsByMember.reduce(
+      (acc, array) => {
         array.forEach((item) => {
           item.list.forEach((column) => {
             const columnExists = acc[item.name as keyof typeof acc].find(
@@ -845,7 +1013,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     search?: string,
     filters?: string[],
   ): Promise<ModelScores[]> {
-    return this.modelsSnapshots.map((snapshot) => {
+    return this.readMembers(this.modelsSnapshots, (snapshot): ModelScores => {
       const traits = this.traitsOf(snapshot.database)
       if (!traits.hasExperimentTables) return { modelId: snapshot.modelId, scores: [] }
       const { whereParts, params } = this.buildEvalsWhere(traits, undefined, search, filters)
@@ -915,7 +1083,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getEvalsDatasetAnnotationsSummary(datasetId: string) {
-    const snapshotsPromises = this.modelsSnapshots.map(async (snapshot) => {
+    const annotationsByMember = await this.readMembers(this.modelsSnapshots, (snapshot) => {
       const database = snapshot.database
       const artifactId = snapshot.modelId
       const evalsIds = this.getEvalsIdsByDatabase(database, datasetId)
@@ -924,8 +1092,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       })
       return this.getFlatPromisesResponse(promises)
     })
-    const annotations = await this.getFlatPromisesResponse(snapshotsPromises)
-    return this.annotationsSummary(annotations)
+    return this.annotationsSummary(annotationsByMember.flat())
   }
 
   async getTraces(params: GetTracesParams) {
@@ -935,41 +1102,38 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     )
   }
 
-  private getNextTraces(params: GetTracesParams) {
-    const tracesByArtifacts = this.modelsSnapshots.map((snapshot) => {
+  /** An experiment left out of a page keeps its cursor, so it rejoins where it stopped. */
+  private async getNextTraces(params: GetTracesParams) {
+    const tracesByArtifacts = await this.readMembers(this.modelsSnapshots, (snapshot) => {
       const page = this.tracesRequestParams[snapshot.modelId] || 1
-      this.tracesRequestParams[snapshot.modelId] = page + 1
       const artifactTraces = this.getTracesByDatabase(snapshot.database, {
         ...params,
         page,
       })
+      this.tracesRequestParams[snapshot.modelId] = page + 1
       return artifactTraces
     })
     return tracesByArtifacts.flat()
   }
 
   async getFreshTraces(params: GetTracesParams) {
-    const responses = this.modelsSnapshots.map(async (snapshot) => {
+    const responses = await this.readMembers(this.modelsSnapshots, (snapshot) => {
       const page = this.tracesRequestParams[snapshot.modelId] || 1
       const pagesList = Array.from({ length: Math.max(page - 1, 1) }, (_, i) => i + 1)
-      const promises = pagesList.map(async (page) => {
-        return this.getTracesByDatabase(snapshot.database, {
+      return pagesList.flatMap((page) =>
+        this.getTracesByDatabase(snapshot.database, {
           ...params,
           page,
-        })
-      })
-      return this.getFlatPromisesResponse(promises)
+        }),
+      )
     })
-    return this.getFlatPromisesResponse(responses)
+    return responses.flat()
   }
 
   async getAllTraces(params: Omit<GetTracesParams, 'limit'>): Promise<Trace[]> {
-    const tracesByArtifacts = this.modelsSnapshots.map((snapshot) => {
-      const artifactTraces = this.getTracesByDatabase(snapshot.database, {
-        ...params,
-      })
-      return artifactTraces
-    })
+    const tracesByArtifacts = await this.readEveryMember((snapshot) =>
+      this.getTracesByDatabase(snapshot.database, { ...params }),
+    )
     return tracesByArtifacts.flat()
   }
 
@@ -1188,10 +1352,12 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     }
 
     const whereCondition = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
-    const havingCondition = havingParts.length ? `HAVING ${havingParts.join(' AND ')}` : ''
+    // Filtered outside the grouping: in HAVING, `created_at` would name the spans column of
+    // an arbitrary span of the trace, not the MIN(created_at) the list shows.
+    const traceCondition = havingParts.length ? `WHERE ${havingParts.join(' AND ')}` : ''
 
     const query = `
-      SELECT
+      SELECT * FROM (SELECT
         trace_id,
         (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
         COUNT(*) AS span_count,
@@ -1204,8 +1370,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
         END AS state
       FROM spans
       ${whereCondition}
-      GROUP BY trace_id
-      ${havingCondition}
+      GROUP BY trace_id)
+      ${traceCondition}
       ORDER BY ${sortBy} ${safeOrder}
       ${limitQuery}
       ${offsetQuery}
@@ -1382,7 +1548,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return { whereParts, params }
   }
 
-  private getBatchPageIds(
+  private async getBatchPageIds(
     snapshots: ModelSnapshot[],
     {
       limit,
@@ -1397,12 +1563,12 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       search?: string
       filters?: string[]
     },
-  ): { hasMore: boolean; pageIds: string[] } {
+  ): Promise<{ hasMore: boolean; pageIds: string[] }> {
     const candidateIds = new Set<string>()
 
-    for (const snapshot of snapshots) {
+    await this.readMembers(snapshots, (snapshot) => {
       const traits = this.traitsOf(snapshot.database)
-      if (!traits.hasExperimentTables) continue
+      if (!traits.hasExperimentTables) return
       const { whereParts, params } = this.buildEvalsWhere(traits, dataset_id, search, filters)
 
       if (cursor) {
@@ -1416,7 +1582,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       for (const row of rows) {
         candidateIds.add(this.parseValue(row[0], 'string'))
       }
-    }
+    })
 
     const sortedIds = [...candidateIds].sort()
     const hasMore = sortedIds.length > limit

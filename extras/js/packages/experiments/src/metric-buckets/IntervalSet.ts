@@ -30,13 +30,6 @@ export class IntervalSet {
     this.ranges = kept.sort((left, right) => left[0] - right[0])
   }
 
-  /** Removes every member from `start` on. */
-  removeFrom(start: number): void {
-    this.ranges = this.ranges
-      .filter(([rangeStart]) => rangeStart < start)
-      .map(([rangeStart, rangeEnd]) => [rangeStart, Math.min(rangeEnd, start - 1)] as const)
-  }
-
   /** The parts of `[start, end]` not in the set, in ascending order. */
   missing(start: number, end: number): Interval[] {
     const gaps: Interval[] = []

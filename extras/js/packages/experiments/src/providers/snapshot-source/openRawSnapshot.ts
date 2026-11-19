@@ -36,6 +36,8 @@ export type RawSnapshotSource = Exclude<ExperimentSnapshotSource, { kind: 'zip' 
 export interface RawSnapshotOptions {
   maxFullDownloadBytes: number
   cache: Partial<RangeCacheOptions>
+  /** When the caller of the running read gives up (epoch ms); range reads stay within it. */
+  readDeadline?: () => number
 }
 
 export const DEFAULT_RAW_SNAPSHOT_OPTIONS: RawSnapshotOptions = {
@@ -116,6 +118,7 @@ export async function openRawSnapshot(
     source.size,
     transport.readRangeSync,
     options.cache,
+    options.readDeadline,
   )
   rangeFile.seed(probe.header)
   return {

@@ -21,19 +21,27 @@ import {
   type MetricBucketsResponse,
   type MetricCatalogEntry,
   type MetricCatalogsRequest,
+  type ReadCallOptions,
 } from './types'
 
 /** The provider calls the store needs; every `ExperimentSnapshotProvider` has them. */
 export interface MetricBucketSource {
-  getExperimentStatuses(signal?: AbortSignal): Promise<ExperimentSnapshotStatus[]>
+  getExperimentStatuses(
+    signal?: AbortSignal,
+    options?: ReadCallOptions,
+  ): Promise<ExperimentSnapshotStatus[]>
   getMetricCatalogs(
     request?: MetricCatalogsRequest,
     signal?: AbortSignal,
+    options?: ReadCallOptions,
   ): Promise<ExperimentResult<ExperimentMetricCatalog>[]>
   getMetricBuckets(
     request: MetricBucketsRequest,
     signal?: AbortSignal,
+    options?: ReadCallOptions,
   ): Promise<ExperimentResult<MetricBucketsResponse>[]>
+  /** Statuses changed outside a catalog load: a read left out an experiment or read it again. */
+  onStatusesChanged?(listener: () => void): () => void
 }
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
@@ -216,35 +224,36 @@ function markStatuses(
 }
 
 /**
- * Keys whose catalog entry changed, with the step from which their cached buckets are stale:
- * the old last step when the metric only grew past it, else null (all of it is stale, as an
- * earlier step was written or overwritten, or the key is new or gone).
+ * Keys whose cached buckets may be stale. Only a `writes` counter known on both sides proves a
+ * metric unchanged: the other fields miss an overwrite of an existing step. No part of a
+ * changed metric is kept, as an insert or overwrite next to an append looks like an append.
  */
 function changedMetrics(
   before: ExperimentMetricCatalog | undefined,
   after: ExperimentMetricCatalog,
-): Map<string, number | null> {
+): Set<string> {
   const old = new Map<string, MetricCatalogEntry>(
     (before?.metrics ?? []).map((entry) => [entry.key, entry]),
   )
-  const changed = new Map<string, number | null>()
+  const changed = new Set<string>()
   for (const entry of after.metrics) {
     const previous = old.get(entry.key)
     old.delete(entry.key)
-    if (!previous) changed.set(entry.key, null)
-    else if (entry.last_step > previous.last_step && entry.first_step === previous.first_step) {
-      changed.set(entry.key, previous.last_step)
-    } else if (
+    if (
+      !previous ||
+      entry.writes == null ||
+      previous.writes == null ||
+      entry.writes !== previous.writes ||
       entry.last_step !== previous.last_step ||
       entry.first_step !== previous.first_step ||
       entry.count !== previous.count ||
       entry.min !== previous.min ||
       entry.max !== previous.max
     ) {
-      changed.set(entry.key, null)
+      changed.add(entry.key)
     }
   }
-  for (const key of old.keys()) changed.set(key, null)
+  for (const key of old.keys()) changed.add(key)
   return changed
 }
 
@@ -395,6 +404,13 @@ export class MetricBucketStore {
   private refreshQueue: Promise<unknown> = Promise.resolve()
   private readonly fractionalStepModels = new Set<string>()
   private readonly statusListeners = new Set<() => void>()
+  // Status reads in the order they started, and the latest one applied: a re-read that started
+  // before a refresh and answers after it must not replace the refresh's newer statuses.
+  private statusReadsStarted = 0
+  private appliedStatusRead = 0
+  // Passed on, so that a provider stops the reads of a call this store gave up on.
+  private readonly callOptions: ReadCallOptions
+  private readonly stopWatchingSource: (() => void) | null
 
   constructor(
     private readonly source: MetricBucketSource,
@@ -406,6 +422,8 @@ export class MetricBucketStore {
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
     this.modelIds = options.modelIds ? [...options.modelIds] : null
+    this.callOptions = { timeoutMs: this.requestTimeoutMs }
+    this.stopWatchingSource = source.onStatusesChanged?.(() => void this.rereadStatuses()) ?? null
   }
 
   get disposed(): boolean {
@@ -451,7 +469,9 @@ export class MetricBucketStore {
    */
   private async readFirstCatalogs(): Promise<ExperimentResult<ExperimentMetricCatalog>[]> {
     if (!this.modelIds) {
-      return this.bounded((signal) => this.source.getMetricCatalogs(undefined, signal))
+      return this.bounded((signal) =>
+        this.source.getMetricCatalogs(undefined, signal, this.callOptions),
+      )
     }
     const reads = await this.readCatalogsOneByOne(this.modelIds)
     const [firstFailure, ...otherFailures] = reads.filter((read) => read.failed)
@@ -472,7 +492,7 @@ export class MetricBucketStore {
         const request: MetricCatalogsRequest = { modelIds: [modelId], ...(refresh && { refresh }) }
         try {
           const results = await this.bounded((signal) =>
-            this.source.getMetricCatalogs(request, signal),
+            this.source.getMetricCatalogs(request, signal, this.callOptions),
           )
           const result = results.find((item) => item.modelId === modelId) ?? {
             modelId,
@@ -492,7 +512,9 @@ export class MetricBucketStore {
   /** Null when they could not be read: statuses only add notices and a budget exemption. */
   private async readStatuses(): Promise<ExperimentSnapshotStatus[] | null> {
     try {
-      return await this.bounded((signal) => this.source.getExperimentStatuses(signal))
+      return await this.bounded((signal) =>
+        this.source.getExperimentStatuses(signal, this.callOptions),
+      )
     } catch (error) {
       if (this.disposed) throw error
       return null
@@ -505,11 +527,32 @@ export class MetricBucketStore {
 
   /**
    * Calls `listener` when the statuses `loadCatalogs()` returns change without a refresh: a
-   * bucket answer reported fractional steps for the first time. Returns the unsubscribe.
+   * bucket answer reported fractional steps for the first time, or the provider reported that
+   * a read left out an experiment of a comparison or read it again. Returns the unsubscribe.
    */
   onStatusesChanged(listener: () => void): () => void {
     this.statusListeners.add(listener)
     return () => this.statusListeners.delete(listener)
+  }
+
+  /** Statuses that cannot be read keep the old ones: they only add notices. */
+  private async rereadStatuses(): Promise<void> {
+    if (!this.catalogsPromise) return
+    const read = ++this.statusReadsStarted
+    let statuses: ExperimentSnapshotStatus[] | null
+    try {
+      statuses = await this.readStatuses()
+    } catch {
+      return
+    }
+    const loaded = this.catalogsPromise
+    if (!statuses || !loaded || this.disposed || read < this.appliedStatusRead) return
+    this.appliedStatusRead = read
+    this.catalogsPromise = loaded.then((catalogs) => ({
+      ...catalogs,
+      statuses: markStatuses(statuses, catalogs.catalogs, this.fractionalStepModels),
+    }))
+    for (const listener of this.statusListeners) listener()
   }
 
   /** The flag stays for the store's lifetime, as the count depends on the range read. */
@@ -539,6 +582,7 @@ export class MetricBucketStore {
   dispose(): void {
     if (this.disposed) return
     this.lifetime.abort(disposedError())
+    this.stopWatchingSource?.()
     // A fetch is aborted when its last chart leaves, so closing them all aborts every fetch.
     for (const subscription of [...this.subscriptions]) subscription.close()
     if (this.batchTimer !== null) clearTimeout(this.batchTimer)
@@ -552,13 +596,10 @@ export class MetricBucketStore {
 
   /**
    * Re-reads the catalogs (and statuses) of live experiments; the caller decides when (the
-   * store runs no timers). A metric whose `last_step` grew loses its cached buckets from the
-   * one holding its old `last_step` on, at every level; one whose `count`, `first_step`, `min`
-   * or `max` changed otherwise (also when `last_step` grew too) loses all of them. Open charts
-   * showing it re-plan and keep their current buckets until the new ones arrive. An overwrite
-   * that changes none of these is not detectable; `reload()` covers it. A failed or timed-out
-   * refresh keeps the old catalog and is returned per experiment. Refreshes run in call
-   * order. Published snapshots never change, so refreshing them changes nothing.
+   * store runs no timers). A metric whose catalog entry changed, or whose `writes` counter is
+   * not known before and after, loses all its cached buckets. Open charts showing it re-plan
+   * and keep their current buckets until the new ones arrive. A failed or timed-out refresh
+   * keeps the old catalog and is returned per experiment. Refreshes run in call order.
    */
   refreshCatalogs(modelIds: string[]): Promise<Map<string, ExperimentReadError>> {
     return this.enqueueRefresh(modelIds, false)
@@ -587,7 +628,9 @@ export class MetricBucketStore {
   ): Promise<Map<string, ExperimentReadError>> {
     const current = await this.loadCatalogs()
     const results = (await this.readCatalogsOneByOne(modelIds, true)).map((read) => read.result)
+    const statusRead = ++this.statusReadsStarted
     const statuses = await this.readStatuses()
+    if (statuses) this.appliedStatusRead = Math.max(this.appliedStatusRead, statusRead)
     const next: MetricCatalogs = {
       catalogs: new Map(current.catalogs),
       errors: new Map(current.errors),
@@ -595,42 +638,35 @@ export class MetricBucketStore {
       statuses: statuses ?? current.statuses,
     }
     const failures = new Map<string, ExperimentReadError>()
-    const changed = new Map<string, Map<string, number | null>>()
+    const changed = new Map<string, Set<string>>()
     for (const result of results) {
       const before = current.catalogs.get(result.modelId)
-      const keys = new Map<string, number | null>()
+      const keys = new Set<string>()
       if (dropAll) {
         const all = [...(before?.metrics ?? []), ...(result.ok ? result.value.metrics : [])]
-        for (const entry of all) keys.set(entry.key, null)
+        for (const entry of all) keys.add(entry.key)
       }
       if (result.ok) {
-        for (const [key, fromStep] of changedMetrics(before, result.value)) {
-          if (!keys.has(key)) keys.set(key, fromStep)
-        }
+        for (const key of changedMetrics(before, result.value)) keys.add(key)
         next.catalogs.set(result.modelId, result.value)
         next.errors.delete(result.modelId)
       } else {
         failures.set(result.modelId, result.error)
         if (!next.catalogs.has(result.modelId)) next.errors.set(result.modelId, result.error)
       }
-      for (const [key, fromStep] of keys) this.dropMetric(result.modelId, key, fromStep)
+      for (const key of keys) this.dropMetric(result.modelId, key)
       if (keys.size) changed.set(result.modelId, keys)
     }
     next.statuses = markStatuses(next.statuses, next.catalogs, this.fractionalStepModels)
     this.catalogsPromise = Promise.resolve(next)
-    const changedKeys = new Map(
-      [...changed].map(([modelId, keys]) => [modelId, new Set(keys.keys())]),
-    )
-    for (const subscription of this.subscriptions) subscription.refreshed(changedKeys)
+    for (const subscription of this.subscriptions) subscription.refreshed(changed)
     return failures
   }
 
-  /** Drops a metric's cached buckets from the one holding `fromStep` on, or all when null. */
-  private dropMetric(modelId: string, key: string, fromStep: number | null): void {
+  private dropMetric(modelId: string, key: string): void {
     const id = JSON.stringify([modelId, key])
     this.seriesVersions.set(id, (this.seriesVersions.get(id) ?? 0) + 1)
-    if (fromStep === null) this.cache.dropMetric(modelId, key)
-    else this.cache.dropFrom(modelId, key, fromStep)
+    this.cache.dropMetric(modelId, key)
     // Later requests must not join a fetch whose answer will not be cached.
     for (const [fetchId, shared] of this.inFlight) {
       if (shared.modelId === modelId && shared.keys.includes(key)) this.inFlight.delete(fetchId)
@@ -862,7 +898,7 @@ export class MetricBucketStore {
       // Bound by the timeout and `dispose()` only: when every chart left (`signal`), a provider
       // that ignores the abort still answers, and its answer is cached for the next request.
       const results = await this.bounded((bound) =>
-        this.source.getMetricBuckets(request, AbortSignal.any([signal, bound])),
+        this.source.getMetricBuckets(request, AbortSignal.any([signal, bound]), this.callOptions),
       )
       result = results.find((item) => item.modelId === modelId) ?? {
         modelId,

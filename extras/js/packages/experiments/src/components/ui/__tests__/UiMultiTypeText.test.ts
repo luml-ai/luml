@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import PrimeVue from 'primevue/config'
 import Tooltip from 'primevue/tooltip'
-import { Select } from 'primevue'
+import { Select, VirtualScroller } from 'primevue'
 import * as texts from '@/helpers/texts'
 import UiMultiTypeText from '../UiMultiTypeText.vue'
 import JsonValueView from '../JsonValueView.vue'
@@ -167,6 +167,16 @@ describe('JsonValueView', () => {
     expect(document.body.textContent).toContain('Copy')
     expect(document.body.textContent).toContain('Download')
   })
+
+  it('keeps a character outside the BMP whole when a long line is cut into rows', async () => {
+    const text = 'a'.repeat(999) + '😀' + 'b'.repeat(1_000) + '😀'
+    const wrapper = mountViewer(text)
+    await wrapper.vm.$nextTick()
+    const rows = wrapper.findComponent(VirtualScroller).props('items') as string[]
+
+    expect(rows.join('')).toBe(text)
+    expect(rows).toEqual(['a'.repeat(999), '😀' + 'b'.repeat(998), 'bb😀'])
+  })
 })
 
 describe('large value helpers', () => {
@@ -175,6 +185,18 @@ describe('large value helpers', () => {
     expect(formatBytes(512)).toBe('512 B')
     expect(formatBytes(2_001)).toBe('2.0 KB')
     expect(formatBytes(Math.round(5.2 * MB))).toBe('5.2 MB')
+  })
+
+  it.each([
+    ['a lone high surrogate before ASCII', '\uD800a'],
+    ['a lone high surrogate before a 2-byte character', '\uD800é'],
+    ['a lone high surrogate before a 3-byte character', '\uD800中'],
+    ['a lone high surrogate before a pair', '\uD800😀'],
+    ['a lone low surrogate', 'a\uDC00b'],
+    ['a lone high surrogate at the end', 'a😀\uD800'],
+    ['mixed text', 'aé€😀􏿿中\uD83D'],
+  ])('counts the UTF-8 bytes of %s as TextEncoder does', (_label, text) => {
+    expect(utf8ByteLength(text)).toBe(new TextEncoder().encode(text).length)
   })
 
   it('cuts a preview at 2,000 characters, one earlier before a surrogate pair', () => {

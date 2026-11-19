@@ -74,7 +74,11 @@ interface Artifact {
     metrics: {
       skipped_rows: number
       levels: number[]
-      catalog: (Omit<CatalogEntry, 'min' | 'max'> & { min: JsonNumber; max: JsonNumber })[]
+      catalog: (Omit<CatalogEntry, 'min' | 'max'> & {
+        min: JsonNumber
+        max: JsonNumber
+        writes?: number
+      })[]
       buckets: Record<string, Record<string, JsonBucket[]>>
     }
   } | null
@@ -115,6 +119,7 @@ const GENERATION_TWO = [
   'j_gen2_model_sdk_0_6_0',
   'k_gen2_from_rev2',
   'm_gen2_twin',
+  'p_gen2_rev4_sdk_0_6_0',
 ]
 const OLD_ERAS = [
   'a_premigration_legacy_indexes',
@@ -347,9 +352,10 @@ function decode(raw: JsonNumber): number | null {
   return raw
 }
 
+// A published snapshot reports no `writes` counter: it never changes after export.
 function expectedCatalog(artifact: Artifact): CatalogEntry[] {
   return artifact
-    .json!.metrics.catalog.map((entry) => ({
+    .json!.metrics.catalog.map(({ writes: _writes, ...entry }) => ({
       ...entry,
       min: decode(entry.min),
       max: decode(entry.max),
@@ -421,7 +427,7 @@ for (const name of GENERATION_TWO) {
       Result<{ revision: number; skipped_rows: number; metrics: CatalogEntry[] }>[]
     >(page, 'getMetricCatalogs')
     const catalog = value(catalogs, name)
-    expect(catalog.revision).toBe(3)
+    expect(catalog.revision).toBe(artifact.json!.user_version)
     expect(catalog.skipped_rows).toBe(0)
     expect(sortedByKey(catalog.metrics)).toEqual(expectedCatalog(artifact))
     const openRequests = requestsOf(name).length
@@ -570,7 +576,13 @@ test('the generation 1 and generation 2 twins compare equal at one level', async
 test('a mixed set of every old era and generation 2 opens and charts together', async ({
   page,
 }) => {
-  const names = [...OLD_ERAS, 'i_gen2_sdk_0_6_0', 'j_gen2_model_sdk_0_6_0', 'm_gen2_twin']
+  const names = [
+    ...OLD_ERAS,
+    'i_gen2_sdk_0_6_0',
+    'j_gen2_model_sdk_0_6_0',
+    'm_gen2_twin',
+    'p_gen2_rev4_sdk_0_6_0',
+  ]
   await open(page, names)
   const catalogs = await call<Result<{ metrics: CatalogEntry[] }>[]>(page, 'getMetricCatalogs')
   expect(catalogs.map((result) => [result.modelId, result.ok])).toEqual(

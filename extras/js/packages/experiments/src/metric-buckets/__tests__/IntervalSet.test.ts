@@ -45,14 +45,9 @@ describe('IntervalSet', () => {
       const members = new Set<number>()
       for (let operation = 0; operation < 25; operation++) {
         const start = integer(-60, 60)
-        if (random() < 0.15) {
-          set.removeFrom(start)
-          for (const value of [...members]) if (value >= start) members.delete(value)
-        } else {
-          const end = start + integer(-3, 15)
-          set.add(start, end)
-          for (let value = start; value <= end; value++) members.add(value)
-        }
+        const end = start + integer(-3, 15)
+        set.add(start, end)
+        for (let value = start; value <= end; value++) members.add(value)
 
         expect(set.intervals).toEqual(runsOf(members, -80, 80, true))
         const queryStart = integer(-70, 70)

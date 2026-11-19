@@ -13,12 +13,19 @@ export function isLargeText(text: string): boolean {
   return text.length > PREVIEW_CHARACTERS
 }
 
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff
+
+/** A cut of `text` at `end`, moved back one code unit when it would split a surrogate pair. */
+export function surrogateSafeEnd(text: string, end: number): number {
+  if (end >= text.length) return text.length
+  return isHighSurrogate(text.charCodeAt(end - 1)) ? end - 1 : end
+}
+
 /** The first PREVIEW_CHARACTERS code units, without splitting a surrogate pair at the end. */
 export function previewText(text: string): string {
   if (!isLargeText(text)) return text
-  const lastKept = text.charCodeAt(PREVIEW_CHARACTERS - 1)
-  const end = lastKept >= 0xd800 && lastKept <= 0xdbff ? PREVIEW_CHARACTERS - 1 : PREVIEW_CHARACTERS
-  return text.slice(0, end)
+  return text.slice(0, surrogateSafeEnd(text, PREVIEW_CHARACTERS))
 }
 
 export function utf8ByteLength(text: string): number {
@@ -27,7 +34,7 @@ export function utf8ByteLength(text: string): number {
     const code = text.charCodeAt(index)
     if (code < 0x80) bytes += 1
     else if (code < 0x800) bytes += 2
-    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < text.length) {
+    else if (isHighSurrogate(code) && isLowSurrogate(text.charCodeAt(index + 1))) {
       // A surrogate pair is one 4-byte character.
       bytes += 4
       index++

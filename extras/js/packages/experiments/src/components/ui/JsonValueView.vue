@@ -55,7 +55,12 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { isYamlLike, jsonToYaml, tryParseJson } from '../../helpers/texts'
 import { downloadFileFromBlob } from '../../helpers/files'
-import { FORMATTED_VIEW_MAX_BYTES, formatBytes, valueFileName } from './largeValue'
+import {
+  FORMATTED_VIEW_MAX_BYTES,
+  formatBytes,
+  surrogateSafeEnd,
+  valueFileName,
+} from './largeValue'
 import { registerNestedViewer } from './nestedViewer'
 
 type Props = {
@@ -123,8 +128,10 @@ const lines = computed(() => {
       rows.push(line)
       continue
     }
-    for (let start = 0; start < line.length; start += LINE_CHUNK) {
-      rows.push(line.slice(start, start + LINE_CHUNK))
+    for (let start = 0; start < line.length; ) {
+      const end = surrogateSafeEnd(line, start + LINE_CHUNK)
+      rows.push(line.slice(start, end))
+      start = end
     }
   }
   return rows

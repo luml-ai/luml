@@ -48,6 +48,9 @@ const SPANS: [string, string, string | null, number, number, number | null, Json
     ['t4', 's8', 'missing', 1, 31, 1, { k: 7 }, SAME_TIME],
     ['t0', 's6', null, 2, 52, 1, { z: 1, k: 3 }, LATER],
     ['t0', 's0', 's6', 2, 12, 1, { z: 'a' }, LATER],
+    // Spans are written as they end: the child before midnight, its root after it.
+    ['t5', 's11', 's10', 3, 4, 1, null, '2026-01-01 23:59:59'],
+    ['t5', 's10', null, 1, 6, 1, null, '2026-01-02 00:00:01'],
   ]
 
 // id, dataset, inputs, scores, created_at
@@ -231,6 +234,11 @@ const TRACE_QUERIES: Query[] = [
   { name: 'state', filters: ['state = "ok"'] },
   { name: 'duration and span count', filters: ['execution_time > 29 AND span_count < 3'] },
   { name: 'created_at', filters: ['created_at >= "2026-01-02"'] },
+  { name: 'created_at before a date', filters: ['created_at < "2026-01-02"'] },
+  {
+    name: 'created_at between dates',
+    filters: ['created_at > "2026-01-01" AND created_at < "2026-01-02"'],
+  },
   { name: 'attribute', filters: ['attributes.k > 0'] },
   { name: 'annotation', filters: ['annotations.ok = "true"'] },
   { name: 'eval', filters: ['evals = "e1"'] },

@@ -18,10 +18,12 @@ import {
   type SnapshotSourceRef,
 } from './sourceLocation'
 
+/** `timeoutMs` defaults to `syncRangeTimeoutMs(length)`. */
 export type SyncReadRange = (
   location: SnapshotSourceLocation,
   offset: number,
   length: number,
+  timeoutMs?: number,
 ) => Uint8Array
 
 export interface SnapshotTransport {
@@ -120,10 +122,17 @@ function responseHeaderOf(request: XMLHttpRequest, name: string): string | null 
 
 /**
  * A storage that accepts the connection and never answers would block the worker thread for
- * good: nothing on the main thread can interrupt a blocked `send()`.
+ * good: nothing on the main thread can interrupt a blocked `send()`. A request is also cut at
+ * the deadline of the call it serves (`HttpRangeFile`). Kept below the metric reads' 30 s
+ * limit: a request that got at least this long without an answer fails as the storage's
+ * timeout, not the call's, whatever its size allowance on top.
  */
-export const SYNC_RANGE_TIMEOUT_MS = 30_000
+export const SYNC_RANGE_TIMEOUT_MS = 25_000
 const SLOWEST_LINK_BYTES_PER_S = 32 * 1024
+// Smaller requests are mostly latency, so their rate understates the link.
+const MIN_MEASURED_BYTES = 64 * 1024
+// Read-ahead plans for half the time left: the link may slow down during the call.
+const READ_AHEAD_TIME_SHARE = 0.5
 
 /**
  * XHR's timeout bounds the whole transfer, not idle time, so it grows with the request:
@@ -131,6 +140,18 @@ const SLOWEST_LINK_BYTES_PER_S = 32 * 1024
  */
 export function syncRangeTimeoutMs(length: number): number {
   return SYNC_RANGE_TIMEOUT_MS + Math.ceil((length / SLOWEST_LINK_BYTES_PER_S) * 1000)
+}
+
+/**
+ * The bytes one request may read ahead with `timeLeftMs` left, at `bytesPerMs` (measured on
+ * the file's recent requests; the slowest supported link until one is measured).
+ */
+export function readAheadBudget(
+  timeLeftMs: number,
+  bytesPerMs = SLOWEST_LINK_BYTES_PER_S / 1000,
+): number {
+  if (timeLeftMs === Infinity) return Infinity
+  return Math.max(0, Math.floor(timeLeftMs * READ_AHEAD_TIME_SHARE * bytesPerMs))
 }
 
 /** Sync XHR is the only blocking HTTP API in a worker; a timeout throws a `TimeoutError`. */
@@ -164,11 +185,11 @@ export function sendSyncXhr(
  * `RangeStatusError`.
  */
 export function createSyncRangeReader(send: SyncSend): SyncReadRange {
-  return (location, offset, length) => {
+  return (location, offset, length, timeoutMs = syncRangeTimeoutMs(length)) => {
     const response = send(
       location,
       requestHeaders(location, rangeHeader(offset, length)),
-      syncRangeTimeoutMs(length),
+      timeoutMs,
     )
     if (response.status < 200 || response.status >= 300) {
       if (redirectDroppedHeaders(location, response.url)) {
@@ -190,8 +211,9 @@ export function xhrReadRange(
   source: SnapshotSourceRef,
   offset: number,
   length: number,
+  timeoutMs?: number,
 ): Uint8Array {
-  return readRangeOverXhr(toSourceLocation(source), offset, length)
+  return readRangeOverXhr(toSourceLocation(source), offset, length, timeoutMs)
 }
 
 export const browserTransport: SnapshotTransport = {
@@ -404,6 +426,7 @@ export class HttpRangeFile implements RangeFile {
   location: SnapshotSourceLocation
   // Each wrong answer may have cost a whole-object download, so it is never asked again.
   private latched: SnapshotRangeUnsupportedError | SnapshotSourcePageError | null = null
+  private bytesPerMs: number | undefined
 
   constructor(
     private readonly modelId: string,
@@ -412,12 +435,15 @@ export class HttpRangeFile implements RangeFile {
     readonly size: number,
     private readonly readRangeSync: SyncReadRange,
     cacheOptions: Partial<RangeCacheOptions> = {},
+    /** When the caller of the running read gives up (epoch ms); Infinity when it never does. */
+    private readonly readDeadline: () => number = () => Infinity,
   ) {
     this.location = toSourceLocation(source)
     this.cache = new RangeChunkCache(
       (offset, length) => this.fetch(offset, length),
       size,
       cacheOptions,
+      () => readAheadBudget(this.readDeadline() - Date.now(), this.bytesPerMs),
     )
   }
 
@@ -437,9 +463,16 @@ export class HttpRangeFile implements RangeFile {
 
   private fetch(offset: number, length: number): Uint8Array {
     if (this.latched) throw this.latched
+    // The worker runs one read at a time, so a request must not outlast its caller: reads
+    // queued behind it would miss their own deadlines.
+    const started = Date.now()
+    const timeLeft = this.readDeadline() - started
+    if (timeLeft <= 0) throw new SnapshotSourceTimeoutError(this.modelId, 0, true)
+    const ownTimeoutMs = syncRangeTimeoutMs(length)
+    const timeoutMs = Math.min(ownTimeoutMs, Math.ceil(timeLeft))
     let bytes: Uint8Array
     try {
-      bytes = this.readRangeSync(this.location, this.memberOffset + offset, length)
+      bytes = this.readRangeSync(this.location, this.memberOffset + offset, length, timeoutMs)
     } catch (error) {
       if (error instanceof RangeNotHonouredError) throw this.latchRangeUnsupported(error.message)
       if (error instanceof RangePageAnswerError) {
@@ -449,9 +482,15 @@ export class HttpRangeFile implements RangeFile {
       if (error instanceof RedirectDroppedHeadersError) {
         throw new SnapshotSourceRedirectError(this.modelId, error.message)
       }
-      // Not an expired URL: renewing it would only wait as long again.
+      // Not an expired URL: renewing it would only wait as long again. A request that had the
+      // storage's base allowance and got no answer is the storage's stall, even when the call's
+      // deadline also cut its size allowance.
       if (errorName(error) === 'TimeoutError') {
-        throw new SnapshotSourceTimeoutError(this.modelId, syncRangeTimeoutMs(length))
+        throw new SnapshotSourceTimeoutError(
+          this.modelId,
+          timeoutMs,
+          timeoutMs < SYNC_RANGE_TIMEOUT_MS,
+        )
       }
       // A failed sync XHR's message names the URL, signature included.
       const status = error instanceof RangeStatusError ? error.status : undefined
@@ -465,7 +504,15 @@ export class HttpRangeFile implements RangeFile {
     if (bytes.length !== length) {
       throw this.latchRangeUnsupported(`Range request returned ${bytes.length} of ${length} bytes`)
     }
+    this.measure(length, Date.now() - started)
     return bytes
+  }
+
+  /** A smoothed rate of the recent requests, which sizes the read-ahead. */
+  private measure(length: number, elapsedMs: number): void {
+    if (length < MIN_MEASURED_BYTES) return
+    const sample = length / Math.max(1, elapsedMs)
+    this.bytesPerMs = this.bytesPerMs === undefined ? sample : (this.bytesPerMs + sample) / 2
   }
 
   private latchRangeUnsupported(reason: string): SnapshotRangeUnsupportedError {

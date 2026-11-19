@@ -1,6 +1,7 @@
 import type {
   ExperimentSnapshotDatabaseProvider,
   ExperimentSnapshotModelSource,
+  SnapshotCallContext,
   SnapshotSourceLocation,
 } from '@luml/experiments'
 
@@ -16,4 +17,11 @@ export interface CallPayload<
 > {
   method: M
   args?: ExperimentSnapshotDatabaseProvider[M] extends (...args: infer A) => unknown ? A : never[]
+}
+
+export interface CallMessage {
+  payload: CallPayload
+  /** When the caller, or else the proxy, stops waiting for the answer (epoch ms). */
+  deadline?: number
+  context?: Omit<SnapshotCallContext, 'deadline'>
 }

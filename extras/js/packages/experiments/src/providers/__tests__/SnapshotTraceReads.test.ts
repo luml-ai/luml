@@ -25,7 +25,12 @@ import {
   type TraceFixture,
 } from './helpers/traceSnapshots'
 
-const REVISION_3 = ['i_gen2_sdk_0_6_0', 'j_gen2_model_sdk_0_6_0', 'k_gen2_from_rev2']
+const REVISION_3_AND_LATER = [
+  'i_gen2_sdk_0_6_0',
+  'j_gen2_model_sdk_0_6_0',
+  'k_gen2_from_rev2',
+  'p_gen2_rev4_sdk_0_6_0',
+]
 const EDGE_REVISION_3 = 'i_gen2_sdk_0_6_0'
 const EDGE_REVISION_2 = 'o_gen1_edge_sdk_0_5_0'
 const SORTS: TraceSortColumn[] = ['created_at', 'execution_time', 'span_count']
@@ -209,8 +214,8 @@ describe.each([EDGE_REVISION_3, EDGE_REVISION_2])('contract vectors of fixture %
   })
 })
 
-describe.each(REVISION_3)(
-  'revision 3 fixture %s: the new reads equal the base-table reads',
+describe.each(REVISION_3_AND_LATER)(
+  'revision 3 and later fixture %s: the new reads equal the base-table reads',
   (name) => {
     let derived: ExperimentSnapshotDatabaseProvider
     let base: ExperimentSnapshotDatabaseProvider

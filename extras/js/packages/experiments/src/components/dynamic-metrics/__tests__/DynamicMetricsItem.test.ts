@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
+import { CircleAlert } from 'lucide-vue-next'
 import DynamicMetricsItem from '../DynamicMetricsItem.vue'
 import MetricBucketPlot from '../MetricBucketPlot.vue'
 import type { PlotStatus } from '../dynamic-metrics.interface'
@@ -121,6 +122,7 @@ async function mountChart(setup: Setup) {
     global: {
       provide: { [ThemeKey]: theme },
       stubs: { DynamicMetricsItemContent: ContentStub, ProgressSpinner: true },
+      directives: { tooltip: {} },
     },
   })
   mounted.push(wrapper)
@@ -545,6 +547,55 @@ describe('DynamicMetricsItem lifecycle', () => {
 
     expect(lineOf('m1', scaled).x.length).toBeGreaterThan(0)
     expect(lineOf('m1', inline).x[0]).toBe(1000 + 1.5)
+  })
+})
+
+describe('DynamicMetricsItem fullscreen status', () => {
+  async function openFullscreen() {
+    setWidth(800)
+    const chart = await mountChart({ data: LONG, fullRange: { first: 0, last: 9999 } })
+    const content = chart.wrapper.findComponent(ContentStub)
+    ;(content.vm as unknown as { scaled: boolean }).scaled = true
+    await settle()
+    const [inline, scaled] = chart.wrapper
+      .findAll('[data-testid="metric-plot"]')
+      .map((plot) => plot.element as HTMLElement)
+    const scaledStatus = () => chart.wrapper.get('[data-testid="scaled-status"]')
+    return { ...chart, content, inline: inline!, scaled: scaled!, scaledStatus }
+  }
+
+  it('shows a failed and a loading zoom of the fullscreen chart in the fullscreen view only', async () => {
+    const { source, content, scaled, scaledStatus } = await openFullscreen()
+    expect(scaledStatus().find('[data-testid="chart-error"]').exists()).toBe(false)
+
+    source.hold()
+    mock.fire(scaled, 'plotly_relayout', { 'xaxis.range': [1000, 1999] })
+    await settle()
+    expect(scaledStatus().findComponent({ name: 'ProgressSpinner' }).exists()).toBe(true)
+    expect(content.props('loading')).toBe(false)
+
+    source.bucketErrors.add('m1')
+    source.releaseAll()
+    await settle()
+    expect(lineOf('m1', scaled).x.length).toBeGreaterThan(0)
+    expect(scaledStatus().find('[data-testid="chart-error"]').exists()).toBe(true)
+    expect(scaledStatus().findComponent({ name: 'ProgressSpinner' }).exists()).toBe(false)
+    expect(content.props('error')).toBeNull()
+  })
+
+  it('keeps a failed zoom of the card chart out of the fullscreen view', async () => {
+    const { source, content, inline, scaledStatus } = await openFullscreen()
+    source.bucketErrors.add('m1')
+    mock.fire(inline, 'plotly_relayout', { 'xaxis.range': [1000, 1999] })
+    await settle()
+
+    expect(content.props('error')).toBe('Model A: The experiment could not be read.')
+    expect(scaledStatus().find('[data-testid="chart-error"]').exists()).toBe(false)
+  })
+
+  it('explains the aggregation of the fullscreen chart', async () => {
+    const { scaledStatus } = await openFullscreen()
+    expect(scaledStatus().findComponent(CircleAlert).exists()).toBe(true)
   })
 })
 

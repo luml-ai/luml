@@ -169,8 +169,9 @@ async function getAnnotations() {
 }
 
 // Only an explicit `payloadLoaded: false` fetches, so spans from providers that predate
-// the flag keep showing what they carry.
-async function loadPayload(selected: TraceSpan) {
+// the flag keep showing what they carry. `keepShown`: a re-read after a refresh shows the
+// current payload until the new one arrives.
+async function loadPayload(selected: TraceSpan, keepShown = false) {
   const requestId = ++payloadRequestId
   const { artifactId, traceId } = props
   if (selected.payloadLoaded !== false) {
@@ -184,8 +185,10 @@ async function loadPayload(selected: TraceSpan) {
     payloadStatus.value = 'ready'
     return
   }
-  payload.value = null
-  payloadStatus.value = 'loading'
+  if (!keepShown || !payload.value) {
+    payload.value = null
+    payloadStatus.value = 'loading'
+  }
   try {
     const result = await evalsStore.loadSpanPayload(artifactId, traceId, selected.span_id)
     if (requestId !== payloadRequestId) return
@@ -207,6 +210,11 @@ watch(
   () => [props.artifactId, props.traceId, props.data.span_id, props.data.payloadLoaded],
   () => loadPayload(props.data),
   { immediate: true },
+)
+
+watch(
+  () => evalsStore.spanPayloadsVersion,
+  () => loadPayload(props.data, true),
 )
 
 watch(

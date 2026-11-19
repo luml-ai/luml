@@ -3,19 +3,7 @@
     <template #header-left>
       <div class="header-left">
         <h3 class="card__title">{{ title }}</h3>
-        <CircleAlert
-          v-if="aggregationTooltip"
-          :size="14"
-          v-tooltip="aggregationTooltip"
-          color="var(--p-badge-warn-background)"
-        />
-        <TriangleAlert
-          v-if="errorTooltip"
-          :size="14"
-          v-tooltip="errorTooltip"
-          color="var(--p-message-error-color)"
-          data-testid="chart-error"
-        />
+        <PlotStatusIcons :aggregation-steps="aggregationSteps" :error="error" />
       </div>
     </template>
     <template #header-right>
@@ -38,11 +26,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { CircleAlert, Maximize2, TriangleAlert } from 'lucide-vue-next'
+import { ref, watch } from 'vue'
+import { Maximize2 } from 'lucide-vue-next'
 import { Button, ProgressSpinner } from 'primevue'
 import UiCard from '../ui/UiCard.vue'
 import UiScalable from '../ui/UiScalable.vue'
+import PlotStatusIcons from './PlotStatusIcons.vue'
 
 type Props = {
   title: string
@@ -58,20 +47,10 @@ type Emits = {
   scale: []
 }
 
-const props = withDefaults(defineProps<Props>(), { error: null })
+withDefaults(defineProps<Props>(), { error: null })
 const emits = defineEmits<Emits>()
 
 const scaled = ref(false)
-
-const aggregationTooltip = computed(() => {
-  if (props.aggregationSteps === null || props.aggregationSteps <= 1) return null
-  const steps = props.aggregationSteps.toLocaleString('en-US')
-  return `Each point is an average over up to ${steps} steps. Zoom in to see more detail.`
-})
-
-const errorTooltip = computed(() =>
-  props.error ? `Some data could not be loaded. ${props.error}` : null,
-)
 
 watch(scaled, (val) => {
   if (val) emits('scale')

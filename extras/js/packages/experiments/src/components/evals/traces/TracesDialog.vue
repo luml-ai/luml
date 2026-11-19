@@ -1,5 +1,11 @@
 <template>
-  <Dialog v-model:visible="visible" :draggable="false" :pt="dialogPt" position="right">
+  <Dialog
+    v-model:visible="visible"
+    :draggable="false"
+    :pt="dialogPt"
+    :close-on-escape="openViewers === 0"
+    position="right"
+  >
     <div v-if="showLoader" class="inputs-loader">
       <Skeleton height="calc(100% - 20px)" />
     </div>
@@ -31,6 +37,7 @@ import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useMinLoading } from '@/hooks/useMinLoading'
 import { computed } from 'vue'
+import { provideNestedViewers } from '../../ui/nestedViewer'
 
 type Props = {
   modelsInfo: ModelsInfo
@@ -57,6 +64,7 @@ const dialogPt: DialogPassThroughOptions = {
 }
 
 const visible = defineModel<boolean>('visible')
+const openViewers = provideNestedViewers()
 
 const evalsStore = useEvalsStore()
 const showLoader = useMinLoading(computed(() => evalsStore.currentEvalDataLoading))

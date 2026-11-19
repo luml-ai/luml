@@ -46,6 +46,8 @@ export class RangeChunkCache {
     private readonly readRange: ReadRange,
     readonly size: number,
     options: Partial<RangeCacheOptions> = {},
+    /** Bytes one request may take now; the chunks a read needs are fetched whatever it says. */
+    private readonly requestBudget: () => number = () => Infinity,
   ) {
     this.options = { ...DEFAULT_RANGE_CACHE_OPTIONS, ...options }
     const { chunkSize } = this.options
@@ -129,7 +131,9 @@ export class RangeChunkCache {
   private fetchRun(start: number, neededEnd: number): number {
     const { chunkSize } = this.options
     const finalChunk = Math.floor((this.size - 1) / chunkSize)
-    const target = Math.min(finalChunk, Math.max(neededEnd, start + this.readAheadChunks))
+    const budgetEnd = start + Math.floor(this.requestBudget() / chunkSize) - 1
+    const readAheadEnd = Math.min(start + this.readAheadChunks, budgetEnd)
+    const target = Math.min(finalChunk, Math.max(neededEnd, readAheadEnd))
     let runEnd = start
     while (runEnd < target && !this.chunks.has(runEnd + 1)) runEnd++
     // A one-chunk hole right after a cached chunk is fetched along: neighbouring B-tree pages

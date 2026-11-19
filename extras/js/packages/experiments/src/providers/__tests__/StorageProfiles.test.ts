@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ExperimentSnapshotDatabaseProvider,
   type ExperimentSnapshotModelSource,
+  type SnapshotCallContext,
 } from '../ExperimentSnapshotDatabaseProvider'
 import { ExperimentSnapshotWorkerProxy } from '../ExperimentSnapshotWorkerProxy'
 import { MetricBucketStore, type ChartState } from '../../metric-buckets/MetricBucketStore'
@@ -73,8 +74,15 @@ class InProcessWorker extends EventTarget {
 
   terminate(): void {}
 
-  private async handle({ type, payload, requestId }: WorkerMessage): Promise<void> {
+  private async handle(message: WorkerMessage): Promise<void> {
+    const { type, payload, requestId } = message
     if (type === 'cancel') return
+    // As the platform's worker reports it.
+    const failuresVersion = type === 'call' ? this.provider?.readFailuresVersion : undefined
+    const statusesChanged = () =>
+      failuresVersion !== undefined && this.provider?.readFailuresVersion !== failuresVersion
+        ? { statusesChanged: true }
+        : {}
     try {
       let data: unknown
       if (type === 'init') {
@@ -89,15 +97,19 @@ class InProcessWorker extends EventTarget {
       } else {
         const { method, args } = payload as { method: string; args?: unknown[] }
         const target = this.provider as unknown as Record<string, (...values: unknown[]) => unknown>
-        data = await target[method]!.apply(this.provider, args ?? [])
+        const context = { ...message.context, deadline: message.deadline }
+        data = await this.provider!.runCall(context, () =>
+          target[method]!.apply(this.provider, args ?? []),
+        )
       }
-      this.post({ type: 'result', requestId, data })
+      this.post({ type: 'result', requestId, data, ...statusesChanged() })
     } catch (error) {
       this.post({
         type: 'error',
         requestId,
         error: (error as Error).message,
         ...snapshotErrorFields(error),
+        ...statusesChanged(),
       })
     }
   }
@@ -112,6 +124,8 @@ interface WorkerMessage {
   type: 'init' | 'call' | 'reopen' | 'cancel'
   payload: unknown
   requestId: string
+  deadline?: number
+  context?: SnapshotCallContext
 }
 
 /**
@@ -548,7 +562,7 @@ describe('opening several experiments when one of them cannot open', () => {
   })
 
   async function futureSnapshot(): Promise<StoredObject> {
-    const db = await revision3Database(generatedMetrics(3), { minReaderRevision: 4 })
+    const db = await revision3Database(generatedMetrics(3), { minReaderRevision: 5 })
     return { bytes: writeTar([{ name: 'exp.db', data: db }]), member: 'exp.db' }
   }
 
@@ -671,6 +685,187 @@ describe('opening several experiments when one of them cannot open', () => {
     expect(
       answered.filter((entry) => entry.artifact === 'fb').map((entry) => entry.credential),
     ).toEqual(['501', ...Array.from({ length: openCost }, () => '502')])
+  })
+})
+
+describe('URLs that age while experiments are open', () => {
+  const s3 = byName('s3')
+  const age = async (issuer: ReturnType<typeof locationIssuer>) => {
+    await issuer.renew(MODEL, await issuer.get())
+  }
+  const outcome = (promise: Promise<unknown>) =>
+    promise.then(
+      () => 'ok',
+      (error: Error) => error.message,
+    )
+
+  it('an experiment loaded in full reads on without a request or an error', async () => {
+    const profile = byExpectation('raw-full')[0]!
+    const current = session(profile)
+    await open(current)
+    const opened = current.state.log.length
+    await age(current.issuer)
+
+    const reads = [
+      await outcome(current.proxy.getMetricCatalogs()),
+      await outcome(current.proxy.getAllTraces(traceParams)),
+    ]
+    await age(current.issuer)
+    reads.push(await outcome(current.proxy.getUniqueDatasetsIds()))
+
+    expect(reads).toEqual(['ok', 'ok', 'ok'])
+    expect(current.state.log.length).toBe(opened)
+  })
+
+  function comparisonWithFailedMember() {
+    const objects = new Map([
+      ['fa', fixtureObject()],
+      ['fb', fixtureObject()],
+    ])
+    const current = multiSession(
+      [
+        { modelId: 'a', profile: s3, artifact: 'fa' },
+        { modelId: 'b', profile: s3, artifact: 'fb', base: 500 },
+      ],
+      objects,
+    )
+    current.state.revoked.add('501')
+    current.state.revoked.add('502')
+    return current
+  }
+
+  it('a failing URL lookup of the member that did not open leaves the others alone', async () => {
+    const current = comparisonWithFailedMember()
+    await current.open()
+    const failedIssuer = current.issuerOf('b')
+    failedIssuer.get = async () => {
+      throw new Error('Request failed with status 404')
+    }
+
+    const reads = [
+      await outcome(current.proxy.getMetricCatalogs({ modelIds: ['a'] })),
+      await outcome(current.proxy.getMetricCatalogs({ modelIds: ['a'] })),
+      await outcome(current.proxy.getAllTraces(traceParams)),
+    ]
+
+    expect(reads).toEqual(['ok', 'ok', 'ok'])
+  })
+
+  it('a renewed URL of the member that did not open is not sent', async () => {
+    const current = comparisonWithFailedMember()
+    await current.open()
+    await age(current.issuerOf('b'))
+
+    expect(await outcome(current.proxy.getMetricCatalogs({ modelIds: ['a'] }))).toBe('ok')
+    const statuses = await current.proxy.getExperimentStatuses()
+    expect(statuses.map((status) => [status.modelId, status.error?.code ?? null])).toEqual([
+      ['a', null],
+      ['b', 'snapshot-source-expired'],
+    ])
+  })
+})
+
+describe('a comparison member whose access is revoked after open', () => {
+  const s3 = byName('s3')
+
+  async function comparison(modelIds: string[]) {
+    const objects = new Map(modelIds.map((modelId) => [modelId, fixtureObject()]))
+    const current = multiSession(
+      modelIds.map((modelId, index) => ({
+        modelId,
+        profile: s3,
+        artifact: modelId,
+        base: 100 * index,
+      })),
+      objects,
+    )
+    await current.open()
+    return current
+  }
+
+  /** A read for the screen: every trace on one page, from the first one. */
+  async function tracesOnScreen(current: ReturnType<typeof multiSession>) {
+    await current.proxy.resetTracesRequestParams()
+    return current.proxy.getTraces({ ...traceParams, limit: 100_000 })
+  }
+
+  it.each([[['a', 'b']], [['a', 'b', 'c']]])(
+    'of %j: renews its URL once, then shows the others and reports it',
+    async (modelIds) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      const current = await comparison(modelIds)
+      const alone = await comparison(['a'])
+      const tracesOfOne = (await alone.proxy.getAllTraces(traceParams)).length
+      const datasetsOfOne = await alone.proxy.getUniqueDatasetsIds()
+      const statusChanges = vi.fn()
+      current.proxy.onStatusesChanged(statusChanges)
+      // Every credential of b, the one it has and the ones a renewal would issue.
+      for (const credential of ['101', '102', '103']) current.state.revoked.add(credential)
+
+      const before = current.state.log.length
+      const traces = await tracesOnScreen(current)
+      // Renewed once; the retry that left it out did not ask its storage again.
+      const answersOfB = dataAnswers(current.state.log.slice(before)).filter(
+        (entry) => entry.artifact === 'b',
+      )
+      expect(answersOfB.map((entry) => entry.credential)).toEqual(['101', '102'])
+      expect(current.issuerOf('b').signs).toBe(2)
+      expect(statusChanges).toHaveBeenCalledOnce()
+      const datasets = await current.proxy.getUniqueDatasetsIds()
+
+      expect(traces).toHaveLength(tracesOfOne * (modelIds.length - 1))
+      expect(datasets).toEqual(datasetsOfOne)
+      // Still left out: the statuses did not change again.
+      expect(statusChanges).toHaveBeenCalledOnce()
+      const statuses = await current.proxy.getExperimentStatuses()
+      expect(statuses.map((status) => [status.modelId, status.error?.code ?? null])).toEqual(
+        modelIds.map((modelId) => [modelId, modelId === 'b' ? 'snapshot-source-expired' : null]),
+      )
+      vi.restoreAllMocks()
+    },
+  )
+
+  it('rejects an export instead of leaving the member out, after one renewal', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const current = await comparison(['a', 'b'])
+    for (const credential of ['101', '102', '103']) current.state.revoked.add(credential)
+
+    const before = current.state.log.length
+    const traces = await rejection(current.proxy.getAllTraces(traceParams))
+    const answersOfB = dataAnswers(current.state.log.slice(before)).filter(
+      (entry) => entry.artifact === 'b',
+    )
+    const evals = await rejection(current.proxy.getAllDatasetEvals(evalParams))
+
+    for (const error of [traces, evals]) {
+      expect(error).toMatchObject({ code: 'snapshot-source-expired', modelId: 'b' })
+      expect(String((error as Error).message)).not.toMatch(/sig=|\/o\//)
+    }
+    expect(answersOfB.map((entry) => entry.credential)).toEqual(['101', '102'])
+    const statuses = await current.proxy.getExperimentStatuses()
+    expect(statuses.every((status) => status.error === null)).toBe(true)
+    vi.restoreAllMocks()
+  })
+
+  it('reads the member again once its access is restored', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const current = await comparison(['a', 'b'])
+    const alone = await comparison(['a'])
+    const tracesOfOne = (await alone.proxy.getAllTraces(traceParams)).length
+    current.state.revoked.add('101')
+    current.state.revoked.add('102')
+    expect(await tracesOnScreen(current)).toHaveLength(tracesOfOne)
+    const statusChanges = vi.fn()
+    current.proxy.onStatusesChanged(statusChanges)
+
+    current.state.revoked.clear()
+
+    expect(await tracesOnScreen(current)).toHaveLength(2 * tracesOfOne)
+    expect(statusChanges).toHaveBeenCalledOnce()
+    expect(await current.proxy.getAllTraces(traceParams)).toHaveLength(2 * tracesOfOne)
+    const statuses = await current.proxy.getExperimentStatuses()
+    expect(statuses.every((status) => status.error === null)).toBe(true)
+    vi.restoreAllMocks()
   })
 })
 

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { ExperimentSnapshotProvider, SpanPayload } from '@/interfaces/interfaces'
 import { useEvalsStore } from '..'
+import { useTraceStore } from '../../trace'
 
 vi.mock('primevue', () => ({ useToast: () => ({ add: vi.fn() }) }))
 
@@ -67,4 +68,24 @@ describe('span payload cache', () => {
 
     expect(store.getCachedSpanPayload('m', 't', 's1')).toBeUndefined()
   })
+
+  it.each(['traces', 'evals'])(
+    'reads a re-logged span again after refreshing the %s view',
+    async (view) => {
+      let stored = payload('old')
+      const source = {
+        getSpanPayload: vi.fn(async () => stored),
+        getFreshTraces: vi.fn(async () => []),
+      } as unknown as ExperimentSnapshotProvider
+      const store = useEvalsStore()
+      store.setProvider(source)
+      expect((await store.loadSpanPayload('m', 't', 's')).attributes).toBe('old')
+
+      stored = payload('new')
+      if (view === 'traces') await useTraceStore().refresh()
+      else await store.refresh()
+
+      expect((await store.loadSpanPayload('m', 't', 's')).attributes).toBe('new')
+    },
+  )
 })

@@ -92,7 +92,15 @@ describe('metric catalog and bucket transport against the pinned server answers'
         bucket_max_level: null,
         skipped_rows: 0,
         metrics: [
-          { key: 'train/loss', first_step: 0, last_step: 149, count: null, min: null, max: null },
+          {
+            key: 'train/loss',
+            first_step: 0,
+            last_step: 149,
+            count: null,
+            min: null,
+            max: null,
+            writes: null,
+          },
         ],
       },
     })

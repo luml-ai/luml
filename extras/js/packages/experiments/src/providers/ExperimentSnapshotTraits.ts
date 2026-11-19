@@ -1,7 +1,7 @@
 import type { SnapshotDatabase as Database } from './snapshot-source/SnapshotDatabase'
 
 /** Experiment DB schema revisions (SDK `exp_migrations`) this viewer knows how to read. */
-export const KNOWN_SCHEMA_REVISIONS = [0, 1, 2, 3] as const
+export const KNOWN_SCHEMA_REVISIONS = [0, 1, 2, 3, 4] as const
 
 export const NEWEST_KNOWN_REVISION = Math.max(...KNOWN_SCHEMA_REVISIONS)
 
@@ -60,6 +60,12 @@ const REVISION_TRAITS: Record<KnownSchemaRevision, RevisionTraits> = {
     metricLayout: 'dynamic-metrics',
   },
   3: {
+    hasExperimentTables: true,
+    hasEvalAnnotations: true,
+    hasSpanAnnotations: true,
+    metricLayout: 'metric-points',
+  },
+  4: {
     hasExperimentTables: true,
     hasEvalAnnotations: true,
     hasSpanAnnotations: true,

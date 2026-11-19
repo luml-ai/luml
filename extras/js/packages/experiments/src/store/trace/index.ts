@@ -58,12 +58,12 @@ export const useTraceStore = defineStore('trace', () => {
     const version = listVersion
     const paramsJson = JSON.stringify(requestParams.value)
     const params = JSON.parse(paramsJson)
-    if (reset) {
-      // The reset moves the provider's cursor back: until it ends, no listed rows continue it.
-      listedParamsJson = null
-      evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
-    }
-    const data = await evalsStore.getProvider.getTraces(params)
+    // The reset moves the provider's cursor back: until it ends, no listed rows continue it.
+    if (reset) listedParamsJson = null
+    // Both are posted at once, in order. A failed reset fails the read too, whose rows would
+    // continue from the old cursor.
+    const resetting = reset ? evalsStore.getProvider.resetTracesRequestParams() : undefined
+    const [, data] = await Promise.all([resetting, evalsStore.getProvider.getTraces(params)])
     // Rows for older parameters: the reload for the current ones follows.
     if (!isCurrentRead(version, paramsJson)) return
     if (reset) {
@@ -107,6 +107,7 @@ export const useTraceStore = defineStore('trace', () => {
   }
 
   async function refresh() {
+    evalsStore.clearSpanPayloads()
     if (loading.value) return
     const version = listVersion
     setLoading(true)

@@ -253,6 +253,7 @@ describe('DynamicMetrics refresh', () => {
     expect(source.getMetricCatalogs).toHaveBeenLastCalledWith(
       { modelIds: ['m1'], refresh: true },
       expect.any(AbortSignal),
+      { timeoutMs: 30_000 },
     )
     expect(view.findComponent(DynamicMetricsItem).props('fullRange')).toEqual({
       first: 0,

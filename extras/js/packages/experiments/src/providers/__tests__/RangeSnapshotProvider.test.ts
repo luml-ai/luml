@@ -276,9 +276,9 @@ describe('range-backed snapshot provider on a large revision 2 experiment', () =
     expect(issued).toEqual([{ kind: 'range', url: URL_A, offset: 0, length: artifact.tar.length }])
   })
 
-  it('rejects a URL change for a snapshot that is not range-backed', async () => {
+  it('ignores a URL change for a snapshot that is not range-backed', async () => {
     const provider = await zipProvider(artifact.db)
 
-    await expect(provider.setSourceUrl(MODEL, URL_B)).rejects.toThrow(/not range-backed/)
+    await expect(provider.setSourceUrl(MODEL, URL_B)).resolves.toBe(false)
   })
 })

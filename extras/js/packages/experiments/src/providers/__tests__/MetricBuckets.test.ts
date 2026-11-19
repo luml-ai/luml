@@ -169,6 +169,52 @@ describe('metric catalog and buckets on revision 2 and revision 3 databases', ()
   })
 })
 
+describe('a bucket request for more keys than one compound SELECT holds', () => {
+  const keys = Array.from({ length: 1001 }, (_, index) => `k${String(index).padStart(4, '0')}`)
+  const points: MetricPoint[] = keys.flatMap((key, index) =>
+    Array.from({ length: 3 }, (_, step) => ({ key, step: step * 7, value: index + step })),
+  )
+  let provider: ExperimentSnapshotDatabaseProvider
+
+  beforeAll(async () => {
+    provider = await providerFor([
+      { modelId: 'rev2', db: await revision2Database(points), zip: true },
+      { modelId: 'rev3', db: await revision3Database(points) },
+    ])
+  })
+
+  it.each([
+    [501, 0],
+    [1001, 0],
+    [501, 3],
+    [1001, 14],
+  ])(
+    'answers %i keys at level %i as per-key reads do, in request order',
+    async (count, level) => {
+      const requested = keys.slice(0, count).reverse()
+      const together = (await provider.getMetricBuckets({ keys: requested, level })).map(valueOf)
+      const oneByOne = await Promise.all(
+        ['rev2', 'rev3'].map(async (modelId) =>
+          Promise.all(
+            requested.map(async (key) => {
+              const [result] = await provider.getMetricBuckets({
+                modelIds: [modelId],
+                keys: [key],
+                level,
+              })
+              return valueOf(result).series[0]
+            }),
+          ),
+        ),
+      )
+
+      expect(together.map((response) => response.series)).toEqual(oneByOne)
+      expect(together[0]!.series[0]!.buckets.length).toBeGreaterThan(0)
+    },
+    60_000,
+  )
+})
+
 describe('a database that stores levels 2 to 4 only, with text and BLOB values', () => {
   const points: MetricPoint[] = [
     ...generatedMetrics(5),
@@ -478,7 +524,7 @@ describe('reader rules of section 3', () => {
 
   it('refuses only the experiment whose min_reader_revision is too new', async () => {
     const provider = await providerFor([
-      { modelId: 'future', db: await revision3Database(points, { minReaderRevision: 4 }) },
+      { modelId: 'future', db: await revision3Database(points, { minReaderRevision: 5 }) },
       { modelId: 'current', db: await revision3Database(points) },
     ])
 
@@ -504,7 +550,7 @@ describe('reader rules of section 3', () => {
         transportFallback: null,
         unknownNewerRevision: false,
         skippedMetricRows: null,
-        error: { code: NEEDS_NEWER_READER, message: expect.stringMatching(/revision 4/) },
+        error: { code: NEEDS_NEWER_READER, message: expect.stringMatching(/revision 5/) },
       },
       {
         modelId: 'current',

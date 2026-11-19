@@ -22,7 +22,8 @@ describe('trace store', () => {
       },
       getTraces() {
         calls.push('getTraces')
-        return Promise.resolve([])
+        // The cursor was not reset, so this is not the first page.
+        return Promise.resolve([{ trace_id: 'row-of-page-2' }])
       },
     }
     useEvalsStore().setProvider(provider as unknown as ExperimentSnapshotProvider)
@@ -35,11 +36,14 @@ describe('trace store', () => {
     expect(calls).toEqual(['resetTracesRequestParams'])
   })
 
-  it('does not leave a failed provider reset unhandled when reloading traces', async () => {
-    await useTraceStore().getNextPage(true)
-    await new Promise((resolve) => setTimeout(resolve))
+  it('fails a reload whose provider reset failed, without listing rows of the old cursor', async () => {
+    const store = useTraceStore()
+
+    await expect(store.getNextPage(true)).rejects.toThrow('worker was terminated')
 
     expect(calls).toEqual(['resetTracesRequestParams', 'getTraces'])
+    expect(store.traces).toEqual([])
+    expect(store.isListCurrent()).toBe(false)
   })
 
   it('resets without an error after the next view reset the provider', () => {

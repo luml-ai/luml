@@ -468,6 +468,29 @@ function requestedSteps(request: MetricBucketsRequest): [number | null, number |
 const clampStep = (step: number) =>
   Math.min(Math.max(step, -Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER)
 
+const MAX_KEYS_PER_QUERY = 500
+
+/**
+ * Steps below -(2^53 - 1) are left out, as the raw-point reads leave them out. Only a key's
+ * lowest stored bucket can hold such a step next to safe ones (reads start at the bucket of
+ * -(2^53 - 1)); it is aggregated again from the points at safe steps, or dropped.
+ */
+function dropUnsafeLowSteps(database: Database, byKey: Map<string, KeyBuckets>): void {
+  for (const [key, read] of byKey) {
+    const lowest = read.buckets[0]
+    if (!lowest || lowest.first_step >= -Number.MAX_SAFE_INTEGER) continue
+    const [row] = rows(
+      database,
+      `SELECT ?, ?, min(step), max(step), ${rawAggregates('value')}
+       FROM metric_points
+       WHERE metric_id = (SELECT id FROM metric_keys WHERE key = ?) AND step BETWEEN ? AND ?`,
+      [key, lowest.bucket, key, -Number.MAX_SAFE_INTEGER, lowest.last_step],
+    )
+    const safe = row ? bucketFromRow(row) : null
+    read.buckets = safe?.count ? [safe, ...read.buckets.slice(1)] : read.buckets.slice(1)
+  }
+}
+
 export function readMetricBuckets(
   database: Database,
   traits: SnapshotTraits,
@@ -485,7 +508,7 @@ export function readMetricBuckets(
     const entry = entries.get(key)
     return entry !== undefined && (start ?? entry.first_step) <= (end ?? entry.last_step)
   })
-  let byKey = new Map<string, KeyBuckets>()
+  const byKey = new Map<string, KeyBuckets>()
   if (keys.length && traits.hasExperimentTables) {
     // Fractional steps are counted within the bounds as given; an open side also counts
     // those beyond the key's integer steps.
@@ -493,15 +516,17 @@ export function readMetricBuckets(
       request.start_step ?? -Infinity,
       request.end_step ?? Infinity,
     ]
-    const query = bucketQuery(
-      traits,
-      keys,
-      level,
-      bucketOf(clampStep(start ?? -Infinity), level),
-      bucketOf(clampStep(end ?? Infinity), level),
-      countSteps,
-    )
-    byKey = collectBuckets(database, query, modelId)
+    const firstBucket = bucketOf(clampStep(start ?? -Infinity), level)
+    const lastBucket = bucketOf(clampStep(end ?? Infinity), level)
+    // SQLite allows at most 500 terms in a compound SELECT, one per key here.
+    for (let from = 0; from < keys.length; from += MAX_KEYS_PER_QUERY) {
+      const group = keys.slice(from, from + MAX_KEYS_PER_QUERY)
+      const query = bucketQuery(traits, group, level, firstBucket, lastBucket, countSteps)
+      for (const [key, read] of collectBuckets(database, query, modelId)) byKey.set(key, read)
+    }
+    if (bucketSource(traits, level).kind !== 'raw-group-by') {
+      dropUnsafeLowSteps(database, byKey)
+    }
   }
   const series: MetricBucketSeries[] = request.keys.map((key) => {
     const entry = entries.get(key)

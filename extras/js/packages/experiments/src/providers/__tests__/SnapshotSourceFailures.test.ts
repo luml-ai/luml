@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExperimentSnapshotDatabaseProvider } from '../ExperimentSnapshotDatabaseProvider'
 import {
   isTransientSourceFailure,
@@ -20,7 +20,8 @@ import {
   type SyncReadRange,
 } from '../snapshot-source/httpSource'
 import { RangeSqliteEngine } from '../snapshot-source/RangeSqliteEngine'
-import { indexTar, readFixtureTar } from './helpers/snapshotSources'
+import { DEFAULT_REQUEST_TIMEOUT_MS as METRIC_READ_DEADLINE_MS } from '../../metric-buckets/MetricBucketStore'
+import { indexTar, memoryTransport, readFixtureTar } from './helpers/snapshotSources'
 
 const ARTIFACT = readFixtureTar('g_raw_sdk_0_5_0')
 const [MEMBER_OFFSET, MEMBER_SIZE] = indexTar(ARTIFACT)['exp.db']!
@@ -70,7 +71,7 @@ describe('sync range reads', () => {
     xhrReadRange(URL_A, 0, 4)
 
     expect(calls).toEqual(['open', `timeout ${syncRangeTimeoutMs(4)}`, 'send'])
-    expect(SYNC_RANGE_TIMEOUT_MS).toBe(30_000)
+    expect(SYNC_RANGE_TIMEOUT_MS).toBe(25_000)
   })
 
   it('allow a larger request the time it takes at 32 KiB/s on top of the base timeout', () => {
@@ -88,7 +89,7 @@ describe('sync range reads', () => {
     reader({ url: URL_A, headers: {} }, 0, 64 * 1024)
     reader({ url: URL_A, headers: {} }, 0, 4 * 1024 * 1024)
 
-    expect(timeouts).toEqual([32_000, 158_000])
+    expect(timeouts).toEqual([27_000, 153_000])
   })
 
   it('report a timeout as timed-out, not as an expired URL, and read again afterwards', () => {
@@ -117,6 +118,118 @@ describe('sync range reads', () => {
     expect(file.failure).toBeNull()
     hang = false
     expect(file.read(0, 100)).toEqual(DB.slice(0, 100))
+  })
+
+  it('free the worker from a stalled one-chunk read before a metric read gives up', () => {
+    expect(syncRangeTimeoutMs(4 * CHUNK)).toBeLessThan(METRIC_READ_DEADLINE_MS)
+  })
+
+  describe('within the deadline of the call that needs them', () => {
+    afterEach(() => vi.useRealTimers())
+
+    function recordingFile(deadline: () => number) {
+      const requests: { length: number; timeoutMs: number | undefined }[] = []
+      const read: SyncReadRange = (_location, offset, length, timeoutMs) => {
+        requests.push({ length, timeoutMs })
+        return ARTIFACT.slice(offset, offset + length)
+      }
+      const file = new HttpRangeFile(
+        'm',
+        URL_A,
+        MEMBER_OFFSET,
+        MEMBER_SIZE,
+        read,
+        { chunkSize: CHUNK, maxReadAheadBytes: 64 * CHUNK },
+        deadline,
+      )
+      return { file, requests }
+    }
+
+    function scan(file: HttpRangeFile, chunks: number) {
+      for (let index = 0; index < chunks; index++) file.read(index * CHUNK, CHUNK)
+    }
+
+    it('never wait longer for one request than the call has left', () => {
+      vi.useFakeTimers({ now: 1_000_000 })
+      const { file, requests } = recordingFile(() => 1_000_000 + 5_000)
+
+      file.read(0, 100)
+
+      expect(requests).toEqual([{ length: CHUNK, timeoutMs: 5_000 }])
+    })
+
+    it('keep the full timeout of a request that fits, so a slow link still finishes', () => {
+      vi.useFakeTimers({ now: 1_000_000 })
+      const { file, requests } = recordingFile(() => 1_000_000 + 60_000)
+
+      file.read(0, 100)
+
+      expect(requests).toEqual([{ length: CHUNK, timeoutMs: syncRangeTimeoutMs(CHUNK) }])
+    })
+
+    /** A link of `bytesPerMs` after `latencyMs`; the clock moves as each request takes. */
+    function linkFile(deadline: number, bytesPerMs: number, latencyMs: number) {
+      const requests: { length: number; tookMs: number; timeoutMs: number }[] = []
+      const read: SyncReadRange = (_location, _offset, length, timeoutMs) => {
+        const tookMs = latencyMs + length / bytesPerMs
+        requests.push({ length, tookMs, timeoutMs: timeoutMs! })
+        vi.setSystemTime(Date.now() + tookMs)
+        return new Uint8Array(length)
+      }
+      const size = 32 * 1024 * 1024
+      return { file: new HttpRangeFile('m', URL_A, 0, size, read, {}, () => deadline), requests }
+    }
+
+    function scanBytes(file: HttpRangeFile, bytes: number) {
+      for (let offset = 0; offset < bytes; offset += CHUNK) file.read(offset, CHUNK)
+    }
+
+    it.each([
+      ['a fresh call', 60_000],
+      ['a call half over', 30_000],
+      ['a call without a deadline', Infinity],
+    ])('read ahead on a fast link as far as without a deadline, in %s', (_name, timeLeft) => {
+      vi.useFakeTimers({ now: 1_000_000 })
+      const { file, requests } = linkFile(1_000_000 + timeLeft, 10_000, 20)
+
+      scanBytes(file, 16 * 1024 * 1024)
+
+      expect(requests).toHaveLength(10)
+    })
+
+    it('finish a scan on a slow link (62.5 KB/s) inside the deadline of a metric read', () => {
+      vi.useFakeTimers({ now: 1_000_000 })
+      const deadline = 1_000_000 + METRIC_READ_DEADLINE_MS
+      const { file, requests } = linkFile(deadline, 62.5, 50)
+
+      scanBytes(file, 1024 * 1024)
+
+      expect(Date.now()).toBeLessThanOrEqual(deadline)
+      for (const request of requests) expect(request.tookMs).toBeLessThan(request.timeoutMs)
+      // Read-ahead still ramps up, within what the measured link carries in the time left.
+      expect(requests).toHaveLength(5)
+    })
+
+    it('read only the chunks a read needs when no read-ahead fits', () => {
+      vi.useFakeTimers({ now: 1_000_000 })
+      const { file, requests } = recordingFile(() => 1_000_000 + 500)
+
+      scan(file, 4)
+      file.read(10 * CHUNK, 3 * CHUNK)
+
+      expect(requests.map((request) => request.length)).toEqual([
+        ...Array.from({ length: 4 }, () => CHUNK),
+        3 * CHUNK,
+      ])
+    })
+
+    it('send no request once the caller has given up', () => {
+      vi.useFakeTimers({ now: 1_000_000 })
+      const { file, requests } = recordingFile(() => 1_000_000)
+
+      expect(() => file.read(0, 100)).toThrow(SnapshotSourceTimeoutError)
+      expect(requests).toEqual([])
+    })
   })
 
   it('address a member beyond 4 GiB with exact offsets and Range headers', () => {
@@ -349,5 +462,278 @@ describe('a failed source request sent again with the same URL', () => {
 
     expect(fields).toEqual({ code: 'snapshot-source-expired', modelId: 'm', status: 503 })
     expect(snapshotErrorFromFields(fields!, 'failed')).toMatchObject({ status: 503 })
+  })
+})
+
+describe('a comparison member whose storage fails after open', () => {
+  type Fault = 'denied' | 'range-ignored' | 'timeout'
+  const urlOf = (modelId: string) => `https://bucket.test/${modelId}?sig=secret-${modelId}`
+  const traceParams = { limit: 20, sort_by: 'created_at', order: 'desc', search: '', filters: [] }
+  const evalPage = {
+    dataset_id: 'qa_set',
+    limit: 20,
+    sort_by: 'created_at',
+    order: 'asc',
+    search: '',
+    filters: [],
+  } as const
+
+  async function openMembers(modelIds: string[], broken: string) {
+    const store = memoryTransport(Object.fromEntries(modelIds.map((id) => [urlOf(id), ARTIFACT])))
+    const state: { fault: Fault | null } = { fault: null }
+    const transport: SnapshotTransport = {
+      ...store.transport,
+      readRangeSync: (location, offset, length) => {
+        if (location.url === urlOf(broken) && state.fault === 'range-ignored') {
+          return ARTIFACT.slice()
+        }
+        if (location.url === urlOf(broken) && state.fault === 'timeout') throw timeoutError()
+        return store.transport.readRangeSync(location, offset, length)
+      },
+    }
+    const provider = new ExperimentSnapshotDatabaseProvider({ transport })
+    const failures = await provider.init({
+      modelsInfo: modelIds.map((modelId) => ({
+        modelId,
+        source: { kind: 'range', url: urlOf(modelId), offset: MEMBER_OFFSET, size: MEMBER_SIZE },
+      })),
+    })
+    expect(failures).toEqual([])
+    const breakStorage = (fault: Fault) => {
+      state.fault = fault
+      if (fault === 'denied') store.controls.failingUrls.add(urlOf(broken))
+    }
+    const repair = () => {
+      state.fault = null
+      store.controls.failingUrls.delete(urlOf(broken))
+    }
+    return { provider, breakStorage, repair }
+  }
+
+  const codeOf = (read: Promise<unknown>) =>
+    read.then(
+      () => 'read',
+      (error: { code?: string }) => error.code ?? 'other',
+    )
+
+  async function readAll(provider: ExperimentSnapshotDatabaseProvider) {
+    await provider.resetTracesRequestParams()
+    await provider.resetEvalsDatasetsRequestParams()
+    const catalogs = await provider.getMetricCatalogs()
+    const evals = await provider.getNextEvalsByDatasetId(evalPage)
+    const datasetId = evalPage.dataset_id
+    return {
+      catalogs: catalogs.map((item) => [item.modelId, item.ok]),
+      datasets: await provider.getUniqueDatasetsIds(),
+      evals: [...new Set(evals.map((row) => row.modelId))],
+      columns: await provider.getEvalsColumns(datasetId),
+      scores: (await provider.getDatasetAverageScores(datasetId)).map((item) => item.modelId),
+      annotations: await codeOf(provider.getEvalsDatasetAnnotationsSummary(datasetId)),
+      traces: (await provider.getTraces(traceParams)).length,
+      // Exports: a file that silently misses an experiment is worse than an error.
+      allTraces: await codeOf(provider.getAllTraces(traceParams)),
+      allEvals: await codeOf(provider.getAllDatasetEvals(evalPage)),
+    }
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each([
+    ['denied', ['healthy', 'broken']],
+    ['denied', ['first', 'broken', 'last']],
+    ['range-ignored', ['healthy', 'broken']],
+    ['range-ignored', ['first', 'broken', 'last']],
+  ] as const)('%s, of %j: the others show, the member is reported', async (fault, members) => {
+    const { provider, breakStorage } = await openMembers([...members], 'broken')
+    const alone = await openMembers(['healthy'], 'none')
+    const tracesOfOne = (await alone.provider.getAllTraces(traceParams)).length
+    const datasetsOfOne = await alone.provider.getUniqueDatasetsIds()
+    const columnsOfOne = await alone.provider.getEvalsColumns(evalPage.dataset_id)
+    breakStorage(fault)
+
+    const read = await readAll(provider)
+
+    const healthy = members.filter((id) => id !== 'broken')
+    const brokenCode = fault === 'denied' ? 'snapshot-source-expired' : 'snapshot-range-unsupported'
+    expect(read).toEqual({
+      catalogs: members.map((id) => [id, id !== 'broken']),
+      datasets: datasetsOfOne,
+      evals: healthy,
+      columns: columnsOfOne,
+      scores: healthy,
+      annotations: 'read',
+      traces: Math.min(traceParams.limit, tracesOfOne) * healthy.length,
+      allTraces: brokenCode,
+      allEvals: brokenCode,
+    })
+    const statuses = await provider.getExperimentStatuses()
+    expect(statuses.map((status) => [status.modelId, status.error?.code ?? null])).toEqual(
+      members.map((id) => [id, id === 'broken' ? brokenCode : null]),
+    )
+    expect(JSON.stringify(statuses)).not.toContain('secret')
+  })
+
+  it('reads the member again once its storage answers, from its first trace page', async () => {
+    const { provider, breakStorage, repair } = await openMembers(['healthy', 'broken'], 'broken')
+    const onePerPage = { ...traceParams, limit: 1 }
+    breakStorage('denied')
+    const without = await provider.getTraces(onePerPage)
+    repair()
+
+    const page = await provider.getTraces(onePerPage)
+
+    // The healthy member's second page, and the first page of the member that was left out.
+    expect(without).toHaveLength(1)
+    expect(page).toHaveLength(2)
+    expect(page.map((trace) => trace.trace_id)).toContain(without[0]!.trace_id)
+    const statuses = await provider.getExperimentStatuses()
+    expect(statuses.every((status) => status.error === null)).toBe(true)
+  })
+
+  it('forgets a member left out once it reads again, and tells the caller both times', async () => {
+    const { provider, breakStorage, repair } = await openMembers(['healthy', 'broken'], 'broken')
+    const versions = [provider.readFailuresVersion]
+    breakStorage('denied')
+    await provider.getUniqueDatasetsIds()
+    versions.push(provider.readFailuresVersion)
+    await provider.getUniqueDatasetsIds()
+    versions.push(provider.readFailuresVersion)
+    repair()
+
+    await provider.getMetricCatalogs()
+    versions.push(provider.readFailuresVersion)
+
+    expect(versions).toEqual([0, 1, 1, 2])
+    const statuses = await provider.getExperimentStatuses()
+    expect(statuses.every((status) => status.error === null)).toBe(true)
+  })
+
+  it('keeps a member reported after a read from the cache, until a read reaches its storage', async () => {
+    const { provider, breakStorage, repair } = await openMembers(['healthy', 'stalled'], 'stalled')
+    const datasetsBefore = await provider.getUniqueDatasetsIds()
+    const errorOf = async () =>
+      (await provider.getExperimentStatuses()).find((status) => status.modelId === 'stalled')?.error
+        ?.code ?? null
+    breakStorage('timeout')
+    const versions = [provider.readFailuresVersion]
+    const tracesWithout = await provider.getTraces(traceParams)
+    versions.push(provider.readFailuresVersion)
+
+    const fromCache = await provider.getUniqueDatasetsIds()
+    versions.push(provider.readFailuresVersion)
+    const shownAfterCachedRead = await errorOf()
+    repair()
+    await provider.resetTracesRequestParams()
+    const tracesWith = await provider.getTraces(traceParams)
+    versions.push(provider.readFailuresVersion)
+    await provider.getUniqueDatasetsIds()
+    versions.push(provider.readFailuresVersion)
+
+    expect(fromCache).toEqual(datasetsBefore)
+    expect(shownAfterCachedRead).toBe('timed-out')
+    expect(tracesWith.length).toBe(2 * tracesWithout.length)
+    expect(versions).toEqual([0, 1, 1, 2, 2])
+    expect(await errorOf()).toBeNull()
+  })
+
+  it('does not report a member whose read the deadline of the call stopped', async () => {
+    const { provider } = await openMembers(['healthy', 'late'], 'none')
+    const expired = { deadline: Date.now() - 1 }
+
+    const catalogs = await provider.runCall(expired, () => provider.getMetricCatalogs())
+    const datasets = provider.runCall(expired, () => provider.getUniqueDatasetsIds())
+
+    expect(catalogs.map((item) => [item.modelId, item.ok])).toEqual([
+      ['healthy', false],
+      ['late', false],
+    ])
+    await expect(datasets).rejects.toMatchObject({ code: 'timed-out', callDeadline: true })
+    const statuses = await provider.getExperimentStatuses()
+    expect(statuses.every((status) => status.error === null)).toBe(true)
+    expect(provider.readFailuresVersion).toBe(0)
+  })
+
+  it.each([27_000, 25_200])(
+    'reports a member whose storage stalls with %s ms of the call left, and shows the others',
+    async (timeLeftMs) => {
+      const { provider, breakStorage } = await openMembers(['healthy', 'stalled'], 'stalled')
+      const alone = await openMembers(['healthy'], 'none')
+      const datasetsOfOne = await alone.provider.getUniqueDatasetsIds()
+      const tracesOfOne = (await alone.provider.getTraces(traceParams)).length
+      breakStorage('timeout')
+      // More than the storage's base allowance, less than a large request's size allowance.
+      const call = { deadline: Date.now() + timeLeftMs }
+
+      const datasets = await provider.runCall(call, () => provider.getUniqueDatasetsIds())
+      const traces = await provider.runCall(call, () => provider.getTraces(traceParams))
+
+      expect(datasets).toEqual(datasetsOfOne)
+      expect(traces.length).toBe(tracesOfOne)
+      const statuses = await provider.getExperimentStatuses()
+      expect(statuses.map((status) => [status.modelId, status.error?.code ?? null])).toEqual([
+        ['healthy', null],
+        ['stalled', 'timed-out'],
+      ])
+    },
+  )
+
+  it.each([
+    ['a single experiment', ['only']],
+    ['a comparison', ['healthy', 'only']],
+  ])('drops the notice of %s once a timed-out read works again', async (_name, members) => {
+    const { provider, breakStorage, repair } = await openMembers([...members], 'only')
+    const errorOf = async () =>
+      (await provider.getExperimentStatuses()).find((status) => status.modelId === 'only')?.error
+    breakStorage('timeout')
+    const [failed] = (await provider.getMetricCatalogs()).filter((item) => item.modelId === 'only')
+    // Only a comparison leaves the experiment out and reports it; a single one shows the error.
+    const shown = (await errorOf())?.code ?? null
+    repair()
+
+    const [read] = (await provider.getMetricCatalogs()).filter((item) => item.modelId === 'only')
+
+    expect(failed).toMatchObject({ ok: false, error: { code: 'timed-out' } })
+    expect(shown).toBe(members.length > 1 ? 'timed-out' : null)
+    expect(read).toMatchObject({ ok: true })
+    expect(await errorOf()).toBeNull()
+  })
+
+  it('still rejects the read of a single experiment', async () => {
+    const { provider, breakStorage } = await openMembers(['only'], 'only')
+    breakStorage('denied')
+
+    await expect(provider.getUniqueDatasetsIds()).rejects.toBeInstanceOf(SnapshotSourceExpiredError)
+    await expect(provider.getTraces(traceParams)).rejects.toBeInstanceOf(SnapshotSourceExpiredError)
+    await expect(provider.getMetricCatalogs()).rejects.toBeInstanceOf(SnapshotSourceExpiredError)
+  })
+
+  it('still rejects a failure that is not the storage', async () => {
+    const { provider } = await openMembers(['healthy', 'other'], 'other')
+
+    await expect(
+      provider.getTraces({ ...traceParams, filters: ['no_such_field = 1'] }),
+    ).rejects.toThrow()
+  })
+
+  it('rethrows an expired source the caller renews, marked so that it can be left out', async () => {
+    const { provider, breakStorage } = await openMembers(['healthy', 'broken'], 'broken')
+    breakStorage('denied')
+    const failedSources = [
+      { modelId: 'broken', error: { code: 'snapshot-source-expired' as const, message: 'failed' } },
+    ]
+
+    const error = await provider
+      .runCall({ renewableSources: ['healthy', 'broken'] }, () => provider.getUniqueDatasetsIds())
+      .catch((caught: unknown) => caught)
+    const leftOut = await provider.runCall({ failedSources }, () => provider.getUniqueDatasetsIds())
+
+    expect(error).toMatchObject({ modelId: 'broken', isolatable: true })
+    expect(snapshotErrorFields(error)).toMatchObject({ modelId: 'broken', isolatable: true })
+    expect(leftOut.length).toBeGreaterThan(0)
+    expect(leftOut).toEqual(await provider.getUniqueDatasetsIds())
   })
 })

@@ -70,6 +70,8 @@ export class SnapshotSourceTimeoutError extends Error {
   constructor(
     readonly modelId: string,
     readonly limit: number,
+    /** The call the read served ran out of time; says nothing about the storage. */
+    readonly callDeadline = false,
   ) {
     super(`Snapshot range read got no answer within ${Math.round(limit / 1000)} s`)
     this.name = 'SnapshotSourceTimeoutError'
@@ -171,6 +173,33 @@ export function isTransientSourceFailure(error: unknown): boolean {
   return status === undefined || status === 0 || status >= 500 || status === 408 || status === 429
 }
 
+const SOURCE_FAILURE_CODES = new Set<string>([
+  SNAPSHOT_SOURCE_EXPIRED,
+  SNAPSHOT_RANGE_UNSUPPORTED,
+  SNAPSHOT_SOURCE_REDIRECT,
+  SNAPSHOT_SOURCE_PAGE,
+  SNAPSHOT_SOURCE_TIMED_OUT,
+])
+
+/** A read of an open snapshot failed at its storage, not in the reader or the database. */
+export function isSnapshotSourceFailure(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const { code, modelId } = error as { code?: unknown; modelId?: unknown }
+  return typeof code === 'string' && SOURCE_FAILURE_CODES.has(code) && typeof modelId === 'string'
+}
+
+/**
+ * Set on a source failure of one experiment in a read that spans several: the caller may renew
+ * its source and retry, or retry with it left out (`failedSources` of the call).
+ */
+export interface IsolatableSourceFailure {
+  isolatable?: true
+}
+
+export function isIsolatableSourceFailure(error: unknown): boolean {
+  return isSnapshotSourceFailure(error) && (error as IsolatableSourceFailure).isolatable === true
+}
+
 export function isSnapshotRangeUnsupported(error: unknown): error is SnapshotRangeUnsupportedError {
   return (
     typeof error === 'object' &&
@@ -199,6 +228,7 @@ export interface SnapshotErrorFields {
   size?: number
   limit?: number
   status?: number
+  isolatable?: true
 }
 
 const CODED_ERRORS = new Set<string>([
@@ -214,7 +244,7 @@ const CODED_ERRORS = new Set<string>([
 
 export function snapshotErrorFields(error: unknown): SnapshotErrorFields | null {
   if (typeof error !== 'object' || error === null) return null
-  const { code, modelId, size, limit, status } = error as Record<string, unknown>
+  const { code, modelId, size, limit, status, isolatable } = error as Record<string, unknown>
   if (typeof code !== 'string' || !CODED_ERRORS.has(code) || typeof modelId !== 'string') {
     return null
   }
@@ -222,11 +252,18 @@ export function snapshotErrorFields(error: unknown): SnapshotErrorFields | null 
   if (typeof size === 'number') fields.size = size
   if (typeof limit === 'number') fields.limit = limit
   if (code === SNAPSHOT_SOURCE_EXPIRED && typeof status === 'number') fields.status = status
+  if (isolatable === true) fields.isolatable = true
   return fields
 }
 
 /** Rebuilds the typed error a worker reported with `snapshotErrorFields`. */
 export function snapshotErrorFromFields(fields: SnapshotErrorFields, message: string): Error {
+  const error = typedSnapshotError(fields, message)
+  if (fields.isolatable) (error as IsolatableSourceFailure).isolatable = true
+  return error
+}
+
+function typedSnapshotError(fields: SnapshotErrorFields, message: string): Error {
   switch (fields.code) {
     case SNAPSHOT_SOURCE_EXPIRED:
       return new SnapshotSourceExpiredError(fields.modelId, message, fields.status)

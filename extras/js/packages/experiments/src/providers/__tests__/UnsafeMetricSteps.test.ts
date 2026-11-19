@@ -84,6 +84,49 @@ describe('metric steps beyond 2^53', () => {
     ])
   })
 
+  it('leave out a step of exactly -2^53 alike from raw points and stored buckets', async () => {
+    // -2^53 is a double, but outside +-(2^53 - 1): from level 1 on its bucket is the one
+    // reads start at, so a stored bucket read whole would keep it.
+    const low: MetricPoint[] = [
+      ...Array.from({ length: 1000 }, (_, step) => ({ key: 'loss', step, value: step })),
+      { key: 'loss', step: -(2 ** 53), value: 1e6 },
+      { key: 'loss', step: -(2 ** 53) + 1, value: -5 },
+    ]
+    const provider = new ExperimentSnapshotDatabaseProvider()
+    await provider.init({
+      modelsInfo: [
+        {
+          modelId: 'rev2',
+          source: { kind: 'raw', buffer: rawBuffer(await revision2Database(low)) },
+        },
+        {
+          modelId: 'rev3',
+          source: { kind: 'raw', buffer: rawBuffer(await revision3Database(low)) },
+        },
+      ],
+    })
+
+    for (const level of [0, 1, 2, 5, 13, 14, 20, 27]) {
+      const [rev2, rev3] = await provider.getMetricBuckets({
+        modelIds: ['rev2', 'rev3'],
+        keys: ['loss'],
+        level,
+      })
+      expect(rev2?.ok && rev3?.ok, `level ${level}`).toBe(true)
+      if (!rev2?.ok || !rev3?.ok) continue
+      expect(rev3.value.series, `level ${level}`).toEqual(rev2.value.series)
+      const buckets = rev3.value.series[0]!.buckets
+      expect(buckets.reduce((total, bucket) => total + bucket.count, 0)).toBe(1001)
+      expect(buckets[0]!.first_step).toBe(-(2 ** 53) + 1)
+      expect(Math.max(...buckets.map((bucket) => bucket.max ?? -Infinity))).toBe(999)
+    }
+    const { statuses } = await chartOf(provider, ['rev2', 'rev3'])
+    expect(statuses.map((status) => [status.modelId, status.unsafeMetricSteps])).toEqual([
+      ['rev2', true],
+      ['rev3', true],
+    ])
+  })
+
   it('are drawn up to 2^53 from the API, whose JSON numbers arrive rounded', async () => {
     const catalog = JSON.parse(`{
       "revision": 3, "bucket_min_level": 3, "bucket_max_level": 12, "skipped_rows": 0,

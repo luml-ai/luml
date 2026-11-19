@@ -37,10 +37,10 @@ const SUMMARY_TABLES = [
 describe('readSnapshotTraits', () => {
   it('flags a revision newer than the viewer knows and reads it like the newest known one', async () => {
     const db = await memoryDatabase()
-    db.run(`PRAGMA user_version = 4; ${REVISION_2_TABLES} ${REVISION_3_TABLES}`)
+    db.run(`PRAGMA user_version = 5; ${REVISION_2_TABLES} ${REVISION_3_TABLES}`)
 
     expect(readSnapshotTraits(db)).toEqual({
-      revision: 4,
+      revision: 5,
       unknownNewerRevision: true,
       minReaderRevision: 2,
       needsNewerReader: false,
@@ -71,13 +71,13 @@ describe('readSnapshotTraits', () => {
 
   it('refuses a DB whose min_reader_revision is above the newest known revision', async () => {
     const db = await memoryDatabase()
-    db.run(`PRAGMA user_version = 5; ${REVISION_2_TABLES} ${REVISION_3_TABLES}
-      UPDATE exp_schema_info SET value = '4' WHERE key = 'min_reader_revision';`)
+    db.run(`PRAGMA user_version = 6; ${REVISION_2_TABLES} ${REVISION_3_TABLES}
+      UPDATE exp_schema_info SET value = '5' WHERE key = 'min_reader_revision';`)
 
     expect(readSnapshotTraits(db)).toEqual({
-      revision: 5,
+      revision: 6,
       unknownNewerRevision: true,
-      minReaderRevision: 4,
+      minReaderRevision: 5,
       needsNewerReader: true,
       hasExperimentTables: false,
       hasEvalAnnotations: false,

@@ -62,6 +62,11 @@ export interface MetricCatalogEntry {
   count: number | null
   min: number | null
   max: number | null
+  /**
+   * Changes with every committed write of this metric, an overwrite of a step included. Null
+   * or absent when the store does not track it (revision 2 stores, published snapshots).
+   */
+  writes?: number | null
 }
 
 export interface ExperimentMetricCatalog {
@@ -86,6 +91,14 @@ export interface MetricCatalogsRequest {
    * anyway (a no-op by design); the API provider always asks the server.
    */
   refresh?: boolean
+}
+
+export interface ReadCallOptions {
+  /**
+   * The caller gives up this long after the call. A provider that runs calls one at a time
+   * stops the call's reads then, so they never hold up the calls behind it for longer.
+   */
+  timeoutMs?: number
 }
 
 /** Aggregate of the points whose step falls in `[bucket * 4^level, (bucket + 1) * 4^level)`. */

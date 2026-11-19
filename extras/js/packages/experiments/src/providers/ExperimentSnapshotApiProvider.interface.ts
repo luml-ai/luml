@@ -232,6 +232,8 @@ export interface MetricCatalogWire {
     count: number | null
     min: WireNumber
     max: WireNumber
+    /** Absent from servers that predate it. */
+    writes?: number | null
   }[]
 }
 
