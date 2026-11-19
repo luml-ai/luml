@@ -29,6 +29,17 @@ class WorkflowSecurityTests(unittest.TestCase):
                         else:
                             self.assertRegex(ref, r"^[^@\s]+@[0-9a-f]{40}$")
 
+    def test_job_containers_use_image_digests(self):
+        for path in WORKFLOWS.glob("*.y*ml"):
+            workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+            for name, job in workflow["jobs"].items():
+                if "container" not in job:
+                    continue
+                container = job["container"]
+                image = container if isinstance(container, str) else container["image"]
+                with self.subTest(workflow=path.name, job=name):
+                    self.assertRegex(image, r"@sha256:[0-9a-f]{64}$")
+
     def test_workflows_default_to_read_only_contents(self):
         paths = list(WORKFLOWS.glob("*.y*ml"))
         self.assertTrue(paths)

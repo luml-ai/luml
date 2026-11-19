@@ -84,15 +84,12 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
 
+      # No system packages from the mirror: the runner image has every library Chromium loads
+      # (install-deps only adds fallback fonts and upgrades mesa). A missing one fails the launch.
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
         working-directory: frontend
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright system deps
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        working-directory: frontend
-        run: npx playwright install-deps chromium
+        run: npx playwright install chromium
 
       - name: Install Python dependencies
         run: |

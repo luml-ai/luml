@@ -4,9 +4,13 @@ run with: uv run --with pyyaml python -m unittest discover -s .github/tests
 """
 
 import fnmatch
+import json
+import re
 import unittest
 
-from test_release_gates import WORKFLOWS, load
+from test_release_gates import ROOT, WORKFLOWS, load
+
+PLAYWRIGHT_IMAGE = r"mcr\.microsoft\.com/playwright:v(?P<version>\d+\.\d+\.\d+)-noble@sha256:[0-9a-f]{64}"
 
 
 class FrontendCITests(unittest.TestCase):
@@ -88,20 +92,40 @@ class FrontendCITests(unittest.TestCase):
         self.assertNotIn("npm run lint", lint_steps[0]["run"])
         self.assertNotIn("continue-on-error", lint_steps[0])
 
-    def test_integration_job_installs_every_browser_the_suite_runs(self):
-        steps = load("[frontend] tests-and-linters.yml")["jobs"]["integration"]["steps"]
-        cache = next(step for step in steps if step.get("id") == "pw-cache")
-        installs = [
-            step["run"]
-            for step in steps
-            if step.get("run", "").startswith("npx playwright install")
-        ]
-        self.assertEqual(len(installs), 2)
-        for browser in ("chromium", "firefox", "webkit"):
-            with self.subTest(browser=browser):
-                self.assertIn(browser, cache["with"]["key"])
-                for command in installs:
-                    self.assertIn(browser, command.split())
+    def test_browser_test_jobs_run_in_the_playwright_image(self):
+        # The full image holds chromium, firefox and webkit with their system
+        # packages, so these jobs neither install browsers nor touch apt.
+        for workflow, name in (
+            ("[frontend] tests-and-linters.yml", "integration"),
+            ("[extras-js] tests-and-linters.yml", "checks"),
+        ):
+            job = load(workflow)["jobs"][name]
+            commands = [step.get("run", "") for step in job["steps"]]
+            with self.subTest(workflow=workflow, job=name):
+                self.assertRegex(job["container"]["image"], f"^{PLAYWRIGHT_IMAGE}$")
+                self.assertIn("--user 1001", job["container"]["options"])
+                self.assertIn("--ipc=host", job["container"]["options"])
+                self.assertFalse(any("playwright install" in c for c in commands))
+
+    def test_playwright_images_match_the_locked_playwright_version(self):
+        lock = json.loads((ROOT / "package-lock.json").read_text())["packages"]
+        locked = {
+            lock[f"node_modules/{package}"]["version"]
+            for package in ("@playwright/test", "playwright", "playwright-core")
+        }
+        self.assertEqual(len(locked), 1)
+        found = 0
+        for path in sorted(WORKFLOWS.glob("*.yml")):
+            for name, job in load(path.name)["jobs"].items():
+                image = job.get("container", {}).get("image", "")
+                if "playwright" not in image:
+                    continue
+                found += 1
+                with self.subTest(workflow=path.name, job=name):
+                    match = re.fullmatch(PLAYWRIGHT_IMAGE, image)
+                    self.assertIsNotNone(match, image)
+                    self.assertEqual({match["version"]}, locked)
+        self.assertGreaterEqual(found, 2)
 
     def test_jobs_that_install_playwright_browsers_pin_the_runner_image(self):
         # Playwright ships browser builds per Ubuntu release, so a moving image
@@ -115,7 +139,7 @@ class FrontendCITests(unittest.TestCase):
                 found += 1
                 with self.subTest(workflow=path.name, job=name):
                     self.assertRegex(job["runs-on"], r"^ubuntu-\d+\.\d+$")
-        self.assertGreaterEqual(found, 3)
+        self.assertGreaterEqual(found, 1)
 
     def test_test_jobs_use_optional_dependencies_without_mutating_the_lockfile(self):
         jobs = {

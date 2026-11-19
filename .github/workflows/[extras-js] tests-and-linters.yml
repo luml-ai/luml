@@ -17,8 +17,13 @@ on:
 
 jobs:
   checks:
-    # Playwright 1.59 has no browser builds for Ubuntu 26.04: a browser cache miss fails on ubuntu-latest.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    # The browsers and their system packages come with the image, so no run downloads them.
+    # The tag must match the locked @playwright/test version (.github/tests/test_frontend_ci.py).
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
+      # The runner's uid owns the workspace and HOME; --ipc=host and --init as in playwright.dev/docs/docker.
+      options: --user 1001 --ipc=host --init
     strategy:
       fail-fast: false
       matrix:
@@ -33,29 +38,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --include=optional
-
-      - name: Get Playwright version
-        if: matrix.package == 'attachments'
-        id: pw-version
-        run: |
-          VERSION=$(node -p "require('@playwright/test/package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Cache Playwright browsers
-        if: matrix.package == 'attachments'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: pw-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
-
-      - name: Install Playwright browsers
-        if: matrix.package == 'attachments' && steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright system deps
-        if: matrix.package == 'attachments' && steps.pw-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
 
       - name: ESLint
         working-directory: extras/js/packages/${{ matrix.package }}
