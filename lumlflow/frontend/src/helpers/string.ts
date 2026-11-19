@@ -10,9 +10,9 @@ export const capitalize = (string: string) => {
   return string[0].toUpperCase() + string.slice(1)
 }
 
-export const getSizeText = (size: number) => {
-  if (size < 1000) return `${size}B`
-  if (size < 1000000) return `${size / 1000}KB`
-  if (size < 1000000000) return `${size / 1000000}MB`
-  return `${size / 1000000000}GB`
+export const getSizeText = (size: number, space = '') => {
+  if (size < 1000) return `${size}${space}B`
+  if (size < 1000000) return `${size / 1000}${space}KB`
+  if (size < 1000000000) return `${size / 1000000}${space}MB`
+  return `${size / 1000000000}${space}GB`
 }

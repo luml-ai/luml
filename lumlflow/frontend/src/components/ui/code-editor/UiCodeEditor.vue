@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { CodeEditorHandle } from './code-editor.interface'
+import type { PreviewLanguage } from '@luml/attachments'
 
 const CODE_SURFACE_CLASS =
   'font-mono text-sm leading-relaxed rounded-lg bg-surface-50 dark:bg-surface-800 p-3 overflow-auto'
@@ -17,8 +18,9 @@ const props = withDefaults(
     readonly?: boolean
     maxHeight?: string
     ariaLabel?: string
+    language?: PreviewLanguage | null
   }>(),
-  { readonly: false, maxHeight: '18rem', ariaLabel: 'code editor' },
+  { readonly: false, maxHeight: '18rem', ariaLabel: 'code editor', language: 'python' },
 )
 
 const model = defineModel<string>({ required: true })
@@ -36,6 +38,7 @@ onMounted(async () => {
     doc: model.value,
     readonly: props.readonly,
     ariaLabel: props.ariaLabel,
+    language: props.language,
     onChange: (source) => {
       model.value = source
     },
@@ -49,6 +52,10 @@ onBeforeUnmount(() => {
 })
 
 watch(model, (source) => editor.value?.setSource(source))
+watch(
+  () => props.language,
+  (language) => editor.value?.setLanguage(language),
+)
 watch(
   () => props.readonly,
   (locked) => editor.value?.setReadonly(locked),

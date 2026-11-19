@@ -104,14 +104,22 @@ def _ordinary(path: Path, *, directory: bool = False) -> None:
         raise NotAFile(f"`{path}` belongs to a notebook or its store")
 
 
-def item_path(path: str) -> Path:
-    """Preserve the leaf, including broken symlinks, for directory-entry operations."""
+def ordinary_entry(path: str, *, strict: bool = True) -> Path:
     raw = absolute_path(path)
     with os_errors():
         _ordinary(raw)
-        value = entry_path(raw)
+        value = entry_path(raw, strict=strict)
+        _ordinary(value)
+        return value
+
+
+def item_path(path: str) -> Path:
+    """Preserve the leaf, including broken symlinks, for directory-entry operations."""
+    value = ordinary_entry(path)
+    with os_errors():
         mode = value.lstat().st_mode
-        _ordinary(value, directory=stat.S_ISDIR(mode))
+        if stat.S_ISDIR(mode):
+            _ordinary(value, directory=True)
         if (
             stat.S_ISLNK(mode)
             and value.is_dir()

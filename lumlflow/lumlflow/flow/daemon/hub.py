@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from lumlflow.flow.daemon import envs, files, queries, workspace
 from lumlflow.flow.daemon import reconcile as reconciliation
@@ -58,6 +59,7 @@ class FlowSession:
         tracker: TrackerProvider,
         streams: Streams | None = None,
     ) -> None:
+        self.session_id = uuid4().hex
         self.ref = ref
         # The notebook on disk, whichever spelling `ref` reached it by.
         self.key = key
@@ -568,7 +570,7 @@ class Hub:
         source: Path,
         target: Path | None,
         *,
-        close_open: bool,
+        close_open: bool | list[str],
         written: Callable[[Path, os.stat_result, os.stat_result], None] | None = None,
     ) -> None:
         """Mutate a directory entry after checking all sessions affected by it."""
@@ -583,9 +585,19 @@ class Hub:
                 for session in self.opened()
                 if session.ref.path.is_relative_to(source)
             ]
-            if affected and not close_open:
+            if close_open is not True and any(
+                not isinstance(close_open, list) or s.session_id not in close_open
+                for s in affected
+            ):
                 flows = sorted(
-                    ({"name": s.ref.name, "path": s.ref.address} for s in affected),
+                    (
+                        {
+                            "name": s.ref.name,
+                            "path": s.ref.address,
+                            "session_id": s.session_id,
+                        }
+                        for s in affected
+                    ),
                     key=lambda flow: flow["path"],
                 )
                 names = ", ".join(flow["name"] for flow in flows)
@@ -623,13 +635,15 @@ class Hub:
                             moved.name.removesuffix(FLOW_SUFFIX), moved, moved.name
                         )
 
-    async def delete_flow(self, ref: FlowRef, *, close_open: bool = False) -> None:
+    async def delete_flow(
+        self, ref: FlowRef, *, close_open: bool | list[str] = False
+    ) -> None:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")
         await self.change_path(ref.path, None, close_open=close_open)
 
     async def rename_flow(
-        self, ref: FlowRef, name: str, *, close_open: bool = False
+        self, ref: FlowRef, name: str, *, close_open: bool | list[str] = False
     ) -> FlowRef:
         files.valid_name(name.strip().removesuffix(FLOW_SUFFIX))
         renamed = _new_flow_ref(ref.path.parent, name)
@@ -639,7 +653,7 @@ class Hub:
         return await self.move_flow(ref, renamed, close_open=close_open)
 
     async def move_flow(
-        self, ref: FlowRef, target: FlowRef, *, close_open: bool = False
+        self, ref: FlowRef, target: FlowRef, *, close_open: bool | list[str] = False
     ) -> FlowRef:
         if not _is_flow(ref.path):
             raise FlowNotFound(f"`{ref.relpath}` is not a flow")

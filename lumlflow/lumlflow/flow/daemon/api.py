@@ -29,6 +29,7 @@ from lumlflow.flow.errors import (
     FlowError,
     FlowNotFound,
     LaneMoved,
+    NotAFile,
     ValueNotStored,
 )
 from lumlflow.flow.ids import new_ulid
@@ -171,6 +172,7 @@ class Api:
             "diff": self.diff,
             "ui.attach": self.ui_attach,
             "workspace.list": self.workspace_list,
+            "workspace.file": self.workspace_file,
             "agents.harnesses": self.agents_harnesses,
             "agents.setup": self.agents_setup,
             "agents.remove": self.agents_remove,
@@ -380,6 +382,16 @@ class Api:
             "next_offset": end if end < total else None,
         }
 
+    async def workspace_file(self, params: dict[str, Any]) -> dict[str, Any]:
+        try:
+            path = files.ordinary_entry(params.get("path", ""), strict=False)
+        except NotAFile:
+            return {"file": None}
+        row = workspace.entry_row(path, file=True)
+        if row is not None:
+            row["path"] = params["path"]
+        return {"file": row}
+
     def sync_agents(self) -> list[dict[str, Any]]:
         return self._harnesses.sync()
 
@@ -434,7 +446,7 @@ class Api:
 
     async def flow_delete(self, params: dict[str, Any]) -> dict[str, Any]:
         ref = self._mutation_flow(params)
-        await self.hub.delete_flow(ref, close_open=params.get("close_open") is True)
+        await self.hub.delete_flow(ref, close_open=params.get("close_open", False))
         return {"deleted": ref.name, "path": ref.address}
 
     async def flow_rename(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -442,7 +454,7 @@ class Api:
         renamed = await self.hub.rename_flow(
             ref,
             files.valid_name(params.get("name")),
-            close_open=params.get("close_open") is True,
+            close_open=params.get("close_open", False),
         )
         return {"renamed": renamed.name, "path": renamed.address, "from": ref.address}
 
@@ -455,7 +467,7 @@ class Api:
         moved = await self.hub.move_flow(
             ref,
             target,
-            close_open=params.get("close_open") is True,
+            close_open=params.get("close_open", False),
         )
         return {"moved": moved.name, "path": moved.address, "from": ref.address}
 
@@ -483,7 +495,7 @@ class Api:
         await self.hub.change_path(
             source,
             target,
-            close_open=params.get("close_open") is True,
+            close_open=params.get("close_open", False),
             written=self.file_watcher.prepare_move(source)
             if target is not None
             else None,
@@ -500,7 +512,12 @@ class Api:
         target = files.text_target(params.get("path", ""))
         self.hub.check_available(target)
         text, info, revision = await asyncio.to_thread(files.read_text, target)
-        return {"text": text, "mtime_ns": str(info.st_mtime_ns), "revision": revision}
+        return {
+            "text": text,
+            "target": str(target),
+            "mtime_ns": str(info.st_mtime_ns),
+            "revision": revision,
+        }
 
     async def file_write_text(self, params: dict[str, Any]) -> dict[str, Any]:
         target = files.text_target(

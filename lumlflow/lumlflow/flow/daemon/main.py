@@ -709,6 +709,7 @@ _SILENT = frozenset(
         "agent.end",
         "status",
         "workspace.list",
+        "workspace.file",
         "file.inspect",
         "file.read_text",
         "flows.open",
