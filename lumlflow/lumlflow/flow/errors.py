@@ -14,6 +14,26 @@ class NotAFile(FlowError):
     pass
 
 
+class TooLarge(FlowError):
+    pass
+
+
+class NotText(FlowError):
+    pass
+
+
+class FileConflict(FlowError):
+    def __init__(self, message: str, *, mtime_ns: str) -> None:
+        super().__init__(message)
+        self.mtime_ns = mtime_ns
+
+
+class FileLocked(FlowError):
+    def __init__(self, message: str, *, label: str) -> None:
+        super().__init__(message)
+        self.label = label
+
+
 class Protected(FlowError):
     pass
 

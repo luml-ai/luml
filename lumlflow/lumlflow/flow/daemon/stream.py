@@ -2,9 +2,12 @@ import asyncio
 from base64 import b64decode
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from lumlflow.flow.store.models import Transaction
+
+if TYPE_CHECKING:
+    from lumlflow.flow.daemon.file_watcher import FileWatcher
 
 Frame = dict[str, Any]
 StateName = Literal["experiment_removed", "refreshing", "order_changed"]
@@ -20,6 +23,7 @@ _KERNEL_STATE = "kernel_state"
 
 class Subscription:
     def __init__(self, streams: "Streams", *, depth: int = QUEUE_DEPTH) -> None:
+        self.file_watcher: FileWatcher | None = None
         self.journals: set[str] = set()
         self.runs: set[tuple[str, str]] = set()
         self._streams = streams
@@ -59,7 +63,22 @@ class Subscription:
             self._arrived.clear()
             await self._arrived.wait()
 
+    def watch_files(
+        self, watcher: "FileWatcher", directory: str, file: str | None
+    ) -> list[Frame]:
+        replacing = self.file_watcher is not None
+        snapshot = watcher.subscribe(self, directory, file)
+        if replacing:
+            # A queued snapshot from the old directory must not follow the new one.
+            self._live = deque(f for f in self._live if f.get("channel") != "files")
+            self._caught_up = deque(
+                f for f in self._caught_up if f.get("channel") != "files"
+            )
+        return snapshot
+
     def close(self) -> None:
+        if self.file_watcher is not None:
+            self.file_watcher.unsubscribe(self)
         self._streams.drop(self)
 
     def _take(self) -> Frame | None:
@@ -72,6 +91,10 @@ class Subscription:
             return frame
         self._lagged = False
         self._live.clear()
+        if self.file_watcher is not None:
+            if self.journals or self.runs:
+                self._caught_up.append({"channel": "journal", "type": "lagged"})
+            return {"channel": "files", "type": "lagged"}
         return {"channel": "journal", "type": "lagged"}
 
 

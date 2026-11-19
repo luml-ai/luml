@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import shutil
 import time
 from collections.abc import Callable
@@ -437,6 +438,7 @@ class Hub:
         target: Path | None,
         *,
         close_open: bool,
+        written: Callable[[Path, os.stat_result, os.stat_result], None] | None = None,
     ) -> None:
         """Mutate a directory entry after checking all sessions affected by it."""
         files.check_protected(source, self.ui_directories)
@@ -460,20 +462,26 @@ class Hub:
             self._reserved.update(paths)
             try:
                 await files.finish_operation(
-                    self._apply_path_change(source, target, affected)
+                    self._apply_path_change(source, target, affected, written)
                 )
             finally:
                 self._reserved.difference_update(paths)
 
     async def _apply_path_change(
-        self, source: Path, target: Path | None, affected: list[FlowSession]
+        self,
+        source: Path,
+        target: Path | None,
+        affected: list[FlowSession],
+        written: Callable[[Path, os.stat_result, os.stat_result], None] | None,
     ) -> None:
         for session in affected:
             await self.close_session(session, forced=True)
         if target is None:
             await asyncio.to_thread(files.remove, source)
         else:
-            await asyncio.to_thread(files.move, source, target)
+            info = await asyncio.to_thread(files.move, source, target)
+            if written is not None and info is not None:
+                written(target, *info)
         for refs in (self._known, self._found):
             for path in list(refs):
                 if path.is_relative_to(source):

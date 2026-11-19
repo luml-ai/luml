@@ -752,9 +752,9 @@ it touches. Frontend tasks take the look from the named `SPEC-design/` files.
     with the SDK (tabular dataset, Hugging Face dataset if `datasets` is available in
     tests, experiment, model) and mock the LUML client for the upload
 
-- [ ] Add text editing with a file watcher and agent locks to the daemon
-  - [ ] Everything in Editing text files and File watcher and agent locks
-  - [ ] Tests in the style of `test_cell_claims.py` and `test_stream.py`
+- [x] Add text editing with a file watcher and agent locks to the daemon
+  - [x] Everything in Editing text files and File watcher and agent locks
+  - [x] Tests in the style of `test_cell_claims.py` and `test_stream.py`
 
 - [ ] Extend the shared attachments preview
   - [ ] Everything in Shared preview package, with small Parquet and Arrow fixtures

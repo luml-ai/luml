@@ -9,18 +9,26 @@ than propagated as a write failure.
 import os
 import tempfile
 import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 _RETRY_DELAYS_S = (0.005, 0.02, 0.05, 0.15, 0.3)
 
 
-def replace_retry(source: Path, target: Path) -> None:
+def replace_retry(
+    source: Path, target: Path, *, before_replace: Callable[[], None] | None = None
+) -> None:
     for delay in _RETRY_DELAYS_S:
+        if before_replace is not None:
+            before_replace()
         try:
             os.replace(source, target)
             return
         except PermissionError:
             time.sleep(delay)
+    if before_replace is not None:
+        before_replace()
     os.replace(source, target)
 
 
@@ -42,6 +50,17 @@ def unlink_retry(path: Path) -> None:
 
 def atomic_write_bytes(path: Path, data: bytes, *, fsync: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    with staged_bytes(path, data, fsync=fsync) as staged:
+        replace_retry(staged, path)
+    if fsync:
+        fsync_dir(path.parent)
+
+
+@contextmanager
+def staged_bytes(
+    path: Path, data: bytes, *, mode: int | None = None, fsync: bool = True
+) -> Iterator[Path]:
+    """Stage bytes beside their destination. The caller publishes them on success."""
     handle_fd, temp_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
     )
@@ -50,14 +69,14 @@ def atomic_write_bytes(path: Path, data: bytes, *, fsync: bool = True) -> None:
         with os.fdopen(handle_fd, "wb") as handle:
             handle.write(data)
             handle.flush()
+            if mode is not None:
+                temp_path.chmod(mode)
             if fsync:
                 os.fsync(handle.fileno())
-        replace_retry(temp_path, path)
+        yield temp_path
     except BaseException:
         temp_path.unlink(missing_ok=True)
         raise
-    if fsync:
-        fsync_dir(path.parent)
 
 
 def fsync_file(path: Path) -> None:
