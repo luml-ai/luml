@@ -203,12 +203,13 @@ async function fetchOrExpire(
   transport: SnapshotTransport,
   modelId: string,
   location: SnapshotSourceLocation,
-  init: { range?: string; signal?: AbortSignal },
+  init: { range?: string; signal?: AbortSignal; cache?: RequestCache },
 ): Promise<Response> {
   try {
     return await transport.fetch(location.url, {
       headers: requestHeaders(location, init.range),
       signal: init.signal,
+      ...(init.cache ? { cache: init.cache } : {}),
       ...(location.credentials ? { credentials: location.credentials } : {}),
     })
   } catch (error) {
@@ -250,9 +251,13 @@ export async function probeSnapshotHeader(
   }
   const location = toSourceLocation(source)
   const length = Math.min(Math.max(probeBytes, SQLITE_HEADER_SIZE), memberSize)
+  // Kept out of the HTTP cache: a storage that ignores Range answers with the whole object,
+  // which is cancelled after the first chunk, and Chromium then sent the full download that
+  // follows twice (its cache entry for the URL was still being written).
   const response = await fetchOrExpire(transport, modelId, location, {
     range: rangeHeader(memberOffset, length),
     signal,
+    cache: 'no-store',
   })
   if (!response.ok) {
     throw await failedResponseError(modelId, location, response, 'Snapshot header request')
@@ -264,7 +269,7 @@ export async function probeSnapshotHeader(
     await response.body?.cancel()
     throw new SnapshotRangeUnsupportedError(modelId, (error as Error).message)
   }
-  const header = await readAtMost(response, length)
+  const header = await readAtMost(modelId, response, length)
   return header?.length === length ? { rangeIgnored: false, header } : { rangeIgnored: true }
 }
 
@@ -292,7 +297,7 @@ export async function readSourceRange(
     await response.body?.cancel()
     throw error
   }
-  const body = await readAtMost(response, length)
+  const body = await readAtMost(modelId, response, length)
   return body?.length === length ? body : null
 }
 
@@ -302,12 +307,29 @@ async function rejectPage(modelId: string, response: Response): Promise<void> {
   throw new SnapshotSourcePageError(modelId)
 }
 
+/** A transfer cut short fails as a request without an answer does: renewed once, then reported. */
+async function readChunk(
+  modelId: string,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  try {
+    return await reader.read()
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    throw new SnapshotSourceExpiredError(modelId, `Snapshot request failed: ${errorName(error)}`)
+  }
+}
+
 /**
  * The body when it is at most `limit` bytes, else null. Some S3-compatible storages honour
  * Range with status 200, so only the body's length tells a range from a whole object; a
  * larger body is abandoned as soon as that is known instead of being downloaded.
  */
-async function readAtMost(response: Response, limit: number): Promise<Uint8Array | null> {
+async function readAtMost(
+  modelId: string,
+  response: Response,
+  limit: number,
+): Promise<Uint8Array | null> {
   const declared = response.headers.get('Content-Length')
   if (declared !== null && Number(declared) > limit) {
     await response.body?.cancel()
@@ -318,7 +340,7 @@ async function readAtMost(response: Response, limit: number): Promise<Uint8Array
   const body = new Uint8Array(limit)
   let filled = 0
   for (;;) {
-    const { done, value } = await reader.read()
+    const { done, value } = await readChunk(modelId, reader)
     if (done) return body.subarray(0, filled)
     if (filled + value.length > limit) {
       await reader.cancel()
@@ -352,7 +374,7 @@ export async function downloadSnapshotMember(
   let position = 0
   let filled = 0
   while (filled < memberSize) {
-    const { done, value } = await reader.read()
+    const { done, value } = await readChunk(modelId, reader)
     if (done) break
     const from = Math.max(memberOffset, position)
     const to = Math.min(memberEnd, position + value.length)

@@ -86,6 +86,7 @@ describe('probe and full download with a location', () => {
         init: {
           headers: { ...TOKEN, Range: `bytes=${MEMBER_OFFSET}-${MEMBER_OFFSET + 99}` },
           signal: undefined,
+          cache: 'no-store',
           credentials: 'include',
         },
       },
@@ -99,7 +100,11 @@ describe('probe and full download with a location', () => {
 
     await probeSnapshotHeader(transport, 'm', 'https://bucket/a?sig=1', 0, MEMBER_SIZE)
 
-    expect(calls[0]!.init).toEqual({ headers: { Range: 'bytes=0-99' }, signal: undefined })
+    expect(calls[0]!.init).toEqual({
+      headers: { Range: 'bytes=0-99' },
+      signal: undefined,
+      cache: 'no-store',
+    })
   })
 
   it('reports a failure behind a cross-origin redirect that dropped the token as a redirect', async () => {

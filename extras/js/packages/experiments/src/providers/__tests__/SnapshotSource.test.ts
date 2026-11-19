@@ -10,6 +10,7 @@ import {
   HttpRangeFile,
   probeSnapshotHeader,
   RangeNotHonouredError,
+  readSourceRange,
   xhrReadRange,
   type SnapshotTransport,
 } from '../snapshot-source/httpSource'
@@ -95,6 +96,23 @@ describe('probeSnapshotHeader', () => {
     expect(pulled).toBeLessThanOrEqual(3 * 7000)
   })
 
+  // A cancelled whole answer in the HTTP cache made Chromium send the next full download twice.
+  it('keeps the probe out of the HTTP cache and the full download in it', async () => {
+    const init: (RequestInit | undefined)[] = []
+    const transport: SnapshotTransport = {
+      fetch: async (_input, options) => {
+        init.push(options)
+        return new Response(ARTIFACT, { status: 200 })
+      },
+      readRangeSync: () => new Uint8Array(),
+    }
+
+    await probeSnapshotHeader(transport, 'm', URL_A, MEMBER_OFFSET, MEMBER_SIZE)
+    await downloadSnapshotMember(transport, 'm', URL_A, MEMBER_OFFSET, MEMBER_SIZE, 1 << 30)
+
+    expect(init.map((options) => options?.cache)).toEqual(['no-store', undefined])
+  })
+
   it('abandons a body whose Content-Length is larger than asked for without reading it', async () => {
     const cancel = vi.fn()
     const pull = vi.fn()
@@ -125,6 +143,30 @@ describe('probeSnapshotHeader', () => {
     await expect(
       probeSnapshotHeader(transport, 'm', URL_A, MEMBER_OFFSET, MEMBER_SIZE),
     ).rejects.toMatchObject({ name: 'SnapshotSourceExpiredError', modelId: 'm' })
+  })
+
+  it('reports a transfer cut short mid-body as a source failure to renew', async () => {
+    const cut = transportReturning(() => {
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.error(new TypeError('network error'))
+        },
+      })
+      return new Response(body, { status: 206 })
+    })
+    const failure = {
+      name: 'SnapshotSourceExpiredError',
+      modelId: 'm',
+      message: 'Snapshot request failed: TypeError',
+    }
+
+    await expect(probeSnapshotHeader(cut, 'm', URL_A, 0, MEMBER_SIZE, 65536)).rejects.toMatchObject(
+      failure,
+    )
+    await expect(readSourceRange(cut, 'm', URL_A, 0, 65536)).rejects.toMatchObject(failure)
+    await expect(
+      downloadSnapshotMember(cut, 'm', URL_A, 0, MEMBER_SIZE, 1 << 30),
+    ).rejects.toMatchObject(failure)
   })
 
   it('reports a network failure as a source failure and passes aborts through', async () => {
