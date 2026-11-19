@@ -1,8 +1,8 @@
-// Fails a snapshot spec's test on a console error (the worker's included) or an uncaught error or
-// rejection it did not declare, and on a declared one that never happened. The conventions follow
-// tests/stack/error_guard.ts, without the app's toasts and requests: these specs drive the worker
-// through a harness page and make storage fail on purpose.
-import { test as base, expect, type ConsoleMessage } from '@playwright/test'
+// Fails a snapshot spec's test on a console error or an uncaught error or rejection it did not
+// declare, the worker's included, and on a declared one that never happened. The conventions
+// follow tests/stack/error_guard.ts, without the app's toasts and requests: these specs drive the
+// worker through a harness page and make storage fail on purpose.
+import { test as base, expect, type BrowserContext, type ConsoleMessage } from '@playwright/test'
 
 export { expect }
 
@@ -21,6 +21,11 @@ interface RecordedError {
 export const BROWSER_NETWORK_REPORT =
   /^Failed to load resource: |^(Fetch API|XMLHttpRequest) cannot load |^Origin \S+ is not allowed by Access-Control-Allow-Origin\b/
 
+// Firefox reports an unhandled rejection in a worker only as this console error.
+const FIREFOX_UNCAUGHT = /^\[JavaScript Error: "(.*)" \{file: .*\}\]$/s
+
+const WORKER_ERROR_BINDING = '__snapshotErrorGuardWorkerError'
+
 export class SnapshotErrorGuard {
   readonly recorded: RecordedError[] = []
   private readonly expected: ExpectedError[] = []
@@ -32,11 +37,38 @@ export class SnapshotErrorGuard {
 
   onConsole(message: ConsoleMessage): void {
     if (message.type() !== 'error' || BROWSER_NETWORK_REPORT.test(message.text())) return
-    this.recorded.push({ kind: 'console error', text: message.text() })
+    const uncaught = FIREFOX_UNCAUGHT.exec(message.text())
+    if (uncaught) this.recorded.push({ kind: 'page error', text: uncaught[1]! })
+    else this.recorded.push({ kind: 'console error', text: message.text() })
   }
 
   onPageError(error: Error): void {
     this.recorded.push({ kind: 'page error', text: `${error.name}: ${error.message}` })
+  }
+
+  /**
+   * Playwright reports an uncaught error of a worker as a page error only when the page leaves
+   * the worker's error event unhandled (Chromium and Firefox). The page sees every worker's
+   * error event in each engine, so a listener added at the worker's creation reports each one.
+   */
+  async watchWorkers(context: BrowserContext): Promise<void> {
+    await context.exposeBinding(WORKER_ERROR_BINDING, (_source, text: string) => {
+      this.recorded.push({ kind: 'page error', text })
+    })
+    await context.addInitScript((binding) => {
+      const report = (window as unknown as Record<string, (text: string) => Promise<void>>)[
+        binding
+      ]!
+      const NativeWorker = window.Worker
+      window.Worker = class extends NativeWorker {
+        constructor(url: string | URL, options?: WorkerOptions) {
+          super(url, options)
+          this.addEventListener('error', (event) => {
+            void report(event.message || 'worker error without a message').catch(() => undefined)
+          })
+        }
+      }
+    }, WORKER_ERROR_BINDING)
   }
 
   /** Not checked for unused declarations when the test failed: it may have stopped before. */
@@ -63,7 +95,11 @@ export const test = base.extend<{ errors: SnapshotErrorGuard }>({
       const guard = new SnapshotErrorGuard()
       context.on('console', (message) => guard.onConsole(message))
       context.on('weberror', (webError) => guard.onPageError(webError.error()))
+      await guard.watchWorkers(context)
       await use(guard)
+      // A round trip to each page: the worker errors it reported before have arrived.
+      for (const page of context.pages())
+        await page.evaluate(() => undefined).catch(() => undefined)
       const problems = guard.problems(testInfo.status !== testInfo.expectedStatus)
       if (problems) throw new Error(problems)
     },

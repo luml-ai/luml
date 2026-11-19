@@ -434,12 +434,14 @@ function expectedMetricNames(fixture: Fixture): string[] {
   return [...Object.keys(fixture.expected.metrics), ...(nonFinite ? [nonFinite.name] : [])].sort()
 }
 
-test('the error guard sees a worker console error and an unhandled rejection', async ({
+test('the error guard sees errors and unhandled rejections of the page and its workers', async ({
   page,
   errors,
 }) => {
   errors.expect({ kind: 'console error', text: /^guard control in a worker$/ })
-  errors.expect({ kind: 'page error', text: /guard control rejection/ })
+  errors.expect({ kind: 'page error', text: /guard control rejection$/ })
+  errors.expect({ kind: 'page error', text: /guard control worker error$/ })
+  errors.expect({ kind: 'page error', text: /guard control worker rejection$/ })
   await page.goto(origin)
 
   const logged = page.waitForEvent('console', (message) => message.text().startsWith('guard'))
@@ -453,6 +455,20 @@ test('the error guard sees a worker console error and an unhandled rejection', a
     void Promise.reject(new Error('guard control rejection'))
   })
   await rejected
+  // The page handles the worker's error event and stops it there; the error still counts.
+  await page.evaluate(async () => {
+    const script = [
+      "setTimeout(() => { throw new Error('guard control worker error') })",
+      "Promise.reject(new Error('guard control worker rejection'))",
+    ].join('\n')
+    const worker = new Worker(URL.createObjectURL(new Blob([script], { type: 'text/javascript' })))
+    await new Promise((resolve) =>
+      worker.addEventListener('error', (event) => resolve(event.preventDefault())),
+    )
+  })
+  const seen = (pattern: RegExp) => errors.recorded.some((error) => pattern.test(error.text))
+  await expect.poll(() => seen(/guard control worker error$/)).toBe(true)
+  await expect.poll(() => seen(/guard control worker rejection$/)).toBe(true)
 })
 
 test('reads standalone and embedded raw snapshots page by page through the worker', async ({
