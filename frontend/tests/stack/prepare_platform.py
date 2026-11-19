@@ -23,7 +23,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 import platform_expected
 import trace_data
 from luml_api import LumlClient
@@ -107,7 +107,7 @@ def cache_dir(cache: str) -> Path:
 
 
 def api_key(base_url: str) -> str:
-    with httpx.Client(base_url=base_url, timeout=30) as session:
+    with httpx2.Client(base_url=base_url, timeout=30) as session:
         signed_in = session.post(
             "/v1/auth/signin",
             json={
@@ -116,8 +116,8 @@ def api_key(base_url: str) -> str:
             },
         )
         signed_in.raise_for_status()
-        # The auth cookie is Secure, which httpx does not send over http; browsers do on
-        # loopback, so the platform works there. Sent by hand.
+        # The auth cookie is Secure, which httpx2 does not send over http; browsers do
+        # on loopback, so the platform works there. Sent by hand.
         token = signed_in.cookies["access_token"]
         created = session.post(
             "/v1/users/me/api-keys",
