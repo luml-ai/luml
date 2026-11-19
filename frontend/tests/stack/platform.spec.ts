@@ -13,6 +13,7 @@ import {
 } from './proxy'
 import {
   clickFirstTrace,
+  durationText,
   expectAverageScores,
   expectLargeValue,
   expectRegularTrace,
@@ -31,6 +32,17 @@ import {
   traceRows,
   type TraceData,
 } from './trace_view'
+import {
+  applyFilter,
+  expectChartOfLoggedValues,
+  exportedCsv,
+  feedbackCsv,
+  feedbackText,
+  navigateInApp,
+  staticParameters,
+  tableToolbar,
+  type LoggedExperiment,
+} from './platform_checks'
 
 // The platform end to end: the real backend, Postgres, Redis and object storage (MinIO through
 // an S3 bucket secret, Azurite through an Azure one), the frontend built from this worktree,
@@ -54,6 +66,55 @@ interface PublishedArtifact {
   medium_region: [number, number] | null
 }
 
+interface ExpectedEval {
+  id: string
+  question: string
+  answer: string
+  expected: string
+  scores: { accuracy: number; passed: boolean; tokens: number }
+  correct: boolean | null
+}
+
+interface ExpectedTrace {
+  id: string
+  execution_time_ns: number
+  status: number
+  span_count: number
+  eval_id: string
+  tier: string
+  helpful: boolean
+}
+
+interface FixtureExpectation {
+  user_version: number
+  metrics: Record<
+    string,
+    {
+      count: number
+      first_step: number
+      last_step: number
+      first: number
+      last: number
+      min: number
+      max: number
+    }
+  >
+  dataset: string
+  eval_ids: string[]
+  average_scores: Record<string, number>
+}
+
+/** platform_expected.py: logged values and what searches and filters leave. */
+interface ExpectedData {
+  experiments: Record<'new_a' | 'new_b' | 'old', LoggedExperiment>
+  evals: ExpectedEval[]
+  eval_search: { text: string; ids: string[]; averages: Record<string, number> }
+  eval_filter: { min_tokens: number; ids: string[]; averages: Record<string, number> }
+  traces: ExpectedTrace[]
+  trace_filter: { tier: string; ids: string[] }
+  fixtures: Record<'rev0' | 'sdk_0_1_0', FixtureExpectation>
+}
+
 interface StorageData {
   bucket_secret_id: string
   orbit_id: string
@@ -69,6 +130,7 @@ interface PlatformData {
   short_steps: number
   twin_key: string
   traces: TraceData
+  expected: ExpectedData
   storages: Record<string, StorageData>
   /** The same storages through their delaying proxies (throttle_proxy.mjs), fewer artifacts. */
   proxied: Record<string, StorageData>
@@ -325,6 +387,68 @@ async function expectNoNotices(page: Page) {
   await expect(page.getByTestId('experiment-status-notice')).toHaveCount(0)
 }
 
+function snapshotUrl(storage: StorageData, artifact: PublishedArtifact): string {
+  return `${collectionUrl(storage)}/artifacts/${artifact.id}/experiment-snapshot`
+}
+
+function compareUrl(storage: StorageData, artifacts: PublishedArtifact[]): string {
+  return `${collectionUrl(storage)}/compare?${artifacts.map((item) => `artifacts=${item.id}`).join('&')}`
+}
+
+/** The experiments a chart draws a line for, in no particular order. */
+async function drawnIds(page: Page, key: string): Promise<string[]> {
+  return (await chartLines(chartCard(page, key))).map((line) => line.modelId).sort()
+}
+
+/** The chart of `key` draws exactly these experiments, each with its logged values. */
+async function expectLoggedCharts(page: Page, items: PublishedArtifact[]) {
+  await settledChart(
+    page,
+    'train/loss',
+    items.map((item) => item.id),
+  )
+  // Right after a switch the chart of the set before may still be shown for a moment.
+  await expect
+    .poll(() => drawnIds(page, 'train/loss'), { message: 'the chart draws exactly these' })
+    .toEqual(items.map((item) => item.id).sort())
+  for (const item of items) {
+    const logged = data.expected.experiments[item.name as 'new_a' | 'new_b' | 'old']
+    await expectChartOfLoggedValues(
+      chartCard(page, 'train/loss'),
+      item.id,
+      logged.metrics['train/loss']!,
+    )
+  }
+}
+
+function stringValues(record: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, String(value)]))
+}
+
+/** The card of one eval dataset, by its title. */
+function datasetCard(page: Page, dataset: string): Locator {
+  return page.locator('.card').filter({
+    has: page.locator('h3.card__title', { hasText: new RegExp(`^\\s*${dataset}\\s*$`) }),
+  })
+}
+
+/** The dataset's average score chips, each as the viewer rounds it. */
+async function expectScoresIn(card: Locator, averages: Record<string, number>) {
+  const chips = card.locator('.scores .score')
+  await expect(chips).toHaveCount(Object.keys(averages).length, { timeout: 60_000 })
+  for (const [name, value] of Object.entries(averages)) {
+    await expect(chips.filter({ hasText: name })).toHaveText(
+      new RegExp(`^\\s*${name}\\s*${value.toFixed(3)}\\s*$`),
+      { timeout: 60_000 },
+    )
+  }
+}
+
+/** Cell texts with their line breaks folded, as `feedbackText` writes them. */
+async function foldedCells(row: Locator): Promise<string[]> {
+  return (await rowCells(row)).map((text) => text.replace(/\s+/g, ' '))
+}
+
 const TRACES = data.traces
 // traces_new is about 3 MB. Its trace list reads the summary table and its span tree the
 // covering index, in read-ahead chunks of 64 KiB: well under 1 MiB each. The 1 MiB value of one
@@ -334,6 +458,9 @@ const MAX_TRACE_VIEW_BYTES = TRACES.big.large.chars!
 const MAX_PAYLOAD_TOUCHED = 0.05
 // Selecting the span reads its value and the row page around it, in read-ahead chunks.
 const MAX_PAYLOAD_READ_EXTRA = 512 * 1024
+// An eval opened with its trace (measured: 2 requests, 128 KiB), with room for one more run.
+const EVAL_VIEW_MAX_REQUESTS = 4
+const EVAL_VIEW_MAX_BYTES = 4 * 64 * 1024
 const BROWSER_STATE = join(env('E2E_WORK_DIR'), 'browser-state.json')
 
 function sumBytes(requests: StorageRequest[]): number {
@@ -555,6 +682,7 @@ for (const storageName of Object.keys(data.storages)) {
       ['new with new', ['new_a', 'new_b'], 'train/loss'],
       ['old with new', ['old', 'new_a'], 'train/loss'],
       ['very different lengths', ['large', 'short'], 'train/loss'],
+      ['a large new-format experiment with an old one', ['large', 'old'], 'train/loss'],
       [
         'an experiment with a model holding a new-format snapshot',
         ['gen2_full', 'model_gen2'],
@@ -578,13 +706,21 @@ for (const storageName of Object.keys(data.storages)) {
         expect(lines).toHaveLength(compared.length)
         await expectNoNotices(page)
         for (const item of compared) {
-          if (item.generation === 2) expectRangeReads(network, item)
-          else expectWholeDownload(network, item)
+          if (item.generation === 2) {
+            expectRangeReads(network, item)
+            // Each new-format experiment of a comparison costs what it costs alone: its catalog
+            // and one level of buckets, a few dozen pages whatever the others are.
+            expect(network.of(item).length, item.name).toBeLessThanOrEqual(
+              MAX_RANGE_REQUESTS_PER_VIEW,
+            )
+          } else expectWholeDownload(network, item)
           expect(network.issuesOf(item), item.name).toBe(1)
         }
         if (labels.includes('large')) {
           const large = artifact('large')
           expect(network.bytesOf(large)).toBeLessThan(large.size * MAX_FRACTION_PER_VIEW)
+        }
+        if (labels.includes('short')) {
           const [long, short] = ['large', 'short'].map(
             (label) => lines.find((line) => line.modelId === artifact(label).id)!,
           )
@@ -637,6 +773,69 @@ for (const storageName of Object.keys(data.storages)) {
       )
       await expectNoNotices(page)
     })
+
+    // What the views show does not depend on the storage: once, on S3.
+    if (storageName === 's3') {
+      for (const label of ['new_a', 'old'] as const) {
+        const format = label === 'old' ? 'old' : 'new'
+        test(`the chart and the static params of a ${format}-format experiment show the logged values`, async ({
+          page,
+        }) => {
+          const item = artifact(label)
+          const logged = data.expected.experiments[label]
+          const values = logged.metrics['train/loss']!
+          await openSnapshot(page, storage, item)
+          await settledChart(page, 'train/loss', [item.id])
+          const buckets = await expectChartOfLoggedValues(
+            chartCard(page, 'train/loss'),
+            item.id,
+            values,
+          )
+          // A bucket per pixel at most (bucketBudgetForWidth): a chart half the page wide gets
+          // buckets of several steps, never every point of the series.
+          expect(buckets).toBeGreaterThan(30)
+          expect(buckets).toBeLessThan(values.length)
+          expect(await staticParameters(page)).toEqual(stringValues(logged.static))
+          await expectNoNotices(page)
+        })
+      }
+
+      for (const [label, era] of [
+        ['rev0', 'a revision 0 experiment (before migrations)'],
+        ['sdk_0_1_0', 'an experiment of luml-sdk 0.1.0'],
+      ] as const) {
+        test(`${era} shows the metrics and the evals of its fixture`, async ({ page }) => {
+          const item = artifact(label)
+          const fixture = data.expected.fixtures[label]
+          expect(fixture.user_version).toBe(label === 'rev0' ? 0 : 2)
+          await openSnapshot(page, storage, item)
+          for (const [key, metric] of Object.entries(fixture.metrics)) {
+            const [line] = await settledChart(page, key, [item.id])
+            const y = line!.y as number[]
+            expect(line!.x, key).toEqual(
+              Array.from({ length: metric.count }, (_, index) => metric.first_step + index),
+            )
+            expect(line!.x.at(-1)).toBe(metric.last_step)
+            for (const [value, expected] of [
+              [y[0]!, metric.first],
+              [y.at(-1)!, metric.last],
+              [Math.min(...y), metric.min],
+              [Math.max(...y), metric.max],
+            ] as [number, number][]) {
+              expect(Math.abs(value - expected), key).toBeLessThan(1e-9)
+            }
+          }
+          const dataset = datasetCard(page, fixture.dataset)
+          await expectScoresIn(dataset, fixture.average_scores)
+          const ids = dataset.locator('.evals-table tbody tr td:first-child')
+          await expect(ids).toHaveCount(fixture.eval_ids.length)
+          expect((await ids.allInnerTexts()).map((text) => text.trim()).sort()).toEqual(
+            [...fixture.eval_ids].sort(),
+          )
+          expectWholeDownload(network, item)
+        })
+      }
+    }
 
     // The same traces and evals (trace_data.py), written by this SDK and by luml-sdk 0.5.0: the
     // new format reads its summary tables and indexes by Range, the old one is downloaded whole,
@@ -763,6 +962,211 @@ for (const storageName of Object.keys(data.storages)) {
         await page.getByRole('button', { name: 'Trace', exact: true }).click()
         await expectRegularTrace(traceDialog(page), expected.index)
         expectReads(traces)
+        await expectNoNotices(page)
+      })
+
+      if (storageName !== 's3') continue
+      test(`searches, filters, annotations and CSV exports of a ${format}-format experiment`, async ({
+        page,
+      }) => {
+        skipWithoutOldSdk()
+        const traces = traceArtifact()
+        const expected = data.expected
+        const evalsById = new Map(expected.evals.map((item) => [item.id, item]))
+        const tracesById = new Map(expected.traces.map((item) => [item.id, item]))
+        await openTraceSnapshot(page, storage, traces)
+        const dataset = datasetCard(page, TRACES.dataset)
+        const evalsToolbar = tableToolbar(page, 'Search evals')
+        const tracesToolbar = tableToolbar(page, 'Search traces')
+        // Each step reads no span payload of the new format: lists, filters and exports read
+        // summary tables and indexes.
+        const viewStep = (title: string, body: () => Promise<void>) =>
+          test.step(title, async () => {
+            const from = network.of(traces).length
+            await body()
+            await network.settled()
+            if (traces.generation === 2) expectNoPayloadRead(network.of(traces).slice(from), traces)
+          })
+
+        const expectEvalCsv = (rows: Record<string, string>[], ids: string[]) => {
+          expect(rows.map((row) => row.id).sort()).toEqual([...ids].sort())
+          for (const row of rows) {
+            const item = evalsById.get(row.id!)!
+            const feedback =
+              item.correct === null ? '' : feedbackCsv(item.correct ? 1 : 0, item.correct ? 0 : 1)
+            expect(row, row.id).toEqual({
+              id: item.id,
+              'inputs.question': item.question,
+              'outputs.answer': item.answer,
+              'refs.expected': item.expected,
+              'scores.accuracy': String(item.scores.accuracy),
+              'scores.passed': String(item.scores.passed),
+              'scores.tokens': String(item.scores.tokens),
+              'correct (feedback)': feedback,
+            })
+          }
+        }
+        const expectTraceCsv = (rows: Record<string, string>[], ids: string[]) => {
+          expect(rows.map((row) => row.trace_id).sort()).toEqual([...ids].sort())
+          for (const row of rows) {
+            const { created_at: createdAt, ...cells } = row
+            expect(createdAt).toMatch(/^\d+\/\d+\/\d{4}, \d{2}:\d{2}:\d{2}$/)
+            if (row.trace_id === TRACES.big.trace_id) {
+              expect(cells).toEqual({
+                trace_id: TRACES.big.trace_id,
+                execution_time: String(TRACES.big.execution_time_ns),
+                state: '1',
+                span_count: String(TRACES.big.span_count),
+                'helpful (feedback)': feedbackCsv(1, 0),
+                evals: '',
+              })
+              continue
+            }
+            const item = tracesById.get(row.trace_id!)!
+            expect(cells, row.trace_id).toEqual({
+              trace_id: item.id,
+              execution_time: String(item.execution_time_ns),
+              state: String(item.status),
+              span_count: String(item.span_count),
+              'helpful (feedback)': item.helpful ? feedbackCsv(1, 0) : '',
+              evals: item.eval_id,
+            })
+          }
+        }
+
+        await viewStep(
+          'feedback annotations in the trace list, the span and the eval rows',
+          async () => {
+            // trace_data.py: `helpful` on the root of trace-0000 and on a span of the big trace,
+            // `correct` on the first evals, true for an even index.
+            await page.getByPlaceholder('Search traces').fill(TRACES.big.trace_id)
+            await expect(traceRows(page)).toHaveCount(1, { timeout: 60_000 })
+            const bigRow = traceRows(page).first()
+            await expect(bigRow.locator('td').first()).toHaveText(TRACES.big.trace_id)
+            expect((await foldedCells(bigRow)).slice(0, 5)).toEqual([
+              TRACES.big.trace_id,
+              durationText(TRACES.big.execution_time_ns),
+              TRACES.big.state,
+              String(TRACES.big.span_count),
+              feedbackText(true),
+            ])
+            for (const traceId of ['trace-0001', 'trace-0000']) {
+              await page.getByPlaceholder('Search traces').fill(traceId)
+              await expect(traceRows(page)).toHaveCount(1, { timeout: 60_000 })
+              await expect(traceRows(page).first().locator('td').first()).toHaveText(traceId)
+              expect((await foldedCells(traceRows(page).first()))[4]).toBe(
+                feedbackText(tracesById.get(traceId)!.helpful ? true : null),
+              )
+            }
+            await clickFirstTrace(page, 'trace-0000')
+            const dialog = traceDialog(page)
+            await expectRegularTrace(dialog, 0)
+            await expect(spanRow(dialog, 'request').locator('.p-tag')).toHaveText('1')
+            await expect(spanRow(dialog, 'embed').locator('.p-tag')).toHaveCount(0)
+            await dialog.locator('.body .header-right').getByRole('button', { name: '1' }).click()
+            const annotation = dialog.locator('.view .wrapper')
+            await expect(annotation).toHaveCount(1)
+            await expect(annotation.locator('.name')).toHaveText('helpful')
+            await expect(annotation.locator('.result')).toHaveText('True')
+            await expect(annotation.locator('.username')).toHaveText('e2e')
+            await dialog.getByRole('button', { name: 'Close' }).click()
+            await expect(dialog).toBeHidden()
+            await page.getByPlaceholder('Search traces').fill('')
+            await expect.poll(() => traceRows(page).count()).toBeGreaterThan(1)
+
+            for (const index of [0, 1, 5]) {
+              const item = expected.evals[index]!
+              const rows = await searchEval(page, item.id)
+              expect((await foldedCells(rows.first())).at(-1), item.id).toBe(
+                feedbackText(item.correct),
+              )
+            }
+          },
+        )
+
+        await viewStep('an eval search: its rows and the averages of those rows', async () => {
+          const search = expected.eval_search
+          await page.getByPlaceholder('Search evals').fill(search.text)
+          await expectScoresIn(dataset, search.averages)
+          // The table draws the rows in view only; the export holds every row the search left.
+          const found = await exportedCsv(page, evalsToolbar, `${TRACES.dataset}.csv`)
+          expectEvalCsv(found.rows, search.ids)
+          await page.getByPlaceholder('Search evals').fill('')
+          await expectScoresIn(dataset, TRACES.averages)
+        })
+
+        await viewStep('an eval filter: the averages and the CSV of what is left', async () => {
+          const filter = expected.eval_filter
+          await applyFilter(page, evalsToolbar, {
+            field: 'scores.tokens',
+            operator: '>',
+            value: String(filter.min_tokens),
+          })
+          await expectScoresIn(dataset, filter.averages)
+          const filtered = await exportedCsv(page, evalsToolbar, `${TRACES.dataset}.csv`)
+          expectEvalCsv(filtered.rows, filter.ids)
+          await evalsToolbar.getByRole('button', { name: 'Filters' }).click()
+          await page
+            .locator('.table-filter-popover')
+            .getByRole('button', { name: 'Clear all' })
+            .click()
+          await expectScoresIn(dataset, TRACES.averages)
+          const all = await exportedCsv(page, evalsToolbar, `${TRACES.dataset}.csv`)
+          expect(all.header).toEqual([
+            'id',
+            'inputs.question',
+            'outputs.answer',
+            'refs.expected',
+            'scores.accuracy',
+            'scores.passed',
+            'scores.tokens',
+            'correct (feedback)',
+          ])
+          expectEvalCsv(
+            all.rows,
+            expected.evals.map((item) => item.id),
+          )
+        })
+
+        // Not a viewStep: a filter on span attributes is a scan of every span's attributes, the
+        // 1 MiB value among them (the summary tables answer unfiltered lists only).
+        await test.step('a trace attribute filter: the rows and the CSV of what is left', async () => {
+          const filter = expected.trace_filter
+          await applyFilter(page, tracesToolbar, {
+            field: 'attributes.user.tier',
+            operator: '=',
+            // The filter syntax takes a string value in quotes.
+            value: `'${filter.tier}'`,
+          })
+          // Shortest first: a regular trace takes (10 + index) ms, so the ids in index order.
+          await page.getByRole('columnheader', { name: 'execution time' }).click()
+          const firstIds = traceRows(page).locator('td:first-child')
+          await expect(firstIds.first()).toHaveText(filter.ids[0]!, { timeout: 60_000 })
+          expect((await firstIds.allInnerTexts()).slice(0, 10).map((text) => text.trim())).toEqual(
+            filter.ids.slice(0, 10),
+          )
+          const filtered = await exportedCsv(page, tracesToolbar, 'traces.csv')
+          expectTraceCsv(filtered.rows, filter.ids)
+          await tracesToolbar.getByRole('button', { name: 'Filters' }).click()
+          await page
+            .locator('.table-filter-popover')
+            .getByRole('button', { name: 'Clear all' })
+            .click()
+          await expect(firstIds.first()).toHaveText('trace-0000', { timeout: 60_000 })
+          const all = await exportedCsv(page, tracesToolbar, 'traces.csv')
+          expect(all.header).toEqual([
+            'trace_id',
+            'execution_time',
+            'state',
+            'span_count',
+            'helpful (feedback)',
+            'evals',
+            'created_at',
+          ])
+          expectTraceCsv(all.rows, [TRACES.big.trace_id, ...expected.traces.map((item) => item.id)])
+        })
+        if (traces.generation === 1) expectWholeDownload(network, traces)
+        else expectRangeReads(network, traces)
         await expectNoNotices(page)
       })
     }
@@ -1248,6 +1652,458 @@ test.describe('slow network to storage', () => {
     await expectAverageScores(page, TRACES.averages)
     await expect(traceDialog(page)).toHaveCount(0)
     await network.settled()
+  })
+
+  const heldCount = (item: PublishedArtifact) => async () => (await heldReads(item)).length
+
+  /**
+   * A stallMatching pattern for the reads of an artifact's snapshot member that start at its
+   * first byte (an old-format download; a new-format DB's header read). Other reads of the
+   * object (the attachments index) are let through.
+   */
+  const memberRead = (item: PublishedArtifact) =>
+    `${escapeRegExp(item.bucket_location)}.* bytes=${item.offset}-`
+
+  /**
+   * Leaves while reads of `item` are held, by `leave`, and waits until the proxy saw each held
+   * read given up. Not by the NetworkLog: the browser reports no end for a read of a worker it
+   * terminated.
+   */
+  async function leaveHeld(page: Page, item: PublishedArtifact, leave: () => Promise<void>) {
+    await expect.poll(heldCount(item), { message: 'a read is held' }).toBeGreaterThan(0)
+    await leave()
+    await runLeftTimers(page)
+    await expect.poll(heldCount(item), { message: 'held reads cancelled' }).toBe(0)
+  }
+
+  /** Back to the collection by its link in the breadcrumbs, as leaveExperiment does. */
+  async function toCollection(page: Page, item: PublishedArtifact) {
+    await page.locator(`a[href$="/collection/${storage.collection_id}"]`).first().click()
+    await page.waitForURL(collectionUrl(storage))
+    await expect(
+      page.getByRole('row').filter({ has: page.getByText(item.name, { exact: true }) }),
+    ).toBeVisible()
+  }
+
+  /** Opens an experiment from the collection list as a user does: its row, then its tab. */
+  async function openFromCollection(page: Page, item: PublishedArtifact) {
+    await page
+      .getByRole('row')
+      .filter({ has: page.getByText(item.name, { exact: true }) })
+      .click()
+    await page.waitForURL(`${collectionUrl(storage)}/artifacts/${item.id}`)
+    await page.getByText('Experiment snapshot', { exact: true }).first().click()
+    await page.waitForURL(snapshotUrl(storage, item))
+  }
+
+  async function expectNoTraceList(page: Page) {
+    await expect(page.locator('.traces-table')).toHaveCount(0)
+    await expect(page.locator('.evals-table')).toHaveCount(0)
+  }
+
+  test('switching experiments in the app, then back and forward, shows only the current one', async ({
+    page,
+  }) => {
+    // A new route on the collection page remounts the artifact page (its RouterView is keyed by
+    // the artifact id), so a switch ends the worker of the experiment left.
+    // large is the experiment left with a read in flight: a zoom of it reads pages not read yet.
+    const large = artifact('large')
+    const newB = artifact('new_b')
+    const traces = artifact('traces_new')
+    const expectLarge = async () => {
+      const [line] = await settledChart(page, 'train/loss', [large.id])
+      expect(await drawnIds(page, 'train/loss')).toEqual([large.id])
+      expect(line!.x.at(-1)).toBeGreaterThan(data.large.points_per_key * 0.99)
+    }
+    await page.clock.install()
+    await openSnapshot(page, storage, large)
+    await expectLarge()
+    const largeParams = await staticParameters(page)
+    await network.settled()
+
+    await test.step('to new_b while a zoom read of large is held: that read is cancelled', async () => {
+      await proxy.configure({ stallMatching: escapeRegExp(large.bucket_location) })
+      await dragZoom(page, chartCard(page, 'train/loss'), 0.4)
+      await expect.poll(heldCount(large), { message: 'a zoom read is held' }).toBeGreaterThan(0)
+      await navigateInApp(page, snapshotUrl(storage, newB))
+      await expect
+        .poll(heldCount(large), { message: 'the worker of large is gone, its read cancelled' })
+        .toBe(0)
+      await proxy.configure({ stallMatching: null })
+      await expectLoggedCharts(page, [newB])
+      const params = await staticParameters(page)
+      expect(params).toEqual(stringValues(data.expected.experiments.new_b.static))
+      expect(params).not.toEqual(largeParams)
+      await expectNoTraceList(page)
+    })
+    const readsOfLarge = network.of(large).length
+
+    await test.step('to traces_new: its traces and evals, no chart or params of new_b', async () => {
+      await navigateInApp(page, snapshotUrl(storage, traces))
+      await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+        timeout: 60_000,
+      })
+      await expectAverageScores(page, TRACES.averages)
+      await expect(page.locator('[data-testid="metric-chart"]')).toHaveCount(0)
+      await expect(page.locator('.parameters__item')).toHaveCount(0)
+      expect(network.of(large).length, 'no read of large once it was left').toBe(readsOfLarge)
+    })
+
+    await test.step('back to new_b and large, forward to new_b', async () => {
+      await page.goBack()
+      await page.waitForURL(snapshotUrl(storage, newB))
+      await expectLoggedCharts(page, [newB])
+      await expectNoTraceList(page)
+      await page.goBack()
+      await page.waitForURL(snapshotUrl(storage, large))
+      await expectLarge()
+      expect(await staticParameters(page)).toEqual(largeParams)
+      await page.goForward()
+      await page.waitForURL(snapshotUrl(storage, newB))
+      await expectLoggedCharts(page, [newB])
+    })
+    await network.settled()
+    await runLeftTimers(page)
+    await expectNoNotices(page)
+  })
+
+  test('changing the set of a comparison in place draws exactly the current set', async ({
+    page,
+  }) => {
+    // The compare page stays mounted when only its query changes; it resets its provider and
+    // opens the new set in the same worker (CompareView.vue).
+    const newA = artifact('new_a')
+    const newB = artifact('new_b')
+    const old = artifact('old')
+    await openCompare(page, storage, [newA, newB])
+    await expectLoggedCharts(page, [newA, newB])
+    for (const set of [
+      [newA, newB, old],
+      [newB, old],
+    ]) {
+      await test.step(`to ${set.map((item) => item.name).join(', ')}`, async () => {
+        await navigateInApp(page, compareUrl(storage, set))
+        await expectLoggedCharts(page, set)
+        await expect(page.locator('.models .model')).toHaveText(set.map((item) => item.name))
+      })
+    }
+    for (const item of [newA, newB, old]) expect(network.issuesOf(item), item.name).toBe(1)
+    await expectNoNotices(page)
+  })
+
+  test('a comparison changed while an old-format download is held draws only the new set', async ({
+    page,
+  }) => {
+    const old = artifact('old')
+    const newA = artifact('new_a')
+    const newB = artifact('new_b')
+    await page.clock.install()
+    await proxy.configure({ stallMatching: memberRead(old) })
+    await openCompare(page, storage, [old, newA])
+    await expect.poll(heldCount(old), { message: 'the download is held' }).toBeGreaterThan(0)
+    await navigateInApp(page, compareUrl(storage, [newA, newB]))
+    await expectLoggedCharts(page, [newA, newB])
+    // The experiment taken out of the comparison is not needed any more.
+    await expect
+      .configure({ soft: true })
+      .poll(heldCount(old), {
+        message: 'the download of the experiment taken out is cancelled',
+        timeout: 10_000,
+      })
+      .toBe(0)
+
+    // Whatever was still on the way for the old set must not reopen it in the worker.
+    await proxy.configure({ stallMatching: null })
+    await network.settled()
+    await runLeftTimers(page)
+    expect(await drawnIds(page, 'train/loss')).toEqual([newA.id, newB.id].sort())
+    const card = chartCard(page, 'train/loss')
+    const levelBefore = await displayedLevel(card)
+    await dragZoom(page, card, 0.4)
+    await expect.poll(() => displayedLevel(card)).toBeLessThan(levelBefore)
+    await settledChart(page, 'train/loss', [newA.id, newB.id])
+    expect(await drawnIds(page, 'train/loss')).toEqual([newA.id, newB.id].sort())
+    await expect(page.locator('.models .model')).toHaveText([newA.name, newB.name])
+    await expectNoNotices(page)
+  })
+
+  test('leaving a comparison while its reads are held shows no error', async ({ page }) => {
+    // The worker opens the set once every old-format download is in, so old is let through and
+    // the first reads of new_a are held.
+    const compared = [artifact('old'), artifact('new_a')]
+    const newA = compared[1]!
+    await page.clock.install()
+    await proxy.configure({ stallMatching: escapeRegExp(newA.bucket_location) })
+    await openCompare(page, storage, compared)
+    await leaveHeld(page, newA, () => toCollection(page, newA))
+    await proxy.configure({ stallMatching: null })
+    await page.goBack()
+    await expectLoggedCharts(page, compared)
+  })
+
+  test('leaving an old-format experiment while its download is held shows no error', async ({
+    page,
+  }) => {
+    const old = artifact('old')
+    await page.clock.install()
+    await proxy.configure({ stallMatching: memberRead(old) })
+    await openSnapshot(page, storage, old)
+    await leaveHeld(page, old, () => toCollection(page, old))
+    await proxy.configure({ stallMatching: null })
+    await page.goBack()
+    await expectLoggedCharts(page, [old])
+  })
+
+  test('leaving while a span data read is held, then coming back, shows the span data', async ({
+    page,
+  }) => {
+    // The trace dialog is modal: with it open the way out is the browser's back button.
+    const traces = artifact('traces_new')
+    const { large } = TRACES.big
+    await page.clock.install()
+    // Opened from the collection by a link: back is the collection, not another tab of the
+    // artifact (a tab keeps the artifact's worker for when it comes back).
+    await page.goto(collectionUrl(storage))
+    // The app's first navigation must be over, or the link replaces it in the history.
+    await expect(
+      page.getByRole('row').filter({ has: page.getByText(traces.name, { exact: true }) }),
+    ).toBeVisible()
+    await navigateInApp(page, snapshotUrl(storage, traces))
+    await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+      timeout: 60_000,
+    })
+    await sortLongestFirst(page, TRACES)
+    await clickFirstTrace(page, TRACES.big.trace_id)
+    const dialog = traceDialog(page)
+    await expectVirtualisedTree(dialog, TRACES)
+    await network.settled()
+    await proxy.configure({ stallMatching: escapeRegExp(traces.bucket_location) })
+    await spanRow(dialog, large.span).click()
+    await leaveHeld(page, traces, async () => {
+      await page.goBack()
+      await expect
+        .poll(() => page.url(), { message: 'back on the collection' })
+        .toBe(collectionUrl(storage))
+    })
+
+    await proxy.configure({ stallMatching: null })
+    await page.goForward()
+    await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+      timeout: 60_000,
+    })
+    await expect(traceDialog(page)).toHaveCount(0)
+    await sortLongestFirst(page, TRACES)
+    await clickFirstTrace(page, TRACES.big.trace_id)
+    await spanRow(traceDialog(page), large.span).click()
+    await expectLargeValue(spanAttribute(traceDialog(page), large.key), large.chars!, large.start)
+  })
+
+  test('leaving while an evals read is held, then coming back, shows the evals', async ({
+    page,
+  }) => {
+    // A search of the loaded evals is answered from the pages the worker has, so the read held
+    // is one of the evals' first ones: the worker reads one page run at a time, the traces list
+    // first (it mounts first), so held reads are let go one by one until the trace list is in.
+    const traces = artifact('traces_new')
+    await page.clock.install()
+    await proxy.configure({ stallMatching: escapeRegExp(traces.bucket_location) })
+    await openSnapshot(page, storage, traces)
+    const traceIds = traceRows(page).locator('td:first-child')
+    await expect
+      .poll(
+        async () => {
+          if (await traceIds.count()) return true
+          if ((await heldReads(traces)).length) await proxy.release()
+          return false
+        },
+        { message: 'the trace list is in', intervals: [100], timeout: 60_000 },
+      )
+      .toBe(true)
+    await expect(page.locator('.evals-table'), 'the evals are still loading').toHaveCount(0)
+    await leaveHeld(page, traces, () => toCollection(page, traces))
+
+    await proxy.configure({ stallMatching: null })
+    await page.goBack()
+    await expectAverageScores(page, TRACES.averages)
+    const rows = await searchEval(page, 'eval-0003')
+    expect(await rowCells(rows.first())).toEqual(
+      expect.arrayContaining(scoreTexts(TRACES.evals['eval-0003']!.scores)),
+    )
+  })
+
+  test('back and forward between the collection and an experiment, and reloads of deep links', async ({
+    page,
+  }) => {
+    const newA = artifact('new_a')
+    const traces = artifact('traces_new')
+    await page.goto(collectionUrl(storage))
+    await openFromCollection(page, newA)
+    await expectLoggedCharts(page, [newA])
+
+    await test.step('back to the overview and the collection, forward to the snapshot', async () => {
+      await page.goBack()
+      await page.waitForURL(`${collectionUrl(storage)}/artifacts/${newA.id}`)
+      await expect(page.locator('[data-testid="metric-chart"]')).toHaveCount(0)
+      await page.goBack()
+      await page.waitForURL(collectionUrl(storage))
+      await expect(
+        page.getByRole('row').filter({ has: page.getByText(newA.name, { exact: true }) }),
+      ).toBeVisible()
+      await page.goForward()
+      await page.goForward()
+      await page.waitForURL(snapshotUrl(storage, newA))
+      await expectLoggedCharts(page, [newA])
+    })
+
+    await test.step('a reload of the snapshot link', async () => {
+      await page.reload()
+      await expectLoggedCharts(page, [newA])
+    })
+
+    await test.step('an opened trace is not in the link: a reload shows the list', async () => {
+      await navigateInApp(page, snapshotUrl(storage, traces))
+      await openTrace(page, 'trace-0003')
+      await expectRegularTrace(traceDialog(page), 3)
+      expect(page.url()).toBe(snapshotUrl(storage, traces))
+      await page.reload()
+      await expect(traceRows(page).first().locator('td').first()).toHaveText(/^trace-/, {
+        timeout: 60_000,
+      })
+      await expectAverageScores(page, TRACES.averages)
+      await expect(traceDialog(page)).toHaveCount(0)
+    })
+    await network.settled()
+    await expectNoNotices(page)
+  })
+
+  test('an experiment opened again after another one shows its own data with no more reads', async ({
+    page,
+  }) => {
+    const newA = artifact('new_a')
+    const newB = artifact('new_b')
+    await page.clock.install()
+    await page.goto(collectionUrl(storage))
+    await openFromCollection(page, newA)
+    await expectLoggedCharts(page, [newA])
+    await network.settled()
+    const firstReads = network.of(newA).length
+    await leaveExperiment(page, newA)
+    await openFromCollection(page, newB)
+    await expectLoggedCharts(page, [newB])
+    await leaveExperiment(page, newB)
+
+    await openFromCollection(page, newA)
+    await expectLoggedCharts(page, [newA])
+    expect(await staticParameters(page)).toEqual(
+      stringValues(data.expected.experiments.new_a.static),
+    )
+    await network.settled()
+    // A new worker reads the same pages again (nothing of the DB is kept between workers), so
+    // the reopen reads what the first open read, no more; the presigned URL is kept by the
+    // artifacts store for 30 minutes, so no second one is issued.
+    expect(network.of(newA).length - firstReads).toBeLessThanOrEqual(firstReads)
+    expect(network.issuesOf(newA)).toBe(1)
+    await expectNoNotices(page)
+  })
+
+  test('a storage read that fails once at open is retried and the experiment opens', async ({
+    page,
+    errors,
+  }) => {
+    const newA = artifact('new_a')
+    const firstRead = `${escapeRegExp(newA.bucket_location)}.* bytes=${newA.offset}-`
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(newA).url })
+    await proxy.configure({ storageFailure: { matching: firstRead, status: 500, times: 1 } })
+    await openSnapshot(page, storage, newA)
+    await expectLoggedCharts(page, [newA])
+    expect(memberReads(network, newA).filter((request) => request.status === 500)).toHaveLength(1)
+    await expectNoNotices(page)
+  })
+
+  test('storage that keeps failing shows the read error, and a reload once it works opens the experiment', async ({
+    page,
+    errors,
+  }) => {
+    const newA = artifact('new_a')
+    const firstRead = `${escapeRegExp(newA.bucket_location)}.* bytes=${newA.offset}-`
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(newA).url })
+    errors.expect({
+      kind: 'error state',
+      text: /^new_a: The storage request failed\. Reload the page\. Its data is not shown\.$/,
+    })
+    await proxy.configure({ storageFailure: { matching: firstRead, status: 500, times: null } })
+    await openSnapshot(page, storage, newA)
+    const notice = page.getByTestId('experiment-status-notice')
+    await expect(notice).toHaveText(/The storage request failed\. Reload the page\./, {
+      timeout: 60_000,
+    })
+    await expect(page.locator('[data-testid="metric-chart"]')).toHaveCount(0)
+    await network.settled()
+
+    await proxy.configure({ storageFailure: null })
+    await page.reload()
+    await expectLoggedCharts(page, [newA])
+    await expectNoNotices(page)
+  })
+
+  test('a comparison with an experiment whose storage fails draws the others and names it', async ({
+    page,
+    errors,
+  }) => {
+    const newA = artifact('new_a')
+    const old = artifact('old')
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(old).url })
+    errors.expect({
+      kind: 'error state',
+      text: /^old: The experiment could not be read\. Its data is not shown\.$/,
+    })
+    await proxy.configure({
+      storageFailure: { matching: escapeRegExp(old.bucket_location), status: 500, times: null },
+    })
+    await openCompare(page, storage, [newA, old])
+    await expectLoggedCharts(page, [newA])
+    const notice = page.getByTestId('experiment-status-notice')
+    await expect(notice).toHaveCount(1)
+    await expect(notice).toHaveAttribute('data-code', 'read-failed')
+    await network.settled()
+  })
+
+  test('opening the filter editor and an eval of a new-format experiment reads a few pages', async ({
+    page,
+  }) => {
+    const traces = artifact('traces_new')
+    await openTraceSnapshot(page, storage, traces)
+    await network.settled()
+    const since = (start: number) => network.of(traces).slice(start)
+    let start = network.of(traces).length
+
+    await test.step('the filter editor', async () => {
+      const fields = await traceFilterFields(page)
+      expect(fields).toEqual(
+        expect.arrayContaining(TRACES.attribute_keys.map((key) => `attributes.${key}`)),
+      )
+      await network.settled()
+      // The keys are in the catalog the trace list read when it opened, so listing them reads
+      // nothing more (an old-format DB would scan every span's attributes).
+      expect(since(start)).toEqual([])
+      start = network.of(traces).length
+    })
+
+    await test.step('an eval searched and opened with its trace', async () => {
+      const evalId = 'eval-0003'
+      const rows = await searchEval(page, evalId)
+      await rows.first().getByRole('button', { name: evalId }).click()
+      await page.getByRole('button', { name: 'Trace', exact: true }).click()
+      await expectRegularTrace(traceDialog(page), TRACES.evals[evalId]!.index)
+      await network.settled()
+      // The eval's row and its trace's spans, each a lookup by an index: a read-ahead run or
+      // two of 64 KiB chunks, however many evals and spans the experiment holds.
+      const reads = since(start)
+      expect(reads.length).toBeLessThanOrEqual(EVAL_VIEW_MAX_REQUESTS)
+      expect(sumBytes(reads)).toBeLessThanOrEqual(EVAL_VIEW_MAX_BYTES)
+      expectNoPayloadRead(reads, traces)
+    })
+    expectRangeReads(network, traces)
   })
 })
 

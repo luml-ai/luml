@@ -18,11 +18,13 @@ import subprocess
 import sys
 import tarfile
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
 import httpx
+import platform_expected
 import trace_data
 from luml_api import LumlClient
 from luml_api._types import ArtifactStatus, BucketType, CollectionType
@@ -44,7 +46,21 @@ CACHE = os.environ.get("E2E_ARTIFACT_CACHE")
 DATA_FILES = (Path(__file__), Path(__file__).with_name("trace_data.py"), OLD_SDK_SCRIPT)
 TWIN_KEY = "train/long_running_metric/with_a_fairly_long_key_name"
 # Published once more to each storage through its delaying proxy (throttle_proxy.mjs).
-PROXIED_LABELS = {"s3": ("large", "old", "new_a", "traces_new"), "azure": ("large",)}
+PROXIED_LABELS = {
+    "s3": ("large", "old", "new_a", "new_b", "traces_new", "traces_old"),
+    "azure": ("large",),
+}
+NEW_SERIES = {
+    "new_a": [("train/loss", REGULAR_STEPS, 21)],
+    "new_b": [("train/loss", REGULAR_STEPS, 22)],
+}
+# Frozen stores of the oldest eras, opened in the UI against their fixture JSON:
+# revision 0 (before migrations) and the first release with migrations (luml-sdk
+# 0.1.0, revision 2). No fixture has revision 1.
+OLD_ERA_FIXTURES = {
+    "rev0": FIXTURES / "b_premigration.tar",
+    "sdk_0_1_0": FIXTURES / "c_sdk_0_1_0.tar",
+}
 
 
 @dataclass
@@ -109,6 +125,19 @@ def log_series(
     for step in range(steps):
         value = scale * math.exp(-step / max(steps, 1) * 3) + rng.random() * 0.01
         tracker.log_dynamic(key, value, step=step)
+
+
+def recorder(
+    series: list[tuple[str, int, int]],
+) -> Callable[[platform_expected.RecordingTracker], None]:
+    """What new_experiment logs, for platform_expected.py."""
+
+    def log(tracker: platform_expected.RecordingTracker) -> None:
+        tracker.log_static("seed", series[0][2])
+        for key, steps, seed in series:
+            log_series(tracker, key, steps, seed)  # type: ignore[arg-type]
+
+    return log
 
 
 def new_experiment(
@@ -258,15 +287,11 @@ def build_artifacts(work: Path) -> tuple[dict[str, tuple[Path, str]], str]:
             "experiment",
         ),
         "new_a": (
-            new_experiment(
-                store, "new_a", work / "new_a.tar", [("train/loss", REGULAR_STEPS, 21)]
-            ),
+            new_experiment(store, "new_a", work / "new_a.tar", NEW_SERIES["new_a"]),
             "experiment",
         ),
         "new_b": (
-            new_experiment(
-                store, "new_b", work / "new_b.tar", [("train/loss", REGULAR_STEPS, 22)]
-            ),
+            new_experiment(store, "new_b", work / "new_b.tar", NEW_SERIES["new_b"]),
             "experiment",
         ),
         "short": (
@@ -280,6 +305,7 @@ def build_artifacts(work: Path) -> tuple[dict[str, tuple[Path, str]], str]:
         "twin_gen2": (FIXTURES / "m_gen2_twin.tar", "experiment"),
         "model_gen2": (FIXTURES / "j_gen2_model_sdk_0_6_0.tar", "model"),
         "model_gen1": (FIXTURES / "f_model_sdk_0_5_0.tar", "model"),
+        **{label: (path, "experiment") for label, path in OLD_ERA_FIXTURES.items()},
     }
     python = old_sdk_python(
         "the old-format experiment is the frozen l_gen1_twin.tar, and the tests of "
@@ -400,6 +426,10 @@ def main() -> None:
         "short_steps": SHORT_STEPS,
         "twin_key": TWIN_KEY,
         "traces": trace_data.expected(),
+        "expected": platform_expected.expected(
+            {label: recorder(series) for label, series in NEW_SERIES.items()},
+            OLD_ERA_FIXTURES,
+        ),
         "storages": {
             storage: publish(client, storage, artifacts) for storage in storages
         },
@@ -407,7 +437,12 @@ def main() -> None:
             storage: publish(
                 client,
                 storage,
-                {label: artifacts[label] for label in PROXIED_LABELS[storage]},
+                {
+                    label: artifacts[label]
+                    for label in PROXIED_LABELS[storage]
+                    # traces_old needs the luml-sdk 0.5.0 venv.
+                    if label in artifacts
+                },
                 proxied=True,
             )
             for storage in storages

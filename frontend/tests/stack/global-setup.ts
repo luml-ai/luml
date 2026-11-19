@@ -16,11 +16,14 @@ const PLATFORM_LABELS = [
   'model_gen1',
   'old',
   'traces_new',
+  'rev0',
+  'sdk_0_1_0',
 ]
 const OLD_SDK_PLATFORM_LABELS = ['fallback', 'traces_old']
-const PROXIED_LABELS = { s3: ['large', 'old', 'new_a', 'traces_new'], azure: ['large'] }
-const FLOW_EXPERIMENTS = ['new', 'live', 'traces']
-const OLD_SDK_FLOW_EXPERIMENTS = ['old', 'traces_old']
+const PROXIED_LABELS = { s3: ['large', 'old', 'new_a', 'new_b', 'traces_new'], azure: ['large'] }
+const OLD_SDK_PROXIED_LABELS = { s3: ['traces_old'] }
+const FLOW_EXPERIMENTS = ['new', 'live', 'traces', 'other']
+const OLD_SDK_FLOW_EXPERIMENTS = ['old', 'traces_old', 'fractional']
 
 interface Collection {
   artifacts: Record<string, { id?: string }>
@@ -67,7 +70,11 @@ function checkPlatformData(workDir: string, strict: boolean) {
       if (!data.storages?.[storage]?.artifacts?.[label]?.id) missing.push(`${storage}: ${label}`)
     }
   }
-  for (const [storage, proxied] of Object.entries(PROXIED_LABELS)) {
+  const proxiedLabels = Object.entries(PROXIED_LABELS).map(([storage, proxied]) => [
+    storage,
+    [...proxied, ...(strict ? (OLD_SDK_PROXIED_LABELS[storage as 's3'] ?? []) : [])],
+  ]) as [string, string[]][]
+  for (const [storage, proxied] of proxiedLabels) {
     for (const label of proxied) {
       if (!data.proxied?.[storage]?.artifacts?.[label]?.id)
         missing.push(`${storage} proxied: ${label}`)

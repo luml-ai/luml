@@ -8,7 +8,8 @@
 //
 // Controlled over the same port under /__e2e/ (the specs call it from Node):
 //   POST /__e2e/config  {latencyMs, bytesPerSecond, throttleMatching, stallMatching, stripRange,
-//                        refuseSeen, refuseMatching, refuseOverlapping, failMatching}
+//                        refuseSeen, refuseMatching, refuseOverlapping, failMatching,
+//                        storageFailure}
 //   POST /__e2e/release the held requests answered; later matching ones are held still
 //   GET  /__e2e/log     the requests served since the last reset
 //   POST /__e2e/reset   default config, empty log, held requests answered
@@ -55,6 +56,12 @@ const DEFAULT_CONFIG = {
    * being forwarded, until this is cleared. For servers whose requests are not signed (Flow).
    */
   failMatching: null,
+  /**
+   * `{matching, status, times}`: GET requests whose `<path>?<query> <range>` match are
+   * answered with `status` (and the CORS headers a cross-origin page needs to see it), `times`
+   * times or, with null, until this is cleared. Storage that fails for a while.
+   */
+  storageFailure: null,
 }
 
 let config = { ...DEFAULT_CONFIG }
@@ -161,6 +168,24 @@ async function forward(request, response) {
     entry.status = 500
     response.writeHead(500, { 'content-type': 'application/json' })
     response.end(JSON.stringify({ detail: 'Failed on purpose by the test proxy' }))
+    entry.endedAt = Date.now()
+    return
+  }
+  const failure = config.storageFailure
+  if (
+    failure &&
+    request.method === 'GET' &&
+    failure.times !== 0 &&
+    new RegExp(failure.matching).test(`${url.pathname}${url.search} ${range}`)
+  ) {
+    if (failure.times !== null) failure.times -= 1
+    entry.status = failure.status
+    response.writeHead(failure.status, {
+      'content-type': 'text/plain',
+      'access-control-allow-origin': request.headers.origin ?? '*',
+      'cross-origin-resource-policy': 'cross-origin',
+    })
+    response.end('Failed on purpose by the test proxy')
     entry.endedAt = Date.now()
     return
   }

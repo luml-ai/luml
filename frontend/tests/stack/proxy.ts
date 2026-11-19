@@ -10,6 +10,11 @@ export interface ProxyConfig {
   refuseMatching?: string | null
   refuseOverlapping?: [number, number] | null
   failMatching?: string | null
+  /**
+   * GET requests whose `<path>?<query> <range>` match `matching` are answered with `status`,
+   * `times` times (null: until cleared).
+   */
+  storageFailure?: { matching: string; status: number; times: number | null } | null
 }
 
 export interface ProxiedRequest {
