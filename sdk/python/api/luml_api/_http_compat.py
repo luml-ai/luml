@@ -20,7 +20,17 @@ def compatible_http_errors() -> Generator[None]:
             if import_error.name != "httpx":
                 raise
         else:
-            bases += (getattr(legacy, error_type.__name__),)
+            legacy_type = next(
+                (
+                    getattr(legacy, base.__name__)
+                    for base in error_type.__mro__
+                    if base.__module__.startswith("httpx2")
+                    and hasattr(legacy, base.__name__)
+                ),
+                None,
+            )
+            if legacy_type is not None and not issubclass(error_type, legacy_type):
+                bases += (legacy_type,)
         if isinstance(error, httpx2.RequestError):
             bases += (APIConnectionError,)
         error_class: type[httpx2.HTTPError] = type(

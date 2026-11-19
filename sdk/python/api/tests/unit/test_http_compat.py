@@ -128,3 +128,53 @@ assert "httpx" not in sys.modules
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_custom_error_subclass_preserves_legacy_catch() -> None:
+    legacy = importlib.import_module("httpx")
+
+    class ProxyRefused(httpx2.ConnectError):
+        pass
+
+    def fail(request: httpx2.Request) -> httpx2.Response:
+        raise ProxyRefused("refused", request=request)
+
+    with SyncBaseClient("https://example.com") as client:
+        client._client = httpx2.Client(transport=httpx2.MockTransport(fail))
+        with pytest.raises(legacy.ConnectError) as error:
+            client.get("https://example.com")
+
+    assert isinstance(error.value, ProxyRefused)
+    assert isinstance(error.value, APIConnectionError)
+
+
+def test_aliased_httpx_keeps_connection_errors_catchable() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import httpx2
+httpx2.alias_httpx()
+import httpx
+from luml_api import APIConnectionError
+from luml_api._base_client import SyncBaseClient
+
+def fail(request):
+    raise httpx2.ConnectError("unavailable", request=request)
+
+with SyncBaseClient("https://example.com") as client:
+    client._client = httpx2.Client(transport=httpx2.MockTransport(fail))
+    try:
+        client.get("https://example.com")
+    except APIConnectionError as error:
+        assert isinstance(error, httpx.ConnectError)
+    else:
+        raise AssertionError("expected an error")
+""",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
