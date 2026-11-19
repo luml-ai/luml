@@ -56,6 +56,22 @@ class FrontendCITests(unittest.TestCase):
         self.assertNotIn("continue-on-error", lint_steps[0])
         self.assertNotIn("if", lint_steps[0])
 
+    def test_type_check_covers_the_browser_suites_and_blocks_the_job(self):
+        job = load("[frontend] tests-and-linters.yml")["jobs"]["unit"]
+        self.assertNotIn("continue-on-error", job)
+        steps = [
+            step for step in job["steps"] if step.get("run") == "npm run type-check"
+        ]
+        self.assertEqual(len(steps), 1)
+        self.assertNotIn("continue-on-error", steps[0])
+        self.assertNotIn("if", steps[0])
+        script = json.loads((ROOT / "frontend/package.json").read_text())["scripts"][
+            "type-check"
+        ]
+        for config in ("tsconfig.stack.json", "tsconfig.integration.json"):
+            with self.subTest(config=config):
+                self.assertIn(f"-p {config}", script)
+
     def test_workspace_package_checks_run_once_outside_the_frontend_suite(self):
         commands = "\n".join(
             step.get("run", "")

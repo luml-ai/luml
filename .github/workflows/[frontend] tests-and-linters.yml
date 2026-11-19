@@ -56,6 +56,11 @@ jobs:
           npm run build-only --workspace=@luml/attachments
           npm run build-only --workspace=@luml/experiments
 
+      # The app, the mocked browser suite and the stack suite (tsconfig.stack.json).
+      - name: Type check
+        working-directory: frontend
+        run: npm run type-check
+
       - name: Run unit tests
         working-directory: frontend
         run: npm run test:ci
