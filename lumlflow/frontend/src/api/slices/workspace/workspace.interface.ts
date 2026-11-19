@@ -20,6 +20,25 @@ export interface WorkspaceFile extends WorkspaceFolder {
   size: number | null
 }
 
+export interface ArchiveFile {
+  name: string
+  size: number
+}
+
+export interface ArchiveInspection {
+  kind: 'experiment' | 'model' | 'dataset' | 'unknown'
+  manifest: Record<string, unknown> | null
+  files: ArchiveFile[]
+  splits?: {
+    subset: string
+    name: string
+    format: 'parquet' | 'csv' | 'arrow'
+    files: string[]
+    num_rows: number | null
+  }[]
+  variant?: 'tabular' | 'hf' | null
+}
+
 export interface WorkspaceFileLock {
   path: string
   actor: string | null

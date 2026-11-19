@@ -58,7 +58,7 @@ export interface UploadedArtifactInfo {
 
 export type { PublishTarget } from '@/flow/api/types'
 
-export type PublishModel = (target: PublishTarget) => Promise<{ job_id: string }>
+export type PublishArtifact = (target: PublishTarget) => Promise<{ job_id: string }>
 
 export type PublishExperiment = (
   target: PublishTarget,
@@ -68,7 +68,8 @@ export type PublishExperiment = (
 export interface UploadModalProps {
   experimentId?: string
   models?: Model[]
-  publish?: PublishModel
+  publish?: PublishArtifact
+  artifactKind?: ArtifactKind
   /** Publishes a flow cell's experiment with the models it returned, by `type`. */
   publishExperiment?: PublishExperiment
   /** How many models `publishExperiment` has when the tracker links none. */

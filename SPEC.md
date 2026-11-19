@@ -766,7 +766,7 @@ it touches. Frontend tasks take the look from the named `SPEC-design/` files.
   - [x] Look: `SPEC-design/WorkspaceFolder/`, and `WorkspacesPage.vue` and
     `WorkspaceFileViewer.vue` in `SPEC-design/WorkspacesPage/`
 
-- [ ] Add the luml file view with upload and the read-only experiment
-  - [ ] Everything in `.luml` view and Experiment from a `.luml`, tested per kind with a
+- [x] Add the luml file view with upload and the read-only experiment
+  - [x] Everything in `.luml` view and Experiment from a `.luml`, tested per kind with a
     mocked `file.inspect` and a small experiment archive
-  - [ ] Look: `SPEC-design/WorkspacesPage/LumlPackagePreview.vue`
+  - [x] Look: `SPEC-design/WorkspacesPage/LumlPackagePreview.vue`

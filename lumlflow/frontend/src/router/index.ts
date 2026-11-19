@@ -90,6 +90,14 @@ const router = createRouter({
           component: ExperimentsComparison,
         },
         {
+          name: ROUTE_NAMES.WORKSPACE_EXPERIMENT,
+          path: ROUTES[ROUTE_NAMES.WORKSPACE_EXPERIMENT],
+          component: () => import('@/pages/workspaces/ArchiveExperimentPage.vue'),
+          props: (route) => ({
+            path: typeof route.query.file === 'string' ? route.query.file : '',
+          }),
+        },
+        {
           name: ROUTE_NAMES.WORKSPACE_FLOW,
           path: ROUTES[ROUTE_NAMES.WORKSPACE_FLOW],
           component: WorkspaceFlowPage,

@@ -8,9 +8,14 @@ import type { FilePreviewProps, PreviewState } from '../interfaces/interfaces'
 
 const MAX_PREVIEW_SIZE = 10 * 1024 * 1024
 
-async function fetchLimitedBlob(url: string, signal: AbortSignal): Promise<Blob | null> {
+async function fetchPreviewBlob(
+  url: string,
+  signal: AbortSignal,
+  limitSize: boolean,
+): Promise<Blob | null> {
   const response = await fetch(url, { signal })
   if (!response.ok) throw new Error(`File request failed (${response.status})`)
+  if (!limitSize) return response.blob()
   if (Number(response.headers.get('Content-Length')) > MAX_PREVIEW_SIZE) {
     await response.body?.cancel()
     return null
@@ -50,8 +55,15 @@ export function useFilePreview(props: FilePreviewProps) {
   const previewState = ref<PreviewState>(null)
 
   watch(
-    () => [props.fileName, props.source, props.fileSize, props.supportsPartialPreview] as const,
-    async ([name, source, fileSize, supportsPartialPreview], _, onCleanup) => {
+    () =>
+      [
+        props.fileName,
+        props.source,
+        props.fileSize,
+        props.supportsPartialPreview,
+        props.datasetSplit,
+      ] as const,
+    async ([name, source, fileSize, supportsPartialPreview, datasetSplit], _, onCleanup) => {
       let active = true
       let ownedUrl: string | undefined
       let streamUrl: string | undefined
@@ -78,9 +90,10 @@ export function useFilePreview(props: FilePreviewProps) {
 
       const partial =
         (streamed || parquet) && (typeof source !== 'function' || supportsPartialPreview)
+      const limitSize = !partial && !(datasetSplit && type === 'table')
       // A range provider rechecks the length when opening a listed attachment.
       const listedSize = partial && typeof source === 'function' ? undefined : fileSize
-      previewState.value = sizeState(listedSize, !partial)
+      previewState.value = sizeState(listedSize, limitSize)
       if (previewState.value) return
 
       previewState.value = 'loading'
@@ -96,7 +109,7 @@ export function useFilePreview(props: FilePreviewProps) {
         previewState.value =
           sizeState(
             size,
-            !partial || (streamed && typeof data !== 'string' && !(data instanceof Blob)),
+            limitSize || (streamed && typeof data !== 'string' && !(data instanceof Blob)),
           ) ?? 'loading'
         if (previewState.value !== 'loading') return
         if (parquet) {
@@ -115,7 +128,7 @@ export function useFilePreview(props: FilePreviewProps) {
         } else {
           const blob =
             typeof data === 'string'
-              ? await fetchLimitedBlob(data, controller.signal)
+              ? await fetchPreviewBlob(data, controller.signal, limitSize)
               : data instanceof Blob
                 ? data
                 : new Blob([await data.slice(0, data.byteLength)])

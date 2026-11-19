@@ -63,11 +63,11 @@
 
 <script setup lang="ts">
 import 'github-markdown-css/github-markdown.css'
-import { computed, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { Select, Button } from 'primevue'
 import { Copy, CopyCheck, Download } from 'lucide-vue-next'
 import { marked } from 'marked'
-import { isYamlLike, jsonToYaml, tryParseJson } from '../../helpers/texts'
+import { isYamlLike, jsonToYaml, MarkdownRendererKey, tryParseJson } from '../../helpers/texts'
 import DOMPurify from 'dompurify'
 import { downloadFileFromBlob } from '../../helpers/files'
 import {
@@ -120,12 +120,12 @@ const contentTypes = computed(() => [
   },
 ])
 
-const markdownText = computed(() => {
-  const result = marked.parse(
-    typeof props.text === 'object' ? JSON.stringify(props.text) : `${props.text}`,
-  )
-  return DOMPurify.sanitize(result as string)
-})
+const renderMarkdown = inject(MarkdownRendererKey, (source: string) =>
+  DOMPurify.sanitize(marked.parse(source, { async: false })),
+)
+const markdownText = computed(() =>
+  renderMarkdown(typeof props.text === 'object' ? JSON.stringify(props.text) : String(props.text)),
+)
 
 const yamlText = computed(() => {
   const val = typeof props.text === 'string' ? (tryParseJson(props.text) ?? props.text) : props.text

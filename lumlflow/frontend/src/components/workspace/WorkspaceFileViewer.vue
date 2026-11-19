@@ -102,6 +102,12 @@
               </Button>
             </div>
             <div v-if="statusText" class="preview-state" role="status">{{ statusText }}</div>
+            <LumlPackagePreview
+              v-else-if="isArchive"
+              :key="file.path"
+              :file="file"
+              :refresh-key="refreshKey"
+            />
             <FilePreview
               v-else-if="fileType && file.size !== null"
               :key="refreshKey"
@@ -125,6 +131,7 @@ import { Button, Card, Message, useToast } from 'primevue'
 import { Check, Copy, Lock, Pencil, X } from 'lucide-vue-next'
 import { workspaceApi, WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
 import type { WorkspaceFile, WorkspaceFileLock } from '@/api/slices/workspace/workspace.interface'
+import LumlPackagePreview from './LumlPackagePreview.vue'
 import UiCodeEditor from '@/components/ui/code-editor/UiCodeEditor.vue'
 import { useCopy } from '@/composables/useCopy'
 import { dateToText } from '@/helpers/date'
@@ -166,14 +173,15 @@ watch(
   },
 )
 const fileType = computed(() => getFileType(props.file.name))
+const isArchive = computed(() => getFileExtension(props.file.name) === 'luml')
 const isTextCandidate = computed(() => {
   const type = fileType.value
-  const { size, name } = props.file
+  const { size } = props.file
   return (
     !props.gone &&
     size !== null &&
     size <= 2 * 1024 * 1024 &&
-    (type === 'text' || type === 'code' || (!type && getFileExtension(name) !== 'luml'))
+    (type === 'text' || type === 'code' || (!type && !isArchive.value))
   )
 })
 const agentColor = computed(() => {
@@ -187,7 +195,7 @@ const statusText = computed(() => {
   if (props.gone) return 'This file was moved or deleted'
   if (props.file.size === null) return 'No preview for this file type'
   if (props.file.size === 0) return 'File is empty'
-  if (fileType.value) return ''
+  if (isArchive.value || fileType.value) return ''
   if (props.file.size > 10 * 1024 * 1024) return 'File is too large for preview'
   if (loading.value && !disk.value) return 'Loading preview…'
   return loadError.value || (disk.value ? '' : 'No preview for this file type')

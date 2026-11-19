@@ -39,6 +39,8 @@ export interface FilePreviewProps {
   fileSize?: number
   supportsPartialPreview?: boolean
   source: PreviewSource | (() => Promise<PreviewSource>)
+  /** Read a row-limited archive split even when its first chunk exceeds the file preview limit. */
+  datasetSplit?: boolean
   totalRows?: number
 }
 

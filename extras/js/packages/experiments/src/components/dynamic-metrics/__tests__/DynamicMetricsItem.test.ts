@@ -523,6 +523,41 @@ describe('DynamicMetricsItem lifecycle', () => {
     expect(mock.calls.length).toBe(rendersAfterUnmount)
   })
 
+  it('can leave the metrics tab while the chart library loads', async () => {
+    const getPlotly = vi.mocked(plotlyService.getPlotly)
+    const waiting: (() => void)[] = []
+    getPlotly.mockImplementation(
+      () => new Promise((resolve) => waiting.push(() => resolve(plotlyMock.current as never))),
+    )
+    try {
+      const wrapper = mount(DynamicMetricsItem, {
+        props: {
+          store: new MetricBucketStore(new FakeBucketSource({ m1: { loss: points(0, 9) } }), {
+            debounceMs: 0,
+          }),
+          metricName: 'loss',
+          modelIds: ['m1'],
+          fullRange: { first: 0, last: 9 },
+          modelsInfo: MODELS,
+        },
+        global: {
+          provide: { [ThemeKey]: ref('light') },
+          stubs: { DynamicMetricsItemContent: ContentStub, ProgressSpinner: true },
+        },
+      })
+      await settle()
+      expect(waiting.length).toBeGreaterThan(0)
+
+      wrapper.unmount()
+      waiting.forEach((finish) => finish())
+      await settle()
+
+      expect(mock.calls).toHaveLength(0)
+    } finally {
+      getPlotly.mockImplementation(async () => plotlyMock.current as never)
+    }
+  })
+
   it('fills the fullscreen chart opened during a load from the same read', async () => {
     setWidth(800)
     const { wrapper, source } = await mountChart({

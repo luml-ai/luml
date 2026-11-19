@@ -1,10 +1,16 @@
 <template>
-  <Button label="Upload to LUML" severity="secondary" @click="uploadClick" :loading="loading">
+  <Button
+    :label="props.artifactKind ? `Upload ${props.artifactKind} to LUML` : 'Upload to LUML'"
+    :size="props.artifactKind ? 'small' : undefined"
+    severity="secondary"
+    @click="uploadClick"
+    :loading="loading"
+  >
     <template #icon>
       <CloudUploadIcon :size="14" />
     </template>
   </Button>
-  <UploadModal v-model:visible="visible" :experiment-id="experimentId" />
+  <UploadModal v-model:visible="visible" v-bind="props" />
 </template>
 
 <script setup lang="ts">
@@ -16,7 +22,7 @@ import { useAuthStore } from '@/store/auth'
 import { errorToast } from '@/toasts'
 import UploadModal from './UploadModal.vue'
 
-defineProps<UploadModalProps>()
+const props = defineProps<UploadModalProps>()
 
 const authStore = useAuthStore()
 const toast = useToast()

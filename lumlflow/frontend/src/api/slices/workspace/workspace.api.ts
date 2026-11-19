@@ -1,4 +1,5 @@
 import { api } from '@/api/client'
+import { parse } from 'yaml'
 import type {
   AgentHarness,
   ExperimentPublishOptions,
@@ -7,6 +8,7 @@ import type {
   PublishTarget,
 } from '@/flow/api/types'
 import type {
+  ArchiveInspection,
   FileRevision,
   AssetPage,
   AssetPreview,
@@ -95,7 +97,26 @@ function getDaemonToken(): string | null {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
-async function call<P, R>(method: string, params: P): Promise<R> {
+// Preserve exact integers in the manifest while keeping RPC sizes and row counts numeric.
+function decodeInspection(text: string): RpcResponse<ArchiveInspection> {
+  let needsExactIntegers = false
+  const response: RpcResponse<ArchiveInspection> = JSON.parse(text, (_, value) => {
+    if (typeof value === 'number' && Math.abs(value) > Number.MAX_SAFE_INTEGER) {
+      needsExactIntegers = true
+    }
+    return value
+  })
+  if (needsExactIntegers && response.result?.manifest) {
+    response.result.manifest = parse(text, { schema: 'json', intAsBigInt: true }).result.manifest
+  }
+  return response
+}
+
+async function call<P, R>(
+  method: string,
+  params: P,
+  transformResponse?: (text: string) => RpcResponse<R>,
+): Promise<R> {
   const token = getDaemonToken()
   if (!token) throw new WorkspaceUnauthorizedError()
 
@@ -107,6 +128,7 @@ async function call<P, R>(method: string, params: P): Promise<R> {
       {
         headers: { [TOKEN_HEADER]: token },
         validateStatus: () => true,
+        ...(transformResponse && { transformResponse }),
       },
     )
   } catch {
@@ -130,17 +152,31 @@ export const workspaceApi = {
       offset,
     }),
 
-  fileUrl(path: string) {
+  fileUrl(path: string, entry?: string) {
     const token = getDaemonToken()
     if (!token) throw new WorkspaceUnauthorizedError()
-    return `${api.getUri({ url: 'flow/file' })}?${new URLSearchParams({ path, token })}`
+    const params = new URLSearchParams({ path, token })
+    if (entry !== undefined) params.set('name', entry)
+    const url = entry === undefined ? 'flow/file' : 'flow/file/entry'
+    return `${api.getUri({ url })}?${params}`
   },
+
+  inspectFile: (path: string) =>
+    call<{ path: string }, ArchiveInspection>('file.inspect', { path }, decodeInspection),
+
+  publishFile: (path: string, destination: PublishTarget) =>
+    call<{ path: string } & PublishTarget, { job_id: string }>('file.publish', {
+      path,
+      ...destination,
+    }),
 
   fileInfo: (path: string) =>
     call<{ path: string }, { file: WorkspaceFile | null }>('workspace.file', { path }),
 
   readText: (path: string) =>
-    call<{ path: string }, FileRevision & { text: string; target?: string }>('file.read_text', { path }),
+    call<{ path: string }, FileRevision & { text: string; target?: string }>('file.read_text', {
+      path,
+    }),
 
   writeText: (path: string, text: string, mtime: string, revision: string, force = false) =>
     call<Record<string, unknown>, FileRevision>('file.write_text', {
