@@ -1,7 +1,7 @@
 import ast
 import re
 from dataclasses import dataclass, field
-from typing import Any, get_args
+from typing import Any, cast, get_args
 
 from lumlflow.flow.ids import is_ulid
 from lumlflow.flow.store.models import (
@@ -208,7 +208,7 @@ def _output_spec(name: str, declared: object, flags: list[VersionFlag]) -> Outpu
 
 def _asset_type(name: str, declared: object, flags: list[VersionFlag]) -> AssetType:
     if declared in ASSET_TYPES:
-        return declared  # type: ignore[return-value]
+        return cast(AssetType, declared)
     # Coerced rather than dropped: the output keeps its name so consumers still
     flags.append(
         _invalid(

@@ -263,7 +263,7 @@ class TestModelArtifactResolution:
             (winner / "manifest.json").write_text('{"name": "iris"}')
             return result
 
-        handler._unpack_model_archive = unpack_then_let_the_other_win
+        handler._unpack_model_archive = unpack_then_let_the_other_win  # ty: ignore[invalid-assignment]
 
         extracted = handler._get_or_extract_model()
 

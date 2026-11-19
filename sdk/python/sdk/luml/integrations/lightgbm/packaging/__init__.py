@@ -5,7 +5,7 @@ from warnings import warn
 
 import lightgbm as lgb
 import pandas as pd
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from fnnx.extras.builder import PyfuncBuilder
 from lightgbm import Booster
 from lightgbm.sklearn import LGBMModel
 from pydantic import BaseModel
@@ -148,7 +148,7 @@ def save_lightgbm(  # noqa: C901
                 extra_dependencies.append(lgb_dep)
 
         return save_sklearn(
-            estimator=estimator,
+            estimator=estimator,  # ty: ignore[invalid-argument-type]
             inputs=inputs,
             path=path,
             dependencies=dependencies,

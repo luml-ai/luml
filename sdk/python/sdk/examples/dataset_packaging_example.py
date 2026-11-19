@@ -147,7 +147,7 @@ def example_chunked_dataset() -> None:
         )
 
         manifest = ref.get_manifest()
-        split_info = manifest.payload.subsets["default"].splits["train"]  # type: ignore
+        split_info = manifest.payload.subsets["default"].splits["train"]
         print(f"\nDataset chunked into {split_info.num_chunks} chunks")
         print(f"Chunk files: {split_info.chunk_files}")
 

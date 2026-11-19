@@ -44,7 +44,7 @@ jobs:
         run: uv run ruff check luml migrations tests utils
 
       - name: Type checking
-        run: uv run mypy luml utils tests
+        run: uv run --frozen ty check
 
       - name: Run unit tests
         run: uv run pytest tests/unit

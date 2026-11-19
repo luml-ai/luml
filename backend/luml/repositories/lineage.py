@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from uuid import UUID
 
@@ -17,14 +17,14 @@ from luml.schemas.lineage import LineageCoordinates, LineageNodePair, LineageVia
 
 class LineageRepository(RepositoryBase):
     @asynccontextmanager
-    async def transaction(self) -> AsyncIterator[AsyncSession]:
+    async def transaction(self) -> AsyncGenerator[AsyncSession]:
         async with self._get_session() as session, session.begin():
             yield session
 
     @asynccontextmanager
     async def _session_scope(
         self, session: AsyncSession | None
-    ) -> AsyncIterator[tuple[AsyncSession, bool]]:
+    ) -> AsyncGenerator[tuple[AsyncSession, bool]]:
         if session is not None:
             yield session, False
             return

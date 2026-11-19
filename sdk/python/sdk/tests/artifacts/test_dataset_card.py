@@ -62,7 +62,7 @@ def test_add_dataset_card_with_html_string(dataset_ref: DatasetReference) -> Non
 
 def test_add_dataset_card_invalid_type(dataset_ref: DatasetReference) -> None:
     with pytest.raises(TypeError, match="must be a string or CardBuilder instance"):
-        dataset_ref.add_dataset_card(12345)  # type: ignore[arg-type]
+        dataset_ref.add_dataset_card(12345)
 
 
 def test_validate_after_adding_card(dataset_ref: DatasetReference) -> None:

@@ -378,7 +378,7 @@ def test_log_model_auto_detect_sklearn(
 
     mock_save = MagicMock(return_value=fake_ref)
     fake_module = ModuleType("luml.integrations.sklearn.packaging")
-    fake_module.save_sklearn = mock_save  # type: ignore[attr-defined]
+    fake_module.save_sklearn = mock_save
 
     monkeypatch.setitem(
         __import__("sys").modules,

@@ -50,7 +50,7 @@ def test_abstract_base_methods_raise_not_implemented() -> None:
     # Instantiate the ABC by clearing its abstract markers so the default
     # (NotImplementedError-raising) method bodies can be exercised directly.
     impl = type("_Impl", (ArtifactResourceBase,), {})
-    impl.__abstractmethods__ = frozenset()  # type: ignore[attr-defined]
+    impl.__abstractmethods__ = frozenset()
     obj = impl()
 
     calls: list[Callable[[], object]] = [

@@ -309,7 +309,7 @@ class TraceDetailScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="trace-detail-body"):
             with PanelFrame(
                 title="Spans",

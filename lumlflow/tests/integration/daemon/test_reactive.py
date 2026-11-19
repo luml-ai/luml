@@ -291,7 +291,7 @@ async def test_reading_a_slice_does_not_ask_reactivity_anything(tmp_path: Path):
             asked += 1
             return verdicts(branch)
 
-        session.planner.auto_verdicts = counted  # type: ignore[method-assign]
+        session.planner.auto_verdicts = counted
 
         here = queries.read(session, "main")
         assert asked == 0

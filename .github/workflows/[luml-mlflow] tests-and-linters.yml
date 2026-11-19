@@ -47,7 +47,7 @@ jobs:
         run: uv run --frozen ruff check luml_mlflow tests
 
       - name: Type checking
-        run: uv run --frozen mypy luml_mlflow
+        run: uv run --frozen ty check
 
       - name: Running tests
         run: uv run --frozen pytest

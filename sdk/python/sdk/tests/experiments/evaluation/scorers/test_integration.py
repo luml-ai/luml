@@ -57,7 +57,7 @@ def _make_tracker() -> MagicMock:
 def _mock_tracer() -> MagicMock:
     mock_tracer = MagicMock()
     mock_span = MagicMock()
-    mock_span.context.trace_id = 12345
+    mock_span.get_span_context.return_value.trace_id = 12345
     mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
         return_value=mock_span
     )

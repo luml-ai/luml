@@ -87,7 +87,7 @@ class ArtifactHandler:
 
     async def _get_storage_client(self, secret_id: UUID) -> BaseStorageClient:
         secret = await self._get_secret_or_raise(secret_id)
-        return create_storage_client(secret.type)(secret)  # type: ignore[arg-type]
+        return create_storage_client(secret.type)(secret)  # ty: ignore[invalid-argument-type]
 
     async def _check_orbit_and_collection_access(
         self, organization_id: UUID, orbit_id: UUID, collection_id: UUID

@@ -1,4 +1,5 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import UUID, ForeignKey, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -26,10 +27,10 @@ class CollectionOrm(TimestampMixin, Base):
     type: Mapped[str] = mapped_column("type", String, nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
 
-    orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbit: Mapped[OrbitOrm] = relationship(
         "OrbitOrm", back_populates="collections", lazy="selectin"
     )
-    artifacts: Mapped[list[ArtifactOrm]] = relationship(  # noqa: F821
+    artifacts: Mapped[list[ArtifactOrm]] = relationship(
         back_populates="collection", cascade="all, delete, delete-orphan"
     )
 
@@ -45,3 +46,7 @@ class CollectionOrm(TimestampMixin, Base):
 
     def to_collection(self) -> Collection:
         return Collection.model_validate(self)
+
+
+if TYPE_CHECKING:
+    from luml.models.orbit import OrbitOrm

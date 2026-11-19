@@ -24,12 +24,12 @@ _KUBERNETES_QUANTITY = re.compile(
 
 
 class KubernetesConfiguration(SatelliteConfiguration):
-    BASE_URL: str = "http://localhost"
+    BASE_URL: str = "http://localhost"  # ty: ignore[incompatible-mutable-override]
     SATELLITE_SLUG: str = Field(default="kubernetes-2026.01-v1", min_length=1)
     NAMESPACE: str = Field(default="default", min_length=1)
     SATELLITE_NAME: str = Field(default="luml", min_length=1)
     SATELLITE_INTERNAL_URL: str = "http://luml-satellite:8001"
-    INTERNAL_PORT: int = Field(default=8001, ge=1, le=65535)
+    INTERNAL_PORT: int = Field(default=8001, ge=1, le=65535)  # ty: ignore[incompatible-mutable-override]
 
     MODEL_IMAGE: str = Field(default="luml-model-server:latest", min_length=1)
     MODEL_IMAGE_PULL_POLICY: Literal["Always", "IfNotPresent", "Never"] = "IfNotPresent"

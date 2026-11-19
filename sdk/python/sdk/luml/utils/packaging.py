@@ -9,8 +9,8 @@ from contextlib import suppress
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
-from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
+from fnnx.extras.builder import PyfuncBuilder
+from fnnx.extras.pydantic_models.manifest import (
     JSON,
     NDJSON,
 )
@@ -20,12 +20,12 @@ from luml._constants import FNNX_PRODUCER_NAME
 try:
     import scipy.sparse as sp
 except ImportError:  # pragma: no cover - optional dependency
-    sp = None  # type: ignore[assignment]
+    sp = None
 
 try:
     import pandas as pd
 except ImportError:  # pragma: no cover - optional dependency
-    pd = None  # type: ignore[assignment]
+    pd = None
 
 
 from luml.utils.deps import find_dependencies
@@ -69,12 +69,12 @@ def normalize_inputs(  # noqa: C901
         input_order = list(inputs.columns)
         for col in input_order:
             if isinstance(inputs[col].dtype, pd.CategoricalDtype):
-                categorical_features[col] = list(inputs[col].dtype.categories)  # type: ignore[union-attr]
+                categorical_features[col] = list(inputs[col].dtype.categories)
         return inputs, input_order, categorical_features
 
     if allow_dmatrix:
         try:
-            import xgboost as xgb  # type: ignore[import-untyped]
+            import xgboost as xgb
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise ImportError(
                 "xgboost is required when allow_dmatrix=True to handle DMatrix inputs."
@@ -89,9 +89,9 @@ def normalize_inputs(  # noqa: C901
     if sp is not None and sp.issparse(inputs):
         if input_format != "native":
             raise ValueError("Sparse requires input_format='native'")
-        if inputs.ndim < 2:  # type: ignore[attr-defined]
+        if inputs.ndim < 2:
             raise ValueError("Input must be at least 2D")
-        input_order = [f"x{i}" for i in range(inputs.shape[1])]  # type: ignore[attr-defined]
+        input_order = [f"x{i}" for i in range(inputs.shape[1])]
         return inputs, input_order, categorical_features
 
     # numpy fallback
@@ -152,7 +152,7 @@ def add_unified_output(
             name=output_name,
             content_type="NDJSON",
             dtype=f"Array[{y_dtype}]",
-            shape=y_shape,  # type: ignore
+            shape=y_shape,
         )
     )
 

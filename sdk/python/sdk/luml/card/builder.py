@@ -98,7 +98,7 @@ class CardBuilder:
 
     def _write_plotly(self, fig: Any) -> None:  # noqa: ANN401
         try:
-            import plotly.io as pio  # type: ignore[import-untyped]
+            import plotly.io as pio
         except ImportError as e:
             msg = "plotly is required for plotly figures. Install with: pip install plotly"  # noqa: E501
             raise ImportError(msg) from e
@@ -106,7 +106,7 @@ class CardBuilder:
         self._has_plotly = True
         if not hasattr(self, "_plotly_cdn_url"):
             try:
-                from plotly.offline import (  # type: ignore[import-untyped]
+                from plotly.offline import (
                     get_plotlyjs_version,
                 )
 
@@ -152,7 +152,7 @@ class CardBuilder:
     @staticmethod
     def _is_matplotlib_figure(obj: Any) -> bool:  # noqa: ANN401
         try:
-            from matplotlib.figure import Figure  # type: ignore[import-untyped]
+            from matplotlib.figure import Figure
 
             return isinstance(obj, Figure)
         except ImportError:
@@ -161,7 +161,7 @@ class CardBuilder:
     @staticmethod
     def _is_plotly_figure(obj: Any) -> bool:  # noqa: ANN401
         try:
-            from plotly.graph_objs import Figure  # type: ignore[import-untyped]
+            from plotly.graph_objs import Figure
 
             return isinstance(obj, Figure)
         except ImportError:
@@ -170,7 +170,7 @@ class CardBuilder:
     @staticmethod
     def _is_dataframe(obj: Any) -> bool:  # noqa: ANN401
         try:
-            from pandas import DataFrame  # type: ignore[import-untyped]
+            from pandas import DataFrame
 
             return isinstance(obj, DataFrame)
         except ImportError:
@@ -179,7 +179,7 @@ class CardBuilder:
     @staticmethod
     def _is_pil_image(obj: Any) -> bool:  # noqa: ANN401
         try:
-            from PIL import Image  # type: ignore[import-untyped]
+            from PIL import Image
 
             return isinstance(obj, Image.Image)
         except ImportError:

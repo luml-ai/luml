@@ -1,7 +1,7 @@
 import json
 import sqlite3
 import threading
-from collections.abc import Collection, Iterable, Iterator
+from collections.abc import Collection, Generator, Iterable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -333,7 +333,7 @@ class Index:
                 self._apply(transaction)
 
     @contextmanager
-    def probe(self, transaction: Transaction) -> Iterator["Index"]:
+    def probe(self, transaction: Transaction) -> Generator["Index"]:
         with self._lock:
             self._conn.execute("SAVEPOINT probe")
             try:
@@ -757,7 +757,7 @@ class Index:
             )
 
     @contextmanager
-    def protect_value_sweep(self) -> Iterator[set[str]]:
+    def protect_value_sweep(self) -> Generator[set[str]]:
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:

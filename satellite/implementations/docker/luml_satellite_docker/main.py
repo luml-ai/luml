@@ -131,7 +131,7 @@ async def run_async(
     docker_client: aiodocker.Docker | None = None,
     platform_transport: httpx.AsyncBaseTransport | None = None,
 ) -> None:
-    active_configuration = configuration or DockerConfiguration()  # type: ignore[call-arg]
+    active_configuration = configuration or DockerConfiguration()
     logging.basicConfig(level=active_configuration.LOG_LEVEL.upper())
     async with (
         PlatformClient(

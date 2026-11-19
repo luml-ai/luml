@@ -49,7 +49,7 @@ def make_config(**overrides: object) -> RunConfig:
         "agent_id": "echo",
     }
     defaults.update(overrides)
-    return RunConfig(**defaults)  # type: ignore[arg-type]
+    return RunConfig(**defaults)
 
 
 class TestCancelRun:

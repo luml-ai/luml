@@ -13,7 +13,7 @@ def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 class TestSettings:
     def test_default_resolves_under_home(self) -> None:
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         expected = str(Path("~/.luml/experiments").expanduser().resolve())
         assert settings.BACKEND_STORE_URI == expected
 
@@ -22,7 +22,7 @@ class TestSettings:
     ) -> None:
         custom = tmp_path / "custom-store"
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(custom))
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         assert settings.BACKEND_STORE_URI == str(custom.resolve())
 
     def test_luml_backend_store_uri_with_sqlite_prefix(
@@ -30,7 +30,7 @@ class TestSettings:
     ) -> None:
         custom = tmp_path / "with-prefix"
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", f"sqlite://{custom}")
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         assert settings.BACKEND_STORE_URI == str(custom.resolve())
 
     def test_legacy_backend_store_uri_fallback(
@@ -38,7 +38,7 @@ class TestSettings:
     ) -> None:
         legacy = tmp_path / "legacy-store"
         monkeypatch.setenv("BACKEND_STORE_URI", str(legacy))
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         assert settings.BACKEND_STORE_URI == str(legacy.resolve())
 
     def test_luml_backend_store_uri_takes_priority_over_legacy(
@@ -48,12 +48,12 @@ class TestSettings:
         legacy_store = tmp_path / "legacy"
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(new_store))
         monkeypatch.setenv("BACKEND_STORE_URI", str(legacy_store))
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         assert settings.BACKEND_STORE_URI == str(new_store.resolve())
 
     def test_tilde_expansion(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", "~/some/path")
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         expected = str(Path("~/some/path").expanduser().resolve())
         assert settings.BACKEND_STORE_URI == expected
 
@@ -62,7 +62,7 @@ class TestSettings:
     ) -> None:
         db_file = tmp_path / "experiments.db"
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(db_file))
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         assert settings.BACKEND_STORE_URI == str(tmp_path.resolve())
 
     def test_parsing_does_not_touch_the_filesystem(
@@ -70,7 +70,7 @@ class TestSettings:
     ) -> None:
         store = tmp_path / "missing" / "store"
         monkeypatch.setenv("LUML_BACKEND_STORE_URI", str(store))
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         assert settings.BACKEND_STORE_URI == str(store.resolve())
         assert list(tmp_path.iterdir()) == []
 

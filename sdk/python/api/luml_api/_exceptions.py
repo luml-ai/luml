@@ -458,27 +458,27 @@ class BadRequestError(APIStatusError):
     """HTTP 400: the request makes no sense as such, for example an artifact
     linked to itself in the lineage."""
 
-    status_code: Literal[400] = 400
+    status_code: Literal[400] = 400  # ty: ignore[incompatible-mutable-override]
 
 
 class AuthenticationError(APIStatusError):
     """HTTP 401: the API key is missing, expired or invalid."""
 
-    status_code: Literal[401] = 401
+    status_code: Literal[401] = 401  # ty: ignore[incompatible-mutable-override]
 
 
 class PermissionDeniedError(APIStatusError):
     """HTTP 403: the API key's role lacks the permission the call needs, for
     example deleting artifacts as an orbit member."""
 
-    status_code: Literal[403] = 403
+    status_code: Literal[403] = 403  # ty: ignore[incompatible-mutable-override]
 
 
 class NotFoundError(APIStatusError):
     """HTTP 404: the id does not exist, or belongs to another organization,
     orbit or collection than the one addressed."""
 
-    status_code: Literal[404] = 404
+    status_code: Literal[404] = 404  # ty: ignore[incompatible-mutable-override]
 
 
 class SatelliteOutOfSyncError(NotFoundError):
@@ -525,7 +525,7 @@ class ConflictError(APIStatusError):
     `force=True` to displace it), or a deployment deletion that is already
     pending."""
 
-    status_code: Literal[409] = 409
+    status_code: Literal[409] = 409  # ty: ignore[incompatible-mutable-override]
 
 
 class UnprocessableEntityError(APIStatusError):
@@ -533,7 +533,7 @@ class UnprocessableEntityError(APIStatusError):
     validation, for example a lineage depth below 1 or an artifact of another
     orbit added to a track."""
 
-    status_code: Literal[422] = 422
+    status_code: Literal[422] = 422  # ty: ignore[incompatible-mutable-override]
 
 
 class InternalServerError(APIStatusError):

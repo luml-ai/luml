@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from itertools import takewhile
@@ -377,7 +377,7 @@ class Branches:
         return DeleteResult(slug=slug, uid=uid, branch=branch, dangling=dangling)
 
     @contextmanager
-    def _state_at(self, step: int) -> Iterator[Index]:
+    def _state_at(self, step: int) -> Generator[Index]:
         state = Index.in_memory()
         try:
             state.rebuild(

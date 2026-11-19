@@ -495,7 +495,7 @@ def test_status_transitions(store: LumlTrackingStore) -> None:
         transitions.append(store._tracker.get_experiment_upload_status(run_id))
         return real_upload(*args, **kwargs)
 
-    client.artifacts.upload = capture_then_upload  # type: ignore[assignment]
+    client.artifacts.upload = capture_then_upload
     assert (
         store._tracker.get_experiment_upload_status(run_id)
         == UPLOAD_STATUS_NOT_UPLOADED

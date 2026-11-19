@@ -149,7 +149,7 @@ class Result[T]:
         if self.error is not None:
             raise RuntimeError(f"Result is an error: {self.error}")
         # value can legitimately be None for void operations (delete).
-        return self.value  # type: ignore[return-value]
+        return self.value
 
 
 def _is_transient_lock(exc: BaseException) -> bool:

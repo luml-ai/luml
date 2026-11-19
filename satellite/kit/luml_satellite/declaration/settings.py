@@ -260,7 +260,8 @@ def _field_type_and_values(
         ]
 
     scalar_type = _scalar_annotation_type(name, annotation)
-    return {bool: "boolean", int: "number", str: "text"}[scalar_type], None
+    input_types: dict[type, str] = {bool: "boolean", int: "number", str: "text"}
+    return input_types[scalar_type], None
 
 
 def _scalar_annotation_type(name: str, annotation: object) -> type[bool] | type[int] | type[str]:
@@ -462,9 +463,9 @@ def _validator_accepts(value: object, validator: Mapping[str, object]) -> bool:
     expected = validator.get("value")
     try:
         if validator_type == "min":
-            return bool(value >= expected)  # type: ignore[operator]
+            return bool(value >= expected)  # ty: ignore[unsupported-operator]
         if validator_type == "max":
-            return bool(value <= expected)  # type: ignore[operator]
+            return bool(value <= expected)  # ty: ignore[unsupported-operator]
         if validator_type == "regex":
             return (
                 isinstance(value, str)

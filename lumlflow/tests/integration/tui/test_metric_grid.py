@@ -330,7 +330,7 @@ class TestNoRedundantRerender:
             cell = grid.query_one(MetricCell)
             cell.set_history(_history("loss", points=5))
             redraws: list[int] = []
-            cell._redraw = lambda: redraws.append(1)  # type: ignore[method-assign]
+            cell._redraw = lambda: redraws.append(1)
             cell.set_history(_history("loss", points=5))
             assert redraws == []
             cell.set_history(_history("loss", points=6))
@@ -343,7 +343,7 @@ class TestNoRedundantRerender:
             zoom.set_metric_key("loss")
             zoom.set_history(_history("loss", points=5))
             redraws: list[int] = []
-            zoom._redraw = lambda: redraws.append(1)  # type: ignore[method-assign]
+            zoom._redraw = lambda: redraws.append(1)
             zoom.set_history(_history("loss", points=5))
             assert redraws == []
             zoom.set_history(_history("loss", points=6))

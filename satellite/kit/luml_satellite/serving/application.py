@@ -559,7 +559,7 @@ def create_serving_application(
         application.openapi_schema = schema
         return schema
 
-    application.openapi = custom_openapi  # type: ignore[method-assign]
+    application.openapi = custom_openapi
     return application
 
 

@@ -42,7 +42,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Type check
-        run: uv run mypy
+        run: uv run --frozen ty check
 
       - name: Test
         run: uv run pytest -ra

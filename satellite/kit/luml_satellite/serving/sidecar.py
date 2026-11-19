@@ -515,7 +515,7 @@ async def run_sidecar(configuration: SidecarConfiguration) -> None:
 
 
 def main() -> None:
-    configuration = SidecarConfiguration()  # type: ignore[call-arg]
+    configuration = SidecarConfiguration()
     logging.basicConfig(level=configuration.LOG_LEVEL.upper())
     asyncio.run(run_sidecar(configuration))
 

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_config() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()
 
 
 def get_tracker() -> "TrackerProvider":
@@ -47,9 +47,7 @@ def get_tracker() -> "TrackerProvider":
     if _tracker_provider is None:
         from lumlflow.tracker import TrackerProvider
 
-        _tracker_provider = TrackerProvider(
-            lambda: Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
-        )
+        _tracker_provider = TrackerProvider(lambda: Settings().BACKEND_STORE_URI)
     return _tracker_provider
 
 

@@ -72,7 +72,6 @@ def test_every_accepted_name_scaffolds_a_class_that_parses(slug: str, expected: 
 def test_what_is_scaffolded_passes_the_type_check_its_footer_asks_for(
     tmp_path: Path, producer: str | None
 ):
-    pytest.importorskip("mypy")
     written = tmp_path / "report.py"
     written.write_text(
         scaffold.cell_source(
@@ -82,10 +81,28 @@ def test_what_is_scaffolded_passes_the_type_check_its_footer_asks_for(
     )
 
     checked = subprocess.run(
-        [sys.executable, "-m", "mypy", "--no-incremental", str(written)],
+        [sys.executable, "-m", "ty", "check", str(written)],
         cwd=PROJECT,
         capture_output=True,
         text=True,
     )
 
     assert checked.returncode == 0, checked.stdout + checked.stderr
+
+
+def test_the_conformance_footer_rejects_a_misspelled_materialize(tmp_path: Path):
+    written = tmp_path / "report.py"
+    written.write_text(
+        scaffold.cell_source("report").replace("def materialize(", "def materalize("),
+        encoding="utf-8",
+    )
+
+    checked = subprocess.run(
+        [sys.executable, "-m", "ty", "check", str(written)],
+        cwd=PROJECT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert checked.returncode != 0
+    assert "invalid-assignment" in checked.stdout

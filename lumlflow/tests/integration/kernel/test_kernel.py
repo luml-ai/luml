@@ -398,7 +398,7 @@ def fake_flavor(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         return types.SimpleNamespace(path=path)
 
     module = types.ModuleType("fake_flavor")
-    module.save_fake = save_fake  # type: ignore[attr-defined]
+    module.save_fake = save_fake
     monkeypatch.setitem(sys.modules, "fake_flavor", module)
     monkeypatch.setitem(tracker._FLAVOR_REGISTRY, "fake", ("fake_flavor", "save_fake"))
     return seen
@@ -561,7 +561,7 @@ def test_exporting_without_a_sample_to_a_flavor_that_needs_one_says_why(
         raise AssertionError("must not be called without a sample")
 
     module = types.ModuleType("strict_flavor")
-    module.save_strict = save_strict  # type: ignore[attr-defined]
+    module.save_strict = save_strict
     monkeypatch.setitem(sys.modules, "strict_flavor", module)
     monkeypatch.setitem(
         tracker._FLAVOR_REGISTRY, "strict", ("strict_flavor", "save_strict")

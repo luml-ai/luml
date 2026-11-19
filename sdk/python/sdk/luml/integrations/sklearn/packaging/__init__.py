@@ -3,9 +3,9 @@ import tempfile
 from typing import TYPE_CHECKING, Any, Literal
 from warnings import warn
 
-import numpy as np  # type: ignore[import-not-found]
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
-from fnnx.extras.pydantic_models.manifest import NDJSON  # type: ignore[import-untyped]
+import numpy as np
+from fnnx.extras.builder import PyfuncBuilder
+from fnnx.extras.pydantic_models.manifest import NDJSON
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
@@ -20,14 +20,14 @@ from luml.utils.packaging import (
 from luml.utils.time import get_epoch
 
 if TYPE_CHECKING:
-    from sklearn.base import BaseEstimator  # type: ignore[import-untyped]
+    from sklearn.base import BaseEstimator
 
     from luml.utils.reference_profile import TaskType
 
 try:
-    import pandas as pd  # type: ignore[import-untyped]
+    import pandas as pd
 except ImportError:
-    pd = None  # type: ignore[assignment]
+    pd = None
 
 
 def _get_default_deps() -> list[str]:
@@ -57,7 +57,7 @@ def _add_io(
     if pd is not None and isinstance(inputs, pd.DataFrame):
         input_order = list(inputs.columns)
         for col in input_order:
-            dtype = resolve_dtype(inputs[col].dtype)  # type: ignore
+            dtype = resolve_dtype(inputs[col].dtype)
             input_dtypes[col] = dtype
             builder.add_input(
                 NDJSON(
@@ -94,7 +94,7 @@ def _add_io(
                     name="input",
                     content_type="NDJSON",
                     dtype=f"Array[{dtype}]",
-                    shape=shape,  # type: ignore
+                    shape=shape,
                 )
             )
             input_order = ["input"]
@@ -106,7 +106,7 @@ def _add_io(
         extra_values["input_dtypes"] = input_dtypes
     builder.set_extra_values(extra_values)
 
-    y_pred = estimator.predict(x)  # type: ignore
+    y_pred = estimator.predict(x)  # ty: ignore[missing-attribute]
     y_array = np.asarray(y_pred)
     y_shape = ["batch"] + list(y_array.shape[1:])
     y_dtype = resolve_dtype(y_array.dtype)
@@ -116,10 +116,10 @@ def _add_io(
             name="y",
             content_type="NDJSON",
             dtype=f"Array[{y_dtype}]",
-            shape=y_shape,  # type: ignore
+            shape=y_shape,
         )
     )
-    from sklearn.base import is_classifier  # type: ignore[import-untyped]
+    from sklearn.base import is_classifier
 
     if is_classifier(estimator) and hasattr(estimator, "predict_proba"):
         builder.add_output(
@@ -246,8 +246,8 @@ def save_sklearn(  # noqa: C901
     )
     ```
     """
-    import cloudpickle  # type: ignore[import-untyped]
-    from sklearn.base import (  # type: ignore[import-untyped]
+    import cloudpickle
+    from sklearn.base import (
         BaseEstimator,
         is_classifier,
     )
@@ -318,7 +318,7 @@ def save_sklearn(  # noqa: C901
             else None
         )
         class_names = (
-            [str(name) for name in estimator.classes_]
+            [str(name) for name in estimator.classes_]  # ty: ignore[not-iterable]
             if classifier and hasattr(estimator, "classes_")
             else None
         )
@@ -326,8 +326,8 @@ def save_sklearn(  # noqa: C901
             path,
             reference_data,
             task_type,
-            estimator.predict,
-            predict_proba=predict_proba,
+            estimator.predict,  # ty: ignore[missing-attribute]
+            predict_proba=predict_proba,  # ty: ignore[invalid-argument-type]
             output_names=list(horizons) if horizons is not None else ["y"],
             class_names=class_names,
             horizons=list(horizons) if horizons is not None else None,

@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import pytest
@@ -36,7 +36,7 @@ async def _ran(api: Api) -> FlowSession:
 @contextlib.asynccontextmanager
 async def _streamed_api(
     root: Path, leases: Leases | None = None
-) -> AsyncIterator[tuple[Api, Streams]]:
+) -> AsyncGenerator[tuple[Api, Streams]]:
     streams = Streams()
     hub = Hub(streams=streams)
     held = leases if leases is not None else set()

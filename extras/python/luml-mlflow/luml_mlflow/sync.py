@@ -21,10 +21,11 @@ import tempfile
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from luml.artifacts.experiment import save_experiment
 from luml.artifacts.model import ModelReference
+from luml.experiments.backends.sqlite import SQLiteBackend
 from luml_api._client import LumlClient
 from mlflow.entities import LifecycleStage
 
@@ -303,7 +304,7 @@ def _upload_model(
 ) -> Any:
     if not model.path:
         raise ValueError(f"Model {model.name!r} has no file path")
-    model_path = str(tracker.backend.base_path / model.path)
+    model_path = str(cast(SQLiteBackend, tracker.backend).base_path / model.path)
     temp_path: str | None = None
     try:
         if embed:
