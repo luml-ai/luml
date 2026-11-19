@@ -11,7 +11,7 @@ plain `Exception` subclasses, so `except LumlAPIError` does not catch them.
 LumlAPIError                        base of every SDK error below
 ├── APIError                        tied to one HTTP request: request, body
 │   ├── APIConnectionError          no answer: a network error or a timeout
-│   ├── APIStatusError             the Platform answered 4xx or 5xx
+│   ├── APIStatusError              the Platform answered 4xx or 5xx
 │   │   ├── BadRequestError               400
 │   │   ├── AuthenticationError           401
 │   │   ├── PermissionDeniedError         403
