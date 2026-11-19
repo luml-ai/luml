@@ -97,7 +97,9 @@ export const useTraceStore = defineStore('trace', () => {
     reloadPending = false
     listedParamsJson = null
     requestParams.value = { ...INITIAL_REQUEST_PARAMS }
-    evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
+    if (evalsStore.hasProvider) {
+      evalsStore.getProvider.resetTracesRequestParams().catch(() => undefined)
+    }
     traces.value = []
     loading.value = false
     artifactId.value = null

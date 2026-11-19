@@ -194,6 +194,29 @@ describe('TracesWrapper next page requests', () => {
     expect(useTraceStore().loading).toBe(false)
   })
 
+  it('retries a reload once for a page asked for while that reload was failing', async () => {
+    const provider = setupPagingProvider()
+    const wrapper = mountWrapper()
+    await flushPromises()
+    let failReload!: (error: Error) => void
+    provider.getTraces.mockImplementationOnce(
+      () => new Promise<typeof page>((_resolve, reject) => (failReload = reject)),
+    )
+    sort(wrapper, 'execution_time', 'desc')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(useTraceStore().loading).toBe(true)
+
+    provider.getTraces.mockRejectedValue(new Error('read failed'))
+    askForNextPage(wrapper)
+    failReload(new Error('read failed'))
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // The first load, the failed reload and one retry.
+    expect(provider.getTraces).toHaveBeenCalledTimes(3)
+    expect(useTraceStore().traces).toHaveLength(20)
+    expect(useTraceStore().loading).toBe(false)
+  })
+
   it('reads one page for two requests kept during a reload', async () => {
     const provider = setupPagingProvider()
     const wrapper = mountWrapper()

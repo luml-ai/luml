@@ -390,10 +390,15 @@ function onSort(event: DataTableSortEvent) {
 // the dialog over the next experiment.
 let closed = false
 
+// A row clicked later wins over one whose read is still running.
+let evalRequest = 0
+let traceRequest = 0
+
 async function showEval(evalId: string, evalsIds: string[]) {
+  const request = ++evalRequest
   try {
     const evalData = await evalsStore.getProvider.getEvalById(props.artifactId, evalId)
-    if (closed) return
+    if (closed || request !== evalRequest) return
     evalsStore.setEvalsIdsList(evalsIds)
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
@@ -402,9 +407,10 @@ async function showEval(evalId: string, evalsIds: string[]) {
 }
 
 async function showTrace(traceId: string) {
+  const request = ++traceRequest
   try {
     const snapsTree = await evalsStore.getTraceSpansTree(props.artifactId, traceId)
-    if (closed) return
+    if (closed || request !== traceRequest) return
     evalsStore.setSelectedTrace(snapsTree, props.artifactId)
   } catch (error) {
     showReadErrorToast(toast, error, getErrorMessage(error))

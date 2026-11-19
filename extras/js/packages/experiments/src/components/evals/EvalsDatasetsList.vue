@@ -132,7 +132,10 @@ onBeforeUnmount(() => {
 
 onUnmounted(() => {
   evalsStore.reset()
-  evalsStore.getProvider.resetEvalsDatasetsRequestParams().catch(() => undefined)
+  // A reset provider is dropped with its cursors: nothing is left to release.
+  if (evalsStore.hasProvider) {
+    evalsStore.getProvider.resetEvalsDatasetsRequestParams().catch(() => undefined)
+  }
 })
 </script>
 

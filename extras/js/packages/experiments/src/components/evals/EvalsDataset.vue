@@ -123,14 +123,21 @@ function getNextPage() {
   emit('get-next-page')
 }
 
+// A filter change and a refresh both read the averages: the latest read wins.
+let averageScoresRequest = 0
+
 async function fetchAverageScores() {
+  const request = ++averageScoresRequest
   try {
-    averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(
+    const scores = await evalsStore.getProvider.getDatasetAverageScores(
       props.datasetId,
       filter.search,
       [...filter.filters],
     )
+    if (closed || request !== averageScoresRequest) return
+    averageScores.value = scores
   } catch (error) {
+    if (closed || request !== averageScoresRequest) return
     showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to fetch average scores'))
   }
 }
@@ -153,6 +160,8 @@ const debouncedOnFilterChange = useDebounceFn(onFilterChange, 300)
 onBeforeMount(fetchAverageScores)
 
 watch(filter, debouncedOnFilterChange)
+
+watch(() => evalsStore.refreshedVersion, fetchAverageScores)
 
 onBeforeUnmount(() => {
   closed = true

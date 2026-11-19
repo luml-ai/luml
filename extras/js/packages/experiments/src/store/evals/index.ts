@@ -51,6 +51,9 @@ export const useEvalsStore = defineStore('evals', () => {
   const loading = ref(false)
   const evalsIdsList = ref<string[]>([])
   const currentEvalDataLoading = ref(false)
+  // Bumped when a refresh replaced the rows: values a dataset reads apart from them, such as
+  // its average scores, follow.
+  const refreshedVersion = ref(0)
   const spanPayloads = new Map<string, SpanPayload>()
   const spanPayloadRequests = new Map<string, Promise<SpanPayload>>()
   // Bumped on reset and on a provider change. The store outlives its view and Flow does not
@@ -64,6 +67,9 @@ export const useEvalsStore = defineStore('evals', () => {
     if (!provider.value) throw new Error('Provider not found')
     return provider.value
   })
+
+  // For cleanup on close: the next view may have reset the provider already.
+  const hasProvider = computed(() => !!provider.value)
 
   const currentEvalId = computed(() => {
     return selectedEval.value?.evalId ?? ''
@@ -215,8 +221,10 @@ export const useEvalsStore = defineStore('evals', () => {
     if (!isCurrent()) return
     const existing = datasets.value?.find((item) => item.params.dataset_id === datasetId)
     const effectiveLimit = limit ?? existing?.params.limit ?? INITIAL_PARAMS.limit
+    // A reload after an annotation change keeps the dataset's search, filters and sort.
     const params = {
       ...INITIAL_PARAMS,
+      ...(existing && toRaw(existing.params)),
       dataset_id: datasetId,
       limit: effectiveLimit,
     }
@@ -298,6 +306,7 @@ export const useEvalsStore = defineStore('evals', () => {
         if (!data[index]) return item
         return { ...item, data: data[index] }
       })
+      refreshedVersion.value++
       const annotationsPromises = paramsByDataset.map((item) => {
         return annotationsStore.getEvalsDatasetAnnotationsSummary(item.dataset_id)
       })
@@ -345,6 +354,7 @@ export const useEvalsStore = defineStore('evals', () => {
     resetProvider,
     disposeMetricBucketStore,
     getProvider,
+    hasProvider,
     metricBucketStore,
     initDatasets,
     initDataset,
@@ -354,6 +364,7 @@ export const useEvalsStore = defineStore('evals', () => {
     loading,
     setLoading,
     refresh,
+    refreshedVersion,
     getDatasetFilters,
     setEvalsIdsList,
     evalsIdsList,

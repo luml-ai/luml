@@ -79,6 +79,11 @@
   />
 </template>
 
+<script lang="ts">
+// Shared by the dialog's models: spans asked for later in any of them win.
+let latestSpansRequest = 0
+</script>
+
 <script setup lang="ts">
 import { CircuitBoard, FileText, Minimize2, Maximize2, ListTree } from 'lucide-vue-next'
 import { Button, useToast } from 'primevue'
@@ -156,12 +161,13 @@ function getFormattedItems(object: object) {
 }
 
 async function showSpans() {
+  const request = ++latestSpansRequest
   try {
     if (!evalsStore.selectedEval) throw new Error('No dataset or eval selected')
     const { datasetId, evalId } = evalsStore.selectedEval
     const trace = await evalsStore.getEvalSpansTree(props.id, datasetId, evalId)
     // The store outlives this dialog: a closed one must not open the trace dialog.
-    if (closed) return
+    if (closed || request !== latestSpansRequest) return
     evalsStore.setSelectedTrace(trace, props.id)
   } catch (error) {
     showReadErrorToast(toast, error, 'Failed to load spans')

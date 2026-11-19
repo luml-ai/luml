@@ -41,6 +41,16 @@ describe('trace store', () => {
 
     expect(calls).toEqual(['resetTracesRequestParams', 'getTraces'])
   })
+
+  it('resets without an error after the next view reset the provider', () => {
+    const store = useTraceStore()
+    store.setArtifactId('model-1')
+    useEvalsStore().resetProvider()
+
+    expect(() => store.reset()).not.toThrow()
+    expect(calls).toEqual([])
+    expect(store.requestParams.search).toBe('')
+  })
 })
 
 describe('trace store reload after a parameter change', () => {
