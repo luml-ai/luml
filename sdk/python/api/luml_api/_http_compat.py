@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from importlib import import_module
 
@@ -8,7 +8,7 @@ from luml_api._exceptions import APIConnectionError
 
 
 @contextmanager
-def compatible_http_errors() -> Iterator[None]:
+def compatible_http_errors() -> Generator[None]:
     try:
         yield
     except httpx2.HTTPError as error:
