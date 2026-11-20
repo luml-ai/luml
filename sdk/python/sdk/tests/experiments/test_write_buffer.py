@@ -162,7 +162,34 @@ def test_failing_row_is_dropped_without_losing_batch(
 
     assert _count_rows(store, "spans") == 2
     assert _count_rows(store, "dynamic_metrics") == 1
-    assert any("span-bad" in record.getMessage() for record in caplog.records)
+    assert any("spans" in record.getMessage() for record in caplog.records)
+
+
+def test_dropped_row_is_logged_without_its_values(
+    backend: SQLiteBackend, caplog: pytest.LogCaptureFixture
+) -> None:
+    marker = "PRIVATE-PROMPT-7f3a"
+    backend.log_span(
+        EXP_ID,
+        trace_id="trace-1",
+        span_id="span-bad",
+        name="bad\ud800",
+        start_time_unix_nano=1000,
+        end_time_unix_nano=2000,
+        attributes={"input": marker, "output": marker},
+    )
+
+    with caplog.at_level(logging.ERROR):
+        backend.flush(EXP_ID)
+
+    dropped = [r for r in caplog.records if "Dropped" in r.getMessage()]
+    assert len(dropped) == 1
+    rendered = logging.Formatter().format(dropped[0])
+    assert marker not in rendered
+    assert marker not in repr(dropped[0].args)
+    assert "spans" in rendered
+    assert EXP_ID in rendered
+    assert "UnicodeEncodeError" in rendered
 
 
 def test_text_that_cannot_be_encoded_never_blocks_the_queue(

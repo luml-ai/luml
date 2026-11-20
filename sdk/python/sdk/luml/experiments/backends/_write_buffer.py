@@ -568,8 +568,9 @@ class WriteBuffer:
             try:
                 conn.execute(sql, params)
             except _ROW_ERRORS:
+                # Never the values: a row can hold user prompts and data.
                 logger.exception(
-                    "Dropped buffered row for %s: %s %r", db_path, sql.strip(), params
+                    "Dropped buffered row for %s: %s", db_path, sql.strip()
                 )
         self._commit(conn, db_path, prepared)
 
