@@ -148,6 +148,19 @@ export function hoverLabel(trace: ScatterTrace, index: number): string | null {
   return data ? `<b>${trace.name}</b>: ${data[0]}${data[1]}` : null
 }
 
+/**
+ * Plotly turns a trace uid into a CSS class selector, and a model id can be a file path. ASCII
+ * letters, digits and `-` are kept (so UUIDs are unchanged); any other character, `_` included,
+ * becomes `_<hex code point>_`, so distinct ids give distinct uids.
+ */
+export function traceUid(modelId: string, kind: 'line' | 'band'): string {
+  let encoded = ''
+  for (const char of modelId) {
+    encoded += /[A-Za-z0-9-]/.test(char) ? char : `_${char.codePointAt(0)!.toString(16)}_`
+  }
+  return `${encoded}-${kind}`
+}
+
 /** A drawn value whose neighbours are not drawn (gaps or buckets with no finite value). */
 function isolatedPoints(y: (number | null)[]): boolean[] {
   return y.map(
@@ -161,7 +174,7 @@ function lineTrace(series: ChartSeries, style: SeriesStyle): ScatterTrace {
   const isolated = isolatedPoints(y)
   const trace: ScatterTrace = {
     type: 'scatter',
-    uid: `${series.modelId}-line`,
+    uid: traceUid(series.modelId, 'line'),
     name: style.name,
     x: series.buckets.map(bucketMidpoint),
     y,
@@ -244,7 +257,7 @@ function bandTrace(series: ChartSeries, style: SeriesStyle, alpha: number): Scat
   closeRun()
   return {
     type: 'scatter',
-    uid: `${series.modelId}-band`,
+    uid: traceUid(series.modelId, 'band'),
     name: style.name,
     x,
     y,
