@@ -8,6 +8,7 @@ import type { PlotStatus } from '../dynamic-metrics.interface'
 import { plotlyService } from '@/services/PlotlyService'
 import { ThemeKey } from '@/lib/theme/ThemeProvider'
 import { MetricBucketStore } from '@/metric-buckets/MetricBucketStore'
+import { traceUid } from '@/lib/metric-charts/bucketTraces'
 import { BucketCache } from '@/metric-buckets/BucketCache'
 import type { BucketReadRequest } from '@/metric-buckets/planner'
 import type { ModelInfo } from '@/interfaces/interfaces'
@@ -138,7 +139,7 @@ function traces(element?: HTMLElement): Trace[] {
 }
 
 function lineOf(modelId: string, element?: HTMLElement): Trace {
-  const line = traces(element).find((trace) => trace.uid === `${modelId}-line`)
+  const line = traces(element).find((trace) => trace.uid === traceUid(modelId, 'line'))
   if (!line) throw new Error(`No line for ${modelId}`)
   return line
 }

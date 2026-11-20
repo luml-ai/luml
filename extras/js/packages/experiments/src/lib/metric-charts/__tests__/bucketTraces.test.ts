@@ -10,6 +10,7 @@ import {
   LINE_HOVER_TEMPLATE,
   maxShownLevel,
   requestStepRange,
+  traceUid,
   visibleValueRange,
   type ScatterTrace,
 } from '../bucketTraces'
@@ -292,5 +293,33 @@ describe('catalogMetricEntries', () => {
 
   it('is empty for an empty catalog', () => {
     expect(catalogMetricEntries(catalogsOf([[]]))).toEqual([])
+  })
+})
+
+describe('traceUid', () => {
+  const pathId = '/home/user/my runs/exp.v2 ünïcode 🚀_x.luml'
+
+  it('gives a uid that Plotly can use as a CSS class selector for a path-like model id', () => {
+    const traces = buildBucketTraces([series([bucket({ bucket: 0 })], 1, pathId)], style)
+    const root = document.createElement('div')
+    for (const trace of traces) {
+      expect(() => root.querySelector(`.cb${trace.uid}`)).not.toThrow()
+    }
+    expect(traces.map((trace) => trace.uid)).toEqual([
+      traceUid(pathId, 'band'),
+      traceUid(pathId, 'line'),
+    ])
+  })
+
+  it('keeps distinct model ids distinct', () => {
+    const ids = ['a/b', 'a_b', 'a_2f_b', 'a.b', 'a b', 'ab', 'a-b']
+    const uids = new Set(ids.map((id) => traceUid(id, 'line')))
+    expect(uids.size).toBe(ids.length)
+  })
+
+  it('leaves a UUID model id unchanged', () => {
+    const id = '3f2a9c1e-7b4d-4e8a-9f10-2c3d4e5f6a7b'
+    expect(traceUid(id, 'line')).toBe(`${id}-line`)
+    expect(traceUid(id, 'band')).toBe(`${id}-band`)
   })
 })
