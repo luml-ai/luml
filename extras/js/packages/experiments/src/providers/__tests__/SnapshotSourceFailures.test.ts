@@ -737,3 +737,49 @@ describe('a comparison member whose storage fails after open', () => {
     expect(leftOut).toEqual(await provider.getUniqueDatasetsIds())
   })
 })
+
+describe('a comparison member that failed at open', () => {
+  const urlOf = (modelId: string) => `https://bucket.test/${modelId}?sig=secret-${modelId}`
+  const traceParams = { sort_by: 'created_at', order: 'desc', search: '', filters: [] } as const
+  const evalParams = {
+    dataset_id: 'qa_set',
+    sort_by: 'created_at',
+    order: 'asc',
+    search: '',
+    filters: [],
+  } as const
+
+  async function openWithFailedMember() {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const store = memoryTransport({ [urlOf('healthy')]: ARTIFACT, [urlOf('broken')]: ARTIFACT })
+    store.controls.failingUrls.add(urlOf('broken'))
+    const provider = new ExperimentSnapshotDatabaseProvider({ transport: store.transport })
+    const failures = await provider.init({
+      modelsInfo: ['healthy', 'broken'].map((modelId) => ({
+        modelId,
+        source: { kind: 'range', url: urlOf(modelId), offset: MEMBER_OFFSET, size: MEMBER_SIZE },
+      })),
+    })
+    expect(failures.map((failure) => failure.modelId)).toEqual(['broken'])
+    return { provider, openError: failures[0]!.error }
+  }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it('rejects both exports with its open error, so no file misses it', async () => {
+    const { provider, openError } = await openWithFailedMember()
+
+    await expect(provider.getAllTraces(traceParams)).rejects.toMatchObject(openError)
+    await expect(provider.getAllDatasetEvals(evalParams)).rejects.toMatchObject(openError)
+  })
+
+  it('still shows the healthy member on screen', async () => {
+    const { provider } = await openWithFailedMember()
+
+    const evals = await provider.getNextEvalsByDatasetId({ ...evalParams, limit: 20 })
+    const traces = await provider.getTraces({ ...traceParams, limit: 20 })
+
+    expect(new Set(evals.map((row) => row.modelId))).toEqual(new Set(['healthy']))
+    expect(traces.length).toBeGreaterThan(0)
+  })
+})

@@ -654,10 +654,15 @@ describe('opening several experiments when one of them cannot open', () => {
       ['b', false],
       ['c', true],
     ])
-    const traces = await current.proxy.getAllTraces(traceParams)
+    const traces = current.proxy.getAllTraces(traceParams)
     const aloneTraces = await alone.proxy.getAllTraces(traceParams)
-    expect(traces).toHaveLength(2 * aloneTraces.length)
     expect(aloneTraces.length).toBeGreaterThan(0)
+    if (item.middleAnswers === null) {
+      expect(await traces).toHaveLength(2 * aloneTraces.length)
+    } else {
+      // An export never misses an experiment: one that did not open fails it with its error.
+      await expect(traces).rejects.toThrow(statuses[1]!.error!.message)
+    }
   })
 
   it('reopens a renewed experiment without touching the open ones', async () => {
@@ -742,13 +747,16 @@ describe('URLs that age while experiments are open', () => {
       throw new Error('Request failed with status 404')
     }
 
+    const openError = (await current.proxy.getExperimentStatuses())[1]!.error!.message
+
     const reads = [
       await outcome(current.proxy.getMetricCatalogs({ modelIds: ['a'] })),
       await outcome(current.proxy.getMetricCatalogs({ modelIds: ['a'] })),
       await outcome(current.proxy.getAllTraces(traceParams)),
     ]
 
-    expect(reads).toEqual(['ok', 'ok', 'ok'])
+    // The export fails with the member's open error, not with the failed lookup.
+    expect(reads).toEqual(['ok', 'ok', openError])
   })
 
   it('a renewed URL of the member that did not open is not sent', async () => {

@@ -2418,6 +2418,43 @@ test.describe('slow network to storage', () => {
     await expect(notice).toHaveCount(1)
   })
 
+  test('a comparison with a member that failed at open: the evals export shows the read error and saves no file', async ({
+    page,
+    errors,
+  }) => {
+    test.skip(
+      !storage.artifacts.traces_old,
+      'no luml-sdk 0.5.0 venv: E2E_OLD_SDK_PYTHON is not set',
+    )
+    // traces_old has the same evals as traces_new, so the table shows rows without it.
+    const [failed, old] = [artifact('traces_new'), artifact('traces_old')]
+    const openError = /returned status 500/
+    errors.expect({ kind: 'response', status: 500, url: refusedRead(failed).url })
+    errors.expect({
+      kind: 'error state',
+      text: /^traces_new: The storage request failed\. Reload the page\. Its data is not shown\.$/,
+    })
+    errors.expect({ kind: 'toast', text: openError })
+    errors.expect({ kind: 'console error', text: openError })
+    const downloads: string[] = []
+    page.on('download', (download) => downloads.push(download.suggestedFilename()))
+    await proxy.configure({
+      storageFailure: { matching: escapeRegExp(failed.bucket_location), status: 500, times: null },
+    })
+    await openCompare(page, storage, [failed, old])
+    await expect(page.locator('.evals-table tbody tr').first()).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByTestId('experiment-status-notice')).toHaveCount(1)
+    await network.settled()
+    const failedReads = network.of(failed).length
+
+    await tableToolbar(page, 'Search evals').getByRole('button', { name: 'Export CSV' }).click()
+    await expect(page.locator(`.${ERROR_TOAST}`)).toContainText(openError)
+    await network.settled()
+    expect(downloads).toEqual([])
+    // The member that did not open is not read again for the export.
+    expect(network.of(failed)).toHaveLength(failedReads)
+  })
+
   test('a zoom read that fails in the full-screen chart shows the error in its status row', async ({
     page,
     errors,

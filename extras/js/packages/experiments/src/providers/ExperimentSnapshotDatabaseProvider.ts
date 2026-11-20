@@ -603,9 +603,17 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   /**
    * Reads every snapshot, for a file download: a comparison file that silently misses an
-   * experiment is worse than an error, so any failure rejects the read.
+   * experiment is worse than an error, so any failure rejects the read, one at open too.
    */
   private async readEveryMember<T>(read: (snapshot: ModelSnapshot) => T | Promise<T>) {
+    const failedAtOpen = this.isComparison
+      ? this.modelOrder.map((modelId) => this.failedSnapshots.get(modelId)).find(Boolean)
+      : undefined
+    if (failedAtOpen) {
+      // No model id: the worker proxy must not renew or leave out a source that never opened.
+      const { code, message } = failedAtOpen.error
+      throw Object.assign(new Error(message), { code })
+    }
     return Promise.all(
       this.modelsSnapshots.map(async (snapshot) => {
         const clearIfStorageAnswered = this.readFailureClearer(snapshot.modelId)
