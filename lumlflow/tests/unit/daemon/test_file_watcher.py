@@ -14,6 +14,8 @@ from lumlflow.flow.daemon.main import QUIET_AFTER_S, Daemon
 from lumlflow.flow.daemon.stream import Frame, Subscription
 from lumlflow.flow.errors import FileLocked
 
+from tests.helpers.daemon import make_workspace
+
 
 @pytest.fixture
 async def daemon(tmp_path: Path) -> AsyncIterator[Daemon]:
@@ -555,3 +557,35 @@ async def test_second_save_stays_unlocked_when_its_event_arrives_after_first_ref
     await _frame(viewer, "changed", path)
     assert await _snapshot(daemon, tmp_path) == []
     assert path.read_text() == "second"
+
+
+async def test_explicit_session_end_releases_another_connections_lock(daemon, tmp_path):
+    root = make_workspace(tmp_path / "project")
+    notebook = str(root / "churn.flow")
+    path = root / "notes.md"
+    path.touch()
+    viewer = _subscribe(daemon, root, path)
+    assert await _locks(viewer) == []
+    writer = Mock(spec=asyncio.StreamWriter)
+    writer.drain = AsyncMock()
+    leases = set()
+    daemon._client_leases[writer] = leases
+    await daemon._handle(
+        json.dumps(
+            {
+                "method": "agent.begin",
+                "params": {"actor": "pair", "flow": notebook, "lease": True},
+            }
+        ).encode(),
+        writer,
+        leases,
+    )
+    path.write_text("agent edit")
+    assert (await _locks(viewer))[0]["actor"] == "pair"
+    await daemon.api.agent_end({"flow": notebook})
+    assert await _locks(viewer) == []
+    edit = await daemon.api.file_read_text({"path": str(path)})
+    await daemon.api.file_write_text({**edit, "path": str(path), "text": "saved"})
+    path.write_text("external edit")
+    await _frame(viewer, "changed", path)
+    assert await _snapshot(daemon, root) == []

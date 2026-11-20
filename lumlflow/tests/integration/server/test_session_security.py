@@ -198,13 +198,16 @@ def test_attachment_byte_ranges_require_authentication(client: TestClient) -> No
     tracker.log_attachment("nested/data.csv", "abcdef", experiment_id=experiment_id)
     url = f"/api/experiments/{experiment_id}/attachments/content"
     params = {"file_path": "nested/data.csv"}
-    headers = {"Range": "bytes=2-4"}
+    headers = {"Range": "bytes=2-4", "Origin": "http://localhost:5173"}
     assert client.get(url, params=params, headers=headers).status_code == 401
     client.headers["Authorization"] = f"Bearer {client.app.state.session_token}"
     part = client.get(url, params=params, headers=headers)
     assert part.status_code == 206
     assert part.content == b"cde"
     assert part.headers["content-range"] == "bytes 2-4/6"
+    assert "content-range" in part.headers[
+        "access-control-expose-headers"
+    ].lower().split(", ")
 
 
 def test_native_preview_authorizes_ranges_only_for_the_selected_attachment(

@@ -248,6 +248,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   return {
     currentDirectory,
+    isNotebookListing: computed(() => flows.value.some((flow) => flow.relative_path === '.')),
     files,
     total,
     nextOffset,

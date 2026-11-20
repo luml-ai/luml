@@ -68,6 +68,7 @@ class Daemon:
             stop=self.stop,
             attachments=self._attachments,
             leases=self._leases,
+            revoke_lease=self._revoke_lease,
             file_sessions=self._file_sessions,
             instance_id=self.instance_id,
         )
@@ -302,7 +303,9 @@ class Daemon:
                     self.api.end_activity(flow, actor=actor)
         for flow, actor, _ in ended:
             with contextlib.suppress(FlowError, OSError):
-                await self.api.agent_end({"flow": flow, "actor": actor})
+                await self.api.agent_end(
+                    {"flow": flow, "actor": actor}, revoke_lease=False
+                )
             self._announce_agents(flow)
 
     async def _sweep_quiet(self) -> None:
@@ -345,7 +348,8 @@ class Daemon:
                             "flow": flow,
                             "actor": actor,
                             "intent": f"{label} went quiet",
-                        }
+                        },
+                        revoke_lease=False,
                     )
                 self._announce_agents(flow)
 
@@ -388,6 +392,21 @@ class Daemon:
     def _forget_calls(self, actor: str) -> None:
         for key in [key for key in self._last_call if key[1] == actor]:
             del self._last_call[key]
+
+    def _revoke_lease(self, flow: str, actor: str) -> None:
+        ended = set()
+        for connections in (self._client_leases, self._quiet):
+            for writer, leases in connections.items():
+                matching = {item for item in leases if item[:2] == (flow, actor)}
+                leases.difference_update(matching)
+                if (
+                    matching
+                    and connections is self._client_leases
+                    and not any(item[1] == actor for item in leases)
+                ):
+                    ended.add((writer, actor))
+        self._last_call.pop((flow, actor), None)
+        self.api.file_watcher.expire(ended)
 
     def _drop_flow_leases(self, flow: str) -> None:
         for leases in (*self._client_leases.values(), *self._quiet.values()):
@@ -525,11 +544,6 @@ class Daemon:
         if caller and str(message["method"]) not in _NOT_PRESENCE:
             if str(message["method"]) != "agent.end":
                 await self._revive(writer, leased, caller)
-            else:
-                quiet = self._quiet.get(writer, set())
-                quiet.difference_update(
-                    {lease for lease in quiet if lease[1] == caller}
-                )
             self._heard_from(leased, caller)
         activity = _activity(leased, str(message["method"]), params)
         announced = False
@@ -565,8 +579,6 @@ class Daemon:
             if name == "agent.begin" and not leased and result.get("leased"):
                 self.api.file_watcher.lease_starting(writer)
             _leased(leased, name, params, result)
-            if name == "agent.end":
-                self.api.file_watcher.expire()
             if name == "agent.begin" and caller:
                 self._heard_from(leased, caller)
             if (
@@ -742,9 +754,6 @@ def _leased(leased: Leases, method: str, params: dict[str, Any], result: Any) ->
         flow = result.get("flow") or params.get("flow")
         label = str(result.get("label") or actor)
         leased.add((str(flow) if flow else None, actor, label))
-    elif method == "agent.end":
-        for lease in [held for held in leased if held[1] == actor]:
-            leased.discard(lease)
 
 
 def _reply(

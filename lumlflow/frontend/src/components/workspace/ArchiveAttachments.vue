@@ -34,7 +34,7 @@ onMounted(async () => {
   try {
     if (!tar || !index) throw new Error('The attachment archive or its index is missing.')
     const options = { signal: controller.signal }
-    const response = await fetch(workspaceApi.fileUrl(props.path, index.name), options)
+    const response = await fetch(await workspaceApi.fileUrl(props.path, index.name), options)
     if (!response.ok) throw new Error(`Could not read the attachment index (${response.status})`)
     const attachmentsIndex = await response.json()
     if (
@@ -50,7 +50,7 @@ onMounted(async () => {
       )
     )
       throw new Error('Invalid attachment index')
-    const url = workspaceApi.fileUrl(props.path, tar.name)
+    const url = await workspaceApi.fileUrl(props.path, tar.name)
     const bytes = await urlPreviewBytes(url, tar.size, options)
     const attachments = new TarAttachmentsProvider({
       // The member endpoint starts at the first byte of the inner tar.

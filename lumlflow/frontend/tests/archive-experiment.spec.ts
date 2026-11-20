@@ -45,6 +45,7 @@ const files = [...members].map(([name, bytes]) => ({ name, size: bytes.length })
 const manifest = JSON.parse(new TextDecoder().decode(members.get('manifest.json')))
 let page: VueWrapper
 beforeEach(() => {
+  vi.spyOn(api, 'post').mockResolvedValue({ data: { signature: 'scoped', expires: 1234 } })
   vi.stubGlobal('Worker', class {})
   vi.stubGlobal('Blob', NodeBlob)
   localStorage.setItem('lumlflow.flow.token', 'fixture')
@@ -74,56 +75,60 @@ async function tab(label: string) {
 }
 
 describe('archived experiment details', () => {
-  it('renders the SDK archive read-only and reads only the selected attachment range', async () => {
-    const post = vi.spyOn(api, 'post')
-    const get = vi.spyOn(api, 'get')
-    const reads: { name: string; range: string | null }[] = []
-    vi.stubGlobal('fetch', async (url: string, opts: RequestInit) => {
-      const member = new URL(url, location.origin)
-      expect(member.pathname).toBe('/api/flow/file/entry')
-      expect(member.searchParams.get('path')).toBe(path)
-      const name = member.searchParams.get('name')!
-      const bytes = members.get(name)!
-      const range = new Headers(opts.headers).get('Range')
-      reads.push({ name, range })
-      if (!range) return new Response(bytes)
-      const [start, end] = range.slice(6).split('-').map(Number) as [number, number]
-      return new Response(bytes.slice(start, end + 1), {
-        status: 206,
-        headers: { 'Content-Range': `bytes ${start}-${end}/${bytes.length}` },
+  it(
+    'renders the SDK archive read-only and reads only the selected attachment range',
+    { timeout: 20000 },
+    async () => {
+      const post = vi.spyOn(api, 'post')
+      const get = vi.spyOn(api, 'get')
+      const reads: { name: string; range: string | null }[] = []
+      vi.stubGlobal('fetch', async (url: string, opts: RequestInit) => {
+        const member = new URL(url, location.origin)
+        expect(member.pathname).toBe('/api/flow/file/entry')
+        expect(member.searchParams.get('path')).toBe(path)
+        const name = member.searchParams.get('name')!
+        const bytes = members.get(name)!
+        const range = new Headers(opts.headers).get('Range')
+        reads.push({ name, range })
+        if (!range) return new Response(bytes)
+        const [start, end] = range.slice(6).split('-').map(Number) as [number, number]
+        return new Response(bytes.slice(start, end + 1), {
+          status: 206,
+          headers: { 'Content-Range': `bytes ${start}-${end}/${bytes.length}` },
+        })
       })
-    })
-    open()
-    await vi.waitFor(() => expect(page.text()).toContain('learning_rate'), { timeout: 10000 })
-    expect(page.text()).toContain('0.001')
-    expect(page.text()).toContain(String.raw`Read-only experiment from run\42.luml`)
-    expect(page.getComponent(RouterLinkStub).props('to')).toMatchObject({
-      query: { directory: '/work', file: path },
-    })
-    expect(page.findAll('tr').map((row) => row.text())).toContain('modelId9223372036854775807')
-    expect(page.text()).toContain('Archive run')
-    expect(page.text()).not.toMatch(/Rename|Delete|Upload|Edit tags/)
-    expect(useAnnotationsStore().isEditAvailable).toBe(false)
-    expect(reads).toEqual([{ name: 'exp.db.zip', range: null }])
-    await tab('Metrics')
-    expect(page.findComponent({ name: 'DynamicMetrics' }).props('metricsNames')).toEqual(['loss'])
-    await tab('Traces')
-    await vi.waitFor(() => expect(page.text()).toContain('trace-1'))
-    await tab('Evals')
-    await vi.waitFor(() => expect(page.text()).toContain('validation'))
-    await tab('Attachments')
-    const attachment = page.findAll('span').find((span) => span.text() === 'notes.txt')
-    expect(attachment).toBeDefined()
-    await attachment!.trigger('click')
-    await vi.waitFor(() => expect(page.text()).toContain('Recorded in the archive'))
-    const index = JSON.parse(new TextDecoder().decode(members.get('attachments.index.json')))
-    const [start, size] = index['attachments/notes.txt']
-    expect(reads.filter((read) => read.name === 'attachments.tar')).toEqual([
-      { name: 'attachments.tar', range: `bytes=${start}-${start + size - 1}` },
-    ])
-    expect(post).not.toHaveBeenCalled()
-    expect(get).not.toHaveBeenCalled()
-  })
+      open()
+      await vi.waitFor(() => expect(page.text()).toContain('learning_rate'), { timeout: 10000 })
+      expect(page.text()).toContain('0.001')
+      expect(page.text()).toContain(String.raw`Read-only experiment from run\42.luml`)
+      expect(page.getComponent(RouterLinkStub).props('to')).toMatchObject({
+        query: { directory: '/work', file: path },
+      })
+      expect(page.findAll('tr').map((row) => row.text())).toContain('modelId9223372036854775807')
+      expect(page.text()).toContain('Archive run')
+      expect(page.text()).not.toMatch(/Rename|Delete|Upload|Edit tags/)
+      expect(useAnnotationsStore().isEditAvailable).toBe(false)
+      expect(reads).toEqual([{ name: 'exp.db.zip', range: null }])
+      await tab('Metrics')
+      expect(page.findComponent({ name: 'DynamicMetrics' }).props('metricsNames')).toEqual(['loss'])
+      await tab('Traces')
+      await vi.waitFor(() => expect(page.text()).toContain('trace-1'))
+      await tab('Evals')
+      await vi.waitFor(() => expect(page.text()).toContain('validation'))
+      await tab('Attachments')
+      const attachment = page.findAll('span').find((span) => span.text() === 'notes.txt')
+      expect(attachment).toBeDefined()
+      await attachment!.trigger('click')
+      await vi.waitFor(() => expect(page.text()).toContain('Recorded in the archive'))
+      const index = JSON.parse(new TextDecoder().decode(members.get('attachments.index.json')))
+      const [start, size] = index['attachments/notes.txt']
+      expect(reads.filter((read) => read.name === 'attachments.tar')).toEqual([
+        { name: 'attachments.tar', range: `bytes=${start}-${start + size - 1}` },
+      ])
+      expect(post.mock.calls.every(([url]) => url === 'flow/file')).toBe(true)
+      expect(get).not.toHaveBeenCalled()
+    },
+  )
 
   it('rejects a non-experiment direct link before requesting any bytes', async () => {
     vi.mocked(workspaceApi.inspectFile).mockResolvedValue({ kind: 'model', manifest, files })

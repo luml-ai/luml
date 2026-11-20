@@ -156,7 +156,7 @@ watch(
       const result = await workspaceApi.inspectFile(path)
       if (controller.signal.aborted) return
       if (result.kind !== 'experiment') throw new Error('This file is not an experiment archive.')
-      const response = await fetch(workspaceApi.fileUrl(path, 'exp.db.zip'), {
+      const response = await fetch(await workspaceApi.fileUrl(path, 'exp.db.zip'), {
         signal: controller.signal,
       })
       if (!response.ok)

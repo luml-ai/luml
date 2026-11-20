@@ -58,7 +58,7 @@ beforeEach(() => {
   vi.spyOn(workspaceApi, 'readText').mockResolvedValue(original)
   vi.spyOn(workspaceApi, 'writeText').mockResolvedValue({ mtime_ns: '999', revision: 'saved' })
   vi.spyOn(workspaceApi, 'fileUrl').mockImplementation(
-    (path) => '/api/flow/file?path=' + encodeURIComponent(path),
+    async (path) => '/api/flow/file?path=' + encodeURIComponent(path),
   )
   toast.add.mockReset()
 })
@@ -87,6 +87,14 @@ describe('workspace file previews', () => {
     expect(viewer.text()).toContain('Modified')
     expect(workspaceApi.readText).not.toHaveBeenCalled()
     expect(button('Edit')).toBeUndefined()
+  })
+
+  it.each(['html', 'xml'])('offers Edit after validating .%s source', async (ext) => {
+    const source = file('report.' + ext)
+    await open(source)
+    expect(workspaceApi.readText).toHaveBeenCalledWith(source.path)
+    await click('Edit')
+    expect(editor().props('modelValue')).toBe(original.text)
   })
 
   it('refreshes the shared preview when the watcher signals a change', async () => {

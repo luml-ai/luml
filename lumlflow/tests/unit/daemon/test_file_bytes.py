@@ -193,3 +193,26 @@ def test_compressed_archive_is_rejected_without_inflating_payloads(
     )
     assert response.status_code == 400
     assert inflated == 0
+
+
+def test_scoped_ticket_reads_only_the_selected_preview(http, preview, monkeypatch):
+    route, params = preview
+    assert http.post(web.FILE_PATH, params=params).status_code == 401
+    issued = http.post(web.FILE_PATH, params=params, headers={web.TOKEN_HEADER: TOKEN})
+    assert issued.status_code == 200
+    ticket = issued.json()
+    assert http.get(route, params=params | ticket).content == b"0123456789"
+    assert (
+        http.get(route, params=params | ticket | {"path": "/other"}).status_code == 401
+    )
+    assert (
+        http.get(
+            web.FILE_ENTRY_PATH, params=params | ticket | {"name": "other"}
+        ).status_code
+        == 401
+    )
+    if route == web.FILE_ENTRY_PATH:
+        assert http.get(web.FILE_PATH, params=params | ticket).status_code == 401
+    assert http.post(web.RPC_PATH, params=ticket).status_code == 401
+    monkeypatch.setattr(web.time, "time", lambda: ticket["expires"] + 1)
+    assert http.get(route, params=params | ticket).status_code == 401

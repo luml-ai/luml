@@ -11,7 +11,15 @@ import { parquetHeader, readPage } from 'hyparquet/src/column.js'
 import { convert, DEFAULT_PARSERS } from 'hyparquet/src/convert.js'
 import { getTreePath, getMaxRepetitionLevel } from 'hyparquet/src/schema.js'
 import { compressors } from 'hyparquet-compressors'
+import { formatTimestamp } from './timestamp'
 import { scaledDecimal } from './decimal'
+
+const parsers = {
+  ...DEFAULT_PARSERS,
+  timestampFromMilliseconds: (ticks: bigint) => formatTimestamp(ticks, 3),
+  timestampFromMicroseconds: (ticks: bigint) => formatTimestamp(ticks, 6),
+  timestampFromNanoseconds: (ticks: bigint) => formatTimestamp(ticks, 9),
+}
 
 // Page headers have variable-length Thrift metadata. Reuse the probe bytes
 // in the page body, including when the whole page fits in the first read.
@@ -73,7 +81,7 @@ async function columnPrefix(
     pathInSchema: meta.path_in_schema,
     schemaPath,
     compressors,
-    parsers: DEFAULT_PARSERS,
+    parsers,
     // Decode the physical integer or two's-complement bytes before applying scale.
     element:
       scale === undefined
@@ -130,7 +138,7 @@ export async function readParquet(file: AsyncBuffer, limit: number) {
       await Promise.all(group.columns.map((chunk) => columnPrefix(file, chunk, schema, count))),
     )
     for (const field of schema.children) {
-      if (field.children.length) assembleNested(columns, field, DEFAULT_PARSERS)
+      if (field.children.length) assembleNested(columns, field, parsers)
     }
     for (let i = 0; i < count; i++)
       rows.push(Object.fromEntries(headers.map((name) => [name, columns.get(name)![i]])))

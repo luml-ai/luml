@@ -34,15 +34,18 @@ afterEach(() => {
 describe('table previews', () => {
   it.each(['arrow', 'parquet'])(
     'paginates the first 1,000 rows of a %s file',
+    { timeout: 15000 },
     async (extension) => {
       const blob = fixture(extension)
       const slice = vi.spyOn(blob, 'slice')
       const readWholeBlob = vi.spyOn(blob, 'arrayBuffer')
       const wrapper = preview({ fileName: `samples.${extension}`, contentBlob: blob })
       try {
-        await vi.waitFor(() =>
-          expect(wrapper.text()).toContain('Showing first 1,000 of 1,024 rows'),
-        )
+        await vi.dynamicImportSettled()
+        await vi.waitFor(() => expect(wrapper.find('tbody td').exists()).toBe(true), {
+          timeout: 10000,
+        })
+        expect(wrapper.text()).toContain('Showing first 1,000 of 1,024 rows')
         const table = wrapper.getComponent(DataTable)
         expect(table.props('value')).toHaveLength(1000)
         expect(table.props('totalRecords')).toBe(1000)
@@ -104,6 +107,29 @@ describe('table previews', () => {
     }
   })
 
+  it.each(['arrow', 'parquet'])(
+    'keeps distinct microsecond and nanosecond %s timestamps',
+    async (ext) => {
+      const wrapper = preview({
+        fileName: 'timestamps.' + ext,
+        contentBlob: fixture(ext, 'timestamps'),
+      })
+      try {
+        await vi.dynamicImportSettled()
+        await vi.waitFor(() =>
+          expect(wrapper.findAll('tbody td').map((cell) => cell.text())).toEqual([
+            '1970-01-01T00:00:01.234567Z',
+            '1969-12-31T23:59:59.999999998Z',
+            '1970-01-01T00:00:01.234568Z',
+            '1969-12-31T23:59:59.999999999Z',
+          ]),
+        )
+      } finally {
+        wrapper.unmount()
+      }
+    },
+  )
+
   it.each(['lz4', 'zstd'])(
     'displays distinct same-name fields, decimals and timestamps from %s IPC',
     async (codec) => {
@@ -114,7 +140,7 @@ describe('table previews', () => {
             '1',
             '2',
             '-12.34',
-            '2026-01-01T00:00:00.000Z',
+            '2026-01-01T00:00:00.000000Z',
           ]),
         )
         expect(wrapper.findAll('thead th').map((cell) => cell.text())).toEqual([

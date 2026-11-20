@@ -1,10 +1,11 @@
 import asyncio
 import errno
 import os
+import struct
 import sys
 import threading
 from pathlib import Path
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, Mock, patch
 
 import httpx
 import pytest
@@ -113,7 +114,7 @@ async def test_root_home_and_ui_directory_are_protected(
     monkeypatch.setattr(Path, "home", lambda: home)
     root = make_workspace(home / "project")
     async with daemon_api(root) as api:
-        for protected in (Path(root.anchor), root, home, root / ".."):
+        for protected in (Path(root.anchor), root, home, tmp_path, root / ".."):
             for method, params in [
                 ("file.delete", {}),
                 ("file.move", {"destination": str(tmp_path)}),
@@ -481,7 +482,7 @@ async def test_directory_cleanup_error_identifies_detached_files(
 
     async with daemon_api(tmp_path) as api:
         with monkeypatch.context() as m:
-            m.setattr(files.shutil, "rmtree", refuse_cleanup)
+            m.setattr(files, "_remove_tree", refuse_cleanup)
             with pytest.raises(OsError, match="Permission denied") as refused:
                 await api.file_delete({"path": str(source)})
     (remaining,) = tmp_path.rglob("report")
@@ -546,3 +547,90 @@ async def test_slow_move_keeps_daemon_available_and_reserves_paths(
             with pytest.raises(asyncio.CancelledError):
                 await pending
         await api.flow_open({"flow": str(dest / "data" / "churn.flow")})
+
+
+def test_case_change_does_not_replace_a_distinct_hard_link(tmp_path):
+    tmp_path = tmp_path / "entries"
+    tmp_path.mkdir()
+    source = tmp_path / "report.md"
+    target = tmp_path / "Report.md"
+    source.touch()
+    if target.exists():
+        files.check_destination(source, target)
+        files.move(source, target)
+        assert os.listdir(tmp_path) == [target.name]
+    else:
+        os.link(source, target)
+        with pytest.raises(AlreadyExists):
+            files.check_destination(source, target)
+        assert sorted(os.listdir(tmp_path)) == sorted([source.name, target.name])
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux mount table")
+@pytest.mark.parametrize("move", [False, True])
+def test_nested_bind_mount_refuses_operation_before_detach(tmp_path, monkeypatch, move):
+    source = tmp_path / "data"
+    mounted = source / "mounted"
+    mounted.mkdir(parents=True)
+    (mounted / "keep").write_text("external data")
+    dest = tmp_path / "destination"
+    dest.mkdir()
+    mounts = tmp_path / "mountinfo"
+    mounts.write_text(f"99 30 0:45 /subdir {mounted} rw - tmpfs tmpfs rw\n")
+    original_open = Path.open
+    monkeypatch.setattr(
+        Path,
+        "open",
+        lambda p, *a, **kw: original_open(
+            mounts if p == Path("/proc/self/mountinfo") else p, *a, **kw
+        ),
+    )
+    if move:
+        monkeypatch.setattr(
+            files,
+            "_rename",
+            Mock(side_effect=OSError(errno.EXDEV, "Cross-device link")),
+        )
+    with pytest.raises(OSError, match="mounted filesystem"):
+        if move:
+            files.move(source, dest / source.name)
+        else:
+            files.remove(source)
+    assert (mounted / "keep").read_text() == "external data"
+    assert list(dest.iterdir()) == []
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux POSIX default ACL")
+def test_cross_device_move_removes_extra_inherited_access(tmp_path, monkeypatch):
+    source = tmp_path / "report"
+    source.mkdir()
+    (source / "data").write_text("restricted")
+    dest = tmp_path / "destination"
+    dest.mkdir()
+    acl = struct.pack("<I", 2) + b"".join(
+        struct.pack("<HHI", tag, access, principal)
+        for tag, access, principal in [
+            (1, 7, 0xFFFFFFFF),
+            (4, 0, 0xFFFFFFFF),
+            (8, 4, os.getgid() + 1),
+            (16, 4, 0xFFFFFFFF),
+            (32, 0, 0xFFFFFFFF),
+        ]
+    )
+    os.setxattr(dest, "system.posix_acl_default", acl)
+    rename = files._rename
+
+    def cross_device(src, target):
+        if src == source:
+            raise OSError(errno.EXDEV, "Cross-device link")
+        rename(src, target)
+
+    monkeypatch.setattr(files, "_rename", cross_device)
+    files.move(source, dest / source.name)
+    published = dest / source.name
+    assert (published / "data").read_text() == "restricted"
+    assert not source.exists()
+    for path in [published, published / "data"]:
+        assert not {"system.posix_acl_access", "system.posix_acl_default"} & set(
+            os.listxattr(path)
+        )

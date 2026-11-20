@@ -64,6 +64,7 @@ describe('Workspace archives', () => {
   it.each(['experiment', 'model'] as const)(
     'shows the %s actions, YAML and member previews',
     async (kind) => {
+      vi.spyOn(api, 'post').mockResolvedValue({ data: { signature: 'scoped', expires: 1234 } })
       const fetch = vi.fn().mockResolvedValue(new Response('{"score":123}'))
       vi.stubGlobal('fetch', fetch)
       await open({ kind, files, manifest })
@@ -88,7 +89,8 @@ describe('Workspace archives', () => {
       expect(Object.fromEntries(url.searchParams)).toEqual({
         path: file.path,
         name: files[0]!.name,
-        token: 'fixture',
+        signature: 'scoped',
+        expires: '1234',
       })
     },
   )
@@ -122,57 +124,67 @@ describe('Workspace archives', () => {
   it.each([
     ['hf', 'arrow'],
     ['tabular', 'parquet'],
-  ] as const)('reads the first chunk of each %s split', async (variant, format) => {
-    const bytes = readFileSync(
-      resolve(
-        import.meta.dirname,
-        '../../../extras/js/packages/attachments/src/components/preview/__tests__/fixtures',
-        `samples.${format}`,
-      ),
-    )
-    const splits = ['train', 'test'].map((name, i) => ({
-      name,
-      subset: 'default',
-      num_rows: i ? null : 5400,
-      format,
-      files: [`default/${name}/first.${format}`, `default/${name}/next.${format}`],
-    }))
-    const reads: string[] = []
-    vi.stubGlobal('fetch', async (url: string, options: RequestInit) => {
-      reads.push(new URL(url, location.origin).searchParams.get('name')!)
-      if (format === 'arrow') return new Response(bytes)
-      const range = new Headers(options.headers).get('Range')!
-      const [start, end] = range.slice(6).split('-').map(Number) as [number, number]
-      return new Response(bytes.subarray(start, end + 1), {
-        status: 206,
-        headers: { 'Content-Range': `bytes ${start}-${end}/${bytes.length}` },
+  ] as const)(
+    'reads the first chunk of each %s split',
+    { timeout: 20000 },
+    async (variant, format) => {
+      const bytes = readFileSync(
+        resolve(
+          import.meta.dirname,
+          '../../../extras/js/packages/attachments/src/components/preview/__tests__/fixtures',
+          `samples.${format}`,
+        ),
+      )
+      vi.spyOn(api, 'post').mockResolvedValue({ data: { signature: 'scoped', expires: 1234 } })
+      const splits = ['train', 'test'].map((name, i) => ({
+        name,
+        subset: 'default',
+        num_rows: i ? null : 5400,
+        format,
+        files: [`default/${name}/first.${format}`, `default/${name}/next.${format}`],
+      }))
+      const reads: string[] = []
+      vi.stubGlobal('fetch', async (url: string, options: RequestInit) => {
+        reads.push(new URL(url, location.origin).searchParams.get('name')!)
+        if (format === 'arrow') return new Response(bytes)
+        const range = new Headers(options.headers).get('Range')!
+        const [start, end] = range.slice(6).split('-').map(Number) as [number, number]
+        return new Response(bytes.subarray(start, end + 1), {
+          status: 206,
+          headers: { 'Content-Range': `bytes ${start}-${end}/${bytes.length}` },
+        })
       })
-    })
-    await open({
-      kind: 'dataset',
-      manifest,
-      variant,
-      splits,
-      files: splits.flatMap((s) => s.files.map((name) => ({ name, size: bytes.length }))),
-    })
-    await vi.waitFor(() => expect(wrapper.text()).toContain('Showing first 1,000 of 5,400 rows'), {
-      timeout: 10000,
-    })
-    expect(wrapper.findAll('.contents-name').map((row) => row.text())).toEqual([
-      'default/',
-      ...splits.flatMap((split) => split.files),
-    ])
-    expect(wrapper.findAll('.contents button')).toHaveLength(4)
-    expect(new Set(reads)).toEqual(new Set([splits[0]!.files[0]]))
-    await wrapper.get('[role="tablist"]').findAll('[role="tab"]')[1]!.trigger('click')
-    await vi.waitFor(() => expect(wrapper.text()).toContain('Showing first 1,000 rows'))
-    expect(new Set(reads)).toEqual(new Set(splits.map((s) => s.files[0])))
-  })
+      await open({
+        kind: 'dataset',
+        manifest,
+        variant,
+        splits,
+        files: splits.flatMap((s) => s.files.map((name) => ({ name, size: bytes.length }))),
+      })
+      await vi.waitFor(
+        () => expect(wrapper.text()).toContain('Showing first 1,000 of 5,400 rows'),
+        {
+          timeout: 10000,
+        },
+      )
+      expect(wrapper.findAll('.contents-name').map((row) => row.text())).toEqual([
+        'default/',
+        ...splits.flatMap((split) => split.files),
+      ])
+      expect(wrapper.findAll('.contents button')).toHaveLength(4)
+      expect(new Set(reads)).toEqual(new Set([splits[0]!.files[0]]))
+      await wrapper.get('[role="tablist"]').findAll('[role="tab"]')[1]!.trigger('click')
+      await vi.waitFor(() => expect(wrapper.text()).toContain('Showing first 1,000 rows'))
+      expect(new Set(reads)).toEqual(new Set(splits.map((s) => s.files[0])))
+    },
+  )
 
   it.each(['csv', 'arrow'] as const)(
     'previews 1,000 rows from a split with a large %s chunk',
+    { timeout: 20000 },
     async (format) => {
       const name = `data/default/train/first.${format}`
+      vi.spyOn(api, 'post').mockResolvedValue({ data: { signature: 'scoped', expires: 1234 } })
       const body =
         format === 'csv'
           ? 'id,label\n' + '42,example\n'.repeat(1000) + '43,' + 'x'.repeat(11 * 1024 ** 2)

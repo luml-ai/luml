@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { largeParquet } from '../../../extras/js/tests/attachmentSelection'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { api } from '@/api/client'
 import { workspaceApi, WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
 import type { WorkspaceFile } from '@/api/slices/workspace/workspace.interface'
 import WorkspacesPage from '@/pages/workspaces/WorkspacesPage.vue'
@@ -60,7 +60,10 @@ const folderStub = {
 async function render(query: Record<string, string> = {}, real = false) {
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/', component: WorkspacesPage }],
+    routes: [
+      { path: '/', component: WorkspacesPage },
+      { path: '/notebook', name: 'workspace-flow', component: { template: '<div />' } },
+    ],
   })
   await router.push({ path: '/', query })
   wrapper = mount(RouterView, {
@@ -85,6 +88,7 @@ function viewer() {
 }
 
 beforeEach(() => {
+  vi.spyOn(api, 'post').mockResolvedValue({ data: { signature: 'scoped', expires: 1234 } })
   vi.stubGlobal('WebSocket', Socket)
   localStorage.setItem('lumlflow.flow.token', 'test')
   files = [file]
@@ -185,19 +189,10 @@ describe('Workspace file selection', () => {
   })
 
   it('pages through the first thousand Workspace Parquet rows using partial transfers', async () => {
-    const bytes = readFileSync(
-      resolve(
-        import.meta.dirname,
-        '../../../extras/js/packages/attachments/src/components/preview/__tests__/fixtures/samples.parquet',
-      ),
-    )
-    const size = 400 * 1024 ** 2
-    const dataEnd = bytes.length - 8 - bytes.readUInt32LE(bytes.length - 8)
-    const footerStart = size - (bytes.length - dataEnd)
+    const parquet = largeParquet()
+    const { size } = parquet
     const entry = { ...file, path: '/project/train.parquet', name: 'train.parquet', size }
     files = [entry]
-    let transferred = 0
-    // Insert empty space before the footer. All column offsets stay valid.
     vi.stubGlobal('fetch', async (url: string, options: RequestInit) => {
       const endpoint = new URL(url, location.href)
       expect(endpoint.pathname).toBe('/api/flow/file')
@@ -206,19 +201,7 @@ describe('Workspace file selection', () => {
       if (!range) throw new Error('Expected a byte range')
       const start = Number(range[1]),
         end = Number(range[2]) + 1
-      const length = end - start
-      expect(length).toBeLessThan(size)
-      const chunk = new Uint8Array(length)
-      if (start < dataEnd) chunk.set(bytes.subarray(start, Math.min(end, dataEnd)))
-      if (end > footerStart) {
-        const offset = Math.max(start, footerStart)
-        chunk.set(
-          bytes.subarray(dataEnd + offset - footerStart, dataEnd + end - footerStart),
-          offset - start,
-        )
-      }
-      transferred += length
-      return new Response(chunk, {
+      return new Response(parquet.slice(start, end), {
         status: 206,
         headers: { 'Content-Range': `bytes ${start}-${end - 1}/${size}` },
       })
@@ -230,8 +213,8 @@ describe('Workspace file selection', () => {
     expect(wrapper.get('tbody td').text()).toBe('0')
     await wrapper.get('[aria-label="Last Page"]').trigger('click')
     expect(wrapper.get('tbody tr:last-child td').text()).toBe('999')
-    expect(transferred).toBeGreaterThan(0)
-    expect(transferred).toBeLessThan(size)
+    expect(parquet.transferred).toBeGreaterThan(0)
+    expect(parquet.transferred).toBeLessThan(size)
   })
 
   it('keeps the route, breadcrumb and rows when the destination is unreadable', async () => {
@@ -399,6 +382,48 @@ describe('Workspace file selection', () => {
     }
   })
 
+  it('expires an extended lock after the last write even without another snapshot', async () => {
+    await render({ directory: '/project', file: file.path })
+    vi.useFakeTimers()
+    try {
+      const socket = Socket.latest
+      socket.onopen?.()
+      const publish = () =>
+        socket.receive({
+          channel: 'files',
+          type: 'locks',
+          idle_after_s: 180,
+          locks: [{ path: file.path, actor: 'a', label: 'Agent', last: Date.now() }],
+        })
+      publish()
+      await vi.advanceTimersByTimeAsync(120000)
+      publish()
+      await vi.advanceTimersByTimeAsync(179999)
+      expect(viewer().props('locks')).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(viewer().props('locks')).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('omits ordinary creation and watching when a notebook lists itself', async () => {
+    const directory = '/project/analysis.flow'
+    vi.mocked(workspaceApi.listFlows).mockResolvedValue({
+      directory,
+      flows: [{ name: 'analysis', path: directory, relative_path: '.', is_symlink: false }],
+      files: [],
+      folders: [],
+      total: 1,
+      next_offset: null,
+    })
+    const socket = Socket.latest
+    await render({ directory }, true)
+    expect(wrapper.text()).toContain('analysis')
+    expect(wrapper.text()).not.toMatch(/New file|New folder/)
+    expect(Socket.latest).toBe(socket)
+  })
+
   it('updates the listing, lock and viewer on file frames and keeps a deleted file’s header', async () => {
     await render({ directory: '/project', file: file.path })
     const socket = Socket.latest
@@ -408,7 +433,7 @@ describe('Workspace file selection', () => {
       directory: '/project',
       file: file.path,
     })
-    const lock = { path: file.path, actor: 'agent-1', label: 'Agent One', last: 100 }
+    const lock = { path: file.path, actor: 'agent-1', label: 'Agent One', last: Date.now() }
     socket.receive({ channel: 'files', type: 'locks', locks: [lock], idle_after_s: 180 })
     await flushPromises()
     expect(viewer().props('locks')).toEqual([lock])

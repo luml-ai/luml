@@ -1,11 +1,21 @@
-import { CompressionType, compressionRegistry, tableFromIPC, Type } from 'apache-arrow'
+import {
+  CompressionType,
+  compressionRegistry,
+  Data,
+  Int64,
+  Vector,
+  tableFromIPC,
+  Type,
+} from 'apache-arrow'
 import * as compat from '@uwdata/flechette'
 import { decompress as lz4 } from 'lz4js'
 import { decompress as zstd } from 'fzstd'
+import { formatTimestamp } from './timestamp'
 import { scaledDecimal } from './decimal'
 
 interface FieldType {
   typeId: number
+  unit?: number
   scale?: number
   children?: readonly { name: string; type: FieldType }[] | null
   dictionary?: FieldType
@@ -15,8 +25,8 @@ function arrowValue(value: any, type: FieldType): any {
   if (value == null) return value
   if (type.dictionary) return arrowValue(value, type.dictionary)
   if (type.typeId === Type.Decimal) return scaledDecimal(String(value), type.scale!)
-  if (type.typeId === Type.Timestamp || type.typeId === Type.Date)
-    return new Date(value).toISOString()
+  if (type.typeId === Type.Timestamp) return formatTimestamp(value, type.unit! * 3)
+  if (type.typeId === Type.Date) return new Date(value).toISOString()
   if (type.typeId === Type.Struct) {
     return Object.fromEntries(
       (type.children ?? []).map((field) => [field.name, arrowValue(value[field.name], field.type)]),
@@ -62,15 +72,39 @@ function decode(bytes: Uint8Array) {
         })
       }
     }
-    return compat.tableFromIPC(bytes, { useBigInt: true, useDecimalInt: true })
+    return compat.tableFromIPC(bytes, {
+      useBigInt: true,
+      useDecimalInt: true,
+      useBigIntTimestamp: true,
+    })
   }
+}
+
+// Read timestamp buffers as Int64 so Arrow's millisecond getter never rounds the ticks.
+function rawTimestamps(data: Data): Data {
+  if (data.typeId === Type.Timestamp) return data.clone(new Int64())
+  if (!data.children.length && !data.dictionary) return data
+  const copy = data.clone(
+    data.type,
+    data.offset,
+    data.length,
+    data.nullCount,
+    data.buffers,
+    data.children.map(rawTimestamps),
+  )
+  if (data.dictionary) copy.dictionary = new Vector(data.dictionary.data.map(rawTimestamps))
+  return copy
 }
 
 export async function readArrow(blob: Blob, limit: number) {
   const table = decode(new Uint8Array(await blob.arrayBuffer()))
   const fields = table.schema.fields
   const headers = fields.map((field) => field.name)
-  const columns = fields.map((field, index) => ({ field, vector: table.getChildAt(index)! }))
+  const columns = fields.map((field, index) => {
+    const column = table.getChildAt(index)!
+    const vector = column instanceof Vector ? new Vector(column.data.map(rawTimestamps)) : column
+    return { field, vector }
+  })
   const rows = Array.from({ length: Math.min(limit, table.numRows) }, (_, index) =>
     columns.map(({ field, vector }) => arrowValue(vector.get(index), field.type)),
   )
