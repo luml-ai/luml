@@ -60,7 +60,7 @@ const emit = defineEmits<FileNodeEmits>()
 const isExpanded = ref(false)
 
 const isSelected = computed(() => {
-  return props.selected?.path === props.node.path
+  return !!props.selected?.path && props.selected.path === props.node.path
 })
 
 const fileIcon = computed((): Component => {
