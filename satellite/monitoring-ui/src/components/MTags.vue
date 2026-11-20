@@ -115,7 +115,7 @@ const gapPx = `${GAP}px`
 .popover-list {
   display: flex;
   flex-wrap: wrap;
-  gap: v-bind(gapPx);
+  gap: 6px;
   max-width: 260px;
 }
 </style>

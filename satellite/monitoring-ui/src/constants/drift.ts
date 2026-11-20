@@ -31,9 +31,9 @@ export const PCA_SERIES_COLORS = {
 }
 
 export const PCA_SERIES_INDEX = {
-  referenceEllipse: 0,
-  currentEllipse: 1,
-  reference: 2,
-  current: 3,
-  pinned: 4,
+  reference: 0,
+  current: 1,
+  pinned: 2,
+  referenceEllipse: 3,
+  currentEllipse: 4,
 }

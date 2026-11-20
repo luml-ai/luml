@@ -80,16 +80,6 @@ function getVisiblePoints(points: PcaPoint[]) {
 
 const series = computed(() => [
   {
-    name: 'Reference ellipse',
-    type: 'line',
-    data: toPcaChartPoints(referenceEllipse.value),
-  },
-  {
-    name: 'Current ellipse',
-    type: 'line',
-    data: toPcaChartPoints(currentEllipse.value),
-  },
-  {
     name: 'Reference',
     type: 'scatter',
     data: getVisiblePoints(props.multivariate.reference_projection),
@@ -104,6 +94,16 @@ const series = computed(() => [
     type: 'scatter',
     data: toPcaChartPoints(pinnedPoints.value.map((point) => clampPcaPoint(point, bounds.value))),
   },
+  {
+    name: 'Reference ellipse',
+    type: 'line',
+    data: toPcaChartPoints(referenceEllipse.value),
+  },
+  {
+    name: 'Current ellipse',
+    type: 'line',
+    data: toPcaChartPoints(currentEllipse.value),
+  },
 ])
 
 const options = computed<ApexOptions>(() => {
@@ -114,17 +114,17 @@ const options = computed<ApexOptions>(() => {
     ...base,
     chart: { ...base.chart, animations: { enabled: false }, foreColor: cssValues.value.text },
     colors: [
-      cssValues.value.referenceEllipse,
-      cssValues.value.current,
       cssValues.value.referencePoint,
       cssValues.value.current,
       cssValues.value.pinned,
+      cssValues.value.referenceEllipse,
+      cssValues.value.current,
     ],
-    stroke: { curve: 'straight', width: [1.5, 1.5, 0, 0, 0], dashArray: [5, 0, 0, 0, 0] },
-    fill: { opacity: [1, 1, 0.8, 0.85, 1] },
+    stroke: { curve: 'straight', width: [0, 0, 0, 1.5, 1.5], dashArray: [0, 0, 0, 5, 0] },
+    fill: { opacity: [0.8, 0.85, 1, 1, 1] },
     markers: {
-      size: [0, 0, 4, 4, 5],
-      strokeWidth: [0, 0, 0, 0, 1],
+      size: [4, 4, 5, 0, 0],
+      strokeWidth: [0, 0, 1, 0, 0],
       strokeColors: cssValues.value.pinnedStroke,
       hover: { sizeOffset: 1 },
     },

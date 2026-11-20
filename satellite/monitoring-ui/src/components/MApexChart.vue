@@ -6,6 +6,7 @@
 import ApexCharts from 'apexcharts'
 import type { ApexOptions } from 'apexcharts'
 import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
+import { useElementSize } from '@vueuse/core'
 
 type ChartType = NonNullable<NonNullable<ApexOptions['chart']>['type']>
 
@@ -22,6 +23,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const root = useTemplateRef<HTMLDivElement>('root')
 const chart = shallowRef<ApexCharts | null>(null)
+
+const { height: rootHeight } = useElementSize(root)
 
 function buildOptions(): ApexOptions {
   return {
@@ -51,6 +54,10 @@ watch(
   },
   { deep: true },
 )
+
+watch(rootHeight, () => {
+  chart.value?.updateOptions({}, true, false)
+})
 
 onBeforeUnmount(() => {
   chart.value?.destroy()
