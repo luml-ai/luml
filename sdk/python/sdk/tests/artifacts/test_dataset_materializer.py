@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tarfile
 from collections.abc import Iterable
@@ -158,6 +159,45 @@ class TestMaterializeTabular:
             mat.splits("nonexistent")
 
 
+def _hf_ref_with_unknown_feature(
+    tmp_path: Path, library_version: str
+) -> DatasetReference:
+    data_dir = tmp_path / "work" / "data"
+    config_dir = data_dir / "default"
+    datasets.DatasetDict(
+        {"train": datasets.Dataset.from_dict({"a": [1, 2]})}
+    ).save_to_disk(str(config_dir))
+
+    info_path = config_dir / "train" / "dataset_info.json"
+    info = json.loads(info_path.read_text())
+    info["features"]["a"] = {"_type": "FutureFeature"}
+    info_path.write_text(json.dumps(info))
+
+    manifest = DatasetArtifactManifest(
+        artifact_type="dataset",
+        variant="hf",
+        name="hf-unknown-feature",
+        description=None,
+        version=None,
+        producer_name=PRODUCER_NAME,
+        producer_version=luml_sdk_version,
+        producer_tags=[f"{PRODUCER_NAME}::dataset:v1"],
+        payload=HFDatasetPayload(
+            subsets={"default": ["train"]},
+            data_dir="data/",
+            library_version=library_version,
+        ),
+    )
+
+    tar_path = tmp_path / "hf-unknown-feature.tar"
+    with tarfile.open(tar_path, "w") as tar:
+        manifest_bytes = manifest.model_dump_json(indent=2).encode("utf-8")
+        add_bytes_to_tar(tar, "manifest.json", manifest_bytes)
+        tar.add(str(data_dir), arcname="data")
+
+    return DatasetReference(str(tar_path))
+
+
 class TestMaterializeHF:
     def test_materialize_creates_cache(
         self, hf_ref: DatasetReference, tmp_path: Path
@@ -270,6 +310,42 @@ class TestMaterializeHF:
         with pytest.raises(KeyError, match="Split 'nonexistent' not found"):
             mat.to_hf_split(split="nonexistent")
 
+    def test_archive_from_newer_datasets_reports_version_mismatch(
+        self, tmp_path: Path
+    ) -> None:
+        ref = _hf_ref_with_unknown_feature(tmp_path, library_version="999.0.0")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
+
+        with pytest.raises(
+            ValueError, match="was saved with datasets 999.0.0"
+        ) as excinfo:
+            mat.to_hf()
+
+        message = str(excinfo.value)
+        assert f"installed datasets {datasets.__version__}" in message
+        assert "pip install 'datasets>=999.0.0'" in message
+        assert "FutureFeature" in str(excinfo.value.__cause__)
+
+    def test_unreadable_archive_from_installed_datasets_keeps_original_error(
+        self, tmp_path: Path
+    ) -> None:
+        ref = _hf_ref_with_unknown_feature(
+            tmp_path, library_version=datasets.__version__
+        )
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
+
+        with pytest.raises(ValueError, match="Feature type 'FutureFeature' not found"):
+            mat.to_hf()
+
+    def test_unreadable_archive_with_unparsable_version_keeps_original_error(
+        self, tmp_path: Path
+    ) -> None:
+        ref = _hf_ref_with_unknown_feature(tmp_path, library_version="unknown")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
+
+        with pytest.raises(ValueError, match="Feature type 'FutureFeature' not found"):
+            mat.to_hf()
+
 
 class TestMaterializeInfo:
     def test_info_returns_manifest(
@@ -325,7 +401,7 @@ class TestMaterializeCaching:
 
         manifest = pandas_ref.get_manifest()
         chunk_rel_path = (
-            manifest.payload.subsets["default"].splits["train"].chunk_files[0]  # type: ignore
+            manifest.payload.subsets["default"].splits["train"].chunk_files[0]
         )
         chunk_path = cache / chunk_rel_path
         original_bytes = chunk_path.read_bytes()

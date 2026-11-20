@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite import PlatformClient, TokenDeriver
@@ -23,8 +23,8 @@ async def test_artifact_route_validates_its_token_and_maps_platform_outcomes() -
     ) as platform_client:
         application = create_internal_application(ArtifactResolver(platform_client, tokens))
         assert application.openapi()["paths"] == {}
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=application),
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=application),
             base_url="http://satellite",
         ) as client:
             success = await client.get(

@@ -1,10 +1,14 @@
+import functools
+import http.client
+import http.server
+import io
 import json
-import os
+import re
 import shutil
 import subprocess
 import tarfile
+import threading
 import time
-import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -76,6 +80,7 @@ print(json.dumps({'envs': envs, 'root': str(root)}))
 class RunningModel:
     container_id: str
     health_url: str
+    compute_url: str
 
 
 def _run(
@@ -127,8 +132,8 @@ def test_default_command_starts_offline_without_installing_dev_dependencies(
     probe = tmp_path / "main.py"
     probe.write_text(
         "from importlib.util import find_spec\n"
-        "import httpx, uvicorn\n"
-        "assert all(find_spec(name) is None for name in ('mypy', 'pytest', 'ruff'))\n"
+        "import httpx2, uvicorn\n"
+        "assert all(find_spec(name) is None for name in ('ty', 'pytest', 'ruff'))\n"
         "print('started')\n"
     )
 
@@ -281,7 +286,7 @@ def _wait_until_healthy(docker_cli: str, container_id: str, health_url: str) -> 
             with urllib.request.urlopen(health_url, timeout=2) as response:
                 if response.status == 200:
                     return
-        except (TimeoutError, urllib.error.URLError):
+        except OSError, http.client.HTTPException:
             pass
         time.sleep(1)
 
@@ -289,27 +294,89 @@ def _wait_until_healthy(docker_cli: str, container_id: str, health_url: str) -> 
     pytest.fail(f"Model-server health route did not become ready:\n{logs}")
 
 
+_ECHO_PYFUNC = """
+from fnnx.variants.pyfunc import PyFunc
+
+
+class EchoPyFunc(PyFunc):
+    def warmup(self):
+        pass
+
+    def compute(self, inputs, dynamic_attributes):
+        return {"y": inputs["x"]}
+
+    async def compute_async(self, inputs, dynamic_attributes):
+        return self.compute(inputs, dynamic_attributes)
+"""
+
+
+def _echo_artifact() -> bytes:
+    column = {"content_type": "NDJSON", "dtype": "Array[float]", "tags": None, "shape": ["batch"]}
+    members = {
+        "manifest.json": json.dumps(
+            {
+                "variant": "pyfunc",
+                "name": "image-test-echo",
+                "producer_name": "luml.ai",
+                "producer_version": "0.0.0",
+                "producer_tags": [],
+                "inputs": [{"name": "x", **column}],
+                "outputs": [{"name": "y", **column}],
+                "dynamic_attributes": [],
+                "env_vars": [],
+            }
+        ),
+        "variant_config.json": json.dumps({"pyfunc_classname": "EchoPyFunc", "extra_values": {}}),
+        "ops.json": "[]",
+        "dtypes.json": "{}",
+        "variant_artifacts/__pyfunc__.py": _ECHO_PYFUNC,
+        "variant_artifacts/extra_modules/.keep": "",
+        "variant_artifacts/extra_files/.keep": "",
+        "meta_artifacts/.keep": "",
+        "ops_artifacts/.keep": "",
+    }
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        for name, text in members.items():
+            data = text.encode()
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
+
+
+@pytest.fixture(scope="session")
+def model_artifact_url(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+    directory = tmp_path_factory.mktemp("artifact")
+    (directory / "model.tar").write_bytes(_echo_artifact())
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(directory))
+    server = http.server.ThreadingHTTPServer(("0.0.0.0", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://host.docker.internal:{server.server_address[1]}/model.tar"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 @pytest.fixture(scope="session")
 def running_loadable_model(
     docker_cli: str,
     model_server_image: str,
+    model_artifact_url: str,
 ) -> Iterator[RunningModel]:
-    artifact_url = os.getenv("MODEL_SERVER_TEST_ARTIFACT_URL")
-    if not artifact_url:
-        pytest.skip(
-            "MODEL_SERVER_TEST_ARTIFACT_URL is not set; loadable-model health and "
-            "micromamba checks were not run"
-        )
-
     started = _run(
         [
             docker_cli,
             "run",
             "--detach",
+            "--add-host",
+            "host.docker.internal:host-gateway",
             "--user",
             f"{RANDOM_UID}:0",
             "--env",
-            f"MODEL_ARTIFACT_URL={artifact_url}",
+            f"MODEL_ARTIFACT_URL={model_artifact_url}",
             "--env",
             "MODEL_NAME=image-integration-test",
             "--publish",
@@ -323,17 +390,35 @@ def running_loadable_model(
         host_port = published.stdout.strip().rsplit(":", maxsplit=1)[-1]
         health_url = f"http://127.0.0.1:{host_port}/healthz"
         _wait_until_healthy(docker_cli, container_id, health_url)
-        yield RunningModel(container_id=container_id, health_url=health_url)
+        yield RunningModel(
+            container_id=container_id,
+            health_url=health_url,
+            compute_url=f"http://127.0.0.1:{host_port}/compute",
+        )
     finally:
         _run([docker_cli, "rm", "--force", container_id], check=False, timeout=60)
 
 
-def test_health_route_with_a_supplied_loadable_model(running_loadable_model: RunningModel) -> None:
+def test_health_route_with_a_loadable_model(running_loadable_model: RunningModel) -> None:
     with urllib.request.urlopen(running_loadable_model.health_url, timeout=5) as response:
         payload = json.loads(response.read())
 
     assert response.status == 200
     assert payload == {"status": "healthy"}
+
+
+def test_compute_route_runs_the_loaded_model(running_loadable_model: RunningModel) -> None:
+    request = urllib.request.Request(
+        running_loadable_model.compute_url,
+        data=json.dumps({"inputs": {"x": [1.5, 2.5]}}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.loads(response.read())
+
+    assert response.status == 200
+    assert payload == {"y": [1.5, 2.5]}
 
 
 def test_model_environment_is_created_under_app(
@@ -356,3 +441,99 @@ def test_model_environment_is_created_under_app(
     assert payload["root"] == "/app/.micromamba"
     assert payload["envs"]
     assert all(path.startswith("/app/.micromamba/envs/") for path in payload["envs"])
+
+
+def _pinned_micromamba_version() -> str:
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
+    stage = re.search(
+        r"^FROM mambaorg/micromamba:(\d+\.\d+\.\d+)@sha256:[a-f0-9]{64} AS micromamba$",
+        dockerfile,
+        re.MULTILINE,
+    )
+    assert stage is not None
+    return stage[1]
+
+
+def test_micromamba_source_is_digest_pinned() -> None:
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text()
+    assert _pinned_micromamba_version()
+    assert "COPY --from=micromamba /bin/micromamba /usr/local/bin/micromamba" in dockerfile
+    assert "micro.mamba.pm" not in dockerfile
+
+
+def test_pinned_micromamba_runs_offline_as_the_default_user(
+    docker_cli: str, model_server_image: str
+) -> None:
+    result = _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--entrypoint",
+            "/usr/local/bin/micromamba",
+            model_server_image,
+            "--version",
+        ]
+    )
+    assert result.stdout.strip() == _pinned_micromamba_version()
+
+
+@pytest.mark.parametrize("user", ["10001:0", "10001:10001", f"{RANDOM_UID}:0"])
+def test_server_code_is_read_only_while_runtime_directories_are_writable(
+    docker_cli: str, model_server_image: str, user: str
+) -> None:
+    script = """
+from pathlib import Path
+for path in [Path('/app/main.py'), Path('/app/handlers/model_handler.py')]:
+    try:
+        with path.open('a'):
+            pass
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError(f'{path} is writable')
+for directory in ['/app/models', '/app/.micromamba', '/app/.cache/uv']:
+    path = Path(directory) / 'write-test'
+    path.touch()
+    path.unlink()
+"""
+    _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--user",
+            user,
+            "--entrypoint",
+            "/app/.venv/bin/python",
+            model_server_image,
+            "-c",
+            script,
+        ]
+    )
+
+
+@pytest.mark.parametrize("user", ["10001:0", "10001:10001", f"{RANDOM_UID}:0"])
+def test_micromamba_registers_environments_with_read_only_server_code(
+    docker_cli: str, model_server_image: str, user: str
+) -> None:
+    result = _run(
+        [
+            docker_cli,
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--user",
+            user,
+            "--entrypoint",
+            "sh",
+            model_server_image,
+            "-c",
+            "micromamba create -n probe -y --offline >/dev/null && micromamba env list --json",
+        ]
+    )
+    envs = json.loads(result.stdout)["envs"]
+    assert "/app/.micromamba/envs/probe" in envs

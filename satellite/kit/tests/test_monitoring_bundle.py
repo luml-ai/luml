@@ -2,7 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-import httpx
+import httpx2
 from fastapi import FastAPI
 
 from luml_satellite.authorization import AuthorizationVerdict
@@ -233,8 +233,8 @@ async def test_vendor_store_is_wired_to_worker_dashboard_and_absolute_links() ->
     bundle.mount(application)
 
     await bundle.worker.tick(now=now)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=application),
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=application),
         base_url="http://satellite",
     ) as client:
         response = await client.get(

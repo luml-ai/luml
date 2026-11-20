@@ -1,3 +1,4 @@
+import builtins
 import copy
 from collections.abc import Mapping
 from typing import Any, Protocol, cast
@@ -13,7 +14,7 @@ class KubernetesApiClient(Protocol):
 
     async def delete(self, kind: str, name: str) -> bool: ...
 
-    async def list(self, kind: str, label_selector: str) -> list[dict[str, Any]]: ...
+    async def list(self, kind: str, label_selector: str) -> builtins.list[dict[str, Any]]: ...
 
     async def pod_logs(self, pod_name: str, container_name: str, tail_lines: int) -> str: ...
 
@@ -41,49 +42,49 @@ class KubernetesApi:
         kind, name = _identity(manifest)
         body = dict(manifest)
         if kind == "Deployment":
-            await self._apps.patch_namespaced_deployment(  # type: ignore[call-arg]
+            await self._apps.patch_namespaced_deployment(
                 name,
                 self.namespace,
                 body,
                 field_manager=self.field_manager,
                 force=True,
-                _content_type="application/apply-patch+yaml",
+                _content_type="application/apply-patch+yaml",  # ty: ignore[unknown-argument]
             )
         elif kind == "Secret":
-            await self._core.patch_namespaced_secret(  # type: ignore[call-arg]
+            await self._core.patch_namespaced_secret(
                 name,
                 self.namespace,
                 body,
                 field_manager=self.field_manager,
                 force=True,
-                _content_type="application/apply-patch+yaml",
+                _content_type="application/apply-patch+yaml",  # ty: ignore[unknown-argument]
             )
         elif kind == "Service":
-            await self._core.patch_namespaced_service(  # type: ignore[call-arg]
+            await self._core.patch_namespaced_service(
                 name,
                 self.namespace,
                 body,
                 field_manager=self.field_manager,
                 force=True,
-                _content_type="application/apply-patch+yaml",
+                _content_type="application/apply-patch+yaml",  # ty: ignore[unknown-argument]
             )
         elif kind == "Ingress":
-            await self._networking.patch_namespaced_ingress(  # type: ignore[call-arg]
+            await self._networking.patch_namespaced_ingress(
                 name,
                 self.namespace,
                 body,
                 field_manager=self.field_manager,
                 force=True,
-                _content_type="application/apply-patch+yaml",
+                _content_type="application/apply-patch+yaml",  # ty: ignore[unknown-argument]
             )
         elif kind == "Job":
-            await self._batch.patch_namespaced_job(  # type: ignore[call-arg]
+            await self._batch.patch_namespaced_job(
                 name,
                 self.namespace,
                 body,
                 field_manager=self.field_manager,
                 force=True,
-                _content_type="application/apply-patch+yaml",
+                _content_type="application/apply-patch+yaml",  # ty: ignore[unknown-argument]
             )
         else:
             raise ValueError(f"unsupported Kubernetes object kind: {kind}")
@@ -149,7 +150,7 @@ class KubernetesApi:
             raise
         return True
 
-    async def list(self, kind: str, label_selector: str) -> list[dict[str, Any]]:
+    async def list(self, kind: str, label_selector: str) -> builtins.list[dict[str, Any]]:
         result: object
         if kind == "Deployment":
             result = await self._apps.list_namespaced_deployment(
@@ -193,9 +194,9 @@ class InMemoryKubernetesApi:
         self.namespace = namespace
         self.auto_ready = auto_ready
         self.objects: dict[tuple[str, str], dict[str, Any]] = {}
-        self.apply_calls: list[tuple[str, str]] = []
-        self.delete_calls: list[tuple[str, str]] = []
-        self.list_calls: list[tuple[str, str]] = []
+        self.apply_calls: builtins.list[tuple[str, str]] = []
+        self.delete_calls: builtins.list[tuple[str, str]] = []
+        self.list_calls: builtins.list[tuple[str, str]] = []
         self.logs: dict[tuple[str, str], str] = {}
         self.blocked_deletions: set[tuple[str, str]] = set()
         self.delete_delays: dict[tuple[str, str], int] = {}
@@ -241,7 +242,7 @@ class InMemoryKubernetesApi:
             self._remove_object(key)
         return True
 
-    async def list(self, kind: str, label_selector: str) -> list[dict[str, Any]]:
+    async def list(self, kind: str, label_selector: str) -> builtins.list[dict[str, Any]]:
         self.list_calls.append((kind, label_selector))
         expected = _parse_selector(label_selector)
         return [

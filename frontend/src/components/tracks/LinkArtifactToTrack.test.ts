@@ -180,4 +180,37 @@ describe('LinkArtifactToTrack occupied stages', () => {
       'Once confirmed, the artifact Previous model will be unlinked from this stage.',
     )
   })
+
+  it.each(['resolve', 'reject'])(
+    'ignores an older stage lookup that %ss after the latest lookup',
+    async (settle) => {
+      let resolveOld!: (entry: TrackEntry) => void
+      let rejectOld!: (error: Error) => void
+      mocks.getEntryByStage.mockImplementationOnce(
+        () =>
+          new Promise<TrackEntry>((resolve, reject) => {
+            resolveOld = resolve
+            rejectOld = reject
+          }),
+      )
+      mocks.getEntryByStage.mockResolvedValueOnce({
+        ...occupiedEntry,
+        id: 'latest',
+        stage_id: 'staging',
+        artifact_name: 'Latest model',
+      })
+      const wrapper = mountLinkDialog()
+      await selectTrackAndStage(wrapper, 'production')
+      const form = wrapper.getComponent(Form).vm as unknown as FormInstance
+      form.setFieldValue('stage_id', 'staging')
+      await flushPromises()
+      if (settle === 'resolve') resolveOld(occupiedEntry)
+      else rejectOld(new Error('No entry'))
+      await flushPromises()
+      expect(wrapper.getComponent(StageWarning).props('artifact').id).toBe('latest')
+      form.setFieldValue('stage_id', undefined)
+      await flushPromises()
+      expect(wrapper.findComponent(StageWarning).exists()).toBe(false)
+    },
+  )
 })

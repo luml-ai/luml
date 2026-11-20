@@ -12,12 +12,6 @@
     </div>
     <UiDialogRight v-model:visible="visible" :icon="UserCog" title="Organization settings">
       <div class="dialog-content">
-        <!--<ImageInput
-          shape="square"
-          :image="organizationStore.currentOrganization?.logo"
-          class="photo"
-          @on-image-change="onImageChange"
-        />-->
         <Avatar size="xlarge" :label="avatarLabel" />
         <Form
           id="editOrganizationForm"
@@ -75,7 +69,7 @@ const avatarLabel = computed(() => {
 async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
   const payload = {
-    logo: 'https://framerusercontent.com/images/Ks0qcMuaRUt9YEMHOZIkAAXLwl0.png',
+    logo: organizationStore.currentOrganization?.logo,
     name: values.name,
   }
   try {

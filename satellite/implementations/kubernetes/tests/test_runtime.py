@@ -1,7 +1,7 @@
 import logging
 from typing import Any, cast
 
-import httpx
+import httpx2
 import pytest
 from luml_satellite import PlatformClient
 from luml_satellite.container import (
@@ -86,8 +86,8 @@ async def test_main_composition_pairs_reconciles_and_keeps_compute_out_of_proces
         application = cast(Any, runtime.public_application)
         try:
             await runtime.pair()
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=application),
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=application),
                 base_url="http://satellite",
             ) as client:
                 gated = await client.get(
@@ -102,8 +102,8 @@ async def test_main_composition_pairs_reconciles_and_keeps_compute_out_of_proces
                 )
                 internal = await client.get(f"/satellites/deployments/{DEPLOYMENT_ID}/companion")
             await runtime.reconcile()
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=application),
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=application),
                 base_url="http://satellite",
             ) as client:
                 deployments = await client.get(
@@ -207,8 +207,8 @@ async def test_reissued_token_keeps_model_objects_and_companion_token() -> None:
         try:
             await runtime.pair()
             await runtime.reconcile()
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=internal_application),
+            async with httpx2.AsyncClient(
+                transport=httpx2.ASGITransport(app=internal_application),
                 base_url="http://satellite",
             ) as client:
                 companion = await client.get(

@@ -6,7 +6,7 @@
     </div>
     <template v-if="authStore.isAuth">
       <d-button
-        v-if="activeTab === 'deployments'"
+        v-if="activeTab === 'deployments' && canCreateDeployment"
         label="Create deployment"
         @click="deploymentsStore.showCreator()"
       >
@@ -14,7 +14,11 @@
           <Plus :size="14" />
         </template>
       </d-button>
-      <d-button v-else label="Create secret" @click="secretsStore.showCreator()">
+      <d-button
+        v-if="activeTab === 'secrets' && canCreateSecret"
+        label="Create secret"
+        @click="secretsStore.showCreator()"
+      >
         <template #icon>
           <Plus :size="14" />
         </template>
@@ -48,6 +52,7 @@
       />
       <div v-else class="list">
         <UiCardAdd
+          v-if="canCreateDeployment"
           title="Add new Deployment"
           text="Instantly deploy models in a single click."
           @add="deploymentsStore.showCreator()"
@@ -63,20 +68,21 @@
     <div v-else>
       <SecretsList
         :organization-id="route.params.organizationId as string"
-        :edit-available="true"
-        :copy-available="true"
+        :edit-available="canEditSecret"
+        :copy-available="canReadSecret"
       />
     </div>
   </template>
 
   <DeploymentsCreateModal
-    v-if="deploymentsStore.creatorVisible"
+    v-if="canCreateDeployment && deploymentsStore.creatorVisible"
     :visible="deploymentsStore.creatorVisible"
     @update:visible="
       (val) => (val ? deploymentsStore.showCreator() : deploymentsStore.hideCreator())
     "
   />
   <SecretCreator
+    v-if="canCreateSecret"
     :organization-id="route.params.organizationId as string"
     :orbit-id="route.params.id as string"
     v-model:visible="secretsStore.creatorVisible"
@@ -89,6 +95,8 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDeploymentsStore } from '@/stores/deployments'
 import { useSecretsStore } from '@/stores/orbit-secrets'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useAuthStore } from '@/stores/auth'
 import { Skeleton, useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -103,6 +111,23 @@ import SecretCreator from '@/components/orbit-secrets/SecretCreator.vue'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const orbitsStore = useOrbitsStore()
+const canCreateDeployment = computed(
+  () =>
+    authStore.isAuth &&
+    !!orbitsStore.getCurrentOrbitPermissions?.deployment?.includes(PermissionEnum.create),
+)
+const canCreateSecret = computed(
+  () =>
+    authStore.isAuth &&
+    !!orbitsStore.getCurrentOrbitPermissions?.orbit_secret?.includes(PermissionEnum.create),
+)
+const canEditSecret = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.orbit_secret?.includes(PermissionEnum.update),
+)
+const canReadSecret = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.orbit_secret?.includes(PermissionEnum.read),
+)
 const deploymentsStore = useDeploymentsStore()
 const secretsStore = useSecretsStore()
 const toast = useToast()

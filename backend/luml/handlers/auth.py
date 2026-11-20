@@ -5,7 +5,7 @@ from time import time
 from typing import Any
 from uuid import uuid4
 
-import httpx
+import httpx2
 import jwt
 from argon2 import (
     PasswordHasher,
@@ -23,6 +23,7 @@ from luml.infra.db import engine
 from luml.infra.exceptions import (
     AuthError,
     EmailDeliveryError,
+    RefreshTokenReusedError,
 )
 from luml.repositories.base import violates
 from luml.repositories.token_blacklist import TokenBlackListRepository
@@ -233,7 +234,7 @@ class AuthHandler:
             if not await self.__token_black_list_repository.add_token(
                 refresh_token, exp
             ):
-                raise AuthError("Token has been revoked", 400)
+                raise RefreshTokenReusedError
 
             return self._create_tokens(service_user.email, service_user.hashed_password)
 
@@ -368,7 +369,7 @@ class AuthHandler:
         if not self.oauth_provider:
             raise AuthError("OAuth provider is not configured for this handler", 500)
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx2.AsyncClient(timeout=10.0) as client:
             oauth_token = await self.oauth_provider.exchange_code_for_token(
                 client, code
             )

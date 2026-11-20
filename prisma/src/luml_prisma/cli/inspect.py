@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import typer
 from luml.experiments.backends.data_types import EvalRecord, Experiment
@@ -59,7 +59,8 @@ def _load_experiments(db: str) -> list[Experiment]:
 def _load_static_params(db: str, experiment_id: str) -> dict[str, Any]:
     tracker = _get_tracker(db)
     try:
-        return cast(dict[str, Any], tracker.get_experiment(experiment_id).static_params)
+        experiment = tracker.get_experiment(experiment_id)
+        return experiment.static_params if experiment is not None else {}
     except ValueError:
         return {}
 
@@ -67,7 +68,10 @@ def _load_static_params(db: str, experiment_id: str) -> dict[str, Any]:
 def _load_metrics(db: str, experiment_id: str) -> dict[str, list[MetricPoint]]:
     tracker = _get_tracker(db)
     try:
-        raw = tracker.get_experiment(experiment_id).dynamic_metrics
+        experiment = tracker.get_experiment(experiment_id)
+        if experiment is None:
+            return {}
+        raw = experiment.dynamic_metrics
     except ValueError:
         return {}
     return {

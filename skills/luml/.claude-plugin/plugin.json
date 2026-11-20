@@ -1,0 +1,6 @@
+{
+  "name": "luml",
+  "description": "Points the agent to the skills shipped with the installed LUML packages.",
+  "version": "0.1.0",
+  "author": { "name": "luml-ai" }
+}

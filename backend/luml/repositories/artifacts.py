@@ -389,7 +389,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         return True
 
     @staticmethod
-    def _get_cursor_from_record(  # type: ignore[override]
+    def _get_cursor_from_record(
         cursor_rec: ArtifactOrm,
         pagination: PaginationParams,
         is_extra_value: bool = False,

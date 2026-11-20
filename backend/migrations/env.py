@@ -32,7 +32,7 @@ def run_migrations_online() -> None:
     if connectable is None:
         config.set_main_option(
             "sqlalchemy.url",
-            MigrationSettings().POSTGRESQL_DSN,  # type: ignore[call-arg]
+            MigrationSettings().POSTGRESQL_DSN,
         )
         configuration = context.config.get_section(context.config.config_ini_section)
         if configuration is None:

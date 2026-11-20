@@ -7,6 +7,15 @@ const DATABASE_PREFIX = 'jl_'
 const FILES_STORE = 'files'
 const AVAILABLE_FILES_EXTENSIONS = ['.dfs', '.fnnx', '.pyfnx', '.luml']
 
+function decodeBase64(content: string) {
+  const binary = atob(content)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
 class DatabaseServiceClass {
   async getDatabases() {
     if (!indexedDB.databases) {
@@ -36,25 +45,29 @@ class DatabaseServiceClass {
   }
 
   async getDatabaseInfo(name: string): Promise<Notebook> {
-    let db = await openDB(name)
-    if (db.objectStoreNames.contains('meta')) {
-      const meta = await db.get('meta', 'info')
-      const files = await this.getLumlFiles(db)
-      const info = { name, version: db.version, ...meta, files }
-      db.close()
-      return info
-    }
+    const db = await openDB(name)
     const version = db.version
-    db.close()
-    db = await openDB(name, version + 1, {
+    try {
+      if (db.objectStoreNames.contains('meta')) {
+        const meta = await db.get('meta', 'info')
+        const files = await this.getLumlFiles(db)
+        return { name, version, ...meta, files }
+      }
+    } finally {
+      db.close()
+    }
+    const upgradedDb = await openDB(name, version + 1, {
+      blocked() {
+        console.warn(`db ${name} blocked`)
+      },
       upgrade(upgradeDb) {
         if (!upgradeDb.objectStoreNames.contains('meta')) {
           upgradeDb.createObjectStore('meta')
         }
       },
     })
-    db.close()
-    return { name, version: db.version }
+    upgradedDb.close()
+    return { name, version: upgradedDb.version }
   }
 
   async getDatabasesWithMetadata(): Promise<Notebook[]> {
@@ -73,28 +86,39 @@ class DatabaseServiceClass {
   async editDatabase(name: string, metadata: DatabaseMetadata) {
     const version = await this.getVersion(name)
     const db = await openDB(name, version + 1, {
+      blocked() {
+        console.warn(`db ${name} blocked`)
+      },
       upgrade(db) {
         if (!db.objectStoreNames.contains('meta')) {
           db.createObjectStore('meta')
         }
       },
     })
-    await db.put('meta', metadata, 'info')
-    db.close()
+    try {
+      await db.put('meta', metadata, 'info')
+    } finally {
+      db.close()
+    }
   }
 
   async createBackup(name: string) {
-    const db = await openDB(name)
     const metadata = await this.getDatabaseInfo(name)
+    const db = await openDB(name)
     const databaseName = metadata?.fullname || name
-    if (!db.objectStoreNames.contains(FILES_STORE)) {
+    let allFiles
+    try {
+      if (!db.objectStoreNames.contains(FILES_STORE)) {
+        throw new Error(`Database ${databaseName} not includes ${FILES_STORE} store`)
+      }
+      const tx = db.transaction(FILES_STORE, 'readonly')
+      const store = tx.objectStore(FILES_STORE)
+      allFiles = await store.getAll()
+    } finally {
       db.close()
-      throw new Error(`Database ${databaseName} not includes ${FILES_STORE} store`)
     }
-    const tx = db.transaction(FILES_STORE, 'readonly')
-    const store = tx.objectStore(FILES_STORE)
-    const allFiles = await store.getAll()
     const zip = new jszip()
+    const skippedFiles: string[] = []
 
     for (const file of allFiles) {
       const filePath = file.path || file.name
@@ -131,6 +155,8 @@ class DatabaseServiceClass {
           (typeof content === 'object' && content !== null && !(content instanceof Date))
         ) {
           fileData = JSON.stringify(content, null, 2)
+        } else if (format === 'base64' && typeof content === 'string') {
+          fileData = decodeBase64(content)
         } else if (typeof content === 'string') {
           fileData = content
         } else if (content === null || content === undefined || content === '') {
@@ -145,13 +171,13 @@ class DatabaseServiceClass {
         zip.file(cleanPath, fileData)
       } catch (e) {
         console.error(`Failed to process file ${filePath}:`, e)
+        skippedFiles.push(filePath)
         continue
       }
     }
 
     const fileCount = Object.keys(zip.files).length
     if (fileCount === 0) {
-      db.close()
       throw new Error('No files found to backup')
     }
 
@@ -163,7 +189,7 @@ class DatabaseServiceClass {
       compressionOptions: { level: 6 },
     })
     saveAs(zipBlob, `${databaseName}-backup.zip`)
-    db.close()
+    return skippedFiles
   }
 
   async getFileBlob(file: LumlFile) {

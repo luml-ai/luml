@@ -6,7 +6,7 @@ from typing import Any
 try:
     from opentelemetry import trace
 except ImportError:
-    trace = None  # type: ignore[assignment]
+    trace = None
 
 from luml.experiments.evaluation.scorers.base import (
     BaseScorer,
@@ -140,7 +140,10 @@ def _disambiguate_scorer_names(scorers: list[BaseScorer]) -> None:
             continue
         if not (hasattr(scorer, "_input_key") and hasattr(scorer, "_client")):
             continue
-        groups.setdefault(scorer.default_name(), []).append(scorer)  # type: ignore[attr-defined]
+        groups.setdefault(
+            scorer.default_name(),  # ty: ignore[missing-attribute]
+            [],
+        ).append(scorer)
 
     for base, group in groups.items():
         if len(group) < 2:
@@ -157,7 +160,7 @@ def _disambiguate_scorer_names(scorers: list[BaseScorer]) -> None:
                 parts.append(_NAME_PART_SANITIZER.sub("_", key_label))
             if use_model and model:
                 parts.append(_NAME_PART_SANITIZER.sub("_", model))
-            scorer._name = "_".join(parts)  # type: ignore[attr-defined]
+            scorer._name = "_".join(parts)
 
 
 def _run_traced_judge(
@@ -180,7 +183,7 @@ def _run_traced_judge(
         if model:
             span.set_attribute("eval.scorer.model", model)
         judgment = _call_judge(client, system_prompt, user_prompt)
-        result = scorer.parse_judgment(judgment)  # type: ignore[attr-defined]
+        result = scorer.parse_judgment(judgment)  # ty: ignore[missing-attribute]
         score_value = result.get(name)
         if isinstance(score_value, int | float) and not isinstance(score_value, bool):
             span.set_attribute("eval.scorer.score", float(score_value))

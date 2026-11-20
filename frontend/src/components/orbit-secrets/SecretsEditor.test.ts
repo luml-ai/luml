@@ -49,18 +49,18 @@ const secret: OrbitSecret = {
 }
 
 function mountEditor(
-  props: { visible?: boolean; secret?: OrbitSecret | null } = {},
+  props: { visible?: boolean; secret?: OrbitSecret | null; deleteAvailable?: boolean } = {},
   realForm = false,
 ) {
   return mount(SecretsEditor, {
-    props: { visible: true, secret, ...props },
+    props: { visible: true, secret, deleteAvailable: true, ...props },
     global: {
       plugins: [PrimeVue],
       stubs: {
         UiDialogRight: {
           props: ['footerActions'],
           template:
-            '<div><slot /><button data-testid="delete" @click="footerActions.leftButton.props.onClick()" /><button data-testid="save" :disabled="footerActions.rightButton.props.disabled" /></div>',
+            '<div><slot /><button v-if="footerActions.leftButton" data-testid="delete" @click="footerActions.leftButton.props.onClick()" /><button data-testid="save" :disabled="footerActions.rightButton.props.disabled" /></div>',
         },
         Form: realForm ? false : { name: 'Form', template: '<form><slot /></form>' },
         InputText: realForm
@@ -354,4 +354,16 @@ describe('SecretsEditor key field', () => {
 
     expect(wrapper.get('#value').attributes('placeholder')).toBe(SECRET_MASK)
   })
+})
+
+it('hides secret deletion without delete permission and reacts to permission changes', async () => {
+  const wrapper = mountEditor({ deleteAvailable: false })
+  await flushPromises()
+  expect(wrapper.find('[data-testid="delete"]').exists()).toBe(false)
+  await wrapper.setProps({ deleteAvailable: true })
+  expect(wrapper.find('[data-testid="delete"]').exists()).toBe(true)
+  await wrapper.setProps({ deleteAvailable: false })
+  expect(wrapper.find('[data-testid="delete"]').exists()).toBe(false)
+  expect(mocks.deleteSecret).not.toHaveBeenCalled()
+  wrapper.unmount()
 })

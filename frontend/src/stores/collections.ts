@@ -15,6 +15,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   const creatorVisible = ref(false)
   const collectionsTags = ref<string[]>([])
   let currentCollectionRequest = 0
+  let collectionsTagsRequest = 0
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -84,9 +85,11 @@ export const useCollectionsStore = defineStore('collections', () => {
   }
 
   function reset() {
-    collectionsList.value = []
     currentCollection.value = null
+    collectionsTagsRequest++
+    collectionsList.value = []
     collectionsTags.value = []
+    creatorVisible.value = false
   }
 
   function showCreator() {
@@ -106,9 +109,10 @@ export const useCollectionsStore = defineStore('collections', () => {
   }
 
   async function getCollectionsTags(requestData?: typeof requestInfo.value) {
+    const requestId = ++collectionsTagsRequest
     const info = requestData ?? requestInfo.value
     const tags = await api.orbitCollections.getCollectionsTags(info.organizationId, info.orbitId)
-    collectionsTags.value = tags
+    if (requestId === collectionsTagsRequest) collectionsTags.value = tags
   }
 
   return {

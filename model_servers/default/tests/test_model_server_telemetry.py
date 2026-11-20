@@ -129,7 +129,7 @@ class TestModelServerTelemetry:
 
     # --- base service headers ---
     async def test_post_handler_receives_headers(self) -> None:
-        from services.base_service import UvicornBaseService  # type: ignore[import-not-found]
+        from services.base_service import UvicornBaseService
 
         app = UvicornBaseService()
         captured: dict[str, str] = {}

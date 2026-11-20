@@ -204,7 +204,7 @@ const visible = defineModel<boolean>('visible')
 
 const relayOptions = computed(() => getRelayOptions(relaysStore.relays))
 
-const resolver = orbitCreatorResolver(orbitsStore.orbitsList)
+const resolver = computed(() => orbitCreatorResolver(orbitsStore.orbitsList))
 
 const initialValues = ref<Partial<CreateOrbitPayload>>({
   name: '',

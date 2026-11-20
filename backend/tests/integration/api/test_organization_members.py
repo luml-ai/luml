@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 from luml.handlers.organizations import OrganizationHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.security import JWTAuthenticationBackend

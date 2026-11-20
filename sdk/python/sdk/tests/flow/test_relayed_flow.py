@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -6,12 +8,14 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from types import FrameType
 
-import httpx
+import httpx2
 import pytest
+from luml_api import APIConnectionError, AsyncLumlClient
 from luml_relay.agent import LoopbackService
 
 import luml.flow as flow_module
@@ -23,10 +27,12 @@ from tests.flow.fakes import (
     SESSION_ID,
     FakeClients,
     FakeServing,
+    exposed_flow,
     free_port,
     local_server,
     write_stub_lumlflow,
 )
+from tests.platforms import posix_only, windows_only
 
 SDK_ROOT = Path(__file__).resolve().parents[2]
 
@@ -54,7 +60,14 @@ def clients(monkeypatch: pytest.MonkeyPatch) -> FakeClients:
 @pytest.fixture
 def serving(monkeypatch: pytest.MonkeyPatch) -> FakeServing:
     fake = FakeServing()
+
+    class RecordingClient(AsyncLumlClient):
+        async def aclose(self) -> None:
+            fake.closed += 1
+            await super().aclose()
+
     monkeypatch.setattr(flow_module, "serve_session", fake)
+    monkeypatch.setattr(flow_module, "AsyncLumlClient", RecordingClient)
     return fake
 
 
@@ -88,12 +101,18 @@ def stub_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     record = tmp_path / "lumlflow-starts.jsonl"
     stub_directory = tmp_path / "bin"
     write_stub_lumlflow(stub_directory)
-    monkeypatch.setenv("PATH", str(stub_directory))
+    if sys.platform == "win32":
+        system_root = os.environ.get("SYSTEMROOT", r"C:\Windows")
+        system32 = os.path.join(system_root, "system32")
+        new_path = os.pathsep.join([str(stub_directory), system32, system_root])
+        monkeypatch.setenv("PATH", new_path)
+    else:
+        monkeypatch.setenv("PATH", str(stub_directory))
     monkeypatch.setenv("STUB_LUMLFLOW_RECORD", str(record))
     yield record
     for start in _stub_starts(record):
         if _alive(start["pid"]):
-            os.kill(start["pid"], signal.SIGKILL)
+            os.kill(start["pid"], getattr(signal, "SIGKILL", signal.SIGTERM))
 
 
 @pytest.fixture
@@ -110,6 +129,20 @@ def _stub_starts(record: Path) -> list[dict]:
 
 
 def _alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x0400, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            return exit_code.value == 259
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -119,8 +152,8 @@ def _alive(pid: int) -> bool:
 
 def _answers(port: int) -> bool:
     try:
-        httpx.get(f"http://127.0.0.1:{port}/api/auth/status", trust_env=False)
-    except httpx.ConnectError:
+        httpx2.get(f"http://127.0.0.1:{port}/api/auth/status", trust_env=False)
+    except httpx2.ConnectError:
         return False
     return True
 
@@ -129,7 +162,7 @@ def _groups_status(port: int, session_token: str | None) -> int:
     headers = (
         {} if session_token is None else {"Authorization": f"Bearer {session_token}"}
     )
-    return httpx.get(
+    return httpx2.get(
         f"http://127.0.0.1:{port}/api/groups", headers=headers, trust_env=False
     ).status_code
 
@@ -154,12 +187,16 @@ def test_started_lumlflow_is_exposed_and_stopped_with_the_block(
         assert clients.flows.removed == []
         assert serving.served == [(SESSION_ID, ORGANIZATION_ID, ORBIT_ID)]
         assert flow.app_url == APP_URL
+        assert clients.created[0].close_calls == 0
+        assert serving.closed == 0
         assert f"Flow training is live at {APP_URL}" in capsys.readouterr().out
 
     assert clients.setups == [{"organization": "Lab", "orbit": "Experiments"}]
     assert clients.live_sessions.ended == [SESSION_ID]
     assert clients.flows.removed == []
     assert serving.cancelled == 1
+    assert clients.created[0].close_calls == 1
+    assert serving.closed == 1
     [start] = _stub_starts(stub_record)
     assert start["argv"] == [
         "ui",
@@ -226,6 +263,7 @@ def test_running_lumlflow_with_a_token_needs_session_token(
             RelayedFlow("training", port=port, session_token="other").start()
 
     assert clients.flows.exposed == []
+    assert [client.close_calls for client in clients.created] == [1, 1]
 
 
 @pytest.mark.usefixtures("no_lumlflow")
@@ -257,6 +295,29 @@ def test_port_in_use_fails_before_anything_is_created(
 
     assert clients.flows.exposed == []
     assert _stub_starts(stub_record) == []
+    assert clients.created[0].close_calls == 1
+
+
+@pytest.mark.usefixtures("clients", "serving")
+def test_connection_timeout_on_a_free_port_starts_lumlflow(
+    port: int, stub_record: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    get = httpx2.get
+    probed: list[str] = []
+
+    def timing_out_once(url: str, **options) -> httpx2.Response:
+        probed.append(url)
+        if len(probed) == 1:
+            raise httpx2.ConnectTimeout("timed out")
+        return get(url, **options)
+
+    monkeypatch.setattr(httpx2, "get", timing_out_once)
+
+    with RelayedFlow("training", port=port):
+        assert _answers(port)
+
+    assert len(_stub_starts(stub_record)) == 1
+    assert not _answers(port)
 
 
 @pytest.mark.usefixtures("serving", "no_lumlflow")
@@ -265,12 +326,17 @@ def test_missing_lumlflow_says_to_install_it(clients: FakeClients, port: int) ->
         RelayedFlow("training", port=port).start()
 
     assert clients.flows.exposed == []
+    assert clients.created[0].close_calls == 1
 
 
 @pytest.mark.usefixtures("stub_record")
 def test_explicit_start_and_stop_across_cells(
     clients: FakeClients, serving: FakeServing, port: int
 ) -> None:
+    def on_end(session_id: str) -> None:
+        assert clients.created[0].close_calls == 0
+
+    clients.live_sessions.on_end = on_end
     flow = RelayedFlow("training", port=port)
 
     assert flow.start() == APP_URL
@@ -284,6 +350,8 @@ def test_explicit_start_and_stop_across_cells(
     assert clients.live_sessions.live == set()
     assert clients.flows.removed == []
     assert serving.cancelled == 1
+    assert clients.created[0].close_calls == 1
+    assert serving.closed == 1
     with pytest.raises(RelayedFlowError, match="already started"):
         flow.start()
 
@@ -308,6 +376,206 @@ def test_failed_serving_raises_its_cause_and_cleans_up(
 
     assert clients.live_sessions.ended == [SESSION_ID]
     assert not _answers(port)
+    assert clients.created[0].close_calls == 1
+    assert serving.closed == 1
+
+
+@pytest.mark.parametrize("missing", ["organization", "orbit"])
+def test_unresolved_client_is_closed_on_failed_start(
+    clients: FakeClients, missing: str
+) -> None:
+    setattr(clients, missing, None)
+
+    with pytest.raises(RelayedFlowError, match="several organizations or orbits"):
+        RelayedFlow("training").start()
+
+    assert clients.created[0].close_calls == 1
+    assert clients.flows.exposed == []
+
+
+@pytest.mark.parametrize("error", [RuntimeError("failed"), KeyboardInterrupt()])
+@pytest.mark.usefixtures("stub_record")
+def test_expose_failure_closes_client_and_stops_lumlflow(
+    clients: FakeClients,
+    port: int,
+    monkeypatch: pytest.MonkeyPatch,
+    error: BaseException,
+) -> None:
+    def fail(name: str) -> None:
+        raise error
+
+    monkeypatch.setattr(clients.flows, "expose", fail)
+
+    with pytest.raises(type(error)):
+        RelayedFlow("training", port=port).start()
+
+    assert clients.created[0].close_calls == 1
+    assert not _answers(port)
+
+
+@pytest.mark.parametrize("stage", ["register", "print"])
+def test_failure_after_exposure_keeps_flow_running_until_stopped(
+    clients: FakeClients,
+    serving: FakeServing,
+    port: int,
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+) -> None:
+    flow = RelayedFlow("training", port=port)
+
+    def fail(*args, **kwargs) -> None:
+        raise RuntimeError("start failed")
+
+    if stage == "register":
+        monkeypatch.setattr(flow, "_register_cleanup", fail)
+    else:
+        monkeypatch.setattr(flow_module, "print", fail, raising=False)
+
+    with local_server(port, answers_as_lumlflow=True):
+        with pytest.raises(RuntimeError, match="start failed"):
+            flow.start()
+
+        assert flow._running
+        assert clients.live_sessions.ended == []
+        assert clients.created[0].close_calls == 0
+        assert serving.closed == 0
+
+        flow.stop()
+
+    assert clients.live_sessions.ended == [SESSION_ID]
+    assert clients.created[0].close_calls == 1
+    assert serving.closed == 1
+    assert not flow._running
+
+
+@pytest.mark.parametrize("stage", ["session", "serving"])
+def test_stopping_releases_started_lumlflow_when_cleanup_fails(
+    clients: FakeClients,
+    serving: FakeServing,
+    port: int,
+    stub_record: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+) -> None:
+    flow = RelayedFlow("training", port=port)
+    flow.start()
+    assert _answers(port)
+    if stage == "session":
+        clients.live_sessions.end_error = RuntimeError("cleanup failed")
+    else:
+        assert flow._serving is not None
+        stop = flow._serving.stop
+
+        def fail() -> None:
+            stop()
+            raise RuntimeError("cleanup failed")
+
+        monkeypatch.setattr(flow._serving, "stop", fail)
+
+    with pytest.raises(RuntimeError, match="cleanup failed"):
+        flow.stop()
+
+    assert serving.cancelled == 1
+    assert serving.closed == 1
+    assert clients.created[0].close_calls == 1
+    [start] = _stub_starts(stub_record)
+    assert not _alive(start["pid"])
+    assert not _answers(port)
+    assert flow_module._started_lumlflows == {}
+
+
+def test_stopping_closes_client_when_serving_cleanup_fails(
+    clients: FakeClients,
+    serving: FakeServing,
+    port: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with local_server(port, answers_as_lumlflow=True):
+        flow = RelayedFlow("training", port=port)
+        flow.start()
+        assert flow._serving is not None
+        stop = flow._serving.stop
+
+        def fail() -> None:
+            stop()
+            raise RuntimeError("cleanup failed")
+
+        monkeypatch.setattr(flow._serving, "stop", fail)
+        with pytest.raises(RuntimeError, match="cleanup failed"):
+            flow.stop()
+
+    assert clients.live_sessions.ended == [SESSION_ID]
+    assert clients.created[0].close_calls == 1
+    assert serving.closed == 1
+
+
+@pytest.mark.parametrize("ending", ["return", "error", "cancel"])
+def test_serving_closes_client_when_it_ends(
+    serving: FakeServing, ending: str, port: int
+) -> None:
+    async def run() -> None:
+        connected = asyncio.Event()
+        task = asyncio.create_task(
+            flow_module._serve(
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                exposed_flow("training").session,
+                port,
+                None,
+                connected,
+            )
+        )
+        if ending == "error":
+            serving.failure = RuntimeError("serving failed")
+            with pytest.raises(RuntimeError, match="serving failed"):
+                await task
+        else:
+            await asyncio.wait_for(connected.wait(), timeout=5)
+            assert serving.closed == 0
+            if ending == "cancel":
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            else:
+                assert serving._ended is not None
+                serving._ended.set()
+                await task
+
+    asyncio.run(run())
+
+    assert serving.closed == 1
+
+
+@pytest.mark.parametrize("stage", ["create", "close"])
+def test_serving_closes_client_when_loopback_service_fails(
+    serving: FakeServing, stage: str, port: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FailingService(LoopbackService):
+        def __init__(self, *args, **kwargs) -> None:
+            if stage == "create":
+                raise RuntimeError("service failed")
+            super().__init__(*args, **kwargs)
+
+        async def aclose(self) -> None:
+            await super().aclose()
+            raise RuntimeError("service failed")
+
+    monkeypatch.setattr(flow_module, "LoopbackService", FailingService)
+    serving.failure = RuntimeError("serving failed")
+
+    with pytest.raises(RuntimeError, match="service failed"):
+        asyncio.run(
+            flow_module._serve(
+                ORGANIZATION_ID,
+                ORBIT_ID,
+                exposed_flow("training").session,
+                port,
+                None,
+                asyncio.Event(),
+            )
+        )
+
+    assert serving.closed == 1
 
 
 @pytest.mark.usefixtures("serving", "stub_record")
@@ -355,13 +623,23 @@ def test_stopping_after_luml_ended_the_session_stops_local_parts(
 
 
 @pytest.mark.usefixtures("stub_record")
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx2.ConnectError("LUML is down"),
+        APIConnectionError(
+            "LUML is down", httpx2.Request("DELETE", "https://example.com"), body=None
+        ),
+    ],
+)
 def test_unreachable_luml_on_stop_still_stops_local_parts(
+    error: Exception,
     clients: FakeClients,
     serving: FakeServing,
     port: int,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    clients.live_sessions.end_error = httpx.ConnectError("LUML is down")
+    clients.live_sessions.end_error = error
 
     with caplog.at_level(logging.WARNING), RelayedFlow("training", port=port):
         pass
@@ -403,6 +681,50 @@ def test_no_interruption_handler_is_installed(port: int) -> None:
         assert signal.getsignal(signal.SIGINT) == before
 
 
+PROCESS_TREE_SCRIPT = """
+import subprocess, sys
+
+server = (
+    "import sys;"
+    "from http.server import BaseHTTPRequestHandler, HTTPServer;"
+    "address = ('127.0.0.1', int(sys.argv[1]));"
+    "HTTPServer(address, BaseHTTPRequestHandler).serve_forever()"
+)
+child = subprocess.Popen([sys.executable, "-c", server, sys.argv[1]])
+print(child.pid, flush=True)
+child.wait()
+"""
+
+
+@windows_only
+def test_free_port_is_not_taken_for_a_server_that_is_not_flow(port: int) -> None:
+    assert flow_module._lumlflow_answers(port) is False
+
+
+@windows_only
+def test_stopping_lumlflow_stops_the_processes_it_started(port: int) -> None:
+    with subprocess.Popen(
+        [sys.executable, "-c", PROCESS_TREE_SCRIPT, str(port)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        assert process.stdout is not None
+        child = int(process.stdout.readline())
+        try:
+            deadline = time.monotonic() + 30
+            while not _answers(port):
+                assert time.monotonic() < deadline
+                time.sleep(0.1)
+
+            flow_module._stop_process(process)
+
+            assert not _answers(port)
+        finally:
+            process.kill()
+            with contextlib.suppress(OSError):
+                os.kill(child, signal.SIGTERM)
+
+
 EXITING_SCRIPT = """
 import os, signal, sys, time
 
@@ -431,7 +753,10 @@ raise RuntimeError("training failed")
 
 @pytest.mark.parametrize(
     ("ending", "returncode"),
-    [("terminate", -signal.SIGTERM), ("error", 1)],
+    [
+        pytest.param("terminate", -signal.SIGTERM, marks=posix_only),
+        ("error", 1),
+    ],
 )
 def test_process_end_ends_only_its_own_session_once_and_stops_lumlflow(
     ending: str, returncode: int, port: int, stub_record: Path, tmp_path: Path

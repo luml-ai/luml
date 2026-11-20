@@ -68,7 +68,7 @@ class RunHandler:
             root_payload={"prompt": body.objective},
             base_branch=body.base_branch,
         )
-        return self._runs.get(run_id)  # type: ignore[return-value]
+        return self.get(run_id)
 
     def list_all(
         self, repository_id: str | None = None,
@@ -85,17 +85,17 @@ class RunHandler:
         if not self._runs.get(run_id):
             raise RunNotFoundError
         await self._engine.start_run(run_id)
-        return self._runs.get(run_id)  # type: ignore[return-value]
+        return self.get(run_id)
 
     async def cancel(self, run_id: str) -> RunOrm:
         if not self._runs.get(run_id):
             raise RunNotFoundError
         await self._engine.cancel_run(run_id)
-        run = self._runs.get(run_id)
+        run = self.get(run_id)
         if self._upload_queue:
             self._upload_queue.cancel_pending(run_id)
         await self._cleanup_run_worktrees(run_id, force=True)
-        return run  # type: ignore[return-value]
+        return run
 
     async def restart(self, run_id: str) -> RunOrm:
         run = self._runs.get(run_id)
@@ -111,7 +111,7 @@ class RunHandler:
                 f"{run.status}"
             )
         await self._engine.restart_run(run_id)
-        return self._runs.get(run_id)  # type: ignore[return-value]
+        return self.get(run_id)
 
     async def delete(self, run_id: str) -> None:
         run = self._runs.get(run_id)

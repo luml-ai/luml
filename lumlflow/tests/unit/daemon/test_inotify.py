@@ -27,7 +27,7 @@ def _group(root: Path) -> Any:
     from lumlflow.flow.daemon.inotify import TolerantWatchGroup
 
     return TolerantWatchGroup(
-        _FakeInotifyFD(),  # type: ignore[arg-type]
+        _FakeInotifyFD(),
         os.fsencode(root),
         is_recursive=True,
     )

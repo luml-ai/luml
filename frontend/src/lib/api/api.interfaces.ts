@@ -120,7 +120,7 @@ export interface Invitation {
 
 export interface CreateOrganizationPayload {
   name: string
-  logo: string
+  logo?: string | null
 }
 
 export interface CreateOrganizationResponse {
@@ -234,6 +234,9 @@ export interface OrbitPermissions {
   artifact: PermissionEnum
   collection: PermissionEnum
   track: PermissionEnum
+  deployment?: PermissionEnum[]
+  satellite?: PermissionEnum[]
+  orbit_secret?: PermissionEnum[]
 }
 
 export enum PermissionEnum {

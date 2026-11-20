@@ -1,0 +1,79 @@
+name: Publish Model Server Image
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "satellite/model-server/v*"
+    paths:
+      - model_servers/default/**
+      - satellite/.env.example
+      - satellite/docker-compose.yml
+      - '.github/workflows/*model-server*publish-image.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-model-server-image-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  GHCR_REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-model-server
+
+jobs:
+  tests:
+    uses: "./.github/workflows/[model-server] tests-and-linters.yml"
+
+  resolve-image-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set.outputs.image_tag }}
+    steps:
+      - id: set
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+
+            if [[ ! "$TAG" =~ ^satellite/model-server/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "Unsupported release tag: $TAG" >&2
+              exit 1
+            fi
+
+            echo "image_tag=${TAG##*/}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "${{ github.ref_name }}" in
+            main)
+              echo "image_tag=dev" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported publish branch: ${{ github.ref_name }}; staging and production are promoted by [images] promote.yml" >&2
+              exit 1
+              ;;
+          esac
+
+  push-image:
+    needs: [resolve-image-tag, tests]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: model_servers/default
+          file: model_servers/default/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:${{ needs.resolve-image-tag.outputs.image_tag }}

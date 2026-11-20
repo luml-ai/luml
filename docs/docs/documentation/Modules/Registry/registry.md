@@ -8,7 +8,7 @@ title: Registry
 
 The Registry is the centralized repository within the LUML platform, designed for the storage, versioning, and management of artifacts. While the architecture supports the storage of any object type, the module's primary purpose is the management of machine learning artifacts throughout their lifecycle.
 
-It serves as the single source of truth for all assets created in Notebooks, trained via Express Tasks, or imported from external sources.
+It serves as the single source of truth for all assets created in Jupyter Lite, trained via Express Tasks, or imported from external sources.
 
 ## Storage Formats
 

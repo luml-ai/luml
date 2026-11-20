@@ -12,6 +12,8 @@ and fast.
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -31,6 +33,8 @@ from lumlflow.tui.widgets.attachments_panel import (
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
 from lumlflow.tui.widgets.save_file_dialog import SaveFileDialog
 from textual.widgets import Input, Static, Tree
+
+from tests.helpers.tui import settle_workers
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -423,6 +427,70 @@ class TestLargeFileGuard:
 
 
 class TestSaveToDisk:
+    @pytest.mark.parametrize("destination_kind", ["new", "existing", "directory"])
+    async def test_queued_save_survives_panel_detach(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        destination_kind: str,
+    ) -> None:
+        exp_id = _seed_experiment_with_attachments(tracker)
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        target = tmp_path / "saved.json"
+        if destination_kind == "existing":
+            target.write_bytes(b"original")
+        elif destination_kind == "directory":
+            target.mkdir()
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            panel = await _open_attachments_tab(app, facade, exp_id, pilot)
+            await settle_workers(pilot)
+            run_worker = panel.run_worker
+
+            def delay_worker(work, *args, **kwargs):
+                def delayed():
+                    started.set()
+                    try:
+                        assert release.wait(10), "save was never released"
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(delayed, *args, **kwargs)
+
+            monkeypatch.setattr(panel, "run_worker", delay_worker)
+            panel._save_to_disk("config.json", str(target))
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                await app.pop_screen()
+                await pilot.pause()
+                assert not panel.is_attached
+                show_toast = Mock()
+                push_screen = Mock()
+                monkeypatch.setattr(app, "show_toast", show_toast)
+                monkeypatch.setattr(app, "push_screen", push_screen)
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            await pilot.pause()
+            show_toast.assert_not_called()
+            push_screen.assert_not_called()
+        if destination_kind == "new":
+            assert b"lr" in target.read_bytes()
+        elif destination_kind == "existing":
+            assert target.read_bytes() == b"original"
+        else:
+            assert target.is_dir()
+
     async def test_save_action_opens_dialog(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
@@ -464,12 +532,7 @@ class TestSaveToDisk:
             await pilot.pause()
             target = tmp_path / "saved_config.json"
             panel._on_save_dest(str(target), "config.json")
-            # Wait for the worker to finish writing.
-            for _ in range(20):
-                await pilot.pause()
-                if target.exists():
-                    break
-            assert target.exists()
+            await settle_workers(pilot)
             assert b"lr" in target.read_bytes()
             assert not isinstance(app.screen, ConfirmDialog)
 
@@ -518,7 +581,7 @@ class TestSaveToDisk:
             )
             assert app.screen.confirm_label == "Overwrite"
             assert target.read_bytes() == b"original content"
-            await pilot.press("enter" if confirm else "escape")
+            await pilot.press("ctrl+y" if confirm else "escape")
             await app.workers.wait_for_complete()
             await pilot.pause()
             assert not isinstance(app.screen, ConfirmDialog)

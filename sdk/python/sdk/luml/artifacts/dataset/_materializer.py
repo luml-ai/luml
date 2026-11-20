@@ -19,7 +19,7 @@ from luml.artifacts.dataset._reference import DatasetReference
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from datasets import Dataset, DatasetDict  # type: ignore[import-untyped]
+    from datasets import Dataset, DatasetDict
 
 _DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "luml" / "datasets"
 
@@ -43,6 +43,15 @@ def load_dataset(
 
     manifest = reference.get_manifest()
     return MaterializedDataset(manifest, cache_dir)
+
+
+def _is_newer_version(candidate: str, installed: str) -> bool:
+    from packaging.version import InvalidVersion, Version
+
+    try:
+        return Version(candidate) > Version(installed)
+    except InvalidVersion:
+        return False
 
 
 class MaterializedDataset:
@@ -221,9 +230,10 @@ class MaterializedDataset:
         splits: list[str],
     ) -> DatasetDict:
         try:
-            from datasets import (  # type: ignore[import-untyped]
+            from datasets import (
                 Dataset,
                 DatasetDict,
+                __version__ as installed_version,
                 load_from_disk,
             )
         except ImportError:
@@ -243,7 +253,18 @@ class MaterializedDataset:
 
         data_dir = self._cache_dir / payload.data_dir
         config_path = data_dir / config
-        loaded = load_from_disk(str(config_path))
+        try:
+            loaded = load_from_disk(str(config_path))
+        except ValueError as error:
+            saved_version = payload.library_version
+            if not _is_newer_version(saved_version, installed_version):
+                raise
+            msg = (
+                f"Config '{config}' was saved with datasets {saved_version} and "
+                f"cannot be read by the installed datasets {installed_version}. "
+                f"Upgrade with: pip install 'datasets>={saved_version}'"
+            )
+            raise ValueError(msg) from error
 
         if isinstance(loaded, DatasetDict):
             return loaded

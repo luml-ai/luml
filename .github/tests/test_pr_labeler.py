@@ -95,7 +95,7 @@ class PRLabelerTests(unittest.TestCase):
 
     def test_files_outside_packages(self):
         cases = {
-            ".github/workflows/deploy-backend.yml": {"ci"},
+            ".github/workflows/[backend] deploy.yml": {"ci"},
             "satellite/docker-compose.yml": {"satellite"},
             "wasm/build.sh": {"wasm"},
             "dev/seed.py": {"dev"},
@@ -115,6 +115,18 @@ class PRLabelerTests(unittest.TestCase):
             labels_for(["sdk/python/api/luml_api/client.py", "sdk/python/sdk/luml/flow.py"]),
             {"sdk-api", "SDK"},
         )
+
+    def test_labels_follow_the_current_diff_after_every_push(self):
+        workflow = load("[repo] pr-labeler.yml")
+        self.assertIn("synchronize", workflow["on"]["pull_request_target"]["types"])
+        labelers = [
+            step
+            for job in workflow["jobs"].values()
+            for step in job["steps"]
+            if step.get("uses", "").startswith("actions/labeler@")
+        ]
+        self.assertEqual(len(labelers), 1)
+        self.assertEqual(labelers[0]["with"]["sync-labels"], "true")
 
     def test_workflow_never_runs_pull_request_code(self):
         workflow = load("[repo] pr-labeler.yml")

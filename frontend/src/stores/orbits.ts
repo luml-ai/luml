@@ -111,7 +111,7 @@ export const useOrbitsStore = defineStore('orbit', () => {
   function updatedOrbitsList(list: Orbit[], orbit: Orbit) {
     return list.map((savedOrbit) => {
       if (savedOrbit.id !== orbit.id) return savedOrbit
-      return orbit
+      return { ...savedOrbit, ...orbit, permissions: orbit.permissions ?? savedOrbit.permissions }
     })
   }
 

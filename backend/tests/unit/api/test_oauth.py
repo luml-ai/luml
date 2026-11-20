@@ -5,7 +5,6 @@ from urllib.parse import parse_qs, urlparse
 import jwt
 import pytest
 from fastapi.testclient import TestClient
-from httpx import URL
 from luml.api import auth
 from luml.handlers.auth import AuthHandler
 from luml.schemas.auth import OAuthLogin, Token
@@ -21,7 +20,7 @@ def provider(request: pytest.FixtureRequest) -> str:
 
 @pytest.fixture
 def oauth_client(client: TestClient) -> TestClient:
-    client.base_url = URL("https://testserver")
+    client.base_url = "https://testserver"
     return client
 
 

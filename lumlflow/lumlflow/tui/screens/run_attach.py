@@ -37,6 +37,7 @@ from textual.containers import Container
 from textual.timer import Timer
 from textual.widgets import Static
 
+from lumlflow.tui._facade import resolve_facade
 from lumlflow.tui.data import DataFacade
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.run_manager import RunManager, RunSpec
@@ -112,6 +113,7 @@ class RunAttachScreen(BaseScreen):
         self._auto_navigate = auto_navigate
         self._run: RunManager | None = None
         self._poll_timer: Timer | None = None
+        self._poll_lock = asyncio.Lock()
         self._elapsed_polling: float = 0.0
         self._attached_id: str | None = None
         self._attach_announced: bool = False
@@ -122,7 +124,7 @@ class RunAttachScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="run-body"):
             yield Static("", id="run-meta")
             yield RunLogPane(id="run-log")
@@ -165,9 +167,7 @@ class RunAttachScreen(BaseScreen):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        return getattr(self.app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -230,51 +230,60 @@ class RunAttachScreen(BaseScreen):
             # tracker may not have flushed yet.
             self.set_timer(0.1, self._maybe_report_no_experiment)
 
-    def _maybe_report_no_experiment(self) -> None:
+    @work(group="run-attach-final")
+    async def _maybe_report_no_experiment(self) -> None:
         if self._attached_id is not None:
             return
-        # Try one more attach cycle synchronously. After the child has
+        # Try one more attach cycle. After the child has
         # exited, a fast-running script's experiment may have already
         # flipped from `active` → `completed`/`error`; relax the active
         # filter so we still attach to *something* the child produced
         # rather than reporting "no experiment was created" when one
         # plainly was.
-        self._tick_attach(require_active=False)
+        await self._poll_attach(require_active=False)
         if self._attached_id is not None:
             return
         self._announce_no_experiment()
 
     # ----- attach polling -----
 
-    def _tick_attach(self, *, require_active: bool = True) -> None:
-        run = self._run
-        if run is None:
-            return
-        if self._attached_id is not None:
-            self._stop_polling()
-            return
-        candidates = run.detect_new_experiments(require_active=require_active)
-        if not candidates:
-            self._elapsed_polling += self._attach_poll_seconds
-            if self._elapsed_polling >= self._attach_timeout:
+    @work(group="run-attach-poll")
+    async def _tick_attach(self) -> None:
+        if not self._poll_lock.locked():
+            await self._poll_attach()
+
+    async def _poll_attach(self, *, require_active: bool = True) -> None:
+        async with self._poll_lock:
+            run = self._run
+            if run is None:
+                return
+            if self._attached_id is not None:
                 self._stop_polling()
-                self._announce_no_experiment()
-            return
-        # First candidate becomes the attach target; the rest get
-        # surfaced as a toast so the user can switch to them.
-        self._attached_id = candidates[0]
-        self._extra_new_ids = candidates[1:]
-        self._stop_polling()
-        self._announce_attached(candidates[0])
-        if self._extra_new_ids:
-            self._lumlflow_app.show_toast(
-                f"{len(self._extra_new_ids)} additional new experiment(s) — "
-                "open from the experiments list.",
-                severity="info",
-                duration=4.0,
+                return
+            candidates = await asyncio.to_thread(
+                run.detect_new_experiments, require_active=require_active
             )
-        if self._auto_navigate:
-            self._navigate_to_detail(candidates[0])
+            if not candidates:
+                self._elapsed_polling += self._attach_poll_seconds
+                if self._elapsed_polling >= self._attach_timeout:
+                    self._stop_polling()
+                    self._announce_no_experiment()
+                return
+            # First candidate becomes the attach target; the rest get
+            # surfaced as a toast so the user can switch to them.
+            self._attached_id = candidates[0]
+            self._extra_new_ids = candidates[1:]
+            self._stop_polling()
+            self._announce_attached(candidates[0])
+            if self._extra_new_ids:
+                self._lumlflow_app.show_toast(
+                    f"{len(self._extra_new_ids)} additional new experiment(s) — "
+                    "open from the experiments list.",
+                    severity="info",
+                    duration=4.0,
+                )
+            if self._auto_navigate:
+                self._navigate_to_detail(candidates[0])
 
     def _stop_polling(self) -> None:
         if self._poll_timer is not None:

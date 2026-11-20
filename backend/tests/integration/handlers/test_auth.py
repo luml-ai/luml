@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from unittest.mock import patch
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 from luml.handlers.auth import AuthHandler
 from luml.repositories.token_blacklist import TokenBlackListRepository
 from luml.repositories.users import UserRepository
@@ -45,6 +45,78 @@ async def signin(client: AsyncClient, email: str, password: str) -> tuple[str, s
     )
     assert response.status_code == 200
     return client.cookies["access_token"], client.cookies["refresh_token"]
+
+
+class TestSessionRecovery:
+    @pytest.mark.parametrize("access_cookie", ["missing", "expired", "invalid"])
+    async def test_session_check_recovers_with_valid_refresh_cookie(
+        self, client: AsyncClient, new_user: CreateUser, access_cookie: str
+    ) -> None:
+        _, refresh = await signin(client, new_user.email, PASSWORD)
+        client.cookies.delete("access_token")
+        if access_cookie == "expired":
+            expired = AuthHandler(
+                secret_key=config.AUTH_SECRET_KEY, access_token_expire=-1
+            )._create_tokens(new_user.email, new_user.hashed_password)
+            client.cookies.set(
+                "access_token", expired.access_token, domain="testserver.local"
+            )
+        elif access_cookie == "invalid":
+            client.cookies.set(
+                "access_token", "invalid-access-token", domain="testserver.local"
+            )
+
+        response = await client.get("/v1/auth/users/me")
+
+        assert response.status_code == 401
+        assert response.json() == {"detail": "Session refresh required"}
+        response = await client.post("/v1/auth/refresh")
+        assert response.status_code == 200
+        assert client.cookies["refresh_token"] != refresh
+        response = await client.get("/v1/auth/users/me")
+        assert response.status_code == 200
+        assert response.json()["email"] == new_user.email
+
+    async def test_failed_refresh_drops_a_revoked_session(
+        self, client: AsyncClient, new_user: CreateUser
+    ) -> None:
+        _, refresh = await signin(client, new_user.email, PASSWORD)
+        response = await client.post(
+            "/v1/auth/change-password",
+            json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+        )
+        assert response.status_code == 200
+        client.cookies.clear()
+        client.cookies.set("refresh_token", refresh, domain="testserver.local")
+
+        response = await client.get("/v1/auth/users/me")
+        assert response.json() == {"detail": "Session refresh required"}
+        response = await client.post("/v1/auth/refresh")
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Token has been revoked"}
+        assert "refresh_token" not in client.cookies
+        response = await client.get("/v1/auth/users/me")
+        assert response.status_code == 401
+        assert response.json() == {"detail": "Not authenticated"}
+
+    async def test_losing_a_concurrent_refresh_keeps_the_rotated_session(
+        self, client: AsyncClient, new_user: CreateUser
+    ) -> None:
+        _, refresh = await signin(client, new_user.email, PASSWORD)
+        assert (await client.post("/v1/auth/refresh")).status_code == 200
+        rotated = client.cookies["refresh_token"]
+
+        response = await client.post(
+            "/v1/auth/refresh", headers={"Cookie": f"refresh_token={refresh}"}
+        )
+
+        assert response.status_code == 400
+        assert response.json() == {"detail": "Token has been revoked"}
+        assert response.headers.get_list("set-cookie") == []
+        assert client.cookies["refresh_token"] == rotated
+        assert (await client.get("/v1/auth/users/me")).status_code == 200
+        assert (await client.post("/v1/auth/refresh")).status_code == 200
 
 
 class TestPasswordSecurity:

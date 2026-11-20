@@ -24,6 +24,11 @@ class AuthError(ApplicationError):
         )
 
 
+class RefreshTokenReusedError(AuthError):
+    def __init__(self) -> None:
+        super().__init__("Token has been revoked", status.HTTP_400_BAD_REQUEST)
+
+
 class AccountDeleteError(ApplicationError):
     def __init__(self, message: str) -> None:
         super().__init__(message, status.HTTP_409_CONFLICT)

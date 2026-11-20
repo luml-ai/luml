@@ -1,6 +1,6 @@
 from uuid import UUID
 
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite.monitoring.compute.models import TimeWindow
@@ -18,13 +18,13 @@ def test_store_credentials_must_be_configured_together(
 
 
 async def test_worker_store_sends_basic_auth_credentials() -> None:
-    requests: list[httpx.Request] = []
+    requests: list[httpx2.Request] = []
 
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
-        return httpx.Response(200, json={"code": 0, "output": []})
+        return httpx2.Response(200, json={"code": 0, "output": []})
 
-    client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
     store = GreptimeMonitoringStore(
         client=client,
         username="monitoring",
@@ -38,13 +38,13 @@ async def test_worker_store_sends_basic_auth_credentials() -> None:
 
 
 async def test_query_store_sends_basic_auth_credentials() -> None:
-    requests: list[httpx.Request] = []
+    requests: list[httpx2.Request] = []
 
-    def respond(request: httpx.Request) -> httpx.Response:
+    def respond(request: httpx2.Request) -> httpx2.Response:
         requests.append(request)
-        return httpx.Response(200, json={"code": 0, "output": []})
+        return httpx2.Response(200, json={"code": 0, "output": []})
 
-    client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+    client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
     store = GreptimeQueryStore(
         client=client,
         username="monitoring",

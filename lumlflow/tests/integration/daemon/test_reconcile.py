@@ -567,7 +567,7 @@ async def test_shared_code_marks_every_cell_and_evicts_before_the_next_run(
             evictions.append(True)
             evict_for_real()
 
-        session.kernel.evict_workspace_modules = evict  # type: ignore[method-assign]
+        session.kernel.evict_workspace_modules = evict
         write_file(root / "helpers.py", "AUC = 0.99")
         opened = await api.flow_open({"flow": "churn"})
         again = await api.run({"flow": "churn", "target": "score"})

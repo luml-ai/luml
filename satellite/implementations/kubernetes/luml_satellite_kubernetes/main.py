@@ -81,11 +81,11 @@ async def run_async(
     *,
     api: KubernetesApiClient | None = None,
 ) -> None:
-    active_configuration = configuration or KubernetesConfiguration()  # type: ignore[call-arg]
+    active_configuration = configuration or KubernetesConfiguration()
     logging.basicConfig(level=active_configuration.LOG_LEVEL.upper())
     active_api = api
     if active_api is None:
-        kubernetes_config.load_incluster_config()  # type: ignore[no-untyped-call]
+        kubernetes_config.load_incluster_config()
         active_api = KubernetesApi(
             active_configuration.NAMESPACE,
             field_manager=active_configuration.KUBERNETES_FIELD_MANAGER,

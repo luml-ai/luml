@@ -1,8 +1,11 @@
 name: Prisma
 
+permissions:
+  contents: read
+
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'prisma/**'
       - '.github/workflows/*prisma*tests-and-linters.yml'
@@ -21,10 +24,10 @@ jobs:
       run:
         working-directory: prisma
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
 
@@ -37,7 +40,7 @@ jobs:
         run: uv run --frozen ruff check src tests
 
       - name: Type checking
-        run: uv run --frozen mypy src
+        run: uv run --frozen ty check
 
       - name: Running tests
         run: uv run --frozen pytest

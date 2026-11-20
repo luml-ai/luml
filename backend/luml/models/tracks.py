@@ -1,4 +1,5 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     UUID,
@@ -62,12 +63,10 @@ class TrackArtifactOrm(TimestampMixin, Base):
     )
     added_by: Mapped[str] = mapped_column(String, nullable=False)
 
-    track: Mapped[TrackOrm] = relationship(  # noqa: F821
+    track: Mapped[TrackOrm] = relationship(
         "TrackOrm", back_populates="entries", lazy="selectin"
     )
-    artifact: Mapped[ArtifactOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
-        "ArtifactOrm", lazy="selectin"
-    )
+    artifact: Mapped[ArtifactOrm] = relationship("ArtifactOrm", lazy="selectin")
     stage: Mapped[TrackStageOrm | None] = relationship("TrackStageOrm", lazy="selectin")
 
     def __repr__(self) -> str:
@@ -92,7 +91,7 @@ class TrackOrm(TimestampMixin, Base):
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
     next_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
-    orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbit: Mapped[OrbitOrm] = relationship(
         "OrbitOrm", back_populates="tracks", lazy="selectin"
     )
     entries: Mapped[list[TrackArtifactOrm]] = relationship(
@@ -133,7 +132,7 @@ class TrackStageOrm(TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
 
-    track: Mapped[TrackOrm] = relationship(  # noqa: F821
+    track: Mapped[TrackOrm] = relationship(
         "TrackOrm", back_populates="stages", lazy="selectin"
     )
 
@@ -146,3 +145,8 @@ class TrackStageOrm(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"TrackStage(id={self.id!r}, name={self.name!r})"
+
+
+if TYPE_CHECKING:
+    from luml.models.artifacts import ArtifactOrm
+    from luml.models.orbit import OrbitOrm

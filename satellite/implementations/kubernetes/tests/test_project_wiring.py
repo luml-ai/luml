@@ -17,12 +17,13 @@ def test_project_uses_the_kit_and_async_kubernetes_client() -> None:
         "path": "../../kit",
         "editable": True,
     }
-    assert project["tool"]["mypy"]["strict"] is True
+    assert project["tool"]["ty"]["src"]["include"] == ["luml_satellite_kubernetes", "tests", "e2e"]
+    assert project["tool"]["ty"]["terminal"]["error-on-warning"] is True
     assert project["tool"]["ruff"]["target-version"] == "py314"
 
 
 def test_package_reaches_the_platform_only_through_the_kit_client() -> None:
-    forbidden_http_clients = {"aiohttp", "httpx", "requests", "urllib3"}
+    forbidden_http_clients = {"aiohttp", "httpx", "httpx2", "requests", "urllib3"}
     platform_client_imports: list[Path] = []
 
     for path in SOURCE_ROOT.glob("*.py"):
@@ -53,7 +54,7 @@ def test_package_reaches_the_platform_only_through_the_kit_client() -> None:
 def test_image_runs_as_a_non_root_group_zero_user() -> None:
     dockerfile = (PACKAGE_ROOT / "Dockerfile").read_text()
 
-    assert dockerfile.startswith("FROM python:3.14-")
+    assert "\nFROM python:3.14-" in dockerfile
     assert "chgrp -R 0 /app" in dockerfile
     assert "chmod -R g=u /app" in dockerfile
     assert "USER 10001:0" in dockerfile
@@ -75,12 +76,12 @@ def test_kubernetes_workflows_exist() -> None:
     workflows = REPOSITORY_ROOT / ".github/workflows"
 
     assert (workflows / "[satellite-kubernetes] tests-and-linters.yml").is_file()
-    assert (workflows / "publish-kubernetes-satellite-image.yml").is_file()
-    assert (workflows / "publish-kubernetes-satellite-chart.yml").is_file()
+    assert (workflows / "[satellite] publish-images.yml").is_file()
+    assert (workflows / "[satellite-kubernetes] publish-chart.yml").is_file()
     kubernetes_workflow = (workflows / "[satellite-kubernetes] tests-and-linters.yml").read_text()
     assert "helm lint chart --strict" in kubernetes_workflow
     assert "helm unittest --strict chart" in kubernetes_workflow
-    chart_workflow = (workflows / "publish-kubernetes-satellite-chart.yml").read_text()
+    chart_workflow = (workflows / "[satellite-kubernetes] publish-chart.yml").read_text()
     assert '"satellite/kubernetes/chart/v*"' in chart_workflow
     assert "helm package satellite/implementations/kubernetes/chart" in chart_workflow
     assert "helm push" in chart_workflow
@@ -101,7 +102,7 @@ def test_kind_end_to_end_wiring_and_release_checklist_exist() -> None:
     assert "openshift" in workflow_text
     assert "model_servers/default/**" in workflow_text
     assert "workflow_dispatch" in workflow_text
-    assert "actions/setup-python@v5" in workflow_text
+    assert "uses: actions/setup-python@" in workflow_text
     assert "python-version: '3.14'" in workflow_text
     assert (e2e_root / "run.sh").is_file()
     assert (e2e_root / "test_kind.py").is_file()

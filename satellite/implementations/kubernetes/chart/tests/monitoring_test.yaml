@@ -19,10 +19,7 @@ tests:
     template: templates/deployment-dashboard.yaml
     asserts:
       - matchRegex:
-          path: spec.template.metadata.annotations["checksum/satellite-token"]
-          pattern: ^[0-9a-f]{64}$
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/derivation-key"]
+          path: spec.template.metadata.annotations["checksum/credentials"]
           pattern: ^[0-9a-f]{64}$
       - contains:
           path: spec.template.spec.containers[0].env
@@ -45,10 +42,7 @@ tests:
     template: templates/deployment-worker.yaml
     asserts:
       - matchRegex:
-          path: spec.template.metadata.annotations["checksum/satellite-token"]
-          pattern: ^[0-9a-f]{64}$
-      - matchRegex:
-          path: spec.template.metadata.annotations["checksum/derivation-key"]
+          path: spec.template.metadata.annotations["checksum/credentials"]
           pattern: ^[0-9a-f]{64}$
       - contains:
           path: spec.template.spec.containers[0].env

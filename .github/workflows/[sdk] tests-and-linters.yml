@@ -1,14 +1,21 @@
 name: SDK
 
+permissions:
+  contents: read
+
 on:
   push:
-    branches: [main, staging, production]
+    branches: [main]
     paths:
       - 'sdk/python/sdk/**'
+      - 'skills/**'
+      - '.claude-plugin/**'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'sdk/python/sdk/**'
+      - 'skills/**'
+      - '.claude-plugin/**'
   workflow_dispatch:
   workflow_call:
 
@@ -20,10 +27,10 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.12'
           enable-cache: true
@@ -39,40 +46,25 @@ jobs:
         run: uv run --frozen ruff check luml tests
 
       - name: Type checking
-        run: uv run --frozen mypy luml
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: '3.12'
-          enable-cache: true
-          cache-dependency-glob: sdk/python/sdk/uv.lock
-
-      - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
+        run: uv run --frozen ty check
 
       - name: Run unit tests
         run: uv run --frozen pytest tests --ignore=tests/integrations
 
-  integration-tests:
-    runs-on: ubuntu-latest
+      - name: Run integration tests
+        run: uv run --frozen pytest tests/integrations
+
+  windows:
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.12'
           enable-cache: true
           cache-dependency-glob: sdk/python/sdk/uv.lock
 
-      - name: Install dependencies with uv
-        run: uv sync --frozen --group dev
-
-      - name: Run integration tests
-        run: uv run --frozen pytest tests/integrations
+      - name: Run flow tests
+        run: uv run --frozen --no-dev --extra flow --with pytest==9.0.3 pytest tests/flow

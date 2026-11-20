@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 from luml_api import CollectionTypeFilter
 from luml_api._exceptions import LumlAPIError
 
@@ -23,7 +23,7 @@ class LumlHandler(BaseLumlHandler):
                 Organization.model_validate(org.model_dump())
                 for org in luml.organizations.list()
             ]
-        except httpx.TransportError as e:
+        except httpx2.TransportError as e:
             raise unreachable_luml(e) from e
         except LumlAPIError as e:
             raise luml_refused(e) from e
@@ -36,7 +36,7 @@ class LumlHandler(BaseLumlHandler):
             return [
                 Orbit.model_validate(orbit.model_dump()) for orbit in luml.orbits.list()
             ]
-        except httpx.TransportError as e:
+        except httpx2.TransportError as e:
             raise unreachable_luml(e) from e
         except LumlAPIError as e:
             raise luml_refused(e) from e
@@ -57,7 +57,7 @@ class LumlHandler(BaseLumlHandler):
             result = luml.collections.list(
                 start_after=start_after, limit=limit, search=search, types=types
             )
-        except httpx.TransportError as e:
+        except httpx2.TransportError as e:
             raise unreachable_luml(e) from e
         except LumlAPIError as e:
             raise luml_refused(e) from e

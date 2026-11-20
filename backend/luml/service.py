@@ -4,7 +4,6 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from starlette.middleware.authentication import AuthenticationMiddleware
 
@@ -38,7 +37,8 @@ platform_admin_logger = logging.getLogger(PLATFORM_ADMIN_LOGGER)
 
 
 class AppService(FastAPI):
-    def __init__(self, *args, **kwargs) -> None:  # type: ignore
+    def __init__(self, *args, **kwargs) -> None:
+        kwargs.setdefault("strict_content_type", False)
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router, prefix="/v1")
@@ -54,7 +54,7 @@ class AppService(FastAPI):
             self.include_router(router=platform_admin_routers, prefix="/v1")
         self.include_authentication()
         self.include_error_handlers()
-        self.custom_openapi()
+        self.openapi()
 
         self.add_middleware(SecurityHeadersMiddleware)
 
@@ -106,14 +106,12 @@ class AppService(FastAPI):
         ) -> JSONResponse:
             return await request_validation_error_handler(request, exc)
 
-    def custom_openapi(self) -> dict[str, Any]:
-        if self.openapi_schema:
-            return self.openapi_schema
-        openapi_schema = get_openapi(
+    def openapi(self) -> dict[str, Any]:
+        openapi_schema = super().openapi()
+        openapi_schema["info"].update(
             title="LUML AI API",
             version="1.0.0",
             description="API docs for LUML AI",
-            routes=self.routes,
         )
         openapi_schema["components"]["securitySchemes"] = {
             "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}

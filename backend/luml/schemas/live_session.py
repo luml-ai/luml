@@ -58,7 +58,7 @@ class LiveSession(BaseModel, BaseOrmConfig):
             (self.last_viewer_activity_at or self.started_at) + viewer_idle_period(),
         )
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def status(self) -> LiveSessionStatus:
         now = datetime.now(UTC)

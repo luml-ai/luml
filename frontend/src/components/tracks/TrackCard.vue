@@ -2,7 +2,7 @@
   <UiRichCard
     :title="props.name"
     :id="props.id"
-    :editAvailable="true"
+    :editAvailable="editAvailable"
     :createdAt="props.createdAt"
     :updatedAt="props.updatedAt"
     :type="formattedType"
@@ -16,6 +16,8 @@
 
 <script setup lang="ts">
 import type { TrackCardProps } from './tracks.interface'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { computed } from 'vue'
 import { useTracksStore } from '@/stores/tracks'
 import UiRichCard from '@/components/ui/UiRichCard.vue'
@@ -24,6 +26,10 @@ import type { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interf
 const props = defineProps<TrackCardProps>()
 
 const tracksStore = useTracksStore()
+const orbitsStore = useOrbitsStore()
+const editAvailable = computed(
+  () => !!orbitsStore.getCurrentOrbitPermissions?.track?.includes(PermissionEnum.update),
+)
 
 const formattedType = computed(() => {
   return props.type as unknown as OrbitCollectionTypeEnum
@@ -39,6 +45,7 @@ const to = computed(() => {
 })
 
 function showEditor() {
+  if (!editAvailable.value) return
   tracksStore.showEditor({
     id: props.id,
     name: props.name,

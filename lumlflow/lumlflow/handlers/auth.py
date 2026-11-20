@@ -1,9 +1,10 @@
 import contextlib
 import json
 import logging
+import os
 from pathlib import Path
 
-import httpx
+import httpx2
 import keyring
 import keyring.errors
 
@@ -41,9 +42,17 @@ class AuthHandler:
 
     def _write_api_key_to_file(self, api_key: str):
         payload = json.dumps({"api_key": api_key}, indent=2)
-        self._LUML_JSON_PATH.touch(mode=0o600, exist_ok=True)
-        self._LUML_JSON_PATH.write_text(payload)
-        self._LUML_JSON_PATH.chmod(0o600)
+        fd = os.open(self._LUML_JSON_PATH, os.O_WRONLY | os.O_CREAT, 0o600)
+        try:
+            if os.name != "nt":
+                os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w") as stream:
+                fd = -1
+                stream.truncate(0)
+                stream.write(payload)
+        finally:
+            if fd != -1:
+                os.close(fd)
 
     def save_credentials(self, api_key: str) -> None:
         try:
@@ -63,7 +72,7 @@ class AuthHandler:
     def set_api_key(self, data: SetApiKey) -> None:
         base_url = get_config().LUML_BASE_URL
         try:
-            with httpx.Client() as client:
+            with httpx2.Client() as client:
                 response = client.get(
                     f"{base_url}/v1/auth/api-keys/validate",
                     headers={"Authorization": f"Bearer {data.api_key}"},

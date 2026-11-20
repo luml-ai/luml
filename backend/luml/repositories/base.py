@@ -121,7 +121,7 @@ class CrudMixin:
             session,
             orm_class,
             data,
-            orm_class.id == data.id,  # type: ignore[attr-defined]
+            orm_class.id == data.id,  # ty: ignore[missing-attribute]
         )
 
     @staticmethod
@@ -130,7 +130,7 @@ class CrudMixin:
         orm_class: type[TOrm],
         obj_id: UUID,
     ) -> None:
-        result = await session.execute(select(orm_class).where(orm_class.id == obj_id))  # type: ignore[attr-defined]
+        result = await session.execute(select(orm_class).where(orm_class.id == obj_id))  # ty: ignore[missing-attribute]
         db_obj = result.scalar_one_or_none()
 
         if db_obj:
@@ -182,7 +182,7 @@ class CrudMixin:
     ) -> TOrm | None:
         result = await session.execute(
             select(orm_class)
-            .where(orm_class.id == obj_id)  # type: ignore[attr-defined]
+            .where(orm_class.id == obj_id)  # ty: ignore[missing-attribute]
             .options(*(options or []))
         )
 
@@ -228,7 +228,7 @@ class CrudMixin:
         pagination: PaginationParams,
     ) -> Cursor:
         return Cursor(
-            id=cursor_rec.id,  # type: ignore[attr-defined]
+            id=cursor_rec.id,  # ty: ignore[missing-attribute]
             value=getattr(cursor_rec, pagination.sort_by, None),
             sort_by=pagination.sort_by,
             order=pagination.order,
@@ -242,14 +242,14 @@ class CrudMixin:
         extra_sort_field: str | None = None,
     ) -> Any:  # noqa: ANN401
         if sort_by is None:
-            return orm_class.created_at  # type: ignore[attr-defined]
+            return orm_class.created_at  # ty: ignore[missing-attribute]
 
         if extra_sort_field and sort_by == "extra_values":
             return cast(
-                orm_class.extra_values[extra_sort_field].astext,  # type: ignore[attr-defined]
+                orm_class.extra_values[extra_sort_field].astext,  # ty: ignore[missing-attribute]
                 Float,
             )
-        return getattr(orm_class, sort_by, orm_class.created_at)  # type: ignore[attr-defined]
+        return getattr(orm_class, sort_by, orm_class.created_at)  # ty: ignore[missing-attribute]
 
     @staticmethod
     def _build_cursor_condition(
@@ -263,14 +263,14 @@ class CrudMixin:
 
         if cursor_value is not None:
             condition = op(sort_column, cursor_value) | (
-                (sort_column == cursor_value) & op(orm_class.id, cursor_id)  # type: ignore[attr-defined]
+                (sort_column == cursor_value) & op(orm_class.id, cursor_id)  # ty: ignore[missing-attribute]
             )
 
             if order == SortOrder.DESC:
                 condition = condition | sort_column.is_(None)
 
         else:
-            condition = sort_column.is_(None) & op(orm_class.id, cursor_id)  # type: ignore[attr-defined]
+            condition = sort_column.is_(None) & op(orm_class.id, cursor_id)  # ty: ignore[missing-attribute]
 
             if order == SortOrder.ASC:
                 condition = condition | sort_column.isnot(None)
@@ -314,7 +314,7 @@ class CrudMixin:
         null_func = nullslast if pagination.order == SortOrder.DESC else nullsfirst
         stmt = stmt.order_by(
             null_func(sort_func(sort_column)),
-            sort_func(orm_class.id),  # type: ignore[attr-defined]
+            sort_func(orm_class.id),  # ty: ignore[missing-attribute]
         )
 
         stmt = stmt.options(*(options or [])).limit(pagination.limit + 1)

@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 import '@scalar/api-reference/style.css'
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 import { ApiReference } from '@scalar/api-reference'
 import { useThemeStore } from '@/stores/theme'
 import {
@@ -31,7 +31,7 @@ const configuration = computed<AnyApiReferenceConfiguration>(() => {
     theme: 'purple',
     hideTestRequestButton: true,
     hideDarkModeToggle: true,
-    baseServerURL: 'https://scalar.com',
+    baseServerURL: props.serverUrl || undefined,
     showToolbar: 'never',
     servers: props.serverUrl ? [{ url: props.serverUrl }] : [],
   }
@@ -39,8 +39,8 @@ const configuration = computed<AnyApiReferenceConfiguration>(() => {
 
 watch(
   theme,
-  (t) => {
-    setTimeout(() => {
+  (t, _, onCleanup) => {
+    const timeout = setTimeout(() => {
       if (t === 'dark') {
         document.body.classList.add('dark-mode')
         document.body.classList.remove('light-mode')
@@ -49,9 +49,13 @@ watch(
         document.body.classList.add('light-mode')
       }
     }, 100)
+    onCleanup(() => clearTimeout(timeout))
   },
   { immediate: true },
 )
+onBeforeUnmount(() => {
+  document.body.classList.remove('dark-mode', 'light-mode')
+})
 </script>
 
 <style>

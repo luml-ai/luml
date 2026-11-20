@@ -78,17 +78,15 @@ class TestOpenAIClientComplete:
     ) -> OpenAIClient:
         mock_openai = MagicMock()
         with patch.dict("sys.modules", {"openai": mock_openai}):
-            return OpenAIClient(**kwargs)  # type: ignore[arg-type]
+            return OpenAIClient(**kwargs)
 
     def test_valid_response(self) -> None:
         client = self._make_client()
-        client._client.chat.completions.create.return_value = _make_completion(  # type: ignore[attr-defined]
-            "result"
-        )
+        client._client.chat.completions.create.return_value = _make_completion("result")
         result = client.complete("sys", "usr")
         assert result == "result"
 
-        call_kwargs = client._client.chat.completions.create.call_args.kwargs  # type: ignore[attr-defined]
+        call_kwargs = client._client.chat.completions.create.call_args.kwargs
         assert call_kwargs["model"] == "gpt-4.1-mini"
         assert call_kwargs["temperature"] == 0.0
         assert call_kwargs["messages"] == [
@@ -100,35 +98,35 @@ class TestOpenAIClientComplete:
 
     def test_none_content_returns_empty_string(self) -> None:
         client = self._make_client()
-        client._client.chat.completions.create.return_value = _make_completion(None)  # type: ignore[attr-defined]
+        client._client.chat.completions.create.return_value = _make_completion(None)
         assert client.complete("sys", "usr") == ""
 
     def test_api_error_wrapped_as_llm_error(self) -> None:
         client = self._make_client()
-        client._client.chat.completions.create.side_effect = RuntimeError("API down")  # type: ignore[attr-defined]
+        client._client.chat.completions.create.side_effect = RuntimeError("API down")
         with pytest.raises(LLMError, match="API down"):
             client.complete("sys", "usr")
 
     def test_response_format_forwarded(self) -> None:
         client = self._make_client(response_format={"type": "json_object"})
-        client._client.chat.completions.create.return_value = _make_completion("{}")  # type: ignore[attr-defined]
+        client._client.chat.completions.create.return_value = _make_completion("{}")
         client.complete("sys", "usr")
 
-        call_kwargs = client._client.chat.completions.create.call_args.kwargs  # type: ignore[attr-defined]
+        call_kwargs = client._client.chat.completions.create.call_args.kwargs
         assert call_kwargs["response_format"] == {"type": "json_object"}
 
     def test_max_tokens_forwarded(self) -> None:
         client = self._make_client(max_tokens=512)
-        client._client.chat.completions.create.return_value = _make_completion("ok")  # type: ignore[attr-defined]
+        client._client.chat.completions.create.return_value = _make_completion("ok")
         client.complete("sys", "usr")
 
-        call_kwargs = client._client.chat.completions.create.call_args.kwargs  # type: ignore[attr-defined]
+        call_kwargs = client._client.chat.completions.create.call_args.kwargs
         assert call_kwargs["max_tokens"] == 512
 
     def test_temperature_override(self) -> None:
         client = self._make_client(temperature=0.8)
-        client._client.chat.completions.create.return_value = _make_completion("ok")  # type: ignore[attr-defined]
+        client._client.chat.completions.create.return_value = _make_completion("ok")
         client.complete("sys", "usr")
 
-        call_kwargs = client._client.chat.completions.create.call_args.kwargs  # type: ignore[attr-defined]
+        call_kwargs = client._client.chat.completions.create.call_args.kwargs
         assert call_kwargs["temperature"] == 0.8

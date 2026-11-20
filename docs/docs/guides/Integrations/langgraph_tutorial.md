@@ -69,7 +69,7 @@ model_ref = save_langgraph(
 )
 ```
 
-The `env_vars` parameter declares which environment variables the graph needs at runtime. These are not stored in the `.luml` file — they are injected by the Satellite during deployment through the platform's [secret injection mechanism](../documentation/Modules/deployment.md). Any variable listed here must be added as a Secret in the Orbit before deploying.
+The `env_vars` parameter declares which environment variables the graph needs at runtime. These are not stored in the `.luml` file — they are injected by the Satellite during deployment through the platform's [secret injection mechanism](../../documentation/Modules/deployment.md). Any variable listed here must be added as a Secret in the Orbit before deploying.
 
 ### Passing the Graph
 
@@ -112,7 +112,7 @@ The `extra_code_modules` parameter controls which local Python modules are bundl
 
 Unlike scikit-learn models, LangGraph graphs do not require example data for schema inference. The SDK calls `graph.get_input_schema()` and `graph.get_output_schema()` to extract schemas directly from the graph's type annotations. The resulting input schema wraps the graph's native input in a payload structure with optional fields for `command`, `config`, and `context`. The output schema includes the graph's result and any pending interrupts.
 
-For the API reference and the full parameter list, see the [`save_langgraph` reference](../sdk/integrations/langgraph.md).
+For the API reference and the full parameter list, see the [`save_langgraph` reference](../../sdk/integrations/langgraph.md).
 
 ### Model Card
 

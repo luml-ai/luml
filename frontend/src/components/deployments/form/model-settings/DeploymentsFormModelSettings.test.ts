@@ -1,6 +1,7 @@
 import { flushPromises, mount, shallowMount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import DeploymentsFormModelSettings from './DeploymentsFormModelSettings.vue'
+import ModelCollectionSelect from './ModelCollectionSelect.vue'
 import { defineComponent, ref } from 'vue'
 import { Form } from '@primevue/forms'
 import PrimeVue from 'primevue/config'
@@ -50,6 +51,26 @@ function model(id: string) {
 }
 
 describe('DeploymentsFormModelSettings', () => {
+  it('passes deployment collection settings through the model collection selector', async () => {
+    const wrapper = shallowMount(DeploymentsFormModelSettings, {
+      props: { collectionId: 'collection-1', initialCollectionId: 'collection-1' },
+      global: { mocks: { $route: { params: { organizationId: 'org-1', id: 'orbit-1' } } } },
+    })
+    await flushPromises()
+
+    const select = wrapper.getComponent(ModelCollectionSelect)
+    expect(select.props()).toMatchObject({
+      modelValue: 'collection-1',
+      initialCollectionId: 'collection-1',
+      disabled: true,
+      organizationId: 'org-1',
+      orbitId: 'orbit-1',
+    })
+    select.vm.$emit('update:modelValue', 'collection-2')
+    expect(wrapper.emitted('update:collectionId')).toEqual([['collection-2']])
+    wrapper.unmount()
+  })
+
   it('keeps the latest model when an earlier model request resolves last', async () => {
     const requestA = deferred<ReturnType<typeof model>>()
     const requestB = deferred<ReturnType<typeof model>>()
@@ -103,7 +124,7 @@ describe('DeploymentsFormModelSettings custom variable validation', () => {
         global: {
           plugins: [PrimeVue],
           mocks: { $route: { params: { organizationId: 'org-1', id: 'orbit-1' } } },
-          stubs: { CollectionSelect: true, ModelSelect: true, SecretsSelect: true },
+          stubs: { ModelCollectionSelect: true, ModelSelect: true, SecretsSelect: true },
         },
       },
     )

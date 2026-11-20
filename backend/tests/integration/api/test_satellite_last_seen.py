@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 from luml.handlers.satellites import SatelliteHandler
 from luml.models import SatelliteOrm
 from luml.repositories.satellites import SatelliteRepository

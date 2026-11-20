@@ -1,4 +1,5 @@
 import uuid
+from typing import TYPE_CHECKING
 
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import UUID, Boolean, Integer, String, case
@@ -26,14 +27,14 @@ class UserOrm(TimestampMixin, Base):
         Integer, nullable=False, server_default="5"
     )
 
-    memberships: Mapped[list[OrganizationMemberOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    memberships: Mapped[list[OrganizationMemberOrm]] = relationship(
         "OrganizationMemberOrm",
         back_populates="user",
         lazy="selectin",
         cascade="all, delete-orphan",
     )
 
-    orbit_memberships: Mapped[list[OrbitMemberOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbit_memberships: Mapped[list[OrbitMembersOrm]] = relationship(
         "OrbitMembersOrm",
         back_populates="user",
         lazy="selectin",
@@ -61,3 +62,8 @@ class UserOrm(TimestampMixin, Base):
         return UserOrm(
             **user.model_dump(),
         )
+
+
+if TYPE_CHECKING:
+    from luml.models.orbit import OrbitMembersOrm
+    from luml.models.organization import OrganizationMemberOrm

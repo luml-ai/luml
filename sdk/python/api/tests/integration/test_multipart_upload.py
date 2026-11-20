@@ -31,7 +31,7 @@ def large_model_file(tmp_path: Path) -> Path:
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 @pytest.mark.parametrize("asynchronous", [False, True])
 @pytest.mark.parametrize("multipart_status", [200, 404])
 async def test_large_artifact_upload(
@@ -40,7 +40,7 @@ async def test_large_artifact_upload(
     large_model_file: Path,
     mock_initialization_requests: dict,
     sample_artifact: Artifact,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
     file_size = large_model_file.stat().st_size
     assert file_size > USE_MULTIPART_BYTES
@@ -56,7 +56,7 @@ async def test_large_artifact_upload(
         f"/v1/organizations/{data['organization'].id}/orbits/{data['orbit'].id}"
         f"/collections/{data['collection'].id}/artifacts"
     )
-    create = respx_mock.post(artifact_path).respond(
+    create = httpx2_mock.post(artifact_path).respond(
         200,
         json={
             "artifact": artifact.model_dump(),
@@ -69,7 +69,7 @@ async def test_large_artifact_upload(
             },
         },
     )
-    initiate = respx_mock.post(f"{STORAGE_URL}?uploads").respond(
+    initiate = httpx2_mock.post(f"{STORAGE_URL}?uploads").respond(
         200,
         text='<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         "<UploadId>upload-123</UploadId></InitiateMultipartUploadResult>",
@@ -85,7 +85,7 @@ async def test_large_artifact_upload(
         for number, start in enumerate(range(0, file_size, 100 * 1024 * 1024), 1)
     ]
     complete_url = f"{STORAGE_URL}?uploadId=upload-123"
-    multipart = respx_mock.post("/v1/bucket-secrets/upload/multipart").respond(
+    multipart = httpx2_mock.post("/v1/bucket-secrets/upload/multipart").respond(
         multipart_status,
         json=(
             {
@@ -103,17 +103,17 @@ async def test_large_artifact_upload(
         if multipart_status == 200
         else ArtifactStatus.UPLOAD_FAILED
     )
-    update = respx_mock.patch(f"{artifact_path}/{artifact.id}").respond(
+    update = httpx2_mock.patch(f"{artifact_path}/{artifact.id}").respond(
         200, json=artifact.model_copy(update={"status": expected_status}).model_dump()
     )
     part_routes = []
     complete = None
     if multipart_status == 200:
         part_routes = [
-            respx_mock.put(part["url"]).respond(200, headers={"ETag": f'"{number}"'})
+            httpx2_mock.put(part["url"]).respond(200, headers={"ETag": f'"{number}"'})
             for number, part in enumerate(parts, 1)
         ]
-        complete = respx_mock.post(complete_url).respond(200)
+        complete = httpx2_mock.post(complete_url).respond(200)
 
     client: LumlClient | AsyncLumlClient
     if asynchronous:

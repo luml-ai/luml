@@ -1,9 +1,9 @@
 <template>
   <div class="field">
-    <label for="name" class="label required">Collection</label>
+    <label for="collection" class="label required">Collection</label>
     <Select
       v-model="modelValue"
-      id="collection"
+      input-id="collection"
       name="collection"
       :placeholder="orbitId ? 'Select collection' : 'Select orbit first'"
       :disabled="!orbitId"
@@ -74,7 +74,6 @@ const virtualScrollerOptions = computed(() => {
 async function onRequestInfoChange() {
   try {
     reset()
-    modelValue.value = null
     if (!props.orbitId) return
     setRequestInfo({
       organizationId: String(props.organizationId),
@@ -93,7 +92,15 @@ function onFilter(event: SelectFilterEvent) {
   debouncedOnRequestInfoChange()
 }
 
-watch(() => props.orbitId, onRequestInfoChange, { immediate: true })
+watch(
+  () => props.orbitId,
+  (orbitId, previousOrbitId) => {
+    if (previousOrbitId !== undefined) modelValue.value = null
+    setSearchQuery('')
+    onRequestInfoChange()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

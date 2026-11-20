@@ -1357,3 +1357,56 @@ class TestModelPublish:
                 assert isinstance(publish, CloudPublishScreen)
                 assert publish._is_model is False
                 assert publish._ctx.experiment_id == exp_id
+
+
+async def test_metric_refresh_uses_one_worker_and_coalesces_requests(
+    facade, tracker, monkeypatch
+):
+    import asyncio
+    import threading
+
+    exp_id = _seed_experiment_with_metrics(tracker, metric_keys=("loss", "accuracy"))
+    app = _make_app(facade)
+    async with app.run_test() as pilot:
+        screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+        await settle_workers(pilot)
+        original = facade.get_metric_history
+        entered = threading.Event()
+        release = threading.Event()
+        calls = []
+        active = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def get_history(experiment_id, key, *, max_points):
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            calls.append((key, max_points))
+            entered.set()
+            release.wait(2)
+            try:
+                return original(experiment_id, key, max_points=max_points)
+            finally:
+                with lock:
+                    active -= 1
+
+        monkeypatch.setattr(facade, "get_metric_history", get_history)
+        try:
+            screen._fetch_metric_history("loss", max_points=10)
+            for _ in range(100):
+                if entered.is_set():
+                    break
+                await asyncio.sleep(0.01)
+            assert entered.is_set()
+            for _ in range(10):
+                screen._fetch_metric_history("accuracy", max_points=20)
+            await asyncio.sleep(0.05)
+            assert peak == 1
+        finally:
+            release.set()
+        await settle_workers(pilot)
+        assert calls == [("loss", 10), ("accuracy", 20)]
+        assert screen._metric_history["loss"].key == "loss"
+        assert screen._metric_history["accuracy"].key == "accuracy"

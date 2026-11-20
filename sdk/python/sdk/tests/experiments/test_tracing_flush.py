@@ -24,14 +24,14 @@ class TestSetExperimentTracker:
     def test_sets_log_fn(self, tracker: ExperimentTracker) -> None:
         TracerManager.set_experiment_tracker(tracker)
         assert TracerManager._log_fn is not None
-        assert TracerManager._log_fn.__func__ is ExperimentTracker.log_span  # type: ignore[attr-defined]
-        assert TracerManager._log_fn.__self__ is tracker  # type: ignore[attr-defined]
+        assert TracerManager._log_fn.__func__ is ExperimentTracker.log_span
+        assert TracerManager._log_fn.__self__ is tracker
 
     def test_rejects_non_tracker(self) -> None:
         with pytest.raises(
             ValueError, match="must be an instance of ExperimentTracker"
         ):
-            TracerManager.set_experiment_tracker("not a tracker")  # type: ignore[arg-type]
+            TracerManager.set_experiment_tracker("not a tracker")
 
 
 class TestConcurrentWrites:

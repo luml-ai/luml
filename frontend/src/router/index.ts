@@ -14,8 +14,60 @@ const router = createRouter({
     },
     {
       path: '/express-tasks',
-      name: 'express-tasks',
-      component: () => import('../pages/ExpressTasksPage.vue'),
+      meta: { sidebarRoute: 'express-tasks' },
+      children: [
+        {
+          path: '',
+          name: 'express-tasks',
+          component: () => import('../pages/ExpressTasksPage.vue'),
+        },
+        {
+          path: 'classification',
+          name: 'classification',
+          component: () => import('../pages/ClassificationPage.vue'),
+          meta: {
+            showInvalidMessage: 992,
+          },
+        },
+        {
+          path: 'regression',
+          name: 'regression',
+          component: () => import('../pages/RegressionPage.vue'),
+          meta: {
+            showInvalidMessage: 992,
+          },
+        },
+        {
+          path: 'forecasting',
+          name: 'forecasting',
+          component: () => import('../pages/ForecastingPage.vue'),
+          meta: {
+            showInvalidMessage: 992,
+          },
+        },
+        {
+          path: 'runtime',
+          name: 'runtime',
+          component: () => import('../pages/RuntimePage.vue'),
+          meta: {
+            showInvalidMessage: 992,
+          },
+        },
+        {
+          path: 'prompt-fusion/:mode?',
+          name: 'prompt-fusion',
+          component: () => import('../pages/PromptFusionPage.vue'),
+          meta: {
+            mobileAvailable: false,
+            showInvalidMessage: 992,
+          },
+        },
+        {
+          path: 'notebooks',
+          name: 'notebooks',
+          component: () => import('../pages/NotebooksPage.vue'),
+        },
+      ],
     },
     {
       path: '/sign-up',
@@ -67,44 +119,52 @@ const router = createRouter({
     },
     {
       path: '/classification',
-      name: 'classification',
-      component: () => import('../pages/ClassificationPage.vue'),
-      meta: {
-        showInvalidMessage: 992,
-      },
+      redirect: (to) => ({
+        name: 'classification',
+        query: to.query,
+        hash: to.hash,
+      }),
     },
     {
       path: '/regression',
-      name: 'regression',
-      component: () => import('../pages/RegressionPage.vue'),
-      meta: {
-        showInvalidMessage: 992,
-      },
+      redirect: (to) => ({
+        name: 'regression',
+        query: to.query,
+        hash: to.hash,
+      }),
     },
     {
       path: '/forecasting',
-      name: 'forecasting',
-      component: () => import('../pages/ForecastingPage.vue'),
-      meta: {
-        showInvalidMessage: 992,
-      },
+      redirect: (to) => ({
+        name: 'forecasting',
+        query: to.query,
+        hash: to.hash,
+      }),
     },
     {
       path: '/runtime',
-      name: 'runtime',
-      component: () => import('../pages/RuntimePage.vue'),
-      meta: {
-        showInvalidMessage: 992,
-      },
+      redirect: (to) => ({
+        name: 'runtime',
+        query: to.query,
+        hash: to.hash,
+      }),
     },
     {
       path: '/prompt-fusion/:mode?',
-      name: 'prompt-fusion',
-      component: () => import('../pages/PromptFusionPage.vue'),
-      meta: {
-        mobileAvailable: false,
-        showInvalidMessage: 992,
-      },
+      redirect: (to) => ({
+        name: 'prompt-fusion',
+        params: to.params,
+        query: to.query,
+        hash: to.hash,
+      }),
+    },
+    {
+      path: '/notebooks',
+      redirect: (to) => ({
+        name: 'notebooks',
+        query: to.query,
+        hash: to.hash,
+      }),
     },
     {
       path: '/setup',
@@ -246,14 +306,10 @@ const router = createRouter({
       },
     },
     {
-      path: '/notebooks',
-      name: 'notebooks',
-      component: () => import('../pages/NotebooksPage.vue'),
-    },
-    {
       path: '/prisma',
       component: () => import('../pages/PrismaPage.vue'),
       meta: {
+        sidebarRoute: 'prisma-board',
         mobileAvailable: false,
         showInvalidMessage: 992,
       },
@@ -316,7 +372,6 @@ const router = createRouter({
       component: HomePage,
       meta: {
         requireAuth: true,
-        redirectToSignIn: true,
       },
     },
     {
@@ -325,7 +380,6 @@ const router = createRouter({
       component: HomePage,
       meta: {
         requireAuth: true,
-        redirectToSignIn: true,
       },
     },
     {

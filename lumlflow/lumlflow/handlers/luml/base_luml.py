@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 from luml.experiments.tracker import ExperimentTracker
 from luml_api._client import LumlClient
 from luml_api._exceptions import LumlAPIError, ResourceNotFoundError
@@ -34,7 +34,7 @@ class BaseLumlHandler:
             )
         except ResourceNotFoundError as e:
             raise ApplicationError(str(e), status_code=422) from e
-        except httpx.TransportError as e:
+        except httpx2.TransportError as e:
             raise unreachable_luml(e) from e
         except LumlAPIError as e:
             raise luml_refused(e) from e
@@ -48,7 +48,7 @@ def luml_refused(failure: LumlAPIError) -> ApplicationError:
     )
 
 
-def unreachable_luml(failure: httpx.TransportError) -> ApplicationError:
+def unreachable_luml(failure: httpx2.TransportError) -> ApplicationError:
     reason = str(failure) or type(failure).__name__
     return ApplicationError(
         f"LUML at {config.LUML_BASE_URL} is not reachable ({reason}). "

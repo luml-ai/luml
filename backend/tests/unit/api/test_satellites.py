@@ -46,7 +46,7 @@ class TestSatellites:
             for route in satellite_worker_router.routes
             if isinstance(route, APIRoute)
             and route.path == "/satellites/v1/deployments/{deployment_id}"
-            and "GET" in route.methods
+            and "GET" in (route.methods or set())
         ]
 
         assert len(matching_routes) == 1

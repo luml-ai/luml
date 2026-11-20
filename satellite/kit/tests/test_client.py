@@ -1,6 +1,6 @@
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite.testing import FakePlatform
@@ -89,7 +89,7 @@ async def test_every_platform_client_call_and_update_body() -> None:
         download_url = await client.get_artifact_download_url(ARTIFACT_ID)
         artifact, artifact_url = await client.get_artifact(ARTIFACT_ID)
 
-        async with httpx.AsyncClient(transport=platform.transport) as raw_client:
+        async with httpx2.AsyncClient(transport=platform.transport) as raw_client:
             artifact_response = await raw_client.get(download_url)
 
         await client.delete_deployment(DEPLOYMENT_ID)
@@ -170,10 +170,10 @@ async def test_update_deployment_can_explicitly_clear_new_fields() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status_code", [400, 404, 409, 410, 422])
 async def test_refusal_statuses_map_to_one_family(status_code: int) -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(status_code, json={"detail": "refused"})
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(status_code, json={"detail": "refused"})
 
-    transport = httpx.MockTransport(handler)
+    transport = httpx2.MockTransport(handler)
     async with PlatformClient("http://platform", "token", transport=transport) as client:
         with pytest.raises(PlatformRefusal) as caught:
             await client.list_deployments()
@@ -185,11 +185,11 @@ async def test_refusal_statuses_map_to_one_family(status_code: int) -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("status_code", [401, 403])
 async def test_authentication_statuses_map_to_one_family(status_code: int) -> None:
-    async def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(status_code, json={"detail": "bad token"})
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(status_code, json={"detail": "bad token"})
 
     async with PlatformClient(
-        "http://platform", "token", transport=httpx.MockTransport(handler)
+        "http://platform", "token", transport=httpx2.MockTransport(handler)
     ) as client:
         with pytest.raises(AuthenticationFailure) as caught:
             await client.list_deployments()
@@ -199,22 +199,22 @@ async def test_authentication_statuses_map_to_one_family(status_code: int) -> No
 
 @pytest.mark.asyncio
 async def test_other_http_and_transport_errors_map_to_platform_error() -> None:
-    async def server_error(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(500, text="down")
+    async def server_error(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(500, text="down")
 
     async with PlatformClient(
-        "http://platform", "token", transport=httpx.MockTransport(server_error)
+        "http://platform", "token", transport=httpx2.MockTransport(server_error)
     ) as client:
         with pytest.raises(PlatformError) as caught:
             await client.list_deployments()
     assert type(caught.value) is PlatformError
     assert caught.value.status_code == 500
 
-    async def connection_error(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("unreachable", request=request)
+    async def connection_error(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("unreachable", request=request)
 
     async with PlatformClient(
-        "http://platform", "token", transport=httpx.MockTransport(connection_error)
+        "http://platform", "token", transport=httpx2.MockTransport(connection_error)
     ) as client:
         with pytest.raises(PlatformError, match="unreachable"):
             await client.list_deployments()

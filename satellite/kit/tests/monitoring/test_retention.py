@@ -2,9 +2,10 @@
 
 import logging
 
-import httpx
+import httpx2
 import pytest
 import respx
+from respx import MockResponse
 
 from luml_satellite.monitoring.storage.greptime import (
     ALERTS_TABLE,
@@ -29,9 +30,10 @@ def _statements(route: respx.Route) -> list[str]:
 
 
 class TestRetention:
-    @respx.mock
-    async def test_tables_are_created_with_their_retention(self) -> None:
-        route = respx.post(_URL).mock(return_value=httpx.Response(200, json={"output": []}))
+    async def test_tables_are_created_with_their_retention(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
+        route = httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json={"output": []}))
         store = GreptimeMonitoringStore(
             host="gt", port=4000, events_ttl="7d", results_ttl="30d", alerts_ttl="30d"
         )
@@ -45,10 +47,9 @@ class TestRetention:
         assert f"ALTER TABLE {RESULTS_TABLE} SET 'ttl' = '30d'" in sql
         await store.aclose()
 
-    @respx.mock
-    async def test_raw_events_are_kept_shortest(self) -> None:
+    async def test_raw_events_are_kept_shortest(self, httpx2_mock: respx.MockRouter) -> None:
         """The traces table holds the model's own inputs and predictions."""
-        route = respx.post(_URL).mock(return_value=httpx.Response(200, json={"output": []}))
+        route = httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json={"output": []}))
         store = GreptimeMonitoringStore(
             host="gt", port=4000, events_ttl="7d", results_ttl="30d", alerts_ttl="30d"
         )
@@ -60,11 +61,12 @@ class TestRetention:
         assert f"ALTER TABLE {ALERTS_TABLE} SET 'ttl' = '30d'" in sql
         await store.aclose()
 
-    @respx.mock
-    async def test_every_collector_table_gets_its_retention(self) -> None:
+    async def test_every_collector_table_gets_its_retention(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         """The collector's own tables were the gap: traces and the legacy metric tables grew
         forever while the docstring claimed otherwise. Now every table is covered."""
-        route = respx.post(_URL).mock(return_value=httpx.Response(200, json={"output": []}))
+        route = httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json={"output": []}))
         store = GreptimeMonitoringStore(
             host="gt",
             port=4000,
@@ -84,19 +86,20 @@ class TestRetention:
             assert f"ALTER TABLE {table} SET 'ttl' = '7d'" in sql
         await store.aclose()
 
-    @respx.mock
-    async def test_a_failing_alter_does_not_stop_the_worker(self) -> None:
+    async def test_a_failing_alter_does_not_stop_the_worker(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         """Retention is best-effort: an old GreptimeDB or a missing table must not block writes."""
         failed = {"alter": False}
 
-        def answer(request: httpx.Request) -> httpx.Response:
+        def answer(request: httpx2.Request) -> MockResponse:
             statement = request.content.decode()
             if "ALTER+TABLE" in statement and not failed["alter"]:
                 failed["alter"] = True
-                return httpx.Response(500, text="boom")
-            return httpx.Response(200, json={"output": []})
+                return MockResponse(500, text="boom")
+            return MockResponse(200, json={"output": []})
 
-        respx.post(_URL).mock(side_effect=answer)
+        httpx2_mock.post(_URL).mock(side_effect=answer)
         store = GreptimeMonitoringStore(
             host="gt", port=4000, results_ttl="30d", alerts_ttl="30d", traces_ttl="30d"
         )
@@ -105,9 +108,10 @@ class TestRetention:
 
         await store.aclose()
 
-    @respx.mock
-    async def test_without_a_setting_nothing_is_altered(self) -> None:
-        route = respx.post(_URL).mock(return_value=httpx.Response(200, json={"output": []}))
+    async def test_without_a_setting_nothing_is_altered(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
+        route = httpx2_mock.post(_URL).mock(return_value=MockResponse(200, json={"output": []}))
         store = GreptimeMonitoringStore(host="gt", port=4000)
 
         await store._ensure_tables()
@@ -116,9 +120,9 @@ class TestRetention:
         assert "ALTER" not in sql.upper()
         await store.aclose()
 
-    @respx.mock
     async def test_a_table_the_collector_has_not_created_gets_its_retention_once_it_appears(
         self,
+        httpx2_mock: respx.MockRouter,
     ) -> None:
         """On a fresh database no collector table exists at Agent start.
 
@@ -128,19 +132,19 @@ class TestRetention:
         """
         exists = {"events": False}
 
-        def answer(request: httpx.Request) -> httpx.Response:
+        def answer(request: httpx2.Request) -> MockResponse:
             sql = _statements_of(request)
             if f"ALTER TABLE {INFERENCE_EVENTS_TABLE}" in sql and not exists["events"]:
-                return httpx.Response(
+                return MockResponse(
                     400,
                     json={
                         "code": 4001,
                         "error": f"Table not found: greptime.public.{INFERENCE_EVENTS_TABLE}",
                     },
                 )
-            return httpx.Response(200, json={"output": []})
+            return MockResponse(200, json={"output": []})
 
-        route = respx.post(_URL).mock(side_effect=answer)
+        route = httpx2_mock.post(_URL).mock(side_effect=answer)
         store = GreptimeMonitoringStore(host="gt", port=4000, events_ttl="7d", ttl_retry_seconds=0)
 
         await store._ensure_tables()
@@ -154,12 +158,11 @@ class TestRetention:
         assert store._pending_ttl == {}
         await store.aclose()
 
-    @respx.mock
     async def test_a_missing_collector_table_is_not_a_warning(
-        self, caplog: pytest.LogCaptureFixture
+        self, httpx2_mock: respx.MockRouter, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Eight lines of WARNING per start on every fresh stand hid real storage errors."""
-        respx.post(_URL).mock(side_effect=_traces_table_missing)
+        httpx2_mock.post(_URL).mock(side_effect=_traces_table_missing)
         store = GreptimeMonitoringStore(host="gt", port=4000, traces_ttl="30d")
 
         with caplog.at_level(logging.DEBUG, logger="satellite"):
@@ -170,10 +173,9 @@ class TestRetention:
         assert any("waits for the collector" in r.getMessage() for r in caplog.records)
         await store.aclose()
 
-    @respx.mock
-    async def test_retries_are_rate_limited(self) -> None:
+    async def test_retries_are_rate_limited(self, httpx2_mock: respx.MockRouter) -> None:
         """A pending table is asked about once per interval, not on every store call."""
-        route = respx.post(_URL).mock(side_effect=_traces_table_missing)
+        route = httpx2_mock.post(_URL).mock(side_effect=_traces_table_missing)
         store = GreptimeMonitoringStore(
             host="gt", port=4000, traces_ttl="30d", ttl_retry_seconds=3600
         )
@@ -187,16 +189,17 @@ class TestRetention:
         assert len(alters) == 2
         await store.aclose()
 
-    @respx.mock
-    async def test_legacy_metric_tables_are_not_asked_about_again(self) -> None:
+    async def test_legacy_metric_tables_are_not_asked_about_again(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         """Nothing creates them any more; a fresh stand would retry five ALTERs forever."""
 
-        def nothing_exists_yet(request: httpx.Request) -> httpx.Response:
+        def nothing_exists_yet(request: httpx2.Request) -> MockResponse:
             if "ALTER TABLE" in _statements_of(request):
-                return httpx.Response(400, json={"code": 4001, "error": "Table not found: x"})
-            return httpx.Response(200, json={"output": []})
+                return MockResponse(400, json={"code": 4001, "error": "Table not found: x"})
+            return MockResponse(200, json={"output": []})
 
-        route = respx.post(_URL).mock(side_effect=nothing_exists_yet)
+        route = httpx2_mock.post(_URL).mock(side_effect=nothing_exists_yet)
         store = GreptimeMonitoringStore(
             host="gt", port=4000, events_ttl="7d", metrics_ttl="7d", ttl_retry_seconds=0
         )
@@ -214,16 +217,16 @@ class TestRetention:
         await store.aclose()
 
 
-def _statements_of(request: httpx.Request) -> str:
+def _statements_of(request: httpx2.Request) -> str:
     from urllib.parse import unquote_plus
 
     return unquote_plus(request.content.decode()) if request.content else ""
 
 
-def _traces_table_missing(request: httpx.Request) -> httpx.Response:
+def _traces_table_missing(request: httpx2.Request) -> MockResponse:
     """The collector has not created ``otel_traces`` yet; everything else works."""
     if "ALTER TABLE otel_traces" in _statements_of(request):
-        return httpx.Response(
+        return MockResponse(
             400, json={"code": 4001, "error": "Table not found: greptime.public.otel_traces"}
         )
-    return httpx.Response(200, json={"output": []})
+    return MockResponse(200, json={"output": []})

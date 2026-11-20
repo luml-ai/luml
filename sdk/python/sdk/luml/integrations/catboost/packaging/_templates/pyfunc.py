@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from catboost import CatBoost  # type: ignore[import-untyped]
-from fnnx.utils import to_thread  # type: ignore[import-untyped]
-from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
+from catboost import CatBoost
+from fnnx.utils import to_thread
+from fnnx.variants.pyfunc import PyFunc
 from scipy.sparse import csr_matrix
 
 

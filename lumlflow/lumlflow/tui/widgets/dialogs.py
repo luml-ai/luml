@@ -147,9 +147,8 @@ class EditEntityDialog(BaseDialog[EntityEditResult | None]):
 class ConfirmDialog(BaseDialog[bool]):
     """Yes/no confirm dialog with inline error display.
 
-    Defaults focus visually to Cancel for destructive actions (the
-    label shows `[Esc] Cancel` first so the eye lands on the safe
-    option). The handler's constraint message (e.g. "Cannot delete a
+    Enter cancels destructive actions; Ctrl+Y explicitly confirms.
+    The handler's constraint message (e.g. "Cannot delete a
     group that has linked experiments") is surfaced via `set_error`
     when the parent screen receives a 409 from the facade.
     """
@@ -177,7 +176,7 @@ class ConfirmDialog(BaseDialog[bool]):
             destructive=destructive,
         )
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         # We need to render the buttons with Cancel-first for destructive
         # confirms so the eye lands on the safe option.
         with Vertical():
@@ -196,7 +195,7 @@ class ConfirmDialog(BaseDialog[bool]):
                         markup=False,
                     )
                     yield Static(
-                        f"[Enter] {self.confirm_label}",
+                        f"[Ctrl+Y] {self.confirm_label}",
                         id="dialog-confirm-key",
                         markup=False,
                     )
@@ -225,7 +224,7 @@ class RunQuitDialog(BaseDialog[str | None]):
     confirm_label = "Quit (detach)"
     terminate_label = "Terminate"
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         with Vertical():
             yield Label(self.title_text, id="dialog-title")
             if self.message is not None:

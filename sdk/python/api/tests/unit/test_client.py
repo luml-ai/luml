@@ -1,13 +1,12 @@
-import httpx
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import NotFoundError
 from tests.conftest import TEST_API_KEY, TEST_BASE_URL
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_client_initialization_with_params(mock_initialization_requests: dict) -> None:
     data = mock_initialization_requests
     organization_id = data["organization"].id
@@ -28,19 +27,19 @@ def test_client_initialization_with_params(mock_initialization_requests: dict) -
     assert client.collection == collection_oid
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_organization_validation_single_org(mock_initialization_requests: dict) -> None:
     data = mock_initialization_requests
     client = LumlClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
     assert client.organization == data["organization"].id
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_organization_validation_multiple_orgs_no_default(
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.get("/v1/users/me/organizations").mock(
-        return_value=httpx.Response(
+    httpx2_mock.get("/v1/users/me/organizations").mock(
+        return_value=MockResponse(
             200,
             json=[
                 {
@@ -68,7 +67,7 @@ def test_async_client_initialization() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 async def test_async_organization_list(
     async_client_with_mocks: AsyncLumlClient,
 ) -> None:
@@ -79,14 +78,14 @@ async def test_async_organization_list(
     assert organizations[0].name
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
-def test_error_handling(client_with_mocks: LumlClient, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
+def test_error_handling(client_with_mocks: LumlClient, httpx2_mock: MockRouter) -> None:
     organization_id = client_with_mocks.organization
     bucket_id = "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d"
 
-    respx_mock.get(
+    httpx2_mock.get(
         f"/v1/organizations/{organization_id}/bucket-secrets/{bucket_id}"
-    ).mock(return_value=httpx.Response(404, json={"error": "Not found"}))
+    ).mock(return_value=MockResponse(404, json={"error": "Not found"}))
 
     with pytest.raises(NotFoundError):
         client_with_mocks.bucket_secrets.get(bucket_id)
@@ -105,7 +104,7 @@ def test_error_handling(client_with_mocks: LumlClient, respx_mock: MockRouter) -
         "live_sessions",
     ],
 )
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_all_resources_accessible(
     resource_name: str, mock_initialization_requests: dict
 ) -> None:

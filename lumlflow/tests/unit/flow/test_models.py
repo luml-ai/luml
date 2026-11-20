@@ -95,7 +95,7 @@ class TestManifest:
     def test_produces_takes_only_the_four_words(self) -> None:
         assert OutputSpec(type="model").persist is True
         with pytest.raises(ValidationError):
-            CellManifest(produces={"data": OutputSpec(type="frame")})  # type: ignore[arg-type]
+            CellManifest(produces={"data": OutputSpec(type="frame")})
 
     def test_an_output_can_opt_out_of_the_values_store(self) -> None:
         spec = OutputSpec(type="asset", kind="frame", persist=False)

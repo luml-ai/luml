@@ -61,7 +61,8 @@ export const useExperimentsStore = defineStore('experiments', () => {
       }
     }
     if (deletedExperimentIds.length) {
-      toast.add(successToast(`${deletedExperimentIds.length} experiments deleted successfully`))
+      const noun = deletedExperimentIds.length === 1 ? 'experiment' : 'experiments'
+      toast.add(successToast(`${deletedExperimentIds.length} ${noun} deleted successfully`))
     }
     await getInitialPage()
   }

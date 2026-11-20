@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
@@ -65,7 +65,7 @@ async def harness(
     clock: FakeClock | None = None,
     driver_call_timeout: float = 1.0,
     max_parallel: int = 8,
-) -> AsyncIterator[Harness]:
+) -> AsyncGenerator[Harness]:
     active_driver = driver or FakeDriver()
     active_serving = serving or FakeServingPlacement()
     active_clock = clock or FakeClock()

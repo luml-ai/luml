@@ -32,6 +32,7 @@ All data fetching runs on Textual worker threads via the
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
@@ -49,6 +50,8 @@ from lumlflow.schemas.experiments import (
     ExperimentStatus,
 )
 from lumlflow.schemas.models import Model, UpdateModel
+from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
 from lumlflow.tui.screens.base import BaseScreen
@@ -285,7 +288,7 @@ class TabBar(Horizontal):
         self._tabs = tabs
         self._active_id = tabs[0][0] if tabs else ""
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         for i, (tab_id, label, mnemonic_index) in enumerate(self._tabs):
             yield TabSegment(
                 tab_id,
@@ -478,11 +481,13 @@ class ExperimentDetailScreen(BaseScreen):
         # zoom view owns the pane.
         self._metric_keys: list[str] = []
         self._metric_history: dict[str, ExperimentMetricHistory] = {}
+        self._pending_metrics: dict[str, int] = {}
+        self._metric_loading = False
         self._zoomed_metric: str | None = None
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         with Container(id="exp-detail-body"):
             yield TabBar(TAB_DEFS, id="exp-detail-tabbar")
             with Container(id="pane-overview", classes="tab-pane"):
@@ -610,9 +615,7 @@ class ExperimentDetailScreen(BaseScreen):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        return getattr(self.app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -624,10 +627,10 @@ class ExperimentDetailScreen(BaseScreen):
     def _fetch_details(self) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(self._on_details_failure, "facade unavailable")
+            post_worker_result(self, self._on_details_failure, "facade unavailable")
             return
         result = facade.get_experiment(self._experiment_id)
-        self.app.call_from_thread(self._on_details_result, result)
+        post_worker_result(self, self._on_details_result, result)
 
     def _on_details_result(self, result: Result[Any]) -> None:
         if not result.ok:
@@ -772,15 +775,30 @@ class ExperimentDetailScreen(BaseScreen):
         ):
             grid.focus_first_cell()
 
-    @work(thread=True, group="experiment-metric")
     def _fetch_metric_history(self, key: str, *, max_points: int) -> None:
-        facade = self.facade
-        if facade is None:
-            return
-        result = facade.get_metric_history(
-            self._experiment_id, key, max_points=max_points
-        )
-        self.app.call_from_thread(self._on_metric_result, result, key)
+        self._pending_metrics[key] = max_points
+        if not self._metric_loading:
+            self._metric_loading = True
+            self._drain_metric_requests()
+
+    @work(group="experiment-metric")
+    async def _drain_metric_requests(self) -> None:
+        try:
+            while self._pending_metrics:
+                key = next(iter(self._pending_metrics))
+                max_points = self._pending_metrics.pop(key)
+                facade = self.facade
+                if facade is None:
+                    continue
+                result = await asyncio.to_thread(
+                    facade.get_metric_history,
+                    self._experiment_id,
+                    key,
+                    max_points=max_points,
+                )
+                self._on_metric_result(result, key)
+        finally:
+            self._metric_loading = False
 
     def _on_metric_result(self, result: Result[Any], key: str) -> None:
         if not result.ok:
@@ -1127,7 +1145,7 @@ class ExperimentDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.update_model(model_id, body)
-        self.app.call_from_thread(self._on_model_update_result, result, model_id)
+        post_worker_result(self, self._on_model_update_result, result, model_id)
 
     def _on_model_update_result(self, result: Result[Any], model_id: str) -> None:
         if not result.ok:
@@ -1184,7 +1202,7 @@ class ExperimentDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.delete_model(model_id)
-        self.app.call_from_thread(self._on_model_delete_result, result, model_id)
+        post_worker_result(self, self._on_model_delete_result, result, model_id)
 
     def _on_model_delete_result(self, result: Result[Any], model_id: str) -> None:
         if not result.ok:
@@ -1367,7 +1385,7 @@ class ExperimentDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.get_experiment(self._experiment_id)
-        self.app.call_from_thread(self._on_refresh_details_result, result)
+        post_worker_result(self, self._on_refresh_details_result, result)
 
     def _on_refresh_details_result(self, result: Result[Any]) -> None:
         if not result.ok:

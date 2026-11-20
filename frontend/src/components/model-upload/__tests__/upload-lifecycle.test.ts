@@ -271,3 +271,19 @@ describe.each([
     })
   }
 })
+
+it('associates the model upload Orbit label with its select', () => {
+  const wrapper = shallowMount(ModelUpload, {
+    props: { visible: true, modelBlob: new Blob(['model']) },
+    global: {
+      renderStubDefaultSlot: true,
+      stubs: {
+        Dialog: { template: '<div><slot /></div>' },
+        Form: { template: '<form><slot /></form>' },
+      },
+    },
+  })
+  expect(wrapper.get('label').attributes('for')).toBe('orbit')
+  expect(wrapper.getComponent({ name: 'Select' }).attributes('input-id')).toBe('orbit')
+  wrapper.unmount()
+})

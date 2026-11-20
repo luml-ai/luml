@@ -489,6 +489,17 @@ class LumlTrackingStore(AbstractStore):
     def get_trace(self, trace_id: str, *, allow_partial: bool = False) -> Trace:
         return _tracing.get_trace(self._tracker, trace_id)
 
+    def batch_get_traces(
+        self,
+        trace_ids: list[str],
+        location: str | None = None,
+        experiment_ids: list[str] | None = None,
+    ) -> list[Trace]:
+        traces = [_tracing.get_trace(self._tracker, trace_id) for trace_id in trace_ids]
+        if experiment_ids is None:
+            return traces
+        return [trace for trace in traces if trace.info.experiment_id in experiment_ids]
+
     def set_trace_tag(self, trace_id: str, key: str, value: str) -> None:
         _tracing.set_trace_tag(self._tracker, trace_id, key, value)
 

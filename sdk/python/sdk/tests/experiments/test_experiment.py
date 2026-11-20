@@ -761,7 +761,7 @@ class TestLogExperimentAttachment:
     ) -> None:
         tracker, _ = tracker_with_experiment
         with pytest.raises(ValueError, match="must be bytes or str"):
-            tracker.log_attachment("file.txt", 123)  # type: ignore[arg-type]
+            tracker.log_attachment("file.txt", 123)
 
     def test_list_attachments_returns_records(
         self,

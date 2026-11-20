@@ -269,6 +269,18 @@ class OrbitHandler:
         if not orbit_obj:
             raise OrbitNotFoundError()
 
+        org_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
+        orbit_role = await self.__orbits_repository.get_orbit_member_role(
+            orbit_id, user_id
+        )
+        orbit_obj.permissions = (
+            self.__permissions_handler.get_orbit_permissions_by_role(
+                org_role, orbit_role
+            )
+        )
+
         return orbit_obj
 
     async def delete_orbit(

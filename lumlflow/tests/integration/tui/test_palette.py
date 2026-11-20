@@ -119,14 +119,14 @@ async def _open_palette(app: LumlflowApp, pilot) -> CommandPalette:
     await pilot.press("colon")
     await pilot.pause()
     assert isinstance(app.screen, CommandPalette), type(app.screen)
-    return app.screen  # type: ignore[return-value]
+    return app.screen
 
 
 async def _open_help(app: LumlflowApp, pilot) -> HelpCheatsheet:
     await pilot.press("question_mark")
     await pilot.pause()
     assert isinstance(app.screen, HelpCheatsheet), type(app.screen)
-    return app.screen  # type: ignore[return-value]
+    return app.screen
 
 
 class TestPaletteOpens:
@@ -203,7 +203,7 @@ class TestPaletteContent:
             listview = palette.query_one("#palette-list", ListView)
             assert len(listview.children) >= 1
             first = listview.children[0]
-            text = str(first.children[0].render())  # type: ignore[attr-defined]
+            text = str(first.children[0].render())
             assert "Theme" in text
             assert "[ctrl+t]" in text
 
@@ -306,10 +306,7 @@ class TestHelpCheatsheet:
         async with app.run_test() as pilot:
             await pilot.pause()
             help_dialog = await _open_help(app, pilot)
-            shown_labels = {
-                cmd.label
-                for cmd, _ in help_dialog._row_widgets  # type: ignore[attr-defined]
-            }
+            shown_labels = {cmd.label for cmd, _ in help_dialog._row_widgets}
             registered_labels = {cmd.label for cmd in app.keymap}
             assert registered_labels <= shown_labels, (
                 f"missing from help: {registered_labels - shown_labels}"
@@ -324,7 +321,7 @@ class TestHelpCheatsheet:
                 await pilot.press(ch)
             await pilot.pause()
             # Each row that does NOT mention 'theme' should be hidden.
-            for cmd, widget in help_dialog._row_widgets:  # type: ignore[attr-defined]
+            for cmd, widget in help_dialog._row_widgets:
                 if "theme" in cmd.label.lower() or "theme" in cmd.description.lower():
                     assert "-hidden" not in widget.classes, cmd.label
                 else:
@@ -364,10 +361,7 @@ class TestNoHiddenShortcuts:
             # Palette: should list every command (with `palette_only` ones
             # rendered alongside the keybinding-backed ones).
             palette = await _open_palette(app, pilot)
-            entries_by_label = {
-                e.label: e
-                for e in palette._all_entries  # type: ignore[attr-defined]
-            }
+            entries_by_label = {e.label: e for e in palette._all_entries}
             for cmd in app.keymap:
                 assert cmd.label in entries_by_label, (
                     f"Command not in palette: {cmd.id} ({cmd.label})"
@@ -376,15 +370,17 @@ class TestNoHiddenShortcuts:
             await pilot.pause()
             # Help cheat-sheet: shows every command, grouped by Command.group.
             help_dialog = await _open_help(app, pilot)
-            shown = {cmd.id for cmd, _ in help_dialog._row_widgets}  # type: ignore[attr-defined]
+            shown = {cmd.id for cmd, _ in help_dialog._row_widgets}
             for cmd in app.keymap:
                 assert cmd.id in shown, f"Command not in help cheat-sheet: {cmd.id}"
 
-    async def test_inline_affordances_on_dialog_buttons(self) -> None:
-        """Confirm dialogs render `[Enter]` / `[Esc]` inline affordances.
-
-        SPEC: "dialog buttons read e.g. `[Enter] Save` / `[Esc] Cancel`".
-        """
+    @pytest.mark.parametrize(
+        ("destructive", "confirm_key"), [(False, "[Enter]"), (True, "[Ctrl+Y]")]
+    )
+    async def test_inline_affordances_on_dialog_buttons(
+        self, destructive: bool, confirm_key: str
+    ) -> None:
+        """Confirm dialogs display the shortcut for their actual confirm action."""
 
         from lumlflow.tui.widgets.dialogs import ConfirmDialog
         from textual.containers import Horizontal
@@ -392,11 +388,13 @@ class TestNoHiddenShortcuts:
         app = _make_app()
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.push_screen(ConfirmDialog(title="t", message="m"))
+            app.push_screen(
+                ConfirmDialog(title="t", message="m", destructive=destructive)
+            )
             await pilot.pause()
             buttons = app.screen.query_one("#dialog-buttons", Horizontal)
             rendered = " ".join(str(child.render()) for child in buttons.children)
-            assert "[Enter]" in rendered
+            assert confirm_key in rendered
             assert "[Esc]" in rendered
 
 
@@ -536,18 +534,12 @@ class TestSurfaceConsistency:
             # The footer always mentions `?` and `:` — confirm those two
             # commands are also rendered in the palette and the help.
             palette = await _open_palette(app, pilot)
-            labels_palette = {
-                e.label
-                for e in palette._all_entries  # type: ignore[attr-defined]
-            }
+            labels_palette = {e.label for e in palette._all_entries}
             assert "Help" in labels_palette
             assert "Command palette" in labels_palette
             await pilot.press("escape")
             await pilot.pause()
             help_dialog = await _open_help(app, pilot)
-            labels_help = {
-                cmd.label
-                for cmd, _ in help_dialog._row_widgets  # type: ignore[attr-defined]
-            }
+            labels_help = {cmd.label for cmd, _ in help_dialog._row_widgets}
             assert "Help" in labels_help
             assert "Command palette" in labels_help

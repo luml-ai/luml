@@ -3,9 +3,10 @@ from typing import Any
 from urllib.parse import parse_qs
 from uuid import UUID
 
-import httpx
+import httpx2
 import pytest
 import respx
+from respx import MockResponse
 
 from luml_satellite.monitoring import MonitoringQueryService, QueryDimensions
 from luml_satellite.monitoring.dashboard.schemas import Compare, Granularity, SortOrder, TraceSort
@@ -32,15 +33,16 @@ def _records(columns: list[str], rows: list[list[Any]]) -> dict[str, Any]:
     }
 
 
-def _sql(request: httpx.Request) -> str:
-    return parse_qs(request.content.decode())["sql"][0]
+def _sql(content: bytes) -> str:
+    return parse_qs(content.decode())["sql"][0]
 
 
 @pytest.mark.parametrize("sort", list(TraceSort))
 @pytest.mark.parametrize("order", list(SortOrder))
-@respx.mock
-async def test_event_page_orders_and_bounds_sql(sort: TraceSort, order: SortOrder) -> None:
-    route = respx.post(_URL).respond(200, json=_records([], []))
+async def test_event_page_orders_and_bounds_sql(
+    httpx2_mock: respx.MockRouter, sort: TraceSort, order: SortOrder
+) -> None:
+    route = httpx2_mock.post(_URL).respond(200, json=_records([], []))
     store = GreptimeQueryStore(host="gt")
     try:
         assert (
@@ -49,7 +51,7 @@ async def test_event_page_orders_and_bounds_sql(sort: TraceSort, order: SortOrde
             )
             == []
         )
-        sql = _sql(route.calls.last.request)
+        sql = _sql(route.calls.last.request.content)
         assert "LIMIT 20 OFFSET 40" in sql
         assert f"ORDER BY {sort.value}" in sql
         assert order.value.upper() in sql
@@ -60,13 +62,14 @@ async def test_event_page_orders_and_bounds_sql(sort: TraceSort, order: SortOrde
         await store.aclose()
 
 
-@respx.mock
-async def test_default_event_read_is_bounded() -> None:
-    route = respx.post(_URL).respond(200, json=_records([], []))
+async def test_default_event_read_is_bounded(
+    httpx2_mock: respx.MockRouter,
+) -> None:
+    route = httpx2_mock.post(_URL).respond(200, json=_records([], []))
     store = GreptimeQueryStore(host="gt")
     try:
         await store.fetch_events(_DEP, _START, _END)
-        assert "LIMIT 50 OFFSET 0" in _sql(route.calls.last.request)
+        assert "LIMIT 50 OFFSET 0" in _sql(route.calls.last.request.content)
     finally:
         await store.aclose()
 
@@ -78,10 +81,11 @@ async def test_invalid_page_is_rejected(limit: int, offset: int) -> None:
         await store.fetch_events(_DEP, _START, _END, limit=limit, offset=offset)
 
 
-@respx.mock
-async def test_trace_lookup_filters_event_id_and_keeps_payload() -> None:
+async def test_trace_lookup_filters_event_id_and_keeps_payload(
+    httpx2_mock: respx.MockRouter,
+) -> None:
     attrs = {"inference.event_id": "ev'1", "inference.inputs": '{"x":1}'}
-    route = respx.post(_URL).respond(
+    route = httpx2_mock.post(_URL).respond(
         200,
         json=_records(["timestamp", "span_attributes"], [[int(_START.timestamp() * 1e9), attrs]]),
     )
@@ -89,7 +93,7 @@ async def test_trace_lookup_filters_event_id_and_keeps_payload() -> None:
     try:
         event = await store.fetch_event(_DEP, _START, _END, "ev'1")
         assert event is not None and event.inputs == '{"x":1}'
-        sql = _sql(route.calls.last.request)
+        sql = _sql(route.calls.last.request.content)
         assert '["inference.event_id"]' in sql
         assert "= 'ev''1'" in sql
         assert "LIMIT 1" in sql
@@ -99,13 +103,14 @@ async def test_trace_lookup_filters_event_id_and_keeps_payload() -> None:
         await store.aclose()
 
 
-@respx.mock
-async def test_count_query_returns_full_total_without_payloads() -> None:
-    route = respx.post(_URL).respond(200, json=_records(["total"], [[123456]]))
+async def test_count_query_returns_full_total_without_payloads(
+    httpx2_mock: respx.MockRouter,
+) -> None:
+    route = httpx2_mock.post(_URL).respond(200, json=_records(["total"], [[123456]]))
     store = GreptimeQueryStore(host="gt")
     try:
         assert await store.count_events(_DEP, _START, _END) == 123456
-        sql = _sql(route.calls.last.request)
+        sql = _sql(route.calls.last.request.content)
         assert "COUNT(*)" in sql
         assert "SELECT timestamp, span_attributes" not in sql
         assert "LIMIT" not in sql
@@ -113,29 +118,30 @@ async def test_count_query_returns_full_total_without_payloads() -> None:
         await store.aclose()
 
 
-@respx.mock
-async def test_runtime_queries_return_only_summaries_and_grouped_buckets() -> None:
+async def test_runtime_queries_return_only_summaries_and_grouped_buckets(
+    httpx2_mock: respx.MockRouter,
+) -> None:
     queries: list[str] = []
 
-    def answer(request: httpx.Request) -> httpx.Response:
-        sql = _sql(request)
+    def answer(request: httpx2.Request) -> MockResponse:
+        sql = _sql(request.content)
         queries.append(sql)
         if "GROUP BY status" in sql:
-            return httpx.Response(
+            return MockResponse(
                 200,
                 json=_records(
                     ["status", "status_code", "count"], [["success", 200, 2], ["error", 504, 1]]
                 ),
             )
         if "GROUP BY bucket" in sql:
-            return httpx.Response(
+            return MockResponse(
                 200,
                 json=_records(
                     ["bucket", "request_count", "success_count", "latency_p95_ms"],
                     [[0, 3, 2, 90.0]],
                 ),
             )
-        return httpx.Response(
+        return MockResponse(
             200,
             json=_records(
                 [
@@ -167,7 +173,7 @@ async def test_runtime_queries_return_only_summaries_and_grouped_buckets() -> No
             ),
         )
 
-    respx.post(_URL).mock(side_effect=answer)
+    httpx2_mock.post(_URL).mock(side_effect=answer)
     store = GreptimeQueryStore(host="gt")
     try:
         summary = await store.fetch_runtime_summary(_DEP, _START, _END)
@@ -225,9 +231,12 @@ async def test_empty_page_retains_total_and_window_is_half_open() -> None:
     assert (await service.trace_detail(_DEP, dims, "other")).trace is None
 
 
-@respx.mock
-async def test_missing_event_table_returns_empty_summaries_and_series() -> None:
-    respx.post(_URL).respond(400, json={"code": 4001, "error": "Table not found: inference_events"})
+async def test_missing_event_table_returns_empty_summaries_and_series(
+    httpx2_mock: respx.MockRouter,
+) -> None:
+    httpx2_mock.post(_URL).respond(
+        400, json={"code": 4001, "error": "Table not found: inference_events"}
+    )
     store = GreptimeQueryStore(host="gt")
     try:
         assert await store.count_events(_DEP, _START, _END) == 0
@@ -248,9 +257,10 @@ async def test_missing_event_table_returns_empty_summaries_and_series() -> None:
         await store.aclose()
 
 
-@respx.mock
-async def test_query_outage_keeps_sections_unavailable() -> None:
-    respx.post(_URL).mock(side_effect=httpx.ConnectError("refused"))
+async def test_query_outage_keeps_sections_unavailable(
+    httpx2_mock: respx.MockRouter,
+) -> None:
+    httpx2_mock.post(_URL).mock(side_effect=httpx2.ConnectError("refused"))
     store = GreptimeQueryStore(host="gt")
     try:
         service = MonitoringQueryService(store)

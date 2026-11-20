@@ -3,8 +3,9 @@
 import uuid
 from datetime import UTC, datetime
 
-import httpx
+import httpx2
 import respx
+from respx import MockResponse
 
 from luml_satellite.monitoring import MonitoringQueryService, QueryDimensions
 from luml_satellite.monitoring.compute.models import (
@@ -112,8 +113,9 @@ class TestAcknowledge:
 
         assert store.alerts[("dep", "runtime:error_rate")].state == AlertState.ACKNOWLEDGED
 
-    @respx.mock
-    async def test_acknowledging_rewrites_the_alert_row_in_place(self) -> None:
+    async def test_acknowledging_rewrites_the_alert_row_in_place(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
         """Same key and same last_seen: the row is replaced, the alert's timeline is intact."""
         columns = [
             "deployment_id",
@@ -137,13 +139,13 @@ class TestAcknowledge:
         ]
         statements: list[str] = []
 
-        def handler(request: httpx.Request) -> httpx.Response:
+        def handler(request: httpx2.Request) -> MockResponse:
             from urllib.parse import parse_qs
 
             sql = parse_qs(request.content.decode())["sql"][0]
             statements.append(sql)
             if sql.startswith("SELECT"):
-                return httpx.Response(
+                return MockResponse(
                     200,
                     json={
                         "code": 0,
@@ -157,9 +159,9 @@ class TestAcknowledge:
                         ],
                     },
                 )
-            return httpx.Response(200, json={"code": 0, "output": [{"affectedrows": 1}]})
+            return MockResponse(200, json={"code": 0, "output": [{"affectedrows": 1}]})
 
-        respx.post(_URL).mock(side_effect=handler)
+        httpx2_mock.post(_URL).mock(side_effect=handler)
         store = GreptimeQueryStore(host="gt", port=4000)
 
         assert await store.acknowledge_alert(_DEP, "feature_drift:income") is True
@@ -171,10 +173,11 @@ class TestAcknowledge:
         assert "'critical'" in insert
         await store.aclose()
 
-    @respx.mock
-    async def test_nothing_to_acknowledge_is_not_an_error(self) -> None:
-        respx.post(_URL).mock(
-            return_value=httpx.Response(
+    async def test_nothing_to_acknowledge_is_not_an_error(
+        self, httpx2_mock: respx.MockRouter
+    ) -> None:
+        httpx2_mock.post(_URL).mock(
+            return_value=MockResponse(
                 200,
                 json={
                     "code": 0,

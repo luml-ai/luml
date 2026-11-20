@@ -117,7 +117,7 @@ const initialValues = computed(() => ({
 const relayOptions = computed(() => getRelayOptions(relaysStore.relays, props.orbit.relay_id))
 
 const leftButton = computed<FooterButton | undefined>(() => {
-  if (props.orbit.permissions.orbit.includes(PermissionEnum.delete)) {
+  if (props.orbit.permissions?.orbit?.includes(PermissionEnum.delete)) {
     return {
       props: {
         label: 'Delete Orbit',

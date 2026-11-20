@@ -65,6 +65,12 @@ function isValidConnection(connection: Connection) {
   return true
 }
 function onBackspaceClick(e: KeyboardEvent) {
+  const target = e.target
+  if (
+    target instanceof Element &&
+    target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+  )
+    return
   if (e.code === 'Delete') {
     removeEdges(getSelectedEdges.value)
   }

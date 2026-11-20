@@ -13,7 +13,10 @@ on the wall-clock interval) so the suite stays fast and stable.
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
@@ -25,7 +28,11 @@ from lumlflow.tui.screens.experiment_detail import ExperimentDetailScreen
 from lumlflow.tui.screens.experiments import ExperimentsScreen
 from lumlflow.tui.screens.groups import ALL_EXPERIMENTS_KEY, GroupsScreen
 from lumlflow.tui.widgets.dialogs import ConfirmDialog
+from textual._context import active_app
+from textual.events import Callback
 from textual.widgets import DataTable
+
+from tests.helpers.tui import settle_workers
 
 
 @pytest.fixture
@@ -421,7 +428,7 @@ class TestExperimentDetailRefresh:
             screen.action_delete_focused_model()
             await pilot.pause()
             assert isinstance(app.screen, ConfirmDialog)
-            await pilot.press("enter")
+            await pilot.press("ctrl+y")
             await pilot.pause()
             assert yanked == [selected_id]
             assert deleted == [selected_id]
@@ -568,3 +575,331 @@ class TestRefreshNow:
             # Calling refresh_now is a no-op (no crash).
             app._refresh_scheduler.refresh_now()
             await pilot.pause()
+
+
+class TestRefreshLifetime:
+    @pytest.mark.parametrize("screen_kind", ["home", "experiments", "detail"])
+    async def test_refresh_starting_after_shutdown_drops_result(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        screen_kind: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if screen_kind == "home":
+                screen = app.screen
+                callback_name = "_on_refresh_result"
+            elif screen_kind == "experiments":
+                screen = ExperimentsScreen(group_id=group.id)
+                callback_name = "_on_refresh_result"
+                await app.push_screen(screen)
+            else:
+                screen = ExperimentDetailScreen(experiment_id=experiment_id)
+                callback_name = "_on_refresh_details_result"
+                await app.push_screen(screen)
+            await settle_workers(pilot)
+            assert screen._facade is None
+            assert screen.facade is facade
+            callback = Mock()
+            monkeypatch.setattr(screen, callback_name, callback)
+            run_worker = screen.run_worker
+
+            def delay_worker(work, *args, **kwargs):
+                def delayed():
+                    started.set()
+                    try:
+                        assert release.wait(10), "worker was never released"
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(delayed, *args, **kwargs)
+
+            monkeypatch.setattr(screen, "run_worker", delay_worker)
+            screen.refresh_live()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                await app._shutdown()
+                assert not screen.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            callback.assert_not_called()
+
+    @pytest.mark.parametrize("screen_kind", ["groups", "experiments", "detail"])
+    @pytest.mark.parametrize("leave", ["pop", "unmount", "stop"])
+    async def test_blocked_refresh_drops_result_after_leaving(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        screen_kind: str,
+        leave: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if screen_kind == "groups":
+                screen = GroupsScreen(facade=facade)
+                read_name = "list_groups"
+                callback_name = "_on_refresh_result"
+            elif screen_kind == "experiments":
+                screen = ExperimentsScreen(facade=facade, group_id=group.id)
+                read_name = "list_group_experiments"
+                callback_name = "_on_refresh_result"
+            else:
+                screen = ExperimentDetailScreen(
+                    facade=facade, experiment_id=experiment_id
+                )
+                read_name = "get_experiment"
+                callback_name = "_on_refresh_details_result"
+            await app.push_screen(screen)
+            await settle_workers(pilot)
+            callback = Mock()
+            monkeypatch.setattr(screen, callback_name, callback)
+            read = getattr(facade, read_name)
+
+            def blocked_read(*args, **kwargs):
+                started.set()
+                assert release.wait(10), "refresh was never released"
+                return read(*args, **kwargs)
+
+            monkeypatch.setattr(facade, read_name, blocked_read)
+            run_worker = screen.run_worker
+
+            def observe_worker(work, *args, **kwargs):
+                def observed():
+                    try:
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(observed, *args, **kwargs)
+
+            monkeypatch.setattr(screen, "run_worker", observe_worker)
+            if leave == "unmount":
+
+                async def on_unmount(self):
+                    release.set()
+                    assert await asyncio.to_thread(finished.wait, 10)
+
+                monkeypatch.setattr(
+                    type(screen), "on_unmount", on_unmount, raising=False
+                )
+            screen.refresh_live()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                if leave in {"pop", "unmount"}:
+                    await app.pop_screen()
+                    await pilot.pause()
+                    assert not screen.is_attached
+                else:
+                    await app._shutdown()
+                    assert not app.is_running
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            callback.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "screen_kind",
+        ["groups", "experiments", "detail", "attachments", "evals", "traces"],
+    )
+    @pytest.mark.parametrize("leave", ["pop", "stop"])
+    async def test_detach_during_result_enqueue_drops_callback(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        screen_kind: str,
+        leave: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if screen_kind == "groups":
+                screen = GroupsScreen(facade=facade)
+                callback_name = "_on_refresh_result"
+            elif screen_kind == "experiments":
+                screen = ExperimentsScreen(facade=facade, group_id=group.id)
+                callback_name = "_on_refresh_result"
+            else:
+                screen = ExperimentDetailScreen(
+                    facade=facade, experiment_id=experiment_id
+                )
+                callback_name = "_on_refresh_details_result"
+            await app.push_screen(screen)
+            await settle_workers(pilot)
+            if screen_kind in {"attachments", "evals", "traces"}:
+                screen = screen.query_one(f"#pane-{screen_kind}-panel")
+                callback_name = (
+                    "_on_children_result"
+                    if screen_kind == "attachments"
+                    else "_on_refresh_result"
+                )
+            callback = Mock()
+            monkeypatch.setattr(screen, callback_name, callback)
+            check_enabled = screen.check_message_enabled
+            main_thread = threading.get_ident()
+
+            def blocked_check(message):
+                if (
+                    isinstance(message, Callback)
+                    and threading.get_ident() != main_thread
+                ):
+                    assert not screen._closing and not screen._closed
+                    started.set()
+                    assert release.wait(10), "result enqueue was never released"
+                return check_enabled(message)
+
+            monkeypatch.setattr(screen, "check_message_enabled", blocked_check)
+            run_worker = screen.run_worker
+
+            def observe_worker(work, *args, **kwargs):
+                def observed():
+                    try:
+                        with pytest.raises(LookupError):
+                            active_app.get()
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(observed, *args, **kwargs)
+
+            monkeypatch.setattr(screen, "run_worker", observe_worker)
+            if screen_kind == "attachments":
+                screen._fetch_children(parent_path=None, parent_node_id=None)
+            elif screen_kind in {"evals", "traces"}:
+                screen._refresh_visible_window(limit=1)
+            else:
+                screen.refresh_live()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                if leave == "pop":
+                    await app.pop_screen()
+                    await pilot.pause()
+                else:
+                    await app._shutdown()
+                assert not screen.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            assert errors == []
+            if leave == "pop":
+                await pilot.pause()
+            callback.assert_not_called()
+
+    @pytest.mark.parametrize("trigger", ["_tick", "refresh_now"])
+    async def test_scheduler_does_nothing_after_shutdown(
+        self, facade: DataFacade, trigger: str
+    ) -> None:
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+        assert not app.screen_stack
+        getattr(app._refresh_scheduler, trigger)()
+
+    @pytest.mark.parametrize("owner_kind", ["groups", "experiments", "traces", "evals"])
+    async def test_discarded_page_fetch_releases_loading(
+        self,
+        facade: DataFacade,
+        tracker: ExperimentTracker,
+        monkeypatch: pytest.MonkeyPatch,
+        owner_kind: str,
+    ) -> None:
+        group = tracker.create_group("g")
+        experiment_id = tracker.start_experiment(name="exp", group="g")
+        app = _make_app(facade, auto_refresh=False)
+        started = threading.Event()
+        release = threading.Event()
+        finished = threading.Event()
+        errors: list[BaseException] = []
+        async with app.run_test() as pilot:
+            await settle_workers(pilot)
+            if owner_kind == "groups":
+                screen = GroupsScreen(facade=facade)
+                read_name = "list_groups"
+            elif owner_kind == "experiments":
+                screen = ExperimentsScreen(facade=facade, group_id=group.id)
+                read_name = "list_group_experiments"
+            else:
+                screen = ExperimentDetailScreen(
+                    facade=facade, experiment_id=experiment_id
+                )
+                read_name = f"list_{owner_kind}"
+            await app.push_screen(screen)
+            await settle_workers(pilot)
+            owner = screen
+            if owner_kind in {"traces", "evals"}:
+                screen.action_jump_tab(owner_kind)
+                await settle_workers(pilot)
+                owner = screen.query_one(f"#pane-{owner_kind}-panel")
+            assert not app._loading_state
+            read = getattr(facade, read_name)
+
+            def blocked_read(*args, **kwargs):
+                started.set()
+                assert release.wait(10), "page fetch was never released"
+                return read(*args, **kwargs)
+
+            monkeypatch.setattr(facade, read_name, blocked_read)
+            run_worker = owner.run_worker
+
+            def observe_worker(work, *args, **kwargs):
+                def observed():
+                    try:
+                        return work()
+                    except BaseException as exc:
+                        errors.append(exc)
+                        raise
+                    finally:
+                        finished.set()
+
+                return run_worker(observed, *args, **kwargs)
+
+            monkeypatch.setattr(owner, "run_worker", observe_worker)
+            owner.load_first_page()
+            try:
+                assert await asyncio.to_thread(started.wait, 10)
+                assert app._loading_state
+                app._jump_home()
+                await pilot.pause()
+                assert not owner.is_attached
+            finally:
+                release.set()
+            assert await asyncio.to_thread(finished.wait, 10)
+            await pilot.pause()
+            assert errors == []
+            assert not app._loading_state

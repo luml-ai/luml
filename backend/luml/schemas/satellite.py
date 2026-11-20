@@ -244,7 +244,7 @@ class Satellite(BaseModel, BaseOrmConfig):
     updated_at: datetime | None = None
     last_seen_at: datetime | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def present_capabilities(self) -> list[str]:
         return get_present_capabilities(self.capabilities)

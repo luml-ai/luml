@@ -178,7 +178,7 @@ def _attach(
 def _tracker_store() -> str:
     from lumlflow.settings import Settings
 
-    return Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
+    return Settings().BACKEND_STORE_URI
 
 
 def _url(record: "DaemonRecord", directory: Path) -> str:
@@ -251,7 +251,8 @@ def tui(
     ),
 ) -> None:
     if path is not None:
-        os.environ["BACKEND_STORE_URI"] = path
+        for name in ("BACKEND_STORE_URI", "LUML_BACKEND_STORE_URI"):
+            os.environ[name] = path
 
     from lumlflow.settings import get_config
 
@@ -289,6 +290,18 @@ def tui(
         attach_timeout=attach_timeout,
     )
     app_instance.run()
+
+
+@app.command(
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+    help="Agent skills for this version: skills list | show <name> \\[file] | "
+    "files <name>.",
+)
+def skills(ctx: typer.Context) -> None:
+    from lumlflow._skills import run_cli
+
+    raise typer.Exit(run_cli("lumlflow", "lumlflow skills", ctx.args))
 
 
 @app.command()

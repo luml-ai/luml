@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite import (
@@ -193,14 +193,14 @@ async def test_companion_api_is_token_bound_and_not_held_by_the_starting_gate() 
         tokens,
         satellite_id=SATELLITE_ID,
         recording_policy=RecordingPolicy(sample_rate=0.25, body_max_bytes=2048),
-        upstream_transport=httpx.MockTransport(lambda request: httpx.Response(200)),
+        upstream_transport=httpx2.MockTransport(lambda request: httpx2.Response(200)),
     )
     path = COMPANION_PATH.format(deployment_id=DEPLOYMENT_ID)
     foreign_path = COMPANION_PATH.format(deployment_id=OTHER_DEPLOYMENT_ID)
     valid_headers = {"Authorization": f"Bearer {tokens.companion_token(DEPLOYMENT_ID)}"}
     foreign_headers = {"Authorization": f"Bearer {tokens.companion_token(OTHER_DEPLOYMENT_ID)}"}
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=placement.internal_application),
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=placement.internal_application),
         base_url="http://satellite",
     ) as internal:
         wrong_token = await internal.get(path, headers={"Authorization": "Bearer wrong"})
@@ -232,8 +232,8 @@ async def test_companion_api_is_token_bound_and_not_held_by_the_starting_gate() 
         )
         updated_metadata = await internal.get(path, headers=valid_headers)
 
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=placement.application),
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=placement.application),
         base_url="http://satellite",
     ) as public:
         gated = await public.get(
@@ -290,7 +290,7 @@ async def test_companion_placement_reads_the_guarded_sidecar_internal_port() -> 
         AllowKnownKeys(),
         StaticSecrets(),
         tokens,
-        upstream_transport=httpx.ASGITransport(app=sidecar_internal),
+        upstream_transport=httpx2.ASGITransport(app=sidecar_internal),
     )
     deployment = Deployment.model_validate(deployment_record())
     try:
@@ -314,7 +314,7 @@ async def test_companion_client_maps_token_and_registration_refusals(
         "http://satellite",
         DEPLOYMENT_ID,
         "token",
-        transport=httpx.MockTransport(lambda request: httpx.Response(status_code)),
+        transport=httpx2.MockTransport(lambda request: httpx2.Response(status_code)),
     )
     try:
         with pytest.raises(CompanionRefusedError) as caught:
@@ -376,7 +376,7 @@ async def test_companion_placement_reports_why_the_sidecar_is_unhealthy(
         AllowKnownKeys(),
         StaticSecrets(),
         tokens,
-        upstream_transport=httpx.ASGITransport(app=sidecar_internal),
+        upstream_transport=httpx2.ASGITransport(app=sidecar_internal),
     )
     deployment = Deployment.model_validate(deployment_record())
     try:
@@ -461,3 +461,16 @@ async def test_companion_authorizer_denial_refresh_removes_stale_allowed_verdict
     clock.now = 60
     assert await authorizer.authorize("key") is AuthorizationVerdict.UNAVAILABLE
     await authorizer.aclose()
+
+
+@pytest.mark.asyncio
+async def test_internal_sidecar_rejects_non_ascii_credentials() -> None:
+    app = create_sidecar_internal_application(
+        "secret-token", description=ModelDescription, health=lambda: asyncio.sleep(0, result=True)
+    )
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://sidecar",
+    ) as client:
+        response = await client.get("/healthz", headers={b"authorization": b"Bearer t\xe9"})
+    assert response.status_code == 403

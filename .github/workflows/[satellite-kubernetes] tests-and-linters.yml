@@ -1,23 +1,17 @@
 name: Kubernetes Satellite
 
+permissions:
+  contents: read
+
 on:
-  push:
-    branches: [main, staging, production]
-    paths:
-      - 'satellite/implementations/kubernetes/**'
-      - 'satellite/kit/**'
-      - 'frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts'
-      - '.github/workflows/publish-kubernetes-satellite-image.yml'
-      - '.github/workflows/publish-kubernetes-satellite-chart.yml'
-      - '.github/workflows/*satellite-kubernetes*tests-and-linters.yml'
   pull_request:
     branches: [main, staging, production]
     paths:
       - 'satellite/implementations/kubernetes/**'
       - 'satellite/kit/**'
       - 'frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts'
-      - '.github/workflows/publish-kubernetes-satellite-image.yml'
-      - '.github/workflows/publish-kubernetes-satellite-chart.yml'
+      - '.github/workflows/*satellite*publish-images.yml'
+      - '.github/workflows/*satellite-kubernetes*publish-chart.yml'
       - '.github/workflows/*satellite-kubernetes*tests-and-linters.yml'
   workflow_call:
   workflow_dispatch:
@@ -30,10 +24,10 @@ jobs:
         working-directory: satellite/implementations/kubernetes
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.14'
 
@@ -49,13 +43,13 @@ jobs:
         run: uv run ruff check .
 
       - name: Type check
-        run: uv run mypy
+        run: uv run --frozen ty check
 
       - name: Test
         run: uv run pytest
 
       - name: Set up Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
           version: v3.17.3
 

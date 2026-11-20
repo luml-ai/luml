@@ -14,10 +14,10 @@
     >
       <div class="inputs">
         <div class="field">
-          <label for="name" class="label required">Orbit</label>
+          <label for="orbit" class="label required">Orbit</label>
           <Select
             v-model="formData.orbit"
-            id="orbit"
+            input-id="orbit"
             name="orbit"
             placeholder="Select orbit"
             fluid

@@ -2,10 +2,9 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-import httpx
 import pytest
 from pydantic import BaseModel
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import (
@@ -142,7 +141,7 @@ def _assert_request(
 )
 def test_operation_sends_matching_request_and_returns_typed_answer(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     operation: str,
     args: tuple[Any, ...],
     method: str,
@@ -151,8 +150,8 @@ def test_operation_sends_matching_request_and_returns_typed_answer(
     response: Any,  # noqa: ANN401
     result_type: type[BaseModel],
 ) -> None:
-    route = respx_mock.request(method, path).mock(
-        return_value=httpx.Response(200, json=response)
+    route = httpx2_mock.request(method, path).mock(
+        return_value=MockResponse(200, json=response)
     )
 
     result = getattr(client_with_mocks.live_sessions, operation)(*args)
@@ -172,7 +171,7 @@ def test_operation_sends_matching_request_and_returns_typed_answer(
 )
 async def test_async_operation_sends_matching_request_and_returns_typed_answer(
     async_client_with_mocks: AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     operation: str,
     args: tuple[Any, ...],
     method: str,
@@ -181,8 +180,8 @@ async def test_async_operation_sends_matching_request_and_returns_typed_answer(
     response: Any,  # noqa: ANN401
     result_type: type[BaseModel],
 ) -> None:
-    route = respx_mock.request(method, path).mock(
-        return_value=httpx.Response(200, json=response)
+    route = httpx2_mock.request(method, path).mock(
+        return_value=MockResponse(200, json=response)
     )
 
     result = await getattr(async_client_with_mocks.live_sessions, operation)(*args)
@@ -192,10 +191,10 @@ async def test_async_operation_sends_matching_request_and_returns_typed_answer(
 
 
 def test_list_returns_typed_sessions(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.get(SESSIONS_PATH).mock(
-        return_value=httpx.Response(
+    httpx2_mock.get(SESSIONS_PATH).mock(
+        return_value=MockResponse(
             200,
             json=[_session_record(), _session_record(id="p7q2m9zz", status="ended")],
         )
@@ -213,10 +212,10 @@ def test_list_returns_typed_sessions(
 
 @pytest.mark.asyncio
 async def test_async_list_returns_typed_sessions(
-    async_client_with_mocks: AsyncLumlClient, respx_mock: MockRouter
+    async_client_with_mocks: AsyncLumlClient, httpx2_mock: MockRouter
 ) -> None:
-    route = respx_mock.get(SESSIONS_PATH).mock(
-        return_value=httpx.Response(200, json=[_session_record()])
+    route = httpx2_mock.get(SESSIONS_PATH).mock(
+        return_value=MockResponse(200, json=[_session_record()])
     )
 
     sessions = await async_client_with_mocks.live_sessions.list()
@@ -226,10 +225,10 @@ async def test_async_list_returns_typed_sessions(
 
 
 def test_start_parses_token_expiry_as_datetime(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.post(SESSIONS_PATH).mock(
-        return_value=httpx.Response(200, json=START_RESPONSE)
+    httpx2_mock.post(SESSIONS_PATH).mock(
+        return_value=MockResponse(200, json=START_RESPONSE)
     )
 
     started = client_with_mocks.live_sessions.start("training dashboard")
@@ -239,10 +238,10 @@ def test_start_parses_token_expiry_as_datetime(
 
 
 def test_heartbeat_without_renewal_has_no_token(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.post(f"{SESSION_PATH}/heartbeat").mock(
-        return_value=httpx.Response(200, json={"status": "ended"})
+    httpx2_mock.post(f"{SESSION_PATH}/heartbeat").mock(
+        return_value=MockResponse(200, json={"status": "ended"})
     )
 
     answer = client_with_mocks.live_sessions.heartbeat(
@@ -255,10 +254,10 @@ def test_heartbeat_without_renewal_has_no_token(
 
 
 def test_start_answer_carries_no_app_address(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.post(SESSIONS_PATH).mock(
-        return_value=httpx.Response(200, json=START_RESPONSE)
+    httpx2_mock.post(SESSIONS_PATH).mock(
+        return_value=MockResponse(200, json=START_RESPONSE)
     )
 
     started = client_with_mocks.live_sessions.start()
@@ -268,10 +267,10 @@ def test_start_answer_carries_no_app_address(
 
 
 def test_session_without_label_or_relay_is_typed(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.get(SESSION_PATH).mock(
-        return_value=httpx.Response(
+    httpx2_mock.get(SESSION_PATH).mock(
+        return_value=MockResponse(
             200, json=_session_record(label=None, relay_id=None, status="ended")
         )
     )
@@ -291,10 +290,10 @@ def test_session_without_label_or_relay_is_typed(
     ],
 )
 def test_start_refusal_raises_conflict(
-    client_with_mocks: LumlClient, respx_mock: MockRouter, detail: str
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter, detail: str
 ) -> None:
-    respx_mock.post(SESSIONS_PATH).mock(
-        return_value=httpx.Response(409, json={"detail": detail})
+    httpx2_mock.post(SESSIONS_PATH).mock(
+        return_value=MockResponse(409, json={"detail": detail})
     )
 
     with pytest.raises(ConflictError):
@@ -302,10 +301,10 @@ def test_start_refusal_raises_conflict(
 
 
 def test_view_token_with_invalid_destination_raises_unprocessable(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.post(f"{SESSION_PATH}/view-token").mock(
-        return_value=httpx.Response(422, json={"detail": "Invalid destination"})
+    httpx2_mock.post(f"{SESSION_PATH}/view-token").mock(
+        return_value=MockResponse(422, json={"detail": "Invalid destination"})
     )
 
     with pytest.raises(UnprocessableEntityError):
@@ -313,10 +312,10 @@ def test_view_token_with_invalid_destination_raises_unprocessable(
 
 
 def test_get_of_another_users_session_raises_not_found(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.get(SESSION_PATH).mock(
-        return_value=httpx.Response(404, json={"detail": "Live session not found"})
+    httpx2_mock.get(SESSION_PATH).mock(
+        return_value=MockResponse(404, json={"detail": "Live session not found"})
     )
 
     with pytest.raises(NotFoundError):
@@ -324,10 +323,10 @@ def test_get_of_another_users_session_raises_not_found(
 
 
 def test_view_token_for_ended_session_raises_conflict(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.post(f"{SESSION_PATH}/view-token").mock(
-        return_value=httpx.Response(409, json={"detail": "Live session has ended"})
+    httpx2_mock.post(f"{SESSION_PATH}/view-token").mock(
+        return_value=MockResponse(409, json={"detail": "Live session has ended"})
     )
 
     with pytest.raises(ConflictError):

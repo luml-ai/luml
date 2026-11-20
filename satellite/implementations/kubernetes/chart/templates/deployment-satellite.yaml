@@ -17,8 +17,7 @@ spec:
       labels:
         {{- include "luml.selectorLabels" (dict "root" . "component" "satellite") | nindent 8 }}
       annotations:
-        checksum/satellite-token: {{ include "luml.tokenChecksum" . | quote }}
-        checksum/derivation-key: {{ include "luml.derivationChecksum" . | quote }}
+        checksum/credentials: {{ include "luml.credentialsChecksum" . | quote }}
     spec:
       serviceAccountName: {{ include "luml.serviceAccountName" . | quote }}
       securityContext:
@@ -141,6 +140,8 @@ spec:
               value: {{ .Values.satellite.imagePullSecrets | toJson | quote }}
             - name: SIDECAR_RESOURCES
               value: {{ .Values.sidecar.resources | toJson | quote }}
+            - name: ARTIFACT_FETCH_RESOURCES
+              value: {{ .Values.model.artifactFetch.resources | toJson | quote }}
             - name: SIDECAR_CACHE_TTL_SEC
               value: {{ .Values.sidecar.cacheTtlSeconds | quote }}
             - name: SIDECAR_STALE_ALLOWANCE_SEC

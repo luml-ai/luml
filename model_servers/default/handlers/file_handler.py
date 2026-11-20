@@ -2,7 +2,7 @@ import os
 import tarfile
 from pathlib import Path
 
-import httpx
+import httpx2
 
 
 class ArtifactAccessExpired(ValueError):
@@ -41,9 +41,9 @@ class FileHandler:
     def download_file(self, url: str, file_path: str | Path) -> str:
         file_path = self._to_path_str(file_path)
         try:
-            timeout = httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
+            timeout = httpx2.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
 
-            with httpx.stream("GET", url, timeout=timeout) as response:
+            with httpx2.stream("GET", url, timeout=timeout) as response:
                 if response.status_code == 403:
                     raise ArtifactAccessExpired(
                         "Access denied to model artifact. "
@@ -55,8 +55,7 @@ class FileHandler:
                     )
                 elif response.status_code >= 400:
                     raise ValueError(
-                        f"HTTP {response.status_code} error downloading model artifact: "
-                        f"{response.reason_phrase}"
+                        f"HTTP {response.status_code} error downloading model artifact"
                     )
 
                 response.raise_for_status()
@@ -73,14 +72,16 @@ class FileHandler:
         except ArtifactAccessExpired:
             # kept distinct from the catch-all below: the caller retries this one
             raise
-        except httpx.TimeoutException as error:
-            raise ValueError(f"Download timeout: {str(error)}") from error
-        except httpx.ConnectError as error:
-            raise ValueError(f"Connection error: {str(error)}") from error
+        except ValueError:
+            raise
+        except httpx2.TimeoutException:
+            raise ValueError("Download timeout") from None
+        except httpx2.ConnectError:
+            raise ValueError("Connection error downloading model artifact") from None
         except OSError as error:
             raise ValueError(f"File system error: {str(error)}") from error
         except Exception as error:
-            raise ValueError(f"Download failed: {str(error)}") from error
+            raise ValueError(f"Download failed ({type(error).__name__})") from None
 
     def remove_file(self, file_path: str | Path) -> None:
         file_path = self._to_path_str(file_path)

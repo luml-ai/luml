@@ -115,7 +115,7 @@ def serialize(
     builder.add_runtime_dependency(
         f"pyfnx_utils=={importlib_metadata.version('pyfnx_utils')}"
     )
-    builder.add_runtime_dependency(f"httpx=={importlib_metadata.version('httpx')}")
+    builder.add_runtime_dependency(f"httpx2=={importlib_metadata.version('httpx2')}")
 
     tmpname = f"dfs-tmp-{uuid.uuid4()}.pyfnx"
     builder.save(tmpname)

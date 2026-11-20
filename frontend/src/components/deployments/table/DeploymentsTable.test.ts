@@ -7,6 +7,12 @@ import {
 } from '@/lib/api/deployments/interfaces'
 import DeploymentsTable from './DeploymentsTable.vue'
 
+vi.mock('@/stores/orbits', () => ({
+  useOrbitsStore: () => ({
+    getCurrentOrbitPermissions: { deployment: ['update', 'delete'], satellite: ['update'] },
+  }),
+}))
+
 vi.mock('@/stores/deployments', () => ({ useDeploymentsStore: () => ({ batchAction: vi.fn() }) }))
 
 vi.mock('vue-router', () => ({
@@ -139,4 +145,12 @@ describe('DeploymentsTable progress notes', () => {
 
     expect(wrapper.find('[data-testid="deployment-progress-note"]').exists()).toBe(false)
   })
+})
+
+it('shows deletion failures with a danger tag', () => {
+  const wrapper = mountTable([deployment(DeploymentStatusEnum.deletion_failed)])
+  const tag = wrapper
+    .findAllComponents({ name: 'TagStub' })
+    .find((tag) => tag.text() === 'Deletion failed')
+  expect(tag?.attributes('severity')).toBe('danger')
 })

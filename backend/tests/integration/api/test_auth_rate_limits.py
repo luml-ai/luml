@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, patch
 
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI, HTTPException
 from luml.api.auth import auth_router
@@ -61,8 +61,8 @@ async def test_email_limit_survives_changing_ip(
         ) as handle,
     ):
         for index in range(6):
-            transport = httpx.ASGITransport(app=app, client=(f"192.0.2.{index}", 1234))
-            async with httpx.AsyncClient(
+            transport = httpx2.ASGITransport(app=app, client=(f"192.0.2.{index}", 1234))
+            async with httpx2.AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
                 response = await client.post(f"/v1{path}", json=body)
@@ -80,8 +80,8 @@ async def test_ip_limit_survives_changing_email_and_forwarded_headers() -> None:
             new_callable=AsyncMock,
         ) as handle,
     ):
-        transport = httpx.ASGITransport(app=app, client=("192.0.2.1", 1234))
-        async with httpx.AsyncClient(
+        transport = httpx2.ASGITransport(app=app, client=("192.0.2.1", 1234))
+        async with httpx2.AsyncClient(
             transport=transport, base_url="http://test"
         ) as client:
             for index in range(21):
@@ -92,3 +92,34 @@ async def test_ip_limit_survives_changing_email_and_forwarded_headers() -> None:
                 )
                 assert response.status_code == (200 if index < 20 else 429)
         assert handle.await_count == 20
+
+
+@pytest.mark.parametrize("rotate_host", [False, True])
+@pytest.mark.parametrize(("rotate_email", "limit"), [(False, 5), (True, 20)])
+async def test_signin_limits_survive_rotating_malformed_host(
+    rotate_host: bool, rotate_email: bool, limit: int
+) -> None:
+    app = FastAPI()
+    app.include_router(auth_router, prefix="/v1")
+    with patch(
+        "luml.api.auth.auth_handler.handle_signin",
+        new_callable=AsyncMock,
+        side_effect=HTTPException(401),
+    ) as handle:
+        transport = httpx2.ASGITransport(app=app, client=("192.0.2.1", 1234))
+        async with httpx2.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            for index in range(limit + 1):
+                response = await client.post(
+                    "/v1/auth/signin",
+                    json={
+                        "email": f"user{index if rotate_email else 0}@example.com",
+                        "password": "wrong-password",
+                    },
+                    headers={"Host": f"x/{index}?"} if rotate_host else {},
+                )
+                assert response.status_code == (401 if index < limit else 429)
+
+        assert handle.await_count == limit
+        assert 0 < int(response.headers["Retry-After"]) <= 60

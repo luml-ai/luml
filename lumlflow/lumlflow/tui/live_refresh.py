@@ -139,6 +139,8 @@ class LiveRefreshScheduler:
         demand without enabling continuous refresh.
         """
 
+        if not self._app.screen_stack:
+            return
         screen = self._app.screen
         if not isinstance(screen, LiveRefreshable):
             return

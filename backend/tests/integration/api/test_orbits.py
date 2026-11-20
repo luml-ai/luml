@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 from uuid import UUID, uuid7
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 from luml.handlers.orbits import OrbitHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.security import JWTAuthenticationBackend

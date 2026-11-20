@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Set
+from collections.abc import AsyncGenerator, Set
 from contextlib import asynccontextmanager
 
 import pytest
@@ -33,7 +33,7 @@ async def polling_kit(
     max_parallel: int = 8,
     driver_call_timeout: float = 1.0,
     clock: FakeClock | None = None,
-) -> AsyncIterator[tuple[Convergence, PollingPass]]:
+) -> AsyncGenerator[tuple[Convergence, PollingPass]]:
     async with PlatformClient(
         "http://platform",
         platform.token,

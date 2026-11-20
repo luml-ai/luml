@@ -1,6 +1,7 @@
-import { ColumnTable, fromCSV, escape } from 'arquero'
+import { ColumnTable, escape } from 'arquero'
 import { FilterType, type FilterItem, type IDataTable } from './interfaces'
 import { Observable } from '@/utils/observable/Observable'
+import { parseCSV } from './csv'
 
 export type SelectTableEvent = { name: string; size: number } | null
 
@@ -58,7 +59,7 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
 
   async createFormCSV(file: File) {
     this.resetData()
-    this.dataTable = fromCSV(await file.text())
+    this.dataTable = parseCSV(await file.text())
 
     this.emit('SELECT_TABLE', { name: file.name, size: file.size })
   }

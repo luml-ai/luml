@@ -127,11 +127,11 @@ class ModelIO(BaseModel):
 
 
 class JSON(ModelIO):
-    content_type: Literal["JSON"]
+    content_type: Literal["JSON"]  # ty: ignore[incompatible-mutable-override]
 
 
 class NDJSON(ModelIO):
-    content_type: Literal["NDJSON"]
+    content_type: Literal["NDJSON"]  # ty: ignore[incompatible-mutable-override]
     dtype: str = Field(
         ...,  # required field
         pattern=r"^(Array\[.+\]|NDContainer\[.+\])$",
@@ -223,7 +223,7 @@ class ArtifactCreateIn(ArtifactIn):
 
 
 class ArtifactCreate(ArtifactIn):
-    type: ArtifactType
+    type: ArtifactType  # ty: ignore[incompatible-mutable-override]
     collection_id: UUID
     bucket_location: str
     unique_identifier: str
@@ -269,12 +269,12 @@ class ArtifactListedBase(ArtifactBase):
     collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
     has_experiment_snapshot: bool
 
-    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
+    @computed_field(json_schema_extra={"deprecated": True})
     @property
     def manifest(self) -> dict[str, Any]:
         return {}
 
-    @computed_field(json_schema_extra={"deprecated": True})  # type: ignore[prop-decorator]
+    @computed_field(json_schema_extra={"deprecated": True})
     @property
     def file_index(self) -> dict[str, tuple[int, int]]:
         return {}
@@ -297,7 +297,7 @@ class SatelliteArtifactResponse(BaseModel):
 
 
 class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
-    @computed_field(deprecated=True)  # type: ignore[prop-decorator]
+    @computed_field(deprecated=True)
     @property
     def model(self) -> Artifact:
         return self.artifact
