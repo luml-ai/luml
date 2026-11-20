@@ -1,11 +1,11 @@
 <template>
   <div>
     <div class="mb-6">
-      <div class="flex items-center justify-between gap-4 mb-1">
-        <div class="flex items-center">
-          <span>Notebooks</span>
-          <UiPreviewBadge />
-        </div>
+      <div class="flex items-center justify-between gap-4">
+        <!-- Message draws its border as an outline outside its box; main clips anything past its edges. -->
+        <Message severity="warn" size="small" class="mx-(--p-message-border-width)"
+          >This feature is in preview and can change.</Message
+        >
         <OpenFlowsSummary />
       </div>
       <div class="flex items-center gap-4">
@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { useEventListener, useIntervalFn } from '@vueuse/core'
-import { useConfirm, useToast } from 'primevue'
+import { Message, useConfirm, useToast } from 'primevue'
 import { computed, onMounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import {
   onBeforeRouteLeave,
@@ -59,7 +59,6 @@ import type {
   WorkspaceListing,
 } from '@/api/slices/workspace/workspace.interface'
 import { FlowStream, streamToken } from '@/api/streams/flow'
-import UiPreviewBadge from '@/components/ui/UiPreviewBadge.vue'
 import WorkspaceFolder from '@/components/workspace/folder/WorkspaceFolder.vue'
 import OpenFlowsSummary from '@/components/workspace/OpenFlowsSummary.vue'
 import WorkspaceCreateMenu from '@/components/workspace/WorkspaceCreateMenu.vue'

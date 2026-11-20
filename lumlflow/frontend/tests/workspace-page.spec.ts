@@ -2,6 +2,7 @@ import { largeParquet } from '../../../extras/js/tests/attachmentSelection'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createPinia } from 'pinia'
+import { Message } from 'primevue'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
@@ -152,6 +153,16 @@ describe('Workspace file selection', () => {
     menu.vm.$emit('created-file', file.path)
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ directory: '/project', file: file.path })
+  })
+
+  it('marks the section as a preview with one small warning instead of a badge', async () => {
+    await render({ directory: '/project' })
+    const notices = wrapper.findAllComponents(Message)
+    expect(notices).toHaveLength(1)
+    expect(notices[0]!.text()).toBe('This feature is in preview and can change.')
+    expect(notices[0]!.props()).toMatchObject({ severity: 'warn', size: 'small', closable: false })
+    expect(notices[0]!.classes()).toContain('mx-(--p-message-border-width)')
+    expect(wrapper.text()).not.toContain('PREVIEW')
   })
 
   it('opens a PNG from the listing with its bytes, header and bookmark', async () => {
