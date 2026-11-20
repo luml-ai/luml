@@ -149,6 +149,12 @@ export class PresignedUrlCache {
     }
   }
 
+  /** Forgets every URL, and the lookups still pending, so that none reaches the next session. */
+  clear(): void {
+    this.issued.clear()
+    this.pending.clear()
+  }
+
   private renewUnless(
     artifactId: string,
     issuedSinceFailure: (ref: DownloadRef) => boolean,
@@ -174,12 +180,16 @@ export class PresignedUrlCache {
   private issue(artifactId: string): Promise<DownloadRef> {
     const inFlight = this.pending.get(artifactId)
     if (inFlight) return inFlight
-    const request = this.fetchUrl(artifactId)
+    // A lookup that `clear` dropped is no longer pending, and leaves the cache alone.
+    const isCurrent = () => this.pending.get(artifactId) === request
+    const request: Promise<DownloadRef> = this.fetchUrl(artifactId)
       .then((ref) => {
-        this.issued.set(artifactId, { ref, issuedAt: Date.now() })
+        if (isCurrent()) this.issued.set(artifactId, { ref, issuedAt: Date.now() })
         return ref
       })
-      .finally(() => this.pending.delete(artifactId))
+      .finally(() => {
+        if (isCurrent()) this.pending.delete(artifactId)
+      })
     this.pending.set(artifactId, request)
     return request
   }

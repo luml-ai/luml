@@ -10,6 +10,7 @@ import { useTracksStore } from '../tracks'
 import { useDeploymentsStore } from '../deployments'
 import { useSecretsStore } from '../orbit-secrets'
 import { useInvitationsStore } from '../invitations'
+import { useArtifactsStore } from '../artifacts'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
 import type { Organization } from '@/lib/api/api.interfaces'
 import type { IUser } from '../user.interfaces'
@@ -23,13 +24,17 @@ const api = vi.hoisted(() => ({
   orbitCollections: { getCollection: vi.fn(), getCollectionsTags: vi.fn() },
   orbitTracks: { getTrack: vi.fn(), listStages: vi.fn() },
   orbitSecrets: { getSecrets: vi.fn() },
+  artifacts: { getDownloadUrl: vi.fn() },
 }))
 vi.mock('@/lib/api', () => ({ api }))
 vi.mock('@/lib/analytics/AnalyticsService', () => ({
   AnalyticsService: { identify: vi.fn() },
 }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ meta: {}, params: { organizationId: 'org-1', id: 'orbit-1' } }),
+  useRoute: () => ({
+    meta: {},
+    params: { organizationId: 'org-1', id: 'orbit-1', collectionId: 'collection-1' },
+  }),
   useRouter: () => ({ push: vi.fn() }),
 }))
 
@@ -227,5 +232,26 @@ describe('logout state cleanup', () => {
     expect(s.tracks.trackStages).toEqual([])
     expect(s.secrets.secretsList).toEqual([])
     expect(api.orbitTracks.listStages).toHaveBeenCalledOnce()
+  })
+
+  it('drops the download links, and a link lookup still pending does not reach the next session', async () => {
+    const s = stores()
+    const artifacts = useArtifactsStore()
+    const pending = deferred<{ url: string }>()
+    api.artifacts.getDownloadUrl
+      .mockResolvedValueOnce({ url: 'old-session-a' })
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce({ url: 'next-session-a' })
+      .mockResolvedValueOnce({ url: 'next-session-b' })
+    await artifacts.getDownloadUrl('a')
+    const lookup = artifacts.getDownloadUrl('b')
+
+    await s.auth.logout()
+    pending.resolve({ url: 'old-session-b' })
+    await lookup
+
+    expect(await artifacts.getDownloadUrl('a')).toBe('next-session-a')
+    expect(await artifacts.getDownloadUrl('b')).toBe('next-session-b')
+    expect(api.artifacts.getDownloadUrl).toHaveBeenCalledTimes(4)
   })
 })

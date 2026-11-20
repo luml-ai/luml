@@ -242,6 +242,10 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     return downloadUrls.source(id)
   }
 
+  function clearDownloadUrls() {
+    downloadUrls.clear()
+  }
+
   function setCurrentModelTag(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) {
     currentModelTag.value = tag
   }
@@ -506,6 +510,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     downloadArtifact,
     getDownloadUrl,
     downloadUrlSource,
+    clearDownloadUrls,
     setCurrentModelTag,
     resetCurrentModelTag,
     setCurrentModelMetadata,

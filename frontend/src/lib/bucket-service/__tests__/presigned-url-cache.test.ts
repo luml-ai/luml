@@ -218,6 +218,31 @@ describe('PresignedUrlCache', () => {
     expect(request).toHaveBeenCalledOnce()
     expect(fetchUrl).toHaveBeenCalledOnce()
   })
+
+  it('forgets every URL on clear, and a lookup pending then neither fills nor ends a later one', async () => {
+    const answers: Array<(url: string) => void> = []
+    const fetchUrl = vi.fn((_id: string) => new Promise<string>((resolve) => answers.push(resolve)))
+    const cache = new PresignedUrlCache(fetchUrl)
+    const cached = cache.get('a')
+    answers[0]!('cached-a')
+    await cached
+    const before = cache.get('b')
+
+    cache.clear()
+    const after = cache.get('b')
+    answers[1]!('before-clear-b')
+    await before
+    const sharedWithAfter = cache.get('b')
+    answers[2]!('after-clear-b')
+
+    expect(await after).toBe('after-clear-b')
+    expect(await sharedWithAfter).toBe('after-clear-b')
+    expect(await cache.get('b')).toBe('after-clear-b')
+    const renewedA = cache.get('a')
+    answers[3]!('renewed-a')
+    expect(await renewedA).toBe('renewed-a')
+    expect(fetchUrl).toHaveBeenCalledTimes(4)
+  })
 })
 
 describe('ModelDownloader', () => {
