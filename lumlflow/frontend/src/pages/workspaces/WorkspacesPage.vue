@@ -2,10 +2,12 @@
   <div>
     <div class="mb-6">
       <div class="flex items-center justify-between gap-4">
-        <!-- Message draws its border as an outline outside its box; main clips anything past its edges. -->
-        <Message severity="warn" size="small" class="mx-(--p-message-border-width)"
-          >This feature is in preview and can change.</Message
-        >
+        <Message severity="secondary" size="small" variant="simple">
+          <template #icon>
+            <TriangleAlert :size="14" class="text-(--p-message-warn-simple-color)" />
+          </template>
+          This feature is in preview and can change.
+        </Message>
         <OpenFlowsSummary />
       </div>
       <div class="flex items-center gap-4">
@@ -43,6 +45,7 @@
 
 <script setup lang="ts">
 import { useEventListener, useIntervalFn } from '@vueuse/core'
+import { TriangleAlert } from 'lucide-vue-next'
 import { Message, useConfirm, useToast } from 'primevue'
 import { computed, onMounted, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import {
