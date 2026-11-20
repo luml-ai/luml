@@ -155,13 +155,17 @@ describe('Workspace file selection', () => {
     expect(router.currentRoute.value.query).toEqual({ directory: '/project', file: file.path })
   })
 
-  it('marks the section as a preview with one small warning instead of a badge', async () => {
+  it('marks the section as a preview with one quiet notice instead of a badge', async () => {
     await render({ directory: '/project' })
     const notices = wrapper.findAllComponents(Message)
     expect(notices).toHaveLength(1)
     expect(notices[0]!.text()).toBe('This feature is in preview and can change.')
-    expect(notices[0]!.props()).toMatchObject({ severity: 'warn', size: 'small', closable: false })
-    expect(notices[0]!.classes()).toContain('mx-(--p-message-border-width)')
+    expect(notices[0]!.props()).toMatchObject({
+      severity: 'secondary',
+      size: 'small',
+      variant: 'simple',
+      closable: false,
+    })
     expect(wrapper.text()).not.toContain('PREVIEW')
   })
 
