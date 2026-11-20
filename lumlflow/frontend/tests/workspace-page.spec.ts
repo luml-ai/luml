@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/api/client'
 import { workspaceApi, WorkspaceRefusedError } from '@/api/slices/workspace/workspace.api'
 import type { WorkspaceFile } from '@/api/slices/workspace/workspace.interface'
+import WorkspaceCreateMenu from '@/components/workspace/WorkspaceCreateMenu.vue'
 import WorkspacesPage from '@/pages/workspaces/WorkspacesPage.vue'
 
 const { ask, toast } = vi.hoisted(() => ({ ask: vi.fn(), toast: vi.fn() }))
@@ -53,7 +54,7 @@ const viewerStub = defineComponent({
 const folderStub = {
   name: 'WorkspaceFolder',
   props: ['items', 'selectedPath', 'beforeOperation'],
-  emits: ['open-file', 'navigate', 'created-file'],
+  emits: ['open-file', 'navigate'],
   template: '<section>{{ items.map(row => row.name).join(" ") }}</section>',
 }
 
@@ -70,9 +71,8 @@ async function render(query: Record<string, string> = {}, real = false) {
     global: {
       plugins: [router, createPinia()],
       stubs: {
-        ...(real
-          ? { CreateNewFlow: true }
-          : { WorkspaceFolder: folderStub, WorkspaceFileViewer: viewerStub }),
+        ...(!real && { WorkspaceFolder: folderStub, WorkspaceFileViewer: viewerStub }),
+        CreateNewFlow: true,
         OpenFlowsSummary: true,
       },
     },
@@ -142,6 +142,16 @@ describe('Workspace file selection', () => {
     await root.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query.directory).toBe('/')
+  })
+
+  it('puts the create menu beside the breadcrumb and opens the file it creates', async () => {
+    const router = await render({ directory: '/project' })
+    const menu = wrapper.getComponent(WorkspaceCreateMenu)
+    expect(menu.element.parentElement).toBe(wrapper.get('nav').element.parentElement)
+    expect(menu.text()).toContain('New notebook')
+    menu.vm.$emit('created-file', file.path)
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ directory: '/project', file: file.path })
   })
 
   it('opens a PNG from the listing with its bytes, header and bookmark', async () => {
@@ -421,6 +431,7 @@ describe('Workspace file selection', () => {
     await render({ directory }, true)
     expect(wrapper.text()).toContain('analysis')
     expect(wrapper.text()).not.toMatch(/New file|New folder/)
+    expect(wrapper.text()).toContain('New notebook')
     expect(Socket.latest).toBe(socket)
   })
 

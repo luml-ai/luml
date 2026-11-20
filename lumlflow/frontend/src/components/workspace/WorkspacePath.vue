@@ -43,4 +43,11 @@ const crumbs = computed<MenuItem[]>(() => {
 .current {
   @apply text-(--p-breadcrumb-item-color);
 }
+/* Long paths wrap whole segments, so the current directory stays visible beside the page actions. */
+.p-breadcrumb :deep(.p-breadcrumb-list) {
+  flex-wrap: wrap;
+}
+.p-breadcrumb :deep(.p-breadcrumb-item) {
+  white-space: nowrap;
+}
 </style>
