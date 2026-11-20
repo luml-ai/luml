@@ -11,12 +11,13 @@
       :placeholder="orbitId ? 'Select collection' : 'Select orbit first'"
       fluid
       :virtualScrollerOptions="
-        collections.length < 10 ? undefined : { itemSize: 35, lazy: true, onLazyLoad: onLazyLoad }
+        accepting.length < 10 ? undefined : { itemSize: 35, lazy: true, onLazyLoad: onLazyLoad }
       "
       @change="handleChange"
     >
       <template #empty>
-        <div class="max-w-[423px] w-full">
+        <div v-if="isLoading">Loading collections…</div>
+        <div v-else class="max-w-[423px] w-full">
           <template v-if="collections.length">
             None of this orbit's collections take {{ kindsLine }}. One typed {{ kindsLine }} or
             mixed would; create it in
@@ -38,8 +39,8 @@ import type { CollectionFieldProps, CollectionInfo, CollectionFieldEmits } from 
 import type { GetLumlCollectionsParams } from '@/api/api.interface'
 import { apiService } from '@/api/api.service'
 import { usePagination } from '@/hooks/usePagination'
-import { computed, watch } from 'vue'
-import { Select, type SelectChangeEvent } from 'primevue'
+import { computed, ref, watch } from 'vue'
+import { Select, type SelectChangeEvent, type VirtualScrollerLazyEvent } from 'primevue'
 import { FormField } from '@primevue/forms'
 import { collectionAccepts } from './collectionTypes'
 import { LUML_APP_URL } from '@/helpers/luml'
@@ -52,7 +53,9 @@ const {
   data: collections,
   getInitialPage,
   setParams,
-  onLazyLoad,
+  getNextPageCursor,
+  getNextPage,
+  isLoading,
   getParams,
   reset: resetList,
 } = usePagination<CollectionInfo, GetLumlCollectionsParams>(apiService.getLumlCollections)
@@ -60,6 +63,16 @@ const {
 const accepting = computed(() =>
   collections.value.filter((collection) => collectionAccepts(collection.type, props.requiredKinds)),
 )
+
+const lastVisible = ref(0)
+function onLazyLoad(event: VirtualScrollerLazyEvent) {
+  lastVisible.value = event.last
+}
+
+// Only compatible options contribute to the scroll range. Empty pages may have a successor.
+watch([accepting, lastVisible, getNextPageCursor], ([options, last, cursor]) => {
+  if (cursor && (options.length < 10 || last >= options.length)) return getNextPage()
+})
 
 const kindsLine = computed(() => props.requiredKinds.join(' + '))
 
@@ -96,6 +109,7 @@ watch(
 watch(
   () => props.orbitId,
   async (value) => {
+    lastVisible.value = 0
     if (value) {
       setParams({ ...getParams(), orbit_id: value })
       await getInitialPage()

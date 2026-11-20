@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import DynamicMetricsItem from '../DynamicMetricsItem.vue'
+import { plotlyService } from '@/services/PlotlyService'
 import { ThemeKey } from '@/lib/theme/ThemeProvider'
 import type { ExperimentSnapshotDynamicMetric, ModelInfo } from '@/interfaces/interfaces'
 
@@ -42,6 +43,25 @@ function tracesFromLastRender() {
 }
 
 describe('DynamicMetricsItem trace config', () => {
+  it('can leave the metrics tab while the chart library loads', async () => {
+    const plotly = await plotlyService.getPlotly()
+    let finish!: () => void
+    vi.mocked(plotlyService.getPlotly).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve(plotly)
+        }),
+    )
+    newPlotMock.mockClear()
+    const wrapper = await mountChart([{ modelId: 'm1', x: [1], y: [0], aggregated: false }], {
+      m1: { name: 'Archive run', color: '#123456' },
+    })
+    wrapper.unmount()
+    finish()
+    await flushPromises()
+    expect(newPlotMock).not.toHaveBeenCalled()
+  })
+
   it('renders a linear line with no smoothing and the exact logged values', async () => {
     const data: ExperimentSnapshotDynamicMetric[] = [
       { modelId: 'm1', x: [1, 2, 3], y: [0, 10, 0], aggregated: false },

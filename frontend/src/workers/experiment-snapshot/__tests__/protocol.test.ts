@@ -35,7 +35,7 @@ describe('experiment snapshot worker protocol', () => {
     }
     vi.stubGlobal('self', scope)
     vi.resetModules()
-    await import('../index')
+    await import('../../../../../extras/js/experimentSnapshotWorker')
   })
 
   afterEach(() => vi.unstubAllGlobals())
@@ -50,7 +50,10 @@ describe('experiment snapshot worker protocol', () => {
 
     await proxy.init(payload)
 
-    expect(database.init).toHaveBeenCalledWith({ modelsInfo: payload, wasmUrl: '/sql-wasm.wasm' })
+    expect(database.init).toHaveBeenCalledWith({
+      modelsInfo: payload,
+      wasmUrl: expect.stringContaining('sql-wasm.wasm'),
+    })
     await expect(proxy.getUniqueDatasetsIds()).resolves.toEqual(['dataset'])
   })
 

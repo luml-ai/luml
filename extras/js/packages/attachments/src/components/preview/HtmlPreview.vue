@@ -1,6 +1,6 @@
 <template>
   <div class="content-html">
-    <iframe :src="props.contentUrl" sandbox="allow-same-origin"></iframe>
+    <iframe :src="props.contentUrl" sandbox=""></iframe>
   </div>
 </template>
 

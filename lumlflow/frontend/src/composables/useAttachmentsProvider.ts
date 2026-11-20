@@ -1,7 +1,22 @@
 import type { GetAttachmentsResponseItem } from '@/api/slices/attachments/attachments.interface'
-import type { FileNode, ModelAttachmentsProvider } from '@luml/attachments'
+import {
+  getFileExtension,
+  getFileType,
+  urlPreviewBytes,
+  type FileNode,
+  type ModelAttachmentsProvider,
+} from '@luml/attachments'
+import { api } from '@/api/client'
+import { getSessionToken } from '@/api/session'
 import { ref } from 'vue'
 import { apiService } from '@/api/api.service'
+
+function supportsPartialPreview(path: string) {
+  const type = getFileType(path)
+  return (
+    type === 'audio' || type === 'video' || type === 'pdf' || getFileExtension(path) === 'parquet'
+  )
+}
 
 export function useAttachmentsProvider(experimentId: string) {
   const provider = ref<ModelAttachmentsProvider | null>(null)
@@ -16,11 +31,35 @@ export function useAttachmentsProvider(experimentId: string) {
       const tree = await createTree(attachments)
       provider.value = {
         getTree: () => tree,
-        getAttachmentContent: async (path: string) => {
-          const blob = await apiService.getAttachmentContent(experimentId, {
-            file_path: path,
+        getAttachmentContent,
+        supportsPartialPreview,
+        async getPreviewSource(path) {
+          if (!supportsPartialPreview(path)) {
+            return (await getAttachmentContent(path)).blob
+          }
+          const base = `/experiments/${encodeURIComponent(experimentId)}/attachments`
+          if (getFileExtension(path) === 'parquet') {
+            const url = api.getUri({ url: `${base}/content`, params: { file_path: path } })
+            const token = getSessionToken()
+            return urlPreviewBytes(url, undefined, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            })
+          }
+          const { data } = await api.post<{ expires: number; signature: string; size: number }>(
+            `${base}/preview`,
+            null,
+            { params: { file_path: path } },
+          )
+          if (!data.size) return new Blob([])
+          return api.getUri({
+            url: '/experiments/preview/content',
+            params: {
+              experiment_id: experimentId,
+              file_path: path,
+              expires: data.expires,
+              signature: data.signature,
+            },
           })
-          return { blob, size: blob.size }
         },
         isEmpty: () => tree.length === 0,
       }
@@ -32,6 +71,11 @@ export function useAttachmentsProvider(experimentId: string) {
     }
   }
 
+  async function getAttachmentContent(path: string) {
+    const blob = await apiService.getAttachmentContent(experimentId, { file_path: path })
+    return { blob, size: blob.size }
+  }
+
   async function createTree(attachments: GetAttachmentsResponseItem[]): Promise<FileNode[]> {
     const promises = attachments.map(async (attachment) => {
       if (attachment.type === 'folder') {
@@ -39,7 +83,7 @@ export function useAttachmentsProvider(experimentId: string) {
         if (!attachmentPath) {
           return {
             ...attachment,
-            size: attachment.size,
+            size: attachment.size ?? undefined,
             children: [],
           }
         }
@@ -49,11 +93,11 @@ export function useAttachmentsProvider(experimentId: string) {
         const children = await createTree(childrenList)
         return {
           ...attachment,
-          size: attachment.size,
+          size: attachment.size ?? undefined,
           children,
         }
       }
-      return { ...attachment, size: attachment.size }
+      return { ...attachment, size: attachment.size ?? undefined }
     })
     return Promise.all(promises)
   }

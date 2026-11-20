@@ -83,6 +83,7 @@ export const usePagination = <T, P extends object>(
     data,
     setParams,
     getParams,
+    getNextPageCursor,
     getNextPage,
     getInitialPage,
     reset,

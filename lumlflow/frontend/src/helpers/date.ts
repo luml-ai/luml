@@ -16,24 +16,27 @@ export const durationToText = (seconds: number) => {
   return rest ? `${minutes}m ${rest}s` : `${minutes}m`
 }
 
-export const dateToText = (dataString: string | null | undefined) => {
+export const dateToText = (
+  dataString: string | null | undefined,
+  precision: 'minute' | 'second' = 'second',
+) => {
   if (!dataString) return '-'
   const date = new Date(dataString)
   if (!Number.isFinite(date.getTime())) return '-'
   const pad = (n: number) => String(n).padStart(2, '0')
 
+  const separator = precision === 'minute' ? '-' : '/'
   return (
     date.getFullYear() +
-    '/' +
+    separator +
     pad(date.getMonth() + 1) +
-    '/' +
+    separator +
     pad(date.getDate()) +
     ' ' +
     pad(date.getHours()) +
     ':' +
     pad(date.getMinutes()) +
-    ':' +
-    pad(date.getSeconds())
+    (precision === 'minute' ? '' : ':' + pad(date.getSeconds()))
   )
 }
 

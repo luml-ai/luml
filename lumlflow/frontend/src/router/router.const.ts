@@ -12,6 +12,7 @@ export const ROUTE_NAMES = {
   GROUPS_COMPARISON: 'groups-comparison',
 
   WORKSPACES: 'workspaces',
+  WORKSPACE_EXPERIMENT: 'workspace-experiment',
   WORKSPACE_FLOW: 'workspace-flow',
 }
 
@@ -31,5 +32,6 @@ export const ROUTES = {
 
   [ROUTE_NAMES.EXPERIMENTS]: '',
   [ROUTE_NAMES.WORKSPACES]: 'workspaces',
+  [ROUTE_NAMES.WORKSPACE_EXPERIMENT]: 'workspaces/experiment',
   [ROUTE_NAMES.WORKSPACE_FLOW]: 'workspaces/flow',
 }

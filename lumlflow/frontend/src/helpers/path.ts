@@ -1,12 +1,17 @@
 const TRAILING_SEPARATORS = /[\\/]+$/
 const DRIVE = /^[A-Za-z]:$/
 
+function trimTrailingSeparators(path: string): string {
+  return path.replace(path.startsWith('/') ? /\/+$/ : TRAILING_SEPARATORS, '')
+}
+
 function lastSeparatorIndex(path: string): number {
+  if (path.startsWith('/')) return path.lastIndexOf('/')
   return Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
 }
 
 export function parentDirectory(path: string): string | null {
-  const trimmed = path.replace(TRAILING_SEPARATORS, '')
+  const trimmed = trimTrailingSeparators(path)
   const lastSeparator = lastSeparatorIndex(trimmed)
   if (lastSeparator < 0) return null
   const parent = trimmed.slice(0, lastSeparator)
@@ -16,7 +21,7 @@ export function parentDirectory(path: string): string | null {
 }
 
 export function baseName(path: string): string {
-  const trimmed = path.replace(TRAILING_SEPARATORS, '')
+  const trimmed = trimTrailingSeparators(path)
   return trimmed.slice(lastSeparatorIndex(trimmed) + 1)
 }
 

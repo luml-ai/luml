@@ -1,3 +1,4 @@
+import { api } from '@/api/client'
 import { LogRing } from './logs'
 import type { LogFrame, StreamFrame } from './types'
 
@@ -36,6 +37,7 @@ export class FlowStream {
   private readonly journalFlowIds = new Map<string, string>()
   private readonly runs = new Set<string>()
   private readonly cursors = new Map<string, number>()
+  private files?: { directory: string; file?: string }
   private socket: SocketLike | null = null
   private ready = false
   private attempt = 0
@@ -62,7 +64,10 @@ export class FlowStream {
   connect(): void {
     if (this.socket !== null || this.stopped) return
     this.announce('connecting')
-    const url = `${this.options.baseUrl ?? ''}${STREAM_PATH}?token=${encodeURIComponent(this.options.token)}`
+    const endpoint = this.options.baseUrl
+      ? this.options.baseUrl + STREAM_PATH
+      : api.getUri({ url: 'flow/stream' })
+    const url = `${endpoint}?token=${encodeURIComponent(this.options.token)}`
     const socket = (this.options.open ?? defaultOpen)(url)
     this.socket = socket
     this.ready = false
@@ -75,6 +80,11 @@ export class FlowStream {
     socket.onmessage = (event) => this.receive(event.data)
     socket.onclose = (event) => this.ended(socket, event.code)
     socket.onerror = () => {}
+  }
+
+  watchFiles(directory: string, file?: string): void {
+    this.files = { directory, file }
+    this.send({ subscribe: 'files', ...this.files })
   }
 
   watchJournal(flow: string, flowId: string): void {
@@ -104,6 +114,7 @@ export class FlowStream {
   }
 
   private resubscribe(): void {
+    if (this.files) this.send({ subscribe: 'files', ...this.files })
     for (const flow of this.journals) {
       this.send({ subscribe: 'journal', flow, cursor: this.cursor(flow) })
     }
@@ -182,8 +193,9 @@ function splitRunKey(key: string): [string, string] {
 }
 
 function defaultOpen(url: string): SocketLike {
-  const origin = window.location.origin.replace(/^http/, 'ws')
-  return new WebSocket(url.startsWith('ws') ? url : `${origin}${url}`) as unknown as SocketLike
+  const endpoint = new URL(url, window.location.href)
+  endpoint.protocol = endpoint.protocol.replace(/^http/, 'ws')
+  return new WebSocket(endpoint.href) as unknown as SocketLike
 }
 
 function defaultSchedule(run: () => void, afterMs: number): void {

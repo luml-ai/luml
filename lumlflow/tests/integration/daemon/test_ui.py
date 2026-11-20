@@ -10,6 +10,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 from urllib.parse import urlencode
 
 import httpx
@@ -21,6 +22,7 @@ from lumlflow.cli import app
 from lumlflow.flow.daemon import client, web, workspace
 from lumlflow.flow.daemon import main as server
 from lumlflow.flow.daemon.workspace import DaemonRecord
+from lumlflow.flow.errors import Protected
 from typer.main import get_command
 from typer.testing import CliRunner
 
@@ -243,6 +245,7 @@ def test_a_second_ui_opens_the_browser_on_the_one_already_serving(
     started: list[Path] = []
 
     monkeypatch.setattr(client, "discover", lambda: record)
+    monkeypatch.setattr(client, "attach", MagicMock())
     monkeypatch.setattr(server, "serve_here", lambda root, **_: started.append(root))
     monkeypatch.chdir(root)
     runner = CliRunner()
@@ -525,6 +528,16 @@ def test_a_second_ui_in_another_directory_opens_the_one_already_serving(
     assert _ui_url(record, other) in second.stdout
     assert f"it is serving port {port}, not {wanted}" in second.stdout
     assert workspace.read_record() == record
+    with client.attach(record) as daemon:
+        for method, params in [
+            ("file.rename", {"name": "renamed"}),
+            ("file.move", {"destination": str(root)}),
+            ("file.delete", {}),
+        ]:
+            with pytest.raises(Protected):
+                daemon.call(method, {"path": str(other), **params})
+        daemon.call("file.create", {"directory": str(other), "name": "report.csv"})
+        daemon.call("file.delete", {"path": str(other / "report.csv")})
 
 
 @pytest.mark.default_port

@@ -1,14 +1,19 @@
 import asyncio
 import contextlib
+import hmac
 import json
 import logging
+import tarfile
+import time
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from lumlflow.file_response import file_bytes_response
 from lumlflow.flow.daemon.api import Api
+from lumlflow.flow.daemon.files import regular_file
 from lumlflow.flow.daemon.hub import Hub
 from lumlflow.flow.daemon.stream import Frame, Streams, Subscription
 from lumlflow.flow.errors import FlowError, FlowNotFound
@@ -20,6 +25,8 @@ TOKEN_PARAM = "token"
 RPC_PATH = "/api/flow/rpc"
 STREAM_PATH = "/api/flow/stream"
 DOWNLOAD_PATH = "/api/flow/download"
+FILE_PATH = "/api/flow/file"
+FILE_ENTRY_PATH = "/api/flow/file/entry"
 
 UNAUTHORIZED = 401
 WS_UNAUTHORIZED = 4401
@@ -53,7 +60,9 @@ def build_app(
     from lumlflow.service import AppService
 
     app = AppService(
-        self_authenticated_paths=frozenset({RPC_PATH, STREAM_PATH, DOWNLOAD_PATH})
+        self_authenticated_paths=frozenset(
+            {RPC_PATH, STREAM_PATH, DOWNLOAD_PATH, FILE_PATH, FILE_ENTRY_PATH}
+        )
     )
     app.state.session_token = session_token
     app.include_router(_flow_router(hub, api, streams, token=token))
@@ -86,7 +95,12 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
         try:
             result = await method(params)
         except FlowError as failure:
-            return _failed(str(failure), status=_REFUSED, kind=type(failure).__name__)
+            return _failed(
+                str(failure),
+                status=_REFUSED,
+                kind=type(failure).__name__,
+                **vars(failure),
+            )
         except asyncio.CancelledError:
             raise
         except Exception as failure:
@@ -129,6 +143,29 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
             return _failed(str(failure), status=_INTERNAL)
         return FileResponse(path, filename=filename)
 
+    @router.post(FILE_PATH)
+    def preview_ticket(
+        request: Request, path: str, name: str | None = None
+    ) -> Response:
+        if request.headers.get(TOKEN_HEADER) != token:
+            return _unauthorized()
+        expires = int(time.time()) + 3600
+        return JSONResponse(
+            {
+                "expires": expires,
+                "signature": _preview_signature(token, path, name, expires),
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @router.get(FILE_PATH)
+    def file_bytes(request: Request) -> Response:
+        return _file_bytes(request, token, member=None)
+
+    @router.get(FILE_ENTRY_PATH)
+    def file_entry(request: Request) -> Response:
+        return _file_bytes(request, token, member=request.query_params.get("name", ""))
+
     @router.websocket(STREAM_PATH)
     async def stream(socket: WebSocket) -> None:
         # Accepted before it is refused: a close sent ahead of the accept is a
@@ -159,6 +196,43 @@ def _flow_router(hub: Hub, api: Api, streams: Streams, *, token: str) -> APIRout
                 half.cancel()
 
     return router
+
+
+def _preview_signature(token: str, path: str, member: str | None, expires: int) -> str:
+    scope = json.dumps(["workspace-preview", path, member, expires]).encode()
+    return hmac.digest(token.encode(), scope, "sha256").hex()
+
+
+def _file_bytes(request: Request, token: str, *, member: str | None) -> Response:
+    selected = request.query_params.get("path", "")
+    if not _authorized(request, token):
+        try:
+            expires = int(request.query_params.get("expires", ""))
+        except ValueError:
+            return _unauthorized()
+        expected = _preview_signature(token, selected, member, expires)
+        if expires <= time.time() or not hmac.compare_digest(
+            expected.encode(), request.query_params.get("signature", "").encode()
+        ):
+            return _unauthorized()
+    try:
+        path = regular_file(selected)
+        return file_bytes_response(request, path, member)
+    except KeyError:
+        return _failed(
+            f"no file named {member!r} in archive", status=404, kind="FlowError"
+        )
+    except FlowError as failure:
+        missing = isinstance(failure.__cause__, (FileNotFoundError, NotADirectoryError))
+        return _failed(
+            str(failure), status=404 if missing else 400, kind=type(failure).__name__
+        )
+    except (FileNotFoundError, NotADirectoryError) as failure:
+        return _failed(str(failure), status=404, kind="OsError")
+    except OSError as failure:
+        return _failed(str(failure), status=400, kind="OsError")
+    except (tarfile.TarError, EOFError) as failure:
+        return _failed(f"cannot read archive: {failure}", status=400, kind="FlowError")
 
 
 def _reported(half: "asyncio.Task[None]") -> None:
@@ -219,6 +293,10 @@ def _subscribed(
     cursor is never obliged to trust that.
     """
     channel = str(message.get("subscribe") or "")
+    if channel == "files":
+        return subscription.watch_files(
+            api.file_watcher, message.get("directory", ""), message.get("file")
+        )
     if channel not in ("journal", "logs"):
         return []
     named = str(message["flow"]) if message.get("flow") else None
@@ -282,8 +360,10 @@ def _unauthorized() -> JSONResponse:
     )
 
 
-def _failed(message: str, *, status: int, kind: str | None = None) -> JSONResponse:
-    error: dict[str, Any] = {"message": message}
+def _failed(
+    message: str, *, status: int, kind: str | None = None, **details: Any
+) -> JSONResponse:
+    error: dict[str, Any] = {"message": message, **details}
     if kind is not None:
         error["kind"] = kind
     return JSONResponse({"error": error}, status_code=status)

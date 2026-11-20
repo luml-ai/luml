@@ -6,14 +6,14 @@ import {
   indentWithTab,
   temporarilySetTabFocusMode,
 } from '@codemirror/commands'
-import { python } from '@codemirror/lang-python'
+import { languageExtension, type PreviewLanguage } from '@luml/attachments'
 import {
   bracketMatching,
   HighlightStyle,
   indentUnit,
   syntaxHighlighting,
 } from '@codemirror/language'
-import { Compartment, EditorState, type Extension } from '@codemirror/state'
+import { Annotation, Compartment, EditorState, type Extension } from '@codemirror/state'
 import {
   EditorView,
   highlightActiveLine,
@@ -22,6 +22,8 @@ import {
   lineNumbers,
 } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
+
+const externalSource = Annotation.define<boolean>()
 
 const theme = EditorView.theme({
   '&': {
@@ -104,7 +106,14 @@ function modeExtension(readonly: boolean): Extension {
 }
 
 export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
+  // CodeMirror uses one document position per line break. Keep the original
+  // separators for unchanged spans, including files with mixed line endings.
+  let source = options.doc
+  let endings: string[] = source.match(/\r\n|\r|\n/g) ?? []
+  let lineBreak = endings[0] ?? '\n'
   const mode = new Compartment()
+  const syntax = new Compartment()
+  const initialLanguage = options.language === undefined ? 'python' : options.language
 
   const view = new EditorView({
     parent: options.parent,
@@ -115,7 +124,7 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
         history(),
         bracketMatching(),
         indentUnit.of('    '),
-        python(),
+        syntax.of(initialLanguage ? languageExtension(initialLanguage) : []),
         syntaxHighlighting(highlightStyle),
         keymap.of([
           ...defaultKeymap,
@@ -127,7 +136,23 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
         theme,
         mode.of(modeExtension(options.readonly)),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) options.onChange(update.state.doc.toString())
+          if (!update.docChanged || update.transactions.some((tr) => tr.annotation(externalSource)))
+            return
+          const doc = update.state.doc
+          const nextEndings: string[] = Array(doc.lines - 1).fill(lineBreak)
+          update.changes.iterGaps((oldStart, newStart, length) => {
+            const oldDoc = update.startState.doc
+            const first = oldDoc.lineAt(oldStart).number
+            const end = oldDoc.lineAt(oldStart + length).number
+            const dest = doc.lineAt(newStart).number
+            for (let line = first; line < end; line++) {
+              nextEndings[dest + line - first - 1] = endings[line - 1]!
+            }
+          })
+          endings = nextEndings
+          const lines = doc.toJSON()
+          source = lines.map((line, i) => line + (endings[i] ?? '')).join('')
+          options.onChange(source)
         }),
       ],
     }),
@@ -135,12 +160,22 @@ export function mountCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
 
   return {
     view,
-    setSource(source: string): void {
-      if (view.state.doc.toString() === source) return
-      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: source } })
+    setSource(next: string): void {
+      if (source === next) return
+      // This replacement comes from the model, including its own separators.
+      source = next
+      endings = next.match(/\r\n|\r|\n/g) ?? []
+      lineBreak = endings[0] ?? '\n'
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: next },
+        annotations: externalSource.of(true),
+      })
     },
     setReadonly(readonly: boolean): void {
       view.dispatch({ effects: mode.reconfigure(modeExtension(readonly)) })
+    },
+    setLanguage(language: PreviewLanguage | null): void {
+      view.dispatch({ effects: syntax.reconfigure(language ? languageExtension(language) : []) })
     },
     destroy(): void {
       view.destroy()

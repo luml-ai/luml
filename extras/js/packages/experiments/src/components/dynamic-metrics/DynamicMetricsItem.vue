@@ -74,6 +74,7 @@ function setScaledChart() {
   nextTick(async () => {
     const layout = getPlotlyLayout()
     const Plotly = await plotlyService.getPlotly()
+    if (!chartScaledRef.value) return
     Plotly.newPlot(chartScaledRef.value, plotlyData.value, layout, {
       displayModeBar: false,
       responsive: true,
@@ -107,9 +108,10 @@ function getPlotlyLayout() {
 }
 
 async function renderChart() {
-  if (!props.data || !chartRef.value) return
+  if (!props.data) return
   const layout = getPlotlyLayout()
   const Plotly = await plotlyService.getPlotly()
+  if (!chartRef.value) return
   Plotly.newPlot(chartRef.value, plotlyData.value, layout, {
     displayModeBar: false,
     responsive: true,
@@ -118,9 +120,8 @@ async function renderChart() {
 }
 
 async function handleResize() {
-  if (!chartRef.value) return
   const Plotly = await plotlyService.getPlotly()
-  Plotly.Plots.resize(chartRef.value)
+  if (chartRef.value) Plotly.Plots.resize(chartRef.value)
 }
 
 function observeResize() {
@@ -139,7 +140,7 @@ function observeResize() {
 watch(theme, async () => {
   const layout = getPlotlyLayout()
   const Plotly = await plotlyService.getPlotly()
-  Plotly.relayout(chartRef.value, layout)
+  if (chartRef.value) Plotly.relayout(chartRef.value, layout)
 })
 
 watch(
