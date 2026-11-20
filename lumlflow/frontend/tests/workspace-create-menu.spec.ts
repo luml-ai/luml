@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOMWrapper, enableAutoUnmount, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
+import { Button, SplitButton } from 'primevue'
 import type { WorkspaceListing } from '@/api/slices/workspace/workspace.interface'
 import { WorkspaceRefusedError, workspaceApi } from '@/api/slices/workspace/workspace.api'
 import WorkspaceCreateMenu from '@/components/workspace/WorkspaceCreateMenu.vue'
@@ -65,7 +66,8 @@ afterEach(() => {
 describe('Workspace create menu', () => {
   it('opens the notebook dialog from the primary button', async () => {
     await openDirectory(listing())
-    component()
+    const wrapper = component()
+    expect(wrapper.getComponent(SplitButton).props('size')).toBe('small')
     expect(document.body.textContent).not.toContain('CREATE NEW NOTEBOOK')
     buttons()
       .find((button) => button.textContent?.trim() === 'New notebook')!
@@ -119,8 +121,9 @@ describe('Workspace create menu', () => {
     await openDirectory(
       listing([{ name: 'analysis', path: '/p', relative_path: '.', is_symlink: false }]),
     )
-    component()
+    const wrapper = component()
     expect(buttons().map((button) => button.textContent?.trim())).toEqual(['New notebook'])
+    expect(wrapper.getComponent(Button).props('size')).toBe('small')
     expect(document.body.querySelector('.p-splitbutton')).toBeNull()
   })
 

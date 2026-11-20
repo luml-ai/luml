@@ -10,7 +10,10 @@
       </div>
       <div class="flex items-center gap-4">
         <WorkspacePath class="min-w-0" @navigate="navigate" />
-        <WorkspaceCreateMenu class="ml-auto shrink-0" @created-file="openFile" />
+        <WorkspaceCreateMenu
+          class="ml-auto mr-(--p-card-body-padding) shrink-0"
+          @created-file="openFile"
+        />
       </div>
     </div>
     <div :class="{ 'content-split': selectedFile }">
