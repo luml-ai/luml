@@ -83,4 +83,11 @@ describe('pathSegments', () => {
       { name: 'team', path: 'C:\\p\\team' },
     ])
   })
+
+  it('keeps a backslash inside a posix name', () => {
+    expect(pathSegments(String.raw`/work/run\42.luml`)).toEqual([
+      { name: 'work', path: '/work' },
+      { name: String.raw`run\42.luml`, path: String.raw`/work/run\42.luml` },
+    ])
+  })
 })

@@ -1,9 +1,9 @@
 <template>
-  <RouterLink
-    class="self-start mb-3 text-primary"
-    :to="{ name: ROUTE_NAMES.WORKSPACES, query: { directory: parentDirectory(path), file: path } }"
-    >Back to Workspace</RouterLink
-  >
+  <WorkspacePath
+    class="mb-3"
+    :path="path"
+    @navigate="router.push({ name: ROUTE_NAMES.WORKSPACES, query: { directory: $event } })"
+  />
   <!-- Message draws its border as an outline outside its box; main clips anything past its edges. -->
   <Message severity="info" class="mx-(--p-message-border-width) mb-4"
     >Read-only experiment from {{ baseName(path) }}</Message
@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import { computed, markRaw, onUnmounted, provide, ref, shallowRef, toRef, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Card, Message, Skeleton } from 'primevue'
 import {
   DynamicMetrics,
@@ -82,15 +83,17 @@ import { renderMarkdown } from '@luml/attachments'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
 import type { ArchiveInspection } from '@/api/slices/workspace/workspace.interface'
 import ArchiveAttachments from '@/components/workspace/ArchiveAttachments.vue'
+import WorkspacePath from '@/components/workspace/WorkspacePath.vue'
 import DetailsTabs from '@/components/experiments/details/DetailsTabs.vue'
 import { getErrorMessage } from '@/helpers/errors'
 import { findSnapshotMember, loadSnapshotSource } from '@/helpers/experimentSnapshot'
-import { baseName, parentDirectory } from '@/helpers/path'
+import { baseName } from '@/helpers/path'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useThemeStore } from '@/store/theme'
 import ParametersCard from '@/table-cards/ParametersCard.vue'
 
 const props = defineProps<{ path: string }>()
+const router = useRouter()
 const tab = ref('Overview')
 const evals = useEvalsStore()
 const annotations = useAnnotationsStore()
