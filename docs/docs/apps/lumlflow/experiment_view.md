@@ -26,6 +26,8 @@ The Metrics tab renders each logged metric as an individual interactive plot. Pl
 
 This tab is primarily intended for Classical ML runs, where metrics such as loss or accuracy are recorded at successive training steps. Generative AI runs typically rely on the Evals tab instead, but any dynamic value logged through the SDK will still appear here.
 
+Limits: steps are integers, and steps above 2^53 are not drawn.
+
 ![](/img/lumlflow_metrics.webp)
 
 ## Traces
@@ -33,6 +35,8 @@ This tab is primarily intended for Classical ML runs, where metrics such as loss
 The Traces tab captures the execution flow of the run. Each operation within the system, including model calls, tool invocations, and intermediate steps, is recorded as a span, and related spans are grouped into a trace. This view makes it possible to inspect how prompts, model parameters, and tool calls combine to produce a given output, and to locate bottlenecks or unexpected behavior in the workflow.
 
 Traces are most informative for Generative AI runs, where the execution path through an LLM-based system is the primary object of analysis. They remain available for Classical ML runs but are rarely populated for that category.
+
+A trace opens with its span tree only. The data of a span (attributes, events, links and status message) loads when you select the span, so traces with many thousands of spans stay usable. A value longer than 2,000 characters shows its first 2,000 characters, with `Show all` to open the full value and `Download` to save it.
 
 Individual spans within a trace can be annotated. An annotation is a structured record attached to a span and comes in two types. A **feedback** annotation captures an assessment of the span's behavior and carries a name, the author's user name, a boolean value, and an optional rationale. An **expectation** annotation declares the expected outcome of the span and carries the same fields, except that the value can be a string, integer, or boolean.
 

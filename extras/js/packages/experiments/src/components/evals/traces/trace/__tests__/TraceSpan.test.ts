@@ -3,12 +3,6 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import TraceSpan from '../TraceSpan.vue'
 import type { TraceSpan as TraceSpanType } from '@/interfaces/interfaces'
 
-// Exposes the ProgressBar fill percentage (endProgress) as a readable attribute.
-const ProgressBarStub = {
-  props: ['value'],
-  template: '<div class="pb-stub" :data-value="value"></div>',
-}
-
 function makeSpan(start: number, end: number): TraceSpanType {
   return {
     trace_id: 't1',
@@ -26,6 +20,7 @@ function makeSpan(start: number, end: number): TraceSpanType {
     children: [],
     dfs_span_type: null,
     annotation_count: null,
+    payloadLoaded: true,
   }
 }
 
@@ -35,11 +30,11 @@ function mountSpan(data: TraceSpanType, minSpanTime: number | null, maxSpanTime:
       data,
       nesting: 0,
       selectedSpanId: undefined,
-      allOpened: true,
+      opened: true,
       minSpanTime,
       maxSpanTime,
     },
-    global: { stubs: { ProgressBar: ProgressBarStub, AnnotationsTag: true } },
+    global: { stubs: { AnnotationsTag: true } },
   })
 }
 
@@ -49,7 +44,9 @@ function offsetStyle(wrapper: VueWrapper): string {
 }
 
 function fillValue(wrapper: VueWrapper): string {
-  return wrapper.get('.pb-stub').attributes('data-value') ?? ''
+  const width = (wrapper.get('.progress-value').element as HTMLElement).style.width
+  expect(wrapper.get('.progress').attributes('aria-valuenow')).toBe(width.replace('%', ''))
+  return width.replace('%', '')
 }
 
 describe('TraceSpan waterfall geometry', () => {

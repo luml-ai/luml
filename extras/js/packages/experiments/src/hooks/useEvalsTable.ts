@@ -6,12 +6,13 @@ import type { EvalsInfo, GetEvalsByDatasetParams } from '@/interfaces/interfaces
 import type { DataTableSortEvent } from 'primevue'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useEvalsStore } from '@/store/evals/index'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
+import { isSnapshotWorkerTerminated } from '@/providers/snapshot-source/errors'
 import { useToast } from 'primevue'
 import { getErrorMessage } from '@/helpers/helpers'
 import { downloadFileFromBlob } from '@/helpers/files'
 import { from } from 'arquero'
-import { valueToString } from '@/helpers/texts'
+import { tableCellToString } from '@/helpers/texts'
 
 export const useEvalsTable = (
   evals: ComputedRef<EvalsInfo[]>,
@@ -145,7 +146,7 @@ export const useEvalsTable = (
       const formattedData = viewData.map((item) => {
         const row: Record<string, string | number | null> = {}
         for (const key of columns) {
-          row[key] = valueToString((item as Record<string, unknown>)[key])
+          row[key] = tableCellToString((item as Record<string, unknown>)[key])
         }
         return row
       })
@@ -154,8 +155,8 @@ export const useEvalsTable = (
       const blob = new Blob([csv], { type: 'text/csv' })
       downloadFileFromBlob(blob, `${datasetId}.csv`)
     } catch (error) {
-      console.error(error)
-      toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to export CSV')))
+      if (!isSnapshotWorkerTerminated(error)) console.error(error)
+      showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to export CSV'))
     } finally {
       exportLoading.value = false
     }

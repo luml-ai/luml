@@ -21,7 +21,7 @@
       :data="tableData"
       :selected-columns="selectedColumns.length ? selectedColumns : columns"
       :artifactId="artifactId"
-      @get-next-page="getNextPage"
+      @get-next-page="getNextPage()"
       @sort="onSort"
     />
   </UiCard>
@@ -29,10 +29,10 @@
 
 <script setup lang="ts">
 import type { SortParams, TracesWrapperProps } from './traces.interface'
-import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
 import { useToast, Skeleton } from 'primevue'
 import { ListTree } from 'lucide-vue-next'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useAnnotationsStore } from '@/store/annotations'
 import { useTracesTable } from '@/hooks/useTracesTable'
@@ -103,35 +103,80 @@ function onSearchUpdate(search: string) {
   traceStore.setRequestParams({ search })
 }
 
-async function getNextPage(reset: boolean = false) {
+// The store outlives this view: a read that ends after it closed leaves the store alone.
+let closed = false
+// The table asks for the next page only when its scrolled range changes, so a request made
+// while another read runs, or before the reload for new parameters, is kept for later.
+let nextPagePending = false
+// Failed reloads counted when the kept request asked for its reload. If one more failed, the
+// kept request is dropped: only a new request retries, so a failing read is not repeated alone.
+let failedReloadsAtRequest: number | null = null
+
+function keepNextPage(fromTable: boolean) {
+  if (fromTable || failedReloadsAtRequest === null) {
+    failedReloadsAtRequest = traceStore.getFailedReloads()
+  } else if (traceStore.getFailedReloads() > failedReloadsAtRequest) {
+    nextPagePending = false
+    failedReloadsAtRequest = null
+    return
+  }
+  nextPagePending = true
+  traceStore.scheduleReload()
+}
+
+async function getNextPage(reset: boolean = false, fromTable: boolean = true) {
+  // The loading flag belongs to the read in flight; a refused request must not clear it.
+  if (traceStore.loading) {
+    if (!reset) nextPagePending = true
+    return
+  }
+  // The rows are for older parameters, or their reload failed: reload before the next page.
+  if (!reset && !traceStore.isListCurrent()) {
+    keepNextPage(fromTable)
+    return
+  }
+  // This read answers any request kept before it.
+  if (!reset) {
+    nextPagePending = false
+    failedReloadsAtRequest = null
+  }
   try {
-    if (traceStore.loading) return
     traceStore.setLoading(true)
     await traceStore.getNextPage(reset)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
-    traceStore.setLoading(false)
+    if (!closed) traceStore.setLoading(false)
   }
 }
+
+watch(
+  () => traceStore.loading,
+  (loading) => {
+    if (loading || closed || !nextPagePending) return
+    nextPagePending = false
+    getNextPage(false, false)
+  },
+)
 
 onBeforeMount(async () => {
   try {
     traceStore.setArtifactId(props.artifactId)
     firstLoading.value = true
-    await traceStore.getTypedColumns()
     await getNextPage(true)
+    if (closed) return
     tracesExists.value = traceStore.traces.length > 0
     await annotationsStore.getTracesAnnotationSummary(props.artifactId)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   } finally {
     firstLoading.value = false
-    traceStore.setLoading(false)
+    if (!closed) traceStore.setLoading(false)
   }
 })
 
 onBeforeUnmount(async () => {
+  closed = true
   traceStore.reset()
 })
 </script>

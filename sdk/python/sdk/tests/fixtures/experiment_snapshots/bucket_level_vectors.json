@@ -1,0 +1,31 @@
+{
+  "description": "choose_bucket_level(first_step, last_step, max_buckets): the smallest level >= 0 with ceil((last_step - first_step + 1) / 4 ** level) <= max_buckets. Steps stay within +-(2**53 - 1) so JavaScript numbers represent them exactly. Entries with \"error\": true must be rejected.",
+  "vectors": [
+    {"first_step": 0, "last_step": 0, "max_buckets": 1, "level": 0},
+    {"first_step": 5, "last_step": 5, "max_buckets": 1, "level": 0},
+    {"first_step": -7, "last_step": -7, "max_buckets": 1000, "level": 0},
+    {"first_step": 0, "last_step": 99, "max_buckets": 100, "level": 0},
+    {"first_step": 0, "last_step": 99, "max_buckets": 99, "level": 1},
+    {"first_step": 0, "last_step": 99, "max_buckets": 25, "level": 1},
+    {"first_step": 0, "last_step": 99, "max_buckets": 24, "level": 2},
+    {"first_step": 0, "last_step": 999, "max_buckets": 1000, "level": 0},
+    {"first_step": 0, "last_step": 999, "max_buckets": 250, "level": 1},
+    {"first_step": 0, "last_step": 999, "max_buckets": 249, "level": 2},
+    {"first_step": 1, "last_step": 1000, "max_buckets": 249, "level": 2},
+    {"first_step": -1000, "last_step": -1, "max_buckets": 10, "level": 4},
+    {"first_step": -5, "last_step": 5, "max_buckets": 3, "level": 1},
+    {"first_step": -5, "last_step": 5, "max_buckets": 2, "level": 2},
+    {"first_step": 0, "last_step": 1, "max_buckets": 1, "level": 1},
+    {"first_step": 0, "last_step": 4, "max_buckets": 1, "level": 2},
+    {"first_step": 0, "last_step": 1048575, "max_buckets": 1, "level": 10},
+    {"first_step": 0, "last_step": 1048575, "max_buckets": 4, "level": 9},
+    {"first_step": 0, "last_step": 1048575, "max_buckets": 3, "level": 10},
+    {"first_step": 0, "last_step": 1000000, "max_buckets": 2000, "level": 5},
+    {"first_step": 0, "last_step": 1000000, "max_buckets": 20000, "level": 3},
+    {"first_step": 0, "last_step": 9007199254740991, "max_buckets": 1000, "level": 22},
+    {"first_step": -9007199254740991, "last_step": 9007199254740991, "max_buckets": 1, "level": 27},
+    {"first_step": -9007199254740991, "last_step": 9007199254740991, "max_buckets": 20000, "level": 20},
+    {"first_step": 0, "last_step": 10, "max_buckets": 0, "error": true},
+    {"first_step": 10, "last_step": 0, "max_buckets": 100, "error": true}
+  ]
+}

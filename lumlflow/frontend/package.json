@@ -38,7 +38,7 @@
     "lucide-vue-next": "^0.460.0",
     "marked": "^17.0.0",
     "pinia": "^3.0.4",
-    "plotly.js-dist": "^3.0.3",
+    "plotly.js-basic-dist-min": "^3.5.0",
     "primevue": "^4.4.1",
     "qs": "^6.17.0",
     "tailwindcss": "^4.1.18",

@@ -27,11 +27,17 @@ import type {
   Experiment,
   ExperimentMetricHistory,
   Model,
+  Span,
   Trace,
   TraceDetails,
   UpdateExperimentPayload,
 } from '@/store/experiments/experiments.interface'
 import qs from 'qs'
+import type {
+  MetricBucketsRequestWire,
+  MetricBucketsWire,
+  MetricCatalogWire,
+} from '@luml/experiments'
 import type {
   CollectionInfo,
   OrbitInfo,
@@ -122,6 +128,27 @@ export const apiService = {
     return data
   },
 
+  getExperimentMetricCatalog: async (experimentId: string, signal?: AbortSignal) => {
+    const { data } = await api.get<MetricCatalogWire>(
+      `/experiments/${experimentId}/metric-catalog`,
+      { signal },
+    )
+    return data
+  },
+
+  getExperimentMetricBuckets: async (
+    experimentId: string,
+    body: MetricBucketsRequestWire,
+    signal?: AbortSignal,
+  ) => {
+    const { data } = await api.post<MetricBucketsWire>(
+      `/experiments/${experimentId}/metric-buckets`,
+      body,
+      { signal },
+    )
+    return data
+  },
+
   getExperimentModels: async (experimentId: string) => {
     const { data } = await api.get<Model[]>(`/experiments/${experimentId}/models`)
     return data
@@ -148,8 +175,23 @@ export const apiService = {
     return data
   },
 
-  getTraceDetails: async (experimentId: string, traceId: string) => {
-    const { data } = await api.get<TraceDetails>(`/experiments/${experimentId}/traces/${traceId}`)
+  getTraceDetails: async (
+    experimentId: string,
+    traceId: string,
+    options: { payloads?: boolean } = {},
+  ) => {
+    const url = `/experiments/${experimentId}/traces/${traceId}`
+    const { data } =
+      options.payloads === false
+        ? await api.get<TraceDetails>(url, { params: { payloads: false } })
+        : await api.get<TraceDetails>(url)
+    return data
+  },
+
+  getSpan: async (experimentId: string, traceId: string, spanId: string) => {
+    const { data } = await api.get<Span>(
+      `/experiments/${experimentId}/traces/${traceId}/spans/${spanId}`,
+    )
     return data
   },
 

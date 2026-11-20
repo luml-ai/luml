@@ -23,7 +23,11 @@ import type { Model } from '@fnnx-ai/web'
 import { onBeforeMount, ref } from 'vue'
 import { Button, Toast, ConfirmDialog } from 'primevue'
 import { FnnxService } from './lib/fnnx/FnnxService'
-import { ExperimentSnapshotDatabaseProvider } from '@/providers/ExperimentSnapshotDatabaseProvider'
+import {
+  ExperimentSnapshotDatabaseProvider,
+  type ExperimentSnapshotModelSource,
+} from '@/providers/ExperimentSnapshotDatabaseProvider'
+import sqliteWasmUrl from '@sqlite.org/sqlite-wasm/sqlite3.wasm?url'
 import { getModelColorByIndex } from '@/helpers/helpers'
 import { useAnnotationsStore } from '@/store/annotations'
 import ExperimentSnapshot from '@/ExperimentSnapshot.vue'
@@ -58,7 +62,10 @@ async function handleFileChange(event: Event) {
       fileNames,
     )
     const currentProvider = new ExperimentSnapshotDatabaseProvider()
-    await currentProvider.init({ modelsInfo: experiments, wasmUrl: '/sql-wasm.wasm' })
+    await currentProvider.init({
+      modelsInfo: experiments,
+      sqliteWasmUrl,
+    })
     provider.value = currentProvider
   } catch (e) {
     console.error(e)
@@ -76,16 +83,14 @@ function createModels(files: File[]) {
   return Promise.all(files.map((file) => FnnxService.createModelFromFile(file)))
 }
 
-function getModelsExperimentsInfo(models: Model[]): { modelId: string; buffer: ArrayBuffer }[] {
-  return models
-    .map((model, index) => {
-      const unit8Array = FnnxService.findExperimentSnapshotArchive((model as any).modelFiles)
-      return {
-        modelId: `model-${index}`,
-        buffer: unit8Array as any,
-      }
-    })
-    ?.filter((info) => info.buffer) as { modelId: string; buffer: ArrayBuffer }[]
+function getModelsExperimentsInfo(models: Model[]): ExperimentSnapshotModelSource[] {
+  return models.flatMap((model, index) => {
+    const file = FnnxService.findExperimentSnapshotArchive((model as any).modelFiles)
+    if (!file) return []
+    const buffer = file.content.slice().buffer
+    const kind = file.relpath.endsWith('.zip') ? 'zip' : 'raw'
+    return [{ modelId: `model-${index}`, source: { kind, buffer } }]
+  })
 }
 
 function setModelsInfo(modelIds: string[], names: string[]) {

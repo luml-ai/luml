@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.stack.json",
+  "include": ["tests/integration/**/*.ts"],
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
+}

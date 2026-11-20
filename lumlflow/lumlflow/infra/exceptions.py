@@ -15,3 +15,12 @@ class ApplicationError(Exception):
 class NotFound(ApplicationError):
     def __init__(self, message: str = "Not Found") -> None:
         super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class CodedError(ApplicationError):
+    """Answered as `{"detail": {"code", "message"}}` so clients can map `code` to a
+    typed error."""
+
+    def __init__(self, code: str, message: str, status_code: int) -> None:
+        self.code = code
+        super().__init__(message, status_code)

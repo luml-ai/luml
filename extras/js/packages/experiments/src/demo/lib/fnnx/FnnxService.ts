@@ -18,9 +18,9 @@ class FnnxServiceClass {
 
   findExperimentSnapshotArchive(files: ModelFile[]) {
     const regex =
-      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/exp\.db\.zip$/
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v[12]~~et~~[^/]+\/exp\.db(\.zip)?$|^exp\.db(\.zip)?$/
 
-    return files.find((file) => regex.test(file.relpath))?.content
+    return files.find((file) => regex.test(file.relpath))
   }
 }
 

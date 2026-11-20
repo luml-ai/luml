@@ -498,12 +498,12 @@ def test_metrics_are_in_the_tracker_in_order_while_the_cell_is_running(
         _await(logged.exists)
         experiment_id = link.named("experiment_started")[0]["experiment_id"]
         tracker = ExperimentTracker(f"sqlite://{tracker_store}")
-        history = tracker.get_experiment_metric_history(experiment_id, "loss")
-        assert [(point["step"], point["value"]) for point in history] == [
-            (1, 0.9),
-            (2, 0.7),
-            (3, 0.5),
-        ]
+
+        def loss_history() -> list[tuple[int, float]]:
+            history = tracker.get_experiment_metric_history(experiment_id, "loss")
+            return [(point["step"], point["value"]) for point in history]
+
+        _await(lambda: loss_history() == [(1, 0.9), (2, 0.7), (3, 0.5)])
         assert tracker.get_experiment_record(experiment_id).status == "active"
     finally:
         release.write_text("go")

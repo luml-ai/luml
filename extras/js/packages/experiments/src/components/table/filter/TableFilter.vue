@@ -32,7 +32,7 @@
         content: { class: 'table-filter-popover-content' },
       }"
       @hide="isOpen = false"
-      @show="isOpen = true"
+      @show="onShow"
     >
       <div class="content">
         <div v-if="items.length" class="items">
@@ -80,7 +80,7 @@ import { Filter, ChevronDown, ChevronUp, Plus, FilterX } from 'lucide-vue-next'
 import { v4 as uuidv4 } from 'uuid'
 import { formSchema } from './filter.const'
 import { mapZodErrors } from '@/helpers/forms'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import TableFilterItem from './TableFilterItem.vue'
 
@@ -108,6 +108,11 @@ const buttonIcon = computed(() => {
 
 function togglePopover(event: any) {
   popover.value.toggle(event)
+}
+
+function onShow() {
+  isOpen.value = true
+  emit('open')
 }
 
 async function apply(event: any) {
@@ -176,7 +181,7 @@ async function asyncValidate() {
     setGlobalErrors(results)
     return false
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to validate filters')))
+    showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to validate filters'))
     return false
   }
 }

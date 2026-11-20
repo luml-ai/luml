@@ -62,13 +62,16 @@ from lumlflow.schemas.experiments import (
     EvalTypedColumns,
     Experiment,
     ExperimentDetails,
-    ExperimentMetricHistory,
     FileNode,
+    MetricBuckets,
+    MetricBucketsRequest,
+    MetricCatalog,
     PaginatedBatchEvals,
     PaginatedEvals,
     PaginatedExperiments,
     PaginatedTraces,
     SearchValidationResult,
+    Span,
     TraceColumns,
     TraceDetails,
     TracesSortBy,
@@ -371,13 +374,23 @@ class DataFacade:
     def delete_experiment(self, experiment_id: str) -> Result[None]:
         return self._mutate(lambda: self.experiments.delete_experiment(experiment_id))
 
-    def get_metric_history(
-        self, experiment_id: str, key: str, *, max_points: int = 1000
-    ) -> Result[ExperimentMetricHistory]:
+    def get_metric_catalog(self, experiment_id: str) -> Result[MetricCatalog]:
+        return self._read(lambda: self.experiments.get_metric_catalog(experiment_id))
+
+    def get_metric_buckets(
+        self,
+        experiment_id: str,
+        keys: list[str],
+        *,
+        level: int,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> Result[MetricBuckets]:
+        request = MetricBucketsRequest(
+            keys=keys, level=level, start_step=start_step, end_step=end_step
+        )
         return self._read(
-            lambda: self.experiments.get_experiment_metric_history(
-                experiment_id, key, max_points=max_points
-            )
+            lambda: self.experiments.get_metric_buckets(experiment_id, request)
         )
 
     def list_traces(
@@ -405,8 +418,17 @@ class DataFacade:
             )
         )
 
-    def get_trace(self, experiment_id: str, trace_id: str) -> Result[TraceDetails]:
-        return self._read(lambda: self.experiments.get_trace(experiment_id, trace_id))
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> Result[TraceDetails]:
+        return self._read(
+            lambda: self.experiments.get_trace(experiment_id, trace_id, payloads=False)
+        )
+
+    def get_span(self, experiment_id: str, trace_id: str, span_id: str) -> Result[Span]:
+        return self._read(
+            lambda: self.experiments.get_span(experiment_id, trace_id, span_id)
+        )
 
     def list_evals(
         self,

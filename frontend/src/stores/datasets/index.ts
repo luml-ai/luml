@@ -134,8 +134,7 @@ export const useDatasetsStore = defineStore('datasets', () => {
   }
 
   async function setDownloader(artifact: Artifact) {
-    const url = await artifactsStore.getDownloadUrl(artifact.id)
-    downloader.value = new ModelDownloader(url, () => artifactsStore.getDownloadUrl(artifact.id))
+    downloader.value = new ModelDownloader(artifactsStore.downloadUrlSource(artifact.id))
   }
 
   function setCurrentPage(page: number) {

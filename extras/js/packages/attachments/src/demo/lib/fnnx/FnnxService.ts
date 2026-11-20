@@ -18,13 +18,13 @@ class FnnxServiceClass {
 
   findAttachmentsIndex(files: ModelFile[]) {
     const regex =
-      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/attachments\.index\.json$/
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v[12]~~et~~[^/]+\/attachments\.index\.json$/
     return files.find((file) => regex.test(file.relpath))?.content
   }
 
   findAttachmentsTar(files: ModelFile[]) {
     const regex =
-      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/attachments\.tar$/
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v[12]~~et~~[^/]+\/attachments\.tar$/
     return files.find((file) => regex.test(file.relpath))?.content
   }
 }

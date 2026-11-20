@@ -1091,7 +1091,10 @@ export class SearchEvalsUtils extends SearchUtils {
     return comp
   }
 
-  private static _buildSqlFilter(parsedFilters: FilterNode[]): [string, unknown[]] {
+  private static _buildSqlFilter(
+    parsedFilters: FilterNode[],
+    hasAnnotations: boolean,
+  ): [string, unknown[]] {
     const sqlParts: string[] = []
     const params: unknown[] = []
 
@@ -1101,7 +1104,7 @@ export class SearchEvalsUtils extends SearchUtils {
         continue
       }
       if ('group' in item) {
-        const [subSql, subParams] = SearchEvalsUtils._buildSqlFilter(item.group)
+        const [subSql, subParams] = SearchEvalsUtils._buildSqlFilter(item.group, hasAnnotations)
         sqlParts.push(`(${subSql})`)
         params.push(...subParams)
         continue
@@ -1109,7 +1112,10 @@ export class SearchEvalsUtils extends SearchUtils {
 
       const { type: keyType, key, value, comparator } = item
 
-      if (keyType === SearchEvalsUtils._ANNOTATION_IDENTIFIER) {
+      if (keyType === SearchEvalsUtils._ANNOTATION_IDENTIFIER && !hasAnnotations) {
+        // Without an annotation table the snapshot has no annotations, so nothing matches.
+        sqlParts.push('0')
+      } else if (keyType === SearchEvalsUtils._ANNOTATION_IDENTIFIER) {
         const kind = (item as ComparisonDict).kind
         const kindClause = kind ? ` AND annotation_kind = '${kind}'` : ''
         const [valueExpr, valueParams] = SearchEvalsUtils._buildAnnotationValueExpr(
@@ -1174,9 +1180,12 @@ export class SearchEvalsUtils extends SearchUtils {
     SearchEvalsUtils.parseSearchFilter(filterString)
   }
 
-  static toSql(filterString: string | null | undefined): [string, unknown[]] {
+  static toSql(
+    filterString: string | null | undefined,
+    hasAnnotations = true,
+  ): [string, unknown[]] {
     const parsed = SearchEvalsUtils.parseSearchFilter(filterString)
-    return SearchEvalsUtils._buildSqlFilter(parsed)
+    return SearchEvalsUtils._buildSqlFilter(parsed, hasAnnotations)
   }
 }
 
@@ -1450,7 +1459,10 @@ export class SearchTracesUtils extends SearchUtils {
     return [`value ${comparator} ?`, [value]]
   }
 
-  private static _buildSql(parsedFilters: FilterNode[]): [string, unknown[]] {
+  private static _buildSql(
+    parsedFilters: FilterNode[],
+    hasAnnotations: boolean,
+  ): [string, unknown[]] {
     const sqlParts: string[] = []
     const params: unknown[] = []
 
@@ -1460,7 +1472,7 @@ export class SearchTracesUtils extends SearchUtils {
         continue
       }
       if ('group' in item) {
-        const [subSql, subParams] = SearchTracesUtils._buildSql(item.group)
+        const [subSql, subParams] = SearchTracesUtils._buildSql(item.group, hasAnnotations)
         sqlParts.push(`(${subSql})`)
         params.push(...subParams)
         continue
@@ -1539,6 +1551,9 @@ export class SearchTracesUtils extends SearchUtils {
           )
           params.push(value)
         }
+      } else if (itemType === SearchTracesUtils._ANNOTATION_IDENTIFIER && !hasAnnotations) {
+        // Without an annotation table the snapshot has no annotations, so nothing matches.
+        sqlParts.push('0')
       } else if (itemType === SearchTracesUtils._ANNOTATION_IDENTIFIER) {
         const kind = (item as ComparisonDict).kind
         const kindClause = kind ? ` AND annotation_kind = '${kind}'` : ''
@@ -1602,10 +1617,13 @@ export class SearchTracesUtils extends SearchUtils {
     SearchTracesUtils.parseSearchFilter(filterString)
   }
 
-  static toSql(filterString: string | null | undefined): [string, unknown[]] {
+  static toSql(
+    filterString: string | null | undefined,
+    hasAnnotations = true,
+  ): [string, unknown[]] {
     const parsed = SearchTracesUtils.parseSearchFilter(filterString)
     if (!parsed.length) return ['', []]
-    return SearchTracesUtils._buildSql(parsed)
+    return SearchTracesUtils._buildSql(parsed, hasAnnotations)
   }
 
   static isAggregateFilter(filterString: string | null | undefined): boolean {

@@ -43,10 +43,10 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.message import Message
 from textual.widgets import DataTable, Static, Tree
+from textual.worker import get_current_worker
 
 from lumlflow.schemas.experiments import (
     ExperimentDetails,
-    ExperimentMetricHistory,
     ExperimentStatus,
 )
 from lumlflow.schemas.models import Model, UpdateModel
@@ -54,6 +54,8 @@ from lumlflow.tui._facade import resolve_facade
 from lumlflow.tui._worker_results import post_worker_result
 from lumlflow.tui.data import DataFacade, Result
 from lumlflow.tui.keymap import Scope
+from lumlflow.tui.live_refresh import post_from_worker
+from lumlflow.tui.metric_series import MetricSeries, load_changed_series
 from lumlflow.tui.screens.base import BaseScreen
 from lumlflow.tui.widgets import BreadcrumbSegment, PanelFrame
 from lumlflow.tui.widgets.attachments_panel import AttachmentsPanel
@@ -475,13 +477,15 @@ class ExperimentDetailScreen(BaseScreen):
         self._model_rows: list[_ModelRow] = []
         # Metric tab state.
         # ``_metric_keys`` is the ordered keyset rendered as mini-charts;
-        # ``_metric_history`` caches the most recently fetched series
-        # for the zoomed metric so toggle flips can redraw without a
-        # refetch round-trip. ``_zoomed_metric`` is non-None while the
-        # zoom view owns the pane.
+        # ``_metric_series`` caches the most recently fetched series per
+        # key so the zoom view opens without a refetch round-trip and a
+        # reload can skip metrics whose catalog entry did not change.
+        # ``_pending_metric_budgets`` collects the chart requests of one
+        # layout pass into a single catalog read. ``_zoomed_metric`` is
+        # non-None while the zoom view owns the pane.
         self._metric_keys: list[str] = []
-        self._metric_history: dict[str, ExperimentMetricHistory] = {}
-        self._pending_metrics: dict[str, int] = {}
+        self._metric_series: dict[str, MetricSeries] = {}
+        self._pending_metric_budgets: dict[str, int] = {}
         self._metric_loading = False
         self._zoomed_metric: str | None = None
 
@@ -775,32 +779,53 @@ class ExperimentDetailScreen(BaseScreen):
         ):
             grid.focus_first_cell()
 
-    def _fetch_metric_history(self, key: str, *, max_points: int) -> None:
-        self._pending_metrics[key] = max_points
+    def _request_metric_series(self, key: str, *, max_points: int) -> None:
+        """Queue a chart's series; one worker at a time serves the queue."""
+
+        cached = self._metric_series.get(key)
+        if cached is not None:
+            self._show_metric_series(cached)
+        if key == self._zoomed_metric:
+            # A grid cell's request for the zoomed key must not replace the
+            # zoom view's finer level.
+            max_points = self._zoom_max_points() or max_points
+        self._pending_metric_budgets[key] = max_points
         if not self._metric_loading:
             self._metric_loading = True
-            self._drain_metric_requests()
+            self.call_after_refresh(self._drain_metric_requests)
 
     @work(group="experiment-metric")
     async def _drain_metric_requests(self) -> None:
+        worker = get_current_worker()
         try:
-            while self._pending_metrics:
-                key = next(iter(self._pending_metrics))
-                max_points = self._pending_metrics.pop(key)
+            while self._pending_metric_budgets:
+                budgets = self._pending_metric_budgets
+                self._pending_metric_budgets = {}
                 facade = self.facade
                 if facade is None:
                     continue
+                shown = {
+                    key: series.fingerprint
+                    for key, series in self._metric_series.items()
+                    if key in budgets
+                }
+                # Cancelling the worker does not stop the thread, so it checks
+                # between bucket reads whether the screen still wants them.
                 result = await asyncio.to_thread(
-                    facade.get_metric_history,
+                    load_changed_series,
+                    facade,
                     self._experiment_id,
-                    key,
-                    max_points=max_points,
+                    budgets,
+                    shown,
+                    is_cancelled=lambda: worker.is_cancelled,
                 )
-                self._on_metric_result(result, key)
+                if result is None:
+                    return
+                self._on_metric_result(result)
         finally:
             self._metric_loading = False
 
-    def _on_metric_result(self, result: Result[Any], key: str) -> None:
+    def _on_metric_result(self, result: Result[list[MetricSeries]]) -> None:
         if not result.ok:
             err = result.error
             self._lumlflow_app.show_toast(
@@ -808,22 +833,21 @@ class ExperimentDetailScreen(BaseScreen):
                 severity="error",
             )
             return
-        history: ExperimentMetricHistory = result.unwrap()
-        # Cache by key so toggle flips on the zoom view can redraw
-        # without re-fetching; the grid cell also keeps its own copy.
-        self._metric_history[key] = history
+        for series in result.unwrap():
+            self._metric_series[series.key] = series
+            self._show_metric_series(series)
+
+    def _show_metric_series(self, series: MetricSeries) -> None:
         try:
             grid = self.query_one("#metrics-grid", MetricGrid)
         except Exception:
             grid = None
         if grid is not None:
-            grid.apply_history(history)
-        # If the zoom view is active on this metric, push the latest
-        # history through so the chart redraws with the current toggles.
-        if self._zoomed_metric == key:
+            grid.apply_history(series)
+        if self._zoomed_metric == series.key:
             try:
                 zoom = self.query_one("#metrics-zoom", MetricZoomView)
-                zoom.set_history(history)
+                zoom.set_history(series)
             except Exception:
                 pass
 
@@ -833,7 +857,7 @@ class ExperimentDetailScreen(BaseScreen):
         """Honour a grid cell's request for its metric history."""
 
         event.stop()
-        self._fetch_metric_history(event.metric_key, max_points=event.max_points)
+        self._request_metric_series(event.metric_key, max_points=event.max_points)
 
     def on_metric_grid_zoom_requested(self, event: MetricGrid.ZoomRequested) -> None:
         """Open the zoom view on the metric the user pressed Enter on."""
@@ -850,15 +874,10 @@ class ExperimentDetailScreen(BaseScreen):
             return
         self._zoomed_metric = metric_key
         zoom.set_metric_key(metric_key)
-        cached = self._metric_history.get(metric_key)
-        if cached is not None:
-            zoom.set_history(cached)
-        else:
-            # Cell width is a reasonable proxy for grid charts; for the
-            # zoom view we ask for a richer subsample so the larger
-            # canvas has more detail.
-            self._fetch_metric_history(metric_key, max_points=400)
         self._show_metric_zoom()
+        # The cached grid series shows at once; the zoom chart's wider
+        # budget may pick a finer level, which replaces it when it lands.
+        self._request_metric_series(metric_key, max_points=zoom.chart_max_points())
         # Focus the zoom panel so ←/→ metric stepping and Esc target
         # it directly without a Tab press.
         try:
@@ -866,16 +885,25 @@ class ExperimentDetailScreen(BaseScreen):
         except Exception:
             pass
 
+    def _zoom_max_points(self) -> int | None:
+        try:
+            return self.query_one("#metrics-zoom", MetricZoomView).chart_max_points()
+        except Exception:
+            return None
+
     def _close_zoom(self) -> None:
         zoomed = self._zoomed_metric
         self._zoomed_metric = None
         self._show_metric_grid()
-        # Hand focus back to the cell that was zoomed so arrow keys
-        # continue from where the user left off.
         try:
             grid = self.query_one("#metrics-grid", MetricGrid)
         except Exception:
             return
+        # The zoomed cells hold the zoom level; this reads their own level
+        # back, and the other cells read buckets only if they changed.
+        grid.request_refresh_visible()
+        # Hand focus back to the cell that was zoomed so arrow keys
+        # continue from where the user left off.
         if zoomed is None or not grid.focus_cell(zoomed):
             grid.focus_first_cell()
 
@@ -1334,7 +1362,7 @@ class ExperimentDetailScreen(BaseScreen):
         Strategy:
         - Always re-fetch experiment details (status flips, new dynamic
           metric snapshot values) so the overview/header stay current.
-        - If the metrics tab is active, re-fetch the histories of the
+        - If the metrics tab is active, re-read the bucketed series of the
           visible charts in place so new points appear without losing
           the user's grid cursor or open zoom view.
         - Delegate to the active panel (traces/evals/attachments) so it
@@ -1364,12 +1392,18 @@ class ExperimentDetailScreen(BaseScreen):
                 evals.refresh_live()
 
     def _refresh_metrics_visible(self) -> None:
-        """Re-fetch the histories of every visible metric chart in place."""
+        """Re-read the series of every visible metric chart that changed."""
 
-        # The zoom view, if open, owns a single richer fetch with a
-        # generous max_points so the larger canvas keeps its detail.
+        # The zoom view, if open, owns a single fetch sized to its larger
+        # canvas.
         if self._zoomed_metric is not None:
-            self._fetch_metric_history(self._zoomed_metric, max_points=400)
+            try:
+                zoom = self.query_one("#metrics-zoom", MetricZoomView)
+            except Exception:
+                return
+            self._request_metric_series(
+                self._zoomed_metric, max_points=zoom.chart_max_points()
+            )
             return
         # Otherwise re-issue per-cell fetches sized to each cell's
         # current width so live updates land at the right detail.
@@ -1385,7 +1419,7 @@ class ExperimentDetailScreen(BaseScreen):
         if facade is None:
             return
         result = facade.get_experiment(self._experiment_id)
-        post_worker_result(self, self._on_refresh_details_result, result)
+        post_from_worker(self, self._on_refresh_details_result, result)
 
     def _on_refresh_details_result(self, result: Result[Any]) -> None:
         if not result.ok:

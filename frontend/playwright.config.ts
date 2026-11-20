@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 4173)
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`
+const SNAPSHOT_SPECS = /experiment-snapshot-.*\.spec\.ts/
 
 export default defineConfig({
   testDir: './tests/integration',
@@ -33,6 +34,17 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    // The snapshot reader's synchronous XHR, Range and CORS handling differ between engines.
+    {
+      name: 'firefox',
+      testMatch: SNAPSHOT_SPECS,
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      testMatch: SNAPSHOT_SPECS,
+      use: { ...devices['Desktop Safari'] },
     },
   ],
 

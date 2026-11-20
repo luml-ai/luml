@@ -1,5 +1,12 @@
 <template>
-  <Dialog v-model:visible="visible" :draggable="false" :pt="dialogPt" position="right" modal>
+  <Dialog
+    v-model:visible="visible"
+    :draggable="false"
+    :pt="dialogPt"
+    :close-on-escape="openViewers === 0"
+    position="right"
+    modal
+  >
     <TraceSpans
       :tree="tree"
       :selected-span-id="selectedSpan.span_id"
@@ -8,17 +15,23 @@
       :min-span-time="minSpanTime"
       @select="setSelectedSpan"
     ></TraceSpans>
-    <TraceBody :data="selectedSpan" :artifact-id="artifactId" :trace-id="traceId"></TraceBody>
+    <TraceBody
+      ref="body"
+      :data="selectedSpan"
+      :artifact-id="artifactId"
+      :trace-id="traceId"
+    ></TraceBody>
   </Dialog>
 </template>
 
 <script setup lang="ts">
 import type { DialogPassThroughOptions } from 'primevue'
 import type { TraceSpan } from '@/interfaces/interfaces'
-import { ref } from 'vue'
+import { ref, useTemplateRef } from 'vue'
 import { Dialog } from 'primevue'
 import TraceSpans from './TraceSpans.vue'
 import TraceBody from './body/TraceBody.vue'
+import { provideNestedViewers } from '../../../ui/nestedViewer'
 
 type Props = {
   tree: TraceSpan[]
@@ -48,10 +61,15 @@ const dialogPt: DialogPassThroughOptions = {
 }
 
 const visible = defineModel<boolean>('visible')
+const openViewers = provideNestedViewers()
 
 const selectedSpan = ref<TraceSpan>(props.tree[0] as TraceSpan)
 
+const body = useTemplateRef('body')
+
+// Selecting the same span again does not change the selection, so it retries a failed load.
 function setSelectedSpan(span: TraceSpan) {
+  if (span.span_id === selectedSpan.value.span_id) body.value?.retryFailedPayload()
   selectedSpan.value = span
 }
 </script>
