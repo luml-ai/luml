@@ -34,6 +34,7 @@ class TestLogEvalSample:
             metadata={"latency_ms": 42},
         )
 
+        tracker.backend.flush()
         conn = _exp_db(tmp_path, exp_id)
         row = conn.execute(
             "SELECT id, dataset_id, inputs, outputs, refs, scores, metadata FROM evals"
@@ -62,6 +63,7 @@ class TestLogEvalSample:
             inputs={"x": 1},
         )
 
+        tracker.backend.flush()
         conn = _exp_db(tmp_path, exp_id)
         row = conn.execute(
             "SELECT outputs, refs, scores, metadata FROM evals WHERE id = 'eval_002'"
@@ -654,7 +656,7 @@ class TestGetExperimentEvalAverageScores:
             captured["args"] = (experiment_id, dataset_id)
             return {"acc": 1.0}
 
-        tracker.backend.get_evals_average_scores = legacy_backend  # type: ignore[method-assign]
+        tracker.backend.get_evals_average_scores = legacy_backend
 
         avg = tracker.get_experiment_evals_average_scores(exp_id, dataset_id="ds1")
 
@@ -875,6 +877,7 @@ class TestLinkEvalSampleToTrace:
             trace_id="trace_link",
         )
 
+        tracker.backend.flush()
         conn = _exp_db(tmp_path, exp_id)
         row = conn.execute(
             "SELECT eval_dataset_id, eval_id, trace_id FROM eval_traces_bridge"
@@ -1232,7 +1235,7 @@ class TestBatchEvalsPaginationFull:
         exp_a, exp_b, exp_c = three_exps
         exp_ids = [exp_a, exp_b, exp_c]
 
-        def _unique_ids_in_order(result: PaginatedResponse) -> list[str]:  # type: ignore[type-arg]
+        def _unique_ids_in_order(result: PaginatedResponse) -> list[str]:
             seen: set[str] = set()
             ids: list[str] = []
             for r in result.items:

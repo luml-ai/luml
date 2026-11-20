@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 
-import httpx
+import httpx2
 import keyring
 import keyring.errors
 
@@ -72,7 +72,7 @@ class AuthHandler:
     def set_api_key(self, data: SetApiKey) -> None:
         base_url = get_config().LUML_BASE_URL
         try:
-            with httpx.Client() as client:
+            with httpx2.Client() as client:
                 response = client.get(
                     f"{base_url}/v1/auth/api-keys/validate",
                     headers={"Authorization": f"Bearer {data.api_key}"},

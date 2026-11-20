@@ -11,10 +11,11 @@ selected metric.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from dataclasses import replace
 
 import pytest
-from lumlflow.schemas.experiments import ExperimentMetricHistory, MetricPoint
+from lumlflow.schemas.experiments import MetricBucket, MetricSummary
+from lumlflow.tui.metric_series import MetricSeries, bucket_averages
 from lumlflow.tui.widgets.metric_grid import (
     MetricCell,
     MetricGrid,
@@ -63,23 +64,24 @@ class _ZoomApp(App[None]):
         yield MetricZoomView(id="zoom-under-test")
 
 
-def _history(
-    key: str, points: int = 5, subsampled: bool = False
-) -> ExperimentMetricHistory:
-    """Build a deterministic ExperimentMetricHistory for tests."""
+def _history(key: str, points: int = 5, level: int = 0) -> MetricSeries:
+    """A series of one bucket per step `i` with value `i`."""
 
-    return ExperimentMetricHistory(
-        experiment_id="exp",
+    return MetricSeries(
         key=key,
-        subsampled=subsampled,
-        history=[
-            MetricPoint(
-                value=float(i),
-                step=i,
-                logged_at=datetime(2026, 1, 1, 0, 0, i, tzinfo=UTC),
-            )
+        level=level,
+        summary=MetricSummary(
+            key=key,
+            first_step=0,
+            last_step=points - 1,
+            count=points,
+            min=0.0,
+            max=float(points - 1),
+        ),
+        buckets=tuple(
+            MetricBucket(i, i, i, 1, 1, float(i), float(i), float(i))
             for i in range(points)
-        ],
+        ),
     )
 
 
@@ -135,7 +137,7 @@ class TestMetricGrid:
             cell = next(iter(grid.query(MetricCell)))
             assert cell._history is not None
             assert cell._history.key == "loss"
-            assert len(cell._history.history) == 4
+            assert len(cell._history.buckets) == 4
 
     async def test_apply_history_for_unknown_key_is_noop(self) -> None:
         async with _GridApp().run_test() as pilot:
@@ -262,13 +264,31 @@ class TestMetricZoomView:
             await pilot.pause()
             zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
             zoom.set_metric_key("loss")
-            zoom.set_history(_history("loss", points=4, subsampled=True))
+            zoom.set_history(_history("loss", points=4, level=2))
             await pilot.pause()
             status = zoom.query_one("#metric-zoom-status", Static)
             text = str(status.render())
             assert "loss" in text
             assert "points: 4" in text
-            assert "subsampled" in text
+            assert "16 steps per point" in text
+
+    async def test_status_omits_the_unknown_point_count_of_a_legacy_catalog(
+        self,
+    ) -> None:
+        async with _ZoomApp().run_test() as pilot:
+            await pilot.pause()
+            zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
+            zoom.set_metric_key("loss")
+            history = _history("loss", points=4)
+            assert history.summary is not None
+            legacy_summary = history.summary.model_copy(
+                update={"count": None, "min": None, "max": None}
+            )
+            zoom.set_history(replace(history, summary=legacy_summary))
+            await pilot.pause()
+            text = str(zoom.query_one("#metric-zoom-status", Static).render())
+            assert "metric: loss" in text
+            assert "points" not in text
 
     async def test_series_for_plot_step_axis(self) -> None:
         async with _ZoomApp().run_test() as pilot:
@@ -277,7 +297,7 @@ class TestMetricZoomView:
             zoom.set_metric_key("loss")
             history = _history("loss", points=4)
             zoom.set_history(history)
-            xs, ys = zoom._series_for_plot(history.history)
+            xs, ys = bucket_averages(history)
             assert xs == [0.0, 1.0, 2.0, 3.0]
             assert ys == [0.0, 1.0, 2.0, 3.0]
 
@@ -330,7 +350,7 @@ class TestNoRedundantRerender:
             cell = grid.query_one(MetricCell)
             cell.set_history(_history("loss", points=5))
             redraws: list[int] = []
-            cell._redraw = lambda: redraws.append(1)  # type: ignore[method-assign]
+            cell._redraw = lambda: redraws.append(1)
             cell.set_history(_history("loss", points=5))
             assert redraws == []
             cell.set_history(_history("loss", points=6))
@@ -343,7 +363,7 @@ class TestNoRedundantRerender:
             zoom.set_metric_key("loss")
             zoom.set_history(_history("loss", points=5))
             redraws: list[int] = []
-            zoom._redraw = lambda: redraws.append(1)  # type: ignore[method-assign]
+            zoom._redraw = lambda: redraws.append(1)
             zoom.set_history(_history("loss", points=5))
             assert redraws == []
             zoom.set_history(_history("loss", points=6))

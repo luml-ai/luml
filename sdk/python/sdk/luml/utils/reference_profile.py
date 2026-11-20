@@ -16,8 +16,8 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA  # type: ignore[import-untyped]
-from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 TaskType = Literal["regression", "classification", "forecasting"]
 

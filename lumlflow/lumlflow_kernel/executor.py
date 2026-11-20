@@ -13,7 +13,7 @@ import time
 import traceback
 from base64 import b64encode
 from collections import OrderedDict
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -256,7 +256,7 @@ class Executor:
         return self._registry.get(kind).deserialize(self._values.path(value_ref))
 
     @contextlib.contextmanager
-    def _claim(self, run_id: str) -> Iterator[Callable[[], None]]:
+    def _claim(self, run_id: str) -> Generator[Callable[[], None]]:
         """Hold the kernel for one run, and hand back the end of the window a
         cancel may land in.
 
@@ -519,7 +519,7 @@ class _Observed:
 
 
 @contextlib.contextmanager
-def _restored() -> Iterator[None]:
+def _restored() -> Generator[None]:
     environ = dict(os.environ)
     cwd = Path.cwd()
     root = logging.getLogger()

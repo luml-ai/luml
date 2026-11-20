@@ -86,7 +86,7 @@ class BaseDialog[DialogResult](ModalScreen[DialogResult]):
         if destructive is not None:
             self.destructive = destructive
 
-    def compose(self) -> Iterable:  # type: ignore[override]
+    def compose(self) -> Iterable:
         confirm_key = "Ctrl+Y" if self.destructive else "Enter"
         with Vertical():
             yield Label(self.title_text, id="dialog-title")
@@ -148,7 +148,7 @@ class BaseDialog[DialogResult](ModalScreen[DialogResult]):
         label.display = bool(message)
 
     def action_confirm(self) -> None:
-        self.dismiss(True)  # type: ignore[arg-type]
+        self.dismiss(True)
 
     def action_cancel(self) -> None:
-        self.dismiss(False)  # type: ignore[arg-type]
+        self.dismiss(False)

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-import httpx
+import httpx2
 
 from luml_api._exceptions import LumlAPIError
 from luml_api._types import (
@@ -191,7 +191,7 @@ class BucketSecretResource(BucketSecretResourceBase):
 
     @staticmethod
     def _validate_range_support(download_url: str) -> None:
-        range_response = httpx.get(
+        range_response = httpx2.get(
             download_url,
             headers={"Range": "bytes=0-10"},
         )
@@ -266,7 +266,7 @@ class BucketSecretResource(BucketSecretResourceBase):
             upload_headers["x-ms-blob-type"] = "BlockBlob"
 
         try:
-            upload_response = httpx.put(
+            upload_response = httpx2.put(
                 connection_urls.presigned_url,
                 content=b"Connection test.",
                 headers=upload_headers,
@@ -279,12 +279,12 @@ class BucketSecretResource(BucketSecretResourceBase):
             self._validate_range_support(connection_urls.download_url)
         except Exception as e:
             with contextlib.suppress(Exception):
-                httpx.delete(connection_urls.delete_url)
+                httpx2.delete(connection_urls.delete_url)
 
             raise LumlAPIError(f"Bucket Range Support check failed: {str(e)}") from e
 
         with contextlib.suppress(Exception):
-            httpx.delete(connection_urls.delete_url)
+            httpx2.delete(connection_urls.delete_url)
 
     def create(
         self,
@@ -673,7 +673,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
 
     @staticmethod
     async def _validate_range_support(download_url: str) -> None:
-        async with httpx.AsyncClient() as client:
+        async with httpx2.AsyncClient() as client:
             range_response = await client.get(
                 download_url,
                 headers={"Range": "bytes=0-10"},
@@ -748,7 +748,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         if type == BucketType.AZURE:
             upload_headers["x-ms-blob-type"] = "BlockBlob"
 
-        async with httpx.AsyncClient() as client:
+        async with httpx2.AsyncClient() as client:
             try:
                 upload_response = await client.put(
                     connection_urls.presigned_url,
@@ -765,12 +765,12 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             await self._validate_range_support(connection_urls.download_url)
         except Exception as e:
             with contextlib.suppress(Exception):
-                async with httpx.AsyncClient() as client:
+                async with httpx2.AsyncClient() as client:
                     await client.delete(connection_urls.delete_url)
             raise LumlAPIError(f"Bucket Range Support check failed: {str(e)}") from e
 
         with contextlib.suppress(Exception):
-            async with httpx.AsyncClient() as client:
+            async with httpx2.AsyncClient() as client:
                 await client.delete(connection_urls.delete_url)
 
     async def get_multipart_upload_urls(

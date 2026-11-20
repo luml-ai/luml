@@ -37,7 +37,7 @@ platform_admin_logger = logging.getLogger(PLATFORM_ADMIN_LOGGER)
 
 
 class AppService(FastAPI):
-    def __init__(self, *args, **kwargs) -> None:  # type: ignore
+    def __init__(self, *args, **kwargs) -> None:
         kwargs.setdefault("strict_content_type", False)
         super().__init__(*args, **kwargs)
 

@@ -14,7 +14,7 @@ tracker = ExperimentTracker(f"sqlite://{Path.home() / '.luml' / 'experiments'}")
 tracker.start_experiment(name="baseline", group="<project-name>", tags=["baseline"])
 
 tracker.log_static("learning_rate", 0.05)                 # every hyperparameter, once
-tracker.log_dynamic("val_loss", val_loss, step=epoch)     # metrics over steps
+tracker.log_dynamic("val_loss", val_loss, step=epoch)     # metrics over integer steps
 tracker.log_dynamic("roc_auc", roc_auc)                   # final metrics
 tracker.log_model(model, name="<model-name>", inputs=X_sample)  # optional
 

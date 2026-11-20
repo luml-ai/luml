@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
@@ -47,7 +47,7 @@ async def recovery_harness(
     serving: FakeServingPlacement | None = None,
     clock: FakeClock | None = None,
     max_relaunch_attempts: int = 3,
-) -> AsyncIterator[RecoveryHarness]:
+) -> AsyncGenerator[RecoveryHarness]:
     active_driver = driver or FakeDriver()
     active_serving = serving or FakeServingPlacement()
     active_clock = clock or FakeClock()

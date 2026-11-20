@@ -1,25 +1,27 @@
 <template>
-  <div v-if="metrics.length" class="flex flex-col gap-4">
-    <DynamicMetrics
-      :metrics-names="metrics"
-      :models-info="modelsInfo"
-      :show-title="false"
-    ></DynamicMetrics>
+  <div class="flex flex-col gap-4">
+    <ExperimentStatusNotices :statuses="dynamicMetricsStore.statuses" :models-info="modelsInfo" />
+    <DynamicMetrics :models-info="modelsInfo" :show-title="false"></DynamicMetrics>
   </div>
-  <div v-else class="empty-message">No metrics found in this experiment</div>
+  <div v-if="empty" class="empty-message">No metrics found in this experiment</div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useExperimentStore } from '@/store/experiment'
-import { DynamicMetrics } from '@luml/experiments'
+import { DynamicMetrics, ExperimentStatusNotices, useDynamicMetricsStore } from '@luml/experiments'
 
 const experimentStore = useExperimentStore()
+const dynamicMetricsStore = useDynamicMetricsStore()
 
-const metrics = computed(() => {
-  if (!experimentStore.experiment) return []
-  return Object.keys(experimentStore.experiment.dynamic_params || {})
-})
+// The catalog, not `dynamic_params`, says which metrics exist: it is read with the charts.
+const empty = computed(
+  () =>
+    !dynamicMetricsStore.loading &&
+    dynamicMetricsStore.catalogs !== null &&
+    dynamicMetricsStore.catalogs.errors.size === 0 &&
+    dynamicMetricsStore.metricsNames.length === 0,
+)
 
 const modelsInfo = computed(() => {
   if (!experimentStore.experiment) return {}

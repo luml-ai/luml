@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import Any, Self
 
-import httpx
-from httpx import URL
+import httpx2
+from httpx2 import URL
 
 from luml_api._exceptions import (
     APIStatusError,
@@ -15,6 +15,7 @@ from luml_api._exceptions import (
     PermissionDeniedError,
     UnprocessableEntityError,
 )
+from luml_api._http_compat import compatible_http_errors
 
 
 class BaseClient(ABC):
@@ -60,7 +61,7 @@ class BaseClient(ABC):
         err_msg: str,
         *,
         body: object,
-        response: httpx.Response,
+        response: httpx2.Response,
     ) -> APIStatusError:
         if response.status_code == 400:
             return BadRequestError(err_msg, response=response, body=body)
@@ -85,7 +86,7 @@ class BaseClient(ABC):
         return APIStatusError(err_msg, response=response, body=body)
 
     @abstractmethod
-    def _process_response(self, response: httpx.Response) -> Any:  # noqa: ANN401
+    def _process_response(self, response: httpx2.Response) -> Any:  # noqa: ANN401
         raise NotImplementedError()
 
     @abstractmethod
@@ -122,14 +123,14 @@ class BaseClient(ABC):
 
 
 class SyncBaseClient(BaseClient):
-    _client: httpx.Client
+    _client: httpx2.Client
 
     def __init__(
         self,
         base_url: str | URL,
         timeout: float = 30.0,
     ) -> None:
-        self._client = httpx.Client(base_url=base_url, timeout=timeout)
+        self._client = httpx2.Client(base_url=base_url, timeout=timeout)
         super().__init__(base_url=base_url, timeout=timeout)
 
     def close(self) -> None:
@@ -146,7 +147,7 @@ class SyncBaseClient(BaseClient):
     ) -> None:
         self.close()
 
-    def _process_response(self, response: httpx.Response) -> dict | None:
+    def _process_response(self, response: httpx2.Response) -> dict | None:
         if response.status_code >= 400:
             try:
                 body = response.json()
@@ -191,14 +192,15 @@ class SyncBaseClient(BaseClient):
         if headers:
             final_headers.update(headers)
 
-        response = self._client.request(
-            method=method,
-            url=url,
-            headers=final_headers,
-            json=json,
-            params=params,
-            **kwargs,
-        )
+        with compatible_http_errors():
+            response = self._client.request(
+                method=method,
+                url=url,
+                headers=final_headers,
+                json=json,
+                params=params,
+                **kwargs,
+            )
         return self._process_response(response)
 
     def get(self, url: str, **kwargs) -> Any:  # noqa: ANN401
@@ -218,14 +220,14 @@ class SyncBaseClient(BaseClient):
 
 
 class AsyncBaseClient(BaseClient):
-    _client: httpx.AsyncClient
+    _client: httpx2.AsyncClient
 
     def __init__(
         self,
         base_url: str | URL,
         timeout: float = 30.0,
     ) -> None:
-        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
+        self._client = httpx2.AsyncClient(base_url=base_url, timeout=timeout)
         super().__init__(base_url=base_url, timeout=timeout)
 
     async def aclose(self) -> None:
@@ -242,7 +244,7 @@ class AsyncBaseClient(BaseClient):
     ) -> None:
         await self.aclose()
 
-    async def _process_response(self, response: httpx.Response) -> dict | None:
+    async def _process_response(self, response: httpx2.Response) -> dict | None:
         if response.status_code >= 400:
             try:
                 body = response.json()
@@ -287,14 +289,15 @@ class AsyncBaseClient(BaseClient):
         if headers:
             final_headers.update(headers)
 
-        response = await self._client.request(
-            method=method,
-            url=url,
-            headers=final_headers,
-            json=json,
-            params=params,
-            **kwargs,
-        )
+        with compatible_http_errors():
+            response = await self._client.request(
+                method=method,
+                url=url,
+                headers=final_headers,
+                json=json,
+                params=params,
+                **kwargs,
+            )
         return await self._process_response(response)
 
     async def get(self, url: str, **kwargs) -> Any:  # noqa: ANN401

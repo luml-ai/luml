@@ -56,6 +56,8 @@ class Evaluate:
         import os
 
         ctx.tracker.log_metric("rmse", 0.7, step=1)
+        # Reading it back commits the buffered metric; os._exit skips every flush.
+        ctx.tracker.get_experiment_metric_history(key="rmse")
         os._exit(17)
 """
 
@@ -259,6 +261,9 @@ async def test_a_cancelled_run_keeps_its_live_experiment_reference(
         running = asyncio.create_task(api.run({"flow": "churn", "target": "evaluate"}))
         await _wait_until((root / "metric-logged").exists)
         experiment_id = _only_experiment(tracker).id
+        await _wait_until(
+            lambda: bool(tracker.get_experiment_metric_history(experiment_id, "rmse"))
+        )
         history = tracker.get_experiment_metric_history(experiment_id, "rmse")
         listed = await asyncio.wait_for(api.cells_list({"flow": "churn"}), timeout=2)
 

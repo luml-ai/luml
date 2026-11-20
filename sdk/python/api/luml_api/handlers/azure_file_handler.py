@@ -3,9 +3,10 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 
-import httpx
+import httpx2
 
 from luml_api._exceptions import FileUploadError
+from luml_api._http_compat import compatible_http_errors
 from luml_api._types import PartDetails
 from luml_api.handlers.base_file_handler import BaseFileHandler
 
@@ -19,13 +20,13 @@ class AzureFileHandler(BaseFileHandler):
         file_path: str,
         file_size: int,
         file_name: str = "",
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         try:
             update_progress = self.create_progress_bar(file_size, file_name)
 
-            timeout = httpx.Timeout(connect=30.0, read=300.0, write=600.0, pool=30.0)
+            timeout = httpx2.Timeout(connect=30.0, read=300.0, write=600.0, pool=30.0)
 
-            response = httpx.put(
+            response = httpx2.put(
                 url,
                 content=self.create_file_generator(
                     file_path, file_size, update_progress
@@ -52,7 +53,7 @@ class AzureFileHandler(BaseFileHandler):
         file_path: str,
         file_name: str = "",
         upload_id: str | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         try:
             update_progress = self.create_progress_bar(file_size, file_name)
             block_ids = []
@@ -97,7 +98,7 @@ class AzureFileHandler(BaseFileHandler):
             part_data = f.read(part_size)
             actual_size = len(part_data)
 
-        with httpx.Client(timeout=300) as client:
+        with compatible_http_errors(), httpx2.Client(timeout=300) as client:
             response = client.put(
                 part.url,
                 content=part_data,
@@ -113,7 +114,7 @@ class AzureFileHandler(BaseFileHandler):
 
         return AzureFileHandler._get_block_id(part.part_number)
 
-    def _commit_block_list(self, url: str, block_ids: list[str]) -> httpx.Response:
+    def _commit_block_list(self, url: str, block_ids: list[str]) -> httpx2.Response:
         block_ids.sort()
 
         xml_blocks = ""
@@ -124,7 +125,7 @@ class AzureFileHandler(BaseFileHandler):
             f'<?xml version="1.0" encoding="utf-8"?><BlockList>{xml_blocks}</BlockList>'
         )
 
-        with httpx.Client(timeout=300) as client:
+        with compatible_http_errors(), httpx2.Client(timeout=300) as client:
             response = client.put(
                 url=url,
                 content=block_list_xml,

@@ -52,7 +52,10 @@ const refresh = async () => {
 async function refreshExperimentData() {
   await experimentStore.fetchExperiment(experimentId.value)
   if (route.name === ROUTE_NAMES.EXPERIMENT_METRICS) {
-    await dynamicMetricsStore.refresh()
+    const failure = (await dynamicMetricsStore.refresh([experimentId.value])).get(
+      experimentId.value,
+    )
+    if (failure) toast.add(errorToast(null, failure.message))
   }
   if (route.name === ROUTE_NAMES.EXPERIMENT_TRACES) {
     await tracesStore.refresh()

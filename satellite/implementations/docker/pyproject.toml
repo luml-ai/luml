@@ -23,12 +23,12 @@ luml-satellite = { path = "../../kit", editable = true }
 
 [dependency-groups]
 dev = [
-    "mypy>=1.18.2,<2.0.0",
+    "ty==0.0.104",
     "pytest>=9.0.3,<10.0.0",
     "pytest-asyncio>=1.3.0,<2.0.0",
     "pytest-cov>=7.1.0,<8.0.0",
     "pyyaml>=6.0.2,<7.0.0",
-    "respx>=0.22.0,<1.0.0",
+    "pytest-httpx2>=1.0.0,<2.0.0",
     "ruff>=0.14.5,<1.0.0",
     "types-pyyaml>=6.0.12,<7.0.0",
 ]
@@ -59,8 +59,8 @@ force-wrap-aliases = true
 known-first-party = ["luml_satellite_docker"]
 split-on-trailing-comma = true
 
-[tool.mypy]
-python_version = "3.14"
-strict = true
-explicit_package_bases = true
-files = ["luml_satellite_docker", "tests"]
+[tool.ty.src]
+include = ["luml_satellite_docker", "tests"]
+
+[tool.ty.terminal]
+error-on-warning = true

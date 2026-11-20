@@ -89,7 +89,7 @@ class BucketSecretUpdateIn(BaseModel):
 
 class BucketSecretUpdate(BucketSecretUpdateIn):
     id: UUID
-    type: BucketType = BucketType.S3
+    type: BucketType = BucketType.S3  # ty: ignore[incompatible-mutable-override]
 
 
 class _AzureBucketSecretBase(BaseModel):

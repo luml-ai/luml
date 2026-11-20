@@ -42,7 +42,7 @@ exp_id = tracker.start_experiment(
 )
 ```
 
-Two types of values can be logged. Static values represent fixed configuration that does not change during training (hyperparameters, dataset identifiers, architecture choices). Dynamic values represent time-series metrics that change at each step or epoch.
+Two types of values can be logged. Static values represent fixed configuration that does not change during training (hyperparameters, dataset identifiers, architecture choices). Dynamic values represent time-series metrics that change at each step or epoch. Steps must be integers: a fractional step such as 2.5 raises `TypeError`.
 
 ```python
 # Static parameters
@@ -77,7 +77,7 @@ tracker.end_experiment(exp_id)
 
 ## Model Packaging
 
-The SDK uses the [`.luml` file format](../documentation/Core-Concepts/luml_model.md) to package trained models with their dependencies and input/output schemas. Framework-specific `save_` functions handle serialization, dependency resolution, and schema inference.
+The SDK uses the [`.luml` file format](../../documentation/Core-Concepts/luml_model.md) to package trained models with their dependencies and input/output schemas. Framework-specific `save_` functions handle serialization, dependency resolution, and schema inference.
 
 For a scikit-learn model:
 
@@ -192,7 +192,7 @@ luml = LumlClient(
 )
 ```
 
-*Note: the API key can also be set via the `LUML_API_KEY` environment variable. The `organization`, `orbit`, and `collection` parameters accept both names and IDs. If only one of each exists on your account, it is selected automatically. Also make sure the collection's type is appropriate for your artifact (for model uploading use collections with "Model" or "Mixed" type. More about collection types in [Registry module](/docs/docs/documentation/Modules/Registry/))*
+*Note: the API key can also be set via the `LUML_API_KEY` environment variable. The `organization`, `orbit`, and `collection` parameters accept both names and IDs. If only one of each exists on your account, it is selected automatically. Also make sure the collection's type is appropriate for your artifact (for model uploading use collections with "Model" or "Mixed" type. More about collection types in [Registry module](../../documentation/Modules/Registry/registry.md))*
 
 Upload a `.luml` file:
 

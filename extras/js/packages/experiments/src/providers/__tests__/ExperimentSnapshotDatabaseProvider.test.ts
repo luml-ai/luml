@@ -1,25 +1,22 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
-import { createRequire } from 'node:module'
-import initSqlJs, { type Database, type SqlJsStatic } from 'sql.js'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { ExperimentSnapshotDatabaseProvider } from '../ExperimentSnapshotDatabaseProvider'
 import type { ModelSnapshot } from '@/interfaces/interfaces'
+import { memoryDatabase, type MemoryDatabase } from './helpers/memoryDatabase'
 
-const require = createRequire(import.meta.url)
+type Database = MemoryDatabase
 
-let SQL: SqlJsStatic
-
-beforeAll(async () => {
-  SQL = await initSqlJs({ locateFile: () => require.resolve('sql.js/dist/sql-wasm.wasm') })
-})
-
-function databaseWithMetrics(rows: Array<{ key: string; value: number; step: number }>): Database {
-  const db = new SQL.Database()
+async function databaseWithMetrics(
+  rows: Array<{ key: string; value: number; step: number }>,
+): Promise<Database> {
+  const db = await memoryDatabase()
   db.run('CREATE TABLE dynamic_metrics (key TEXT, value REAL, step INTEGER)')
-  const stmt = db.prepare('INSERT INTO dynamic_metrics (key, value, step) VALUES (?, ?, ?)')
   for (const row of rows) {
-    stmt.run([row.key, row.value, row.step])
+    db.run('INSERT INTO dynamic_metrics (key, value, step) VALUES (?, ?, ?)', [
+      row.key,
+      row.value,
+      row.step,
+    ])
   }
-  stmt.free()
   return db
 }
 
@@ -33,7 +30,7 @@ function providerFor(db: Database): ExperimentSnapshotDatabaseProvider {
 
 describe('ExperimentSnapshotDatabaseProvider.getModelDynamicMetricData', () => {
   it('returns points in ascending step order when rows are stored out of order', async () => {
-    const db = databaseWithMetrics([
+    const db = await databaseWithMetrics([
       { key: 'loss', value: 30, step: 3 },
       { key: 'loss', value: 10, step: 1 },
       { key: 'loss', value: 20, step: 2 },
@@ -47,7 +44,7 @@ describe('ExperimentSnapshotDatabaseProvider.getModelDynamicMetricData', () => {
   })
 
   it('filters by metric key while keeping ascending step order', async () => {
-    const db = databaseWithMetrics([
+    const db = await databaseWithMetrics([
       { key: 'acc', value: 1, step: 5 },
       { key: 'loss', value: 30, step: 3 },
       { key: 'acc', value: 2, step: 4 },
@@ -66,8 +63,8 @@ describe('ExperimentSnapshotDatabaseProvider eval annotations', () => {
   let db: Database
   let provider: ExperimentSnapshotDatabaseProvider
 
-  beforeEach(() => {
-    db = new SQL.Database()
+  beforeEach(async () => {
+    db = await memoryDatabase()
     db.run(`
       PRAGMA user_version = 1;
       CREATE TABLE evals (
@@ -79,11 +76,11 @@ describe('ExperimentSnapshotDatabaseProvider eval annotations', () => {
       );
       INSERT INTO evals (id, dataset_id) VALUES ('e1', 'ds1'), ('e2', 'ds1'), ('e3', 'ds2');
     `)
-    const stmt = db.prepare(`
+    const insertAnnotation = `
       INSERT INTO eval_annotations
         (id, eval_id, dataset_id, name, annotation_kind, value, user, value_type, created_at, rationale)
       VALUES (?, ?, ?, ?, ?, ?, 'annotator', ?, '2026-10-07T00:00:00Z', NULL)
-    `)
+    `
     for (const row of [
       ['f1', 'e1', 'ds1', 'helpful', 'feedback', 'false', 'bool'],
       ['f2', 'e2', 'ds1', 'helpful', 'feedback', 'false', 'bool'],
@@ -96,9 +93,8 @@ describe('ExperimentSnapshotDatabaseProvider eval annotations', () => {
       ['s2', 'e1', 'ds1', 'empty', 'expectation', '', 'string'],
       ['other', 'e3', 'ds2', 'helpful', 'feedback', 'true', 'bool'],
     ]) {
-      stmt.run(row)
+      db.run(insertAnnotation, row)
     }
-    stmt.free()
     provider = providerFor(db)
   })
 
@@ -220,8 +216,8 @@ describe('ExperimentSnapshotDatabaseProvider query safety and trace filters', ()
     filters: [],
   }
 
-  beforeEach(() => {
-    db = new SQL.Database()
+  beforeEach(async () => {
+    db = await memoryDatabase()
     db.run(`
       PRAGMA user_version = 1;
       CREATE TABLE evals (
@@ -433,5 +429,54 @@ describe('ExperimentSnapshotDatabaseProvider query safety and trace filters', ()
         rate: 0.1,
       },
     ])
+  })
+})
+
+describe('ExperimentSnapshotDatabaseProvider paging after a failed read', () => {
+  const params = {
+    limit: 1,
+    sort_by: 'created_at' as const,
+    order: 'asc' as const,
+    search: '',
+    filters: [],
+  }
+
+  it('keeps the page of another dataset that advanced while the failed read was pending', async () => {
+    const db = await memoryDatabase()
+    db.run(`
+      PRAGMA user_version = 1;
+      CREATE TABLE evals (
+        id TEXT, dataset_id TEXT, inputs TEXT, outputs TEXT, refs TEXT, scores TEXT,
+        metadata TEXT, created_at TEXT
+      );
+      CREATE TABLE eval_annotations (
+        id TEXT, eval_id TEXT, dataset_id TEXT, name TEXT, annotation_kind TEXT,
+        value TEXT, user TEXT, value_type TEXT, created_at TEXT, rationale TEXT
+      );
+      INSERT INTO evals (id, dataset_id, created_at) VALUES
+        ('e1', 'ds_ok', '1'), ('e2', 'ds_ok', '2'), ('f1', 'ds_fail', '1');
+    `)
+    const prepare = db.prepare.bind(db)
+    db.prepare = (sql, values) => {
+      const statement = prepare(sql, values)
+      const bind = statement.bind.bind(statement)
+      statement.bind = (bound) => {
+        if (sql.includes('eval_annotations') && JSON.stringify(bound).includes('ds_fail')) {
+          throw new Error('read failed')
+        }
+        return bind(bound)
+      }
+      return statement
+    }
+    const provider = providerFor(db)
+
+    const failing = provider.getNextEvalsByDatasetId({ ...params, dataset_id: 'ds_fail' })
+    const firstPage = provider.getNextEvalsByDatasetId({ ...params, dataset_id: 'ds_ok' })
+
+    await expect(failing).rejects.toThrow('read failed')
+    expect((await firstPage).map((item) => item.id)).toEqual(['e1'])
+    const secondPage = await provider.getNextEvalsByDatasetId({ ...params, dataset_id: 'ds_ok' })
+    expect(secondPage.map((item) => item.id)).toEqual(['e2'])
+    db.close()
   })
 })

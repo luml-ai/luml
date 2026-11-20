@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import xgboost as xgb
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from fnnx.extras.builder import PyfuncBuilder
 from pydantic import BaseModel
 from xgboost import Booster
 from xgboost.sklearn import XGBModel
@@ -174,7 +174,7 @@ def save_xgboost(  # noqa: C901
                 extra_dependencies.append(xgboost_dep)
 
         return save_sklearn(
-            estimator=estimator,  # type: ignore[arg-type]
+            estimator=estimator,  # ty: ignore[invalid-argument-type]
             inputs=inputs,
             path=path,
             dependencies=dependencies,

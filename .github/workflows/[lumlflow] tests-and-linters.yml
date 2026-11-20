@@ -45,7 +45,7 @@ jobs:
         run: uv run --frozen ruff check lumlflow lumlflow_kernel lumlflow_typing tests
 
       - name: Type checking
-        run: uv run --frozen mypy lumlflow/flow lumlflow_kernel lumlflow_typing
+        run: uv run --frozen ty check
 
       - name: Running unit tests
         run: uv run --frozen pytest tests/unit

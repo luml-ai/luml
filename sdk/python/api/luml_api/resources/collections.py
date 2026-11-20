@@ -151,7 +151,9 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                 return self._get_by_id(collection.id)
         return None
 
-    def _get_by_id(self, collection_id: str) -> CollectionDetails | None:
+    def _get_by_id(
+        self, collection_id: str
+    ) -> CollectionDetails | None:  # ty: ignore[lost-keyword-for-regular-parameter]
         try:
             response = self._client.get(
                 f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
@@ -224,7 +226,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         return self._auto_paginate(
-            self.list,  # type: ignore[arg-type]
+            self.list,  # ty: ignore[invalid-argument-type]
             limit=limit,
             sort_by=sort_by,
             order=order,
@@ -623,7 +625,9 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
                 return await self._get_by_id(collection.id)
         return None
 
-    async def _get_by_id(self, collection_id: str) -> CollectionDetails | None:
+    async def _get_by_id(
+        self, collection_id: str
+    ) -> CollectionDetails | None:  # ty: ignore[lost-keyword-for-regular-parameter]
         try:
             response = await self._client.get(
                 f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
@@ -702,7 +706,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         return self._auto_paginate_async(
-            self.list,  # type: ignore[arg-type]
+            self.list,  # ty: ignore[invalid-argument-type]
             limit=limit,
             sort_by=sort_by,
             order=order,

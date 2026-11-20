@@ -22,7 +22,7 @@ FullInput = dict[str, SubsetDict]
 
 def _is_pandas_dataframe(obj: object) -> bool:
     try:
-        import pandas as pd  # type: ignore[import-untyped]
+        import pandas as pd
 
         return isinstance(obj, pd.DataFrame)
     except ImportError:
@@ -71,9 +71,9 @@ def _normalize_input(
 
 def _get_row_count(obj: object) -> int:
     if _is_pandas_dataframe(obj):
-        return len(obj)  # type: ignore[arg-type]
+        return len(obj)  # ty: ignore[invalid-argument-type]
     if _is_polars_dataframe(obj):
-        return obj.height  # type: ignore[attr-defined]
+        return obj.height  # ty: ignore[missing-attribute]
     msg = f"Cannot get row count from {type(obj).__name__}"
     raise TypeError(msg)
 
@@ -85,14 +85,14 @@ def _write_chunk(
 ) -> None:
     if _is_pandas_dataframe(obj):
         if file_format == "csv":
-            obj.to_csv(path, index=False)  # type: ignore[attr-defined]
+            obj.to_csv(path, index=False)  # ty: ignore[missing-attribute]
         else:
-            obj.to_parquet(path, index=False)  # type: ignore[attr-defined]
+            obj.to_parquet(path, index=False)  # ty: ignore[missing-attribute]
     elif _is_polars_dataframe(obj):
         if file_format == "csv":
-            obj.write_csv(path)  # type: ignore[attr-defined]
+            obj.write_csv(path)  # ty: ignore[missing-attribute]
         else:
-            obj.write_parquet(path)  # type: ignore[attr-defined]
+            obj.write_parquet(path)  # ty: ignore[missing-attribute]
     else:
         msg = f"Cannot write {type(obj).__name__} as {file_format}"
         raise TypeError(msg)
@@ -104,13 +104,13 @@ def _chunk_dataframe(
 ) -> list[object]:
     if _is_pandas_dataframe(obj):
         return [
-            obj.iloc[i : i + chunk_size]  # type: ignore[attr-defined]
-            for i in range(0, len(obj), chunk_size)  # type: ignore[arg-type]
+            obj.iloc[i : i + chunk_size]  # ty: ignore[missing-attribute]
+            for i in range(0, len(obj), chunk_size)  # ty: ignore[invalid-argument-type]
         ]
     if _is_polars_dataframe(obj):
         return [
-            obj.slice(i, chunk_size)  # type: ignore[attr-defined]
-            for i in range(0, obj.height, chunk_size)  # type: ignore[attr-defined]
+            obj.slice(i, chunk_size)  # ty: ignore[missing-attribute]
+            for i in range(0, obj.height, chunk_size)  # ty: ignore[missing-attribute]
         ]
     msg = f"Cannot chunk {type(obj).__name__}"
     raise TypeError(msg)

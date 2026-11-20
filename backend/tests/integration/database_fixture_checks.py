@@ -5,7 +5,7 @@ from typing import cast
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid7
 
-import asyncpg  # type: ignore[import-untyped]
+import asyncpg
 import pytest
 from luml.repositories.invites import InviteRepository
 from luml.schemas.orbit import OrbitRole
@@ -62,7 +62,7 @@ class TestDatabaseFixture:
         with pytest.raises(pytest.exit.Exception, match=fixtures.TEST_DB_NAME):
             next(prepare_template())
 
-        asyncpg.connect.assert_not_called()
+        asyncpg.connect.assert_not_called()  # ty: ignore[missing-attribute]
         migration.assert_not_awaited()
 
     @pytest.mark.parametrize("parameter", ["database", "dbname"])
@@ -79,7 +79,7 @@ class TestDatabaseFixture:
         with pytest.raises(pytest.exit.Exception, match=fixtures.TEST_DB_NAME):
             next(prepare_template())
 
-        asyncpg.connect.assert_not_called()
+        asyncpg.connect.assert_not_called()  # ty: ignore[missing-attribute]
         migration.assert_not_awaited()
 
     def test_template_is_migrated_once_and_connections_are_closed(

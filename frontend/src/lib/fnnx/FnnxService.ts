@@ -202,7 +202,7 @@ class FnnxServiceClass {
 
   findExperimentSnapshotArchiveName(fileIndex: FileIndex) {
     const regex =
-      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/exp\.db\.zip$|^exp\.db\.zip$/
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v[12]~~et~~[^/]+\/exp\.db(\.zip)?$|^exp\.db(\.zip)?$/
     return Object.keys(fileIndex).find((file) => regex.test(file))
   }
 
@@ -232,13 +232,13 @@ class FnnxServiceClass {
 
   findAttachmentsTarPath(fileIndex: FileIndex) {
     const regex =
-      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/attachments\.tar$|^attachments\.tar$/
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v[12]~~et~~[^/]+\/attachments\.tar$|^attachments\.tar$/
     return Object.keys(fileIndex).find((path) => regex.test(path))
   }
 
   findAttachmentsIndexPath(fileIndex: FileIndex) {
     const regex =
-      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/attachments\.index\.json$|^attachments\.index\.json$/
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v[12]~~et~~[^/]+\/attachments\.index\.json$|^attachments\.index\.json$/
     return Object.keys(fileIndex).find((path) => regex.test(path))
   }
 

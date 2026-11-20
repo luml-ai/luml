@@ -5,10 +5,19 @@ import type {
   UpdateAnnotationPayload,
 } from '@/components/annotations/annotations.interface'
 import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
-import type { Database } from 'sql.js'
+import type { SnapshotDatabase as Database } from '../providers/snapshot-source/SnapshotDatabase'
+import type {
+  ExperimentMetricCatalog,
+  ExperimentResult,
+  ExperimentSnapshotStatus,
+  MetricBucketsRequest,
+  MetricBucketsResponse,
+  MetricCatalogsRequest,
+  ReadCallOptions,
+} from '../metric-buckets/types'
 
 export interface ExperimentSnapshotProvider {
-  init: (data: any) => Promise<void>
+  init: (data: any) => Promise<unknown>
 
   getDynamicMetricsNames: (signal?: AbortSignal) => Promise<string[]>
 
@@ -17,11 +26,40 @@ export interface ExperimentSnapshotProvider {
     signal?: AbortSignal,
   ) => Promise<ExperimentSnapshotDynamicMetric[]>
 
+  /** Revision, transport and read status of every loaded experiment. */
+  getExperimentStatuses: (
+    signal?: AbortSignal,
+    options?: ReadCallOptions,
+  ) => Promise<ExperimentSnapshotStatus[]>
+
+  /**
+   * Calls `listener` when a read changed the statuses without being asked for them: it left
+   * out an experiment of a comparison whose storage failed, or read it again. Returns the
+   * unsubscribe. Optional: a provider whose statuses change only with its catalogs has none.
+   */
+  onStatusesChanged?: (listener: () => void) => () => void
+
+  /** Metadata only: per experiment the revision, stored bucket levels and per-metric summary. */
+  getMetricCatalogs: (
+    request?: MetricCatalogsRequest,
+    signal?: AbortSignal,
+    options?: ReadCallOptions,
+  ) => Promise<ExperimentResult<ExperimentMetricCatalog>[]>
+
+  getMetricBuckets: (
+    request: MetricBucketsRequest,
+    signal?: AbortSignal,
+    options?: ReadCallOptions,
+  ) => Promise<ExperimentResult<MetricBucketsResponse>[]>
+
   getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>
 
   getEvalsColumns: (datasetId: string, signal?: AbortSignal) => Promise<TypedEvalsColumns>
 
   getTraceSpans: (modelId: string, traceId: string) => Promise<SpansListType>
+
+  /** Payload fields of one span, for spans returned with `payloadLoaded: false`. */
+  getSpanPayload: (modelId: string, traceId: string, spanId: string) => Promise<SpanPayload>
 
   buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
 
@@ -181,7 +219,11 @@ export interface TraceSpan {
   children: TraceSpan[]
   dfs_span_type: SpanTypeEnum | null
   annotation_count: number | null
+  /** False when the provider left out attributes, events, links and status_message. */
+  payloadLoaded: boolean
 }
+
+export type SpanPayload = Pick<TraceSpan, 'attributes' | 'events' | 'links' | 'status_message'>
 
 export enum SpanTypeEnum {
   DEFAULT = 0,

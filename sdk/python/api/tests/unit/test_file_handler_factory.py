@@ -18,4 +18,4 @@ def test_create_file_handler_azure() -> None:
 
 def test_create_file_handler_unsupported() -> None:
     with pytest.raises(ValueError, match="Unsupported bucket type"):
-        create_file_handler("gcs")  # type: ignore[arg-type]
+        create_file_handler("gcs")

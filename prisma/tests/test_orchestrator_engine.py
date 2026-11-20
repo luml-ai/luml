@@ -1183,7 +1183,7 @@ class TestAutoTerminate:
 
         engine.maybe_auto_terminate(
             session_id,
-            mock_pty,  # type: ignore[arg-type]
+            mock_pty,
         )
 
         assert session_id in mock_pty.terminated
@@ -1226,7 +1226,7 @@ class TestAutoTerminate:
         mock_pty = MockPtyManager(idle_duration=999.0)
         engine.maybe_auto_terminate(
             session_id,
-            mock_pty,  # type: ignore[arg-type]
+            mock_pty,
         )
 
         assert not mock_pty.terminated

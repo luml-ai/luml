@@ -154,7 +154,7 @@ class TestModelEnvSetup:
         extra = ModelHandler._worker_dependencies(
             _deps(
                 "opentelemetry-semantic-conventions==0.63b1",
-                "opentelemetry-instrumentation-httpx==0.63b1",
+                "opentelemetry-instrumentation-httpx2==0.63b1",
                 "opentelemetry-sdk==1.42.1",
             )
         )
@@ -188,7 +188,7 @@ class TestModelEnvSetup:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         handler = ModelHandler.__new__(ModelHandler)
-        handler._get_env = lambda: {  # type: ignore[method-assign]
+        handler._get_env = lambda: {
             "python3::conda_pip": {"python_version": "3.12", "dependencies": _deps("numpy==2.0")}
         }
 
@@ -213,7 +213,7 @@ class TestModelEnvSetup:
         """Left behind, the prefix is 'reused' on the container's restart and the worker
         dies on the first missing package — hiding what really failed."""
         handler = ModelHandler.__new__(ModelHandler)
-        handler._get_env = lambda: {  # type: ignore[method-assign]
+        handler._get_env = lambda: {
             "python3::conda_pip": {"python_version": "3.12", "dependencies": _deps("numpy==2.0")}
         }
         removed: list[list[str]] = []

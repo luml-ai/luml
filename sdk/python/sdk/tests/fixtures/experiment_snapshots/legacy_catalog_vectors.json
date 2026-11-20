@@ -1,0 +1,80 @@
+{
+  "description": "Metric catalog of revision 0-2 dynamic_metrics tables, read by the SDK and the viewer. Rows are [key, value, step] inserted in order; {\"blob\": hex} is a BLOB. The indexed catalog has null count, min and max; skipped_rows counts non-text keys and NULL, text or BLOB steps, not fractional REAL steps except those of a text key without any integer step. The no_index case drops the (key, step) index and expects the exact scan catalog.",
+  "cases": [
+    {
+      "name": "mixed",
+      "rows": [
+        ["loss", 1.0, 0],
+        ["loss", 2.0, 5],
+        ["loss", 0.5, -3],
+        ["loss", 9.0, -7.5],
+        ["loss", 9.0, 9.5],
+        ["loss", 9.0, 2.5],
+        ["loss", 1.0, null],
+        ["loss", 1.0, "x"],
+        ["loss", 1.0, {"blob": "0600000000000000"}],
+        ["loss", 1.0, {"blob": "07000000"}],
+        [{"blob": "6b"}, 1.0, 1],
+        [null, 1.0, 1],
+        [null, 1.0, null],
+        [42, 1.0, 1],
+        ["only_real", 1.0, 0.5],
+        ["only_real", 1.0, 1.5],
+        ["only_text_step", 1.0, "s"],
+        ["only_blob_step", 1.0, {"blob": "0100000000000000"}],
+        ["coerced", 1.0, "12"],
+        ["", 1.0, 3],
+        ["a", 1.0, 1],
+        ["ab", 1.0, 2],
+        ["a/b", 1.0, 4],
+        ["a/b/c", 1.0, -1],
+        ["neg", 1.0, -10],
+        ["neg", 1.0, -1],
+        ["big", 1.0, -9007199254740991],
+        ["big", 1.0, 9007199254740991]
+      ],
+      "metrics": [
+        ["", 3, 3],
+        ["42", 1, 1],
+        ["a", 1, 1],
+        ["a/b", 4, 4],
+        ["a/b/c", -1, -1],
+        ["ab", 2, 2],
+        ["big", -9007199254740991, 9007199254740991],
+        ["coerced", 12, 12],
+        ["loss", -3, 5],
+        ["neg", -10, -1]
+      ],
+      "skipped_rows": 11
+    },
+    {
+      "name": "empty",
+      "rows": [],
+      "metrics": [],
+      "skipped_rows": 0
+    },
+    {
+      "name": "only_skipped_rows",
+      "rows": [
+        ["np", 1.0, {"blob": "0500000000000000"}],
+        ["frac", 1.0, 0.25]
+      ],
+      "metrics": [],
+      "skipped_rows": 2
+    }
+  ],
+  "no_index": {
+    "rows": [
+      ["loss", 1.0, 0],
+      ["loss", 3.0, 2],
+      ["loss", 9.0, 2.5],
+      ["loss", 1.0, null],
+      ["acc", "text", 4]
+    ],
+    "metrics": [
+      ["acc", 4, 4, 1, null, null],
+      ["loss", 0, 2, 2, 1.0, 3.0]
+    ],
+    "skipped_rows": 2
+  }
+}

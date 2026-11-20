@@ -47,8 +47,8 @@ class PythonVersionTests(unittest.TestCase):
                 self.assertEqual(project["project"]["requires-python"], ">=3.14")
                 self.assertEqual(lock["requires-python"], ">=3.14")
                 self.assertEqual(tools["ruff"]["target-version"], "py314")
-                if "python_version" in tools.get("mypy", {}):
-                    self.assertEqual(tools["mypy"]["python_version"], "3.14")
+                if "ty" in tools:
+                    self.assertNotIn("python-version", tools["ty"].get("environment", {}))
 
     def test_images_run_python_314(self):
         dockerfiles = subprocess.check_output(
@@ -73,8 +73,8 @@ class PythonVersionTests(unittest.TestCase):
                 self.assertLessEqual(minimum, (3, 12))
                 self.assertEqual(minimum_version(lock["requires-python"]), minimum)
                 self.assertEqual(tools["ruff"]["target-version"], "py%d%d" % minimum)
-                if "python_version" in tools.get("mypy", {}):
-                    self.assertEqual(tools["mypy"]["python_version"], dotted)
+                if "ty" in tools:
+                    self.assertNotIn("python-version", tools["ty"].get("environment", {}))
                 self.assertTrue(workflow_versions(workflow))
                 for version in workflow_versions(workflow):
                     self.assertEqual(version, dotted)

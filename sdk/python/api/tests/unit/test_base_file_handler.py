@@ -1,9 +1,9 @@
 from pathlib import Path
 from unittest.mock import Mock
 
-import httpx
+import httpx2
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._exceptions import FileDownloadError
 from luml_api._types import PartDetails
@@ -20,7 +20,7 @@ class _ConcreteFileHandler(BaseFileHandler):
         file_path: str,
         file_size: int,
         file_name: str = "",
-    ) -> httpx.Response:  # pragma: no cover - not used in tests
+    ) -> MockResponse:  # pragma: no cover - not used in tests
         raise NotImplementedError
 
     def upload_multipart(
@@ -31,7 +31,7 @@ class _ConcreteFileHandler(BaseFileHandler):
         file_path: str,
         file_name: str = "",
         upload_id: str | None = None,
-    ) -> httpx.Response:  # pragma: no cover - not used in tests
+    ) -> MockResponse:  # pragma: no cover - not used in tests
         raise NotImplementedError
 
 
@@ -129,14 +129,14 @@ def test_create_file_generator_default_chunk_size(tmp_path: Path) -> None:
     assert sum(updates) == 11
 
 
-@pytest.mark.respx
+@pytest.mark.httpx2
 def test_download_file_with_progress_success(
-    tmp_path: Path, respx_mock: MockRouter
+    tmp_path: Path, httpx2_mock: MockRouter
 ) -> None:
     url = "https://storage.example.com/download"
     content = b"x" * 2048
-    respx_mock.get(url).mock(
-        return_value=httpx.Response(
+    httpx2_mock.get(url).mock(
+        return_value=MockResponse(
             200,
             content=content,
             headers={"content-length": str(len(content))},
@@ -153,12 +153,12 @@ def test_download_file_with_progress_success(
     handler.on_progress.finish.assert_called_once_with()
 
 
-@pytest.mark.respx
+@pytest.mark.httpx2
 def test_download_file_with_progress_error(
-    tmp_path: Path, respx_mock: MockRouter
+    tmp_path: Path, httpx2_mock: MockRouter
 ) -> None:
     url = "https://storage.example.com/download"
-    respx_mock.get(url).mock(return_value=httpx.Response(404))
+    httpx2_mock.get(url).mock(return_value=MockResponse(404))
     target = tmp_path / "out.bin"
     handler = _ConcreteFileHandler()
     handler.on_progress = Mock(spec=BaseProgressHandler)
@@ -167,22 +167,22 @@ def test_download_file_with_progress_error(
         handler.download_file_with_progress(url, str(target), "out.bin")
 
 
-@pytest.mark.respx
+@pytest.mark.httpx2
 @pytest.mark.parametrize(
     ("status_code", "expected"),
     [(204, True), (404, True), (403, False)],
 )
-def test_delete_file(respx_mock: MockRouter, status_code: int, expected: bool) -> None:
+def test_delete_file(httpx2_mock: MockRouter, status_code: int, expected: bool) -> None:
     url = "https://storage.example.com/delete"
-    respx_mock.delete(url).mock(return_value=httpx.Response(status_code))
+    httpx2_mock.delete(url).mock(return_value=MockResponse(status_code))
 
     assert _ConcreteFileHandler.delete_file(url) is expected
 
 
-@pytest.mark.respx
-def test_delete_file_transport_error(respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_delete_file_transport_error(httpx2_mock: MockRouter) -> None:
     url = "https://storage.example.com/delete"
-    respx_mock.delete(url).mock(side_effect=httpx.ConnectError("unavailable"))
+    httpx2_mock.delete(url).mock(side_effect=httpx2.ConnectError("unavailable"))
 
     assert _ConcreteFileHandler.delete_file(url) is False
 
@@ -192,25 +192,25 @@ def test_delete_file_invalid_url_is_storage_failure() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx
+@pytest.mark.httpx2
 @pytest.mark.parametrize(
     ("status_code", "expected"),
     [(204, True), (404, True), (500, False)],
 )
 async def test_delete_file_async(
-    respx_mock: MockRouter, status_code: int, expected: bool
+    httpx2_mock: MockRouter, status_code: int, expected: bool
 ) -> None:
     url = "https://storage.example.com/delete"
-    respx_mock.delete(url).mock(return_value=httpx.Response(status_code))
+    httpx2_mock.delete(url).mock(return_value=MockResponse(status_code))
 
     assert await _ConcreteFileHandler.delete_file_async(url) is expected
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx
-async def test_delete_file_async_transport_error(respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+async def test_delete_file_async_transport_error(httpx2_mock: MockRouter) -> None:
     url = "https://storage.example.com/delete"
-    respx_mock.delete(url).mock(side_effect=httpx.ConnectError("unavailable"))
+    httpx2_mock.delete(url).mock(side_effect=httpx2.ConnectError("unavailable"))
 
     assert await _ConcreteFileHandler.delete_file_async(url) is False
 

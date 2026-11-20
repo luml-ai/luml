@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-import httpx
+import httpx2
 
 from luml_api._exceptions import LumlAPIError
 from luml_api._types import UploadDetails
@@ -25,7 +25,7 @@ class UploadService:
         file_size: int,
         file_name: str = "",
         on_progress: BaseProgressHandler | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         handler = create_file_handler(upload_details.type)
         handler.on_progress = on_progress
 
@@ -69,7 +69,7 @@ class AsyncUploadService:
         file_size: int,
         file_name: str = "",
         on_progress: BaseProgressHandler | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         handler = create_file_handler(upload_details.type)
         handler.on_progress = on_progress
 

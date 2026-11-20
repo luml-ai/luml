@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-import httpx
+import httpx2
 import pytest
 
 from conda_manager import ModelCondaManager
@@ -117,8 +117,8 @@ async def test_worker_loads_metadata_and_preserves_endpoints(
 
     expected = large_model_data if has_metadata else {}
     assert namespace["model_data"] == expected
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=namespace["app"]), base_url="http://worker"
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=namespace["app"]), base_url="http://worker"
     ) as client:
         manifest = await client.get("/manifest")
         profile = await client.get("/reference_profile")

@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
-from httpx import Response
+from httpx2 import Response
 from luml.experiments.tracker import ExperimentTracker
 from lumlflow.flow.daemon import client as daemon_client
 from lumlflow.flow.daemon import daemon_log, queries, web, workspace

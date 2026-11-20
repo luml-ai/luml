@@ -27,15 +27,23 @@ from textual import work
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import DataTable, ListItem, ListView, Static
+from textual.worker import get_current_worker
 from textual_plotext import PlotextPlot
 
 from lumlflow.schemas.experiments import (
     ExperimentDetails,
-    ExperimentMetricHistory,
     ExperimentStatus,
 )
-from lumlflow.tui.data import DataFacade, Result
+from lumlflow.tui._facade import resolve_facade
+from lumlflow.tui._worker_results import post_worker_result
+from lumlflow.tui.data import DataFacade
 from lumlflow.tui.keymap import Scope
+from lumlflow.tui.live_refresh import post_from_worker
+from lumlflow.tui.metric_series import (
+    MetricSeries,
+    bucket_averages,
+    load_comparison_series,
+)
 from lumlflow.tui.screens.base import BaseScreen
 from lumlflow.tui.widgets import BreadcrumbSegment, PanelFrame
 
@@ -265,8 +273,8 @@ class ComparisonScreen(BaseScreen):
         self._selected_metric: str | None = (
             self._metric_keys[0] if self._metric_keys else None
         )
-        # Per-experiment metric history; populated by the chart fetch.
-        self._metric_histories: dict[str, ExperimentMetricHistory | None] = {}
+        # Per-experiment bucketed series (None when unreadable).
+        self._metric_series: dict[str, MetricSeries | None] = {}
         # Per-experiment dataset → avg-scores map; populated by the
         # eval section's lazy fetch on mount.
         self._eval_scores: dict[str, dict[str, dict[str, float]]] = {}
@@ -275,7 +283,7 @@ class ComparisonScreen(BaseScreen):
 
     # ----- composition -----
 
-    def compose_content(self) -> Iterable:  # type: ignore[override]
+    def compose_content(self) -> Iterable:
         # A scrollable body: on short terminals the stacked cards used
         # to clip silently inside a plain Container — now they scroll,
         # and the j/k/g/G bindings below have a real target.
@@ -390,9 +398,7 @@ class ComparisonScreen(BaseScreen):
 
     @property
     def facade(self) -> DataFacade | None:
-        if self._facade is not None:
-            return self._facade
-        return getattr(self.app, "_facade", None)
+        return resolve_facade(self, self._facade)
 
     @property
     def _lumlflow_app(self) -> LumlflowApp:
@@ -512,11 +518,11 @@ class ComparisonScreen(BaseScreen):
         if self._selected_metric is None:
             return
         width = self._chart_max_points()
-        self._metric_histories = {}
+        self._metric_series = {}
         # Sequencing matters: each fetch routes through the same SQLite
         # meta DB connection. Funnel through one worker so the cursor
         # use is strictly serial.
-        self._fetch_all_histories(self._selected_metric, max_points=width)
+        self._fetch_all_series(self._selected_metric, max_points=width)
 
     def _chart_max_points(self) -> int:
         try:
@@ -530,13 +536,21 @@ class ComparisonScreen(BaseScreen):
         return max(80, width * 2)
 
     @work(thread=True, exclusive=True, group="cmp-data")
-    def _fetch_all_histories(self, key: str, *, max_points: int) -> None:
+    def _fetch_all_series(self, key: str, *, max_points: int) -> None:
         facade = self.facade
         if facade is None:
             return
-        for exp in self._experiments:
-            result = facade.get_metric_history(exp.id, key, max_points=max_points)
-            self.app.call_from_thread(self._on_history_result, exp.id, key, result)
+        self._load_series(facade, key, max_points)
+
+    def _load_series(self, facade: DataFacade, key: str, max_points: int) -> bool:
+        ids = [exp.id for exp in self._experiments]
+        worker = get_current_worker()
+        series = load_comparison_series(
+            facade, ids, key, max_points, is_cancelled=lambda: worker.is_cancelled
+        )
+        if series is None:
+            return False
+        return post_from_worker(self, self._on_series_result, key, series)
 
     @work(thread=True, exclusive=True, group="cmp-data")
     def _load_all_data(self) -> None:
@@ -545,7 +559,7 @@ class ComparisonScreen(BaseScreen):
         Both fetches share the meta-DB connection inside the SQLite
         backend; running them through the same worker (in the same
         group with `exclusive=True`) is what keeps cursor usage strictly
-        serial. `_refresh_metric_chart` reuses `_fetch_all_histories`
+        serial. `_refresh_metric_chart` reuses `_fetch_all_series`
         directly for in-screen metric-switch refreshes — it also lives
         in this group, so it will cancel-and-replace any in-flight
         loader without inviting cursor contention.
@@ -555,41 +569,46 @@ class ComparisonScreen(BaseScreen):
         if facade is None:
             return
         key = self._selected_metric
+        # A metric switch cancels this worker as well (same group), yet only
+        # this worker loads the evals: stop only once the screen itself has
+        # stopped. Textual clears `is_running` before unmount cancels workers.
         if key is not None:
-            width = self._chart_max_points()
-            for exp in self._experiments:
-                result = facade.get_metric_history(exp.id, key, max_points=width)
-                self.app.call_from_thread(self._on_history_result, exp.id, key, result)
+            loaded = self._load_series(facade, key, self._chart_max_points())
+            if not loaded and not self.is_running:
+                return
         # Eval scores follow the histories so the metric chart fills
         # in first (most likely to be visible above the fold).
         for exp in self._experiments:
             ds_result = facade.get_eval_dataset_ids(exp.id)
             if not ds_result.ok:
-                self.app.call_from_thread(self._on_dataset_ids_failure, exp.id)
+                if not post_worker_result(self, self._on_dataset_ids_failure, exp.id):
+                    return
                 continue
             dataset_ids = list(ds_result.unwrap() or [])
-            self.app.call_from_thread(self._on_dataset_ids_result, exp.id, dataset_ids)
+            if not post_worker_result(
+                self, self._on_dataset_ids_result, exp.id, dataset_ids
+            ):
+                return
             for ds_id in dataset_ids:
                 avg_result = facade.get_eval_average_scores(exp.id, dataset_id=ds_id)
                 if not avg_result.ok:
                     continue
                 averages = dict(avg_result.unwrap() or {})
-                self.app.call_from_thread(
+                if not post_worker_result(
+                    self,
                     self._on_average_scores_result,
                     exp.id,
                     ds_id,
                     averages,
-                )
+                ):
+                    return
 
-    def _on_history_result(
-        self, experiment_id: str, key: str, result: Result[Any]
+    def _on_series_result(
+        self, key: str, series: dict[str, MetricSeries | None]
     ) -> None:
         if key != self._selected_metric:
             return
-        if not result.ok:
-            self._metric_histories[experiment_id] = None
-        else:
-            self._metric_histories[experiment_id] = result.unwrap()
+        self._metric_series = series
         self._draw_metric_chart()
 
     def _draw_metric_chart(self) -> None:
@@ -602,13 +621,12 @@ class ComparisonScreen(BaseScreen):
         plt.clear_data()
         plt.clear_color()
         any_series = False
-        subsampled = False
+        level = 0
         for i, exp in enumerate(self._experiments):
-            history = self._metric_histories.get(exp.id)
-            if history is None or not history.history:
+            history = self._metric_series.get(exp.id)
+            if history is None or not history.has_points:
                 continue
-            steps = [p.step for p in history.history]
-            values = [p.value for p in history.history]
+            steps, values = bucket_averages(history)
             plt.plot(
                 steps,
                 values,
@@ -617,22 +635,22 @@ class ComparisonScreen(BaseScreen):
                 label=exp.name,
             )
             any_series = True
-            if history.subsampled:
-                subsampled = True
+            level = history.level
         if any_series:
             plt.title(self._selected_metric or "")
             plt.xlabel("step")
             plt.ylabel(self._selected_metric or "")
         chart.refresh()
+        failed = sum(1 for series in self._metric_series.values() if series is None)
+        notes = [f"{failed} could not be read"] if failed else []
         if not any_series:
-            self._update_metric_status("No data yet · waiting for series…")
-            return
-        if subsampled:
             self._update_metric_status(
-                f"{self._selected_metric} · subsampled to viewport width"
+                " · ".join(["No data yet · waiting for series…", *notes])
             )
-        else:
-            self._update_metric_status(f"{self._selected_metric}")
+            return
+        if level > 0:
+            notes.insert(0, f"{4**level} steps per point")
+        self._update_metric_status(" · ".join([self._selected_metric or "", *notes]))
 
     def _update_metric_status(self, message: str) -> None:
         try:

@@ -514,7 +514,8 @@ async def test_command_ends_the_session_on_a_signal(
         stderr=asyncio.subprocess.DEVNULL,
     )
     try:
-        printed = await asyncio.wait_for(process.stdout.readline(), 20)  # type: ignore[union-attr]
+        assert process.stdout is not None
+        printed = await asyncio.wait_for(process.stdout.readline(), 20)
         await until(lambda: fake_luml.last_connected is True)
         process.send_signal(stop_signal)
         exit_code = await asyncio.wait_for(process.wait(), 10)

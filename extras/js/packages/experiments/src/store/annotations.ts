@@ -27,6 +27,17 @@ export const useAnnotationsStore = defineStore('annotations', () => {
 
   const spanAnnotations = ref<Annotation[]>([])
 
+  // The latest read per key: an older answer arriving later, from a view that moved on or
+  // closed, must not replace it.
+  const latestReads = new Map<string, object>()
+
+  async function readLatest<T>(key: string, read: () => Promise<T>, apply: (value: T) => void) {
+    const request = {}
+    latestReads.set(key, request)
+    const value = await read()
+    if (latestReads.get(key) === request) apply(value)
+  }
+
   const isAddDialogVisible = computed(() => {
     return !!addAnnotationData.value
   })
@@ -90,10 +101,10 @@ export const useAnnotationsStore = defineStore('annotations', () => {
   }
 
   async function getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
-    evalAnnotations.value = await evalStore.getProvider.getEvalAnnotations(
-      artifactId,
-      datasetId,
-      evalId,
+    await readLatest(
+      'evalAnnotations',
+      () => evalStore.getProvider.getEvalAnnotations(artifactId, datasetId, evalId),
+      (annotations) => (evalAnnotations.value = annotations),
     )
   }
 
@@ -113,8 +124,11 @@ export const useAnnotationsStore = defineStore('annotations', () => {
   }
 
   async function getEvalsDatasetAnnotationsSummary(datasetId: string) {
-    const summary = await evalStore.getProvider.getEvalsDatasetAnnotationsSummary(datasetId)
-    evalsAnnotationsSummaryByDatasetId.value[datasetId] = summary
+    await readLatest(
+      'evalsDatasetSummary:' + datasetId,
+      () => evalStore.getProvider.getEvalsDatasetAnnotationsSummary(datasetId),
+      (summary) => (evalsAnnotationsSummaryByDatasetId.value[datasetId] = summary),
+    )
   }
 
   async function addSpanAnnotation(data: AddAnnotationPayload) {
@@ -154,10 +168,10 @@ export const useAnnotationsStore = defineStore('annotations', () => {
   }
 
   async function getSpanAnnotations(artifactId: string, traceId: string, spanId: string) {
-    spanAnnotations.value = await evalStore.getProvider.getSpanAnnotations(
-      artifactId,
-      traceId,
-      spanId,
+    await readLatest(
+      'spanAnnotations',
+      () => evalStore.getProvider.getSpanAnnotations(artifactId, traceId, spanId),
+      (annotations) => (spanAnnotations.value = annotations),
     )
   }
 
@@ -175,8 +189,11 @@ export const useAnnotationsStore = defineStore('annotations', () => {
   }
 
   async function getTracesAnnotationSummary(artifactId: string) {
-    tracesAnnotationsSummary.value =
-      await evalStore.getProvider.getTracesAnnotationSummary(artifactId)
+    await readLatest(
+      'tracesSummary',
+      () => evalStore.getProvider.getTracesAnnotationSummary(artifactId),
+      (summary) => (tracesAnnotationsSummary.value = summary),
+    )
   }
 
   return {

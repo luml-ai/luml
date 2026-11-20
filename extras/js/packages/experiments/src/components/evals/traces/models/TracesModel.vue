@@ -79,14 +79,20 @@
   />
 </template>
 
+<script lang="ts">
+// Shared by the dialog's models: spans asked for later in any of them win.
+let latestSpansRequest = 0
+</script>
+
 <script setup lang="ts">
 import { CircuitBoard, FileText, Minimize2, Maximize2, ListTree } from 'lucide-vue-next'
 import { Button, useToast } from 'primevue'
-import { computed, onBeforeMount, onMounted, ref } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { useAnnotationsStore } from '@/store/annotations'
 import { getErrorMessage, isEmpty } from '@/helpers/helpers'
+import { isSnapshotWorkerTerminated } from '@/providers/snapshot-source/errors'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 import EvalsScoresSingle from '../../scores/single/EvalsScoresSingle.vue'
 import AnnotationsButton from '../../../annotations/AnnotationsButton.vue'
@@ -155,13 +161,16 @@ function getFormattedItems(object: object) {
 }
 
 async function showSpans() {
+  const request = ++latestSpansRequest
   try {
     if (!evalsStore.selectedEval) throw new Error('No dataset or eval selected')
     const { datasetId, evalId } = evalsStore.selectedEval
     const trace = await evalsStore.getEvalSpansTree(props.id, datasetId, evalId)
+    // The store outlives this dialog: a closed one must not open the trace dialog.
+    if (closed || request !== latestSpansRequest) return
     evalsStore.setSelectedTrace(trace, props.id)
-  } catch {
-    toast.add(simpleErrorToast('Failed to load spans'))
+  } catch (error) {
+    showReadErrorToast(toast, error, 'Failed to load spans')
   }
 }
 
@@ -172,6 +181,12 @@ function showAnnotations() {
 function closeAnnotations() {
   isAnnotationsVisible.value = false
 }
+
+let closed = false
+
+onBeforeUnmount(() => {
+  closed = true
+})
 
 onBeforeMount(async () => {
   try {
@@ -188,7 +203,7 @@ onBeforeMount(async () => {
       String(evalsStore.selectedEval?.evalId),
     )
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))
+    showReadErrorToast(toast, error, getErrorMessage(error, 'Failed to get annotations'))
   }
 })
 
@@ -197,8 +212,12 @@ onMounted(async () => {
     spansExist.value = false
   } else {
     const { datasetId, evalId } = evalsStore.selectedEval
-    const traceId = await evalsStore.getTraceId(props.id, datasetId, evalId)
-    spansExist.value = !!traceId
+    try {
+      const traceId = await evalsStore.getTraceId(props.id, datasetId, evalId)
+      spansExist.value = !!traceId
+    } catch (error) {
+      if (!isSnapshotWorkerTerminated(error)) throw error
+    }
   }
 })
 </script>

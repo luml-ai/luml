@@ -1,17 +1,21 @@
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def log_success(message: str | None = None) -> Callable:
-    def decorator(func: Callable) -> Callable:
+def log_success[**P, R](
+    message: str | None = None,
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:  # noqa ANN401
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             result = func(*args, **kwargs)
-            log_message = message or f"{func.__name__} completed successfully"
+            log_message = (
+                message
+                or f"{getattr(func, '__name__', type(func).__name__)} completed successfully"
+            )
             logger.info(log_message)
             return result
 

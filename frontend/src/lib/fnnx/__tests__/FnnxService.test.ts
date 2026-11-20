@@ -103,3 +103,42 @@ describe('FnnxService.isValidAttachmentsIndex', () => {
     expect(FnnxService.isValidAttachmentsIndex(value, 1024)).toBe(false)
   })
 })
+
+describe('FnnxService experiment snapshot members', () => {
+  const prefix = (version: string) =>
+    `meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~${version}~~et~~3222e858337342f6`
+  const index = (...names: string[]): FileIndex =>
+    Object.fromEntries(names.map((name) => [name, [0, 1]]))
+
+  it.each([
+    ['exp.db.zip'],
+    ['exp.db'],
+    [`${prefix('v1')}/exp.db.zip`],
+    [`${prefix('v2')}/exp.db`],
+    [`${prefix('v2')}/exp.db.zip`],
+  ])('finds the snapshot DB member %s', (name) => {
+    expect(FnnxService.findExperimentSnapshotArchiveName(index('manifest.json', name))).toBe(name)
+  })
+
+  it.each([
+    ['nested/exp.db'],
+    ['exp.db-wal'],
+    [`${prefix('v3')}/exp.db`],
+    ['meta_artifacts/other~c~v2~~et~~1/exp.db'],
+  ])('ignores %s', (name) => {
+    expect(FnnxService.findExperimentSnapshotArchiveName(index(name))).toBeUndefined()
+  })
+
+  it('finds attachments under the v1 and v2 snapshot prefixes', () => {
+    for (const version of ['v1', 'v2']) {
+      const files = index(
+        `${prefix(version)}/attachments.tar`,
+        `${prefix(version)}/attachments.index.json`,
+      )
+      expect(FnnxService.findAttachmentsTarPath(files)).toBe(`${prefix(version)}/attachments.tar`)
+      expect(FnnxService.findAttachmentsIndexPath(files)).toBe(
+        `${prefix(version)}/attachments.index.json`,
+      )
+    }
+  })
+})

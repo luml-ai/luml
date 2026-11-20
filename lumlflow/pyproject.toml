@@ -8,10 +8,10 @@ dependencies = [
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.32.0,<1.0.0",
     "typer>=0.15.0,<1.0.0",
-    "luml-sdk>=0.4.0,<0.6.0",
-    "luml-api>=0.4.0,<0.6.0",
+    "luml-sdk>=0.6.0,<0.7.0",
+    "luml-api>=0.6.0,<0.7.0",
     "pydantic-settings>=2.12.0,<3.0.0",
-    "httpx>=0.28.0,<1.0.0",
+    "httpx2>=2.16.0,<3.0.0",
     "keyring>=25.0.0,<26.0.0",
     "pyyaml>=6.0.3,<7.0.0",
     "watchdog>=7.0.0,<8.0.0",
@@ -32,15 +32,15 @@ dev = [
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.32.0,<1.0.0",
     "typer>=0.15.0,<1.0.0",
-    "luml-sdk>=0.4.0,<0.6.0",
-    "luml-api>=0.4.0,<0.6.0",
+    "luml-sdk>=0.6.0,<0.7.0",
+    "luml-api>=0.6.0,<0.7.0",
     "pydantic-settings>=2.12.0,<3.0.0",
-    "httpx>=0.28.0,<1.0.0",
+    "httpx2>=2.16.0,<3.0.0",
     "keyring>=25.0.0,<26.0.0",
     "textual>=8.2.7,<9.0.0",
     "textual-plotext>=1.0.1,<2.0.0",
     "hatchling>=1.27.0,<2.0.0",
-    "mypy>=1.15.0,<3.0.0",
+    "ty==0.0.104",
     "pytest>=8.3.0,<10.0.0",
     "pytest-asyncio>=0.26.0,<2.0.0",
     "pytest-xdist>=3.8.0,<4.0.0",
@@ -113,30 +113,6 @@ known-first-party = ["lumlflow_kernel"]
 quote-style = "double"
 indent-style = "space"
 
-[tool.mypy]
-# Each flow's cells/ is its own namespace, so cell names repeat across flows.
-exclude = ['\.flow/']
-
-# The luml SDK ships without a py.typed marker; treat its imports as
-# untyped instead of erroring on every `from luml...` import.
-[[tool.mypy.overrides]]
-module = "luml.*"
-ignore_missing_imports = true
-
-# The optional libraries the kernel's kinds import lazily may not be installed.
-[[tool.mypy.overrides]]
-module = ["pyarrow.*", "polars.*", "cloudpickle.*", "PIL.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "sklearn.*"
-ignore_missing_imports = true
-
-# The build backend is a build-time dependency, absent from the runtime env
-# the checker runs in.
-[[tool.mypy.overrides]]
-module = "hatchling.*"
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -149,3 +125,13 @@ markers = [
 [tool.uv.sources]
 luml-sdk = { path = "../sdk/python/sdk", editable = true }
 luml-api = { path = "../sdk/python/api", editable = true }
+
+[tool.ty.src]
+include = ["lumlflow/flow", "lumlflow_kernel", "lumlflow_typing"]
+exclude = ["**/.flow/**"]
+
+[tool.ty.analysis]
+allowed-unresolved-imports = ["luml.**", "pyarrow.**", "polars.**", "cloudpickle.**", "PIL.**", "sklearn.**", "hatchling.**"]
+
+[tool.ty.terminal]
+error-on-warning = true

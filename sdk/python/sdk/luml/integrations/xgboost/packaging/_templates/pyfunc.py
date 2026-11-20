@@ -7,10 +7,10 @@ from scipy.sparse import csr_matrix
 try:
     import pandas as pd
 except ImportError:
-    pd = None  # type: ignore[assignment]
+    pd = None
 
-from fnnx.utils import to_thread  # type: ignore[import-untyped]
-from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
+from fnnx.utils import to_thread
+from fnnx.variants.pyfunc import PyFunc
 
 
 class XGBoostFunc(PyFunc):
@@ -37,7 +37,7 @@ class XGBoostFunc(PyFunc):
         )
 
     def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
-        x: np.ndarray | pd.DataFrame | csr_matrix
+        x: np.ndarray | pd.DataFrame | csr_matrix  # ty: ignore[missing-union-attribute]
 
         if self.input_format == "native":
             payload = inputs["payload"]

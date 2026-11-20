@@ -9,7 +9,7 @@ from collections.abc import Generator
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import patch
 
-import httpx
+import httpx2
 import logfire
 import pytest
 from fastapi import FastAPI
@@ -22,7 +22,10 @@ from luml.infra.observability import (
 from luml.settings import config
 from opentelemetry import propagate, trace
 from opentelemetry.context import Context
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.httpx import (
+    HTTPX2ClientInstrumentor,
+    HTTPXClientInstrumentor,
+)
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import Event, ReadableSpan
@@ -62,6 +65,7 @@ def captured_telemetry(
     app_logger.setLevel(original_app_level)
     propagate.set_global_textmap(original_propagator)
     HTTPXClientInstrumentor().uninstrument()
+    HTTPX2ClientInstrumentor().uninstrument()
     SQLAlchemyInstrumentor().uninstrument()
 
 
@@ -139,7 +143,7 @@ def test_exported_telemetry_is_useful_and_contains_no_request_or_sql_data(
     def items(item_id: str, email: str) -> dict[str, bool]:
         with engine.connect() as connection:
             connection.execute(text("SELECT 'sql-private-value'"))
-        with httpx.Client() as outgoing:
+        with httpx2.Client() as outgoing:
             assert (
                 outgoing.get(
                     f"{http_server}/outgoing-private-value?api_key=http-private-value",

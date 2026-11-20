@@ -50,6 +50,8 @@ The main module components are:
     ![](/img/trace_table.webp)
     ![](/img/trace_inside.webp)
 
+    In experiments uploaded with luml-sdk 0.6.0 or newer, a trace usually opens with its span tree only, and the data of a span loads when you select it, so traces with many thousands of spans stay usable. A value longer than 2,000 characters shows a preview, with `Show all` and `Download` for the full value. Experiments uploaded with luml-sdk 0.6.0 or newer also carry summaries computed at upload, and the viewer reads the trace list, the average scores and the filter keys from them when it can. Experiments uploaded with older versions open as before and can be compared with new ones.
+
     
     
   </TabItem>
@@ -61,6 +63,8 @@ The main module components are:
     Aggregated indicators such as model accuracy, average latency, token consumption, and overall cost across runs. Metrics provide operational insight needed for budget control and performance tuning.
     
     ![](/img/dynamic_metrics.webp)
+
+    Limits: steps are integers, and steps above 2^53 are not drawn. An experiment uploaded with luml-sdk older than 0.6.0 whose unzipped database is 2 GiB or more does not open in the browser; upload it again with luml-sdk 0.6.0 or newer.
 
     
   </TabItem>

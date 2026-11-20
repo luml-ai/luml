@@ -27,10 +27,16 @@ returns nothing). Screens that don't implement it are simply skipped.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+from textual.worker import get_current_worker
+
+from lumlflow.tui._worker_results import post_worker_result
 
 if TYPE_CHECKING:
     from textual.timer import Timer
+    from textual.widget import Widget
 
     from lumlflow.tui.app import LumlflowApp
 
@@ -139,6 +145,8 @@ class LiveRefreshScheduler:
         demand without enabling continuous refresh.
         """
 
+        if not self._app.screen_stack:
+            return
         screen = self._app.screen
         if not isinstance(screen, LiveRefreshable):
             return
@@ -152,4 +160,17 @@ class LiveRefreshScheduler:
             )
 
 
-__all__ = ("LiveRefreshable", "LiveRefreshScheduler")
+def post_from_worker(node: Widget, callback: Callable[..., object], *args: Any) -> bool:
+    """Run `callback` on `node` from a thread worker, unless the worker was
+    cancelled or `node` has left the app. Returns False when it was dropped.
+
+    Refresh ticks start reads that can still be running when the app shuts
+    down or the screen is closed.
+    """
+
+    if get_current_worker().is_cancelled:
+        return False
+    return post_worker_result(node, callback, *args)
+
+
+__all__ = ("LiveRefreshable", "LiveRefreshScheduler", "post_from_worker")

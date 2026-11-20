@@ -10,7 +10,9 @@ from luml.artifacts._base import (
     ArtifactManifest,
     DiskFile,
     DiskReference,
+    FileMap,
     MemoryFile,
+    _BaseFile,
 )
 
 
@@ -140,3 +142,44 @@ def test_disk_artifact(tmp_path: Path) -> None:
 
 def test_memory_artifact() -> None:
     assert MemoryFile(b"in-memory").get_content() == b"in-memory"
+
+
+class _BreaksMidway(io.RawIOBase):
+    def __init__(self) -> None:
+        self.reads = 0
+
+    def read(self, size: int = -1) -> bytes:
+        self.reads += 1
+        if self.reads > 1:
+            raise OSError("source went away")
+        return b"x" * size
+
+
+class _FailingFile(_BaseFile):
+    def get_content(self) -> bytes:
+        return b""
+
+    def add_to_tar(self, tar: tarfile.TarFile, name: str) -> None:
+        info = tarfile.TarInfo(name=name)
+        info.size = 4 * tarfile.BLOCKSIZE * 100
+        tar.addfile(info, fileobj=_BreaksMidway())
+
+
+def test_failed_append_leaves_a_valid_archive(tmp_path: Path) -> None:
+    tar_path = _create_tar(tmp_path, _dataset_manifest(), {"model.bin": b"weights"})
+    reference = DiskReference(tar_path)
+    before = reference.list_files()
+
+    with pytest.raises(OSError, match="source went away"):
+        reference._append_metadata(
+            None, ["t"], {}, [FileMap(file=_FailingFile(), remote_path="big.bin")]
+        )
+
+    assert reference.list_files() == before
+    assert reference.extract_file("model.bin") == b"weights"
+    reference._append_metadata(
+        None, ["t"], {}, [FileMap(file=MemoryFile(b"ok"), remote_path="small.bin")]
+    )
+    files = reference.list_files()
+    assert files[: len(before)] == before
+    assert any(name.endswith("/small.bin") for name in files)

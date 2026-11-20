@@ -19,7 +19,7 @@ from luml.artifacts.dataset._reference import DatasetReference
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from datasets import Dataset, DatasetDict  # type: ignore[import-untyped]
+    from datasets import Dataset, DatasetDict
 
 _DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "luml" / "datasets"
 
@@ -230,7 +230,7 @@ class MaterializedDataset:
         splits: list[str],
     ) -> DatasetDict:
         try:
-            from datasets import (  # type: ignore[import-untyped]
+            from datasets import (
                 Dataset,
                 DatasetDict,
                 __version__ as installed_version,

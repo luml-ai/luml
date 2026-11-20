@@ -290,11 +290,11 @@ import {
   useToast,
 } from 'primevue'
 import type { TableEmits, TableProps } from './traces.interface'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { getErrorMessage, getFormattedExecutionTime } from '@/helpers/helpers'
 import { SORTED_FIELDS, TRACE_STATE_MAP } from './traces.const'
 import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { watch } from 'vue'
 import { nextTick } from 'vue'
 import FeedbackSubheader from '../evals/FeedbackSubheader.vue'
@@ -386,22 +386,34 @@ function onSort(event: DataTableSortEvent) {
   })
 }
 
+// The evals store outlives this view: a dialog read that ends after it closed must not open
+// the dialog over the next experiment.
+let closed = false
+
+// Trace and eval links open dialogs from the same table: the link clicked last wins over one
+// whose read is still running, whichever kind it is.
+let dialogRequest = 0
+
 async function showEval(evalId: string, evalsIds: string[]) {
+  const request = ++dialogRequest
   try {
     const evalData = await evalsStore.getProvider.getEvalById(props.artifactId, evalId)
+    if (closed || request !== dialogRequest) return
     evalsStore.setEvalsIdsList(evalsIds)
     evalsStore.setCurrentEvalData([evalData])
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   }
 }
 
 async function showTrace(traceId: string) {
+  const request = ++dialogRequest
   try {
     const snapsTree = await evalsStore.getTraceSpansTree(props.artifactId, traceId)
+    if (closed || request !== dialogRequest) return
     evalsStore.setSelectedTrace(snapsTree, props.artifactId)
   } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
+    showReadErrorToast(toast, error, getErrorMessage(error))
   }
 }
 
@@ -417,6 +429,10 @@ watch(
     })
   },
 )
+
+onBeforeUnmount(() => {
+  closed = true
+})
 </script>
 
 <style scoped>

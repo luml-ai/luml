@@ -26,7 +26,7 @@ def report(directory: Path) -> dict[str, Any]:
     tracker_store = (
         record.tracker_store
         if record is not None and handshake["status"] == "answering"
-        else Settings().BACKEND_STORE_URI  # type: ignore[call-arg]
+        else Settings().BACKEND_STORE_URI
     )
     versions = (
         {"running_version": record.version, "this_version": __version__}

@@ -46,7 +46,7 @@ describe('standalone preview', () => {
     const size = 300 * 1024 ** 2
     const getFileFromBucket = vi.fn()
     const provider = new TarAttachmentsProvider({
-      downloader: { url: '/archive', getFileFromBucket },
+      downloader: { getFileFromBucket },
       fileIndex: { tar: [0, size] },
       attachmentsIndex: { 'run.mp4': [0, size] },
       findAttachmentsTarPath: () => 'tar',

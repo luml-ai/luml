@@ -1,8 +1,8 @@
 import asyncio
 
 from pydantic import EmailStr
-from sendgrid import SendGridAPIClient  # type: ignore
-from sendgrid.helpers.mail import Mail  # type: ignore
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 from luml.settings import config
 

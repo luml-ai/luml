@@ -50,7 +50,7 @@ def test_azure_connection_string_is_encrypted_and_usable_by_storage_client() -> 
     assert stored.to_bucket_secret_out().endpoint == PUBLIC_ENDPOINT
 
     with patch("luml.clients.azure_storage_client.BlobServiceClient") as service:
-        AzureBlobClient(internal)  # type: ignore[arg-type]
+        AzureBlobClient(internal)  # ty: ignore[invalid-argument-type]
     service.from_connection_string.assert_called_once_with(CONNECTION_STRING)
 
 

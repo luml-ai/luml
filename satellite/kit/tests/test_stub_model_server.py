@@ -2,7 +2,7 @@ import json
 import threading
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 
 from luml_satellite.testing import create_stub_model_server
@@ -27,7 +27,7 @@ def test_stub_model_server_serves_the_model_contract_and_fixture(
 
     try:
         address = f"http://127.0.0.1:{server.server_port}"
-        with httpx.Client(base_url=address) as client:
+        with httpx2.Client(base_url=address) as client:
             health = client.get("/healthz")
             manifest = client.get("/manifest")
             schema = client.get("/openapi.json")
@@ -69,7 +69,7 @@ def test_stub_model_server_is_unhealthy_without_a_fetched_artifact(
     thread.start()
 
     try:
-        response = httpx.get(f"http://127.0.0.1:{server.server_port}/healthz")
+        response = httpx2.get(f"http://127.0.0.1:{server.server_port}/healthz")
     finally:
         server.shutdown()
         server.server_close()

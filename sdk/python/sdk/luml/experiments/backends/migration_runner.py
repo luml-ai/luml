@@ -1,9 +1,14 @@
+import contextlib
 import importlib.util
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from luml.experiments.backends._exceptions import LumlExperimentsError
 from luml.experiments.backends.migrations import MIGRATIONS_DIR
+
+MIGRATION_BUSY_MS = 120_000
 
 
 class BaseMigrationRunner:
@@ -52,7 +57,7 @@ class BaseMigrationRunner:
                 continue
             module = importlib.util.module_from_spec(spec)
             try:
-                spec.loader.exec_module(module)  # type: ignore[union-attr]
+                spec.loader.exec_module(module)
             except Exception as e:
                 raise ImportError(
                     f"Failed to load migration {file_path.name}: {e}"
@@ -75,32 +80,65 @@ class BaseMigrationRunner:
         all_migrations = self._discover_migrations()
         return [m for m in all_migrations if m["version"] not in applied]
 
+    def _next_pending(
+        self, migrations: list[dict[str, Any]], target_version: int | None
+    ) -> dict[str, Any] | None:
+        # A database already past every migration this code knows was written by a
+        # newer SDK; filling gaps below its revision could undo what that SDK did.
+        if migrations and self.get_current_version() > migrations[-1]["version"]:
+            return None
+        applied = set(self.get_applied_migrations())
+        for migration in migrations:
+            if target_version is not None and migration["version"] > target_version:
+                return None
+            if migration["version"] not in applied:
+                return migration
+        return None
+
+    @staticmethod
+    def _begin_immediate(cursor: sqlite3.Cursor) -> None:
+        # Another process may hold the lock through a migration that takes longer
+        # than the connection's usual busy timeout.
+        timeout_ms = cursor.execute("PRAGMA busy_timeout").fetchone()[0]
+        cursor.execute(f"PRAGMA busy_timeout = {max(timeout_ms, MIGRATION_BUSY_MS)}")
+        try:
+            cursor.execute("BEGIN IMMEDIATE")
+        finally:
+            cursor.execute(f"PRAGMA busy_timeout = {timeout_ms}")
+
     def migrate(self, target_version: int | None = None) -> list[int]:
-        pending = self.get_pending_migrations()
-        if target_version is not None:
-            pending = [m for m in pending if m["version"] <= target_version]
+        migrations = self._discover_migrations()
+        applied_versions: list[int] = []
+        if self._next_pending(migrations, target_version) is None:
+            return applied_versions
 
-        applied_versions = []
         cursor = self.conn.cursor()
-
-        for migration in pending:
+        while True:
+            # Pending work is decided under the write lock, so a second process
+            # migrating the same database waits and then finds nothing left to do.
+            self._begin_immediate(cursor)
+            migration = None
             try:
-                cursor.execute("BEGIN")
-                migration["up"](self.conn)
-                cursor.execute(
-                    f"INSERT INTO {self.table_name} (version) VALUES (?)",
-                    (migration["version"],),
-                )
+                migration = self._next_pending(migrations, target_version)
+                if migration is not None:
+                    migration["up"](self.conn)
+                    cursor.execute(
+                        f"INSERT INTO {self.table_name} (version) VALUES (?)",
+                        (migration["version"],),
+                    )
                 self.conn.commit()
-                applied_versions.append(migration["version"])
             except Exception as e:
                 self.conn.rollback()
+                # A typed refusal already says what the caller can do about it.
+                if migration is None or isinstance(e, LumlExperimentsError):
+                    raise
                 raise RuntimeError(
                     f"Migration {migration['version']} "
                     f"({migration['file']}) failed: {e}"
                 ) from e
-
-        return applied_versions
+            if migration is None:
+                return applied_versions
+            applied_versions.append(migration["version"])
 
     def rollback(self, target_version: int = 0) -> list[int]:
         applied = self.get_applied_migrations()
@@ -190,14 +228,77 @@ class ExperimentMigrationRunner(BaseMigrationRunner):
         if cursor.fetchone() is None:
             return
 
-        cursor.execute(f"INSERT INTO {self.table_name} (version) VALUES (?)", (1,))
+        # OR IGNORE: another process may record the same baseline at the same time.
+        cursor.execute(
+            f"INSERT OR IGNORE INTO {self.table_name} (version) VALUES (?)", (1,)
+        )
 
         cursor.execute("PRAGMA table_info(attachments)")
         cols = {row[1] for row in cursor.fetchall()}
         if "size" in cols:
-            cursor.execute(f"INSERT INTO {self.table_name} (version) VALUES (?)", (2,))
+            cursor.execute(
+                f"INSERT OR IGNORE INTO {self.table_name} (version) VALUES (?)", (2,)
+            )
 
         self.conn.commit()
 
 
 MigrationRunner = MetaDBMigrationRunner
+
+KNOWN_EXPERIMENT_REVISION = 4
+# Released SDKs bring older databases to this revision whenever they open them.
+READ_MIGRATION_REVISION = 2
+
+
+@dataclass(frozen=True)
+class ExperimentSchema:
+    revision: int
+    min_reader_revision: int = 0
+    min_writer_revision: int = 0
+    bucket_min_level: int | None = None
+    bucket_max_level: int | None = None
+
+    @property
+    def has_metric_points(self) -> bool:
+        return self.revision >= 3
+
+    @property
+    def has_metric_writes(self) -> bool:
+        return self.revision >= 4
+
+
+def read_experiment_schema(
+    conn: sqlite3.Connection, database: str = "main"
+) -> ExperimentSchema:
+    """The revision is the newest recorded migration, else `PRAGMA user_version`.
+
+    `database` names an attached database to read instead of the main one.
+    """
+    tables = {
+        row[0]
+        for row in conn.execute(
+            f"SELECT name FROM {database}.sqlite_master WHERE type = 'table' "
+            "AND name IN ('exp_schema_migrations', 'exp_schema_info')"
+        )
+    }
+    revision = None
+    if "exp_schema_migrations" in tables:
+        revision = conn.execute(
+            f"SELECT MAX(version) FROM {database}.exp_schema_migrations"
+        ).fetchone()[0]
+    if revision is None:
+        revision = conn.execute(f"PRAGMA {database}.user_version").fetchone()[0]
+    info: dict[str, int] = {}
+    if "exp_schema_info" in tables:
+        for key, value in conn.execute(
+            f"SELECT key, value FROM {database}.exp_schema_info"
+        ):
+            with contextlib.suppress(TypeError, ValueError):
+                info[key] = int(value)
+    return ExperimentSchema(
+        revision=revision,
+        min_reader_revision=info.get("min_reader_revision", 0),
+        min_writer_revision=info.get("min_writer_revision", 0),
+        bucket_min_level=info.get("bucket_min_level"),
+        bucket_max_level=info.get("bucket_max_level"),
+    )

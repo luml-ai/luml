@@ -8,9 +8,9 @@ import signal
 import socket
 import sys
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import uvicorn
 
@@ -433,7 +433,9 @@ class Daemon:
             for lease in client_leases
         }
 
-    def _announce_activity(self, activity: "Activity", phase: str) -> None:
+    def _announce_activity(
+        self, activity: "Activity", phase: Literal["started", "ended"]
+    ) -> None:
         flow, actor, label, tool, slug = activity
         with contextlib.suppress(FlowError, OSError):
             self.api.announce_activity(
@@ -442,7 +444,7 @@ class Daemon:
                 label=label,
                 tool=tool,
                 slug=slug,
-                phase=phase,  # type: ignore[arg-type]
+                phase=phase,
             )
 
     def _announce_agents(self, flow: str | None) -> None:
@@ -604,7 +606,7 @@ class _WebServer(uvicorn.Server):
     """
 
     @contextlib.contextmanager
-    def capture_signals(self) -> Iterator[None]:
+    def capture_signals(self) -> Generator[None]:
         yield
 
 

@@ -23,7 +23,7 @@ classifiers = [
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
+    "httpx2>=2.10.0,<3.0.0",
     "optuna>=4.7.0",
     "pytest>=9.0.2",
     "ruff>=0.14.5,<1.0.0",

@@ -90,9 +90,9 @@ test('UMD builds use the browser globals exposed by peer packages', async () => 
     '@vueuse/core': 'VueUse',
     'js-yaml': 'jsyaml',
     jszip: 'JSZip',
-    'sql.js': 'initSqlJs',
+    '@sqlite.org/sqlite-wasm': 'sqlite3InitModule',
     uuid: 'uuid',
-    'plotly.js-dist': 'Plotly',
+    'plotly.js-basic-dist-min': 'Plotly',
     axios: 'axios',
   }
   const peers = Object.keys(browserGlobals).filter((peer) => peer in externals)

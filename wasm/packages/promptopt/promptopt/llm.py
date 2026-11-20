@@ -2,7 +2,7 @@ import asyncio
 import json
 from abc import ABC, abstractmethod
 
-import httpx
+import httpx2
 
 from promptopt.dataclasses import JsonModel
 
@@ -98,7 +98,7 @@ class OpenAIProvider(LLM):
         }
 
         async with self._semaphore:
-            async with httpx.AsyncClient() as client:
+            async with httpx2.AsyncClient() as client:
                 retries = 3
                 for attempt in range(retries):
                     try:
@@ -107,7 +107,7 @@ class OpenAIProvider(LLM):
                         )
                         response.raise_for_status()
                         return response.json()
-                    except httpx.HTTPStatusError as e:
+                    except httpx2.HTTPStatusError as e:
                         print(
                             "Attempt",
                             attempt + 1,
@@ -184,7 +184,7 @@ class OllamaProvider(LLM):
             },
         }
 
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx2.AsyncClient(timeout=300.0) as client:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             return response.json()

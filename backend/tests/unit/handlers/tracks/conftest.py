@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 import pytest
 from luml.handlers.tracks import TracksHandler
@@ -18,7 +19,7 @@ def mocks() -> CollaboratorMocks[TracksHandler]:
 
 
 def _make_track(**overrides: object) -> Track:
-    defaults: dict[str, object] = {
+    defaults: dict[str, Any] = {
         "id": TRACK_ID,
         "orbit_id": ORBIT_ID,
         "name": "churn-model",
@@ -31,11 +32,11 @@ def _make_track(**overrides: object) -> Track:
         "updated_at": None,
     }
     defaults.update(overrides)
-    return Track(**defaults)  # type: ignore[arg-type]
+    return Track(**defaults)
 
 
 def _make_entry(**overrides: object) -> TrackEntry:
-    defaults: dict[str, object] = {
+    defaults: dict[str, Any] = {
         "id": ENTRY_ID,
         "track_id": TRACK_ID,
         "artifact_id": ARTIFACT_ID,
@@ -46,11 +47,11 @@ def _make_entry(**overrides: object) -> TrackEntry:
         "updated_at": None,
     }
     defaults.update(overrides)
-    return TrackEntry(**defaults)  # type: ignore[arg-type]
+    return TrackEntry(**defaults)
 
 
 def _make_stage(**overrides: object) -> Stage:
-    defaults: dict[str, object] = {
+    defaults: dict[str, Any] = {
         "id": STAGE_ID,
         "track_id": TRACK_ID,
         "name": "Staging",
@@ -58,7 +59,7 @@ def _make_stage(**overrides: object) -> Stage:
         "updated_at": None,
     }
     defaults.update(overrides)
-    return Stage(**defaults)  # type: ignore[arg-type]
+    return Stage(**defaults)
 
 
 class _DriverError(Exception):

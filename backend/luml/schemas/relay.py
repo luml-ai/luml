@@ -196,17 +196,17 @@ class Relay(BaseModel, BaseOrmConfig):
     created_at: datetime
     updated_at: datetime | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def present_capabilities(self) -> list[str]:
         return get_present_relay_capabilities(self.capabilities)
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def kind(self) -> RelayKind:
         return RelayKind.MANAGED if self.organization_id is None else RelayKind.OWN
 
-    @computed_field  # type: ignore[prop-decorator]
+    @computed_field
     @property
     def online(self) -> bool:
         if self.last_seen_at is None:

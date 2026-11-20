@@ -2,24 +2,36 @@
   <div class="content">
     <TraceItemsHeader v-model:open="opened" :items-count="count"></TraceItemsHeader>
     <div class="list">
-      <TraceSpan
-        v-for="span in tree"
-        :key="span.span_id"
-        :data="span"
-        :nesting="0"
-        :selected-span-id="selectedSpanId"
-        :all-opened="opened"
-        :max-span-time="maxSpanTime"
-        :min-span-time="minSpanTime"
-        @select="(payload: TraceSpanType) => $emit('select', payload)"
-      ></TraceSpan>
+      <VirtualScroller
+        :items="rows"
+        :item-size="TRACE_ROW_HEIGHT"
+        :pt="{ content: { style: 'width: 100%' } }"
+        class="scroller"
+      >
+        <template #item="{ item }">
+          <div :key="item.span.span_id" class="row">
+            <TraceSpan
+              :data="item.span"
+              :nesting="item.depth"
+              :opened="item.opened"
+              :selected-span-id="selectedSpanId"
+              :max-span-time="maxSpanTime"
+              :min-span-time="minSpanTime"
+              @select="(payload: TraceSpanType) => $emit('select', payload)"
+              @toggle="toggle"
+            ></TraceSpan>
+          </div>
+        </template>
+      </VirtualScroller>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { TraceSpan as TraceSpanType } from '@/interfaces/interfaces'
-import { ref } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
+import { VirtualScroller } from 'primevue'
+import { flattenTraceTree, spansWithChildren } from './traceRows'
 import TraceItemsHeader from './TraceItemsHeader.vue'
 import TraceSpan from './TraceSpan.vue'
 
@@ -36,9 +48,33 @@ type Emits = {
 }
 
 defineEmits<Emits>()
-defineProps<Props>()
+const props = defineProps<Props>()
+
+// Includes the 4px gap below each span.
+const TRACE_ROW_HEIGHT = 67
+const rowHeight = `${TRACE_ROW_HEIGHT}px`
 
 const opened = ref(true)
+const collapsed = shallowRef<ReadonlySet<string>>(new Set())
+
+const rows = computed(() => flattenTraceTree(props.tree, collapsed.value))
+
+// Opening a span opens its whole subtree, as the recursive tree did when it mounted
+// the children again.
+function toggle(span: TraceSpanType) {
+  const next = new Set(collapsed.value)
+  if (next.has(span.span_id)) {
+    next.delete(span.span_id)
+    spansWithChildren(span.children).forEach((spanId) => next.delete(spanId))
+  } else {
+    next.add(span.span_id)
+  }
+  collapsed.value = next
+}
+
+watch(opened, (value) => {
+  collapsed.value = value ? new Set() : new Set(spansWithChildren(props.tree))
+})
 </script>
 
 <style scoped>
@@ -52,8 +88,17 @@ const opened = ref(true)
   border-right: 1px solid var(--p-divider-border-color);
 }
 .list {
-  padding: 0 20px;
+  position: relative;
   flex: 1 1 auto;
-  overflow-y: auto;
+  min-height: 0;
+}
+.scroller {
+  position: absolute;
+  inset: 0;
+}
+.row {
+  height: v-bind(rowHeight);
+  box-sizing: border-box;
+  padding: 0 20px 4px;
 }
 </style>

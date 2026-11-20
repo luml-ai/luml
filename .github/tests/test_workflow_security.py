@@ -29,6 +29,17 @@ class WorkflowSecurityTests(unittest.TestCase):
                         else:
                             self.assertRegex(ref, r"^[^@\s]+@[0-9a-f]{40}$")
 
+    def test_job_containers_use_image_digests(self):
+        for path in WORKFLOWS.glob("*.y*ml"):
+            workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+            for name, job in workflow["jobs"].items():
+                if "container" not in job:
+                    continue
+                container = job["container"]
+                image = container if isinstance(container, str) else container["image"]
+                with self.subTest(workflow=path.name, job=name):
+                    self.assertRegex(image, r"@sha256:[0-9a-f]{64}$")
+
     def test_workflows_default_to_read_only_contents(self):
         paths = list(WORKFLOWS.glob("*.y*ml"))
         self.assertTrue(paths)
@@ -37,13 +48,39 @@ class WorkflowSecurityTests(unittest.TestCase):
             with self.subTest(workflow=path.name):
                 self.assertIn(workflow.get("permissions"), ({}, {"contents": "read"}))
 
+    def test_filter_patterns_have_no_reversed_character_ranges(self):
+        # GitHub rejects the whole workflow file when a filter glob such as
+        # "[experiment-snapshots]" holds a range like "t-s".
+        filter_keys = (
+            "branches",
+            "branches-ignore",
+            "tags",
+            "tags-ignore",
+            "paths",
+            "paths-ignore",
+        )
+        for path in WORKFLOWS.glob("*.y*ml"):
+            workflow = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+            triggers = workflow.get("on")
+            if not isinstance(triggers, dict):
+                continue
+            for event in triggers.values():
+                if not isinstance(event, dict):
+                    continue
+                for key in filter_keys:
+                    for pattern in event.get(key, []):
+                        for char_class in re.findall(r"\[([^\]]*)\]", pattern):
+                            for start, end in re.findall(r"(.)-(.)", char_class):
+                                with self.subTest(workflow=path.name, pattern=pattern):
+                                    self.assertLessEqual(start, end)
+
     def test_registry_publish_jobs_keep_their_required_permissions(self):
         jobs = {
-            path.name: "push-image" for path in WORKFLOWS.glob("publish-*-image*.yml")
+            path.name: "push-image" for path in WORKFLOWS.glob("*publish-image*.yml")
         }
-        jobs["publish-kubernetes-satellite-chart.yml"] = "publish-chart"
-        jobs["promote-images.yml"] = "promote"
-        self.assertIn("publish-satellite-images.yml", jobs)
+        jobs["[satellite-kubernetes] publish-chart.yml"] = "publish-chart"
+        jobs["[images] promote.yml"] = "promote"
+        self.assertIn("[satellite] publish-images.yml", jobs)
         for name, job in jobs.items():
             workflow = yaml.load((WORKFLOWS / name).read_text(), Loader=yaml.BaseLoader)
             with self.subTest(workflow=name, job=job):
@@ -94,7 +131,7 @@ class WorkflowSecurityTests(unittest.TestCase):
 
     def test_migrations_keep_dependencies_locked_and_dsn_scoped(self):
         workflow = yaml.load(
-            (WORKFLOWS / "deploy-backend.yml").read_text(), Loader=yaml.BaseLoader
+            (WORKFLOWS / "[backend] deploy.yml").read_text(), Loader=yaml.BaseLoader
         )
         migrate = workflow["jobs"]["migrate"]
         self.assertNotIn("POSTGRESQL_DSN", workflow.get("env", {}))

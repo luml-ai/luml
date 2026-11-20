@@ -296,7 +296,7 @@ class TrackResource(TrackResourceBase, ListedResource):
         return find_by_value(
             list(self._auto_paginate(self.list, search=name)),
             name,
-            condition=lambda t: t.name == name,
+            condition=lambda t: t is not None and t.name == name,
         )
 
     @validate_orbit
@@ -746,7 +746,7 @@ class TrackResource(TrackResourceBase, ListedResource):
         )
         response = self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/{tracked_artifact_id}",
-            json=self._client.filter_none({"stage_id": stage_id}),
+            json={"stage_id": stage_id},
             params={"force": force},
         )
         return TrackEntry.model_validate(response)
@@ -1004,7 +1004,7 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
                 async for track in self._auto_paginate_async(self.list, search=name)
             ],
             name,
-            condition=lambda t: t.name == name,
+            condition=lambda t: t is not None and t.name == name,
         )
 
     @validate_orbit
@@ -1490,7 +1490,7 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
         )
         response = await self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/{tracked_artifact_id}",
-            json=self._client.filter_none({"stage_id": stage_id}),
+            json={"stage_id": stage_id},
             params={"force": force},
         )
         return TrackEntry.model_validate(response)

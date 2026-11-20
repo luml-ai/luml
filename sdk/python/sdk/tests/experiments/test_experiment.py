@@ -2,10 +2,7 @@
 import io
 import shutil
 import tarfile
-import tempfile
 from pathlib import Path
-from typing import IO
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -761,7 +758,7 @@ class TestLogExperimentAttachment:
     ) -> None:
         tracker, _ = tracker_with_experiment
         with pytest.raises(ValueError, match="must be bytes or str"):
-            tracker.log_attachment("file.txt", 123)  # type: ignore[arg-type]
+            tracker.log_attachment("file.txt", 123)
 
     def test_list_attachments_returns_records(
         self,
@@ -902,22 +899,6 @@ class TestLinkToModel:
         with pytest.raises(ValueError, match="No attachments found"):
             tracker.link_to_model(model_ref)
 
-    def test_raises_for_non_disk_exp_db(
-        self,
-        tracker_with_experiment: tuple[ExperimentTracker, str],
-        dummy_model_file: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        tracker, _ = tracker_with_experiment
-        tracker.log_attachment("file.txt", "data")
-        monkeypatch.setattr(
-            tracker.backend, "export_experiment_db", lambda _: MagicMock()
-        )
-        model_ref = ModelReference(str(dummy_model_file))
-
-        with pytest.raises(NotImplementedError):
-            tracker.link_to_model(model_ref)
-
     def test_metadata_appended_to_model_file(
         self,
         tracker_with_experiment: tuple[ExperimentTracker, str],
@@ -933,7 +914,8 @@ class TestLinkToModel:
             names = tar.getnames()
 
         assert any(n.startswith("meta-") and n.endswith(".json") for n in names)
-        assert any(n.endswith("exp.db.zip") for n in names)
+        assert any("experiment_snapshot~c~v2~~et~~" in n for n in names)
+        assert any(n.endswith("/exp.db") for n in names)
         assert any(n.endswith("attachments.tar") for n in names)
         assert any(n.endswith("attachments.index.json") for n in names)
 
@@ -953,34 +935,22 @@ class TestLinkToModel:
             names = tar.getnames()
 
         assert any(n.startswith("meta-") and n.endswith(".json") for n in names)
-        assert any(n.endswith("exp.db.zip") for n in names)
+        assert any(n.endswith("/exp.db") for n in names)
 
-    def test_temp_zip_cleaned_up(
+    def test_temporary_files_cleaned_up(
         self,
         tracker_with_experiment: tuple[ExperimentTracker, str],
         dummy_model_file: Path,
-        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
     ) -> None:
-        tracker, _ = tracker_with_experiment
+        tracker, exp_id = tracker_with_experiment
         tracker.log_attachment("file.txt", "data")
-        captured: list[str] = []
+        exp_dir = tmp_path / "experiments" / exp_id
+        before = sorted(p.name for p in exp_dir.iterdir())
 
-        original_ntf = tempfile.NamedTemporaryFile
+        tracker.link_to_model(ModelReference(str(dummy_model_file)))
 
-        def capturing_ntf(*args, **kwargs) -> IO[bytes]:
-            ntf = original_ntf(*args, **kwargs)
-            captured.append(ntf.name)
-            return ntf
-
-        monkeypatch.setattr(
-            "luml.experiments.tracker.NamedTemporaryFile", capturing_ntf
-        )
-        model_ref = ModelReference(str(dummy_model_file))
-
-        tracker.link_to_model(model_ref)
-
-        assert len(captured) == 1
-        assert not Path(captured[0]).exists()
+        assert sorted(p.name for p in exp_dir.iterdir()) == before
 
 
 class TestResolveExperimentSortColumn:

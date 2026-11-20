@@ -12,12 +12,18 @@ fast — no real filesystem store, no wall-clock waits.
 
 from __future__ import annotations
 
+import asyncio
+import math
+import threading
 from pathlib import Path
+from typing import Any
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
+from lumlflow.schemas.experiments import MetricBuckets, MetricCatalog
 from lumlflow.tui import LumlflowApp
-from lumlflow.tui.data import DataFacade
+from lumlflow.tui.data import DataFacade, Result
+from lumlflow.tui.metric_series import bucket_averages, level_for
 from lumlflow.tui.screens.experiment_detail import (
     TAB_DEFS,
     ExperimentDetailScreen,
@@ -40,6 +46,7 @@ from lumlflow.tui.widgets.panel_frame import PanelFrame
 from textual.containers import Container
 from textual.widgets import DataTable, Static
 
+from tests.helpers.metrics import revision2_experiment
 from tests.helpers.tui import settle_workers
 
 
@@ -688,10 +695,10 @@ class TestMetricsTab:
             # Let the cell history requests round-trip.
             for _ in range(5):
                 await pilot.pause()
-            assert "loss" in screen._metric_history
-            cached = screen._metric_history["loss"]
+            assert "loss" in screen._metric_series
+            cached = screen._metric_series["loss"]
             assert cached.key == "loss"
-            assert len(cached.history) > 0
+            assert len(cached.buckets) > 0
 
     async def test_all_grid_cells_receive_history(
         self, facade: DataFacade, tracker: ExperimentTracker
@@ -719,11 +726,11 @@ class TestMetricsTab:
             await pilot.pause()
             screen.action_jump_tab("metrics")
             for _ in range(60):
-                if set(screen._metric_history) == set(keys):
+                if set(screen._metric_series) == set(keys):
                     break
                 await pilot.pause()
             # Every metric fetched its history — none were cancelled.
-            assert set(screen._metric_history) == set(keys)
+            assert set(screen._metric_series) == set(keys)
             grid = screen.query_one("#metrics-grid", MetricGrid)
             cells = list(grid.query(MetricCell))
             assert len(cells) == len(keys)
@@ -777,11 +784,11 @@ class TestMetricsTab:
             assert grid.display is True
             assert zoom.display is False
 
-    async def test_subsampled_state_recorded(
+    async def test_small_budget_reads_a_coarser_level(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        """When the handler subsamples, the cached history records it so
-        the zoom status line can announce it."""
+        """A narrow chart reads few, wide buckets: 500 steps in at most 10
+        buckets is level 3 (64 steps each), so 8 buckets."""
 
         exp_id = _seed_experiment_with_metrics(
             tracker, metric_keys=("loss",), points_per_metric=500
@@ -795,13 +802,14 @@ class TestMetricsTab:
             await pilot.pause()
             await pilot.pause()
             screen.action_jump_tab("metrics")
-            # Force a small viewport so subsampling kicks in.
-            screen._fetch_metric_history("loss", max_points=10)
+            await settle_workers(pilot)
+            screen._request_metric_series("loss", max_points=10)
             for _ in range(5):
-                await pilot.pause()
-            cached = screen._metric_history.get("loss")
+                await settle_workers(pilot)
+            cached = screen._metric_series.get("loss")
             assert cached is not None
-            assert cached.subsampled is True
+            assert cached.level == 3
+            assert len(cached.buckets) == 8
 
     async def test_empty_metrics_shows_friendly_state(
         self, facade: DataFacade, tracker: ExperimentTracker
@@ -1004,9 +1012,9 @@ class TestMetricsTab:
             screen.action_jump_tab("metrics")
             for _ in range(8):
                 await pilot.pause()
-            initial_history = screen._metric_history.get("loss")
+            initial_history = screen._metric_series.get("loss")
             assert initial_history is not None
-            initial_count = len(initial_history.history)
+            initial_count = len(initial_history.buckets)
             # Log additional points and trigger a live-refresh. The
             # initial fetch is exclusive within "experiment-metric"; a
             # follow-up refresh must replace its cache. To avoid racing
@@ -1019,12 +1027,12 @@ class TestMetricsTab:
                     step=step,
                     experiment_id=exp_id,
                 )
-            screen._fetch_metric_history("loss", max_points=200)
+            screen._request_metric_series("loss", max_points=200)
             for _ in range(8):
                 await pilot.pause()
-            refreshed = screen._metric_history.get("loss")
+            refreshed = screen._metric_series.get("loss")
             assert refreshed is not None
-            assert len(refreshed.history) > initial_count
+            assert len(refreshed.buckets) > initial_count
 
     async def test_refresh_live_re_emits_grid_history_needed(
         self, facade: DataFacade, tracker: ExperimentTracker
@@ -1055,7 +1063,233 @@ class TestMetricsTab:
             screen._refresh_metrics_visible()
             for _ in range(3):
                 await pilot.pause()
-            assert "loss" in screen._metric_history
+            assert "loss" in screen._metric_series
+
+    async def test_refresh_reads_buckets_only_for_changed_metrics(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        """A refresh reads the catalog once; a metric whose catalog entry
+        did not change reads no buckets."""
+
+        exp_id = _seed_experiment_with_metrics(
+            tracker, metric_keys=("loss", "acc"), points_per_metric=30
+        )
+        calls: list[tuple[str, tuple[str, ...]]] = []
+        catalog_read = facade.get_metric_catalog
+        buckets_read = facade.get_metric_buckets
+
+        def counted_catalog(experiment_id: str) -> Result[MetricCatalog]:
+            calls.append(("catalog", ()))
+            return catalog_read(experiment_id)
+
+        def counted_buckets(
+            experiment_id: str, keys: list[str], **kwargs: Any
+        ) -> Result[MetricBuckets]:
+            calls.append(("buckets", tuple(keys)))
+            return buckets_read(experiment_id, keys, **kwargs)
+
+        facade.get_metric_catalog = counted_catalog
+        facade.get_metric_buckets = counted_buckets
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert set(screen._metric_series) == {"loss", "acc"}
+
+            calls.clear()
+            screen._refresh_metrics_visible()
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert calls == [("catalog", ())]
+
+            tracker.log_dynamic("loss", 0.0, step=30, experiment_id=exp_id)
+            calls.clear()
+            screen._refresh_metrics_visible()
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert calls == [("catalog", ()), ("buckets", ("loss",))]
+            assert screen._metric_series["loss"].summary is not None
+            assert screen._metric_series["loss"].summary.last_step == 30
+
+    async def test_non_finite_and_nan_only_metrics_keep_the_grid_usable(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        tracker.create_group("g")
+        exp_id = tracker.start_experiment(name="odd", group="g")
+        for step in range(10):
+            tracker.log_dynamic("nan_only", math.nan, step=step, experiment_id=exp_id)
+            spike = math.inf if step % 3 == 0 else float(step)
+            tracker.log_dynamic("spiky", spike, step=step, experiment_id=exp_id)
+        tracker.end_experiment(experiment_id=exp_id)
+        app = _make_app(facade)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            cells = screen.query_one("#metrics-grid", MetricGrid).cells
+            nan_only = cells["nan_only"]._history
+            spiky = cells["spiky"]._history
+            assert nan_only is not None and spiky is not None
+            assert not nan_only.has_points
+            empty = cells["nan_only"].query_one(".metric-cell-empty", Static)
+            assert empty.display is True
+            xs, ys = bucket_averages(spiky)
+            assert xs == [1.0, 2.0, 4.0, 5.0, 7.0, 8.0]
+            assert ys == xs
+
+
+MetricReads = list[tuple[str, int | None, tuple[str, ...]]]
+
+
+def _count_metric_reads(facade: DataFacade) -> MetricReads:
+    """Record each catalog read and each bucket read (level, keys) of `facade`."""
+
+    calls: MetricReads = []
+    catalog_read = facade.get_metric_catalog
+    buckets_read = facade.get_metric_buckets
+
+    def counted_catalog(experiment_id: str) -> Result[MetricCatalog]:
+        calls.append(("catalog", None, ()))
+        return catalog_read(experiment_id)
+
+    def counted_buckets(
+        experiment_id: str, keys: list[str], *, level: int, **kwargs: Any
+    ) -> Result[MetricBuckets]:
+        calls.append(("buckets", level, tuple(keys)))
+        return buckets_read(experiment_id, keys, level=level, **kwargs)
+
+    facade.get_metric_catalog = counted_catalog
+    facade.get_metric_buckets = counted_buckets
+    return calls
+
+
+class TestMetricReads:
+    async def test_one_layout_pass_reads_the_catalog_once_and_each_level_once(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_experiment_with_metrics(
+            tracker, metric_keys=("a", "b"), points_per_metric=10
+        )
+        for step in range(10, 5000):
+            tracker.log_dynamic("long", 1.0, step=step, experiment_id=exp_id)
+        tracker.end_experiment(experiment_id=exp_id)
+        calls = _count_metric_reads(facade)
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            series = screen._metric_series
+            assert set(series) == {"a", "b", "long"}
+            long_level = series["long"].level
+            assert series["a"].level == series["b"].level == 0 < long_level
+            assert calls[0] == ("catalog", None, ())
+            assert sorted((level, sorted(keys)) for _, level, keys in calls[1:]) == [
+                (0, ["a", "b"]),
+                (long_level, ["long"]),
+            ]
+
+    async def test_a_request_during_a_drain_is_served_by_that_drain(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_experiment_with_metrics(
+            tracker, metric_keys=("a", "b"), points_per_metric=10
+        )
+        entered = threading.Event()
+        release = threading.Event()
+        catalog_read = facade.get_metric_catalog
+
+        def blocking_catalog(experiment_id: str) -> Result[MetricCatalog]:
+            if not entered.is_set():
+                entered.set()
+                release.wait(timeout=10)
+            return catalog_read(experiment_id)
+
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            assert screen._metric_series == {}
+            facade.get_metric_catalog = blocking_catalog
+            screen._request_metric_series("a", max_points=50)
+            assert await asyncio.to_thread(entered.wait, 10)
+            screen._request_metric_series("b", max_points=50)
+            release.set()
+            await settle_workers(pilot)
+            assert set(screen._metric_series) == {"a", "b"}
+            assert screen._pending_metric_budgets == {}
+            assert screen._metric_loading is False
+
+    async def test_zoom_keeps_its_level_and_the_cell_gets_its_own_back(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        """A cell's request for the zoomed key in the same batch as the zoom
+        does not coarsen the zoom; closing the zoom restores the cell's level."""
+
+        exp_id = _seed_experiment_with_metrics(
+            tracker, metric_keys=("long",), points_per_metric=5000
+        )
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            cell = screen.query_one("#metrics-grid", MetricGrid).cells["long"]
+            zoom = screen.query_one("#metrics-zoom", MetricZoomView)
+            cell_level = level_for(0, 4999, cell.chart_max_points())
+            assert screen._metric_series["long"].level == cell_level
+
+            screen._open_zoom("long")
+            zoom_level = level_for(0, 4999, zoom.chart_max_points())
+            screen._request_metric_series("long", max_points=cell.chart_max_points())
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert zoom_level < cell_level
+            assert zoom._history is not None
+            assert zoom._history.level == zoom_level
+
+            screen._close_zoom()
+            for _ in range(3):
+                await settle_workers(pilot)
+            assert cell._history is not None
+            assert cell._history.level == cell_level
+
+    @pytest.mark.parametrize("revision", [0, 1, 2])
+    async def test_a_released_sdk_experiment_draws_its_metrics(
+        self, facade: DataFacade, tmp_path: Path, revision: int
+    ) -> None:
+        exp_id, _ = revision2_experiment(
+            tmp_path / "experiments",
+            "loss",
+            [(step, step / 100) for step in range(500)],
+            revision=revision,
+        )
+        app = LumlflowApp(facade=facade, auto_refresh=False)
+        async with app.run_test(size=(120, 40)) as pilot:
+            screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+            await settle_workers(pilot)
+            screen.action_jump_tab("metrics")
+            for _ in range(3):
+                await settle_workers(pilot)
+            cell = screen.query_one("#metrics-grid", MetricGrid).cells["loss"]
+            history = cell._history
+            assert history is not None
+            assert history.summary is not None
+            assert history.summary.count is None
+            assert history.level == level_for(0, 499, cell.chart_max_points())
+            xs, ys = bucket_averages(history)
+            assert xs[0] == (4**history.level - 1) / 2
+            assert len(xs) == len(history.buckets) > 1
+            assert ys == pytest.approx([x / 100 for x in xs])
 
 
 # ---------------------------------------------------------------------------
@@ -1370,7 +1604,9 @@ async def test_metric_refresh_uses_one_worker_and_coalesces_requests(
     async with app.run_test() as pilot:
         screen = _push_detail_screen(app, facade, experiment_id=exp_id)
         await settle_workers(pilot)
-        original = facade.get_metric_history
+        from lumlflow.tui.screens import experiment_detail
+
+        original = experiment_detail.load_changed_series
         entered = threading.Event()
         release = threading.Event()
         calls = []
@@ -1378,35 +1614,81 @@ async def test_metric_refresh_uses_one_worker_and_coalesces_requests(
         peak = 0
         lock = threading.Lock()
 
-        def get_history(experiment_id, key, *, max_points):
+        def load_series(facade_arg, experiment_id, budgets, shown, *, is_cancelled):
             nonlocal active, peak
             with lock:
                 active += 1
                 peak = max(peak, active)
-            calls.append((key, max_points))
+            calls.append(dict(budgets))
             entered.set()
             release.wait(2)
             try:
-                return original(experiment_id, key, max_points=max_points)
+                return original(
+                    facade_arg, experiment_id, budgets, shown, is_cancelled=is_cancelled
+                )
             finally:
                 with lock:
                     active -= 1
 
-        monkeypatch.setattr(facade, "get_metric_history", get_history)
+        monkeypatch.setattr(experiment_detail, "load_changed_series", load_series)
         try:
-            screen._fetch_metric_history("loss", max_points=10)
+            screen._request_metric_series("loss", max_points=10)
             for _ in range(100):
                 if entered.is_set():
                     break
                 await asyncio.sleep(0.01)
             assert entered.is_set()
             for _ in range(10):
-                screen._fetch_metric_history("accuracy", max_points=20)
+                screen._request_metric_series("accuracy", max_points=20)
             await asyncio.sleep(0.05)
             assert peak == 1
         finally:
             release.set()
         await settle_workers(pilot)
-        assert calls == [("loss", 10), ("accuracy", 20)]
-        assert screen._metric_history["loss"].key == "loss"
-        assert screen._metric_history["accuracy"].key == "accuracy"
+        assert calls == [{"loss": 10}, {"accuracy": 20}]
+        assert screen._metric_series["loss"].key == "loss"
+        assert screen._metric_series["accuracy"].key == "accuracy"
+
+
+async def test_closing_the_detail_screen_stops_reading_metric_batches(
+    facade: DataFacade, tracker: ExperimentTracker, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exp_id = tracker.start_experiment(name="exp")
+    for step in range(5000):
+        if step < 10:
+            tracker.log_dynamic("a", 1.0, step=step, experiment_id=exp_id)
+        tracker.log_dynamic("long", 1.0, step=step, experiment_id=exp_id)
+    tracker.end_experiment(experiment_id=exp_id)
+    entered = threading.Event()
+    release = threading.Event()
+    closed = threading.Event()
+    reads_after_close: list[tuple[int, tuple[str, ...]]] = []
+    buckets_read = facade.get_metric_buckets
+
+    def blocking_buckets(
+        experiment_id: str, keys: list[str], *, level: int
+    ) -> Result[MetricBuckets]:
+        if closed.is_set():
+            reads_after_close.append((level, tuple(keys)))
+        if not entered.is_set():
+            entered.set()
+            release.wait(timeout=10)
+        return buckets_read(experiment_id, keys, level=level)
+
+    app = LumlflowApp(facade=facade, auto_refresh=False)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = _push_detail_screen(app, facade, experiment_id=exp_id)
+        await pilot.pause()
+        monkeypatch.setattr(facade, "get_metric_buckets", blocking_buckets)
+        # Two levels, so two bucket reads.
+        screen._request_metric_series("a", max_points=50)
+        screen._request_metric_series("long", max_points=50)
+        assert await asyncio.to_thread(entered.wait, 10)
+
+        app.pop_screen()
+        await pilot.pause()
+        closed.set()
+        release.set()
+        await asyncio.sleep(1.0)
+
+    assert reads_after_close == []

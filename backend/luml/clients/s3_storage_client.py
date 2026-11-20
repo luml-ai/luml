@@ -24,7 +24,7 @@ class S3Client(BaseStorageClient):
         self._client = self._create_client(secret)
 
     @staticmethod
-    def _create_client(secret: S3BucketSecret | S3BucketSecretCreateIn) -> Minio:  # type: ignore[override]
+    def _create_client(secret: S3BucketSecret | S3BucketSecretCreateIn) -> Minio:  # ty: ignore[incompatible-method-override]
         return Minio(
             secret.endpoint,
             access_key=secret.access_key,

@@ -158,6 +158,11 @@ function tabsProps(wrapper: ReturnType<typeof mountPage>) {
   }
 }
 
+/** The 50-byte attachment index range as the storage returns it: JSON padded with spaces. */
+function indexBody(index: Record<string, [number, number]>) {
+  return { data: new TextEncoder().encode(JSON.stringify(index).padEnd(50, ' ')).buffer }
+}
+
 describe('artifact page', () => {
   it('shows an error toast when downloading an artifact returns a non-OK response', async () => {
     apiMocks.getArtifact.mockResolvedValue({
@@ -202,9 +207,7 @@ describe('artifact page', () => {
   })
 
   it('enables the tab after reading a non-empty attachment index', async () => {
-    mockedAxios.get.mockResolvedValue({
-      data: { 'attachments/report.pdf': [0, 42] },
-    })
+    mockedAxios.get.mockResolvedValue(indexBody({ 'attachments/report.pdf': [0, 42] }))
     const wrapper = mountPage()
 
     await flushPromises()
@@ -216,7 +219,7 @@ describe('artifact page', () => {
   })
 
   it('keeps the tab disabled after reading an empty attachment index', async () => {
-    mockedAxios.get.mockResolvedValue({ data: {} })
+    mockedAxios.get.mockResolvedValue(indexBody({}))
     const wrapper = mountPage()
 
     await flushPromises()

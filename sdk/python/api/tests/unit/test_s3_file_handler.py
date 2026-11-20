@@ -1,9 +1,8 @@
 from pathlib import Path
 from unittest.mock import Mock
 
-import httpx
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._exceptions import FileUploadError, LumlAPIError
 from luml_api._types import PartDetails
@@ -26,12 +25,12 @@ def _handler() -> S3FileHandler:
     return handler
 
 
-@pytest.mark.respx
-def test_upload_simple_success(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_simple_success(tmp_path: Path, httpx2_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"payload-data")
     url = "https://s3.example.com/upload"
-    route = respx_mock.put(url).mock(return_value=httpx.Response(200))
+    route = httpx2_mock.put(url).mock(return_value=MockResponse(200))
     handler = S3FileHandler()
     progress = Mock(spec=BaseProgressHandler)
     handler.on_progress = progress
@@ -43,12 +42,12 @@ def test_upload_simple_success(tmp_path: Path, respx_mock: MockRouter) -> None:
     progress.finish.assert_called_once_with()
 
 
-@pytest.mark.respx
-def test_upload_simple_error_wrapped(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_simple_error_wrapped(tmp_path: Path, httpx2_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"payload")
     url = "https://s3.example.com/upload"
-    respx_mock.put(url).mock(return_value=httpx.Response(500))
+    httpx2_mock.put(url).mock(return_value=MockResponse(500))
     handler = _handler()
 
     with pytest.raises(FileUploadError, match="Upload failed"):
@@ -66,23 +65,21 @@ def test_upload_multipart_requires_upload_id() -> None:
         )
 
 
-@pytest.mark.respx
-def test_upload_multipart_success(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_multipart_success(tmp_path: Path, httpx2_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"0123456789")
     part_url_1 = "https://s3.example.com/part1"
     part_url_2 = "https://s3.example.com/part2"
     complete_url = "https://s3.example.com/complete"
 
-    respx_mock.put(part_url_1).mock(
-        return_value=httpx.Response(200, headers={"ETag": '"etag-1"'})
+    httpx2_mock.put(part_url_1).mock(
+        return_value=MockResponse(200, headers={"ETag": '"etag-1"'})
     )
-    respx_mock.put(part_url_2).mock(
-        return_value=httpx.Response(200, headers={"ETag": '"etag-2"'})
+    httpx2_mock.put(part_url_2).mock(
+        return_value=MockResponse(200, headers={"ETag": '"etag-2"'})
     )
-    complete_route = respx_mock.post(complete_url).mock(
-        return_value=httpx.Response(200)
-    )
+    complete_route = httpx2_mock.post(complete_url).mock(return_value=MockResponse(200))
 
     parts = [
         PartDetails(
@@ -111,12 +108,14 @@ def test_upload_multipart_success(tmp_path: Path, respx_mock: MockRouter) -> Non
     assert body.index("etag-1") < body.index("etag-2")
 
 
-@pytest.mark.respx
-def test_upload_multipart_error_wrapped(tmp_path: Path, respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_upload_multipart_error_wrapped(
+    tmp_path: Path, httpx2_mock: MockRouter
+) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"01234")
     part_url = "https://s3.example.com/part1"
-    respx_mock.put(part_url).mock(return_value=httpx.Response(403))
+    httpx2_mock.put(part_url).mock(return_value=MockResponse(403))
     parts = [
         PartDetails(part_number=1, url=part_url, start_byte=0, end_byte=4, part_size=5)
     ]
@@ -133,12 +132,12 @@ def test_upload_multipart_error_wrapped(tmp_path: Path, respx_mock: MockRouter) 
 
 
 def test_upload_single_part_reads_correct_range(tmp_path: Path) -> None:
-    with MockRouter(assert_all_called=False) as respx_mock:
+    with MockRouter(using="httpcore2", assert_all_called=False) as httpx2_mock:
         file_path = tmp_path / "model.fnnx"
         file_path.write_bytes(b"0123456789")
         part_url = "https://s3.example.com/part"
-        route = respx_mock.put(part_url).mock(
-            return_value=httpx.Response(200, headers={"ETag": '"abc"'})
+        route = httpx2_mock.put(part_url).mock(
+            return_value=MockResponse(200, headers={"ETag": '"abc"'})
         )
         part = PartDetails(
             part_number=3, url=part_url, start_byte=2, end_byte=5, part_size=4
@@ -156,11 +155,11 @@ def test_upload_single_part_reads_correct_range(tmp_path: Path) -> None:
         assert route.calls.last.request.content == b"2345"
 
 
-@pytest.mark.respx
-def test_initiate_multipart_upload_success(respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_initiate_multipart_upload_success(httpx2_mock: MockRouter) -> None:
     initiate_url = "https://s3.example.com/initiate"
-    respx_mock.post(initiate_url).mock(
-        return_value=httpx.Response(200, content=_UPLOAD_ID_XML.encode())
+    httpx2_mock.post(initiate_url).mock(
+        return_value=MockResponse(200, content=_UPLOAD_ID_XML.encode())
     )
     handler = _handler()
 
@@ -175,8 +174,8 @@ def test_initiate_multipart_upload_missing_url() -> None:
         handler.initiate_multipart_upload(None)
 
 
-@pytest.mark.respx
-def test_initiate_multipart_upload_missing_upload_id(respx_mock: MockRouter) -> None:
+@pytest.mark.httpx2
+def test_initiate_multipart_upload_missing_upload_id(httpx2_mock: MockRouter) -> None:
     initiate_url = "https://s3.example.com/initiate"
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -184,8 +183,8 @@ def test_initiate_multipart_upload_missing_upload_id(respx_mock: MockRouter) -> 
         'xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         "<Bucket>test</Bucket></InitiateMultipartUploadResult>"
     )
-    respx_mock.post(initiate_url).mock(
-        return_value=httpx.Response(200, content=xml.encode())
+    httpx2_mock.post(initiate_url).mock(
+        return_value=MockResponse(200, content=xml.encode())
     )
     handler = _handler()
 

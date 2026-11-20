@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 
 from luml_prisma.api.health import HealthResponse
 from luml_prisma.server import app

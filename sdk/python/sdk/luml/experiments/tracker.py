@@ -1,18 +1,21 @@
 # flake8: noqa: E501
 import contextlib
+import functools
 import importlib
 import os
 import sys
 import uuid
 import weakref
-import zipfile
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Any, Literal
 
-from luml.artifacts._base import DiskFile, FileMap
+from luml.artifacts._base import FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
+from luml.experiments.backends._write_buffer import (
+    DEFAULT_FLUSH_INTERVAL,
+    defer_while_locked,
+)
 from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
@@ -27,8 +30,11 @@ from luml.experiments.backends.data_types import (
     ExperimentData,
     FileNode,
     Group,
+    MetricBuckets,
+    MetricCatalog,
     Model,
     PaginatedResponse,
+    SpanRecord,
     TraceColumns,
     TraceDetails,
     TraceRecord,
@@ -67,6 +73,9 @@ class _ActiveExperiment:
 def _fail_active_experiment(backend: Backend, active: _ActiveExperiment) -> None:
     if active.id is None:
         return
+    # A finalizer can run on a thread that is inside the backend's locks.
+    if defer_while_locked(functools.partial(_fail_active_experiment, backend, active)):
+        return
     with contextlib.suppress(Exception):
         backend.fail_experiment(active.id)
     active.id = None
@@ -82,6 +91,8 @@ class ExperimentTracker:
     Args:
         connection_string: Backend connection string. Format: 'backend://config'.
             Default is 'sqlite://./experiments' for local SQLite storage.
+        flush_interval: Seconds between background commits of buffered metrics,
+            spans and eval samples. 0 commits every call immediately.
 
     Example:
     ```python
@@ -95,8 +106,12 @@ class ExperimentTracker:
     ```
     """
 
-    def __init__(self, connection_string: str = "sqlite://./experiments") -> None:
-        self.backend = self._parse_connection_string(connection_string)
+    def __init__(
+        self,
+        connection_string: str = "sqlite://./experiments",
+        flush_interval: float = DEFAULT_FLUSH_INTERVAL,
+    ) -> None:
+        self.backend = self._parse_connection_string(connection_string, flush_interval)
         self._active_experiment = _ActiveExperiment()
         weakref.finalize(
             self, _fail_active_experiment, self.backend, self._active_experiment
@@ -124,13 +139,19 @@ class ExperimentTracker:
                 self.end_experiment()
 
     @staticmethod
-    def _parse_connection_string(connection_string: str) -> Backend:
+    def _parse_connection_string(
+        connection_string: str, flush_interval: float = DEFAULT_FLUSH_INTERVAL
+    ) -> Backend:
         if "://" not in connection_string:
             raise ValueError("Invalid connection string format. Use 'backend://config'")
 
         backend_type, config = connection_string.split("://", 1)
 
-        return BackendRegistry.get_backend(backend_type)(config)
+        backend_class = BackendRegistry.get_backend(backend_type)
+        # Backends registered before buffering existed take only `config`.
+        if flush_interval == DEFAULT_FLUSH_INTERVAL:
+            return backend_class(config)
+        return backend_class(config, flush_interval)
 
     @staticmethod
     def _detect_source() -> str | None:
@@ -267,7 +288,8 @@ class ExperimentTracker:
         Args:
             key: Metric name.
             value: Metric value (numeric).
-            step: Training step/epoch number.
+            step: Training step/epoch number. Must be an integer: a fractional
+                step such as 2.5 raises `TypeError`.
             experiment_id: Experiment ID. Uses current experiment if not specified.
 
         Example:
@@ -964,44 +986,30 @@ class ExperimentTracker:
         tracker.link_to_model(model_ref)
         ```
         """
+        from luml.artifacts.experiment import snapshot_database_file, snapshot_tag
+
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
-        exp_db = self.backend.export_experiment_db(exp_id)
-        attachments_result = self.backend.export_attachments(exp_id)
-        if attachments_result is None:
-            raise ValueError(f"No attachments found for experiment {exp_id}")
-        attachments, index = attachments_result
-        tag = "dataforce.studio::experiment_snapshot:v1"
-        with NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip:
-            zip_path = temp_zip.name
-
-        if isinstance(exp_db, DiskFile):
-            path = exp_db.path
-            with zipfile.ZipFile(
-                zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=1
-            ) as zipf:
-                zipf.write(path, "exp.db")
-        else:
-            raise NotImplementedError(
-                "Only DiskArtifact is supported for exp_db at the moment."
+        with self.backend.snapshot_experiment(exp_id) as snapshot:
+            attachments_result = self.backend.export_attachments(exp_id)
+            if attachments_result is None:
+                raise ValueError(f"No attachments found for experiment {exp_id}")
+            attachments, index = attachments_result
+            # The platform finds embedded snapshots by this prefix, not by PRODUCER_NAME.
+            tag = snapshot_tag("dataforce.studio", snapshot)
+            member, database = snapshot_database_file(snapshot)
+            model_reference._append_metadata(
+                idx=None,
+                tags=[tag],
+                payload={},
+                data=[
+                    FileMap(file=database, remote_path=member),
+                    FileMap(file=attachments, remote_path="attachments.tar"),
+                    FileMap(file=index, remote_path="attachments.index.json"),
+                ],
+                prefix=tag,
             )
-
-        zipped_exp_db = DiskFile(zip_path)
-
-        model_reference._append_metadata(
-            idx=None,
-            tags=[tag],
-            payload={},
-            data=[
-                FileMap(file=zipped_exp_db, remote_path="exp.db.zip"),
-                FileMap(file=attachments, remote_path="attachments.tar"),
-                FileMap(file=index, remote_path="attachments.index.json"),
-            ],
-            prefix=tag,
-        )
-
-        Path(zip_path).unlink(missing_ok=True)
 
     def log_eval_annotation(
         self,
@@ -1188,6 +1196,41 @@ class ExperimentTracker:
         """
         return self.backend.get_trace(experiment_id, trace_id)
 
+    def get_trace_structure(
+        self, experiment_id: str, trace_id: str
+    ) -> TraceDetails | None:
+        """
+        Retrieve a trace's span tree without span payloads, for large traces.
+
+        Spans have ``attributes``, ``events``, ``links`` and ``status_message`` set
+        to ``None``. Here ``None`` means "not loaded", not "empty"; load one span in
+        full with ``get_span``.
+
+        Returns:
+            TraceDetails | None: Trace with its spans, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        trace = tracker.get_trace_structure("exp-1", "trace-abc")
+        if trace:
+            root = trace.spans[0]
+            span = tracker.get_span("exp-1", "trace-abc", root.span_id)
+        ```
+        """
+        return self.backend.get_trace_structure(experiment_id, trace_id)
+
+    def get_span(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> SpanRecord | None:
+        """
+        Retrieve one span with its payload.
+
+        Returns:
+            SpanRecord | None: The span, or ``None`` if the trace has no such span.
+        """
+        return self.backend.get_span(experiment_id, trace_id, span_id)
+
     def get_experiment_traces(
         self,
         experiment_id: str,
@@ -1276,6 +1319,75 @@ class ExperimentTracker:
         ```
         """
         return self.backend.get_experiment_metric_history(experiment_id, key)
+
+    def get_metric_catalog(self, experiment_id: str) -> MetricCatalog:
+        """
+        Summarise every metric of an experiment without reading its points.
+
+        Args:
+            experiment_id (str): The experiment to query.
+
+        Returns:
+            MetricCatalog: The schema revision, the stored bucket levels (None below
+                revision 3) and per metric its first and last step, point count and
+                smallest and largest numeric value, ordered by key. The point count
+                and the values are None below revision 3, unless the file has no
+                (key, step) index. `writes` changes with every committed write to
+                the metric, overwrites included; it is None below revision 4.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        catalog = tracker.get_metric_catalog("exp-1")
+        for metric in catalog.metrics:
+            print(metric.key, metric.first_step, metric.last_step, metric.count)
+        ```
+        """
+        return self.backend.get_metric_catalog(experiment_id)
+
+    def get_metric_buckets(
+        self,
+        experiment_id: str,
+        key: str,
+        level: int,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> MetricBuckets:
+        """
+        Aggregate a metric into buckets of ``4 ** level`` steps.
+
+        Every bucket that has points and intersects the inclusive step range is
+        returned whole, ordered by bucket index, with count, finite count, min, max
+        and the sum of finite values. Use ``choose_bucket_level`` from
+        ``luml.experiments.backends.metric_store`` to pick a level for a bucket budget.
+
+        Args:
+            experiment_id (str): The experiment to query.
+            key (str): The metric key.
+            level (int): The bucket level, 0 for one bucket per point.
+            start_step (int | None): First step of the range; the metric's first
+                step when None.
+            end_step (int | None): Last step of the range; the metric's last step
+                when None.
+
+        Returns:
+            MetricBuckets: The buckets and the metric's overall step range, which is
+                None for an unknown key.
+
+        Raises:
+            TooManyBucketsError: If more than 20,000 buckets would be returned.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        result = tracker.get_metric_buckets("exp-1", "train_loss", level=3)
+        for bucket in result.buckets:
+            print(bucket.first_step, bucket.last_step, bucket.min, bucket.max)
+        ```
+        """
+        return self.backend.get_metric_buckets(
+            experiment_id, key, level, start_step=start_step, end_step=end_step
+        )
 
     def get_experiment_evals(
         self,

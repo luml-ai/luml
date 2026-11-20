@@ -1,8 +1,7 @@
 from typing import Any
 
-import httpx
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import LumlAPIError, UnprocessableEntityError
@@ -86,17 +85,17 @@ def _satellite_path() -> str:
 
 def test_operations_lists_only_the_requested_facet(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.get(_satellite_path()).mock(
-        return_value=httpx.Response(200, json=_satellite_record())
+    httpx2_mock.get(_satellite_path()).mock(
+        return_value=MockResponse(200, json=_satellite_record())
     )
-    description_route = respx_mock.get(f"{_satellite_path()}/openapi").mock(
-        return_value=httpx.Response(200, json=_openapi_document())
+    description_route = httpx2_mock.get(f"{_satellite_path()}/openapi").mock(
+        return_value=MockResponse(200, json=_openapi_document())
     )
-    request_route = respx_mock.get(
+    request_route = httpx2_mock.get(
         f"{SATELLITE_URL}/deployments/deployment-1/custom/gpu/usage"
-    ).mock(return_value=httpx.Response(200, json={"usage": 42}))
+    ).mock(return_value=MockResponse(200, json={"usage": 42}))
 
     satellite = client_with_mocks.satellites.get(SATELLITE_ID)
     operations = satellite.operations(facet="deployment:custom.gpu_monitoring")
@@ -133,13 +132,13 @@ def test_operations_lists_only_the_requested_facet(
 
 def test_operations_rejects_a_missing_description(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.get(_satellite_path()).mock(
-        return_value=httpx.Response(200, json=_satellite_record())
+    httpx2_mock.get(_satellite_path()).mock(
+        return_value=MockResponse(200, json=_satellite_record())
     )
-    respx_mock.get(f"{_satellite_path()}/openapi").mock(
-        return_value=httpx.Response(200, json=None)
+    httpx2_mock.get(f"{_satellite_path()}/openapi").mock(
+        return_value=MockResponse(200, json=None)
     )
 
     satellite = client_with_mocks.satellites.get(SATELLITE_ID)
@@ -150,16 +149,16 @@ def test_operations_rejects_a_missing_description(
 
 def test_request_resolves_safe_urls_and_forwards_the_bearer_key(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.get(_satellite_path()).mock(
-        return_value=httpx.Response(200, json=_satellite_record())
+    httpx2_mock.get(_satellite_path()).mock(
+        return_value=MockResponse(200, json=_satellite_record())
     )
-    relative_route = respx_mock.get(f"{SATELLITE_URL}/custom/gpu/usage").mock(
-        return_value=httpx.Response(200, json={"usage": 42})
+    relative_route = httpx2_mock.get(f"{SATELLITE_URL}/custom/gpu/usage").mock(
+        return_value=MockResponse(200, json={"usage": 42})
     )
-    absolute_route = respx_mock.post(f"{SATELLITE_URL}/custom/gpu/limits").mock(
-        return_value=httpx.Response(200, json={"limit": 80})
+    absolute_route = httpx2_mock.post(f"{SATELLITE_URL}/custom/gpu/limits").mock(
+        return_value=MockResponse(200, json={"limit": 80})
     )
 
     satellite = client_with_mocks.satellites.get(SATELLITE_ID)
@@ -181,28 +180,30 @@ def test_request_resolves_safe_urls_and_forwards_the_bearer_key(
 
 def test_request_refuses_a_foreign_origin_before_sending(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.get(_satellite_path()).mock(
-        return_value=httpx.Response(200, json=_satellite_record())
+    httpx2_mock.get(_satellite_path()).mock(
+        return_value=MockResponse(200, json=_satellite_record())
     )
     satellite = client_with_mocks.satellites.get(SATELLITE_ID)
 
     with pytest.raises(LumlAPIError, match="same origin"):
         satellite.request("GET", "https://attacker.example/steal")
 
-    assert all(call.request.url.host != "attacker.example" for call in respx_mock.calls)
+    assert all(
+        call.request.url.host != "attacker.example" for call in httpx2_mock.calls
+    )
 
 
 def test_request_maps_satellite_http_errors(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.get(_satellite_path()).mock(
-        return_value=httpx.Response(200, json=_satellite_record())
+    httpx2_mock.get(_satellite_path()).mock(
+        return_value=MockResponse(200, json=_satellite_record())
     )
-    respx_mock.get(f"{SATELLITE_URL}/custom/gpu/usage").mock(
-        return_value=httpx.Response(422, json={"detail": "invalid window"})
+    httpx2_mock.get(f"{SATELLITE_URL}/custom/gpu/usage").mock(
+        return_value=MockResponse(422, json={"detail": "invalid window"})
     )
     satellite = client_with_mocks.satellites.get(SATELLITE_ID)
 
@@ -213,16 +214,16 @@ def test_request_maps_satellite_http_errors(
 @pytest.mark.asyncio
 async def test_async_satellite_operations_and_request_match_the_sync_api(
     async_client_with_mocks: AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.get(_satellite_path()).mock(
-        return_value=httpx.Response(200, json=_satellite_record())
+    httpx2_mock.get(_satellite_path()).mock(
+        return_value=MockResponse(200, json=_satellite_record())
     )
-    respx_mock.get(f"{_satellite_path()}/openapi").mock(
-        return_value=httpx.Response(200, json=_openapi_document())
+    httpx2_mock.get(f"{_satellite_path()}/openapi").mock(
+        return_value=MockResponse(200, json=_openapi_document())
     )
-    request_route = respx_mock.get(f"{SATELLITE_URL}/custom/gpu/usage").mock(
-        return_value=httpx.Response(200, json={"usage": 42})
+    request_route = httpx2_mock.get(f"{SATELLITE_URL}/custom/gpu/usage").mock(
+        return_value=MockResponse(200, json={"usage": 42})
     )
 
     satellite = await async_client_with_mocks.satellites.get(SATELLITE_ID)

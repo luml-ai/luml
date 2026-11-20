@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from urllib.parse import urlencode
 from uuid import UUID
 
-import httpx
+import httpx2
 import jwt
 
 from luml.infra.exceptions import AuthError
@@ -21,12 +21,12 @@ class OAuthProvider(ABC):
 
     @staticmethod
     @abstractmethod
-    async def exchange_code_for_token(client: httpx.AsyncClient, code: str) -> str:
+    async def exchange_code_for_token(client: httpx2.AsyncClient, code: str) -> str:
         pass
 
     @staticmethod
     @abstractmethod
-    async def get_user_info(client: httpx.AsyncClient, token: str) -> UserInfo:
+    async def get_user_info(client: httpx2.AsyncClient, token: str) -> UserInfo:
         pass
 
 
@@ -48,7 +48,7 @@ class OAuthGoogleProvider(OAuthProvider):
 
     @staticmethod
     async def exchange_code_for_token(
-        client: httpx.AsyncClient,
+        client: httpx2.AsyncClient,
         code: str,
         redirect_uri: str = config.GOOGLE_REDIRECT_URI,
     ) -> str:
@@ -75,7 +75,7 @@ class OAuthGoogleProvider(OAuthProvider):
         return str(access_token)
 
     @staticmethod
-    async def get_user_info(client: httpx.AsyncClient, token: str) -> UserInfo:
+    async def get_user_info(client: httpx2.AsyncClient, token: str) -> UserInfo:
         try:
             response = await client.get(
                 config.GOOGLE_USERINFO_URL,
@@ -115,7 +115,7 @@ class OAuthMicrosoftProvider(OAuthProvider):
         return auth_url + "?" + urlencode(params)
 
     @staticmethod
-    async def exchange_code_for_token(client: httpx.AsyncClient, code: str) -> str:
+    async def exchange_code_for_token(client: httpx2.AsyncClient, code: str) -> str:
         data = {
             "code": code,
             "client_id": config.MICROSOFT_CLIENT_ID,
@@ -142,7 +142,7 @@ class OAuthMicrosoftProvider(OAuthProvider):
         return id_token
 
     @staticmethod
-    async def get_user_info(client: httpx.AsyncClient, token: str) -> UserInfo:
+    async def get_user_info(client: httpx2.AsyncClient, token: str) -> UserInfo:
         try:
             header = jwt.get_unverified_header(token)
             unverified = jwt.decode(token, options={"verify_signature": False})
@@ -191,7 +191,7 @@ class OAuthMicrosoftProvider(OAuthProvider):
                     or result.get("xms_edov") is True
                 ),
             )
-        except httpx.HTTPError as err:
+        except httpx2.HTTPError as err:
             raise AuthError("Failed to verify Microsoft ID token", 503) from err
         except (
             jwt.PyJWTError,

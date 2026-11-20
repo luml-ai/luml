@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import pytest
@@ -27,7 +27,7 @@ async def task_kit(
     driver: FakeDriver | None = None,
     serving: FakeServingPlacement | None = None,
     monitoring: FakeMonitoringBundle | None = None,
-) -> AsyncIterator[tuple[Convergence, PollingPass, FakeDriver, FakeServingPlacement]]:
+) -> AsyncGenerator[tuple[Convergence, PollingPass, FakeDriver, FakeServingPlacement]]:
     active_driver = driver or FakeDriver()
     active_serving = serving or FakeServingPlacement()
     async with PlatformClient(

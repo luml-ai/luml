@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx2 import ASGITransport, AsyncClient
 
 from luml_prisma.config import load_config
 from luml_prisma.database import Database
@@ -449,7 +449,7 @@ class TestBestNodeInResponse:
         graph = (await client.get(f"/api/runs/{run_id}/graph")).json()
         node_id = graph["nodes"][0]["id"]
 
-        db = client._transport.app.state.db  # type: ignore[union-attr]
+        db = client._transport.app.state.db
         db.update_run_best_node(run_id, node_id)
 
         resp = await client.get(f"/api/runs/{run_id}")

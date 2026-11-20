@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol
 
-import httpx
+import httpx2
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import (
     ConnectionClosed,
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 LOOPBACK_HOST = "127.0.0.1"
 
-_SERVICE_TIMEOUT = httpx.Timeout(None, connect=10.0)
+_SERVICE_TIMEOUT = httpx2.Timeout(None, connect=10.0)
 
 
 class TokenSource(Protocol):
@@ -106,7 +106,7 @@ class LoopbackService:
         self._port = port
         self._present_loopback_host = present_loopback_host
         self._bearer_token = bearer_token
-        self._transport = httpx.AsyncHTTPTransport()
+        self._transport = httpx2.AsyncHTTPTransport()
 
     async def aclose(self) -> None:
         await self._transport.aclose()
@@ -136,9 +136,9 @@ class LoopbackService:
         if not with_body:
             async for _ in body:
                 pass
-        request = httpx.Request(
+        request = httpx2.Request(
             opening.method,
-            httpx.URL(
+            httpx2.URL(
                 scheme="http",
                 host=LOOPBACK_HOST,
                 port=self._port,
@@ -152,10 +152,10 @@ class LoopbackService:
         if not request_complete:
             await stream.reset("response complete")
 
-    async def _respond(self, stream: Stream, request: httpx.Request) -> None:
+    async def _respond(self, stream: Stream, request: httpx2.Request) -> None:
         try:
             response = await self._transport.handle_async_request(request)
-        except httpx.HTTPError as error:
+        except httpx2.HTTPError as error:
             await _answer_unanswered(stream, error)
             return
         try:
@@ -164,7 +164,7 @@ class LoopbackService:
             async for chunk in response.aiter_raw():
                 await stream.send_data(chunk)
             await stream.send_end()
-        except httpx.HTTPError as error:
+        except httpx2.HTTPError as error:
             await stream.reset(f"service failed: {error}")
         finally:
             await response.aclose()
@@ -213,7 +213,7 @@ class LoopbackService:
             await pass_messages(stream, _ServiceWebSocket(websocket))
 
     def _request_headers(self, headers: Headers) -> Headers:
-        # Transfer-Encoding tells httpx to send the body in chunks, as the viewer did.
+        # Transfer-Encoding tells httpx2 to send the body in chunks, as the viewer did.
         forwarded = without_hop_by_hop(headers, keep=frozenset({"transfer-encoding"}))
         if self._bearer_token is not None:
             forwarded = [

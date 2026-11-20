@@ -9,7 +9,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ class ModelCondaManager:
             raise RuntimeError(error_msg)
 
     def _wait_for_health_check(self, timeout: int = 90) -> None:
-        with httpx.Client(trust_env=False) as client:
+        with httpx2.Client(trust_env=False) as client:
             for _ in range(timeout):
                 self._check_process_status()
 

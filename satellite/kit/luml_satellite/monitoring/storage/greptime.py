@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
-import httpx
+import httpx2
 
 from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.compute.models import (
@@ -193,7 +193,7 @@ class GreptimeMonitoringStore:
         host: str = "localhost",
         port: int = 4000,
         database: str = "public",
-        client: httpx.AsyncClient | None = None,
+        client: httpx2.AsyncClient | None = None,
         timeout: float = 30.0,
         events_ttl: str = "",
         results_ttl: str = "",
@@ -217,7 +217,7 @@ class GreptimeMonitoringStore:
         self._client = client
         self._owns_client = client is None
         self._auth = (
-            httpx.BasicAuth(username, password)
+            httpx2.BasicAuth(username, password)
             if username is not None and password is not None
             else None
         )
@@ -229,9 +229,9 @@ class GreptimeMonitoringStore:
         self._ttl_retry_at = 0.0
         self._events_table_missing_reported = False
 
-    def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(self) -> httpx2.AsyncClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self._timeout)
+            self._client = httpx2.AsyncClient(timeout=self._timeout)
         return self._client
 
     async def aclose(self) -> None:
@@ -509,7 +509,7 @@ class GreptimeMonitoringStore:
         )
 
 
-def _error_text(response: httpx.Response) -> str:
+def _error_text(response: httpx2.Response) -> str:
     try:
         payload = response.json()
     except ValueError:

@@ -1,11 +1,20 @@
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import asdict
 from math import ceil
 from pathlib import Path, PureWindowsPath
 
+from luml.experiments.backends._exceptions import (
+    ExperimentReaderTooOldError,
+    InvalidBucketLevelError,
+    TooManyBucketsError,
+)
 from luml.experiments.backends.data_types import TraceState as SdkTraceState
+from luml.experiments.backends.metric_store import MAX_BUCKET_LEVEL
 from luml.experiments.tracker import ExperimentTracker
 
-from lumlflow.infra.exceptions import ApplicationError, NotFound
+from lumlflow.infra.exceptions import ApplicationError, CodedError, NotFound
 from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
@@ -19,7 +28,13 @@ from lumlflow.schemas.experiments import (
     ExperimentMetricHistory,
     ExperimentStatus,
     FileNode,
+    MetricBucket,
+    MetricBuckets,
+    MetricBucketSeries,
+    MetricBucketsRequest,
+    MetricCatalog,
     MetricPoint,
+    MetricSummary,
     PaginatedBatchEvals,
     PaginatedEvals,
     PaginatedTraces,
@@ -35,6 +50,26 @@ from lumlflow.schemas.experiments import (
 )
 from lumlflow.schemas.models import Model
 from lumlflow.settings import get_tracker
+
+# A chart request is tens of keys at ~2,000 buckets; this bound keeps a
+# response under ~10 MB so a runaway request cannot exhaust server memory.
+MAX_BUCKETS_PER_REQUEST = 200_000
+
+
+@contextmanager
+def _metric_read_errors() -> Iterator[None]:
+    try:
+        yield
+    except ExperimentReaderTooOldError as e:
+        raise CodedError("needs-newer-reader", e.message, status_code=409) from e
+    except InvalidBucketLevelError as e:
+        raise CodedError("invalid-level", e.message, status_code=422) from e
+    except TooManyBucketsError as e:
+        raise CodedError("too-many-buckets", e.message, status_code=422) from e
+    except ApplicationError:
+        raise
+    except Exception as e:
+        raise ApplicationError(str(e), status_code=500) from e
 
 
 class ExperimentsHandler:
@@ -107,6 +142,54 @@ class ExperimentsHandler:
             subsampled=subsampled,
             history=[MetricPoint(**p) for p in raw],
         )
+
+    def get_metric_catalog(self, experiment_id: str) -> MetricCatalog:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+        with _metric_read_errors():
+            catalog = self.tracker.get_metric_catalog(experiment_id)
+        return MetricCatalog(
+            revision=catalog.revision,
+            bucket_min_level=catalog.bucket_min_level,
+            bucket_max_level=catalog.bucket_max_level,
+            skipped_rows=catalog.skipped_rows,
+            metrics=[MetricSummary(**asdict(metric)) for metric in catalog.metrics],
+        )
+
+    def get_metric_buckets(
+        self, experiment_id: str, request: MetricBucketsRequest
+    ) -> MetricBuckets:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+        series: list[MetricBucketSeries] = []
+        total_buckets = 0
+        with _metric_read_errors():
+            # Checked up front so an empty key list still rejects a bad level.
+            if not 0 <= request.level <= MAX_BUCKET_LEVEL:
+                raise InvalidBucketLevelError(request.level, MAX_BUCKET_LEVEL)
+            for key in dict.fromkeys(request.keys):
+                result = self.tracker.get_metric_buckets(
+                    experiment_id,
+                    key,
+                    level=request.level,
+                    start_step=request.start_step,
+                    end_step=request.end_step,
+                )
+                total_buckets += len(result.buckets)
+                if total_buckets > MAX_BUCKETS_PER_REQUEST:
+                    raise TooManyBucketsError(MAX_BUCKETS_PER_REQUEST)
+                series.append(
+                    MetricBucketSeries(
+                        key=key,
+                        first_step=result.first_step,
+                        last_step=result.last_step,
+                        buckets=[
+                            MetricBucket(**asdict(bucket)) for bucket in result.buckets
+                        ],
+                        skipped_rows=result.skipped_rows,
+                    )
+                )
+        return MetricBuckets(level=request.level, series=series)
 
     def get_experiment_traces(
         self,
@@ -193,12 +276,19 @@ class ExperimentsHandler:
 
         return traces
 
-    def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails:
+    def get_trace(
+        self, experiment_id: str, trace_id: str, *, payloads: bool = True
+    ) -> TraceDetails:
+        """Without `payloads` the spans carry no attributes, events, links or
+        status message; `get_span` loads one span in full."""
         if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
 
+        read_trace = (
+            self.tracker.get_trace if payloads else self.tracker.get_trace_structure
+        )
         try:
-            result = self.tracker.get_trace(experiment_id, trace_id)
+            result = read_trace(experiment_id, trace_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -212,6 +302,20 @@ class ExperimentsHandler:
             spans=[Span.model_validate(s) for s in result.spans],
             annotations=AnnotationSummary.model_validate(summary),
         )
+
+    def get_span(self, experiment_id: str, trace_id: str, span_id: str) -> Span:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+
+        try:
+            result = self.tracker.get_span(experiment_id, trace_id, span_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        if result is None:
+            raise NotFound("Span not found")
+
+        return Span.model_validate(result)
 
     def get_eval(self, experiment_id: str, eval_id: str) -> Eval:
         if not self.tracker.get_experiment_record(experiment_id):

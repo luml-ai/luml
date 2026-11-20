@@ -265,7 +265,7 @@ class TestEvaluateSingleItem:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -301,7 +301,7 @@ class TestEvaluateSingleItem:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -335,7 +335,7 @@ class TestEvaluateSingleItem:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -383,7 +383,7 @@ class TestEvaluateSingleItem:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -443,7 +443,7 @@ class TestEvaluate:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -478,7 +478,7 @@ class TestEvaluate:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -514,7 +514,7 @@ class TestEvaluate:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -555,7 +555,7 @@ class TestEvaluate:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -608,7 +608,7 @@ class TestReasoningRouting:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -654,7 +654,7 @@ class TestReasoningRouting:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )
@@ -700,7 +700,7 @@ class TestReasoningRouting:
         mock_trace.get_tracer.return_value = mock_tracer
 
         mock_span = MagicMock()
-        mock_span.context.trace_id = 12345
+        mock_span.get_span_context.return_value.trace_id = 12345
         mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
             return_value=mock_span
         )

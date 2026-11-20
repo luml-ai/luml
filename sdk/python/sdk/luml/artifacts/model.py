@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from luml._constants import FNNX_PRODUCER_NAME
 
 if TYPE_CHECKING:
-    from fnnx.extras.reader import Reader  # type: ignore[import-untyped]
+    from fnnx.extras.reader import Reader
 
     from luml.utils.reference_profile import TaskType
 
@@ -82,8 +82,8 @@ class ModelReference(DiskReference):
                 "Reference profiles can only be built for sklearn artifacts"
             )
 
-        import cloudpickle  # type: ignore[import-untyped]
-        from sklearn.base import is_classifier  # type: ignore[import-untyped]
+        import cloudpickle
+        from sklearn.base import is_classifier
 
         from luml.utils.packaging import TABULAR_MONITORING_TAG, add_reference_profile
 

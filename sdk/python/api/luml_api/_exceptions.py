@@ -6,6 +6,7 @@ plain `Exception` subclasses, so `except LumlAPIError` does not catch them.
 ```text
 LumlAPIError                        base of every SDK error below
 ├── APIError                        tied to one HTTP request: request, body
+│   ├── APIConnectionError          no answer: a network error or a timeout
 │   ├── APIStatusError              the Platform answered 4xx or 5xx
 │   │   ├── BadRequestError               400
 │   │   ├── AuthenticationError           401
@@ -36,7 +37,7 @@ FileError                           bucket transfers, and an unsupported file fo
 ### HTTP errors
 
 Every non-success answer of the Platform becomes an `APIStatusError`: the code
-is in `status_code`, the `httpx` response in `response`, the parsed JSON body
+is in `status_code`, the `httpx2` response in `response`, the parsed JSON body
 in `body`, and the Platform's explanation in `body["detail"]`. The codes below
 get a subclass of their own; any other 4xx arrives as a plain `APIStatusError`.
 
@@ -71,7 +72,7 @@ get a subclass of their own; any other 4xx arrives as a plain `APIStatusError`.
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Literal
 
-import httpx
+import httpx2
 
 if TYPE_CHECKING:
     from luml_api._types import (
@@ -379,22 +380,29 @@ class APIError(LumlAPIError):
 
     Attributes:
         message: Human-readable description.
-        request: The `httpx` request that was sent.
+        request: The `httpx2` request that was sent.
         body: The answer's body when there was one: the parsed JSON, or the
             raw text when it was not JSON.
     """
 
     message: str
-    request: httpx.Request
+    request: httpx2.Request
     body: object | None
 
     def __init__(
-        self, message: str, request: httpx.Request, *, body: object | None
+        self, message: str, request: httpx2.Request, *, body: object | None
     ) -> None:
         super().__init__(message)
         self.request = request
         self.message = message
         self.body = body
+
+
+class APIConnectionError(APIError):
+    """A request failed before receiving a response, including a timeout.
+
+    Catch this class for network errors independently of the HTTP client.
+    """
 
 
 class APIResponseValidationError(APIError):
@@ -406,16 +414,16 @@ class APIResponseValidationError(APIError):
     as pydantic's `ValidationError`.
 
     Attributes:
-        response: The `httpx` response.
+        response: The `httpx2` response.
         status_code: Its HTTP status code.
     """
 
-    response: httpx.Response
+    response: httpx2.Response
     status_code: int
 
     def __init__(
         self,
-        response: httpx.Response,
+        response: httpx2.Response,
         body: object | None,
         *,
         message: str | None = None,
@@ -437,17 +445,17 @@ class APIStatusError(APIError):
     message names the method, the URL, the status and the Platform's `detail`.
 
     Attributes:
-        response: The `httpx` response.
+        response: The `httpx2` response.
         status_code: Its HTTP status code.
         body: The parsed JSON body; the Platform's explanation is in
             `body["detail"]`.
     """
 
-    response: httpx.Response
+    response: httpx2.Response
     status_code: int
 
     def __init__(
-        self, message: str, *, response: httpx.Response, body: object | None
+        self, message: str, *, response: httpx2.Response, body: object | None
     ) -> None:
         super().__init__(message, response.request, body=body)
         self.response = response
@@ -458,27 +466,27 @@ class BadRequestError(APIStatusError):
     """HTTP 400: the request makes no sense as such, for example an artifact
     linked to itself in the lineage."""
 
-    status_code: Literal[400] = 400
+    status_code: Literal[400] = 400  # ty: ignore[incompatible-mutable-override]
 
 
 class AuthenticationError(APIStatusError):
     """HTTP 401: the API key is missing, expired or invalid."""
 
-    status_code: Literal[401] = 401
+    status_code: Literal[401] = 401  # ty: ignore[incompatible-mutable-override]
 
 
 class PermissionDeniedError(APIStatusError):
     """HTTP 403: the API key's role lacks the permission the call needs, for
     example deleting artifacts as an orbit member."""
 
-    status_code: Literal[403] = 403
+    status_code: Literal[403] = 403  # ty: ignore[incompatible-mutable-override]
 
 
 class NotFoundError(APIStatusError):
     """HTTP 404: the id does not exist, or belongs to another organization,
     orbit or collection than the one addressed."""
 
-    status_code: Literal[404] = 404
+    status_code: Literal[404] = 404  # ty: ignore[incompatible-mutable-override]
 
 
 class SatelliteOutOfSyncError(NotFoundError):
@@ -504,7 +512,7 @@ class SatelliteOutOfSyncError(NotFoundError):
         operation: str,
         api_version: int,
         *,
-        response: httpx.Response,
+        response: httpx2.Response,
         body: object | None,
     ) -> None:
         self.satellite_id = satellite_id
@@ -525,7 +533,7 @@ class ConflictError(APIStatusError):
     `force=True` to displace it), or a deployment deletion that is already
     pending."""
 
-    status_code: Literal[409] = 409
+    status_code: Literal[409] = 409  # ty: ignore[incompatible-mutable-override]
 
 
 class UnprocessableEntityError(APIStatusError):
@@ -533,7 +541,7 @@ class UnprocessableEntityError(APIStatusError):
     validation, for example a lineage depth below 1 or an artifact of another
     orbit added to a track."""
 
-    status_code: Literal[422] = 422
+    status_code: Literal[422] = 422  # ty: ignore[incompatible-mutable-override]
 
 
 class InternalServerError(APIStatusError):

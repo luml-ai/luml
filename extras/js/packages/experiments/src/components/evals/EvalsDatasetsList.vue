@@ -18,10 +18,10 @@
 
 <script setup lang="ts">
 import type { DatasetListProps, FilterInterface, SortParams } from './evals.interface'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { COMPARISON_LIMIT } from '../../store/evals/evals.data'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { showReadErrorToast } from '@/lib/primevue/data/toasts'
 import { useToast, Skeleton } from 'primevue'
 import EvalsDataset from './EvalsDataset.vue'
 
@@ -34,16 +34,44 @@ const initialLoading = ref(true)
 
 const isComparison = computed(() => Object.keys(props.modelsInfo).length > 1)
 
-async function getNextPage(datasetId: string, reset: boolean = false) {
+// The store outlives this view: a read that ends after it closed leaves the store alone.
+let closed = false
+// Reads share the provider's page cursors, so a sort or filter change waits for the read
+// in flight instead of being dropped.
+const pendingReloads = new Set<string>()
+// A table asks for its next page only when its scrolled range changes, so that request
+// waits for the read in flight too.
+const pendingNextPages = new Set<string>()
+// Kept next pages that ran a reload in their place. If the rows are still not current after
+// it, the reload failed: the page is dropped and only a new request retries.
+const reloadedForNextPage = new Set<string>()
+
+async function getNextPage(datasetId: string, reset: boolean = false, fromTable: boolean = true) {
+  // The loading flag belongs to the read in flight; a refused request must not clear it.
+  if (evalsStore.loading) {
+    if (reset) pendingReloads.add(datasetId)
+    else pendingNextPages.add(datasetId)
+    return
+  }
+  if (!reset && !evalsStore.isDatasetCurrent(datasetId)) {
+    if (!fromTable && reloadedForNextPage.delete(datasetId)) return
+    // The rows are for older parameters: reload first, then read the kept next page.
+    reloadedForNextPage.add(datasetId)
+    pendingNextPages.add(datasetId)
+    reset = true
+  } else if (!reset) {
+    // This read answers any request kept before it.
+    pendingNextPages.delete(datasetId)
+    reloadedForNextPage.delete(datasetId)
+  }
   try {
-    if (evalsStore.loading) return
     evalsStore.setLoading(true)
     await evalsStore.getNextDatasetPage(datasetId, reset)
   } catch (error: unknown) {
     const messageText = error instanceof Error ? error.message : 'Failed to load evals dataset'
-    toast.add(simpleErrorToast(messageText))
+    showReadErrorToast(toast, error, messageText)
   } finally {
-    evalsStore.setLoading(false)
+    if (!closed) evalsStore.setLoading(false)
   }
 }
 
@@ -54,12 +82,31 @@ async function init() {
     await evalsStore.initDatasets(isComparison.value ? COMPARISON_LIMIT : undefined)
   } catch (error: unknown) {
     const messageText = error instanceof Error ? error.message : 'Failed to load evals datasets'
-    toast.add(simpleErrorToast(messageText))
+    showReadErrorToast(toast, error, messageText)
   } finally {
-    evalsStore.setLoading(false)
+    if (!closed) evalsStore.setLoading(false)
     initialLoading.value = false
   }
 }
+
+watch(
+  () => evalsStore.loading,
+  (loading) => {
+    if (loading || closed) return
+    const [reloadId] = pendingReloads
+    if (reloadId !== undefined) {
+      pendingReloads.delete(reloadId)
+      getNextPage(reloadId, true)
+      return
+    }
+    // A dropped page starts no read, so the next kept page must not wait for one.
+    for (const nextPageId of [...pendingNextPages]) {
+      pendingNextPages.delete(nextPageId)
+      getNextPage(nextPageId, false, false)
+      if (evalsStore.loading) return
+    }
+  },
+)
 
 function onFilterChange(datasetId: string, filter: FilterInterface) {
   const dataset = evalsStore.datasets?.find((item) => item.params.dataset_id === datasetId)
@@ -79,9 +126,16 @@ function onSort(datasetId: string, sortParams: SortParams) {
 
 onMounted(init)
 
+onBeforeUnmount(() => {
+  closed = true
+})
+
 onUnmounted(() => {
   evalsStore.reset()
-  evalsStore.getProvider.resetEvalsDatasetsRequestParams().catch(() => undefined)
+  // A reset provider is dropped with its cursors: nothing is left to release.
+  if (evalsStore.hasProvider) {
+    evalsStore.getProvider.resetEvalsDatasetsRequestParams().catch(() => undefined)
+  }
 })
 </script>
 

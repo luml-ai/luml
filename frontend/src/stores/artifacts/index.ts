@@ -20,7 +20,7 @@ import { api } from '@/lib/api'
 import { useRoute } from 'vue-router'
 import { downloadFileFromBlob, getErrorMessage } from '@/helpers/helpers'
 import axios from 'axios'
-import { ModelDownloader } from '@/lib/bucket-service'
+import { ModelDownloader, PresignedUrlCache } from '@/lib/bucket-service'
 
 export type ArtifactAttachmentsStatus = 'idle' | 'loading' | 'available' | 'empty' | 'error'
 
@@ -109,8 +109,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     let downloader: ModelDownloader
     let index: unknown
     try {
-      const url = await getDownloadUrl(artifact.id)
-      downloader = new ModelDownloader(url, () => getDownloadUrl(artifact.id))
+      downloader = new ModelDownloader(downloadUrls.source(artifact.id))
       index = await downloader.getFileFromBucket<unknown>(fileIndex, indexPath)
     } catch (error) {
       if (loadVersion !== attachmentsLoadVersion || currentArtifact.value?.id !== artifact.id) {
@@ -219,17 +218,32 @@ export const useArtifactsStore = defineStore('artifacts', () => {
   }
 
   async function downloadArtifact(id: string, name: string) {
-    const url = await getDownloadUrl(id)
-    const response = await fetch(url)
-    if (!response.ok) throw new Error('Failed to download artifact')
-    const blob = await response.blob()
+    const blob = await downloadUrls.withUrl(id, async (url) => {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error('Failed to download artifact')
+      return response.blob()
+    })
     downloadFileFromBlob(blob, name)
   }
 
-  async function getDownloadUrl(id: string) {
+  async function fetchDownloadUrl(id: string) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
     const { url } = await api.artifacts.getDownloadUrl(organizationId, orbitId, collectionId, id)
     return url
+  }
+
+  const downloadUrls = new PresignedUrlCache(fetchDownloadUrl)
+
+  function getDownloadUrl(id: string) {
+    return downloadUrls.get(id)
+  }
+
+  function downloadUrlSource(id: string) {
+    return downloadUrls.source(id)
+  }
+
+  function clearDownloadUrls() {
+    downloadUrls.clear()
   }
 
   function setCurrentModelTag(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) {
@@ -495,6 +509,8 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     deleteArtifacts,
     downloadArtifact,
     getDownloadUrl,
+    downloadUrlSource,
+    clearDownloadUrls,
     setCurrentModelTag,
     resetCurrentModelTag,
     setCurrentModelMetadata,

@@ -9,7 +9,6 @@ import { createPreviewStreamUrl } from '../utils/previewStream'
 type FileIndex = Record<string, [number, number]>
 
 interface ModelDownloader {
-  url: string
   readRange?(start: number, end: number): Promise<ArrayBuffer>
   getFileFromBucket<T = unknown>(
     fileIndex: FileIndex,

@@ -1,9 +1,10 @@
+import math
 import os
 from datetime import datetime
 from enum import IntEnum, StrEnum
-from typing import Any
+from typing import Annotated, Any, NamedTuple
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, PlainSerializer, field_validator
 
 from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import BaseOrmConfig
@@ -93,6 +94,78 @@ class ExperimentMetricHistory(BaseModel):
     key: str
     subsampled: bool = False
     history: list[MetricPoint]
+
+
+def _encode_non_finite(value: float | None) -> float | str | None:
+    if value is None or math.isfinite(value):
+        return value
+    return "Infinity" if value > 0 else "-Infinity"
+
+
+# JSON has no infinities: they travel as the strings "Infinity" and "-Infinity",
+# which Pydantic also parses back to floats.
+WireFloat = Annotated[
+    float | None, PlainSerializer(_encode_non_finite, when_used="json")
+]
+
+
+class MetricSummary(BaseModel):
+    key: str
+    first_step: int
+    last_step: int
+    count: int | None
+    min: WireFloat
+    max: WireFloat
+    # Changes with every committed write to the metric; None where the store does
+    # not track it (schema revisions 2 and 3), so a reader must assume a change.
+    writes: int | None = None
+
+
+class MetricCatalog(BaseModel):
+    revision: int
+    bucket_min_level: int | None
+    bucket_max_level: int | None
+    skipped_rows: int
+    metrics: list[MetricSummary]
+
+
+MAX_KEYS_PER_BUCKET_REQUEST = 1000
+
+
+class MetricBucketsRequest(BaseModel):
+    # Each key is its own read under the tracker lock, and keys without points
+    # add nothing to the bucket bound, so the key count needs its own limit.
+    keys: list[str] = Field(max_length=MAX_KEYS_PER_BUCKET_REQUEST)
+    start_step: int | None = None
+    end_step: int | None = None
+    level: int
+
+
+class MetricBucket(NamedTuple):
+    """Sent as a JSON array; `sum` covers finite values only."""
+
+    bucket: int
+    first_step: int
+    last_step: int
+    # Shadows `tuple.count` on purpose: the field names follow the contract.
+    count: int
+    finite_count: int
+    min: WireFloat
+    max: WireFloat
+    sum: float | None
+
+
+class MetricBucketSeries(BaseModel):
+    key: str
+    first_step: int | None
+    last_step: int | None
+    buckets: list[MetricBucket]
+    skipped_rows: int
+
+
+class MetricBuckets(BaseModel):
+    level: int
+    series: list[MetricBucketSeries]
 
 
 class Span(BaseModel, BaseOrmConfig):

@@ -33,13 +33,9 @@
       </div>
     </div>
     <template v-else-if="tab === 'Metrics'">
-      <DynamicMetrics
-        v-if="metrics.length"
-        :metrics-names="metrics"
-        :models-info="modelsInfo"
-        :show-title="false"
-      />
-      <p v-else class="text-muted-color">No metrics found in this experiment</p>
+      <ExperimentStatusNotices :statuses="dynamicMetrics.statuses" :models-info="modelsInfo" />
+      <DynamicMetrics :models-info="modelsInfo" :show-title="false" />
+      <p v-if="metricsEmpty" class="text-muted-color">No metrics found in this experiment</p>
     </template>
     <TracesWrapper v-else-if="tab === 'Traces'" :artifact-id="path" />
     <EvalsDatasetsList
@@ -77,11 +73,13 @@ import {
   MarkdownRendererKey,
   EvalsDatasetsList,
   ExperimentSnapshotWorkerProxy,
+  ExperimentStatusNotices,
   provideTheme,
   TraceDialog,
   TracesDialog,
   TracesWrapper,
   useAnnotationsStore,
+  useDynamicMetricsStore,
   useEvalsStore,
 } from '@luml/experiments'
 import { renderMarkdown } from '@luml/attachments'
@@ -90,6 +88,7 @@ import type { ArchiveInspection } from '@/api/slices/workspace/workspace.interfa
 import ArchiveAttachments from '@/components/workspace/ArchiveAttachments.vue'
 import { TABLIST_PT } from '@/components/experiments/details/details.const'
 import { getErrorMessage } from '@/helpers/errors'
+import { findSnapshotMember, loadSnapshotSource } from '@/helpers/experimentSnapshot'
 import { baseName, parentDirectory } from '@/helpers/path'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useThemeStore } from '@/store/theme'
@@ -106,12 +105,20 @@ const tabs = {
 const tab = ref('Overview')
 const evals = useEvalsStore()
 const annotations = useAnnotationsStore()
+const dynamicMetrics = useDynamicMetricsStore()
 provideTheme(toRef(useThemeStore(), 'theme'))
 provide(MarkdownRendererKey, renderMarkdown)
 const archive = shallowRef<ArchiveInspection>()
 const parameters = shallowRef<{ name: string; value: string }[]>([])
-const metrics = ref<string[]>([])
 const error = ref('')
+// The catalog, not `dynamic_params`, says which metrics exist: it is read with the charts.
+const metricsEmpty = computed(
+  () =>
+    !dynamicMetrics.loading &&
+    dynamicMetrics.catalogs !== null &&
+    dynamicMetrics.catalogs.errors.size === 0 &&
+    dynamicMetrics.metricsNames.length === 0,
+)
 const name = computed(() =>
   typeof archive.value?.manifest?.name === 'string'
     ? archive.value.manifest.name
@@ -156,29 +163,26 @@ watch(
       const result = await workspaceApi.inspectFile(path)
       if (controller.signal.aborted) return
       if (result.kind !== 'experiment') throw new Error('This file is not an experiment archive.')
-      const response = await fetch(await workspaceApi.fileUrl(path, 'exp.db.zip'), {
-        signal: controller.signal,
-      })
-      if (!response.ok)
-        throw new Error(`Could not read the experiment database (${response.status})`)
-      const buffer = await response.arrayBuffer()
+      const member = findSnapshotMember(result.files)
+      if (!member) throw new Error('The experiment database is missing from this archive.')
+      const source = await loadSnapshotSource(path, member, controller.signal)
       if (controller.signal.aborted) return
+      const renewUrl = () => workspaceApi.fileUrl(path, member.name)
       provider = markRaw(
         new ExperimentSnapshotWorkerProxy(
           new Worker(
             new URL('../../../../../extras/js/experimentSnapshotWorker.ts', import.meta.url),
             { type: 'module' },
           ),
+          { sourceUrls: { get: renewUrl, renew: renewUrl } },
         ),
       )
-      await provider.init([{ modelId: path, buffer }], controller.signal)
-      const [params, names] = await Promise.all([
-        provider.getLoggedParameters(path, controller.signal),
-        provider.getDynamicMetricsNames(),
-      ])
+      await provider.init([{ modelId: path, source }], controller.signal)
+      const [status] = await provider.getExperimentStatuses(controller.signal)
+      if (status?.error) throw new Error(status.error.message)
+      const params = await provider.getLoggedParameters(path, controller.signal)
       if (controller.signal.aborted) return
       parameters.value = params
-      metrics.value = names
       evals.setProvider(provider)
       archive.value = result
     } catch (failure) {

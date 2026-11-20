@@ -978,6 +978,35 @@ async def test_listing_omits_payload_columns_and_preserves_pagination(
             "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~run/nested/exp.db.zip",
             False,
         ),
+        ("exp.db", True),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v2~~et~~run/exp.db",
+            True,
+        ),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v2~~et~~run/exp.db.zip",
+            True,
+        ),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~run/exp.db",
+            True,
+        ),
+        ("foo/exp.db", False),
+        ("exp.db.bak", False),
+        ("myexp.db", False),
+        ("expXdb", False),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v3~~et~~run/exp.db",
+            False,
+        ),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v2~~et~~run/nested/exp.db",
+            False,
+        ),
+        (
+            "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v2~~et~~run/exp.db-wal",
+            False,
+        ),
     ],
 )
 async def test_listing_detects_experiment_snapshots(
@@ -1001,3 +1030,41 @@ async def test_listing_detects_experiment_snapshots(
     )
     assert items[0].id == artifact.id
     assert items[0].has_experiment_snapshot is expected
+
+
+async def test_listing_reports_v2_only_artifact_as_having_snapshot(
+    repository: ArtifactRepository,
+    seeded_collection: CollectionFixtureData,
+    new_artifact: ArtifactCreate,
+) -> None:
+    snapshot_dir = (
+        "meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v2~~et~~ab12cd"
+    )
+    with_snapshot = await repository.create_artifact(
+        new_artifact.model_copy(
+            update={
+                "collection_id": seeded_collection.collection.id,
+                "unique_identifier": "with-snapshot",
+                "file_index": {
+                    "manifest.json": (0, 10),
+                    f"{snapshot_dir}/exp.db": (10, 100),
+                    f"{snapshot_dir}/attachments.tar": (110, 50),
+                },
+            }
+        )
+    )
+    without_snapshot = await repository.create_artifact(
+        new_artifact.model_copy(
+            update={
+                "collection_id": seeded_collection.collection.id,
+                "unique_identifier": "without-snapshot",
+                "file_index": {"manifest.json": (0, 10), "data/exp.db": (10, 5)},
+            }
+        )
+    )
+    items, _ = await repository.get_collection_artifacts(
+        seeded_collection.orbit.id,
+        PaginationParams(limit=10),
+    )
+    snapshots = {item.id: item.has_experiment_snapshot for item in items}
+    assert snapshots == {with_snapshot.id: True, without_snapshot.id: False}

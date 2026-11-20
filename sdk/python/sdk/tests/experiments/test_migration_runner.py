@@ -473,12 +473,12 @@ class TestExperimentMigrationRunnerBaseline:
         conn = _make_exp_conn(tmp_path)
         runner = ExperimentMigrationRunner(conn)
         runner.migrate()
-        assert runner.get_current_version() == 2
+        assert runner.get_current_version() == 4
 
         # Re-instantiate — should not add extra baseline entries
         runner2 = ExperimentMigrationRunner(conn)
-        assert runner2.get_current_version() == 2
-        assert runner2.get_applied_migrations() == [1, 2]
+        assert runner2.get_current_version() == 4
+        assert runner2.get_applied_migrations() == [1, 2, 3, 4]
 
 
 # ---------------------------------------------------------------------------
@@ -493,11 +493,11 @@ class TestOldSdkExpDbUpgrade:
         assert runner.get_current_version() == 1
         assert runner.get_applied_migrations() == [1]
 
-    def test_old_exp_db_migrates_to_v2(self, tmp_path: Path) -> None:
+    def test_old_exp_db_migrates_to_v4(self, tmp_path: Path) -> None:
         conn = _make_old_sdk_exp_db(tmp_path)
         runner = ExperimentMigrationRunner(conn)
         runner.migrate()
-        assert runner.get_current_version() == 2
+        assert runner.get_current_version() == 4
 
     def test_old_exp_db_gets_size_column(self, tmp_path: Path) -> None:
         conn = _make_old_sdk_exp_db(tmp_path)
@@ -526,7 +526,7 @@ class TestOldSdkExpDbUpgrade:
     def test_old_exp_db_with_size_already_skips_migration_002(
         self, tmp_path: Path
     ) -> None:
-        # Old SDK that already has the size column — should baseline v1+v2, migrate() applies nothing
+        # Old SDK that already has the size column — should baseline v1+v2, migrate() applies only 003
         conn = _make_exp_conn(tmp_path)
         conn.execute("""
             CREATE TABLE attachments (
@@ -541,5 +541,5 @@ class TestOldSdkExpDbUpgrade:
         # Already at v2 via baseline
         assert runner.get_applied_migrations() == [1, 2]
         newly_applied = runner.migrate()
-        assert newly_applied == []
-        assert runner.get_current_version() == 2
+        assert newly_applied == [3, 4]
+        assert runner.get_current_version() == 4

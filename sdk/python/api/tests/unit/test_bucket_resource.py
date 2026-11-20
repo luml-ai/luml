@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, Mock, patch
 
-import httpx
+import httpx2
 import pytest
 
 from luml_api._exceptions import LumlAPIError
@@ -186,7 +186,7 @@ def test_bucket_secret_delete(mock_sync_client: Mock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("luml_api.resources.bucket_secrets.httpx.get")
+@patch("luml_api.resources.bucket_secrets.httpx2.get")
 def test_validate_range_support_success(mock_get: Mock) -> None:
     range_resp = Mock()
     range_resp.raise_for_status.return_value = None
@@ -198,7 +198,7 @@ def test_validate_range_support_success(mock_get: Mock) -> None:
     mock_get.assert_called_once_with(DOWNLOAD_URL, headers={"Range": "bytes=0-10"})
 
 
-@patch("luml_api.resources.bucket_secrets.httpx.get")
+@patch("luml_api.resources.bucket_secrets.httpx2.get")
 def test_validate_range_support_returns_200(mock_get: Mock) -> None:
     range_resp = Mock()
     range_resp.raise_for_status.return_value = None
@@ -209,15 +209,15 @@ def test_validate_range_support_returns_200(mock_get: Mock) -> None:
         BucketSecretResource._validate_range_support(DOWNLOAD_URL)
 
 
-@patch("luml_api.resources.bucket_secrets.httpx.get")
+@patch("luml_api.resources.bucket_secrets.httpx2.get")
 def test_validate_range_support_range_request_fails(mock_get: Mock) -> None:
     range_resp = Mock()
-    range_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+    range_resp.raise_for_status.side_effect = httpx2.HTTPStatusError(
         "403", request=Mock(), response=Mock()
     )
     mock_get.return_value = range_resp
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(httpx2.HTTPStatusError):
         BucketSecretResource._validate_range_support(DOWNLOAD_URL)
 
 
@@ -226,9 +226,9 @@ def test_validate_range_support_range_request_fails(mock_get: Mock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("luml_api.resources.bucket_secrets.httpx.delete")
+@patch("luml_api.resources.bucket_secrets.httpx2.delete")
 @patch.object(BucketSecretResource, "_validate_range_support")
-@patch("luml_api.resources.bucket_secrets.httpx.put")
+@patch("luml_api.resources.bucket_secrets.httpx2.put")
 @patch.object(BucketSecretResource, "_get_connection_urls")
 def test_check_bucket_success(
     mock_get_urls: Mock,
@@ -273,7 +273,7 @@ def test_check_bucket_get_connection_urls_fails(
 
 
 @patch.object(BucketSecretResource, "_get_connection_urls")
-@patch("luml_api.resources.bucket_secrets.httpx.put")
+@patch("luml_api.resources.bucket_secrets.httpx2.put")
 def test_check_bucket_upload_fails_bad_status(
     mock_put: Mock,
     mock_get_urls: Mock,
@@ -282,7 +282,7 @@ def test_check_bucket_upload_fails_bad_status(
 ) -> None:
     mock_get_urls.return_value = sample_bucket_secret_urls
     put_resp = Mock()
-    put_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+    put_resp.raise_for_status.side_effect = httpx2.HTTPStatusError(
         "403", request=Mock(), response=Mock()
     )
     mock_put.return_value = put_resp
@@ -294,9 +294,9 @@ def test_check_bucket_upload_fails_bad_status(
         )
 
 
-@patch("luml_api.resources.bucket_secrets.httpx.delete")
+@patch("luml_api.resources.bucket_secrets.httpx2.delete")
 @patch.object(BucketSecretResource, "_validate_range_support")
-@patch("luml_api.resources.bucket_secrets.httpx.put")
+@patch("luml_api.resources.bucket_secrets.httpx2.put")
 @patch.object(BucketSecretResource, "_get_connection_urls")
 def test_check_bucket_range_check_fails_deletes_file(
     mock_get_urls: Mock,
@@ -321,9 +321,9 @@ def test_check_bucket_range_check_fails_deletes_file(
     mock_delete.assert_called_once_with(DELETE_URL)
 
 
-@patch("luml_api.resources.bucket_secrets.httpx.delete")
+@patch("luml_api.resources.bucket_secrets.httpx2.delete")
 @patch.object(BucketSecretResource, "_validate_range_support")
-@patch("luml_api.resources.bucket_secrets.httpx.put")
+@patch("luml_api.resources.bucket_secrets.httpx2.put")
 @patch.object(BucketSecretResource, "_get_connection_urls")
 def test_check_bucket_range_check_fails_delete_error_suppressed(
     mock_get_urls: Mock,
@@ -515,7 +515,7 @@ async def test_async_bucket_secret_delete(mock_async_client: AsyncMock) -> None:
 
 
 @pytest.mark.asyncio
-@patch("luml_api.resources.bucket_secrets.httpx.AsyncClient")
+@patch("luml_api.resources.bucket_secrets.httpx2.AsyncClient")
 async def test_async_validate_range_support_success(mock_client_class: Mock) -> None:
     mock_http = AsyncMock()
     mock_client_class.return_value.__aenter__.return_value = mock_http
@@ -532,7 +532,7 @@ async def test_async_validate_range_support_success(mock_client_class: Mock) -> 
 
 
 @pytest.mark.asyncio
-@patch("luml_api.resources.bucket_secrets.httpx.AsyncClient")
+@patch("luml_api.resources.bucket_secrets.httpx2.AsyncClient")
 async def test_async_validate_range_support_returns_200(
     mock_client_class: Mock,
 ) -> None:
@@ -550,7 +550,7 @@ async def test_async_validate_range_support_returns_200(
 
 
 @pytest.mark.asyncio
-@patch("luml_api.resources.bucket_secrets.httpx.AsyncClient")
+@patch("luml_api.resources.bucket_secrets.httpx2.AsyncClient")
 async def test_async_validate_range_support_range_request_fails(
     mock_client_class: Mock,
 ) -> None:
@@ -559,12 +559,12 @@ async def test_async_validate_range_support_range_request_fails(
     mock_client_class.return_value.__aexit__.return_value = None
 
     range_resp = Mock()
-    range_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+    range_resp.raise_for_status.side_effect = httpx2.HTTPStatusError(
         "403", request=Mock(), response=Mock()
     )
     mock_http.get.return_value = range_resp
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(httpx2.HTTPStatusError):
         await AsyncBucketSecretResource._validate_range_support(DOWNLOAD_URL)
 
 
@@ -578,7 +578,7 @@ async def test_async_validate_range_support_range_request_fails(
     AsyncBucketSecretResource, "_validate_range_support", new_callable=AsyncMock
 )
 @patch.object(AsyncBucketSecretResource, "_get_connection_urls", new_callable=AsyncMock)
-@patch("luml_api.resources.bucket_secrets.httpx.AsyncClient")
+@patch("luml_api.resources.bucket_secrets.httpx2.AsyncClient")
 async def test_async_check_bucket_success(
     mock_client_class: Mock,
     mock_get_urls: AsyncMock,
@@ -627,7 +627,7 @@ async def test_async_check_bucket_get_connection_urls_fails(
 
 @pytest.mark.asyncio
 @patch.object(AsyncBucketSecretResource, "_get_connection_urls", new_callable=AsyncMock)
-@patch("luml_api.resources.bucket_secrets.httpx.AsyncClient")
+@patch("luml_api.resources.bucket_secrets.httpx2.AsyncClient")
 async def test_async_check_bucket_upload_fails_bad_status(
     mock_client_class: Mock,
     mock_get_urls: AsyncMock,
@@ -640,7 +640,7 @@ async def test_async_check_bucket_upload_fails_bad_status(
     mock_client_class.return_value.__aenter__.return_value = mock_http
     mock_client_class.return_value.__aexit__.return_value = None
     put_resp = Mock()
-    put_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+    put_resp.raise_for_status.side_effect = httpx2.HTTPStatusError(
         "403", request=Mock(), response=Mock()
     )
     mock_http.put.return_value = put_resp
@@ -657,7 +657,7 @@ async def test_async_check_bucket_upload_fails_bad_status(
     AsyncBucketSecretResource, "_validate_range_support", new_callable=AsyncMock
 )
 @patch.object(AsyncBucketSecretResource, "_get_connection_urls", new_callable=AsyncMock)
-@patch("luml_api.resources.bucket_secrets.httpx.AsyncClient")
+@patch("luml_api.resources.bucket_secrets.httpx2.AsyncClient")
 async def test_async_check_bucket_range_check_fails_deletes_file(
     mock_client_class: Mock,
     mock_get_urls: AsyncMock,

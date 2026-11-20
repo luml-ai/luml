@@ -1,0 +1,12 @@
+{
+  "name": "luml",
+  "description": "Skills for working with LUML: experiment tracking, model packaging, deployment and evals.",
+  "owner": { "name": "luml-ai" },
+  "plugins": [
+    {
+      "name": "luml",
+      "source": "./skills/luml",
+      "description": "Points the agent to the skills shipped with the installed LUML packages."
+    }
+  ]
+}

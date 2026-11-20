@@ -148,3 +148,9 @@ async def test_flow_operations_do_not_write_a_checkout_sidecar(tmp_path: Path) -
 
 def test_the_served_guide_never_speaks_the_vocabulary_git_owns() -> None:
     no_git_words(docs.CHEATSHEET, "the cheatsheet")
+
+
+def test_the_served_guide_states_the_current_cell_name_rule() -> None:
+    from lumlflow.flow.dsl import portable
+
+    assert portable.CELL_NAME_RULE in docs.CHEATSHEET

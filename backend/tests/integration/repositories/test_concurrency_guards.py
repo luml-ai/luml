@@ -455,7 +455,7 @@ class TestConcurrencyGuards:
         token = f"refresh-{uuid.uuid4()}"
 
         with pytest.raises(IntegrityError):
-            await blacklist_repository.add_token(token, None)  # type: ignore[arg-type]
+            await blacklist_repository.add_token(token, None)  # ty: ignore[invalid-argument-type]
         assert await blacklist_repository.is_token_blacklisted(token) is False
 
     async def test_delete_collection_raises_when_artifacts_exist_or_returns_false(

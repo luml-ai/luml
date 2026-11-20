@@ -7,7 +7,7 @@ widget below). Pressing Enter on a focused mini-chart opens the
 
 The widgets are presentational — they own no facade and no fetching.
 The parent screen calls ``set_metric_keys`` to seed the grid and
-``set_metric_history`` to push points (per metric for the grid, for
+``set_history`` to push bucketed series (per metric for the grid, for
 the single focused metric for the zoom view). This keeps the worker /
 result lifecycle on the screen and lets the widgets stay easy to test
 in isolation.
@@ -26,7 +26,7 @@ from textual.widget import Widget
 from textual.widgets import Static
 from textual_plotext import PlotextPlot
 
-from lumlflow.schemas.experiments import ExperimentMetricHistory, MetricPoint
+from lumlflow.tui.metric_series import MetricSeries, bucket_averages, bucket_ranges
 from lumlflow.tui.widgets.panel_frame import PanelFrame
 
 _DEFAULT_FALLBACK_WIDTH = 40
@@ -46,19 +46,6 @@ def _sanitize_metric_key(key: str) -> str:
     """Return a CSS-safe id slug for a metric key."""
 
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in key)
-
-
-def _same_series(a: ExperimentMetricHistory, b: ExperimentMetricHistory) -> bool:
-    """True when two histories plot identically (steps and values)."""
-
-    if a.key != b.key or a.subsampled != b.subsampled:
-        return False
-    if len(a.history) != len(b.history):
-        return False
-    return all(
-        pa.step == pb.step and pa.value == pb.value
-        for pa, pb in zip(a.history, b.history, strict=True)
-    )
 
 
 class MetricCell(PanelFrame):
@@ -129,11 +116,11 @@ class MetricCell(PanelFrame):
         cell_id = id or f"metric-cell-{_sanitize_metric_key(metric_key)}"
         super().__init__(title=metric_key, id=cell_id)
         self.metric_key = metric_key
-        self._history: ExperimentMetricHistory | None = None
+        self._history: MetricSeries | None = None
         self._last_render_width: int = 0
         self._history_requested: bool = False
 
-    def compose(self) -> Iterable[Widget]:  # type: ignore[override]
+    def compose(self) -> Iterable[Widget]:
         yield PlotextPlot(classes="metric-cell-chart")
         yield Static("(no points yet)", classes="metric-cell-empty")
 
@@ -157,7 +144,7 @@ class MetricCell(PanelFrame):
         )
 
     def chart_max_points(self) -> int:
-        """Estimate how many points to subsample to for this cell."""
+        """The bucket budget for this cell's width."""
 
         try:
             chart = self.query_one(PlotextPlot)
@@ -181,15 +168,15 @@ class MetricCell(PanelFrame):
         raw = max(40, int(width) * 2)
         return -(-raw // 50) * 50
 
-    def set_history(self, history: ExperimentMetricHistory) -> None:
-        """Push new points into the cell and redraw.
+    def set_history(self, history: MetricSeries) -> None:
+        """Push a new series into the cell and redraw.
 
         Skips the redraw when the series is unchanged — live refresh
         re-fetches on a timer, and repainting an identical chart makes
         it visibly churn for no reason.
         """
 
-        if self._history is not None and _same_series(self._history, history):
+        if self._history == history:
             return
         self._history = history
         self._redraw()
@@ -197,7 +184,7 @@ class MetricCell(PanelFrame):
     def _redraw(self) -> None:
         self._sync_empty_state()
         history = self._history
-        if history is None or not history.history:
+        if history is None or not history.has_points:
             return
         try:
             chart = self.query_one(PlotextPlot)
@@ -207,8 +194,7 @@ class MetricCell(PanelFrame):
         plt.clear_figure()
         plt.clear_data()
         plt.clear_color()
-        steps = [p.step for p in history.history]
-        values = [p.value for p in history.history]
+        steps, values = bucket_averages(history)
         plt.plot(steps, values, marker="braille")
         # Skip the title — the panel frame's border title already
         # carries the metric name and a chart title would steal a row.
@@ -220,7 +206,7 @@ class MetricCell(PanelFrame):
             empty = self.query_one(".metric-cell-empty", Static)
         except Exception:
             return
-        has_points = self._history is not None and bool(self._history.history)
+        has_points = self._history is not None and self._history.has_points
         chart.display = has_points
         empty.display = not has_points
 
@@ -302,7 +288,7 @@ class MetricGrid(VerticalScroll):
         # navigation resolves up/down targets against the real layout.
         self._cols: int = 2
 
-    def compose(self) -> Iterable[Widget]:  # type: ignore[override]
+    def compose(self) -> Iterable[Widget]:
         yield Static(
             "No metrics logged for this experiment yet.",
             id="metric-grid-empty",
@@ -392,7 +378,7 @@ class MetricGrid(VerticalScroll):
         # ``HistoryNeeded`` from ``on_resize`` once it has a real width,
         # so ``max_points`` always matches the rendered size.
 
-    def apply_history(self, history: ExperimentMetricHistory) -> None:
+    def apply_history(self, history: MetricSeries) -> None:
         """Push fetched points into the cell for ``history.key``."""
 
         cell = self._cells.get(history.key)
@@ -551,9 +537,9 @@ class MetricZoomView(Vertical):
     def __init__(self, *, id: str | None = None) -> None:
         super().__init__(id=id)
         self._metric_key: str | None = None
-        self._history: ExperimentMetricHistory | None = None
+        self._history: MetricSeries | None = None
 
-    def compose(self) -> Iterable[Widget]:  # type: ignore[override]
+    def compose(self) -> Iterable[Widget]:
         with PanelFrame(
             title="(no metric)",
             fill=True,
@@ -583,16 +569,25 @@ class MetricZoomView(Vertical):
         self._sync_panel_title()
         self._redraw()
 
-    def set_history(self, history: ExperimentMetricHistory) -> None:
-        """Push new points and redraw (skipped when unchanged)."""
+    def set_history(self, history: MetricSeries) -> None:
+        """Push a new series and redraw (skipped when unchanged)."""
 
         if self._metric_key is None or history.key != self._metric_key:
             # Stale fetch for a different metric — ignore.
             return
-        if self._history is not None and _same_series(self._history, history):
+        if self._history == history:
             return
         self._history = history
         self._redraw()
+
+    def chart_max_points(self) -> int:
+        """The bucket budget for the zoom chart: two braille dots per cell."""
+
+        try:
+            width = self.query_one("#metric-zoom-chart", PlotextPlot).size.width
+        except Exception:
+            width = 0
+        return max(80, (width or 200) * 2)
 
     def action_step_metric(self, delta: int) -> None:
         self.post_message(self.StepRequested(delta))
@@ -606,30 +601,29 @@ class MetricZoomView(Vertical):
         except Exception:
             return
         history = self._history
-        if history is None or not history.history:
+        if history is None or not history.has_points:
             chart.add_class("-hidden")
             empty.remove_class("-hidden")
             self._update_status()
             return
         chart.remove_class("-hidden")
         empty.add_class("-hidden")
-        xs, ys = self._series_for_plot(history.history)
+        xs, ys = bucket_averages(history)
+        range_xs, lows, highs = bucket_ranges(history)
         plt = chart.plt
         plt.clear_figure()
         plt.clear_data()
         plt.clear_color()
         if xs and ys:
+            if range_xs:
+                plt.plot(range_xs, lows, marker="braille", color="gray")
+                plt.plot(range_xs, highs, marker="braille", color="gray")
             plt.plot(xs, ys, marker="braille")
             plt.title(history.key)
             plt.xlabel("step")
             plt.ylabel(history.key)
         chart.refresh()
         self._update_status()
-
-    def _series_for_plot(
-        self, points: list[MetricPoint]
-    ) -> tuple[list[float], list[float]]:
-        return [float(p.step) for p in points], [p.value for p in points]
 
     def _sync_panel_title(self) -> None:
         try:
@@ -647,15 +641,14 @@ class MetricZoomView(Vertical):
         if history is None:
             status.update(Text("(no metric selected)", style="dim"))
             return
-        if not history.history:
+        if not history.has_points:
             status.update(Text("(no points yet)", style="dim"))
             return
-        bits = [
-            f"metric: {history.key}",
-            f"points: {len(history.history)}",
-        ]
-        if history.subsampled:
-            bits.append("subsampled")
+        bits = [f"metric: {history.key}"]
+        if history.summary is not None and history.summary.count is not None:
+            bits.append(f"points: {history.summary.count}")
+        if history.level > 0:
+            bits.append(f"{4**history.level} steps per point")
         status.update("  ·  ".join(bits))
 
 

@@ -1,116 +1,136 @@
-import type { ExperimentSnapshotDynamicMetric } from '@/interfaces/interfaces'
-import axios from 'axios'
+import type { ExperimentReadError, ExperimentSnapshotStatus } from '@/metric-buckets/types'
+import type { MetricBucketStore, MetricCatalogs } from '@/metric-buckets/MetricBucketStore'
 import { useEvalsStore } from '../evals'
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, markRaw, ref, shallowRef } from 'vue'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { catalogMetricEntries } from '@/lib/metric-charts/bucketTraces'
 import { METRICS_LIMIT } from './dynamic-metrics.data'
 
 export const useDynamicMetricsStore = defineStore('dynamicMetrics', () => {
   const evalsStore = useEvalsStore()
   const toast = useToast()
 
-  const abortController = ref<AbortController | null>(null)
-
-  const metricsNames = ref<string[]>([])
-
+  const catalogs = shallowRef<MetricCatalogs | null>(null)
+  const loading = ref(false)
+  const filter = ref('')
   const page = ref(0)
+  let loadedFrom: MetricBucketStore | null = null
+  let stopWatchingStatuses: (() => void) | null = null
 
-  const metrics = ref<Record<string, ExperimentSnapshotDynamicMetric[]>>({})
+  const entries = computed(() => (catalogs.value ? catalogMetricEntries(catalogs.value) : []))
 
-  const currentMetricsNames = ref<string[]>([])
-
-  function setCurrentMetricsNames() {
-    const startIndex = page.value * METRICS_LIMIT
-    const endIndex = (page.value + 1) * METRICS_LIMIT
-    currentMetricsNames.value = metricsNames.value.slice(startIndex, endIndex)
-  }
-
-  async function getMetricsData() {
-    const metricsToFetch = currentMetricsNames.value.filter((name) => !metrics.value[name])
-    const results = await fetchMetrics(metricsToFetch)
-    const rejectedMetrics: Record<string, any> = {}
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        const name = metricsToFetch[index]
-        if (!name) return
-        rejectedMetrics[name] = result.reason
-      }
+  /**
+   * Loaded with the catalogs and refreshed with them. An experiment whose catalog failed is
+   * left out of the charts, so its status carries that failure when it has none of its own.
+   */
+  const statuses = computed<ExperimentSnapshotStatus[]>(() => {
+    const loaded = catalogs.value
+    if (!loaded) return []
+    return loaded.statuses.map((status) => {
+      const catalogError = loaded.errors.get(status.modelId)
+      return status.error || !catalogError ? status : { ...status, error: catalogError }
     })
-    handleRejectedMetrics(rejectedMetrics)
+  })
+
+  const lowerCaseKeys = computed(() => entries.value.map((entry) => entry.key.toLowerCase()))
+
+  const metricsNames = computed(() => entries.value.map((entry) => entry.key))
+
+  const filteredMetrics = computed(() => {
+    const query = filter.value.trim().toLowerCase()
+    if (!query) return entries.value
+    return entries.value.filter((_, index) => lowerCaseKeys.value[index]?.includes(query))
+  })
+
+  const currentMetrics = computed(() =>
+    filteredMetrics.value.slice(page.value * METRICS_LIMIT, (page.value + 1) * METRICS_LIMIT),
+  )
+
+  const currentMetricsNames = computed(() => currentMetrics.value.map((entry) => entry.key))
+
+  const modelIds = computed(() => (catalogs.value ? [...catalogs.value.catalogs.keys()] : []))
+
+  /**
+   * Bucket answers, and reads that leave out an experiment of a comparison or read it again,
+   * can change the statuses loaded with the catalogs.
+   */
+  function watchStatuses(store: MetricBucketStore | null) {
+    stopWatchingStatuses?.()
+    stopWatchingStatuses =
+      store?.onStatusesChanged(async () => {
+        try {
+          const loaded = await store.loadCatalogs()
+          if (loadedFrom === store) catalogs.value = markRaw(loaded)
+        } catch {
+          // The notice waits for the next load; the charts report their own failures.
+        }
+      }) ?? null
   }
 
-  function handleRejectedMetrics(rejectedMetrics: Record<string, any>) {
-    Object.entries(rejectedMetrics).forEach(([name, reason]) => {
-      const isCanceled = axios.isCancel(reason)
-      if (isCanceled) return
-      toast.add(simpleErrorToast(`Failed to load dynamic metric data for "${name}"`))
-    })
+  async function load(store: MetricBucketStore | null) {
+    loadedFrom = store
+    catalogs.value = null
+    page.value = 0
+    loading.value = !!store
+    watchStatuses(store)
+    if (!store) return
+    try {
+      const loaded = await store.loadCatalogs()
+      if (loadedFrom === store) catalogs.value = markRaw(loaded)
+    } catch {
+      if (loadedFrom === store) toast.add(simpleErrorToast('Failed to load dynamic metrics'))
+    } finally {
+      if (loadedFrom === store) loading.value = false
+    }
   }
 
-  async function fetchMetrics(names: string[]) {
-    abortController.value?.abort()
-    const controller = new AbortController()
-    abortController.value = controller
-    return Promise.allSettled(
-      names.map(async (name) => {
-        const data = await evalsStore.getProvider.getDynamicMetricData(name, controller.signal)
-        metrics.value[name] = data
-      }),
-    )
+  /** Re-reads the catalogs of live experiments; open charts re-read only what changed. */
+  async function refresh(
+    ids: string[] = modelIds.value,
+  ): Promise<Map<string, ExperimentReadError>> {
+    const store = evalsStore.metricBucketStore
+    if (!store || store.disposed) return new Map()
+    const failures = await store.refreshCatalogs(ids)
+    const refreshed = await store.loadCatalogs()
+    if (loadedFrom === store) catalogs.value = markRaw(refreshed)
+    return failures
   }
 
-  function setMetricsNames(names: string[]) {
-    metricsNames.value = names
-    setCurrentMetricsNames()
-    resetData()
-    getMetricsData()
+  function setFilter(value: string) {
+    filter.value = value
+    page.value = 0
   }
 
   function setPage(value: number) {
     page.value = value
   }
 
-  function resetData() {
-    metrics.value = {}
-  }
-
   function reset() {
-    resetData()
+    loadedFrom = null
+    watchStatuses(null)
+    catalogs.value = null
+    loading.value = false
+    filter.value = ''
     page.value = 0
-    currentMetricsNames.value = []
-    metricsNames.value = []
-    abortController.value?.abort()
   }
-
-  async function refresh() {
-    currentMetricsNames.value.forEach((name) => {
-      delete metrics.value[name]
-    })
-    await getMetricsData()
-  }
-
-  watch(
-    page,
-    () => {
-      setCurrentMetricsNames()
-      resetData()
-      getMetricsData()
-    },
-    {
-      immediate: true,
-    },
-  )
 
   return {
-    metricsNames,
-    metrics,
-    reset,
+    catalogs,
+    statuses,
+    loading,
+    filter,
     page,
-    setPage,
-    setMetricsNames,
+    metricsNames,
+    filteredMetrics,
+    currentMetrics,
     currentMetricsNames,
+    modelIds,
+    load,
     refresh,
+    setFilter,
+    setPage,
+    reset,
   }
 })

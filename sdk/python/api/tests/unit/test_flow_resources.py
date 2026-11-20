@@ -1,10 +1,9 @@
 import json
 from typing import Any
 
-import httpx
 import pytest
 from pydantic import BaseModel
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import ConflictError, NotFoundError
@@ -72,15 +71,13 @@ OPERATION_IDS = [operation[0] for operation in OPERATIONS]
 
 
 def _mock(
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     method: str,
     path: str,
     response: Any,  # noqa: ANN401
 ) -> Any:  # noqa: ANN401
-    answer = (
-        httpx.Response(204) if response is None else httpx.Response(200, json=response)
-    )
-    return respx_mock.request(method, path).mock(return_value=answer)
+    answer = MockResponse(204) if response is None else MockResponse(200, json=response)
+    return httpx2_mock.request(method, path).mock(return_value=answer)
 
 
 def _assert_request(
@@ -115,7 +112,7 @@ def _assert_result(
 )
 def test_operation_sends_matching_request_and_returns_typed_answer(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     operation: str,
     args: tuple[Any, ...],
     method: str,
@@ -124,7 +121,7 @@ def test_operation_sends_matching_request_and_returns_typed_answer(
     response: Any,  # noqa: ANN401
     result_type: type[BaseModel] | None,
 ) -> None:
-    route = _mock(respx_mock, method, path, response)
+    route = _mock(httpx2_mock, method, path, response)
 
     result = getattr(client_with_mocks.flows, operation)(*args)
 
@@ -140,7 +137,7 @@ def test_operation_sends_matching_request_and_returns_typed_answer(
 )
 async def test_async_operation_sends_matching_request_and_returns_typed_answer(
     async_client_with_mocks: AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     operation: str,
     args: tuple[Any, ...],
     method: str,
@@ -149,7 +146,7 @@ async def test_async_operation_sends_matching_request_and_returns_typed_answer(
     response: Any,  # noqa: ANN401
     result_type: type[BaseModel] | None,
 ) -> None:
-    route = _mock(respx_mock, method, path, response)
+    route = _mock(httpx2_mock, method, path, response)
 
     result = await getattr(async_client_with_mocks.flows, operation)(*args)
 
@@ -158,10 +155,10 @@ async def test_async_operation_sends_matching_request_and_returns_typed_answer(
 
 
 def test_list_returns_typed_flows(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    route = respx_mock.get(FLOWS_PATH).mock(
-        return_value=httpx.Response(
+    route = httpx2_mock.get(FLOWS_PATH).mock(
+        return_value=MockResponse(
             200, json=[_flow_record(), _flow_record(id=USER, name="eval")]
         )
     )
@@ -176,10 +173,10 @@ def test_list_returns_typed_flows(
 
 @pytest.mark.asyncio
 async def test_async_list_returns_typed_flows(
-    async_client_with_mocks: AsyncLumlClient, respx_mock: MockRouter
+    async_client_with_mocks: AsyncLumlClient, httpx2_mock: MockRouter
 ) -> None:
-    route = respx_mock.get(FLOWS_PATH).mock(
-        return_value=httpx.Response(200, json=[_flow_record()])
+    route = httpx2_mock.get(FLOWS_PATH).mock(
+        return_value=MockResponse(200, json=[_flow_record()])
     )
 
     flows = await async_client_with_mocks.flows.list()
@@ -189,10 +186,10 @@ async def test_async_list_returns_typed_flows(
 
 
 def test_expose_answer_carries_session_start_and_flow_page(
-    client_with_mocks: LumlClient, respx_mock: MockRouter
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter
 ) -> None:
-    respx_mock.post(FLOWS_PATH).mock(
-        return_value=httpx.Response(200, json=EXPOSE_RESPONSE)
+    httpx2_mock.post(FLOWS_PATH).mock(
+        return_value=MockResponse(200, json=EXPOSE_RESPONSE)
     )
 
     exposed = client_with_mocks.flows.expose("training")
@@ -211,10 +208,10 @@ def test_expose_answer_carries_session_start_and_flow_page(
     ],
 )
 def test_refused_expose_raises_conflict(
-    client_with_mocks: LumlClient, respx_mock: MockRouter, detail: str
+    client_with_mocks: LumlClient, httpx2_mock: MockRouter, detail: str
 ) -> None:
-    respx_mock.post(FLOWS_PATH).mock(
-        return_value=httpx.Response(409, json={"detail": detail})
+    httpx2_mock.post(FLOWS_PATH).mock(
+        return_value=MockResponse(409, json={"detail": detail})
     )
 
     with pytest.raises(ConflictError) as error:
@@ -228,12 +225,12 @@ def test_refused_expose_raises_conflict(
 )
 def test_flow_of_another_user_raises_not_found(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     operation: str,
     method: str,
 ) -> None:
-    respx_mock.request(method, FLOW_PATH).mock(
-        return_value=httpx.Response(404, json={"detail": "Flow not found"})
+    httpx2_mock.request(method, FLOW_PATH).mock(
+        return_value=MockResponse(404, json={"detail": "Flow not found"})
     )
 
     with pytest.raises(NotFoundError):

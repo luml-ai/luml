@@ -2,7 +2,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-import httpx
+import httpx2
 from fastapi import FastAPI
 
 from luml_satellite.monitoring import (
@@ -85,6 +85,6 @@ def build_app(
     return app
 
 
-def client_for(app: FastAPI) -> httpx.AsyncClient:
-    transport = httpx.ASGITransport(app=app)
-    return httpx.AsyncClient(transport=transport, base_url="http://testserver")
+def client_for(app: FastAPI) -> httpx2.AsyncClient:
+    transport = httpx2.ASGITransport(app=app)
+    return httpx2.AsyncClient(transport=transport, base_url="http://testserver")

@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 from luml_api import AsyncLumlClient, NotFoundError
 from luml_api._types import FlowExposed, LiveSessionStart
 
@@ -115,7 +115,7 @@ def not_found(session_id: str) -> NotFoundError:
     url = f"http://luml.test/live-sessions/{session_id}/end"
     return NotFoundError(
         "Live session not found",
-        response=httpx.Response(404, request=httpx.Request("POST", url)),
+        response=httpx2.Response(404, request=httpx2.Request("POST", url)),
         body={"detail": "Live session not found"},
     )
 
@@ -170,6 +170,9 @@ class FakeClients:
 
     live_sessions: FakeLiveSessions = field(default_factory=FakeLiveSessions)
     setups: list[dict[str, str | None]] = field(default_factory=list)
+    created: list["FakeClient"] = field(default_factory=list)
+    organization: str | None = ORGANIZATION_ID
+    orbit: str | None = ORBIT_ID
 
     def __post_init__(self) -> None:
         self.flows = FakeFlows(self.live_sessions)
@@ -178,15 +181,23 @@ class FakeClients:
         self, organization: str | None = None, orbit: str | None = None
     ) -> "FakeClient":
         self.setups.append({"organization": organization, "orbit": orbit})
-        return FakeClient(self.flows, self.live_sessions)
+        client = FakeClient(self.flows, self.live_sessions)
+        client.organization = self.organization
+        client.orbit = self.orbit
+        self.created.append(client)
+        return client
 
 
 class FakeClient:
     def __init__(self, flows: FakeFlows, live_sessions: FakeLiveSessions) -> None:
-        self.organization = ORGANIZATION_ID
-        self.orbit = ORBIT_ID
+        self.organization: str | None = ORGANIZATION_ID
+        self.orbit: str | None = ORBIT_ID
         self.flows = flows
         self.live_sessions = live_sessions
+        self.close_calls = 0
+
+    def close(self) -> None:
+        self.close_calls += 1
 
 
 @dataclass
@@ -199,6 +210,7 @@ class FakeServing:
     served: list[tuple[str, str | None, str | None]] = field(default_factory=list)
     services: list[Any] = field(default_factory=list)
     cancelled: int = 0
+    closed: int = 0
     failure: Exception | None = None
     connects: bool = True
     returned: threading.Event = field(default_factory=threading.Event)

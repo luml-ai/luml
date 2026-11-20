@@ -1,8 +1,7 @@
 from unittest.mock import AsyncMock, Mock, patch
 
-import httpx
 import pytest
-from respx import MockRouter
+from respx import MockResponse, MockRouter
 
 from luml_api._client import AsyncLumlClient, LumlClient
 from luml_api._exceptions import ConflictError, NotFoundError, PermissionDeniedError
@@ -106,25 +105,25 @@ def _call_lineage_operation(client: LumlClient, operation: str) -> object:
     return client.artifacts.remove_lineage(ARTIFACT_ID, EDGE_ID)
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_lineage_methods(
     client_with_mocks: LumlClient,
     sample_artifact: Artifact,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
     base_path = (
         f"/v1/organizations/{client_with_mocks.organization}"
         f"/orbits/{client_with_mocks.orbit}/artifacts"
     )
-    get_route = respx_mock.get(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
-        return_value=httpx.Response(200, json=_graph_json(sample_artifact))
+    get_route = httpx2_mock.get(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
+        return_value=MockResponse(200, json=_graph_json(sample_artifact))
     )
-    create_route = respx_mock.post(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
-        return_value=httpx.Response(200, json=[_edge_json()])
+    create_route = httpx2_mock.post(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
+        return_value=MockResponse(200, json=[_edge_json()])
     )
-    delete_route = respx_mock.delete(
+    delete_route = httpx2_mock.delete(
         f"{base_path}/{ARTIFACT_ID}/lineage/{EDGE_ID}"
-    ).mock(return_value=httpx.Response(200, json=_edge_json()))
+    ).mock(return_value=MockResponse(200, json=_edge_json()))
 
     whole_graph = client_with_mocks.artifacts.get_lineage(ARTIFACT_ID)
     graph = client_with_mocks.artifacts.get_lineage(ARTIFACT_ID, depth=3)
@@ -151,25 +150,25 @@ def test_lineage_methods(
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 async def test_async_lineage_methods(
     async_client_with_mocks: AsyncLumlClient,
     sample_artifact: Artifact,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
     base_path = (
         f"/v1/organizations/{async_client_with_mocks.organization}"
         f"/orbits/{async_client_with_mocks.orbit}/artifacts"
     )
-    get_route = respx_mock.get(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
-        return_value=httpx.Response(200, json=_graph_json(sample_artifact))
+    get_route = httpx2_mock.get(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
+        return_value=MockResponse(200, json=_graph_json(sample_artifact))
     )
-    create_route = respx_mock.post(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
-        return_value=httpx.Response(200, json=[_edge_json()])
+    create_route = httpx2_mock.post(f"{base_path}/{ARTIFACT_ID}/lineage").mock(
+        return_value=MockResponse(200, json=[_edge_json()])
     )
-    delete_route = respx_mock.delete(
+    delete_route = httpx2_mock.delete(
         f"{base_path}/{ARTIFACT_ID}/lineage/{EDGE_ID}"
-    ).mock(return_value=httpx.Response(200, json=_edge_json()))
+    ).mock(return_value=MockResponse(200, json=_edge_json()))
 
     graph = await async_client_with_mocks.artifacts.get_lineage(ARTIFACT_ID, depth=3)
     created = await async_client_with_mocks.artifacts.log_lineage(
@@ -203,10 +202,10 @@ async def test_async_lineage_methods(
     ],
 )
 @pytest.mark.parametrize("operation", ["get", "create", "delete"])
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_lineage_errors_are_translated(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
     status_code: int,
     exception_type: type[Exception],
     operation: str,
@@ -216,39 +215,33 @@ def test_lineage_errors_are_translated(
         f"/orbits/{client_with_mocks.orbit}/artifacts/{ARTIFACT_ID}/lineage"
     )
     if operation == "get":
-        route = respx_mock.get(base_path)
+        route = httpx2_mock.get(base_path)
     elif operation == "create":
-        route = respx_mock.post(base_path)
+        route = httpx2_mock.post(base_path)
     else:
-        route = respx_mock.delete(f"{base_path}/{EDGE_ID}")
-    route.mock(
-        return_value=httpx.Response(status_code, json={"detail": "lineage error"})
-    )
+        route = httpx2_mock.delete(f"{base_path}/{EDGE_ID}")
+    route.mock(return_value=MockResponse(status_code, json={"detail": "lineage error"}))
 
     with pytest.raises(exception_type):
         _call_lineage_operation(client_with_mocks, operation)
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_upload_sends_lineage_inputs_and_omits_none(
     client_with_mocks: LumlClient,
     sample_artifact: Artifact,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
     collection_id = client_with_mocks.collection
-    create_route = respx_mock.post(
+    create_route = httpx2_mock.post(
         f"/v1/organizations/{client_with_mocks.organization}"
         f"/orbits/{client_with_mocks.orbit}/collections/{collection_id}/artifacts"
-    ).mock(
-        return_value=httpx.Response(200, json=_created_artifact_json(sample_artifact))
-    )
-    respx_mock.patch(
+    ).mock(return_value=MockResponse(200, json=_created_artifact_json(sample_artifact)))
+    httpx2_mock.patch(
         f"/v1/organizations/{client_with_mocks.organization}"
         f"/orbits/{client_with_mocks.orbit}/collections/{collection_id}"
         f"/artifacts/{sample_artifact.id}"
-    ).mock(
-        return_value=httpx.Response(200, json=sample_artifact.model_dump(mode="json"))
-    )
+    ).mock(return_value=MockResponse(200, json=sample_artifact.model_dump(mode="json")))
 
     with (
         patch("luml_api.resources.artifacts.ModelFileHandler") as file_handler,
@@ -267,26 +260,22 @@ def test_upload_sends_lineage_inputs_and_omits_none(
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 async def test_async_upload_sends_lineage_inputs_and_omits_none(
     async_client_with_mocks: AsyncLumlClient,
     sample_artifact: Artifact,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
     collection_id = async_client_with_mocks.collection
-    create_route = respx_mock.post(
+    create_route = httpx2_mock.post(
         f"/v1/organizations/{async_client_with_mocks.organization}"
         f"/orbits/{async_client_with_mocks.orbit}/collections/{collection_id}/artifacts"
-    ).mock(
-        return_value=httpx.Response(200, json=_created_artifact_json(sample_artifact))
-    )
-    respx_mock.patch(
+    ).mock(return_value=MockResponse(200, json=_created_artifact_json(sample_artifact)))
+    httpx2_mock.patch(
         f"/v1/organizations/{async_client_with_mocks.organization}"
         f"/orbits/{async_client_with_mocks.orbit}/collections/{collection_id}"
         f"/artifacts/{sample_artifact.id}"
-    ).mock(
-        return_value=httpx.Response(200, json=sample_artifact.model_dump(mode="json"))
-    )
+    ).mock(return_value=MockResponse(200, json=sample_artifact.model_dump(mode="json")))
 
     with (
         patch("luml_api.resources.artifacts.ModelFileHandler") as file_handler,
@@ -308,16 +297,16 @@ async def test_async_upload_sends_lineage_inputs_and_omits_none(
     assert b'"lineage_inputs"' not in second_body
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_rejected_lineage_input_does_not_start_storage_upload(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.post(
+    httpx2_mock.post(
         f"/v1/organizations/{client_with_mocks.organization}"
         f"/orbits/{client_with_mocks.orbit}"
         f"/collections/{client_with_mocks.collection}/artifacts"
-    ).mock(return_value=httpx.Response(404, json={"detail": "Artifact not found"}))
+    ).mock(return_value=MockResponse(404, json={"detail": "Artifact not found"}))
 
     with (
         patch("luml_api.resources.artifacts.ModelFileHandler") as file_handler,
@@ -332,16 +321,16 @@ def test_rejected_lineage_input_does_not_start_storage_upload(
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 async def test_async_rejected_lineage_input_does_not_start_storage_upload(
     async_client_with_mocks: AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    respx_mock.post(
+    httpx2_mock.post(
         f"/v1/organizations/{async_client_with_mocks.organization}"
         f"/orbits/{async_client_with_mocks.orbit}"
         f"/collections/{async_client_with_mocks.collection}/artifacts"
-    ).mock(return_value=httpx.Response(404, json={"detail": "Artifact not found"}))
+    ).mock(return_value=MockResponse(404, json={"detail": "Artifact not found"}))
 
     with (
         patch("luml_api.resources.artifacts.ModelFileHandler") as file_handler,
@@ -357,16 +346,16 @@ async def test_async_rejected_lineage_input_does_not_start_storage_upload(
         upload_service.assert_not_called()
 
 
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 def test_log_lineage_inputs_uses_one_batch(
     client_with_mocks: LumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    batch_route = respx_mock.post(
+    batch_route = httpx2_mock.post(
         f"/v1/organizations/{client_with_mocks.organization}"
         f"/orbits/{client_with_mocks.orbit}/lineage/batch"
     ).mock(
-        return_value=httpx.Response(
+        return_value=MockResponse(
             200, json={"created": [_edge_json(), _edge_json()], "deleted": []}
         )
     )
@@ -386,18 +375,16 @@ def test_log_lineage_inputs_uses_one_batch(
 
 
 @pytest.mark.asyncio
-@pytest.mark.respx(base_url=TEST_BASE_URL)
+@pytest.mark.httpx2(base_url=TEST_BASE_URL)
 async def test_async_log_lineage_inputs_uses_one_batch(
     async_client_with_mocks: AsyncLumlClient,
-    respx_mock: MockRouter,
+    httpx2_mock: MockRouter,
 ) -> None:
-    batch_route = respx_mock.post(
+    batch_route = httpx2_mock.post(
         f"/v1/organizations/{async_client_with_mocks.organization}"
         f"/orbits/{async_client_with_mocks.orbit}/lineage/batch"
     ).mock(
-        return_value=httpx.Response(
-            200, json={"created": [_edge_json()], "deleted": []}
-        )
+        return_value=MockResponse(200, json={"created": [_edge_json()], "deleted": []})
     )
 
     created = await async_client_with_mocks.artifacts.log_lineage_inputs(

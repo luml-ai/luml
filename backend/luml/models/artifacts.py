@@ -1,5 +1,5 @@
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import UUID, BigInteger, Exists, ForeignKey, Index, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -18,10 +18,12 @@ from luml.schemas.artifacts import (
     ArtifactStatus,
 )
 
+# v1 snapshots store a zipped exp.db.zip; v2 store a raw exp.db that browsers
+# read by HTTP Range. Mirrors FnnxService.findExperimentSnapshotArchiveName.
 EXPERIMENT_SNAPSHOT_PATTERN = (
     r"meta_artifacts/dataforce\.studio~c~~c~"
-    r"experiment_snapshot~c~v1~~et~~[^/]+/exp\.db\.zip$"
-    r"|^exp\.db\.zip$"
+    r"experiment_snapshot~c~v[12]~~et~~[^/]+/exp\.db(\.zip)?$"
+    r"|^exp\.db(\.zip)?$"
 )
 
 
@@ -85,7 +87,7 @@ class ArtifactOrm(TimestampMixin, Base):
     )
     type: Mapped[str] = mapped_column(String, nullable=False)
 
-    collection: Mapped[CollectionOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    collection: Mapped[CollectionOrm] = relationship(
         "CollectionOrm", back_populates="artifacts", lazy="selectin"
     )
     deployments = relationship("DeploymentOrm", back_populates="artifacts")
@@ -101,3 +103,7 @@ class ArtifactOrm(TimestampMixin, Base):
 
     def to_artifact_details(self) -> ArtifactDetails:
         return ArtifactDetails.model_validate(self)
+
+
+if TYPE_CHECKING:
+    from luml.models.collection import CollectionOrm

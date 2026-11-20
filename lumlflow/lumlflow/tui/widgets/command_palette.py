@@ -289,7 +289,7 @@ class CommandPalette(BaseDialog[None]):
         try:
             empty = self.query_one("#palette-empty", Static)
         except Exception:
-            empty = None  # type: ignore[assignment]
+            empty = None
         if empty is not None:
             if results:
                 empty.remove_class("-visible")
@@ -339,7 +339,7 @@ class CommandPalette(BaseDialog[None]):
         except Exception as exc:  # pragma: no cover - defensive
             app = self.app
             try:
-                app.show_toast(f"Could not run: {exc}", severity="error")  # type: ignore[attr-defined]
+                app.show_toast(f"Could not run: {exc}", severity="error")
             except Exception:
                 pass
 

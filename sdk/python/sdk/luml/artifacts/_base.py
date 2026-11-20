@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import tarfile
 import uuid
 from abc import ABC, abstractmethod
@@ -24,6 +25,12 @@ class _BaseFile(ABC):
     def get_content(self) -> bytes:
         pass
 
+    def add_to_tar(self, tar: tarfile.TarFile, name: str) -> None:
+        content = self.get_content()
+        info = tarfile.TarInfo(name=name)
+        info.size = len(content)
+        tar.addfile(info, fileobj=io.BytesIO(content))
+
 
 class DiskFile(_BaseFile):
     def __init__(self, path: str | Path) -> None:
@@ -32,6 +39,13 @@ class DiskFile(_BaseFile):
     def get_content(self) -> bytes:
         with open(self.path, "rb") as f:
             return f.read()
+
+    def add_to_tar(self, tar: tarfile.TarFile, name: str) -> None:
+        """Streams the file, which can be far larger than memory."""
+        with open(self.path, "rb") as f:
+            info = tarfile.TarInfo(name=name)
+            info.size = os.fstat(f.fileno()).st_size
+            tar.addfile(info, fileobj=f)
 
 
 class MemoryFile(_BaseFile):
@@ -58,6 +72,14 @@ class ArtifactManifest(BaseModel):
     producer_version: str
     producer_tags: list[str]
     payload: dict[str, Any] | BaseModel
+
+
+def _cut_archive(path: str, end_of_members: int) -> None:
+    """Drops what was appended after `end_of_members`, so the archive stays valid."""
+    with open(path, "r+b") as archive:
+        archive.truncate(end_of_members)
+        archive.seek(end_of_members)
+        archive.write(tarfile.NUL * tarfile.BLOCKSIZE * 2)
 
 
 class DiskReference:
@@ -105,17 +127,21 @@ class DiskReference:
         body_str = json.dumps([body]).encode("utf-8")
         uid = uuid.uuid4().hex
         artifact_path_prefix = f"meta_artifacts/{idx}/"
-        with tarfile.open(self.path, "a") as tar:
-            info = tarfile.TarInfo(name=f"meta-{uid}.json")
-            info.size = len(body_str)
-            tar.addfile(info, fileobj=io.BytesIO(body_str))
-            for item in data:
-                file_content = item.file.get_content()
-                file_info = tarfile.TarInfo(
-                    name=f"{artifact_path_prefix}{item.remote_path}"
-                )
-                file_info.size = len(file_content)
-                tar.addfile(file_info, fileobj=io.BytesIO(file_content))
+        end_of_members: int | None = None
+        try:
+            with tarfile.open(self.path, "a") as tar:
+                end_of_members = tar.offset
+                info = tarfile.TarInfo(name=f"meta-{uid}.json")
+                info.size = len(body_str)
+                tar.addfile(info, fileobj=io.BytesIO(body_str))
+                for item in data:
+                    item.file.add_to_tar(
+                        tar, f"{artifact_path_prefix}{item.remote_path}"
+                    )
+        except BaseException:
+            if end_of_members is not None:
+                _cut_archive(self.path, end_of_members)
+            raise
 
     def extract_file(self, name: str) -> bytes:
         with tarfile.open(self.path, "r") as tar:
