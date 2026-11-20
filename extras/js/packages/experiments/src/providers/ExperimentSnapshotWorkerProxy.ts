@@ -105,6 +105,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
   private readonly requestTimeoutMs: number
   private readonly sourceUrls: SnapshotSourceUrlProvider | null
   private readonly pendingRequests = new Set<(error: Error) => void>()
+  private nextRequestId = 0
   // Only experiments that read by Range: the others need no URL.
   private rangeSourceUrls = new Map<string, SnapshotSourceRef>()
   private postQueue: Promise<void> | null = null
@@ -143,7 +144,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     if (this.terminated) {
       return Promise.reject(new ExperimentSnapshotWorkerTerminatedError())
     }
-    const requestId = crypto.randomUUID()
+    const requestId = String(++this.nextRequestId)
 
     return new Promise((resolve, reject) => {
       const handler = (e: MessageEvent) => {
@@ -484,6 +485,10 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getStaticParamsList(signal?: AbortSignal) {
     return this.call<ExperimentSnapshotStaticParams[]>('getStaticParamsList', undefined, signal)
+  }
+
+  getLoggedParameters(modelId: string, signal?: AbortSignal) {
+    return this.call<{ name: string; value: string }[]>('getLoggedParameters', [modelId], signal)
   }
 
   getExperimentStatuses(signal?: AbortSignal, options?: ReadCallOptions) {

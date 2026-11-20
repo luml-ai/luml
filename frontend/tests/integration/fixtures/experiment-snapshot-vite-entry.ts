@@ -2,5 +2,7 @@
 import { installHarness } from './experiment-snapshot-harness'
 
 installHarness(
-  new Worker(new URL('@/workers/experiment-snapshot', import.meta.url), { type: 'module' }),
+  new Worker(new URL('../../../../extras/js/experimentSnapshotWorker.ts', import.meta.url), {
+    type: 'module',
+  }),
 )

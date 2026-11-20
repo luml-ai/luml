@@ -87,4 +87,30 @@ export class ModelDownloader {
     const end = start + range[1] - 1
     return `bytes=${start}-${end}`
   }
+
+  async readRange(start: number, end: number): Promise<ArrayBuffer> {
+    const range = `bytes=${start}-${end - 1}`
+    const response = await this.urls.withLocation(async ({ url, headers, credentials }) => {
+      const answer = await fetch(url, { headers: { ...headers, Range: range }, credentials })
+      if (answer.status === 401 || answer.status === 403) {
+        await answer.body?.cancel()
+        throw Object.assign(new Error(`Storage answered ${answer.status}`), {
+          response: { status: answer.status },
+        })
+      }
+      return answer
+    })
+    // Cross-origin buckets don't always expose Content-Range to scripts.
+    const contentRange = response.headers.get('Content-Range')
+    if (
+      response.status !== 206 ||
+      (contentRange !== null && !contentRange.startsWith(`bytes ${start}-${end - 1}/`))
+    ) {
+      await response.body?.cancel()
+      throw new Error('The storage server did not return the requested byte range')
+    }
+    const bytes = await response.arrayBuffer()
+    if (bytes.byteLength !== end - start) throw new Error('Incomplete storage byte range')
+    return bytes
+  }
 }

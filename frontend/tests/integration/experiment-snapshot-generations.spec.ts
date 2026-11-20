@@ -26,7 +26,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 const EXPERIMENTS_SRC = resolve(here, '../../../extras/js/packages/experiments/src')
 const FIXTURES_DIR = resolve(here, '../../../sdk/python/sdk/tests/fixtures/experiment_snapshots')
-const WORKER_ENTRY = resolve(here, '../../src/workers/experiment-snapshot/index.ts')
+const WORKER_ENTRY = resolve(here, '../../../extras/js/experimentSnapshotWorker.ts')
 const HARNESS_ENTRY = resolve(here, 'fixtures/experiment-snapshot-esbuild-entry.ts')
 const SNAPSHOT_MEMBER =
   /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v[12]~~et~~[^/]+\/exp\.db(\.zip)?$|^exp\.db(\.zip)?$/

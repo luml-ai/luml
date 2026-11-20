@@ -1,6 +1,6 @@
 # @luml/attachments
 
-Vue 3 component library for browsing and previewing model attachment files. Renders a file-tree sidebar and a content preview panel that handles images, PDFs, audio/video, code, markdown, HTML, and CSV/XML tables. Data is loaded through a pluggable provider — a built-in TAR archive provider is included.
+Vue 3 component library for browsing and previewing model attachment files. Renders a file-tree sidebar and a content preview panel that handles images, PDFs, audio/video, code, markdown, HTML, and CSV, XML, Parquet and Arrow tables. Data is loaded through a pluggable provider — a built-in TAR archive provider is included.
 
 ---
 
@@ -21,19 +21,7 @@ Vue 3 component library for browsing and previewing model attachment files. Rend
 - **Node.js** `^20.19.0 || >=22.12.0`
 - **npm** (workspace managed from the repo root)
 
-**Peer dependencies** — must be installed in the consuming application:
-
-| Package | Version |
-|---|---|
-| `vue` | `^3.5.12` |
-| `primevue` | `^4.4.1` |
-| `@primevue/themes` | `^4.3.9` |
-| `pinia` | `^2.2.6` |
-| `arquero` | `^7.2.0` |
-| `lucide-vue-next` | `^0.460.0` |
-| `marked` | `^16.2.0` |
-| `dompurify` | `^3.2.7` |
-| `github-markdown-css` | `^5.8.1` |
+The workspace installs the preview library’s peer dependencies. See the [package manifest](./package.json) for the supported versions.
 
 ---
 
@@ -119,6 +107,8 @@ Enable sourcemaps by setting `LUML_BUILD_SOURCEMAP=1` before building.
 
 ## Public API
 
+The browser-global UMD script includes its table-reading helpers and uses Apache Arrow from the `Arrow` peer global.
+
 ### Components
 
 #### `ModelAttachments`
@@ -133,6 +123,16 @@ The root component. Renders a two-panel layout: a collapsible file-tree on the l
 |---|---|---|
 | `provider` | `ModelAttachmentsProvider` | Data source — see [Providers](#providers) |
 
+#### `FilePreview`
+
+Use the preview body on its own with a URL or a browser `Blob`. Supply the byte size when available so the preview can reject oversized files before loading them.
+
+```vue
+<FilePreview :file-name="file.name" :file-size="file.size" :source="contentUrl" />
+```
+
+Parquet URLs must support HTTP byte ranges. An indexed archive can supply a range reader with `byteLength` and `slice(start, end)` instead. For audio, video and PDF, pass a streamable URL. For a lazy source that returns a streaming URL or range reader, set `supportsPartialPreview` to allow large previews. Providers declare the same capability per path. For a dataset chunk, `totalRows` can supply the split's total row count.
+
 ### Interfaces
 
 #### `ModelAttachmentsProvider`
@@ -142,6 +142,8 @@ The interface your provider must implement:
 ```typescript
 interface ModelAttachmentsProvider {
   getTree(): FileNode[]
+  supportsPartialPreview?(path: string): boolean
+  getPreviewSource?(path: string, size?: number): PreviewSource | Promise<PreviewSource>
   getAttachmentContent(path: string): Promise<AttachmentContent>
   isEmpty(): boolean
 }
@@ -171,29 +173,6 @@ interface AttachmentContent {
   size: number
 }
 ```
-
-### Composables (internal)
-
-These are used internally by the library but exported for advanced use cases:
-
-#### `useFilePreview(options)`
-
-Handles file loading, format detection, content processing, and preview state.
-
-```typescript
-const { contentUrl, textContent, contentBlob, previewState, error, downloadFile } =
-  useFilePreview({ provider, selectedFile })
-```
-
-#### `useTable(options)`
-
-Parses CSV (via Arquero) and XML files into structured table data.
-
-```typescript
-const { tableData, loading, error } = useTablePreview({ contentBlob, fileName })
-```
-
----
 
 ## Providers
 
@@ -251,17 +230,19 @@ class MyProvider implements ModelAttachmentsProvider {
 
 | Category | Extensions | Preview method |
 |---|---|---|
-| Images | `png`, `jpg`, `jpeg` | `<img>` tag |
+| Images | `png`, `jpg`, `jpeg`, `gif`, `webp` | `<img>` tag |
 | SVG | `svg` | `<img>` tag (scripting disabled) |
 | Audio | `mp3`, `wav`, `ogg` | Native `<audio>` controls |
 | Video | `mp4`, `webm`, `ogv` | Native `<video>` controls |
 | PDF | `pdf` | `<iframe>` embed |
-| HTML | `html` | Sandboxed `<iframe>` with script sanitization |
-| Code | `py`, `js`, `ts`, `yaml`, `yml` | Syntax-highlighted code block |
-| Text / Markdown | `txt`, `md`, `json` | Rendered Markdown or formatted JSON |
-| Table | `csv`, `xml` | PrimeVue DataTable with pagination |
+| HTML | `html` | Sandboxed `<iframe>` |
+| Code | `py`, `js`, `jsx`, `ts`, `tsx`, `css`, `sql`, `toml`, `ini`, `cfg`, `sh` | Read-only CodeMirror |
+| Text | `txt`, `log` | Plain text |
+| Markdown | `md` | Rendered or raw |
+| Structured text | `json`, `yaml`, `yml` | Pretty or raw |
+| Table | `csv`, `xml`, `parquet`, `arrow` | PrimeVue DataTable with pagination |
 
-Files over **10 MB** display a "too large to preview" message with a download button. Unrecognised extensions show an "unsupported format" state.
+The **10 MB** limit applies to buffered previews. Audio, video and PDF can stream by URL. Parquet reads byte ranges. Parquet and Arrow tables show the first 1,000 rows. Unrecognised extensions show an "unsupported format" state.
 
 ---
 

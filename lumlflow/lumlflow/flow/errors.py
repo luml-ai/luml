@@ -10,6 +10,48 @@ class FlowAlreadyExists(FlowError):
     pass
 
 
+class NotAFile(FlowError):
+    pass
+
+
+class TooLarge(FlowError):
+    pass
+
+
+class NotText(FlowError):
+    pass
+
+
+class FileConflict(FlowError):
+    def __init__(self, message: str, *, mtime_ns: str) -> None:
+        super().__init__(message)
+        self.mtime_ns = mtime_ns
+
+
+class FileLocked(FlowError):
+    def __init__(self, message: str, *, label: str) -> None:
+        super().__init__(message)
+        self.label = label
+
+
+class Protected(FlowError):
+    pass
+
+
+class AlreadyExists(FlowAlreadyExists):
+    pass
+
+
+class FlowOpen(FlowError):
+    def __init__(self, message: str, *, flows: list[dict[str, str]]) -> None:
+        super().__init__(message)
+        self.flows = flows
+
+
+class OsError(FlowError):
+    pass
+
+
 class FlowAmbiguous(FlowError):
     pass
 

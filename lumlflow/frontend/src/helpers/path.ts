@@ -1,12 +1,17 @@
 const TRAILING_SEPARATORS = /[\\/]+$/
 const DRIVE = /^[A-Za-z]:$/
 
+function trimTrailingSeparators(path: string): string {
+  return path.replace(path.startsWith('/') ? /\/+$/ : TRAILING_SEPARATORS, '')
+}
+
 function lastSeparatorIndex(path: string): number {
+  if (path.startsWith('/')) return path.lastIndexOf('/')
   return Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
 }
 
 export function parentDirectory(path: string): string | null {
-  const trimmed = path.replace(TRAILING_SEPARATORS, '')
+  const trimmed = trimTrailingSeparators(path)
   const lastSeparator = lastSeparatorIndex(trimmed)
   if (lastSeparator < 0) return null
   const parent = trimmed.slice(0, lastSeparator)
@@ -16,7 +21,7 @@ export function parentDirectory(path: string): string | null {
 }
 
 export function baseName(path: string): string {
-  const trimmed = path.replace(TRAILING_SEPARATORS, '')
+  const trimmed = trimTrailingSeparators(path)
   return trimmed.slice(lastSeparatorIndex(trimmed) + 1)
 }
 
@@ -31,7 +36,8 @@ export function pathSegments(path: string): PathSegment[] {
   const trimmed = path.replace(TRAILING_SEPARATORS, '')
   if (trimmed === '') return []
   const separator = trimmed.includes('/') ? '/' : '\\'
-  const parts = trimmed.split(/[\\/]/)
+  // A backslash is an ordinary name character in a POSIX path.
+  const parts = trimmed.split(trimmed.startsWith('/') ? '/' : /[\\/]/)
   const segments: PathSegment[] = []
   let prefix = ''
   for (const [index, part] of parts.entries()) {

@@ -1,4 +1,5 @@
 import { api } from '@/api/client'
+import { parse } from 'yaml'
 import type {
   AgentHarness,
   ExperimentPublishOptions,
@@ -7,6 +8,8 @@ import type {
   PublishTarget,
 } from '@/flow/api/types'
 import type {
+  ArchiveInspection,
+  FileRevision,
   AssetPage,
   AssetPreview,
   BranchTree,
@@ -36,6 +39,7 @@ import type {
   RewoundBranch,
   SavedSettings,
   SwitchedBranch,
+  WorkspaceFile,
   WorkspaceListing,
 } from './workspace.interface'
 
@@ -44,7 +48,13 @@ const TOKEN_HEADER = 'x-lumlflow-token'
 const TOKEN_STORAGE_KEY = 'lumlflow.flow.token'
 const UNAUTHORIZED = 401
 
-interface RpcError {
+interface RefusalDetails {
+  flows?: { name: string; path: string; session_id: string }[]
+  label?: string
+  mtime_ns?: string
+}
+
+interface RpcError extends RefusalDetails {
   message: string
   kind?: string
 }
@@ -64,7 +74,11 @@ export class WorkspaceUnauthorizedError extends Error {
 export class WorkspaceRefusedError extends Error {
   readonly kind: string | undefined
 
-  constructor(message: string, kind?: string) {
+  constructor(
+    message: string,
+    kind?: string,
+    readonly details: RefusalDetails = {},
+  ) {
     super(message)
     this.name = 'WorkspaceRefusedError'
     this.kind = kind
@@ -83,7 +97,26 @@ function getDaemonToken(): string | null {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
-async function call<P, R>(method: string, params: P): Promise<R> {
+// Preserve exact integers in the manifest while keeping RPC sizes and row counts numeric.
+function decodeInspection(text: string): RpcResponse<ArchiveInspection> {
+  let needsExactIntegers = false
+  const response: RpcResponse<ArchiveInspection> = JSON.parse(text, (_, value) => {
+    if (typeof value === 'number' && Math.abs(value) > Number.MAX_SAFE_INTEGER) {
+      needsExactIntegers = true
+    }
+    return value
+  })
+  if (needsExactIntegers && response.result?.manifest) {
+    response.result.manifest = parse(text, { schema: 'json', intAsBigInt: true }).result.manifest
+  }
+  return response
+}
+
+async function call<P, R>(
+  method: string,
+  params: P,
+  transformResponse?: (text: string) => RpcResponse<R>,
+): Promise<R> {
   const token = getDaemonToken()
   if (!token) throw new WorkspaceUnauthorizedError()
 
@@ -95,6 +128,7 @@ async function call<P, R>(method: string, params: P): Promise<R> {
       {
         headers: { [TOKEN_HEADER]: token },
         validateStatus: () => true,
+        ...(transformResponse && { transformResponse }),
       },
     )
   } catch {
@@ -103,7 +137,7 @@ async function call<P, R>(method: string, params: P): Promise<R> {
 
   if (response.status === UNAUTHORIZED) throw new WorkspaceUnauthorizedError()
   const refused = response.data.error
-  if (refused) throw new WorkspaceRefusedError(refused.message, refused.kind)
+  if (refused) throw new WorkspaceRefusedError(refused.message, refused.kind, refused)
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`lumlflow refused \`${method}\``)
   }
@@ -111,12 +145,85 @@ async function call<P, R>(method: string, params: P): Promise<R> {
 }
 
 export const workspaceApi = {
-  listFlows: (directory?: string) => {
-    return call<{ directory?: string }, WorkspaceListing>(
-      'workspace.list',
-      directory ? { directory } : {},
-    )
+  listFlows: (directory?: string, showHidden = false, offset = 0) =>
+    call<Record<string, unknown>, WorkspaceListing>('workspace.list', {
+      directory,
+      show_hidden: showHidden,
+      offset,
+    }),
+
+  async fileUrl(path: string, entry?: string) {
+    const token = getDaemonToken()
+    if (!token) throw new WorkspaceUnauthorizedError()
+    const { data } = await api.post<{ expires: number; signature: string }>('flow/file', null, {
+      headers: { [TOKEN_HEADER]: token },
+      params: { path, name: entry },
+    })
+    const params = new URLSearchParams({
+      path,
+      expires: String(data.expires),
+      signature: data.signature,
+    })
+    if (entry !== undefined) params.set('name', entry)
+    const url = entry === undefined ? 'flow/file' : 'flow/file/entry'
+    return `${api.getUri({ url })}?${params}`
   },
+
+  inspectFile: (path: string) =>
+    call<{ path: string }, ArchiveInspection>('file.inspect', { path }, decodeInspection),
+
+  publishFile: (path: string, destination: PublishTarget) =>
+    call<{ path: string } & PublishTarget, { job_id: string }>('file.publish', {
+      path,
+      ...destination,
+    }),
+
+  fileInfo: (path: string) =>
+    call<{ path: string }, { file: WorkspaceFile | null }>('workspace.file', { path }),
+
+  readText: (path: string) =>
+    call<{ path: string }, FileRevision & { text: string; target?: string }>('file.read_text', {
+      path,
+    }),
+
+  writeText: (path: string, text: string, mtime: string, revision: string, force = false) =>
+    call<Record<string, unknown>, FileRevision>('file.write_text', {
+      path,
+      text,
+      mtime_ns: mtime,
+      revision,
+      force,
+    }),
+
+  createFile: (directory: string, name: string) =>
+    call<Record<string, string>, { path: string }>('file.create', { directory, name }),
+
+  createFolder: (directory: string, name: string) =>
+    call<Record<string, string>, { path: string }>('file.mkdir', { directory, name }),
+
+  renameFile: (path: string, name: string, closeOpen: boolean | string[] = false) =>
+    call<Record<string, unknown>, { path: string }>('file.rename', {
+      path,
+      name,
+      close_open: closeOpen,
+    }),
+
+  moveFile: (path: string, destination: string, closeOpen: boolean | string[] = false) =>
+    call<Record<string, unknown>, { path: string }>('file.move', {
+      path,
+      destination,
+      close_open: closeOpen,
+    }),
+
+  deleteFile: (path: string, closeOpen: boolean | string[] = false) =>
+    call<Record<string, unknown>, { path: string }>('file.delete', { path, close_open: closeOpen }),
+
+  moveFlow: (flow: string, destination: string, closeOpen: boolean | string[] = false) =>
+    call<Record<string, unknown>, { path: string }>('flow.move', {
+      flow,
+      destination,
+      close_open: closeOpen,
+    }),
 
   openFlows: (directory?: string) => {
     return call<{ directory?: string }, OpenFlowsListing>(
@@ -135,10 +242,15 @@ export const workspaceApi = {
       intent,
     }),
 
-  renameFlow: (flow: string, name: string) =>
-    call<{ flow: string; name: string }, RenamedFlow>('flow.rename', { flow, name }),
+  renameFlow: (flow: string, name: string, closeOpen: boolean | string[] = false) =>
+    call<Record<string, unknown>, RenamedFlow>('flow.rename', {
+      flow,
+      name,
+      close_open: closeOpen,
+    }),
 
-  deleteFlow: (flow: string) => call<{ flow: string }, DeletedFlow>('flow.delete', { flow }),
+  deleteFlow: (flow: string, closeOpen: boolean | string[] = false) =>
+    call<Record<string, unknown>, DeletedFlow>('flow.delete', { flow, close_open: closeOpen }),
 
   duplicateFlow: (flow: string, name: string) =>
     call<{ flow: string; name: string }, DuplicatedFlow>('flow.duplicate', { flow, name }),
