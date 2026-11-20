@@ -3,6 +3,7 @@ import functools
 import logging
 import os
 import sqlite3
+import sys
 import threading
 import time
 import weakref
@@ -220,6 +221,7 @@ class WriteBuffer:
         self._stop = threading.Event()
         self._flusher: threading.Thread | None = None
         self._flusher_start_failed = False
+        self._exit_finalizer_pid: int | None = None
         self._exit_hook = functools.partial(
             WriteBuffer._flush_on_exit, weakref.ref(self)
         )
@@ -325,8 +327,21 @@ class WriteBuffer:
             if not metric_point:
                 self._other_rows[db_path] = self._other_rows.get(db_path, 0) + 1
             if self._flusher is None:
+                self._flush_at_multiprocessing_exit()
                 self._start_flusher()
         return True
+
+    def _flush_at_multiprocessing_exit(self) -> None:
+        # A multiprocessing child runs no atexit hooks: it ends with os._exit() after
+        # the finalizers of multiprocessing.util, a module every such child has loaded.
+        if self._exit_finalizer_pid == os.getpid():
+            return
+        if "multiprocessing.util" not in sys.modules:
+            return
+        from multiprocessing import util
+
+        self._exit_finalizer_pid = os.getpid()
+        util.Finalize(None, self._exit_hook, exitpriority=0)
 
     def _write_through(
         self, db_path: str, generation: int, sql: str, params: tuple[Any, ...]
