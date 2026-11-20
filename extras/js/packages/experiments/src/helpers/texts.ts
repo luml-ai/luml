@@ -47,16 +47,26 @@ function isMarkedObject(value: unknown, marker: string): value is Record<string,
   )
 }
 
+/** A boolean expectation has counts and no value: the text its table cell shows. */
+function booleanCountsText(cell: Record<string, unknown>): string | null {
+  const parts = [
+    [cell.positive, 'True'],
+    [cell.negative, 'False'],
+  ].flatMap(([count, title]) => (count ? [`${title} (${count})`] : []))
+  return parts.length ? parts.join(' ') : null
+}
+
 /**
  * Annotation columns hold objects for their table cells: a feedback column is exported as its
- * counts and an expectation column as its expected value. The counts do not start with "+" or
- * "-", which spreadsheets read as a formula.
+ * counts and an expectation column as its expected value, or its counts when it has none. The
+ * counts do not start with "+" or "-", which spreadsheets read as a formula.
  */
 export function tableCellToString(value: unknown): string | null {
   if (isMarkedObject(value, 'isFeedbackColumn')) {
     return `${value.positiveCount} positive, ${value.negativeCount} negative`
   }
   if (isMarkedObject(value, 'isExpectationColumn')) {
+    if (value.value === null || value.value === undefined) return booleanCountsText(value)
     return valueToString(value.value)
   }
   return valueToString(value)
