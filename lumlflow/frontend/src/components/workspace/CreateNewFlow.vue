@@ -1,60 +1,53 @@
 <template>
-  <div class="px-1">
-    <Button variant="text" @click="openDialog">
-      <Plus :size="16" />
-      <span> New notebook</span>
-    </Button>
-    <Dialog
-      v-model:visible="visible"
-      header="CREATE NEW NOTEBOOK"
-      modal
-      dismissable-mask
-      :draggable="false"
-      :pt="DIALOG_PT"
-      @update:visible="onVisibleChange"
+  <Dialog
+    v-model:visible="visible"
+    header="CREATE NEW NOTEBOOK"
+    modal
+    dismissable-mask
+    :draggable="false"
+    :pt="DIALOG_PT"
+    @update:visible="onVisibleChange"
+  >
+    <Form
+      id="create-flow-form"
+      :resolver="resolver"
+      :initial-values="initialValues"
+      :validate-on-value-update="submitAttempted"
+      @submit="submit"
     >
-      <Form
-        id="create-flow-form"
-        :resolver="resolver"
-        :initial-values="initialValues"
-        :validate-on-value-update="submitAttempted"
-        @submit="submit"
-      >
-        <FormField v-slot="$field" name="name">
-          <label for="name" class="inline-block mb-2 required">Name</label>
-          <InputGroup>
-            <InputText
-              v-model="initialValues.name"
-              id="name"
-              fluid
-              placeholder="Name your notebook"
-            />
-            <InputGroupAddon>{{ FLOW_FILE_EXTENSION }}</InputGroupAddon>
-          </InputGroup>
-          <Message v-if="$field?.invalid" severity="error" size="small" variant="simple">
-            {{ $field.error?.message }}
-          </Message>
-        </FormField>
-      </Form>
-      <template #footer>
-        <Button
-          type="submit"
-          label="Create notebook"
-          :loading="loading"
-          :disabled="!initialValues.name || loading"
-          form="create-flow-form"
-          fluid
-          rounded
-        />
-      </template>
-    </Dialog>
-  </div>
+      <FormField v-slot="$field" name="name">
+        <label for="name" class="inline-block mb-2 required">Name</label>
+        <InputGroup>
+          <InputText
+            v-model="initialValues.name"
+            id="name"
+            fluid
+            placeholder="Name your notebook"
+          />
+          <InputGroupAddon>{{ FLOW_FILE_EXTENSION }}</InputGroupAddon>
+        </InputGroup>
+        <Message v-if="$field?.invalid" severity="error" size="small" variant="simple">
+          {{ $field.error?.message }}
+        </Message>
+      </FormField>
+    </Form>
+    <template #footer>
+      <Button
+        type="submit"
+        label="Create notebook"
+        :loading="loading"
+        :disabled="!initialValues.name || loading"
+        form="create-flow-form"
+        fluid
+        rounded
+      />
+    </template>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import type { DialogPassThroughOptions } from 'primevue'
 import { Button, Dialog, InputGroup, InputGroupAddon, InputText, Message } from 'primevue'
-import { Plus } from 'lucide-vue-next'
 import { ref } from 'vue'
 import { Form, FormField, type FormSubmitEvent } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
@@ -116,9 +109,11 @@ const loading = ref(false)
 
 const submitAttempted = ref(false)
 
-function openDialog() {
+function open() {
   visible.value = true
 }
+
+defineExpose({ open })
 
 function onVisibleChange(visible: boolean) {
   if (visible) return

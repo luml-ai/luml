@@ -8,7 +8,10 @@
         </div>
         <OpenFlowsSummary />
       </div>
-      <WorkspacePath @navigate="navigate" />
+      <div class="flex items-center gap-4">
+        <WorkspacePath class="min-w-0" @navigate="navigate" />
+        <WorkspaceCreateMenu class="ml-auto shrink-0" @created-file="openFile" />
+      </div>
     </div>
     <div :class="{ 'content-split': selectedFile }">
       <WorkspaceFolder
@@ -16,7 +19,6 @@
         :selected-path="filePath"
         :before-operation="beforeOperation"
         @open-file="openFile"
-        @created-file="openFile"
         @navigate="navigate"
       />
       <WorkspaceFileViewer
@@ -57,6 +59,7 @@ import { FlowStream, streamToken } from '@/api/streams/flow'
 import UiPreviewBadge from '@/components/ui/UiPreviewBadge.vue'
 import WorkspaceFolder from '@/components/workspace/folder/WorkspaceFolder.vue'
 import OpenFlowsSummary from '@/components/workspace/OpenFlowsSummary.vue'
+import WorkspaceCreateMenu from '@/components/workspace/WorkspaceCreateMenu.vue'
 import WorkspaceFileViewer from '@/components/workspace/WorkspaceFileViewer.vue'
 import WorkspacePath from '@/components/workspace/WorkspacePath.vue'
 import { baseName, parentDirectory } from '@/helpers/path'

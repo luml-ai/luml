@@ -152,42 +152,9 @@ describe('Workspace listing and operations', () => {
     expect(more).toHaveBeenCalledOnce()
   })
 
-  it('keeps invalid create names and daemon collisions under the field, and opens the created file', async () => {
-    const create = vi
-      .spyOn(workspaceApi, 'createFile')
-      .mockRejectedValueOnce(
-        new WorkspaceRefusedError('"notes.md" already exists', 'AlreadyExists'),
-      )
-      .mockResolvedValueOnce({ path: '/p/new.md' })
+  it('leaves creating entries to the page header', () => {
     const wrapper = component()
-    await click('New file')
-    const form = new DOMWrapper(document.querySelector('#workspace-create-form')!)
-    await form.get('input').setValue('../bad')
-    await form.trigger('submit')
-    expect(form.text()).toContain('single name')
-    expect(create).not.toHaveBeenCalled()
-    await form.get('input').setValue('notes.md')
-    await form.trigger('submit')
-    await settle()
-    expect(form.text()).toContain('"notes.md" already exists')
-    await form.get('input').setValue('new.md')
-    await form.trigger('submit')
-    await settle()
-    expect(wrapper.emitted('created-file')).toEqual([['/p/new.md']])
-    expect(useWorkspaceStore().refreshDirectory).toHaveBeenCalledOnce()
-  })
-
-  it('creates a folder in the current directory without changing the selected file', async () => {
-    const mkdir = vi.spyOn(workspaceApi, 'createFolder').mockResolvedValue({ path: '/p/data' })
-    const wrapper = component()
-    await click('New folder')
-    const form = new DOMWrapper(document.querySelector('#workspace-create-form')!)
-    await form.get('input').setValue('data')
-    await form.trigger('submit')
-    await settle()
-    expect(mkdir).toHaveBeenCalledWith('/p', 'data')
-    expect(wrapper.emitted('created-file')).toBeUndefined()
-    expect(useWorkspaceStore().refreshDirectory).toHaveBeenCalledOnce()
+    expect(wrapper.text()).not.toMatch(/New notebook|New folder|New file/)
   })
 
   it('confirms only the link will be removed when deleting a directory symlink', async () => {

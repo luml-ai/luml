@@ -49,25 +49,6 @@
       </template>
     </Card>
     <Menu ref="menu" popup :model="actions" />
-    <div
-      v-if="!store.isDirectoryLoading && store.currentDirectory"
-      class="flex flex-wrap items-center gap-1 mt-4"
-    >
-      <CreateNewFlow :existing-names="existingFlowNames" />
-      <Button v-if="!store.isNotebookListing" variant="text" @click="createType = 'folder'"
-        ><FolderPlus :size="16" />New folder</Button
-      >
-      <Button v-if="!store.isNotebookListing" variant="text" @click="createType = 'file'"
-        ><FilePlus :size="16" />New file</Button
-      >
-    </div>
-    <CreateEntryDialog
-      v-if="createType && store.currentDirectory"
-      :type="createType"
-      :directory="store.currentDirectory"
-      @close="createType = null"
-      @created="created"
-    />
     <MoveEntryDialog
       v-if="moveTarget && store.currentDirectory"
       :item="moveTarget"
@@ -85,13 +66,10 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 import { Button, Card, Menu, Skeleton, ToggleSwitch, useConfirm, useToast } from 'primevue'
 import type { ConfirmationOptions } from 'primevue/confirmationoptions'
 import type { MenuItem } from 'primevue/menuitem'
-import { FilePlus, FolderPlus } from 'lucide-vue-next'
 import { WorkspaceRefusedError, workspaceApi } from '@/api/slices/workspace/workspace.api'
 import { FLOW_FILE_EXTENSION } from '@/components/workspace/workspace.const'
-import CreateNewFlow from '@/components/workspace/CreateNewFlow.vue'
 import { useWorkspaceStore } from '@/store/workspace'
 import { errorToast, successToast } from '@/toasts'
-import CreateEntryDialog from './CreateEntryDialog.vue'
 import MoveEntryDialog from './MoveEntryDialog.vue'
 import WorkspaceFolderItem from './WorkspaceFolderItem.vue'
 import type { IWorkspaceFolderItem } from './interface'
@@ -104,7 +82,6 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   'open-file': [path: string]
-  'created-file': [path: string]
   navigate: [path: string]
 }>()
 const store = useWorkspaceStore()
@@ -114,19 +91,14 @@ const menu = useTemplateRef('menu')
 const menuTarget = ref<IWorkspaceFolderItem | null>(null)
 const renameTarget = ref<IWorkspaceFolderItem | null>(null)
 const moveTarget = ref<IWorkspaceFolderItem | null>(null)
-const createType = ref<'file' | 'folder' | null>(null)
 const busy = ref(false)
 const pendingHidden = ref<boolean | null>(null)
-const existingFlowNames = computed(() =>
-  props.items.filter((item) => item.type === 'flow').map((item) => item.entryName ?? item.name),
-)
 
 watch(
   () => store.currentDirectory,
   () => {
     menu.value?.hide()
     menuTarget.value = renameTarget.value = moveTarget.value = null
-    createType.value = null
   },
 )
 
@@ -152,14 +124,6 @@ async function setHidden(value: boolean) {
   pendingHidden.value = value
   await report(store.setShowHidden(value))
   pendingHidden.value = null
-}
-
-async function created(path: string) {
-  const directory = store.currentDirectory
-  const file = createType.value === 'file'
-  createType.value = null
-  await report(store.refreshDirectory())
-  if (file && directory === store.currentDirectory) emit('created-file', path)
 }
 
 function ask(options: ConfirmationOptions) {
