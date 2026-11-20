@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     POSTGRESQL_DSN: str
     REDIS_URL: str
+    CLIENT_IP_HEADER: str | None = None
 
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
