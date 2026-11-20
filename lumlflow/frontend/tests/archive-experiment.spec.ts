@@ -5,6 +5,7 @@ import { flushPromises, mount, RouterLinkStub, type VueWrapper } from '@vue/test
 import { createPinia } from 'pinia'
 import ToastService from 'primevue/toastservice'
 import ConfirmationService from 'primevue/confirmationservice'
+import { Message } from 'primevue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAnnotationsStore, type ExperimentSnapshotModelSource } from '@luml/experiments'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
@@ -135,7 +136,10 @@ describe('archived experiment details', () => {
       open()
       await vi.waitFor(() => expect(page.text()).toContain('learning_rate'), { timeout: 10000 })
       expect(page.text()).toContain('0.001')
-      expect(page.text()).toContain(String.raw`Read-only experiment from run\42.luml`)
+      const notice = page.getComponent(Message)
+      expect(notice.text()).toBe(String.raw`Read-only experiment from run\42.luml`)
+      // Inset by the outline width, which Message draws outside its box, so main does not clip it.
+      expect(notice.classes()).toContain('mx-(--p-message-border-width)')
       expect(page.getComponent(RouterLinkStub).props('to')).toMatchObject({
         query: { directory: '/work', file: path },
       })

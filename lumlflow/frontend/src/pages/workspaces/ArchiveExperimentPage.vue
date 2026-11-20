@@ -4,7 +4,10 @@
     :to="{ name: ROUTE_NAMES.WORKSPACES, query: { directory: parentDirectory(path), file: path } }"
     >Back to Workspace</RouterLink
   >
-  <Message severity="info" class="mb-4">Read-only experiment from {{ baseName(path) }}</Message>
+  <!-- Message draws its border as an outline outside its box; main clips anything past its edges. -->
+  <Message severity="info" class="mx-(--p-message-border-width) mb-4"
+    >Read-only experiment from {{ baseName(path) }}</Message
+  >
   <p v-if="error" role="alert">{{ error }}</p>
   <Skeleton v-else-if="!archive" height="16rem" />
   <template v-else>
